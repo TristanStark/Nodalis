@@ -35,11 +35,14 @@ internal static class AtomicJsonFile
 
         return AtomicFileWriter.WriteAsync(
             path,
-            (stream, token) => JsonSerializer.SerializeAsync(
-                stream,
-                value,
-                JsonDefaults.Options,
-                token).AsTask(),
+            async (stream, token) =>
+            {
+                await JsonSerializer.SerializeAsync(
+                    stream,
+                    value,
+                    JsonDefaults.Options,
+                    token);
+            },
             cancellationToken);
     }
 }
