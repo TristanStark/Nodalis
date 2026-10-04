@@ -1478,7 +1478,10 @@ static async Task VerifyMeetingsAsync(string root)
 
     var application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationJson,
-        JsonDefaults.Options)
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })
         ?? throw new InvalidDataException(
             "Meeting smoke test application manifest is invalid.");
 
