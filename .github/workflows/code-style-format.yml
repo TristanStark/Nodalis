@@ -27,6 +27,21 @@ jobs:
       - name: Restore
         run: dotnet restore Nodalis.sln
 
+      - name: Remove invalid void return documentation
+        shell: pwsh
+        run: |
+          $pattern = '(?m)^[ \t]*/// <returns>The result of the operation\.</returns>\r?\n(?=[ \t]*(?:(?:public|private|protected|internal|static|async|virtual|override|sealed|new|unsafe|partial|extern)\s+)*void\b)'
+          Get-ChildItem -Path src -Recurse -Filter *.cs | ForEach-Object {
+            $content = [System.IO.File]::ReadAllText($_.FullName)
+            $updated = [System.Text.RegularExpressions.Regex]::Replace($content, $pattern, '')
+            if ($updated -ne $content) {
+              [System.IO.File]::WriteAllText(
+                $_.FullName,
+                $updated,
+                [System.Text.UTF8Encoding]::new($false))
+            }
+          }
+
       - name: Normalize C# whitespace
         run: dotnet format whitespace Nodalis.sln --no-restore
 

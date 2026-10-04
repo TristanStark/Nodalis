@@ -821,7 +821,8 @@ internal static partial class Program
         }
 
         if (member is MethodDeclarationSyntax returnableMethod
-            && !returnableMethod.ReturnType.IsKind(SyntaxKind.VoidKeyword))
+            && !(returnableMethod.ReturnType is PredefinedTypeSyntax predefinedReturnType
+                 && predefinedReturnType.Keyword.IsKind(SyntaxKind.VoidKeyword)))
         {
             builder.Append(indentation)
                 .Append("/// <returns>The result of the operation.</returns>")
