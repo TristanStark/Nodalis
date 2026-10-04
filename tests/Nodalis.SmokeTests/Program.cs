@@ -3,6 +3,7 @@ using Nodalis.Core.Attachments;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Glossary;
 using Nodalis.Core.Links;
+using Nodalis.Core.Milestones;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Tasks;
 using Nodalis.Core.Markdown;
@@ -15,6 +16,7 @@ using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Links;
+using Nodalis.Infrastructure.Milestones;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Notes;
 using Nodalis.Infrastructure.Persistence;
@@ -43,6 +45,7 @@ try
     await VerifyGlossaryAsync(root);
     await VerifyAttachmentsAsync(root);
     await VerifyTasksAsync(root);
+    await VerifyMilestonesAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -1299,6 +1302,164 @@ static async Task VerifyTasksAsync(string root)
             ambiguous,
             completed: true),
         "Task toggle must refuse ambiguous moved source lines.");
+}
+
+static async Task VerifyMilestonesAsync(string root)
+{
+    var structure = new ApplicationStructureService(root);
+    var applicationPath = await structure.CreateApplicationAsync(
+        "Application Jalons");
+
+    var applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
+
+    var projectCreator = new FileSystemProjectCreator(root);
+    var project = await projectCreator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Jalons",
+            Complexity = ProjectComplexity.Simple,
+            Target = new ProjectCreationTarget
+            {
+                ApplicationId = application.Id,
+                ApplicationName = application.Name,
+                ParentDirectory = applicationPath,
+                DisplayName = application.Name
+            }
+        });
+
+    var service = new WorkspaceMilestoneService(root);
+
+    var first = await service.AddAsync(
+        project.ProjectDirectory,
+        new MilestoneDraft
+        {
+            Name = "Recette longue",
+            TargetDate = new DateOnly(2026, 10, 10),
+            Status = "À faire",
+            Description = "Passage A | puis B",
+            Link = "outil://jalon/123"
+        });
+
+    await service.AddAsync(
+        project.ProjectDirectory,
+        new MilestoneDraft
+        {
+            Name = "Jalon terminé",
+            TargetDate = new DateOnly(2026, 10, 8),
+            Status = "Terminé",
+            Description = "Déjà traité"
+        });
+
+    await service.AddAsync(
+        project.ProjectDirectory,
+        new MilestoneDraft
+        {
+            Name = "Ancien jalon",
+            TargetDate = new DateOnly(2026, 9, 30),
+            Status = "À faire"
+        });
+
+    var projectMilestones = await service.GetMilestonesAsync(
+        project.ProjectDirectory);
+
+    Assert(
+        projectMilestones.Count == 3 &&
+        projectMilestones.Any(item =>
+            item.Name == "Recette longue" &&
+            item.TargetDate == new DateOnly(2026, 10, 10) &&
+            item.Description == "Passage A | puis B" &&
+            item.Link == "outil://jalon/123"),
+        "Milestone tables must persist dates, description, links and escaped pipes.");
+
+    var updated = await service.UpdateAsync(
+        first,
+        new MilestoneDraft
+        {
+            Name = "Recette longue",
+            TargetDate = new DateOnly(2026, 10, 12),
+            Status = "En cours",
+            Description = "Décalée après revue",
+            Link = "outil://jalon/123"
+        });
+
+    Assert(
+        updated.TargetDate == new DateOnly(2026, 10, 12) &&
+        updated.Status == "En cours",
+        "Editing a milestone must update local Markdown metadata.");
+
+    var upcoming = await service.GetUpcomingAsync(
+        new DateOnly(2026, 10, 4),
+        forwardDays: 30);
+
+    Assert(
+        upcoming.Any(item =>
+            item.ProjectId == project.Project.Id &&
+            item.Name == "Recette longue") &&
+        !upcoming.Any(item =>
+            item.Name == "Jalon terminé") &&
+        !upcoming.Any(item =>
+            item.Name == "Ancien jalon"),
+        "Upcoming milestones must exclude completed and past milestones.");
+
+    var sourcePath = Path.Combine(
+        root,
+        updated.SourceRelativePath.Replace(
+            '/',
+            Path.DirectorySeparatorChar));
+
+    var current = await File.ReadAllTextAsync(
+        sourcePath);
+
+    await File.WriteAllTextAsync(
+        sourcePath,
+        "Note avant la table\n" + current);
+
+    var relocated = await service.UpdateAsync(
+        updated,
+        new MilestoneDraft
+        {
+            Name = "Recette longue",
+            TargetDate = new DateOnly(2026, 10, 13),
+            Status = "En cours",
+            Description = "Ligne déplacée",
+            Link = "outil://jalon/123"
+        });
+
+    Assert(
+        relocated.TargetDate == new DateOnly(2026, 10, 13),
+        "Milestone editing must relocate a uniquely moved source row safely.");
+
+    var duplicateRow = relocated.RawLine;
+    var duplicatedContent = await File.ReadAllTextAsync(
+        sourcePath);
+
+    await File.WriteAllTextAsync(
+        sourcePath,
+        "Décalage supplémentaire\n" +
+        duplicatedContent +
+        duplicateRow +
+        "\n");
+
+    await AssertThrowsAsync<MilestoneSourceConflictException>(
+        () => service.UpdateAsync(
+            relocated,
+            new MilestoneDraft
+            {
+                Name = "Recette longue",
+                TargetDate = new DateOnly(2026, 10, 14),
+                Status = "En cours"
+            }),
+        "Milestone editing must refuse ambiguous moved source rows.");
 }
 
 static void VerifyMarkdownParser()
