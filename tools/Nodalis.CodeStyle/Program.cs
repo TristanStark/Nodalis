@@ -473,7 +473,12 @@ internal static partial class Program
         }
 
         ILocalSymbol? local = semanticModel.GetDeclaredSymbol(designation) as ILocalSymbol;
-        return IsNameableType(local?.Type) ? local.Type : null;
+        if (local is null)
+        {
+            return null;
+        }
+
+        return IsNameableType(local.Type) ? local.Type : null;
     }
 
     /// <summary>
