@@ -17,6 +17,7 @@ Le socle actuellement disponible comprend :
 - notes rapides aux scopes Global / Application / Projet ;
 - recherche exacte regroupée Projet / Application / Global ;
 - Command Palette ;
+- dashboard d'accueil avec favoris, récents, tâches ouvertes et jalons prochains ;
 - persistance atomique et détection des modifications externes ;
 - zéro dépendance NuGet ;
 - zéro API réseau dans le produit.
