@@ -137,9 +137,16 @@ public sealed class WorkspaceMeetingService
         var links = await _linkIndex.RefreshAsync(cancellationToken);
         var scope = ResolveScope(contextPath, links);
 
-        return scope is null
-            ? null
-            : (scope.KindLabel, scope.Target.DisplayName);
+        if (scope is null)
+        {
+            return null;
+        }
+
+        var resolved = scope.Value;
+
+        return (
+            resolved.KindLabel,
+            resolved.Target.DisplayName);
     }
 
     private (LinkTargetEntry Target, string KindLabel)? ResolveScope(
