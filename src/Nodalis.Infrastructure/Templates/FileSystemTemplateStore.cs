@@ -339,8 +339,8 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                 "## Sources et liens\n\n",
             ["milestones.md"] =
                 "# Jalons\n\n" +
-                "| Jalon | Date cible | Statut | Lien |\n" +
-                "| --- | --- | --- | --- |\n",
+                "| Jalon | Date cible | Statut | Description | Lien |\n" +
+                "| --- | --- | --- | --- | --- |\n",
             ["glossary.md"] =
                 "# Glossaire\n\n" +
                 "## Exemple\n\n" +
