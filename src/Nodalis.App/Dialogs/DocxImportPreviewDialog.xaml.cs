@@ -23,9 +23,9 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     /// <param name="preview">The <c>preview</c> value.</param>
     /// <param name="planBuilder">The <c>planBuilder</c> value.</param>
-public DocxImportPreviewDialog(
-        DocxImportPreview preview,
-        Func<DocxImportCommitRequest, Task<DocxImportPlan>> planBuilder)
+    public DocxImportPreviewDialog(
+            DocxImportPreview preview,
+            Func<DocxImportCommitRequest, Task<DocxImportPlan>> planBuilder)
     {
         ArgumentNullException.ThrowIfNull(preview);
         ArgumentNullException.ThrowIfNull(planBuilder);
@@ -130,8 +130,8 @@ public DocxImportPreviewDialog(
     /// </summary>
     /// <param name="preview">The <c>preview</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static IReadOnlyList<string> BuildDetectionDetails(
-        DocxImportPreview preview)
+    private static IReadOnlyList<string> BuildDetectionDetails(
+            DocxImportPreview preview)
     {
         global::System.Collections.Generic.List<string> details = preview.Analysis.DetectionNotes.ToList();
 
@@ -184,7 +184,7 @@ private static IReadOnlyList<string> BuildDetectionDetails(
     /// Performs the <c>SelectSuggestedApplication</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void SelectSuggestedApplication()
+    private void SelectSuggestedApplication()
     {
         global::Nodalis.Core.Importing.DocxImportTargetOption? suggested = _preview.SuggestedApplicationId is Guid applicationId
             ? _preview.Applications.FirstOrDefault(application =>
@@ -202,9 +202,9 @@ private void SelectSuggestedApplication()
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void ApplicationComboBox_SelectionChanged(
-        object sender,
-        SelectionChangedEventArgs e)
+    private void ApplicationComboBox_SelectionChanged(
+            object sender,
+            SelectionChangedEventArgs e)
     {
         RefreshProjectChoices(
             preserveSelection: false);
@@ -217,9 +217,9 @@ private void ApplicationComboBox_SelectionChanged(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void TargetSelection_Changed(
-        object sender,
-        SelectionChangedEventArgs e)
+    private void TargetSelection_Changed(
+            object sender,
+            SelectionChangedEventArgs e)
     {
         InvalidatePlan();
     }
@@ -230,9 +230,9 @@ private void TargetSelection_Changed(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void TargetText_Changed(
-        object sender,
-        TextChangedEventArgs e)
+    private void TargetText_Changed(
+            object sender,
+            TextChangedEventArgs e)
     {
         InvalidatePlan();
     }
@@ -243,9 +243,9 @@ private void TargetText_Changed(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void CreateNewProjectCheckBox_Changed(
-        object sender,
-        RoutedEventArgs e)
+    private void CreateNewProjectCheckBox_Changed(
+            object sender,
+            RoutedEventArgs e)
     {
         ApplyProjectMode();
         InvalidatePlan();
@@ -257,9 +257,9 @@ private void CreateNewProjectCheckBox_Changed(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Section_PropertyChanged(
-        object? sender,
-        PropertyChangedEventArgs e)
+    private void Section_PropertyChanged(
+            object? sender,
+            PropertyChangedEventArgs e)
     {
         if (e.PropertyName is
             nameof(SectionRow.Include) or
@@ -274,8 +274,8 @@ private void Section_PropertyChanged(
     /// </summary>
     /// <param name="preserveSelection">The <c>preserveSelection</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void RefreshProjectChoices(
-        bool preserveSelection)
+    private void RefreshProjectChoices(
+            bool preserveSelection)
     {
         if (ApplicationComboBox.SelectedItem is not
             DocxImportTargetOption application)
@@ -325,7 +325,7 @@ private void RefreshProjectChoices(
     /// Performs the <c>ApplyProjectMode</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void ApplyProjectMode()
+    private void ApplyProjectMode()
     {
         bool createNew =
             CreateNewProjectCheckBox.IsChecked == true;
@@ -342,7 +342,7 @@ private void ApplyProjectMode()
     /// Performs the <c>InvalidatePlan</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void InvalidatePlan()
+    private void InvalidatePlan()
     {
         _plannedRequest = null;
         _lastPlan = null;
@@ -376,9 +376,9 @@ private void InvalidatePlan()
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void ImportTabs_SelectionChanged(
-        object sender,
-        SelectionChangedEventArgs e)
+    private async void ImportTabs_SelectionChanged(
+            object sender,
+            SelectionChangedEventArgs e)
     {
         if (!ReferenceEquals(
                 e.Source,
@@ -399,9 +399,9 @@ private async void ImportTabs_SelectionChanged(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void Import_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void Import_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         global::Nodalis.Core.Importing.DocxImportCommitRequest? request = BuildCurrentRequest(
             showValidationMessages: true);
@@ -439,8 +439,8 @@ private async void Import_Click(
     /// </summary>
     /// <param name="showValidationMessages">The <c>showValidationMessages</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task<bool> RefreshPlanAsync(
-        bool showValidationMessages)
+    private async Task<bool> RefreshPlanAsync(
+            bool showValidationMessages)
     {
         if (_refreshingPlan)
         {
@@ -543,8 +543,8 @@ private async Task<bool> RefreshPlanAsync(
     /// </summary>
     /// <param name="plan">The <c>plan</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void DisplayPlan(
-        DocxImportPlan plan)
+    private void DisplayPlan(
+            DocxImportPlan plan)
     {
         PlanTargetText.Text =
             $"{(plan.CreatesProject ? "Nouveau projet" : "Projet existant")} · " +
@@ -569,8 +569,8 @@ private void DisplayPlan(
     /// </summary>
     /// <param name="showValidationMessages">The <c>showValidationMessages</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private DocxImportCommitRequest? BuildCurrentRequest(
-        bool showValidationMessages)
+    private DocxImportCommitRequest? BuildCurrentRequest(
+            bool showValidationMessages)
     {
         void Show(
             string message,
@@ -689,9 +689,9 @@ private DocxImportCommitRequest? BuildCurrentRequest(
     /// <param name="left">The <c>left</c> value.</param>
     /// <param name="right">The <c>right</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool RequestsEquivalent(
-        DocxImportCommitRequest left,
-        DocxImportCommitRequest right)
+    private static bool RequestsEquivalent(
+            DocxImportCommitRequest left,
+            DocxImportCommitRequest right)
     {
         if (left.ApplicationId != right.ApplicationId ||
             left.ProjectId != right.ProjectId ||

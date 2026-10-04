@@ -11,7 +11,7 @@ internal static class JsonDefaults
     /// Performs the <c>CreateOptions</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private static JsonSerializerOptions CreateOptions()
+    private static JsonSerializerOptions CreateOptions()
     {
         global::System.Text.Json.JsonSerializerOptions options = new JsonSerializerOptions
         {

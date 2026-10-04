@@ -19,7 +19,7 @@ public sealed class WorkspaceMilestoneService
     /// Initializes a new instance of <see cref="WorkspaceMilestoneService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public WorkspaceMilestoneService(string workspaceRoot)
+    public WorkspaceMilestoneService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -33,9 +33,9 @@ public WorkspaceMilestoneService(string workspaceRoot)
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<MilestoneItem>> GetMilestonesAsync(
-        string? contextPath,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<MilestoneItem>> GetMilestonesAsync(
+            string? contextPath,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
         (global::System.Guid? ApplicationId, global::System.Guid? ProjectId) context = ResolveContext(contextPath, links);
@@ -108,10 +108,10 @@ public async Task<IReadOnlyList<MilestoneItem>> GetMilestonesAsync(
     /// <param name="forwardDays">The <c>forwardDays</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<MilestoneItem>> GetUpcomingAsync(
-        DateOnly today,
-        int forwardDays = 60,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<MilestoneItem>> GetUpcomingAsync(
+            DateOnly today,
+            int forwardDays = 60,
+            CancellationToken cancellationToken = default)
     {
         if (forwardDays < 0)
         {
@@ -141,10 +141,10 @@ public async Task<IReadOnlyList<MilestoneItem>> GetUpcomingAsync(
     /// <param name="draft">The <c>draft</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<MilestoneItem> AddAsync(
-        string projectDirectory,
-        MilestoneDraft draft,
-        CancellationToken cancellationToken = default)
+    public async Task<MilestoneItem> AddAsync(
+            string projectDirectory,
+            MilestoneDraft draft,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
         ValidateDraft(draft);
@@ -206,10 +206,10 @@ public async Task<MilestoneItem> AddAsync(
     /// <param name="draft">The <c>draft</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<MilestoneItem> UpdateAsync(
-        MilestoneItem item,
-        MilestoneDraft draft,
-        CancellationToken cancellationToken = default)
+    public async Task<MilestoneItem> UpdateAsync(
+            MilestoneItem item,
+            MilestoneDraft draft,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(item);
         ValidateDraft(draft);
@@ -295,9 +295,9 @@ public async Task<MilestoneItem> UpdateAsync(
     /// <param name="item">The <c>item</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task DeleteAsync(
-        MilestoneItem item,
-        CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(
+            MilestoneItem item,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(item);
 
@@ -359,9 +359,9 @@ public async Task DeleteAsync(
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<string?> GetProjectDirectoryForContextAsync(
-        string? contextPath,
-        CancellationToken cancellationToken = default)
+    public async Task<string?> GetProjectDirectoryForContextAsync(
+            string? contextPath,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
         (global::System.Guid? ApplicationId, global::System.Guid? ProjectId) context = ResolveContext(contextPath, links);
@@ -386,9 +386,9 @@ public async Task<string?> GetProjectDirectoryForContextAsync(
     /// <param name="projectDirectory">The <c>projectDirectory</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task<string> ResolveMilestoneFileAsync(
-        string projectDirectory,
-        CancellationToken cancellationToken)
+    private async Task<string> ResolveMilestoneFileAsync(
+            string projectDirectory,
+            CancellationToken cancellationToken)
     {
         string manifestPath = Path.Combine(
             projectDirectory,
@@ -430,9 +430,9 @@ private async Task<string> ResolveMilestoneFileAsync(
     /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task EnsureMilestoneFileAsync(
-        string sourcePath,
-        CancellationToken cancellationToken)
+    private static async Task EnsureMilestoneFileAsync(
+            string sourcePath,
+            CancellationToken cancellationToken)
     {
         if (File.Exists(sourcePath))
         {
@@ -461,11 +461,11 @@ private static async Task EnsureMilestoneFileAsync(
     /// <param name="projectName">The <c>projectName</c> value.</param>
     /// <param name="sourceRelativePath">The <c>sourceRelativePath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static IReadOnlyList<MilestoneItem> ParseTable(
-        IReadOnlyList<string> lines,
-        Guid projectId,
-        string projectName,
-        string sourceRelativePath)
+    private static IReadOnlyList<MilestoneItem> ParseTable(
+            IReadOnlyList<string> lines,
+            Guid projectId,
+            string projectName,
+            string sourceRelativePath)
     {
         global::System.Collections.Generic.List<global::Nodalis.Core.Milestones.MilestoneItem> result = new List<MilestoneItem>();
         Dictionary<string, int>? columns = null;
@@ -602,13 +602,13 @@ private static IReadOnlyList<MilestoneItem> ParseTable(
     /// </summary>
     /// <param name="draft">The <c>draft</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string FormatRow(
-        MilestoneDraft draft) =>
-        $"| {EscapeCell(draft.Name.Trim())} | " +
-        $"{(draft.TargetDate is DateOnly date ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : string.Empty)} | " +
-        $"{EscapeCell(draft.Status.Trim())} | " +
-        $"{EscapeCell(draft.Description.Trim())} | " +
-        $"{EscapeCell(NormalizeOptional(draft.Link) ?? string.Empty)} |";
+    private static string FormatRow(
+            MilestoneDraft draft) =>
+            $"| {EscapeCell(draft.Name.Trim())} | " +
+            $"{(draft.TargetDate is DateOnly date ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : string.Empty)} | " +
+            $"{EscapeCell(draft.Status.Trim())} | " +
+            $"{EscapeCell(draft.Description.Trim())} | " +
+            $"{EscapeCell(NormalizeOptional(draft.Link) ?? string.Empty)} |";
 
     /// <summary>
     /// Performs the <c>LocateSourceLine</c> operation.
@@ -618,11 +618,11 @@ private static string FormatRow(
     /// <param name="rawLine">The <c>rawLine</c> value.</param>
     /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static int LocateSourceLine(
-        IReadOnlyList<string> lines,
-        int expectedLineNumber,
-        string rawLine,
-        string sourcePath)
+    private static int LocateSourceLine(
+            IReadOnlyList<string> lines,
+            int expectedLineNumber,
+            string rawLine,
+            string sourcePath)
     {
         int expectedIndex = expectedLineNumber - 1;
 
@@ -663,9 +663,9 @@ private static int LocateSourceLine(
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="links">The <c>links</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private (Guid? ApplicationId, Guid? ProjectId) ResolveContext(
-        string? contextPath,
-        LinkIndexCatalog links)
+    private (Guid? ApplicationId, Guid? ProjectId) ResolveContext(
+            string? contextPath,
+            LinkIndexCatalog links)
     {
         if (string.IsNullOrWhiteSpace(contextPath))
         {
@@ -726,39 +726,39 @@ private (Guid? ApplicationId, Guid? ProjectId) ResolveContext(
     /// <param name="project">The <c>project</c> value.</param>
     /// <param name="links">The <c>links</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static LinkTargetEntry? FindApplicationForProject(
-        LinkTargetEntry project,
-        LinkIndexCatalog links) =>
-        links.Targets
-            .Where(target =>
-                target.Kind == LinkTargetKind.Application &&
-                IsRelativeAncestor(
-                    target.RelativePath,
-                    project.RelativePath))
-            .OrderByDescending(target =>
-                target.RelativePath.Length)
-            .FirstOrDefault();
+    private static LinkTargetEntry? FindApplicationForProject(
+            LinkTargetEntry project,
+            LinkIndexCatalog links) =>
+            links.Targets
+                .Where(target =>
+                    target.Kind == LinkTargetKind.Application &&
+                    IsRelativeAncestor(
+                        target.RelativePath,
+                        project.RelativePath))
+                .OrderByDescending(target =>
+                    target.RelativePath.Length)
+                .FirstOrDefault();
 
     /// <summary>
     /// Performs the <c>ResolveWorkspacePath</c> operation.
     /// </summary>
     /// <param name="relativePath">The <c>relativePath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private string ResolveWorkspacePath(
-        string relativePath) =>
-        Path.GetFullPath(
-            Path.Combine(
-                _workspaceRoot,
-                relativePath.Replace(
-                    '/',
-                    Path.DirectorySeparatorChar)));
+    private string ResolveWorkspacePath(
+            string relativePath) =>
+            Path.GetFullPath(
+                Path.Combine(
+                    _workspaceRoot,
+                    relativePath.Replace(
+                        '/',
+                        Path.DirectorySeparatorChar)));
 
     /// <summary>
     /// Performs the <c>SplitTableRow</c> operation.
     /// </summary>
     /// <param name="line">The <c>line</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<string> SplitTableRow(string line)
+    private static List<string> SplitTableRow(string line)
     {
         string trimmed = line.Trim();
 
@@ -831,15 +831,15 @@ private static List<string> SplitTableRow(string line)
     /// </summary>
     /// <param name="cells">The <c>cells</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsSeparatorRow(
-        IReadOnlyList<string> cells) =>
-        cells.Count > 0 &&
-        cells.All(cell =>
-            cell.Trim()
-                .Trim(':')
-                .All(character =>
-                    character == '-' ||
-                    char.IsWhiteSpace(character)));
+    private static bool IsSeparatorRow(
+            IReadOnlyList<string> cells) =>
+            cells.Count > 0 &&
+            cells.All(cell =>
+                cell.Trim()
+                    .Trim(':')
+                    .All(character =>
+                        character == '-' ||
+                        char.IsWhiteSpace(character)));
 
     /// <summary>
     /// Performs the <c>GetCell</c> operation.
@@ -848,10 +848,10 @@ private static bool IsSeparatorRow(
     /// <param name="columns">The <c>columns</c> value.</param>
     /// <param name="keys">The <c>keys</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string GetCell(
-        IReadOnlyList<string> cells,
-        IReadOnlyDictionary<string, int> columns,
-        params string[] keys)
+    private static string GetCell(
+            IReadOnlyList<string> cells,
+            IReadOnlyDictionary<string, int> columns,
+            params string[] keys)
     {
         foreach (string key in keys)
         {
@@ -873,52 +873,52 @@ private static string GetCell(
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeHeader(string value) =>
-        value
-            .Trim()
-            .ToLowerInvariant()
-            .Replace("é", "e", StringComparison.Ordinal)
-            .Replace("è", "e", StringComparison.Ordinal)
-            .Replace("ê", "e", StringComparison.Ordinal);
+    private static string NormalizeHeader(string value) =>
+            value
+                .Trim()
+                .ToLowerInvariant()
+                .Replace("é", "e", StringComparison.Ordinal)
+                .Replace("è", "e", StringComparison.Ordinal)
+                .Replace("ê", "e", StringComparison.Ordinal);
 
     /// <summary>
     /// Performs the <c>EscapeCell</c> operation.
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string EscapeCell(string value) =>
-        value.Replace(
-            "|",
-            "\\|",
-            StringComparison.Ordinal);
+    private static string EscapeCell(string value) =>
+            value.Replace(
+                "|",
+                "\\|",
+                StringComparison.Ordinal);
 
     /// <summary>
     /// Performs the <c>UnescapeCell</c> operation.
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string UnescapeCell(string value) =>
-        value.Replace(
-            "\\|",
-            "|",
-            StringComparison.Ordinal);
+    private static string UnescapeCell(string value) =>
+            value.Replace(
+                "\\|",
+                "|",
+                StringComparison.Ordinal);
 
     /// <summary>
     /// Performs the <c>NormalizeOptional</c> operation.
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string? NormalizeOptional(string? value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : value.Trim();
+    private static string? NormalizeOptional(string? value) =>
+            string.IsNullOrWhiteSpace(value)
+                ? null
+                : value.Trim();
 
     /// <summary>
     /// Performs the <c>IsCompletedStatus</c> operation.
     /// </summary>
     /// <param name="status">The <c>status</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsCompletedStatus(string status)
+    private static bool IsCompletedStatus(string status)
     {
         string normalized = NormalizeHeader(status);
 
@@ -939,10 +939,10 @@ private static bool IsCompletedStatus(string status)
     /// <param name="lineNumber">The <c>lineNumber</c> value.</param>
     /// <param name="name">The <c>name</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Guid CreateMilestoneId(
-        Guid projectId,
-        int lineNumber,
-        string name)
+    private static Guid CreateMilestoneId(
+            Guid projectId,
+            int lineNumber,
+            string name)
     {
         byte[] bytes = SHA256.HashData(
             Encoding.UTF8.GetBytes(
@@ -960,12 +960,12 @@ private static Guid CreateMilestoneId(
     /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
     /// <param name="child">The <c>child</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsRelativeAncestor(
-        string candidateParent,
-        string child) =>
-        child.StartsWith(
-            candidateParent.TrimEnd('/') + "/",
-            StringComparison.OrdinalIgnoreCase);
+    private static bool IsRelativeAncestor(
+            string candidateParent,
+            string child) =>
+            child.StartsWith(
+                candidateParent.TrimEnd('/') + "/",
+                StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Performs the <c>IsRelativeAncestorOrEqual</c> operation.
@@ -973,33 +973,33 @@ private static bool IsRelativeAncestor(
     /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
     /// <param name="child">The <c>child</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsRelativeAncestorOrEqual(
-        string candidateParent,
-        string child) =>
-        string.Equals(
-            candidateParent.TrimEnd('/'),
-            child.TrimEnd('/'),
-            StringComparison.OrdinalIgnoreCase) ||
-        IsRelativeAncestor(
-            candidateParent,
-            child);
+    private static bool IsRelativeAncestorOrEqual(
+            string candidateParent,
+            string child) =>
+            string.Equals(
+                candidateParent.TrimEnd('/'),
+                child.TrimEnd('/'),
+                StringComparison.OrdinalIgnoreCase) ||
+            IsRelativeAncestor(
+                candidateParent,
+                child);
 
     /// <summary>
     /// Performs the <c>NormalizeRelativePath</c> operation.
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeRelativePath(string path) =>
-        path.Replace(
-            Path.DirectorySeparatorChar,
-            '/');
+    private static string NormalizeRelativePath(string path) =>
+            path.Replace(
+                Path.DirectorySeparatorChar,
+                '/');
 
     /// <summary>
     /// Performs the <c>ValidateDraft</c> operation.
     /// </summary>
     /// <param name="draft">The <c>draft</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void ValidateDraft(MilestoneDraft draft)
+    private static void ValidateDraft(MilestoneDraft draft)
     {
         ArgumentNullException.ThrowIfNull(draft);
         ArgumentException.ThrowIfNullOrWhiteSpace(draft.Name);

@@ -12,9 +12,9 @@ public partial class QuickNotesOverviewDialog : Window
     /// </summary>
     /// <param name="snapshots">The <c>snapshots</c> value.</param>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public QuickNotesOverviewDialog(
-        IReadOnlyList<QuickNotesSnapshot> snapshots,
-        string workspaceRoot)
+    public QuickNotesOverviewDialog(
+            IReadOnlyList<QuickNotesSnapshot> snapshots,
+            string workspaceRoot)
     {
         ArgumentNullException.ThrowIfNull(snapshots);
 

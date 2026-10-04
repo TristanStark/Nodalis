@@ -16,7 +16,7 @@ public partial class App : Application
     /// </summary>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-protected override async void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -97,9 +97,9 @@ protected override async void OnStartup(StartupEventArgs e)
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void ApplyNodalisWindowStyle(
-        object sender,
-        RoutedEventArgs e)
+    private void ApplyNodalisWindowStyle(
+            object sender,
+            RoutedEventArgs e)
     {
         if (sender is not Window window ||
             window.ReadLocalValue(FrameworkElement.StyleProperty) !=
@@ -122,10 +122,10 @@ private void ApplyNodalisWindowStyle(
     /// <param name="preferences">The <c>preferences</c> value.</param>
     /// <param name="preferencesStore">The <c>preferencesStore</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task<(string WorkspacePath, UserPreferences Preferences)?>
-        ResolveWorkspaceAsync(
-            UserPreferences preferences,
-            UserPreferencesStore preferencesStore)
+    private static async Task<(string WorkspacePath, UserPreferences Preferences)?>
+            ResolveWorkspaceAsync(
+                UserPreferences preferences,
+                UserPreferencesStore preferencesStore)
     {
         if (!string.IsNullOrWhiteSpace(preferences.WorkspaceRootPath))
         {

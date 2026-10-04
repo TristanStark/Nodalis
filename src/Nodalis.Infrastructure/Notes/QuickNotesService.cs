@@ -14,10 +14,10 @@ public sealed class QuickNotesService
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<QuickNoteScope>> ResolveScopesAsync(
-        string workspaceRoot,
-        string? contextPath,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<QuickNoteScope>> ResolveScopesAsync(
+            string workspaceRoot,
+            string? contextPath,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -140,11 +140,11 @@ public async Task<IReadOnlyList<QuickNoteScope>> ResolveScopesAsync(
     /// <param name="timestamp">The <c>timestamp</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task AppendAsync(
-        QuickNoteScope scope,
-        string text,
-        DateTimeOffset timestamp,
-        CancellationToken cancellationToken = default)
+    public async Task AppendAsync(
+            QuickNoteScope scope,
+            string text,
+            DateTimeOffset timestamp,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
@@ -179,10 +179,10 @@ public async Task AppendAsync(
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<QuickNotesSnapshot>> ReadAggregateAsync(
-        string workspaceRoot,
-        string? contextPath,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<QuickNotesSnapshot>> ReadAggregateAsync(
+            string workspaceRoot,
+            string? contextPath,
+            CancellationToken cancellationToken = default)
     {
         global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.QuickNoteScope> scopes = await ResolveScopesAsync(
             workspaceRoot,
@@ -210,8 +210,8 @@ public async Task<IReadOnlyList<QuickNotesSnapshot>> ReadAggregateAsync(
     /// </summary>
     /// <param name="snapshots">The <c>snapshots</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static string FormatAggregateMarkdown(
-        IReadOnlyList<QuickNotesSnapshot> snapshots)
+    public static string FormatAggregateMarkdown(
+            IReadOnlyList<QuickNotesSnapshot> snapshots)
     {
         ArgumentNullException.ThrowIfNull(snapshots);
 
@@ -234,9 +234,9 @@ public static string FormatAggregateMarkdown(
     /// <param name="scope">The <c>scope</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task EnsureQuickNotesFileAsync(
-        QuickNoteScope scope,
-        CancellationToken cancellationToken)
+    private static async Task EnsureQuickNotesFileAsync(
+            QuickNoteScope scope,
+            CancellationToken cancellationToken)
     {
         if (File.Exists(scope.FilePath))
         {
@@ -258,9 +258,9 @@ private static async Task EnsureQuickNotesFileAsync(
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string ResolveContextDirectory(
-        string workspaceRoot,
-        string? contextPath)
+    private static string ResolveContextDirectory(
+            string workspaceRoot,
+            string? contextPath)
     {
         if (string.IsNullOrWhiteSpace(contextPath))
         {
@@ -287,9 +287,9 @@ private static string ResolveContextDirectory(
     /// <param name="candidate">The <c>candidate</c> value.</param>
     /// <param name="root">The <c>root</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsInsideOrEqual(
-        string candidate,
-        string root)
+    private static bool IsInsideOrEqual(
+            string candidate,
+            string root)
     {
         string fullCandidate = Path.GetFullPath(candidate)
             .TrimEnd(
@@ -315,8 +315,8 @@ private static bool IsInsideOrEqual(
     /// </summary>
     /// <param name="markdown">The <c>markdown</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string RemoveTopHeading(
-        string markdown)
+    private static string RemoveTopHeading(
+            string markdown)
     {
         using global::System.IO.StringReader reader = new StringReader(markdown);
         string? firstLine = reader.ReadLine();

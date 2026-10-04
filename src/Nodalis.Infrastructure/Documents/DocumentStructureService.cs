@@ -12,7 +12,7 @@ public sealed class DocumentStructureService
     /// Initializes a new instance of <see cref="DocumentStructureService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public DocumentStructureService(string workspaceRoot)
+    public DocumentStructureService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -27,10 +27,10 @@ public DocumentStructureService(string workspaceRoot)
     /// <param name="newName">The <c>newName</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<string> RenameAsync(
-        string documentPath,
-        string newName,
-        CancellationToken cancellationToken = default)
+    public async Task<string> RenameAsync(
+            string documentPath,
+            string newName,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(newName);

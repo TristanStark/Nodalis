@@ -8,10 +8,10 @@ public sealed class WorkspaceFileChangedEventArgs : EventArgs
     /// <param name="fullPath">The <c>fullPath</c> value.</param>
     /// <param name="changeType">The <c>changeType</c> value.</param>
     /// <param name="oldFullPath">The <c>oldFullPath</c> value.</param>
-public WorkspaceFileChangedEventArgs(
-        string fullPath,
-        WatcherChangeTypes changeType,
-        string? oldFullPath)
+    public WorkspaceFileChangedEventArgs(
+            string fullPath,
+            WatcherChangeTypes changeType,
+            string? oldFullPath)
     {
         FullPath = fullPath;
         ChangeType = changeType;

@@ -11,7 +11,7 @@ public sealed class FileSystemWorkspaceStore : IWorkspaceStore
     /// Initializes a new instance of <see cref="FileSystemWorkspaceStore"/>.
     /// </summary>
     /// <param name="rootPath">The <c>rootPath</c> value.</param>
-public FileSystemWorkspaceStore(string rootPath)
+    public FileSystemWorkspaceStore(string rootPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         RootPath = Path.GetFullPath(rootPath);
@@ -29,9 +29,9 @@ public FileSystemWorkspaceStore(string rootPath)
     /// <param name="workspaceName">The <c>workspaceName</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<WorkspaceManifest> InitializeAsync(
-        string workspaceName,
-        CancellationToken cancellationToken = default)
+    public async Task<WorkspaceManifest> InitializeAsync(
+            string workspaceName,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceName);
 
@@ -82,8 +82,8 @@ public async Task<WorkspaceManifest> InitializeAsync(
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<WorkspaceManifest> LoadAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<WorkspaceManifest> LoadAsync(
+            CancellationToken cancellationToken = default)
     {
         if (!File.Exists(ManifestPath))
         {
@@ -111,9 +111,9 @@ public async Task<WorkspaceManifest> LoadAsync(
     /// <param name="manifest">The <c>manifest</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public Task SaveAsync(
-        WorkspaceManifest manifest,
-        CancellationToken cancellationToken = default)
+    public Task SaveAsync(
+            WorkspaceManifest manifest,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(manifest);
 
@@ -133,10 +133,10 @@ public Task SaveAsync(
     /// <param name="content">The <c>content</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task CreateTextFileIfMissingAsync(
-        string path,
-        string content,
-        CancellationToken cancellationToken)
+    private static async Task CreateTextFileIfMissingAsync(
+            string path,
+            string content,
+            CancellationToken cancellationToken)
     {
         if (File.Exists(path))
         {

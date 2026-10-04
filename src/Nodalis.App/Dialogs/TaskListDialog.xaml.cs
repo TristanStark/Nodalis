@@ -18,11 +18,11 @@ public partial class TaskListDialog : Window
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="scopeLabel">The <c>scopeLabel</c> value.</param>
     /// <param name="toggleTaskAsync">The <c>toggleTaskAsync</c> value.</param>
-public TaskListDialog(
-        string workspaceRoot,
-        string? contextPath,
-        string scopeLabel,
-        Func<TaskItem, bool, Task> toggleTaskAsync)
+    public TaskListDialog(
+            string workspaceRoot,
+            string? contextPath,
+            string scopeLabel,
+            Func<TaskItem, bool, Task> toggleTaskAsync)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         ArgumentNullException.ThrowIfNull(toggleTaskAsync);
@@ -48,10 +48,10 @@ public TaskListDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void IncludeCompletedCheckBox_Changed(
-        object sender,
-        RoutedEventArgs e) =>
-        await RefreshAsync();
+    private async void IncludeCompletedCheckBox_Changed(
+            object sender,
+            RoutedEventArgs e) =>
+            await RefreshAsync();
 
     /// <summary>
     /// Performs the <c>TaskCheckBox_Click</c> operation.
@@ -59,9 +59,9 @@ private async void IncludeCompletedCheckBox_Changed(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void TaskCheckBox_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void TaskCheckBox_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.CheckBox checkBox ||
             checkBox.DataContext is not TaskItem task)
@@ -96,9 +96,9 @@ private async void TaskCheckBox_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void TasksList_MouseDoubleClick(
-        object sender,
-        System.Windows.Input.MouseButtonEventArgs e)
+    private void TasksList_MouseDoubleClick(
+            object sender,
+            System.Windows.Input.MouseButtonEventArgs e)
     {
         if (TasksList.SelectedItem is not TaskItem task)
         {
@@ -113,7 +113,7 @@ private void TasksList_MouseDoubleClick(
     /// Performs the <c>RefreshAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task RefreshAsync()
+    private async Task RefreshAsync()
     {
         try
         {

@@ -9,8 +9,8 @@ public partial class MilestoneEditorDialog : Window
     /// Initializes a new instance of <see cref="MilestoneEditorDialog"/>.
     /// </summary>
     /// <param name="existing">The <c>existing</c> value.</param>
-public MilestoneEditorDialog(
-        MilestoneItem? existing = null)
+    public MilestoneEditorDialog(
+            MilestoneItem? existing = null)
     {
         InitializeComponent();
 
@@ -45,9 +45,9 @@ public MilestoneEditorDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Save_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void Save_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         string name = NameTextBox.Text.Trim();
 

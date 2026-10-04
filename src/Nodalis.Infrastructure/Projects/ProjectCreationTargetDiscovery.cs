@@ -12,9 +12,9 @@ public sealed class ProjectCreationTargetDiscovery
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<ProjectCreationTarget>> DiscoverAsync(
-        string workspaceRoot,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ProjectCreationTarget>> DiscoverAsync(
+            string workspaceRoot,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -101,11 +101,11 @@ public async Task<IReadOnlyList<ProjectCreationTarget>> DiscoverAsync(
     /// <param name="targets">The <c>targets</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task DiscoverModulesAsync(
-        string modulesRoot,
-        ApplicationManifest application,
-        ICollection<ProjectCreationTarget> targets,
-        CancellationToken cancellationToken)
+    private static async Task DiscoverModulesAsync(
+            string modulesRoot,
+            ApplicationManifest application,
+            ICollection<ProjectCreationTarget> targets,
+            CancellationToken cancellationToken)
     {
         foreach (string moduleDirectory in Directory
                      .EnumerateDirectories(modulesRoot)
@@ -174,12 +174,12 @@ private static async Task DiscoverModulesAsync(
     /// <param name="targets">The <c>targets</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task DiscoverProjectsAsync(
-        string projectsRoot,
-        ApplicationManifest application,
-        ModuleManifest? module,
-        ICollection<ProjectCreationTarget> targets,
-        CancellationToken cancellationToken)
+    private static async Task DiscoverProjectsAsync(
+            string projectsRoot,
+            ApplicationManifest application,
+            ModuleManifest? module,
+            ICollection<ProjectCreationTarget> targets,
+            CancellationToken cancellationToken)
     {
         foreach (string projectDirectory in Directory
                      .EnumerateDirectories(projectsRoot)

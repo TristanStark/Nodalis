@@ -11,10 +11,10 @@ public static class AtomicFileWriter
     /// <param name="content">The <c>content</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static Task WriteAllTextAsync(
-        string path,
-        string content,
-        CancellationToken cancellationToken = default)
+    public static Task WriteAllTextAsync(
+            string path,
+            string content,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(content);
 
@@ -41,10 +41,10 @@ public static Task WriteAllTextAsync(
     /// <param name="writeAsync">The <c>writeAsync</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static async Task WriteAsync(
-        string path,
-        Func<Stream, CancellationToken, Task> writeAsync,
-        CancellationToken cancellationToken = default)
+    public static async Task WriteAsync(
+            string path,
+            Func<Stream, CancellationToken, Task> writeAsync,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(writeAsync);

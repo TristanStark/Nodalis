@@ -11,7 +11,7 @@ public static class WindowsPathRules
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static string SanitizeSegment(string value)
+    public static string SanitizeSegment(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
 
@@ -42,9 +42,9 @@ public static string SanitizeSegment(string value)
     /// <param name="parentDirectory">The <c>parentDirectory</c> value.</param>
     /// <param name="desiredFileName">The <c>desiredFileName</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static string GetUniqueFilePath(
-        string parentDirectory,
-        string desiredFileName)
+    public static string GetUniqueFilePath(
+            string parentDirectory,
+            string desiredFileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(parentDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(desiredFileName);
@@ -91,7 +91,7 @@ public static string GetUniqueFilePath(
     /// <param name="parentDirectory">The <c>parentDirectory</c> value.</param>
     /// <param name="desiredName">The <c>desiredName</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static string GetUniqueDirectoryPath(string parentDirectory, string desiredName)
+    public static string GetUniqueDirectoryPath(string parentDirectory, string desiredName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(parentDirectory);
 
@@ -117,7 +117,7 @@ public static string GetUniqueDirectoryPath(string parentDirectory, string desir
     /// Performs the <c>BuildReservedNames</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private static IEnumerable<string> BuildReservedNames()
+    private static IEnumerable<string> BuildReservedNames()
     {
         yield return "CON";
         yield return "PRN";

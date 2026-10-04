@@ -12,8 +12,8 @@ public partial class CommandPaletteDialog : Window
     /// Initializes a new instance of <see cref="CommandPaletteDialog"/>.
     /// </summary>
     /// <param name="commands">The <c>commands</c> value.</param>
-public CommandPaletteDialog(
-        IReadOnlyList<PaletteCommand> commands)
+    public CommandPaletteDialog(
+            IReadOnlyList<PaletteCommand> commands)
     {
         ArgumentNullException.ThrowIfNull(commands);
 
@@ -35,10 +35,10 @@ public CommandPaletteDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void SearchTextBox_TextChanged(
-        object sender,
-        System.Windows.Controls.TextChangedEventArgs e) =>
-        ApplyFilter();
+    private void SearchTextBox_TextChanged(
+            object sender,
+            System.Windows.Controls.TextChangedEventArgs e) =>
+            ApplyFilter();
 
     /// <summary>
     /// Performs the <c>SearchTextBox_PreviewKeyDown</c> operation.
@@ -46,9 +46,9 @@ private void SearchTextBox_TextChanged(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void SearchTextBox_PreviewKeyDown(
-        object sender,
-        KeyEventArgs e)
+    private void SearchTextBox_PreviewKeyDown(
+            object sender,
+            KeyEventArgs e)
     {
         if (e.Key == Key.Down)
         {
@@ -84,16 +84,16 @@ private void SearchTextBox_PreviewKeyDown(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void CommandsList_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e) =>
-        AcceptSelection();
+    private void CommandsList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e) =>
+            AcceptSelection();
 
     /// <summary>
     /// Performs the <c>ApplyFilter</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void ApplyFilter()
+    private void ApplyFilter()
     {
         string query = SearchTextBox.Text.Trim();
 
@@ -117,7 +117,7 @@ private void ApplyFilter()
     /// </summary>
     /// <param name="delta">The <c>delta</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void MoveSelection(int delta)
+    private void MoveSelection(int delta)
     {
         if (CommandsList.Items.Count == 0)
         {
@@ -139,7 +139,7 @@ private void MoveSelection(int delta)
     /// Performs the <c>AcceptSelection</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void AcceptSelection()
+    private void AcceptSelection()
     {
         if (CommandsList.SelectedItem is not PaletteCommand command)
         {
@@ -156,9 +156,9 @@ private void AcceptSelection()
     /// <param name="command">The <c>command</c> value.</param>
     /// <param name="query">The <c>query</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool Matches(
-        PaletteCommand command,
-        string query)
+    private static bool Matches(
+            PaletteCommand command,
+            string query)
     {
         if (command.Title.Contains(
                 query,
@@ -186,9 +186,9 @@ private static bool Matches(
     /// <param name="command">The <c>command</c> value.</param>
     /// <param name="query">The <c>query</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static int Score(
-        PaletteCommand command,
-        string query)
+    private static int Score(
+            PaletteCommand command,
+            string query)
     {
         if (command.Title.StartsWith(
                 query,

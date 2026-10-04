@@ -9,8 +9,8 @@ public partial class MoveModuleDialog : Window
     /// Initializes a new instance of <see cref="MoveModuleDialog"/>.
     /// </summary>
     /// <param name="targets">The <c>targets</c> value.</param>
-public MoveModuleDialog(
-        IReadOnlyList<ProjectCreationTarget> targets)
+    public MoveModuleDialog(
+            IReadOnlyList<ProjectCreationTarget> targets)
     {
         ArgumentNullException.ThrowIfNull(targets);
 
@@ -33,9 +33,9 @@ public MoveModuleDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Move_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void Move_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         if (TargetComboBox.SelectedItem is null)
         {

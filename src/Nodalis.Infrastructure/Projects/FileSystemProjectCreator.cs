@@ -17,7 +17,7 @@ public sealed class FileSystemProjectCreator : IProjectCreator
     /// Initializes a new instance of <see cref="FileSystemProjectCreator"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public FileSystemProjectCreator(string workspaceRoot)
+    public FileSystemProjectCreator(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         _templateStore = new FileSystemTemplateStore(workspaceRoot);
@@ -29,9 +29,9 @@ public FileSystemProjectCreator(string workspaceRoot)
     /// <param name="request">The <c>request</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<ProjectCreationResult> CreateAsync(
-        ProjectCreationRequest request,
-        CancellationToken cancellationToken = default)
+    public async Task<ProjectCreationResult> CreateAsync(
+            ProjectCreationRequest request,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Name);
@@ -192,9 +192,9 @@ public async Task<ProjectCreationResult> CreateAsync(
     /// <param name="request">The <c>request</c> value.</param>
     /// <param name="project">The <c>project</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string BuildOverview(
-        ProjectCreationRequest request,
-        ProjectManifest project)
+    private static string BuildOverview(
+            ProjectCreationRequest request,
+            ProjectManifest project)
     {
         global::System.Text.StringBuilder builder = new StringBuilder();
 
@@ -247,7 +247,7 @@ private static string BuildOverview(
     /// </summary>
     /// <param name="profile">The <c>profile</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void ValidateProfile(ProjectProfileDefinition profile)
+    private static void ValidateProfile(ProjectProfileDefinition profile)
     {
         global::System.Linq.IGrouping<string, global::Nodalis.Core.Templates.ProjectSectionTemplateDefinition>? duplicate = profile.Sections
             .GroupBy(

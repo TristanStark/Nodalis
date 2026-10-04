@@ -76,9 +76,9 @@ public static class ShortcutCatalog
     /// <param name="e">The <c>e</c> value.</param>
     /// <param name="shortcut">The <c>shortcut</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static bool Matches(
-        KeyEventArgs e,
-        AppShortcut shortcut) =>
-        Keyboard.Modifiers == shortcut.Modifiers &&
-        e.Key == shortcut.Key;
+    public static bool Matches(
+            KeyEventArgs e,
+            AppShortcut shortcut) =>
+            Keyboard.Modifiers == shortcut.Modifiers &&
+            e.Key == shortcut.Key;
 }

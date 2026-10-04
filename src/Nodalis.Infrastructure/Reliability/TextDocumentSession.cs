@@ -12,9 +12,9 @@ public sealed class TextDocumentSession
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
     /// <param name="snapshot">The <c>snapshot</c> value.</param>
-private TextDocumentSession(
-        string path,
-        TextDocumentSnapshot snapshot)
+    private TextDocumentSession(
+            string path,
+            TextDocumentSnapshot snapshot)
     {
         Path = System.IO.Path.GetFullPath(path);
         Content = snapshot.Content;
@@ -33,9 +33,9 @@ private TextDocumentSession(
     /// <param name="path">The <c>path</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static async Task<TextDocumentSession> OpenAsync(
-        string path,
-        CancellationToken cancellationToken = default)
+    public static async Task<TextDocumentSession> OpenAsync(
+            string path,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Infrastructure.Reliability.TextDocumentSnapshot snapshot = await ReadSnapshotAsync(path, cancellationToken);
         return new TextDocumentSession(path, snapshot);
@@ -46,8 +46,8 @@ public static async Task<TextDocumentSession> OpenAsync(
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<bool> HasExternalChangesAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<bool> HasExternalChangesAsync(
+            CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
 
@@ -68,9 +68,9 @@ public async Task<bool> HasExternalChangesAsync(
     /// <param name="content">The <c>content</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task SaveAsync(
-        string content,
-        CancellationToken cancellationToken = default)
+    public async Task SaveAsync(
+            string content,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(content);
 
@@ -105,8 +105,8 @@ public async Task SaveAsync(
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task ReloadAsync(
-        CancellationToken cancellationToken = default)
+    public async Task ReloadAsync(
+            CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
 
@@ -128,9 +128,9 @@ public async Task ReloadAsync(
     /// <param name="path">The <c>path</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task<TextDocumentSnapshot> ReadSnapshotAsync(
-        string path,
-        CancellationToken cancellationToken)
+    private static async Task<TextDocumentSnapshot> ReadSnapshotAsync(
+            string path,
+            CancellationToken cancellationToken)
     {
         string fullPath = System.IO.Path.GetFullPath(path);
 
@@ -166,9 +166,9 @@ private static async Task<TextDocumentSnapshot> ReadSnapshotAsync(
     /// <param name="path">The <c>path</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task<FileRevision> ReadRevisionAsync(
-        string path,
-        CancellationToken cancellationToken)
+    private static async Task<FileRevision> ReadRevisionAsync(
+            string path,
+            CancellationToken cancellationToken)
     {
         global::Nodalis.Infrastructure.Reliability.TextDocumentSnapshot snapshot = await ReadSnapshotAsync(path, cancellationToken);
         return snapshot.Revision;

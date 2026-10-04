@@ -10,9 +10,9 @@ public partial class MeetingDialog : Window
     /// </summary>
     /// <param name="scopeKind">The <c>scopeKind</c> value.</param>
     /// <param name="scopeName">The <c>scopeName</c> value.</param>
-public MeetingDialog(
-        string scopeKind,
-        string scopeName)
+    public MeetingDialog(
+            string scopeKind,
+            string scopeName)
     {
         InitializeComponent();
 
@@ -35,9 +35,9 @@ public MeetingDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Create_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void Create_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         string title = TitleTextBox.Text.Trim();
 

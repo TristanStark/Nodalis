@@ -19,9 +19,9 @@ public partial class SearchDialog : Window
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
-public SearchDialog(
-        string workspaceRoot,
-        string? contextPath)
+    public SearchDialog(
+            string workspaceRoot,
+            string? contextPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -46,9 +46,9 @@ public SearchDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void SearchTextBox_TextChanged(
-        object sender,
-        TextChangedEventArgs e)
+    private async void SearchTextBox_TextChanged(
+            object sender,
+            TextChangedEventArgs e)
     {
         _searchCancellation?.Cancel();
         _searchCancellation?.Dispose();
@@ -127,9 +127,9 @@ private async void SearchTextBox_TextChanged(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Results_SelectionChanged(
-        object sender,
-        SelectionChangedEventArgs e)
+    private void Results_SelectionChanged(
+            object sender,
+            SelectionChangedEventArgs e)
     {
         if (sender is not ListBox selected ||
             selected.SelectedItem is null)
@@ -159,10 +159,10 @@ private void Results_SelectionChanged(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Results_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e) =>
-        AcceptSelectedResult();
+    private void Results_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e) =>
+            AcceptSelectedResult();
 
     /// <summary>
     /// Performs the <c>Window_PreviewKeyDown</c> operation.
@@ -170,9 +170,9 @@ private void Results_MouseDoubleClick(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Window_PreviewKeyDown(
-        object sender,
-        KeyEventArgs e)
+    private void Window_PreviewKeyDown(
+            object sender,
+            KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
@@ -192,7 +192,7 @@ private void Window_PreviewKeyDown(
     /// Performs the <c>AcceptSelectedResult</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void AcceptSelectedResult()
+    private void AcceptSelectedResult()
     {
         SelectedResult =
             ProjectResults.SelectedItem as SearchResult ??
@@ -209,7 +209,7 @@ private void AcceptSelectedResult()
     /// Performs the <c>ClearResults</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void ClearResults()
+    private void ClearResults()
     {
         ProjectResults.ItemsSource = null;
         ApplicationResults.ItemsSource = null;
@@ -231,8 +231,8 @@ private void ClearResults()
     /// </summary>
     /// <param name="count">The <c>count</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string FormatCount(int count) =>
-        count == 1
-            ? "1 résultat"
-            : $"{count} résultats";
+    private static string FormatCount(int count) =>
+            count == 1
+                ? "1 résultat"
+                : $"{count} résultats";
 }

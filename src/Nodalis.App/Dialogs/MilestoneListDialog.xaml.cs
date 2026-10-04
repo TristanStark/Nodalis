@@ -18,9 +18,9 @@ public partial class MilestoneListDialog : Window
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
-public MilestoneListDialog(
-        string workspaceRoot,
-        string? contextPath)
+    public MilestoneListDialog(
+            string workspaceRoot,
+            string? contextPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -42,9 +42,9 @@ public MilestoneListDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void Add_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void Add_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         if (!await EnsureProjectDirectoryAsync())
         {
@@ -87,9 +87,9 @@ private async void Add_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void Edit_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void Edit_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         global::Nodalis.Core.Milestones.MilestoneItem? milestone = GetSelectedMilestone();
 
@@ -140,9 +140,9 @@ private async void Edit_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void Delete_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void Delete_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         global::Nodalis.Core.Milestones.MilestoneItem? milestone = GetSelectedMilestone();
 
@@ -192,11 +192,11 @@ private async void Delete_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void MilestonesList_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e) =>
-        OpenSelectedFrom(
-            MilestonesList);
+    private void MilestonesList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e) =>
+            OpenSelectedFrom(
+                MilestonesList);
 
     /// <summary>
     /// Performs the <c>TimelineList_MouseDoubleClick</c> operation.
@@ -204,18 +204,18 @@ private void MilestonesList_MouseDoubleClick(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void TimelineList_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e) =>
-        OpenSelectedFrom(
-            TimelineList);
+    private void TimelineList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e) =>
+            OpenSelectedFrom(
+                TimelineList);
 
     /// <summary>
     /// Performs the <c>OpenSelectedFrom</c> operation.
     /// </summary>
     /// <param name="list">The <c>list</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void OpenSelectedFrom(ListBox list)
+    private void OpenSelectedFrom(ListBox list)
     {
         if (list.SelectedItem is not MilestoneItem milestone)
         {
@@ -230,15 +230,15 @@ private void OpenSelectedFrom(ListBox list)
     /// Performs the <c>GetSelectedMilestone</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private MilestoneItem? GetSelectedMilestone() =>
-        TimelineList.SelectedItem as MilestoneItem ??
-        MilestonesList.SelectedItem as MilestoneItem;
+    private MilestoneItem? GetSelectedMilestone() =>
+            TimelineList.SelectedItem as MilestoneItem ??
+            MilestonesList.SelectedItem as MilestoneItem;
 
     /// <summary>
     /// Performs the <c>EnsureProjectDirectoryAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task<bool> EnsureProjectDirectoryAsync()
+    private async Task<bool> EnsureProjectDirectoryAsync()
     {
         if (_projectDirectory is not null)
         {
@@ -263,7 +263,7 @@ private async Task<bool> EnsureProjectDirectoryAsync()
     /// Performs the <c>RefreshAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task RefreshAsync()
+    private async Task RefreshAsync()
     {
         try
         {
@@ -310,9 +310,9 @@ private async Task RefreshAsync()
     /// <param name="title">The <c>title</c> value.</param>
     /// <param name="message">The <c>message</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void ShowError(
-        string title,
-        string message)
+    private void ShowError(
+            string title,
+            string message)
     {
         MessageBox.Show(
             this,

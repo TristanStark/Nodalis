@@ -6,8 +6,8 @@ public sealed class TemplateRenderException : Exception
     /// Initializes a new instance of <see cref="TemplateRenderException"/>.
     /// </summary>
     /// <param name="message">The <c>message</c> value.</param>
-public TemplateRenderException(string message)
-        : base(message)
+    public TemplateRenderException(string message)
+            : base(message)
     {
     }
 }

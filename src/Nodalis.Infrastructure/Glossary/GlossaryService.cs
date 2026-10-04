@@ -15,10 +15,10 @@ public sealed class GlossaryService
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<GlossaryScope>> ResolveScopesAsync(
-        string workspaceRoot,
-        string? contextPath,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<GlossaryScope>> ResolveScopesAsync(
+            string workspaceRoot,
+            string? contextPath,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -162,9 +162,9 @@ public async Task<IReadOnlyList<GlossaryScope>> ResolveScopesAsync(
     /// <param name="scope">The <c>scope</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<GlossaryEntry>> LoadEntriesAsync(
-        GlossaryScope scope,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<GlossaryEntry>> LoadEntriesAsync(
+            GlossaryScope scope,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(scope);
 
@@ -188,10 +188,10 @@ public async Task<IReadOnlyList<GlossaryEntry>> LoadEntriesAsync(
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<GlossaryEntry>> LoadEffectiveEntriesAsync(
-        string workspaceRoot,
-        string? contextPath,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<GlossaryEntry>> LoadEffectiveEntriesAsync(
+            string workspaceRoot,
+            string? contextPath,
+            CancellationToken cancellationToken = default)
     {
         global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Glossary.GlossaryScope> scopes = await ResolveScopesAsync(
             workspaceRoot,
@@ -219,11 +219,11 @@ public async Task<IReadOnlyList<GlossaryEntry>> LoadEffectiveEntriesAsync(
     /// <param name="query">The <c>query</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<GlossaryResolution> ResolveAsync(
-        string workspaceRoot,
-        string? contextPath,
-        string query,
-        CancellationToken cancellationToken = default)
+    public async Task<GlossaryResolution> ResolveAsync(
+            string workspaceRoot,
+            string? contextPath,
+            string query,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
 
@@ -283,10 +283,10 @@ public async Task<GlossaryResolution> ResolveAsync(
     /// <param name="draft">The <c>draft</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task AppendAsync(
-        GlossaryScope scope,
-        GlossaryEntryDraft draft,
-        CancellationToken cancellationToken = default)
+    public async Task AppendAsync(
+            GlossaryScope scope,
+            GlossaryEntryDraft draft,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentNullException.ThrowIfNull(draft);
@@ -333,9 +333,9 @@ public async Task AppendAsync(
     /// <param name="markdown">The <c>markdown</c> value.</param>
     /// <param name="scope">The <c>scope</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static IReadOnlyList<GlossaryEntry> Parse(
-        string markdown,
-        GlossaryScope scope)
+    public static IReadOnlyList<GlossaryEntry> Parse(
+            string markdown,
+            GlossaryScope scope)
     {
         ArgumentNullException.ThrowIfNull(markdown);
         ArgumentNullException.ThrowIfNull(scope);
@@ -467,8 +467,8 @@ public static IReadOnlyList<GlossaryEntry> Parse(
     /// </summary>
     /// <param name="draft">The <c>draft</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static string FormatEntry(
-        GlossaryEntryDraft draft)
+    public static string FormatEntry(
+            GlossaryEntryDraft draft)
     {
         ArgumentNullException.ThrowIfNull(draft);
 
@@ -504,9 +504,9 @@ public static string FormatEntry(
     /// <param name="scope">The <c>scope</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task EnsureGlossaryFileAsync(
-        GlossaryScope scope,
-        CancellationToken cancellationToken)
+    private static async Task EnsureGlossaryFileAsync(
+            GlossaryScope scope,
+            CancellationToken cancellationToken)
     {
         if (File.Exists(scope.FilePath))
         {
@@ -529,10 +529,10 @@ private static async Task EnsureGlossaryFileAsync(
     /// <param name="fieldName">The <c>fieldName</c> value.</param>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool TryReadField(
-        string line,
-        string fieldName,
-        out string value)
+    private static bool TryReadField(
+            string line,
+            string fieldName,
+            out string value)
     {
         string prefix = $"**{fieldName} :**";
 
@@ -555,10 +555,10 @@ private static bool TryReadField(
     /// <param name="current">The <c>current</c> value.</param>
     /// <param name="scope">The <c>scope</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void AddCurrentIfMeaningful(
-        ICollection<GlossaryEntry> entries,
-        EntryBuilder? current,
-        GlossaryScope scope)
+    private static void AddCurrentIfMeaningful(
+            ICollection<GlossaryEntry> entries,
+            EntryBuilder? current,
+            GlossaryScope scope)
     {
         if (current is null ||
             string.IsNullOrWhiteSpace(current.Term))
@@ -605,9 +605,9 @@ private static void AddCurrentIfMeaningful(
     /// <param name="builder">The <c>builder</c> value.</param>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void AppendDefinition(
-        EntryBuilder builder,
-        string value)
+    private static void AppendDefinition(
+            EntryBuilder builder,
+            string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -633,8 +633,8 @@ private static void AppendDefinition(
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static IEnumerable<string> SplitValues(
-        string value)
+    private static IEnumerable<string> SplitValues(
+            string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -657,25 +657,25 @@ private static IEnumerable<string> SplitValues(
     /// </summary>
     /// <param name="values">The <c>values</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<string> NormalizeValues(
-        IEnumerable<string> values) =>
-        values
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value.Trim())
-            .Distinct(StringComparer.CurrentCultureIgnoreCase)
-            .OrderBy(value => value, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+    private static List<string> NormalizeValues(
+            IEnumerable<string> values) =>
+            values
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Distinct(StringComparer.CurrentCultureIgnoreCase)
+                .OrderBy(value => value, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
 
     /// <summary>
     /// Performs the <c>JoinValues</c> operation.
     /// </summary>
     /// <param name="values">The <c>values</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string JoinValues(
-        IEnumerable<string> values) =>
-        string.Join(
-            "; ",
-            NormalizeValues(values));
+    private static string JoinValues(
+            IEnumerable<string> values) =>
+            string.Join(
+                "; ",
+                NormalizeValues(values));
 
     /// <summary>
     /// Performs the <c>ResolveContextDirectory</c> operation.
@@ -683,9 +683,9 @@ private static string JoinValues(
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string ResolveContextDirectory(
-        string workspaceRoot,
-        string? contextPath)
+    private static string ResolveContextDirectory(
+            string workspaceRoot,
+            string? contextPath)
     {
         if (string.IsNullOrWhiteSpace(contextPath))
         {
@@ -713,9 +713,9 @@ private static string ResolveContextDirectory(
     /// <param name="candidate">The <c>candidate</c> value.</param>
     /// <param name="root">The <c>root</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsInsideOrEqual(
-        string candidate,
-        string root)
+    private static bool IsInsideOrEqual(
+            string candidate,
+            string root)
     {
         string fullCandidate = Path.GetFullPath(candidate)
             .TrimEnd(

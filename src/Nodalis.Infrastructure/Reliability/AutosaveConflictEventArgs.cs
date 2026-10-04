@@ -7,9 +7,9 @@ public sealed class AutosaveConflictEventArgs : EventArgs
     /// </summary>
     /// <param name="exception">The <c>exception</c> value.</param>
     /// <param name="pendingContent">The <c>pendingContent</c> value.</param>
-public AutosaveConflictEventArgs(
-        ExternalModificationException exception,
-        string pendingContent)
+    public AutosaveConflictEventArgs(
+            ExternalModificationException exception,
+            string pendingContent)
     {
         Exception = exception;
         PendingContent = pendingContent;

@@ -15,9 +15,9 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <param name="expandedNodeIds">The <c>expandedNodeIds</c> value.</param>
-public NavigationNodeViewModel(
-        WorkspaceNavigationNode node,
-        IReadOnlySet<Guid> expandedNodeIds)
+    public NavigationNodeViewModel(
+            WorkspaceNavigationNode node,
+            IReadOnlySet<Guid> expandedNodeIds)
     {
         Node = node;
         _isExpanded = expandedNodeIds.Contains(node.Id);
@@ -75,7 +75,7 @@ public NavigationNodeViewModel(
     /// Performs the <c>DescendantsAndSelf</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-public IEnumerable<NavigationNodeViewModel> DescendantsAndSelf()
+    public IEnumerable<NavigationNodeViewModel> DescendantsAndSelf()
     {
         yield return this;
 
@@ -93,8 +93,8 @@ public IEnumerable<NavigationNodeViewModel> DescendantsAndSelf()
     /// </summary>
     /// <param name="propertyName">The <c>propertyName</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
-        PropertyChanged?.Invoke(
-            this,
-            new PropertyChangedEventArgs(propertyName));
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(propertyName));
 }

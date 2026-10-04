@@ -13,7 +13,7 @@ public sealed class ApplicationStructureService
     /// Initializes a new instance of <see cref="ApplicationStructureService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public ApplicationStructureService(string workspaceRoot)
+    public ApplicationStructureService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
@@ -25,9 +25,9 @@ public ApplicationStructureService(string workspaceRoot)
     /// <param name="moduleDirectory">The <c>moduleDirectory</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public Task<ModuleManifest> LoadModuleAsync(
-        string moduleDirectory,
-        CancellationToken cancellationToken = default)
+    public Task<ModuleManifest> LoadModuleAsync(
+            string moduleDirectory,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleDirectory);
 
@@ -44,9 +44,9 @@ public Task<ModuleManifest> LoadModuleAsync(
     /// <param name="name">The <c>name</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<string> CreateApplicationAsync(
-        string name,
-        CancellationToken cancellationToken = default)
+    public async Task<string> CreateApplicationAsync(
+            string name,
+            CancellationToken cancellationToken = default)
     {
         string normalizedName = NormalizeName(name);
         string applicationsRoot = Path.Combine(
@@ -109,12 +109,12 @@ public async Task<string> CreateApplicationAsync(
     /// <param name="name">The <c>name</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<string> CreateModuleAsync(
-        string parentDirectory,
-        Guid applicationId,
-        Guid? parentModuleId,
-        string name,
-        CancellationToken cancellationToken = default)
+    public async Task<string> CreateModuleAsync(
+            string parentDirectory,
+            Guid applicationId,
+            Guid? parentModuleId,
+            string name,
+            CancellationToken cancellationToken = default)
     {
         string normalizedName = NormalizeName(name);
         string modulesRoot = Path.Combine(
@@ -177,10 +177,10 @@ public async Task<string> CreateModuleAsync(
     /// <param name="newName">The <c>newName</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<string> RenameApplicationAsync(
-        string applicationDirectory,
-        string newName,
-        CancellationToken cancellationToken = default)
+    public async Task<string> RenameApplicationAsync(
+            string applicationDirectory,
+            string newName,
+            CancellationToken cancellationToken = default)
     {
         string directory = Path.GetFullPath(applicationDirectory);
         string manifestPath = Path.Combine(
@@ -237,10 +237,10 @@ public async Task<string> RenameApplicationAsync(
     /// <param name="newName">The <c>newName</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<string> RenameModuleAsync(
-        string moduleDirectory,
-        string newName,
-        CancellationToken cancellationToken = default)
+    public async Task<string> RenameModuleAsync(
+            string moduleDirectory,
+            string newName,
+            CancellationToken cancellationToken = default)
     {
         string directory = Path.GetFullPath(moduleDirectory);
         string manifestPath = Path.Combine(
@@ -298,11 +298,11 @@ public async Task<string> RenameModuleAsync(
     /// <param name="newParentModuleId">The <c>newParentModuleId</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<string> MoveModuleAsync(
-        string moduleDirectory,
-        string newParentDirectory,
-        Guid? newParentModuleId,
-        CancellationToken cancellationToken = default)
+    public async Task<string> MoveModuleAsync(
+            string moduleDirectory,
+            string newParentDirectory,
+            Guid? newParentModuleId,
+            CancellationToken cancellationToken = default)
     {
         string source = Path.GetFullPath(moduleDirectory);
         string parent = Path.GetFullPath(newParentDirectory);
@@ -390,13 +390,13 @@ public async Task<string> MoveModuleAsync(
     /// <param name="applicationDirectory">The <c>applicationDirectory</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public Task DeleteApplicationAsync(
-        string applicationDirectory,
-        CancellationToken cancellationToken = default) =>
-        DeleteContainerAsync(
-            applicationDirectory,
-            WorkspaceLayout.ApplicationManifestFileName,
-            cancellationToken);
+    public Task DeleteApplicationAsync(
+            string applicationDirectory,
+            CancellationToken cancellationToken = default) =>
+            DeleteContainerAsync(
+                applicationDirectory,
+                WorkspaceLayout.ApplicationManifestFileName,
+                cancellationToken);
 
     /// <summary>
     /// Performs the <c>DeleteModuleAsync</c> operation.
@@ -404,13 +404,13 @@ public Task DeleteApplicationAsync(
     /// <param name="moduleDirectory">The <c>moduleDirectory</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public Task DeleteModuleAsync(
-        string moduleDirectory,
-        CancellationToken cancellationToken = default) =>
-        DeleteContainerAsync(
-            moduleDirectory,
-            WorkspaceLayout.ModuleManifestFileName,
-            cancellationToken);
+    public Task DeleteModuleAsync(
+            string moduleDirectory,
+            CancellationToken cancellationToken = default) =>
+            DeleteContainerAsync(
+                moduleDirectory,
+                WorkspaceLayout.ModuleManifestFileName,
+                cancellationToken);
 
     /// <summary>
     /// Performs the <c>InitializeContainerAsync</c> operation.
@@ -420,11 +420,11 @@ public Task DeleteModuleAsync(
     /// <param name="includeScopeFiles">The <c>includeScopeFiles</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task InitializeContainerAsync(
-        string directory,
-        bool includeDocumentation,
-        bool includeScopeFiles,
-        CancellationToken cancellationToken)
+    private static async Task InitializeContainerAsync(
+            string directory,
+            bool includeDocumentation,
+            bool includeScopeFiles,
+            CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.Combine(
             directory,
@@ -472,10 +472,10 @@ private static async Task InitializeContainerAsync(
     /// <param name="manifestFileName">The <c>manifestFileName</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Task DeleteContainerAsync(
-        string directory,
-        string manifestFileName,
-        CancellationToken cancellationToken)
+    private static Task DeleteContainerAsync(
+            string directory,
+            string manifestFileName,
+            CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -568,9 +568,9 @@ private static Task DeleteContainerAsync(
     /// <param name="sourceDirectory">The <c>sourceDirectory</c> value.</param>
     /// <param name="newName">The <c>newName</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string GetRenameDestination(
-        string sourceDirectory,
-        string newName)
+    private static string GetRenameDestination(
+            string sourceDirectory,
+            string newName)
     {
         string parent = Path.GetDirectoryName(sourceDirectory)
             ?? throw new InvalidOperationException(
@@ -598,9 +598,9 @@ private static string GetRenameDestination(
     /// <param name="candidate">The <c>candidate</c> value.</param>
     /// <param name="parent">The <c>parent</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsSameOrDescendant(
-        string candidate,
-        string parent)
+    private static bool IsSameOrDescendant(
+            string candidate,
+            string parent)
     {
         string normalizedCandidate = candidate
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
@@ -620,7 +620,7 @@ private static bool IsSameOrDescendant(
     /// </summary>
     /// <param name="name">The <c>name</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeName(string name)
+    private static string NormalizeName(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         return name.Trim();

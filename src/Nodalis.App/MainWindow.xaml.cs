@@ -89,11 +89,11 @@ public partial class MainWindow : Window
     /// <param name="preferences">The <c>preferences</c> value.</param>
     /// <param name="preferencesStore">The <c>preferencesStore</c> value.</param>
     /// <param name="templateStore">The <c>templateStore</c> value.</param>
-public MainWindow(
-        WorkspaceNavigationNode root,
-        UserPreferences preferences,
-        IUserPreferencesStore preferencesStore,
-        ITemplateStore templateStore)
+    public MainWindow(
+            WorkspaceNavigationNode root,
+            UserPreferences preferences,
+            IUserPreferencesStore preferencesStore,
+            ITemplateStore templateStore)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(preferences);
@@ -180,7 +180,7 @@ public MainWindow(
     /// </summary>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-protected override async void OnClosing(CancelEventArgs e)
+    protected override async void OnClosing(CancelEventArgs e)
     {
         if (_allowClose)
         {
@@ -244,9 +244,9 @@ protected override async void OnClosing(CancelEventArgs e)
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void NavigationTree_PreviewMouseRightButtonDown(
-        object sender,
-        MouseButtonEventArgs e)
+    private void NavigationTree_PreviewMouseRightButtonDown(
+            object sender,
+            MouseButtonEventArgs e)
     {
         global::System.Windows.Controls.TreeViewItem? item = FindVisualParent<TreeViewItem>(
             e.OriginalSource as DependencyObject);
@@ -264,9 +264,9 @@ private void NavigationTree_PreviewMouseRightButtonDown(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void NavigationTree_ContextMenuOpening(
-        object sender,
-        ContextMenuEventArgs e)
+    private void NavigationTree_ContextMenuOpening(
+            object sender,
+            ContextMenuEventArgs e)
     {
         if (_selectedNode is null)
         {
@@ -358,7 +358,7 @@ private void NavigationTree_ContextMenuOpening(
     /// Performs the <c>CreateApplicationAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task CreateApplicationAsync()
+    private async Task CreateApplicationAsync()
     {
         global::Nodalis.App.Dialogs.TextPromptDialog dialog = new TextPromptDialog(
             "Nouvelle application",
@@ -399,8 +399,8 @@ private async Task CreateApplicationAsync()
     /// </summary>
     /// <param name="parent">The <c>parent</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task CreateModuleAsync(
-        NavigationNodeViewModel parent)
+    private async Task CreateModuleAsync(
+            NavigationNodeViewModel parent)
     {
         global::Nodalis.App.Dialogs.TextPromptDialog dialog = new TextPromptDialog(
             "Nouveau module",
@@ -466,8 +466,8 @@ private async Task CreateModuleAsync(
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task RenameDocumentAsync(
-        NavigationNodeViewModel node)
+    private async Task RenameDocumentAsync(
+            NavigationNodeViewModel node)
     {
         global::Nodalis.App.Dialogs.TextPromptDialog dialog = new TextPromptDialog(
             "Renommer le document",
@@ -521,8 +521,8 @@ private async Task RenameDocumentAsync(
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task RenameApplicationOrModuleAsync(
-        NavigationNodeViewModel node)
+    private async Task RenameApplicationOrModuleAsync(
+            NavigationNodeViewModel node)
     {
         global::Nodalis.App.Dialogs.TextPromptDialog dialog = new TextPromptDialog(
             "Renommer",
@@ -579,8 +579,8 @@ private async Task RenameApplicationOrModuleAsync(
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task MoveModuleAsync(
-        NavigationNodeViewModel node)
+    private async Task MoveModuleAsync(
+            NavigationNodeViewModel node)
     {
         try
         {
@@ -654,8 +654,8 @@ private async Task MoveModuleAsync(
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task DeleteApplicationOrModuleAsync(
-        NavigationNodeViewModel node)
+    private async Task DeleteApplicationOrModuleAsync(
+            NavigationNodeViewModel node)
     {
         global::System.Windows.MessageBoxResult answer = MessageBox.Show(
             this,
@@ -713,9 +713,9 @@ private async Task DeleteApplicationOrModuleAsync(
     /// <param name="title">The <c>title</c> value.</param>
     /// <param name="exception">The <c>exception</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void ShowStructureError(
-        string title,
-        Exception exception)
+    private void ShowStructureError(
+            string title,
+            Exception exception)
     {
         MessageBox.Show(
             this,
@@ -731,9 +731,9 @@ private void ShowStructureError(
     /// <typeparam name="T">The <c>T</c> type.</typeparam>
     /// <param name="child">The <c>child</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static T? FindVisualParent<T>(
-        DependencyObject? child)
-        where T : DependencyObject
+    private static T? FindVisualParent<T>(
+            DependencyObject? child)
+            where T : DependencyObject
     {
         while (child is not null)
         {
@@ -754,9 +754,9 @@ private static T? FindVisualParent<T>(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void NavigationTree_SelectedItemChanged(
-        object sender,
-        RoutedPropertyChangedEventArgs<object> e)
+    private async void NavigationTree_SelectedItemChanged(
+            object sender,
+            RoutedPropertyChangedEventArgs<object> e)
     {
         if (_restoringSelection ||
             e.NewValue is not NavigationNodeViewModel node)
@@ -791,7 +791,7 @@ private async void NavigationTree_SelectedItemChanged(
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task DisplayNodeAsync(NavigationNodeViewModel node)
+    private async Task DisplayNodeAsync(NavigationNodeViewModel node)
     {
         DocumentTitleText.Text = node.DisplayName;
 
@@ -833,8 +833,8 @@ private async Task DisplayNodeAsync(NavigationNodeViewModel node)
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task OpenDocumentAsync(
-        NavigationNodeViewModel node)
+    private async Task OpenDocumentAsync(
+            NavigationNodeViewModel node)
     {
         try
         {
@@ -905,8 +905,8 @@ private async Task OpenDocumentAsync(
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void ShowNodeSummary(
-        NavigationNodeViewModel node)
+    private void ShowNodeSummary(
+            NavigationNodeViewModel node)
     {
         _documentSession = null;
         _autosave = null;
@@ -937,8 +937,8 @@ private void ShowNodeSummary(
     /// </summary>
     /// <param name="actionDescription">The <c>actionDescription</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task<bool> TryCloseCurrentDocumentAsync(
-        string actionDescription)
+    private async Task<bool> TryCloseCurrentDocumentAsync(
+            string actionDescription)
     {
         if (_autosave is null)
         {
@@ -980,9 +980,9 @@ private async Task<bool> TryCloseCurrentDocumentAsync(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void MarkdownEditorTextBox_TextChanged(
-        object sender,
-        System.Windows.Controls.TextChangedEventArgs e)
+    private void MarkdownEditorTextBox_TextChanged(
+            object sender,
+            System.Windows.Controls.TextChangedEventArgs e)
     {
         if (_suppressEditorChanges ||
             _autosave is null)
@@ -1011,9 +1011,9 @@ private void MarkdownEditorTextBox_TextChanged(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void PreviewTimer_Tick(
-        object? sender,
-        EventArgs e)
+    private void PreviewTimer_Tick(
+            object? sender,
+            EventArgs e)
     {
         _previewTimer.Stop();
         RenderPreview();
@@ -1024,7 +1024,7 @@ private void PreviewTimer_Tick(
     /// Performs the <c>RenderPreview</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void RenderPreview()
+    private void RenderPreview()
     {
         if (!_previewVisible ||
             _selectedNode?.Kind != WorkspaceNodeKind.Document)
@@ -1049,9 +1049,9 @@ private void RenderPreview()
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Autosave_Saved(
-        object? sender,
-        EventArgs e)
+    private void Autosave_Saved(
+            object? sender,
+            EventArgs e)
     {
         Dispatcher.BeginInvoke(async () =>
         {
@@ -1102,9 +1102,9 @@ private void Autosave_Saved(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Autosave_ConflictDetected(
-        object? sender,
-        AutosaveConflictEventArgs e)
+    private void Autosave_ConflictDetected(
+            object? sender,
+            AutosaveConflictEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
         {
@@ -1138,9 +1138,9 @@ private void Autosave_ConflictDetected(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Autosave_SaveFailed(
-        object? sender,
-        AutosaveFailureEventArgs e)
+    private void Autosave_SaveFailed(
+            object? sender,
+            AutosaveFailureEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
         {
@@ -1156,9 +1156,9 @@ private void Autosave_SaveFailed(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void NewNote_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void NewNote_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         await CreateNoteAsync();
     }
@@ -1169,9 +1169,9 @@ private async void NewNote_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void NewProject_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void NewProject_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         await CreateProjectAsync();
     }
@@ -1182,9 +1182,9 @@ private async void NewProject_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void CaptureQuickNote_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void CaptureQuickNote_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         await CaptureQuickNoteAsync();
     }
@@ -1195,9 +1195,9 @@ private async void CaptureQuickNote_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void ShowQuickNotes_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void ShowQuickNotes_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         await ShowQuickNotesAsync();
     }
@@ -1208,9 +1208,9 @@ private async void ShowQuickNotes_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void CommandPalette_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void CommandPalette_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         await ShowCommandPaletteAsync();
     }
@@ -1221,9 +1221,9 @@ private async void CommandPalette_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void AttachFile_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void AttachFile_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         await AttachFileAsync();
     }
@@ -1234,9 +1234,9 @@ private async void AttachFile_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void ImportDocx_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void ImportDocx_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         await ImportDocxAsync();
     }
@@ -1247,9 +1247,9 @@ private async void ImportDocx_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void ShowAllTasks_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void ShowAllTasks_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         await ShowTasksAsync(
             global: true);
@@ -1261,9 +1261,9 @@ private async void ShowAllTasks_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void MainWindow_PreviewKeyDown(
-        object sender,
-        KeyEventArgs e)
+    private async void MainWindow_PreviewKeyDown(
+            object sender,
+            KeyEventArgs e)
     {
         if (InternalLinkPopup.IsOpen)
         {
@@ -1403,7 +1403,7 @@ private async void MainWindow_PreviewKeyDown(
     /// Performs the <c>SaveCurrentDocumentAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task SaveCurrentDocumentAsync()
+    private async Task SaveCurrentDocumentAsync()
     {
         if (_autosave is null)
         {
@@ -1424,10 +1424,10 @@ private async Task SaveCurrentDocumentAsync()
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Bold_Click(
-        object sender,
-        RoutedEventArgs e) =>
-        WrapSelection("**", "**");
+    private void Bold_Click(
+            object sender,
+            RoutedEventArgs e) =>
+            WrapSelection("**", "**");
 
     /// <summary>
     /// Performs the <c>Italic_Click</c> operation.
@@ -1435,10 +1435,10 @@ private void Bold_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Italic_Click(
-        object sender,
-        RoutedEventArgs e) =>
-        WrapSelection("*", "*");
+    private void Italic_Click(
+            object sender,
+            RoutedEventArgs e) =>
+            WrapSelection("*", "*");
 
     /// <summary>
     /// Performs the <c>InlineCode_Click</c> operation.
@@ -1446,9 +1446,9 @@ private void Italic_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void InlineCode_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void InlineCode_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         string marker = ((char)96).ToString();
         WrapSelection(marker, marker);
@@ -1460,9 +1460,9 @@ private void InlineCode_Click(
     /// <param name="prefix">The <c>prefix</c> value.</param>
     /// <param name="suffix">The <c>suffix</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void WrapSelection(
-        string prefix,
-        string suffix)
+    private void WrapSelection(
+            string prefix,
+            string suffix)
     {
         if (_documentSession is null)
         {
@@ -1497,9 +1497,9 @@ private void WrapSelection(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void TogglePreview_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void TogglePreview_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         _previewVisible = !_previewVisible;
         ApplyPreviewState();
@@ -1514,7 +1514,7 @@ private void TogglePreview_Click(
     /// Performs the <c>ApplyPreviewState</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void ApplyPreviewState()
+    private void ApplyPreviewState()
     {
         if (_previewVisible)
         {
@@ -1538,7 +1538,7 @@ private void ApplyPreviewState()
     /// </summary>
     /// <param name="target">The <c>target</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void OnInternalLinkClicked(string target)
+    private async void OnInternalLinkClicked(string target)
     {
         if (_linkIndex.Targets.Count == 0)
         {
@@ -1566,7 +1566,7 @@ private async void OnInternalLinkClicked(string target)
     /// Performs the <c>ShowDashboard</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void ShowDashboard()
+    private void ShowDashboard()
     {
         _documentSession = null;
         _autosave = null;
@@ -1597,7 +1597,7 @@ private void ShowDashboard()
     /// Performs the <c>RefreshDashboard</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void RefreshDashboard()
+    private void RefreshDashboard()
     {
         FavoritesList.ItemsSource = _preferences.Favorites
             .Select(reference =>
@@ -1651,9 +1651,9 @@ private void RefreshDashboard()
     /// <param name="reference">The <c>reference</c> value.</param>
     /// <param name="lastOpenedUtc">The <c>lastOpenedUtc</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private DashboardItemViewModel? CreateDashboardItem(
-        UserItemReference reference,
-        DateTimeOffset? lastOpenedUtc)
+    private DashboardItemViewModel? CreateDashboardItem(
+            UserItemReference reference,
+            DateTimeOffset? lastOpenedUtc)
     {
         if (!Guid.TryParse(
                 reference.Key,
@@ -1696,43 +1696,43 @@ private DashboardItemViewModel? CreateDashboardItem(
     /// </summary>
     /// <param name="kind">The <c>kind</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string ToDashboardKindLabel(
-        string kind) =>
-        kind.Equals(
-            "project",
-            StringComparison.OrdinalIgnoreCase)
-        || kind.Equals(
-            "Project",
-            StringComparison.OrdinalIgnoreCase)
-            ? "Projet"
-            : kind.Equals(
-                "document",
+    private static string ToDashboardKindLabel(
+            string kind) =>
+            kind.Equals(
+                "project",
                 StringComparison.OrdinalIgnoreCase)
-              || kind.Equals(
-                  "Document",
-                  StringComparison.OrdinalIgnoreCase)
-                ? "Document"
-                : kind;
+            || kind.Equals(
+                "Project",
+                StringComparison.OrdinalIgnoreCase)
+                ? "Projet"
+                : kind.Equals(
+                    "document",
+                    StringComparison.OrdinalIgnoreCase)
+                  || kind.Equals(
+                      "Document",
+                      StringComparison.OrdinalIgnoreCase)
+                    ? "Document"
+                    : kind;
 
     /// <summary>
     /// Performs the <c>IsMeetingDashboardItem</c> operation.
     /// </summary>
     /// <param name="item">The <c>item</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsMeetingDashboardItem(
-        DashboardItemViewModel item) =>
-        item.Context?.Contains(
-            "Réunions",
-            StringComparison.CurrentCultureIgnoreCase) == true ||
-        item.Context?.Contains(
-            "Reunions",
-            StringComparison.CurrentCultureIgnoreCase) == true ||
-        item.DisplayName.StartsWith(
-            "Réunion",
-            StringComparison.CurrentCultureIgnoreCase) ||
-        item.DisplayName.StartsWith(
-            "Reunion",
-            StringComparison.CurrentCultureIgnoreCase);
+    private static bool IsMeetingDashboardItem(
+            DashboardItemViewModel item) =>
+            item.Context?.Contains(
+                "Réunions",
+                StringComparison.CurrentCultureIgnoreCase) == true ||
+            item.Context?.Contains(
+                "Reunions",
+                StringComparison.CurrentCultureIgnoreCase) == true ||
+            item.DisplayName.StartsWith(
+                "Réunion",
+                StringComparison.CurrentCultureIgnoreCase) ||
+            item.DisplayName.StartsWith(
+                "Reunion",
+                StringComparison.CurrentCultureIgnoreCase);
 
     /// <summary>
     /// Performs the <c>DashboardList_MouseDoubleClick</c> operation.
@@ -1740,9 +1740,9 @@ private static bool IsMeetingDashboardItem(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void DashboardList_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e)
+    private async void DashboardList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
     {
         if (sender is not ListBox list ||
             list.SelectedItem is not DashboardItemViewModel item)
@@ -1769,8 +1769,8 @@ private async void DashboardList_MouseDoubleClick(
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private bool IsFavorite(
-        NavigationNodeViewModel node)
+    private bool IsFavorite(
+            NavigationNodeViewModel node)
     {
         global::Nodalis.Core.Links.LinkTargetEntry? target = FindIndexedTarget(
             node);
@@ -1788,8 +1788,8 @@ private bool IsFavorite(
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task ToggleFavoriteAsync(
-        NavigationNodeViewModel node)
+    private async Task ToggleFavoriteAsync(
+            NavigationNodeViewModel node)
     {
         if (_linkIndex.Targets.Count == 0)
         {
@@ -1854,8 +1854,8 @@ private async Task ToggleFavoriteAsync(
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task TrackRecentContextAsync(
-        NavigationNodeViewModel node)
+    private async Task TrackRecentContextAsync(
+            NavigationNodeViewModel node)
     {
         if (_linkIndex.Targets.Count == 0)
         {
@@ -1947,8 +1947,8 @@ private async Task TrackRecentContextAsync(
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private LinkTargetEntry? FindIndexedTarget(
-        NavigationNodeViewModel node)
+    private LinkTargetEntry? FindIndexedTarget(
+            NavigationNodeViewModel node)
     {
         if (node.Kind is
             WorkspaceNodeKind.Application or
@@ -1984,16 +1984,16 @@ private LinkTargetEntry? FindIndexedTarget(
     /// </summary>
     /// <param name="target">The <c>target</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static UserItemReference CreateUserItemReference(
-        LinkTargetEntry target) =>
-        new()
-        {
-            Kind = target.Kind == LinkTargetKind.Project
-                ? "project"
-                : "document",
-            Key = target.Id.ToString("D"),
-            DisplayName = target.DisplayName
-        };
+    private static UserItemReference CreateUserItemReference(
+            LinkTargetEntry target) =>
+            new()
+            {
+                Kind = target.Kind == LinkTargetKind.Project
+                    ? "project"
+                    : "document",
+                Key = target.Id.ToString("D"),
+                DisplayName = target.DisplayName
+            };
 
     /// <summary>
     /// Performs the <c>IsRelativeAncestor</c> operation.
@@ -2001,9 +2001,9 @@ private static UserItemReference CreateUserItemReference(
     /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
     /// <param name="child">The <c>child</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsRelativeAncestor(
-        string candidateParent,
-        string child)
+    private static bool IsRelativeAncestor(
+            string candidateParent,
+            string child)
     {
         string parent = candidateParent
             .TrimEnd('/') + "/";
@@ -2017,7 +2017,7 @@ private static bool IsRelativeAncestor(
     /// Performs the <c>RefreshLinkIndexAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task RefreshLinkIndexAsync()
+    private async Task RefreshLinkIndexAsync()
     {
         _linkIndex = await _linkIndexService.RefreshAsync();
         RefreshDashboard();
@@ -2027,7 +2027,7 @@ private async Task RefreshLinkIndexAsync()
     /// Performs the <c>RefreshLinkIndexAndContextAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task RefreshLinkIndexAndContextAsync()
+    private async Task RefreshLinkIndexAndContextAsync()
     {
         await RefreshLinkIndexAsync();
 
@@ -2044,7 +2044,7 @@ private async Task RefreshLinkIndexAndContextAsync()
     /// </summary>
     /// <param name="documentPath">The <c>documentPath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void UpdateLinkContext(string documentPath)
+    private void UpdateLinkContext(string documentPath)
     {
         string relativePath = Path.GetRelativePath(
                 _root.FullPath,
@@ -2121,9 +2121,9 @@ private void UpdateLinkContext(string documentPath)
     /// <param name="target">The <c>target</c> value.</param>
     /// <param name="lineNumber">The <c>lineNumber</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task NavigateToLinkTargetAsync(
-        LinkTargetEntry target,
-        int? lineNumber = null)
+    private async Task NavigateToLinkTargetAsync(
+            LinkTargetEntry target,
+            int? lineNumber = null)
     {
         string fullPath = Path.GetFullPath(
             Path.Combine(
@@ -2180,7 +2180,7 @@ private async Task NavigateToLinkTargetAsync(
     /// Performs the <c>OpenInternalLinkPickerAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task OpenInternalLinkPickerAsync()
+    private async Task OpenInternalLinkPickerAsync()
     {
         if (_documentSession is null)
         {
@@ -2209,7 +2209,7 @@ private async Task OpenInternalLinkPickerAsync()
     /// Performs the <c>RefreshInternalLinkSuggestionsAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task RefreshInternalLinkSuggestionsAsync()
+    private async Task RefreshInternalLinkSuggestionsAsync()
     {
         if (_documentSession is null ||
             !TryGetOpenInternalLinkToken(
@@ -2236,11 +2236,11 @@ private async Task RefreshInternalLinkSuggestionsAsync()
     /// <param name="length">The <c>length</c> value.</param>
     /// <param name="alias">The <c>alias</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task OpenInternalLinkSuggestionsAsync(
-        string query,
-        int start,
-        int length,
-        string? alias)
+    private async Task OpenInternalLinkSuggestionsAsync(
+            string query,
+            int start,
+            int length,
+            string? alias)
     {
         if (_linkIndex.Targets.Count == 0)
         {
@@ -2304,10 +2304,10 @@ private async Task OpenInternalLinkSuggestionsAsync(
     /// <param name="length">The <c>length</c> value.</param>
     /// <param name="query">The <c>query</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private bool TryGetOpenInternalLinkToken(
-        out int start,
-        out int length,
-        out string query)
+    private bool TryGetOpenInternalLinkToken(
+            out int start,
+            out int length,
+            out string query)
     {
         start = 0;
         length = 0;
@@ -2361,7 +2361,7 @@ private bool TryGetOpenInternalLinkToken(
     /// </summary>
     /// <param name="delta">The <c>delta</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void MoveInternalLinkSelection(int delta)
+    private void MoveInternalLinkSelection(int delta)
     {
         if (InternalLinkSuggestions.Items.Count == 0)
         {
@@ -2383,7 +2383,7 @@ private void MoveInternalLinkSelection(int delta)
     /// Performs the <c>CompleteInternalLinkSuggestion</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void CompleteInternalLinkSuggestion()
+    private void CompleteInternalLinkSuggestion()
     {
         if (InternalLinkSuggestions.SelectedItem is not LinkTargetEntry target)
         {
@@ -2431,10 +2431,10 @@ private void CompleteInternalLinkSuggestion()
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void InternalLinkSuggestions_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e) =>
-        CompleteInternalLinkSuggestion();
+    private void InternalLinkSuggestions_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e) =>
+            CompleteInternalLinkSuggestion();
 
     /// <summary>
     /// Performs the <c>BacklinksList_MouseDoubleClick</c> operation.
@@ -2442,9 +2442,9 @@ private void InternalLinkSuggestions_MouseDoubleClick(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void BacklinksList_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e)
+    private async void BacklinksList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
     {
         if (BacklinksList.SelectedItem is not BacklinkEntry backlink)
         {
@@ -2461,7 +2461,7 @@ private async void BacklinksList_MouseDoubleClick(
     /// </summary>
     /// <param name="target">The <c>target</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void OnMarkdownLinkClicked(string target)
+    private async void OnMarkdownLinkClicked(string target)
     {
         if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
         {
@@ -2577,8 +2577,8 @@ private async void OnMarkdownLinkClicked(string target)
     /// </summary>
     /// <param name="target">The <c>target</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void CopyExternalTargetToClipboard(
-        string target)
+    private void CopyExternalTargetToClipboard(
+            string target)
     {
         try
         {
@@ -2596,7 +2596,7 @@ private void CopyExternalTargetToClipboard(
     /// Performs the <c>SearchAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task SearchAsync()
+    private async Task SearchAsync()
     {
         global::Nodalis.App.Dialogs.SearchDialog dialog = new SearchDialog(
             _root.FullPath,
@@ -2654,7 +2654,7 @@ private async Task SearchAsync()
     /// </summary>
     /// <param name="lineNumber">The <c>lineNumber</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void MoveCaretToLine(int lineNumber)
+    private void MoveCaretToLine(int lineNumber)
     {
         if (_documentSession is null ||
             lineNumber <= 1)
@@ -2689,7 +2689,7 @@ private void MoveCaretToLine(int lineNumber)
     /// Performs the <c>ShowCommandPaletteAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task ShowCommandPaletteAsync()
+    private async Task ShowCommandPaletteAsync()
     {
         global::System.Collections.Generic.IReadOnlyList<global::Nodalis.App.Commands.PaletteCommand> commands = BuildPaletteCommands();
 
@@ -2711,7 +2711,7 @@ private async Task ShowCommandPaletteAsync()
     /// Performs the <c>ShowPreferencesAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task ShowPreferencesAsync()
+    private async Task ShowPreferencesAsync()
     {
         global::Nodalis.App.Dialogs.PreferencesDialog dialog = new PreferencesDialog(
             _preferences.Editor,
@@ -2791,7 +2791,7 @@ private async Task ShowPreferencesAsync()
     /// Performs the <c>BuildPaletteCommands</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private IReadOnlyList<PaletteCommand> BuildPaletteCommands()
+    private IReadOnlyList<PaletteCommand> BuildPaletteCommands()
     {
         global::System.Collections.Generic.List<global::Nodalis.App.Commands.PaletteCommand> commands = new List<PaletteCommand>
         {
@@ -2960,7 +2960,7 @@ private IReadOnlyList<PaletteCommand> BuildPaletteCommands()
     /// Performs the <c>AttachGlossaryAdorner</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void AttachGlossaryAdorner()
+    private void AttachGlossaryAdorner()
     {
         if (_glossaryAdorner is not null)
         {
@@ -2987,8 +2987,8 @@ private void AttachGlossaryAdorner()
     /// </summary>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task RefreshGlossaryContextAsync(
-        string? contextPath)
+    private async Task RefreshGlossaryContextAsync(
+            string? contextPath)
     {
         _glossaryScopes = await _glossaryService.ResolveScopesAsync(
             _root.FullPath,
@@ -3010,7 +3010,7 @@ private async Task RefreshGlossaryContextAsync(
     /// Performs the <c>UpdateGlossaryAnnotations</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void UpdateGlossaryAnnotations()
+    private void UpdateGlossaryAnnotations()
     {
         if (_documentSession is null ||
             _glossaryAdorner is null)
@@ -3034,9 +3034,9 @@ private void UpdateGlossaryAnnotations()
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void MarkdownEditorTextBox_PreviewMouseMove(
-        object sender,
-        MouseEventArgs e)
+    private void MarkdownEditorTextBox_PreviewMouseMove(
+            object sender,
+            MouseEventArgs e)
     {
         global::Nodalis.Core.Glossary.GlossaryTextMatch? match = FindGlossaryMatchAtPoint(
             e.GetPosition(MarkdownEditorTextBox));
@@ -3053,9 +3053,9 @@ private void MarkdownEditorTextBox_PreviewMouseMove(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void MarkdownEditorTextBox_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e)
+    private async void MarkdownEditorTextBox_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
     {
         global::Nodalis.Core.Glossary.GlossaryTextMatch? match = FindGlossaryMatchAtPoint(
             e.GetPosition(MarkdownEditorTextBox));
@@ -3076,9 +3076,9 @@ private async void MarkdownEditorTextBox_MouseDoubleClick(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void MarkdownEditorTextBox_ContextMenuOpening(
-        object sender,
-        ContextMenuEventArgs e)
+    private void MarkdownEditorTextBox_ContextMenuOpening(
+            object sender,
+            ContextMenuEventArgs e)
     {
         global::System.Windows.Controls.ContextMenu menu = new ContextMenu();
 
@@ -3161,8 +3161,8 @@ private void MarkdownEditorTextBox_ContextMenuOpening(
     /// </summary>
     /// <param name="point">The <c>point</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private GlossaryTextMatch? FindGlossaryMatchAtPoint(
-        Point point)
+    private GlossaryTextMatch? FindGlossaryMatchAtPoint(
+            Point point)
     {
         if (_glossaryMatches.Count == 0)
         {
@@ -3189,9 +3189,9 @@ private GlossaryTextMatch? FindGlossaryMatchAtPoint(
     /// <param name="scope">The <c>scope</c> value.</param>
     /// <param name="term">The <c>term</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task AddGlossaryEntryAsync(
-        GlossaryScope scope,
-        string term)
+    private async Task AddGlossaryEntryAsync(
+            GlossaryScope scope,
+            string term)
     {
         global::Nodalis.App.Dialogs.AddGlossaryEntryDialog dialog = new AddGlossaryEntryDialog(
             scope,
@@ -3286,8 +3286,8 @@ private async Task AddGlossaryEntryAsync(
     /// </summary>
     /// <param name="entry">The <c>entry</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task OpenGlossaryEntryAsync(
-        GlossaryEntry entry)
+    private async Task OpenGlossaryEntryAsync(
+            GlossaryEntry entry)
     {
         string path = Path.GetFullPath(
             entry.Scope.FilePath);
@@ -3340,20 +3340,20 @@ private async Task OpenGlossaryEntryAsync(
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeGlossarySelection(
-        string value) =>
-        string.Join(
-            " ",
-            value.Split(
-                [' ', '\t', '\r', '\n'],
-                StringSplitOptions.TrimEntries |
-                StringSplitOptions.RemoveEmptyEntries));
+    private static string NormalizeGlossarySelection(
+            string value) =>
+            string.Join(
+                " ",
+                value.Split(
+                    [' ', '\t', '\r', '\n'],
+                    StringSplitOptions.TrimEntries |
+                    StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>
     /// Performs the <c>RefreshDashboardTasksAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task RefreshDashboardTasksAsync()
+    private async Task RefreshDashboardTasksAsync()
     {
         try
         {
@@ -3389,7 +3389,7 @@ private async Task RefreshDashboardTasksAsync()
     /// Performs the <c>RefreshDashboardMilestonesAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task RefreshDashboardMilestonesAsync()
+    private async Task RefreshDashboardMilestonesAsync()
     {
         try
         {
@@ -3422,9 +3422,9 @@ private async Task RefreshDashboardMilestonesAsync()
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void DashboardMilestoneList_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e)
+    private async void DashboardMilestoneList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
     {
         if (UpcomingMilestonesList.SelectedItem is not MilestoneItem milestone)
         {
@@ -3440,8 +3440,8 @@ private async void DashboardMilestoneList_MouseDoubleClick(
     /// </summary>
     /// <param name="milestone">The <c>milestone</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task NavigateToMilestoneAsync(
-        MilestoneItem milestone)
+    private async Task NavigateToMilestoneAsync(
+            MilestoneItem milestone)
     {
         string fullPath = Path.GetFullPath(
             Path.Combine(
@@ -3499,7 +3499,7 @@ private async Task NavigateToMilestoneAsync(
     /// Performs the <c>ShowMilestonesAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task ShowMilestonesAsync()
+    private async Task ShowMilestonesAsync()
     {
         string contextPath =
             _selectedNode?.FullPath ??
@@ -3557,7 +3557,7 @@ private async Task ShowMilestonesAsync()
     /// </summary>
     /// <param name="global">The <c>global</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task ShowTasksAsync(bool global)
+    private async Task ShowTasksAsync(bool global)
     {
         string contextPath = global
             ? _root.FullPath
@@ -3590,9 +3590,9 @@ private async Task ShowTasksAsync(bool global)
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void DashboardTaskCheckBox_Click(
-        object sender,
-        RoutedEventArgs e)
+    private async void DashboardTaskCheckBox_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         if (sender is not CheckBox checkBox ||
             checkBox.DataContext is not TaskItem task)
@@ -3631,9 +3631,9 @@ private async void DashboardTaskCheckBox_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void DashboardTaskList_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e)
+    private async void DashboardTaskList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
     {
         if (OpenTasksList.SelectedItem is not TaskItem task)
         {
@@ -3650,9 +3650,9 @@ private async void DashboardTaskList_MouseDoubleClick(
     /// <param name="task">The <c>task</c> value.</param>
     /// <param name="completed">The <c>completed</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task ToggleTaskFromViewAsync(
-        TaskItem task,
-        bool completed)
+    private async Task ToggleTaskFromViewAsync(
+            TaskItem task,
+            bool completed)
     {
         string sourcePath = Path.GetFullPath(
             Path.Combine(
@@ -3729,8 +3729,8 @@ private async Task ToggleTaskFromViewAsync(
     /// </summary>
     /// <param name="task">The <c>task</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task NavigateToTaskAsync(
-        TaskItem task)
+    private async Task NavigateToTaskAsync(
+            TaskItem task)
     {
         string fullPath = Path.GetFullPath(
             Path.Combine(
@@ -3788,7 +3788,7 @@ private async Task NavigateToTaskAsync(
     /// Performs the <c>ImportDocxAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task ImportDocxAsync()
+    private async Task ImportDocxAsync()
     {
         global::Microsoft.Win32.OpenFileDialog picker = new OpenFileDialog
         {
@@ -3904,7 +3904,7 @@ private async Task ImportDocxAsync()
     /// Performs the <c>AttachFileAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task AttachFileAsync()
+    private async Task AttachFileAsync()
     {
         if (_documentSession is null ||
             _selectedNode?.Kind != WorkspaceNodeKind.Document)
@@ -4001,8 +4001,8 @@ private async Task AttachFileAsync()
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsImageAttachment(
-        string path)
+    private static bool IsImageAttachment(
+            string path)
     {
         string extension = Path.GetExtension(path);
 
@@ -4018,7 +4018,7 @@ private static bool IsImageAttachment(
     /// Performs the <c>ShowGlossaryAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task ShowGlossaryAsync()
+    private async Task ShowGlossaryAsync()
     {
         global::Nodalis.App.Dialogs.GlossaryLookupDialog dialog = new GlossaryLookupDialog(
             _root.FullPath,
@@ -4041,7 +4041,7 @@ private async Task ShowGlossaryAsync()
     /// Performs the <c>CaptureQuickNoteAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task CaptureQuickNoteAsync()
+    private async Task CaptureQuickNoteAsync()
     {
         try
         {
@@ -4141,7 +4141,7 @@ private async Task CaptureQuickNoteAsync()
     /// Performs the <c>ShowQuickNotesAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task ShowQuickNotesAsync()
+    private async Task ShowQuickNotesAsync()
     {
         try
         {
@@ -4181,7 +4181,7 @@ private async Task ShowQuickNotesAsync()
     /// Performs the <c>CreateProjectAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task CreateProjectAsync()
+    private async Task CreateProjectAsync()
     {
         try
         {
@@ -4258,7 +4258,7 @@ private async Task CreateProjectAsync()
     /// Performs the <c>CreateDecisionAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task CreateDecisionAsync()
+    private async Task CreateDecisionAsync()
     {
         string contextPath =
             _selectedNode?.FullPath ??
@@ -4350,7 +4350,7 @@ private async Task CreateDecisionAsync()
     /// Performs the <c>ShowDecisionsAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task ShowDecisionsAsync()
+    private async Task ShowDecisionsAsync()
     {
         string contextPath =
             _selectedNode?.FullPath ??
@@ -4406,8 +4406,8 @@ private async Task ShowDecisionsAsync()
     /// </summary>
     /// <param name="decision">The <c>decision</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task NavigateToDecisionAsync(
-        DecisionRecord decision)
+    private async Task NavigateToDecisionAsync(
+            DecisionRecord decision)
     {
         string fullPath = Path.GetFullPath(
             Path.Combine(
@@ -4462,7 +4462,7 @@ private async Task NavigateToDecisionAsync(
     /// Performs the <c>CreateMeetingAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task CreateMeetingAsync()
+    private async Task CreateMeetingAsync()
     {
         string contextPath =
             _selectedNode?.FullPath ??
@@ -4539,7 +4539,7 @@ private async Task CreateMeetingAsync()
     /// Performs the <c>CreateNoteAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task CreateNoteAsync()
+    private async Task CreateNoteAsync()
     {
         string? targetDirectory = ResolveNewNoteDirectory();
 
@@ -4658,7 +4658,7 @@ private async Task CreateNoteAsync()
     /// Performs the <c>ResolveNewNoteDirectory</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private string? ResolveNewNoteDirectory()
+    private string? ResolveNewNoteDirectory()
     {
         if (_selectedNode is null)
         {
@@ -4688,8 +4688,8 @@ private string? ResolveNewNoteDirectory()
     /// </summary>
     /// <param name="openPath">The <c>openPath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task RefreshNavigationAsync(
-        string? openPath = null)
+    private async Task RefreshNavigationAsync(
+            string? openPath = null)
     {
         global::System.Collections.Generic.HashSet<global::System.Guid> expandedIds = GetExpandedNodeIds();
 
@@ -4728,12 +4728,12 @@ private async Task RefreshNavigationAsync(
     /// Performs the <c>GetExpandedNodeIds</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private HashSet<Guid> GetExpandedNodeIds() =>
-        _root
-            .DescendantsAndSelf()
-            .Where(node => node.IsExpanded)
-            .Select(node => node.Id)
-            .ToHashSet();
+    private HashSet<Guid> GetExpandedNodeIds() =>
+            _root
+                .DescendantsAndSelf()
+                .Where(node => node.IsExpanded)
+                .Select(node => node.Id)
+                .ToHashSet();
 
     /// <summary>
     /// Performs the <c>CreateRootViewModel</c> operation.
@@ -4741,9 +4741,9 @@ private HashSet<Guid> GetExpandedNodeIds() =>
     /// <param name="root">The <c>root</c> value.</param>
     /// <param name="expandedIds">The <c>expandedIds</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static NavigationNodeViewModel CreateRootViewModel(
-        WorkspaceNavigationNode root,
-        IReadOnlySet<Guid> expandedIds)
+    private static NavigationNodeViewModel CreateRootViewModel(
+            WorkspaceNavigationNode root,
+            IReadOnlySet<Guid> expandedIds)
     {
         global::Nodalis.App.Navigation.NavigationNodeViewModel viewModel = new NavigationNodeViewModel(
             root,
@@ -4759,9 +4759,9 @@ private static NavigationNodeViewModel CreateRootViewModel(
     /// <param name="node">The <c>node</c> value.</param>
     /// <param name="targetPath">The <c>targetPath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static NavigationNodeViewModel? FindAndExpand(
-        NavigationNodeViewModel node,
-        string targetPath)
+    private static NavigationNodeViewModel? FindAndExpand(
+            NavigationNodeViewModel node,
+            string targetPath)
     {
         if (string.Equals(
                 Path.GetFullPath(node.FullPath),
@@ -4795,9 +4795,9 @@ private static NavigationNodeViewModel? FindAndExpand(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void ToggleContextPanel_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void ToggleContextPanel_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         if (_contextPanelOpen)
         {
@@ -4814,7 +4814,7 @@ private void ToggleContextPanel_Click(
     /// Performs the <c>ApplyContextPanelState</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private void ApplyContextPanelState()
+    private void ApplyContextPanelState()
     {
         if (_contextPanelOpen)
         {
@@ -4838,19 +4838,19 @@ private void ApplyContextPanelState()
     /// </summary>
     /// <param name="kind">The <c>kind</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string GetKindLabel(WorkspaceNodeKind kind) =>
-        kind switch
-        {
-            WorkspaceNodeKind.Workspace => "Workspace",
-            WorkspaceNodeKind.Global => "Global",
-            WorkspaceNodeKind.ApplicationsRoot => "Applications",
-            WorkspaceNodeKind.Application => "Application",
-            WorkspaceNodeKind.Module => "Module",
-            WorkspaceNodeKind.ProjectsRoot => "Projets",
-            WorkspaceNodeKind.Project => "Projet",
-            WorkspaceNodeKind.Section => "Section",
-            WorkspaceNodeKind.Document => "Document Markdown",
-            WorkspaceNodeKind.Folder => "Dossier",
-            _ => kind.ToString()
-        };
+    private static string GetKindLabel(WorkspaceNodeKind kind) =>
+            kind switch
+            {
+                WorkspaceNodeKind.Workspace => "Workspace",
+                WorkspaceNodeKind.Global => "Global",
+                WorkspaceNodeKind.ApplicationsRoot => "Applications",
+                WorkspaceNodeKind.Application => "Application",
+                WorkspaceNodeKind.Module => "Module",
+                WorkspaceNodeKind.ProjectsRoot => "Projets",
+                WorkspaceNodeKind.Project => "Projet",
+                WorkspaceNodeKind.Section => "Section",
+                WorkspaceNodeKind.Document => "Document Markdown",
+                WorkspaceNodeKind.Folder => "Dossier",
+                _ => kind.ToString()
+            };
 }

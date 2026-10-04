@@ -32,9 +32,9 @@ public sealed class DocxParser
     /// <param name="docxPath">The <c>docxPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public Task<ParsedDocxDocument> ParseAsync(
-        string docxPath,
-        CancellationToken cancellationToken = default)
+    public Task<ParsedDocxDocument> ParseAsync(
+            string docxPath,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(docxPath);
 
@@ -60,9 +60,9 @@ public Task<ParsedDocxDocument> ParseAsync(
     /// <param name="fullPath">The <c>fullPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static ParsedDocxDocument Parse(
-        string fullPath,
-        CancellationToken cancellationToken)
+    private static ParsedDocxDocument Parse(
+            string fullPath,
+            CancellationToken cancellationToken)
     {
         try
         {
@@ -179,10 +179,10 @@ private static ParsedDocxDocument Parse(
     /// <param name="styles">The <c>styles</c> value.</param>
     /// <param name="relationships">The <c>relationships</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static DocxParagraph ParseParagraph(
-        XElement paragraph,
-        IReadOnlyDictionary<string, StyleInfo> styles,
-        IReadOnlyDictionary<string, DocxRelationship> relationships)
+    private static DocxParagraph ParseParagraph(
+            XElement paragraph,
+            IReadOnlyDictionary<string, StyleInfo> styles,
+            IReadOnlyDictionary<string, DocxRelationship> relationships)
     {
         global::System.Xml.Linq.XElement? properties = paragraph.Element(
             WordNamespace + "pPr");
@@ -288,7 +288,7 @@ private static DocxParagraph ParseParagraph(
     /// </summary>
     /// <param name="table">The <c>table</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static DocxTable ParseTable(XElement table)
+    private static DocxTable ParseTable(XElement table)
     {
         global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxTableRow> rows = new List<DocxTableRow>();
 
@@ -336,9 +336,9 @@ private static DocxTable ParseTable(XElement table)
     /// <param name="archive">The <c>archive</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static IReadOnlyDictionary<string, StyleInfo> ReadStyles(
-        ZipArchive archive,
-        CancellationToken cancellationToken)
+    private static IReadOnlyDictionary<string, StyleInfo> ReadStyles(
+            ZipArchive archive,
+            CancellationToken cancellationToken)
     {
         global::System.IO.Compression.ZipArchiveEntry? entry = archive.GetEntry(
             "word/styles.xml");
@@ -422,9 +422,9 @@ private static IReadOnlyDictionary<string, StyleInfo> ReadStyles(
     /// <param name="archive">The <c>archive</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<DocxRelationship> ReadRelationships(
-        ZipArchive archive,
-        CancellationToken cancellationToken)
+    private static List<DocxRelationship> ReadRelationships(
+            ZipArchive archive,
+            CancellationToken cancellationToken)
     {
         global::System.IO.Compression.ZipArchiveEntry? entry = archive.GetEntry(
             "word/_rels/document.xml.rels");
@@ -474,9 +474,9 @@ private static List<DocxRelationship> ReadRelationships(
     /// <param name="archive">The <c>archive</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<string> ReadHeaders(
-        ZipArchive archive,
-        CancellationToken cancellationToken)
+    private static List<string> ReadHeaders(
+            ZipArchive archive,
+            CancellationToken cancellationToken)
     {
         global::System.Collections.Generic.List<string> result = new List<string>();
 
@@ -526,9 +526,9 @@ private static List<string> ReadHeaders(
     /// <param name="archive">The <c>archive</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static DocxDocumentMetadata ReadMetadata(
-        ZipArchive archive,
-        CancellationToken cancellationToken)
+    private static DocxDocumentMetadata ReadMetadata(
+            ZipArchive archive,
+            CancellationToken cancellationToken)
     {
         global::System.IO.Compression.ZipArchiveEntry? entry = archive.GetEntry(
             "docProps/core.xml");
@@ -585,7 +585,7 @@ private static DocxDocumentMetadata ReadMetadata(
     /// </summary>
     /// <param name="element">The <c>element</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string ExtractText(XElement element)
+    private static string ExtractText(XElement element)
     {
         global::System.Text.StringBuilder builder = new System.Text.StringBuilder();
 
@@ -624,9 +624,9 @@ private static string ExtractText(XElement element)
     /// <param name="element">The <c>element</c> value.</param>
     /// <param name="attributeName">The <c>attributeName</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static int? ParseIntegerAttribute(
-        XElement? element,
-        string attributeName)
+    private static int? ParseIntegerAttribute(
+            XElement? element,
+            string attributeName)
     {
         string? value = element?
             .Attribute(
@@ -648,9 +648,9 @@ private static int? ParseIntegerAttribute(
     /// <param name="styleId">The <c>styleId</c> value.</param>
     /// <param name="styleName">The <c>styleName</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static int? InferHeadingLevel(
-        string? styleId,
-        string? styleName)
+    private static int? InferHeadingLevel(
+            string? styleId,
+            string? styleName)
     {
         foreach (string? candidate in new[]
                  {
@@ -707,9 +707,9 @@ private static int? InferHeadingLevel(
     /// <param name="root">The <c>root</c> value.</param>
     /// <param name="name">The <c>name</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string? Value(
-        XElement? root,
-        XName name)
+    private static string? Value(
+            XElement? root,
+            XName name)
     {
         string? value = root?
             .Element(name)?
@@ -726,16 +726,16 @@ private static string? Value(
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static DateTimeOffset? ParseDate(
-        string? value) =>
-        DateTimeOffset.TryParse(
-            value,
-            CultureInfo.InvariantCulture,
-            DateTimeStyles.AssumeUniversal |
-            DateTimeStyles.AdjustToUniversal,
-            out global::System.DateTimeOffset result)
-            ? result
-            : null;
+    private static DateTimeOffset? ParseDate(
+            string? value) =>
+            DateTimeOffset.TryParse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal |
+                DateTimeStyles.AdjustToUniversal,
+                out global::System.DateTimeOffset result)
+                ? result
+                : null;
 
     private sealed record StyleInfo(
         string? Name,

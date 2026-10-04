@@ -9,7 +9,7 @@ public static partial class MarkdownInlineParser
     /// </summary>
     /// <param name="text">The <c>text</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static IReadOnlyList<MarkdownInline> Parse(string text)
+    public static IReadOnlyList<MarkdownInline> Parse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
 
@@ -48,7 +48,7 @@ public static IReadOnlyList<MarkdownInline> Parse(string text)
     /// </summary>
     /// <param name="match">The <c>match</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static MarkdownInline CreateInline(Match match)
+    private static MarkdownInline CreateInline(Match match)
     {
         if (match.Groups["internal"].Success)
         {
@@ -123,13 +123,13 @@ private static MarkdownInline CreateInline(Match match)
     /// Performs the <c>InlinePattern</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-[GeneratedRegex(
-        @"(?<internal>\[\[(?<internalTarget>[^\]|\r\n]+)(?:\|(?<internalAlias>[^\]\r\n]+))?\]\])|" +
-        @"(?<image>!\[(?<imageAlt>[^\]\r\n]*)\]\((?<imageTarget>[^)\r\n]+)\))|" +
-        @"(?<link>\[(?<linkText>[^\]\r\n]+)\]\((?<linkTarget>[^)\r\n]+)\))|" +
-        @"(?<bold>\*\*(?<boldText>.+?)\*\*)|" +
-        @"(?<code>\x60(?<codeText>[^\x60\r\n]+)\x60)|" +
-        @"(?<italic>\*(?<italicText>[^*\r\n]+)\*)",
-        RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+            @"(?<internal>\[\[(?<internalTarget>[^\]|\r\n]+)(?:\|(?<internalAlias>[^\]\r\n]+))?\]\])|" +
+            @"(?<image>!\[(?<imageAlt>[^\]\r\n]*)\]\((?<imageTarget>[^)\r\n]+)\))|" +
+            @"(?<link>\[(?<linkText>[^\]\r\n]+)\]\((?<linkTarget>[^)\r\n]+)\))|" +
+            @"(?<bold>\*\*(?<boldText>.+?)\*\*)|" +
+            @"(?<code>\x60(?<codeText>[^\x60\r\n]+)\x60)|" +
+            @"(?<italic>\*(?<italicText>[^*\r\n]+)\*)",
+            RegexOptions.CultureInvariant)]
     private static partial Regex InlinePattern();
 }

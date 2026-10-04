@@ -10,8 +10,8 @@ public static class DocxMarkdownConverter
     /// </summary>
     /// <param name="blocks">The <c>blocks</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static string ConvertBlocks(
-        IReadOnlyList<DocxBlock> blocks)
+    public static string ConvertBlocks(
+            IReadOnlyList<DocxBlock> blocks)
     {
         ArgumentNullException.ThrowIfNull(blocks);
 
@@ -47,9 +47,9 @@ public static string ConvertBlocks(
     /// <param name="builder">The <c>builder</c> value.</param>
     /// <param name="paragraph">The <c>paragraph</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void AppendParagraph(
-        StringBuilder builder,
-        DocxParagraph paragraph)
+    private static void AppendParagraph(
+            StringBuilder builder,
+            DocxParagraph paragraph)
     {
         string text = ApplyHyperlinks(
             paragraph.Text,
@@ -106,9 +106,9 @@ private static void AppendParagraph(
     /// <param name="builder">The <c>builder</c> value.</param>
     /// <param name="table">The <c>table</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void AppendTable(
-        StringBuilder builder,
-        DocxTable table)
+    private static void AppendTable(
+            StringBuilder builder,
+            DocxTable table)
     {
         if (table.Rows.Count == 0)
         {
@@ -157,10 +157,10 @@ private static void AppendTable(
     /// <param name="row">The <c>row</c> value.</param>
     /// <param name="columnCount">The <c>columnCount</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void AppendTableRow(
-        StringBuilder builder,
-        DocxTableRow row,
-        int columnCount)
+    private static void AppendTableRow(
+            StringBuilder builder,
+            DocxTableRow row,
+            int columnCount)
     {
         builder.Append('|');
 
@@ -187,9 +187,9 @@ private static void AppendTableRow(
     /// <param name="text">The <c>text</c> value.</param>
     /// <param name="hyperlinks">The <c>hyperlinks</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string ApplyHyperlinks(
-        string text,
-        IReadOnlyList<DocxHyperlink> hyperlinks)
+    private static string ApplyHyperlinks(
+            string text,
+            IReadOnlyList<DocxHyperlink> hyperlinks)
     {
         string result = text;
 
@@ -227,47 +227,47 @@ private static string ApplyHyperlinks(
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string EscapeTableCell(string value) =>
-        (value ?? string.Empty)
-            .Replace(
-                "\r\n",
-                "<br>",
-                StringComparison.Ordinal)
-            .Replace(
-                '\r',
-                '\n')
-            .Replace(
-                "\n",
-                "<br>",
-                StringComparison.Ordinal)
-            .Replace(
-                "|",
-                "\\|",
-                StringComparison.Ordinal)
-            .Trim();
+    private static string EscapeTableCell(string value) =>
+            (value ?? string.Empty)
+                .Replace(
+                    "\r\n",
+                    "<br>",
+                    StringComparison.Ordinal)
+                .Replace(
+                    '\r',
+                    '\n')
+                .Replace(
+                    "\n",
+                    "<br>",
+                    StringComparison.Ordinal)
+                .Replace(
+                    "|",
+                    "\\|",
+                    StringComparison.Ordinal)
+                .Trim();
 
     /// <summary>
     /// Performs the <c>EscapeLinkText</c> operation.
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string EscapeLinkText(string value) =>
-        value
-            .Replace(
-                "[",
-                "\\[",
-                StringComparison.Ordinal)
-            .Replace(
-                "]",
-                "\\]",
-                StringComparison.Ordinal);
+    private static string EscapeLinkText(string value) =>
+            value
+                .Replace(
+                    "[",
+                    "\\[",
+                    StringComparison.Ordinal)
+                .Replace(
+                    "]",
+                    "\\]",
+                    StringComparison.Ordinal);
 
     /// <summary>
     /// Performs the <c>NormalizeSpacing</c> operation.
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeSpacing(string value)
+    private static string NormalizeSpacing(string value)
     {
         string normalized = value
             .Replace(

@@ -13,11 +13,11 @@ public partial class DecisionDialog : Window
     /// <param name="scopeName">The <c>scopeName</c> value.</param>
     /// <param name="sourceDisplayName">The <c>sourceDisplayName</c> value.</param>
     /// <param name="sourceCandidates">The <c>sourceCandidates</c> value.</param>
-public DecisionDialog(
-        string scopeKind,
-        string scopeName,
-        string? sourceDisplayName = null,
-        IReadOnlyList<string>? sourceCandidates = null)
+    public DecisionDialog(
+            string scopeKind,
+            string scopeName,
+            string? sourceDisplayName = null,
+            IReadOnlyList<string>? sourceCandidates = null)
     {
         InitializeComponent();
 
@@ -57,9 +57,9 @@ public DecisionDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void SourceDecisionComboBox_SelectionChanged(
-        object sender,
-        SelectionChangedEventArgs e)
+    private void SourceDecisionComboBox_SelectionChanged(
+            object sender,
+            SelectionChangedEventArgs e)
     {
         if (SourceDecisionComboBox.SelectedItem is not string candidate)
         {
@@ -80,9 +80,9 @@ private void SourceDecisionComboBox_SelectionChanged(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Create_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void Create_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         string title = TitleTextBox.Text.Trim();
         string decision = DecisionTextBox.Text.Trim();

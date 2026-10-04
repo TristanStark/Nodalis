@@ -10,9 +10,9 @@ public partial class AddGlossaryEntryDialog : Window
     /// </summary>
     /// <param name="scope">The <c>scope</c> value.</param>
     /// <param name="term">The <c>term</c> value.</param>
-public AddGlossaryEntryDialog(
-        GlossaryScope scope,
-        string term)
+    public AddGlossaryEntryDialog(
+            GlossaryScope scope,
+            string term)
     {
         ArgumentNullException.ThrowIfNull(scope);
 
@@ -44,9 +44,9 @@ public AddGlossaryEntryDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Add_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void Add_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         string term = TermTextBox.Text.Trim();
         string definition = DefinitionTextBox.Text.Trim();
@@ -83,35 +83,35 @@ private void Add_Click(
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<string> ParseValues(string value) =>
-        value
-            .Split(
-                [';', ','],
-                StringSplitOptions.TrimEntries |
-                StringSplitOptions.RemoveEmptyEntries)
-            .Distinct(
-                StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+    private static List<string> ParseValues(string value) =>
+            value
+                .Split(
+                    [';', ','],
+                    StringSplitOptions.TrimEntries |
+                    StringSplitOptions.RemoveEmptyEntries)
+                .Distinct(
+                    StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
 
     /// <summary>
     /// Performs the <c>ParseLinks</c> operation.
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<string> ParseLinks(string value) =>
-        value
-            .Replace(
-                "\r\n",
-                "\n",
-                StringComparison.Ordinal)
-            .Replace(
-                '\r',
-                '\n')
-            .Split(
-                ['\n', ';'],
-                StringSplitOptions.TrimEntries |
-                StringSplitOptions.RemoveEmptyEntries)
-            .Distinct(
-                StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+    private static List<string> ParseLinks(string value) =>
+            value
+                .Replace(
+                    "\r\n",
+                    "\n",
+                    StringComparison.Ordinal)
+                .Replace(
+                    '\r',
+                    '\n')
+                .Split(
+                    ['\n', ';'],
+                    StringSplitOptions.TrimEntries |
+                    StringSplitOptions.RemoveEmptyEntries)
+                .Distinct(
+                    StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
 }

@@ -6,8 +6,8 @@ public sealed class DomainValidationException : Exception
     /// Initializes a new instance of <see cref="DomainValidationException"/>.
     /// </summary>
     /// <param name="message">The <c>message</c> value.</param>
-public DomainValidationException(string message)
-        : base(message)
+    public DomainValidationException(string message)
+            : base(message)
     {
     }
 }

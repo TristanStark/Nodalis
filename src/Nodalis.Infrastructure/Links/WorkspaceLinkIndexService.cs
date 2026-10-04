@@ -17,7 +17,7 @@ public sealed class WorkspaceLinkIndexService
     /// Initializes a new instance of <see cref="WorkspaceLinkIndexService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public WorkspaceLinkIndexService(string workspaceRoot)
+    public WorkspaceLinkIndexService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -32,8 +32,8 @@ public WorkspaceLinkIndexService(string workspaceRoot)
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<LinkIndexCatalog> LoadAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<LinkIndexCatalog> LoadAsync(
+            CancellationToken cancellationToken = default)
     {
         if (!File.Exists(_indexPath))
         {
@@ -67,8 +67,8 @@ public async Task<LinkIndexCatalog> LoadAsync(
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<LinkIndexCatalog> RefreshAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<LinkIndexCatalog> RefreshAsync(
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog previous = await LoadExistingUnsafeAsync(
             cancellationToken);
@@ -117,9 +117,9 @@ public async Task<LinkIndexCatalog> RefreshAsync(
     /// <param name="rawTarget">The <c>rawTarget</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<LinkResolution> ResolveAsync(
-        string rawTarget,
-        CancellationToken cancellationToken = default)
+    public async Task<LinkResolution> ResolveAsync(
+            string rawTarget,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog catalog = await LoadAsync(cancellationToken);
         return Resolve(catalog, rawTarget);
@@ -131,9 +131,9 @@ public async Task<LinkResolution> ResolveAsync(
     /// <param name="catalog">The <c>catalog</c> value.</param>
     /// <param name="rawTarget">The <c>rawTarget</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static LinkResolution Resolve(
-        LinkIndexCatalog catalog,
-        string rawTarget)
+    public static LinkResolution Resolve(
+            LinkIndexCatalog catalog,
+            string rawTarget)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentException.ThrowIfNullOrWhiteSpace(rawTarget);
@@ -190,9 +190,9 @@ public static LinkResolution Resolve(
     /// <param name="fullPath">The <c>fullPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<LinkTargetEntry?> FindByPathAsync(
-        string fullPath,
-        CancellationToken cancellationToken = default)
+    public async Task<LinkTargetEntry?> FindByPathAsync(
+            string fullPath,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog catalog = await LoadAsync(cancellationToken);
         string relativePath = NormalizeRelativePath(
@@ -213,9 +213,9 @@ public async Task<LinkTargetEntry?> FindByPathAsync(
     /// <param name="query">The <c>query</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<LinkTargetEntry>> GetSuggestionsAsync(
-        string query,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<LinkTargetEntry>> GetSuggestionsAsync(
+            string query,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog catalog = await LoadAsync(cancellationToken);
         string normalized = query.Trim();
@@ -256,9 +256,9 @@ public async Task<IReadOnlyList<LinkTargetEntry>> GetSuggestionsAsync(
     /// <param name="targetId">The <c>targetId</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<BacklinkEntry>> GetBacklinksAsync(
-        Guid targetId,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<BacklinkEntry>> GetBacklinksAsync(
+            Guid targetId,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog catalog = await LoadAsync(cancellationToken);
         global::System.Collections.Generic.Dictionary<global::System.Guid, global::Nodalis.Core.Links.LinkTargetEntry> targetsById = catalog.Targets.ToDictionary(target => target.Id);
@@ -286,11 +286,11 @@ public async Task<IReadOnlyList<BacklinkEntry>> GetBacklinksAsync(
     /// <param name="oldDisplayName">The <c>oldDisplayName</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task RegisterRenameAsync(
-        string oldFullPath,
-        string newFullPath,
-        string oldDisplayName,
-        CancellationToken cancellationToken = default)
+    public async Task RegisterRenameAsync(
+            string oldFullPath,
+            string newFullPath,
+            string oldDisplayName,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog catalog = await LoadAsync(cancellationToken);
 
@@ -349,8 +349,8 @@ public async Task RegisterRenameAsync(
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task<LinkIndexCatalog> LoadExistingUnsafeAsync(
-        CancellationToken cancellationToken)
+    private async Task<LinkIndexCatalog> LoadExistingUnsafeAsync(
+            CancellationToken cancellationToken)
     {
         if (!File.Exists(_indexPath))
         {
@@ -381,15 +381,15 @@ private async Task<LinkIndexCatalog> LoadExistingUnsafeAsync(
     /// <param name="targets">The <c>targets</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task CollectTargetsAsync(
-        WorkspaceNavigationNode node,
-        IReadOnlyList<string> breadcrumb,
-        string scopeIdentity,
-        string scopeRootPath,
-        IReadOnlyList<LinkTargetEntry> previousTargets,
-        ISet<Guid> matchedPreviousIds,
-        ICollection<LinkTargetEntry> targets,
-        CancellationToken cancellationToken)
+    private async Task CollectTargetsAsync(
+            WorkspaceNavigationNode node,
+            IReadOnlyList<string> breadcrumb,
+            string scopeIdentity,
+            string scopeRootPath,
+            IReadOnlyList<LinkTargetEntry> previousTargets,
+            ISet<Guid> matchedPreviousIds,
+            ICollection<LinkTargetEntry> targets,
+            CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -542,9 +542,9 @@ private async Task CollectTargetsAsync(
     /// <param name="targets">The <c>targets</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task<List<LinkReferenceEntry>> BuildReferencesAsync(
-        IReadOnlyList<LinkTargetEntry> targets,
-        CancellationToken cancellationToken)
+    private async Task<List<LinkReferenceEntry>> BuildReferencesAsync(
+            IReadOnlyList<LinkTargetEntry> targets,
+            CancellationToken cancellationToken)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog catalog = new LinkIndexCatalog
         {
@@ -617,13 +617,13 @@ private async Task<List<LinkReferenceEntry>> BuildReferencesAsync(
     /// <param name="localRelativePath">The <c>localRelativePath</c> value.</param>
     /// <param name="contentHash">The <c>contentHash</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static LinkTargetEntry? MatchDocument(
-        IReadOnlyList<LinkTargetEntry> previousTargets,
-        ISet<Guid> matchedPreviousIds,
-        string relativePath,
-        string scopeIdentity,
-        string localRelativePath,
-        string contentHash)
+    private static LinkTargetEntry? MatchDocument(
+            IReadOnlyList<LinkTargetEntry> previousTargets,
+            ISet<Guid> matchedPreviousIds,
+            string relativePath,
+            string scopeIdentity,
+            string localRelativePath,
+            string contentHash)
     {
         global::Nodalis.Core.Links.LinkTargetEntry[] documents = previousTargets
             .Where(target =>
@@ -692,9 +692,9 @@ private static LinkTargetEntry? MatchDocument(
     /// <param name="existing">The <c>existing</c> value.</param>
     /// <param name="candidates">The <c>candidates</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<string> MergeAliases(
-        IEnumerable<string> existing,
-        params string?[] candidates)
+    private static List<string> MergeAliases(
+            IEnumerable<string> existing,
+            params string?[] candidates)
     {
         global::System.Collections.Generic.HashSet<string> aliases = new HashSet<string>(
             existing.Where(value => !string.IsNullOrWhiteSpace(value)),
@@ -718,8 +718,8 @@ private static List<string> MergeAliases(
     /// </summary>
     /// <param name="candidates">The <c>candidates</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static LinkResolution BuildResolution(
-        IReadOnlyList<LinkTargetEntry> candidates)
+    private static LinkResolution BuildResolution(
+            IReadOnlyList<LinkTargetEntry> candidates)
     {
         if (candidates.Count == 1)
         {
@@ -745,18 +745,18 @@ private static LinkResolution BuildResolution(
     /// </summary>
     /// <param name="kind">The <c>kind</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static LinkTargetKind ToLinkTargetKind(
-        WorkspaceNodeKind kind) =>
-        kind switch
-        {
-            WorkspaceNodeKind.Application => LinkTargetKind.Application,
-            WorkspaceNodeKind.Module => LinkTargetKind.Module,
-            WorkspaceNodeKind.Project => LinkTargetKind.Project,
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(kind),
-                kind,
-                "Unsupported link target kind.")
-        };
+    private static LinkTargetKind ToLinkTargetKind(
+            WorkspaceNodeKind kind) =>
+            kind switch
+            {
+                WorkspaceNodeKind.Application => LinkTargetKind.Application,
+                WorkspaceNodeKind.Module => LinkTargetKind.Module,
+                WorkspaceNodeKind.Project => LinkTargetKind.Project,
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(kind),
+                    kind,
+                    "Unsupported link target kind.")
+            };
 
     /// <summary>
     /// Performs the <c>ComputeHashAsync</c> operation.
@@ -764,9 +764,9 @@ private static LinkTargetKind ToLinkTargetKind(
     /// <param name="path">The <c>path</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task<string> ComputeHashAsync(
-        string path,
-        CancellationToken cancellationToken)
+    private static async Task<string> ComputeHashAsync(
+            string path,
+            CancellationToken cancellationToken)
     {
         await using global::System.IO.FileStream stream = new FileStream(
             path,
@@ -788,17 +788,17 @@ private static async Task<string> ComputeHashAsync(
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeRelativePath(string path) =>
-        path.Replace(
-            Path.DirectorySeparatorChar,
-            '/');
+    private static string NormalizeRelativePath(string path) =>
+            path.Replace(
+                Path.DirectorySeparatorChar,
+                '/');
 
     /// <summary>
     /// Performs the <c>BuildExcerpt</c> operation.
     /// </summary>
     /// <param name="line">The <c>line</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string BuildExcerpt(string line)
+    private static string BuildExcerpt(string line)
     {
         string trimmed = line.Trim();
 

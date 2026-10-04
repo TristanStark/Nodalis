@@ -11,7 +11,7 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
     /// Initializes a new instance of <see cref="UserPreferencesStore"/>.
     /// </summary>
     /// <param name="preferencesPath">The <c>preferencesPath</c> value.</param>
-public UserPreferencesStore(string? preferencesPath = null)
+    public UserPreferencesStore(string? preferencesPath = null)
     {
         PreferencesPath = Path.GetFullPath(
             preferencesPath ?? GetDefaultPreferencesPath());
@@ -24,8 +24,8 @@ public UserPreferencesStore(string? preferencesPath = null)
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<UserPreferences> LoadAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<UserPreferences> LoadAsync(
+            CancellationToken cancellationToken = default)
     {
         if (!File.Exists(PreferencesPath))
         {
@@ -61,9 +61,9 @@ public async Task<UserPreferences> LoadAsync(
     /// <param name="preferences">The <c>preferences</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public Task SaveAsync(
-        UserPreferences preferences,
-        CancellationToken cancellationToken = default)
+    public Task SaveAsync(
+            UserPreferences preferences,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(preferences);
 
@@ -85,7 +85,7 @@ public Task SaveAsync(
     /// </summary>
     /// <param name="preferences">The <c>preferences</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static UserPreferences Normalize(UserPreferences preferences)
+    private static UserPreferences Normalize(UserPreferences preferences)
     {
         global::Nodalis.Core.Settings.EditorPreferences sourceEditor = preferences.Editor ?? new EditorPreferences();
         global::Nodalis.Core.Settings.EditorPreferences editor = sourceEditor with
@@ -127,7 +127,7 @@ private static UserPreferences Normalize(UserPreferences preferences)
     /// Performs the <c>GetDefaultPreferencesPath</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private static string GetDefaultPreferencesPath()
+    private static string GetDefaultPreferencesPath()
     {
         string localApplicationData = Environment.GetFolderPath(
             Environment.SpecialFolder.LocalApplicationData);

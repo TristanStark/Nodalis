@@ -20,7 +20,7 @@ public sealed class WorkspaceDocxImportService
     /// Initializes a new instance of <see cref="WorkspaceDocxImportService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public WorkspaceDocxImportService(string workspaceRoot)
+    public WorkspaceDocxImportService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
@@ -32,9 +32,9 @@ public WorkspaceDocxImportService(string workspaceRoot)
     /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<DocxImportResult> ImportAsync(
-        string sourcePath,
-        CancellationToken cancellationToken = default)
+    public async Task<DocxImportResult> ImportAsync(
+            string sourcePath,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Importing.DocxStagedImport staged = await StageAsync(
             sourcePath,
@@ -66,9 +66,9 @@ public async Task<DocxImportResult> ImportAsync(
     /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<DocxImportPreview> PreparePreviewAsync(
-        string sourcePath,
-        CancellationToken cancellationToken = default)
+    public async Task<DocxImportPreview> PreparePreviewAsync(
+            string sourcePath,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Importing.DocxStagedImport staged = await StageAsync(
             sourcePath,
@@ -211,10 +211,10 @@ public async Task<DocxImportPreview> PreparePreviewAsync(
     /// <param name="request">The <c>request</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<DocxImportPlan> BuildPlanAsync(
-        DocxImportPreview preview,
-        DocxImportCommitRequest request,
-        CancellationToken cancellationToken = default)
+    public async Task<DocxImportPlan> BuildPlanAsync(
+            DocxImportPreview preview,
+            DocxImportCommitRequest request,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(preview);
         ArgumentNullException.ThrowIfNull(request);
@@ -466,10 +466,10 @@ public async Task<DocxImportPlan> BuildPlanAsync(
     /// <param name="request">The <c>request</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<DocxImportCommitResult> CommitAsync(
-        DocxImportPreview preview,
-        DocxImportCommitRequest request,
-        CancellationToken cancellationToken = default)
+    public async Task<DocxImportCommitResult> CommitAsync(
+            DocxImportPreview preview,
+            DocxImportCommitRequest request,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(preview);
         ArgumentNullException.ThrowIfNull(request);
@@ -701,9 +701,9 @@ public async Task<DocxImportCommitResult> CommitAsync(
     /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<DocxStagedImport> StageAsync(
-        string sourcePath,
-        CancellationToken cancellationToken = default)
+    public async Task<DocxStagedImport> StageAsync(
+            string sourcePath,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
 
@@ -766,9 +766,9 @@ public async Task<DocxStagedImport> StageAsync(
     /// <param name="staged">The <c>staged</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public Task<string> CommitStagedCopyAsync(
-        DocxStagedImport staged,
-        CancellationToken cancellationToken = default)
+    public Task<string> CommitStagedCopyAsync(
+            DocxStagedImport staged,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(staged);
         cancellationToken.ThrowIfCancellationRequested();
@@ -811,8 +811,8 @@ public Task<string> CommitStagedCopyAsync(
     /// </summary>
     /// <param name="staged">The <c>staged</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public void DiscardStagedCopy(
-        DocxStagedImport staged)
+    public void DiscardStagedCopy(
+            DocxStagedImport staged)
     {
         ArgumentNullException.ThrowIfNull(staged);
 
@@ -831,8 +831,8 @@ public void DiscardStagedCopy(
     /// </summary>
     /// <param name="analysis">The <c>analysis</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<DocxImportSectionPreview> BuildSectionPreviews(
-        DocxImportAnalysis analysis)
+    private static List<DocxImportSectionPreview> BuildSectionPreviews(
+            DocxImportAnalysis analysis)
     {
         global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportSectionPreview> result = new List<DocxImportSectionPreview>();
         int index = 0;
@@ -877,10 +877,10 @@ private static List<DocxImportSectionPreview> BuildSectionPreviews(
     /// <param name="analysis">The <c>analysis</c> value.</param>
     /// <param name="sections">The <c>sections</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<string> BuildPreviewWarnings(
-        IReadOnlyList<DocxImportTargetOption> applications,
-        DocxImportAnalysis analysis,
-        IReadOnlyList<DocxImportSectionPreview> sections)
+    private static List<string> BuildPreviewWarnings(
+            IReadOnlyList<DocxImportTargetOption> applications,
+            DocxImportAnalysis analysis,
+            IReadOnlyList<DocxImportSectionPreview> sections)
     {
         global::System.Collections.Generic.List<string> warnings = new List<string>();
 
@@ -917,9 +917,9 @@ private static List<string> BuildPreviewWarnings(
     /// <param name="preview">The <c>preview</c> value.</param>
     /// <param name="request">The <c>request</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void ValidateCommitRequest(
-        DocxImportPreview preview,
-        DocxImportCommitRequest request)
+    private static void ValidateCommitRequest(
+            DocxImportPreview preview,
+            DocxImportCommitRequest request)
     {
         if (!preview.Applications.Any(application =>
                 application.Id == request.ApplicationId))
@@ -981,9 +981,9 @@ private static void ValidateCommitRequest(
     /// <param name="project">The <c>project</c> value.</param>
     /// <param name="targetSections">The <c>targetSections</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static ProjectManifest EnsureSections(
-        ProjectManifest project,
-        IEnumerable<string> targetSections)
+    private static ProjectManifest EnsureSections(
+            ProjectManifest project,
+            IEnumerable<string> targetSections)
     {
         global::System.Collections.Generic.List<global::Nodalis.Core.Domain.SectionManifest> sections = project.Sections.ToList();
         int nextOrder = sections.Count == 0
@@ -1035,9 +1035,9 @@ private static ProjectManifest EnsureSections(
     /// <param name="sourceFileName">The <c>sourceFileName</c> value.</param>
     /// <param name="sections">The <c>sections</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string BuildImportedMarkdown(
-        string sourceFileName,
-        IEnumerable<SelectedSection> sections)
+    private static string BuildImportedMarkdown(
+            string sourceFileName,
+            IEnumerable<SelectedSection> sections)
     {
         string sourceStem =
             Path.GetFileNameWithoutExtension(
@@ -1079,63 +1079,63 @@ private static string BuildImportedMarkdown(
     /// <param name="fullPath">The <c>fullPath</c> value.</param>
     /// <param name="description">The <c>description</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private DocxImportPlannedChange PlanChange(
-        string action,
-        string fullPath,
-        string description) =>
-        new()
-        {
-            Action = action,
-            RelativePath =
-                ToWorkspaceRelativePath(
-                    fullPath),
-            Description = description
-        };
+    private DocxImportPlannedChange PlanChange(
+            string action,
+            string fullPath,
+            string description) =>
+            new()
+            {
+                Action = action,
+                RelativePath =
+                    ToWorkspaceRelativePath(
+                        fullPath),
+                Description = description
+            };
 
     /// <summary>
     /// Performs the <c>ToWorkspaceRelativePath</c> operation.
     /// </summary>
     /// <param name="fullPath">The <c>fullPath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private string ToWorkspaceRelativePath(
-        string fullPath) =>
-        Path.GetRelativePath(
-                _workspaceRoot,
-                Path.GetFullPath(fullPath))
-            .Replace(
-                Path.DirectorySeparatorChar,
-                '/');
+    private string ToWorkspaceRelativePath(
+            string fullPath) =>
+            Path.GetRelativePath(
+                    _workspaceRoot,
+                    Path.GetFullPath(fullPath))
+                .Replace(
+                    Path.DirectorySeparatorChar,
+                    '/');
 
     /// <summary>
     /// Performs the <c>ResolveRelativePath</c> operation.
     /// </summary>
     /// <param name="relativePath">The <c>relativePath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private string ResolveRelativePath(
-        string relativePath) =>
-        Path.GetFullPath(
-            Path.Combine(
-                _workspaceRoot,
-                relativePath.Replace(
-                    '/',
-                    Path.DirectorySeparatorChar)));
+    private string ResolveRelativePath(
+            string relativePath) =>
+            Path.GetFullPath(
+                Path.Combine(
+                    _workspaceRoot,
+                    relativePath.Replace(
+                        '/',
+                        Path.DirectorySeparatorChar)));
 
     /// <summary>
     /// Performs the <c>GetStagingDirectory</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private string GetStagingDirectory() =>
-        Path.Combine(
-            _workspaceRoot,
-            WorkspaceLayout.ImportsDirectoryName,
-            WorkspaceLayout.ImportStagingDirectoryName);
+    private string GetStagingDirectory() =>
+            Path.Combine(
+                _workspaceRoot,
+                WorkspaceLayout.ImportsDirectoryName,
+                WorkspaceLayout.ImportStagingDirectoryName);
 
     /// <summary>
     /// Performs the <c>EnsureIsStagingPath</c> operation.
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void EnsureIsStagingPath(string path)
+    private void EnsureIsStagingPath(string path)
     {
         string root = Path.GetFullPath(
                 GetStagingDirectory())
@@ -1157,7 +1157,7 @@ private void EnsureIsStagingPath(string path)
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void TryDelete(string path)
+    private static void TryDelete(string path)
     {
         try
         {
@@ -1177,8 +1177,8 @@ private static void TryDelete(string path)
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void TryDeleteEmptyDirectory(
-        string path)
+    private static void TryDeleteEmptyDirectory(
+            string path)
     {
         try
         {
@@ -1201,10 +1201,10 @@ private static void TryDeleteEmptyDirectory(
     /// <param name="destinationPath">The <c>destinationPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task CopyAsync(
-        string sourcePath,
-        string destinationPath,
-        CancellationToken cancellationToken)
+    private static async Task CopyAsync(
+            string sourcePath,
+            string destinationPath,
+            CancellationToken cancellationToken)
     {
         await using global::System.IO.FileStream source = new FileStream(
             sourcePath,

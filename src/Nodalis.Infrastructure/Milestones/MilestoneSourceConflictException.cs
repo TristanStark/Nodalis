@@ -6,8 +6,8 @@ public sealed class MilestoneSourceConflictException : IOException
     /// Initializes a new instance of <see cref="MilestoneSourceConflictException"/>.
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
-public MilestoneSourceConflictException(string path)
-        : base($"Le jalon ne peut plus être localisé sans ambiguïté dans '{path}'.")
+    public MilestoneSourceConflictException(string path)
+            : base($"Le jalon ne peut plus être localisé sans ambiguïté dans '{path}'.")
     {
         Path = path;
     }

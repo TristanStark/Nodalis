@@ -16,7 +16,7 @@ public sealed class DocxImportAnalyzer
     /// Initializes a new instance of <see cref="DocxImportAnalyzer"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public DocxImportAnalyzer(string workspaceRoot)
+    public DocxImportAnalyzer(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -32,10 +32,10 @@ public DocxImportAnalyzer(string workspaceRoot)
     /// <param name="sourceFileName">The <c>sourceFileName</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<DocxImportAnalysis> AnalyzeAsync(
-        ParsedDocxDocument document,
-        string sourceFileName,
-        CancellationToken cancellationToken = default)
+    public async Task<DocxImportAnalysis> AnalyzeAsync(
+            ParsedDocxDocument document,
+            string sourceFileName,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceFileName);
@@ -131,10 +131,10 @@ public async Task<DocxImportAnalysis> AnalyzeAsync(
     /// <param name="sourceFileName">The <c>sourceFileName</c> value.</param>
     /// <param name="maximumParagraphs">The <c>maximumParagraphs</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static IReadOnlyList<EvidenceItem> BuildEvidence(
-        ParsedDocxDocument document,
-        string sourceFileName,
-        int maximumParagraphs)
+    private static IReadOnlyList<EvidenceItem> BuildEvidence(
+            ParsedDocxDocument document,
+            string sourceFileName,
+            int maximumParagraphs)
     {
         global::System.Collections.Generic.List<global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.EvidenceItem> result = new List<EvidenceItem>();
 
@@ -197,10 +197,10 @@ private static IReadOnlyList<EvidenceItem> BuildEvidence(
     /// <param name="kind">The <c>kind</c> value.</param>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void AddEvidence(
-        ICollection<EvidenceItem> target,
-        EvidenceKind kind,
-        string? value)
+    private static void AddEvidence(
+            ICollection<EvidenceItem> target,
+            EvidenceKind kind,
+            string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -226,9 +226,9 @@ private static void AddEvidence(
     /// <param name="evidence">The <c>evidence</c> value.</param>
     /// <param name="labels">The <c>labels</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static IReadOnlyList<LabeledValue> ExtractLabeledValues(
-        IReadOnlyList<EvidenceItem> evidence,
-        IReadOnlyList<string> labels)
+    private static IReadOnlyList<LabeledValue> ExtractLabeledValues(
+            IReadOnlyList<EvidenceItem> evidence,
+            IReadOnlyList<string> labels)
     {
         global::System.Collections.Generic.List<global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.LabeledValue> result = new List<LabeledValue>();
 
@@ -289,10 +289,10 @@ private static IReadOnlyList<LabeledValue> ExtractLabeledValues(
     /// <param name="evidence">The <c>evidence</c> value.</param>
     /// <param name="labeledValues">The <c>labeledValues</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<DocxDetectedTarget> RankTargets(
-        IReadOnlyList<LinkTargetEntry> targets,
-        IReadOnlyList<EvidenceItem> evidence,
-        IReadOnlyList<LabeledValue> labeledValues)
+    private static List<DocxDetectedTarget> RankTargets(
+            IReadOnlyList<LinkTargetEntry> targets,
+            IReadOnlyList<EvidenceItem> evidence,
+            IReadOnlyList<LabeledValue> labeledValues)
     {
         global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxDetectedTarget> ranked = new List<DocxDetectedTarget>();
 
@@ -403,10 +403,10 @@ private static List<DocxDetectedTarget> RankTargets(
     /// <param name="rules">The <c>rules</c> value.</param>
     /// <param name="unmappedBlocks">The <c>unmappedBlocks</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<DocxMappedSection> MapSections(
-        IReadOnlyList<DocxBlock> blocks,
-        IReadOnlyList<DocxSectionMappingRule> rules,
-        out List<DocxBlock> unmappedBlocks)
+    private static List<DocxMappedSection> MapSections(
+            IReadOnlyList<DocxBlock> blocks,
+            IReadOnlyList<DocxSectionMappingRule> rules,
+            out List<DocxBlock> unmappedBlocks)
     {
         global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxMappedSection> result = new List<DocxMappedSection>();
         unmappedBlocks = [];
@@ -466,10 +466,10 @@ private static List<DocxMappedSection> MapSections(
     /// <param name="headingLevel">The <c>headingLevel</c> value.</param>
     /// <param name="rules">The <c>rules</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static DocxSectionMappingRule? FindMappingRule(
-        string heading,
-        int headingLevel,
-        IReadOnlyList<DocxSectionMappingRule> rules)
+    private static DocxSectionMappingRule? FindMappingRule(
+            string heading,
+            int headingLevel,
+            IReadOnlyList<DocxSectionMappingRule> rules)
     {
         string normalizedHeading = NormalizeForComparison(
             heading);
@@ -509,9 +509,9 @@ private static DocxSectionMappingRule? FindMappingRule(
     /// <param name="labeledValues">The <c>labeledValues</c> value.</param>
     /// <param name="targets">The <c>targets</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string? FindStrongestUnmatchedLabel(
-        IReadOnlyList<LabeledValue> labeledValues,
-        IReadOnlyList<LinkTargetEntry> targets)
+    private static string? FindStrongestUnmatchedLabel(
+            IReadOnlyList<LabeledValue> labeledValues,
+            IReadOnlyList<LinkTargetEntry> targets)
     {
         foreach (global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.LabeledValue value in labeledValues
                      .OrderByDescending(item =>
@@ -544,12 +544,12 @@ private static string? FindStrongestUnmatchedLabel(
     /// <param name="proposedProject">The <c>proposedProject</c> value.</param>
     /// <param name="sections">The <c>sections</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<string> BuildDetectionNotes(
-        IReadOnlyList<DocxDetectedTarget> applications,
-        IReadOnlyList<DocxDetectedTarget> projects,
-        string? proposedApplication,
-        string? proposedProject,
-        IReadOnlyList<DocxMappedSection> sections)
+    private static List<string> BuildDetectionNotes(
+            IReadOnlyList<DocxDetectedTarget> applications,
+            IReadOnlyList<DocxDetectedTarget> projects,
+            string? proposedApplication,
+            string? proposedProject,
+            IReadOnlyList<DocxMappedSection> sections)
     {
         global::System.Collections.Generic.List<string> notes = new List<string>();
 
@@ -592,45 +592,45 @@ private static List<string> BuildDetectionNotes(
     /// </summary>
     /// <param name="kind">The <c>kind</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static int ExplicitScore(EvidenceKind kind) =>
-        kind switch
-        {
-            EvidenceKind.Header => 98,
-            EvidenceKind.Metadata => 95,
-            EvidenceKind.Content => 90,
-            EvidenceKind.FileName => 85,
-            _ => 80
-        };
+    private static int ExplicitScore(EvidenceKind kind) =>
+            kind switch
+            {
+                EvidenceKind.Header => 98,
+                EvidenceKind.Metadata => 95,
+                EvidenceKind.Content => 90,
+                EvidenceKind.FileName => 85,
+                _ => 80
+            };
 
     /// <summary>
     /// Performs the <c>OccurrenceScore</c> operation.
     /// </summary>
     /// <param name="kind">The <c>kind</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static int OccurrenceScore(EvidenceKind kind) =>
-        kind switch
-        {
-            EvidenceKind.Header => 72,
-            EvidenceKind.Metadata => 62,
-            EvidenceKind.Content => 48,
-            EvidenceKind.FileName => 40,
-            _ => 20
-        };
+    private static int OccurrenceScore(EvidenceKind kind) =>
+            kind switch
+            {
+                EvidenceKind.Header => 72,
+                EvidenceKind.Metadata => 62,
+                EvidenceKind.Content => 48,
+                EvidenceKind.FileName => 40,
+                _ => 20
+            };
 
     /// <summary>
     /// Performs the <c>EvidenceLabel</c> operation.
     /// </summary>
     /// <param name="kind">The <c>kind</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string EvidenceLabel(EvidenceKind kind) =>
-        kind switch
-        {
-            EvidenceKind.FileName => "Nom du fichier",
-            EvidenceKind.Metadata => "Métadonnée",
-            EvidenceKind.Header => "En-tête",
-            EvidenceKind.Content => "Contenu",
-            _ => "Source"
-        };
+    private static string EvidenceLabel(EvidenceKind kind) =>
+            kind switch
+            {
+                EvidenceKind.FileName => "Nom du fichier",
+                EvidenceKind.Metadata => "Métadonnée",
+                EvidenceKind.Header => "En-tête",
+                EvidenceKind.Content => "Contenu",
+                _ => "Source"
+            };
 
     /// <summary>
     /// Performs the <c>ContainsNormalizedPhrase</c> operation.
@@ -638,9 +638,9 @@ private static string EvidenceLabel(EvidenceKind kind) =>
     /// <param name="source">The <c>source</c> value.</param>
     /// <param name="normalizedPhrase">The <c>normalizedPhrase</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool ContainsNormalizedPhrase(
-        string source,
-        string normalizedPhrase)
+    private static bool ContainsNormalizedPhrase(
+            string source,
+            string normalizedPhrase)
     {
         string normalizedSource = NormalizeForComparison(
             source);
@@ -671,7 +671,7 @@ private static bool ContainsNormalizedPhrase(
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeForComparison(string value)
+    private static string NormalizeForComparison(string value)
     {
         string decomposed = (value ?? string.Empty)
             .Normalize(
@@ -711,7 +711,7 @@ private static string NormalizeForComparison(string value)
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string TrimEvidence(string value)
+    private static string TrimEvidence(string value)
     {
         string trimmed = value.Trim();
 
@@ -725,15 +725,15 @@ private static string TrimEvidence(string value)
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeNewlines(string value) =>
-        (value ?? string.Empty)
-            .Replace(
-                "\r\n",
-                "\n",
-                StringComparison.Ordinal)
-            .Replace(
-                '\r',
-                '\n');
+    private static string NormalizeNewlines(string value) =>
+            (value ?? string.Empty)
+                .Replace(
+                    "\r\n",
+                    "\n",
+                    StringComparison.Ordinal)
+                .Replace(
+                    '\r',
+                    '\n');
 
     /// <summary>
     /// Performs the <c>IsRelativeAncestor</c> operation.
@@ -741,9 +741,9 @@ private static string NormalizeNewlines(string value) =>
     /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
     /// <param name="child">The <c>child</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsRelativeAncestor(
-        string candidateParent,
-        string child)
+    private static bool IsRelativeAncestor(
+            string candidateParent,
+            string child)
     {
         string parent = candidateParent.Trim('/');
         string descendant = child.Trim('/');

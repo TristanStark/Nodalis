@@ -18,11 +18,11 @@ public static class MarkdownFlowDocumentRenderer
     /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
     /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static FlowDocument Render(
-        string markdown,
-        string? baseDirectory = null,
-        Action<string>? internalLinkClicked = null,
-        Action<string>? linkClicked = null)
+    public static FlowDocument Render(
+            string markdown,
+            string? baseDirectory = null,
+            Action<string>? internalLinkClicked = null,
+            Action<string>? linkClicked = null)
     {
         global::System.Windows.Documents.FlowDocument document = new FlowDocument
         {
@@ -54,11 +54,11 @@ public static FlowDocument Render(
     /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
     /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Block CreateBlock(
-        MarkdownBlock block,
-        string? baseDirectory,
-        Action<string>? internalLinkClicked,
-        Action<string>? linkClicked)
+    private static Block CreateBlock(
+            MarkdownBlock block,
+            string? baseDirectory,
+            Action<string>? internalLinkClicked,
+            Action<string>? linkClicked)
     {
         return block.Kind switch
         {
@@ -127,11 +127,11 @@ private static Block CreateBlock(
     /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
     /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Paragraph CreateHeading(
-        MarkdownBlock block,
-        string? baseDirectory,
-        Action<string>? internalLinkClicked,
-        Action<string>? linkClicked)
+    private static Paragraph CreateHeading(
+            MarkdownBlock block,
+            string? baseDirectory,
+            Action<string>? internalLinkClicked,
+            Action<string>? linkClicked)
     {
         global::System.Windows.Documents.Paragraph paragraph = CreateParagraph(
             block.Text,
@@ -167,11 +167,11 @@ private static Paragraph CreateHeading(
     /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
     /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Paragraph CreateParagraph(
-        string text,
-        string? baseDirectory,
-        Action<string>? internalLinkClicked,
-        Action<string>? linkClicked)
+    private static Paragraph CreateParagraph(
+            string text,
+            string? baseDirectory,
+            Action<string>? internalLinkClicked,
+            Action<string>? linkClicked)
     {
         global::System.Windows.Documents.Paragraph paragraph = new Paragraph
         {
@@ -198,12 +198,12 @@ private static Paragraph CreateParagraph(
     /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
     /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Paragraph CreatePrefixedParagraph(
-        string prefix,
-        string text,
-        string? baseDirectory,
-        Action<string>? internalLinkClicked,
-        Action<string>? linkClicked)
+    private static Paragraph CreatePrefixedParagraph(
+            string prefix,
+            string text,
+            string? baseDirectory,
+            Action<string>? internalLinkClicked,
+            Action<string>? linkClicked)
     {
         global::System.Windows.Documents.Paragraph paragraph = new Paragraph
         {
@@ -235,11 +235,11 @@ private static Paragraph CreatePrefixedParagraph(
     /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
     /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Paragraph CreateQuote(
-        string text,
-        string? baseDirectory,
-        Action<string>? internalLinkClicked,
-        Action<string>? linkClicked)
+    private static Paragraph CreateQuote(
+            string text,
+            string? baseDirectory,
+            Action<string>? internalLinkClicked,
+            Action<string>? linkClicked)
     {
         global::System.Windows.Documents.Paragraph paragraph = CreateParagraph(
             text,
@@ -265,8 +265,8 @@ private static Paragraph CreateQuote(
     /// </summary>
     /// <param name="block">The <c>block</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Paragraph CreateCodeBlock(
-        MarkdownBlock block)
+    private static Paragraph CreateCodeBlock(
+            MarkdownBlock block)
     {
         global::System.Windows.Documents.Paragraph paragraph = new Paragraph(
             new Run(block.Text))
@@ -296,11 +296,11 @@ private static Paragraph CreateCodeBlock(
     /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
     /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Table CreateTable(
-        MarkdownBlock block,
-        string? baseDirectory,
-        Action<string>? internalLinkClicked,
-        Action<string>? linkClicked)
+    private static Table CreateTable(
+            MarkdownBlock block,
+            string? baseDirectory,
+            Action<string>? internalLinkClicked,
+            Action<string>? linkClicked)
     {
         global::System.Windows.Documents.Table table = new Table
         {
@@ -374,12 +374,12 @@ private static Table CreateTable(
     /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
     /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void AddInlines(
-        InlineCollection target,
-        string text,
-        string? baseDirectory,
-        Action<string>? internalLinkClicked,
-        Action<string>? linkClicked)
+    private static void AddInlines(
+            InlineCollection target,
+            string text,
+            string? baseDirectory,
+            Action<string>? internalLinkClicked,
+            Action<string>? linkClicked)
     {
         foreach (global::Nodalis.Core.Markdown.MarkdownInline inline in MarkdownInlineParser.Parse(text))
         {
@@ -400,11 +400,11 @@ private static void AddInlines(
     /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
     /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Inline CreateInline(
-        MarkdownInline inline,
-        string? baseDirectory,
-        Action<string>? internalLinkClicked,
-        Action<string>? linkClicked)
+    private static Inline CreateInline(
+            MarkdownInline inline,
+            string? baseDirectory,
+            Action<string>? internalLinkClicked,
+            Action<string>? linkClicked)
     {
         return inline.Kind switch
         {
@@ -451,10 +451,10 @@ private static Inline CreateInline(
     /// <param name="target">The <c>target</c> value.</param>
     /// <param name="clicked">The <c>clicked</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Hyperlink CreateLink(
-        string text,
-        string? target,
-        Action<string>? clicked)
+    private static Hyperlink CreateLink(
+            string text,
+            string? target,
+            Action<string>? clicked)
     {
         global::System.Windows.Documents.Hyperlink hyperlink = new Hyperlink(
             new Run(text))
@@ -480,9 +480,9 @@ private static Hyperlink CreateLink(
     /// <param name="inline">The <c>inline</c> value.</param>
     /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Inline CreateImageInline(
-        MarkdownInline inline,
-        string? baseDirectory)
+    private static Inline CreateImageInline(
+            MarkdownInline inline,
+            string? baseDirectory)
     {
         if (string.IsNullOrWhiteSpace(inline.Target) ||
             string.IsNullOrWhiteSpace(baseDirectory) ||
@@ -572,9 +572,9 @@ private static Inline CreateImageInline(
     /// <param name="resourceKey">The <c>resourceKey</c> value.</param>
     /// <param name="fallback">The <c>fallback</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Brush GetBrush(
-        string resourceKey,
-        Brush fallback) =>
-        Application.Current.TryFindResource(resourceKey) as Brush
-        ?? fallback;
+    private static Brush GetBrush(
+            string resourceKey,
+            Brush fallback) =>
+            Application.Current.TryFindResource(resourceKey) as Brush
+            ?? fallback;
 }

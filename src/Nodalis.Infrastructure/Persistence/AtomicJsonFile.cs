@@ -12,9 +12,9 @@ internal static class AtomicJsonFile
     /// <param name="path">The <c>path</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static async Task<T> ReadAsync<T>(
-        string path,
-        CancellationToken cancellationToken = default)
+    public static async Task<T> ReadAsync<T>(
+            string path,
+            CancellationToken cancellationToken = default)
     {
         await using global::System.IO.FileStream stream = new FileStream(
             path,
@@ -41,10 +41,10 @@ public static async Task<T> ReadAsync<T>(
     /// <param name="value">The <c>value</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static Task WriteAsync<T>(
-        string path,
-        T value,
-        CancellationToken cancellationToken = default)
+    public static Task WriteAsync<T>(
+            string path,
+            T value,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(value);
 

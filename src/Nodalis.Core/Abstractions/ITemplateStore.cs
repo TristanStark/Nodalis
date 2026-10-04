@@ -9,24 +9,24 @@ public interface ITemplateStore
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-Task InitializeDefaultsAsync(
-        CancellationToken cancellationToken = default);
+    Task InitializeDefaultsAsync(
+            CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Performs the <c>LoadTemplateCatalogAsync</c> operation.
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-Task<TemplateCatalog> LoadTemplateCatalogAsync(
-        CancellationToken cancellationToken = default);
+    Task<TemplateCatalog> LoadTemplateCatalogAsync(
+            CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Performs the <c>LoadProjectProfilesAsync</c> operation.
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-Task<ProjectProfileCatalog> LoadProjectProfilesAsync(
-        CancellationToken cancellationToken = default);
+    Task<ProjectProfileCatalog> LoadProjectProfilesAsync(
+            CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Performs the <c>RenderAsync</c> operation.
@@ -35,8 +35,8 @@ Task<ProjectProfileCatalog> LoadProjectProfilesAsync(
     /// <param name="variables">The <c>variables</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-Task<string> RenderAsync(
-        string templateKey,
-        IReadOnlyDictionary<string, string> variables,
-        CancellationToken cancellationToken = default);
+    Task<string> RenderAsync(
+            string templateKey,
+            IReadOnlyDictionary<string, string> variables,
+            CancellationToken cancellationToken = default);
 }

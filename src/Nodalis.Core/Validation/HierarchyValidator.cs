@@ -12,11 +12,11 @@ public static class HierarchyValidator
     /// <param name="modules">The <c>modules</c> value.</param>
     /// <param name="projects">The <c>projects</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static void ValidateProject(
-        ProjectManifest project,
-        IReadOnlyCollection<ApplicationManifest> applications,
-        IReadOnlyCollection<ModuleManifest> modules,
-        IReadOnlyCollection<ProjectManifest> projects)
+    public static void ValidateProject(
+            ProjectManifest project,
+            IReadOnlyCollection<ApplicationManifest> applications,
+            IReadOnlyCollection<ModuleManifest> modules,
+            IReadOnlyCollection<ProjectManifest> projects)
     {
         if (string.IsNullOrWhiteSpace(project.Name))
         {
@@ -60,10 +60,10 @@ public static void ValidateProject(
     /// <param name="applications">The <c>applications</c> value.</param>
     /// <param name="modules">The <c>modules</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static void ValidateModule(
-        ModuleManifest module,
-        IReadOnlyCollection<ApplicationManifest> applications,
-        IReadOnlyCollection<ModuleManifest> modules)
+    public static void ValidateModule(
+            ModuleManifest module,
+            IReadOnlyCollection<ApplicationManifest> applications,
+            IReadOnlyCollection<ModuleManifest> modules)
     {
         if (string.IsNullOrWhiteSpace(module.Name))
         {
@@ -96,10 +96,10 @@ public static void ValidateModule(
     /// <param name="parentProjectId">The <c>parentProjectId</c> value.</param>
     /// <param name="projects">The <c>projects</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void EnsureNoProjectCycle(
-        Guid projectId,
-        Guid parentProjectId,
-        IReadOnlyCollection<ProjectManifest> projects)
+    private static void EnsureNoProjectCycle(
+            Guid projectId,
+            Guid parentProjectId,
+            IReadOnlyCollection<ProjectManifest> projects)
     {
         global::System.Collections.Generic.HashSet<global::System.Guid> visited = new HashSet<Guid> { projectId };
         Guid? currentId = parentProjectId;
@@ -122,10 +122,10 @@ private static void EnsureNoProjectCycle(
     /// <param name="parentModuleId">The <c>parentModuleId</c> value.</param>
     /// <param name="modules">The <c>modules</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void EnsureNoModuleCycle(
-        Guid moduleId,
-        Guid parentModuleId,
-        IReadOnlyCollection<ModuleManifest> modules)
+    private static void EnsureNoModuleCycle(
+            Guid moduleId,
+            Guid parentModuleId,
+            IReadOnlyCollection<ModuleManifest> modules)
     {
         global::System.Collections.Generic.HashSet<global::System.Guid> visited = new HashSet<Guid> { moduleId };
         Guid? currentId = parentModuleId;

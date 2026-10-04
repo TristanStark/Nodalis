@@ -16,9 +16,9 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
     /// </summary>
     /// <param name="session">The <c>session</c> value.</param>
     /// <param name="delay">The <c>delay</c> value.</param>
-public DocumentAutosaveController(
-        TextDocumentSession session,
-        TimeSpan delay)
+    public DocumentAutosaveController(
+            TextDocumentSession session,
+            TimeSpan delay)
     {
         ArgumentNullException.ThrowIfNull(session);
 
@@ -42,7 +42,7 @@ public DocumentAutosaveController(
     /// </summary>
     /// <param name="content">The <c>content</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public void Schedule(string content)
+    public void Schedule(string content)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(content);
@@ -63,8 +63,8 @@ public void Schedule(string content)
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task FlushAsync(
-        CancellationToken cancellationToken = default)
+    public async Task FlushAsync(
+            CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -93,7 +93,7 @@ public async Task FlushAsync(
     /// Performs the <c>DisposeAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-public async ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed)
         {
@@ -120,7 +120,7 @@ public async ValueTask DisposeAsync()
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
+    private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -154,9 +154,9 @@ private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
     /// <param name="content">The <c>content</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task SaveCoreAsync(
-        string content,
-        CancellationToken cancellationToken)
+    private async Task SaveCoreAsync(
+            string content,
+            CancellationToken cancellationToken)
     {
         try
         {

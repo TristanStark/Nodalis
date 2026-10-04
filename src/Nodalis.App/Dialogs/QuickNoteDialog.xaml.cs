@@ -9,8 +9,8 @@ public partial class QuickNoteDialog : Window
     /// Initializes a new instance of <see cref="QuickNoteDialog"/>.
     /// </summary>
     /// <param name="scopes">The <c>scopes</c> value.</param>
-public QuickNoteDialog(
-        IReadOnlyList<QuickNoteScope> scopes)
+    public QuickNoteDialog(
+            IReadOnlyList<QuickNoteScope> scopes)
     {
         ArgumentNullException.ThrowIfNull(scopes);
 
@@ -37,9 +37,9 @@ public QuickNoteDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Save_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void Save_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         if (ScopeComboBox.SelectedItem is null)
         {

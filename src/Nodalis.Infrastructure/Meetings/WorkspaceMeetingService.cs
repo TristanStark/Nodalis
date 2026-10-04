@@ -20,7 +20,7 @@ public sealed class WorkspaceMeetingService
     /// Initializes a new instance of <see cref="WorkspaceMeetingService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public WorkspaceMeetingService(string workspaceRoot)
+    public WorkspaceMeetingService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -36,10 +36,10 @@ public WorkspaceMeetingService(string workspaceRoot)
     /// <param name="draft">The <c>draft</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<MeetingCreationResult> CreateAsync(
-        string? contextPath,
-        MeetingDraft draft,
-        CancellationToken cancellationToken = default)
+    public async Task<MeetingCreationResult> CreateAsync(
+            string? contextPath,
+            MeetingDraft draft,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
         ArgumentException.ThrowIfNullOrWhiteSpace(draft.Title);
@@ -147,9 +147,9 @@ public async Task<MeetingCreationResult> CreateAsync(
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<(string ScopeKind, string ScopeName)?> ResolveScopeAsync(
-        string? contextPath,
-        CancellationToken cancellationToken = default)
+    public async Task<(string ScopeKind, string ScopeName)?> ResolveScopeAsync(
+            string? contextPath,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
         (global::Nodalis.Core.Links.LinkTargetEntry Target, string KindLabel)? scope = ResolveScope(contextPath, links);
@@ -172,9 +172,9 @@ public async Task<(string ScopeKind, string ScopeName)?> ResolveScopeAsync(
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="links">The <c>links</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private (LinkTargetEntry Target, string KindLabel)? ResolveScope(
-        string? contextPath,
-        LinkIndexCatalog links)
+    private (LinkTargetEntry Target, string KindLabel)? ResolveScope(
+            string? contextPath,
+            LinkIndexCatalog links)
     {
         if (string.IsNullOrWhiteSpace(contextPath))
         {
@@ -235,10 +235,10 @@ private (LinkTargetEntry Target, string KindLabel)? ResolveScope(
     /// <param name="scopeKind">The <c>scopeKind</c> value.</param>
     /// <param name="scopeName">The <c>scopeName</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string InsertScopeMetadata(
-        string content,
-        string scopeKind,
-        string scopeName)
+    private static string InsertScopeMetadata(
+            string content,
+            string scopeKind,
+            string scopeName)
     {
         string normalized = NormalizeNewlines(content);
         global::System.Collections.Generic.List<string> lines = normalized.Split('\n').ToList();
@@ -282,10 +282,10 @@ private static string InsertScopeMetadata(
     /// <param name="heading">The <c>heading</c> value.</param>
     /// <param name="body">The <c>body</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string ReplaceSection(
-        string content,
-        string heading,
-        string body)
+    private static string ReplaceSection(
+            string content,
+            string heading,
+            string body)
     {
         string normalized = NormalizeNewlines(content);
         global::System.Collections.Generic.List<string> lines = normalized.Split('\n').ToList();
@@ -352,7 +352,7 @@ private static string ReplaceSection(
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeBullets(string value)
+    private static string NormalizeBullets(string value)
     {
         global::System.Collections.Generic.IReadOnlyList<string> lines = NormalizeInputLines(value);
         global::System.Collections.Generic.List<string> result = new List<string>();
@@ -384,7 +384,7 @@ private static string NormalizeBullets(string value)
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeActions(string value)
+    private static string NormalizeActions(string value)
     {
         global::System.Collections.Generic.IReadOnlyList<string> lines = NormalizeInputLines(value);
         global::System.Collections.Generic.List<string> result = new List<string>();
@@ -433,63 +433,63 @@ private static string NormalizeActions(string value)
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static IReadOnlyList<string> NormalizeInputLines(string value) =>
-        NormalizeNewlines(value)
-            .Split(
-                '\n',
-                StringSplitOptions.TrimEntries |
-                StringSplitOptions.RemoveEmptyEntries);
+    private static IReadOnlyList<string> NormalizeInputLines(string value) =>
+            NormalizeNewlines(value)
+                .Split(
+                    '\n',
+                    StringSplitOptions.TrimEntries |
+                    StringSplitOptions.RemoveEmptyEntries);
 
     /// <summary>
     /// Performs the <c>NormalizeText</c> operation.
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeText(string value) =>
-        NormalizeNewlines(value).Trim();
+    private static string NormalizeText(string value) =>
+            NormalizeNewlines(value).Trim();
 
     /// <summary>
     /// Performs the <c>NormalizeNewlines</c> operation.
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeNewlines(string value) =>
-        (value ?? string.Empty)
-            .Replace(
-                "\r\n",
-                "\n",
-                StringComparison.Ordinal)
-            .Replace(
-                '\r',
-                '\n');
+    private static string NormalizeNewlines(string value) =>
+            (value ?? string.Empty)
+                .Replace(
+                    "\r\n",
+                    "\n",
+                    StringComparison.Ordinal)
+                .Replace(
+                    '\r',
+                    '\n');
 
     /// <summary>
     /// Performs the <c>EnsureTrailingNewline</c> operation.
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string EnsureTrailingNewline(string value) =>
-        NormalizeNewlines(value).TrimEnd() + "\n";
+    private static string EnsureTrailingNewline(string value) =>
+            NormalizeNewlines(value).TrimEnd() + "\n";
 
     /// <summary>
     /// Performs the <c>ResolveWorkspacePath</c> operation.
     /// </summary>
     /// <param name="relativePath">The <c>relativePath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private string ResolveWorkspacePath(string relativePath) =>
-        Path.GetFullPath(
-            Path.Combine(
-                _workspaceRoot,
-                relativePath.Replace(
-                    '/',
-                    Path.DirectorySeparatorChar)));
+    private string ResolveWorkspacePath(string relativePath) =>
+            Path.GetFullPath(
+                Path.Combine(
+                    _workspaceRoot,
+                    relativePath.Replace(
+                        '/',
+                        Path.DirectorySeparatorChar)));
 
     /// <summary>
     /// Performs the <c>IsWithinWorkspace</c> operation.
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private bool IsWithinWorkspace(string path)
+    private bool IsWithinWorkspace(string path)
     {
         string root = _workspaceRoot.TrimEnd(
             Path.DirectorySeparatorChar,
@@ -510,9 +510,9 @@ private bool IsWithinWorkspace(string path)
     /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
     /// <param name="child">The <c>child</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsRelativeAncestorOrEqual(
-        string candidateParent,
-        string child)
+    private static bool IsRelativeAncestorOrEqual(
+            string candidateParent,
+            string child)
     {
         string parent = candidateParent.Trim('/');
         string descendant = child.Trim('/');
@@ -531,8 +531,8 @@ private static bool IsRelativeAncestorOrEqual(
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeRelativePath(string path) =>
-        path.Replace(
-            Path.DirectorySeparatorChar,
-            '/');
+    private static string NormalizeRelativePath(string path) =>
+            path.Replace(
+                Path.DirectorySeparatorChar,
+                '/');
 }

@@ -10,9 +10,9 @@ public static partial class MarkdownTemplateRenderer
     /// <param name="template">The <c>template</c> value.</param>
     /// <param name="variables">The <c>variables</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static string Render(
-        string template,
-        IReadOnlyDictionary<string, string> variables)
+    public static string Render(
+            string template,
+            IReadOnlyDictionary<string, string> variables)
     {
         ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(variables);
@@ -49,11 +49,11 @@ public static string Render(
     /// <param name="now">The <c>now</c> value.</param>
     /// <param name="additionalVariables">The <c>additionalVariables</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static Dictionary<string, string> CreateStandardVariables(
-        string title,
-        Guid documentId,
-        DateTimeOffset now,
-        IReadOnlyDictionary<string, string>? additionalVariables = null)
+    public static Dictionary<string, string> CreateStandardVariables(
+            string title,
+            Guid documentId,
+            DateTimeOffset now,
+            IReadOnlyDictionary<string, string>? additionalVariables = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
 
@@ -82,8 +82,8 @@ public static Dictionary<string, string> CreateStandardVariables(
     /// Performs the <c>VariablePattern</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-[GeneratedRegex(
-        @"{{s*(?<name>[A-Za-z0-9_.-]+)s*}}",
-        RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+            @"{{s*(?<name>[A-Za-z0-9_.-]+)s*}}",
+            RegexOptions.CultureInvariant)]
     private static partial Regex VariablePattern();
 }

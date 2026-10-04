@@ -8,7 +8,7 @@ public sealed class WorkspaceFileChangeMonitor : IDisposable
     /// Initializes a new instance of <see cref="WorkspaceFileChangeMonitor"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public WorkspaceFileChangeMonitor(string workspaceRoot)
+    public WorkspaceFileChangeMonitor(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -38,7 +38,7 @@ public WorkspaceFileChangeMonitor(string workspaceRoot)
     /// Performs the <c>Dispose</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-public void Dispose()
+    public void Dispose()
     {
         _watcher.EnableRaisingEvents = false;
         _watcher.Changed -= OnChanged;
@@ -54,7 +54,7 @@ public void Dispose()
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="eventArgs">The <c>eventArgs</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void OnChanged(object sender, FileSystemEventArgs eventArgs)
+    private void OnChanged(object sender, FileSystemEventArgs eventArgs)
     {
         if (ShouldIgnore(eventArgs.FullPath))
         {
@@ -75,7 +75,7 @@ private void OnChanged(object sender, FileSystemEventArgs eventArgs)
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="eventArgs">The <c>eventArgs</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void OnRenamed(object sender, RenamedEventArgs eventArgs)
+    private void OnRenamed(object sender, RenamedEventArgs eventArgs)
     {
         if (ShouldIgnore(eventArgs.FullPath) && ShouldIgnore(eventArgs.OldFullPath))
         {
@@ -95,7 +95,7 @@ private void OnRenamed(object sender, RenamedEventArgs eventArgs)
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool ShouldIgnore(string path)
+    private static bool ShouldIgnore(string path)
     {
         string fileName = Path.GetFileName(path);
 

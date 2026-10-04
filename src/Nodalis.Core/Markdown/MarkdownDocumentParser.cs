@@ -9,7 +9,7 @@ public static partial class MarkdownDocumentParser
     /// </summary>
     /// <param name="markdown">The <c>markdown</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static IReadOnlyList<MarkdownBlock> Parse(string markdown)
+    public static IReadOnlyList<MarkdownBlock> Parse(string markdown)
     {
         ArgumentNullException.ThrowIfNull(markdown);
 
@@ -160,10 +160,10 @@ public static IReadOnlyList<MarkdownBlock> Parse(string markdown)
     /// <param name="index">The <c>index</c> value.</param>
     /// <param name="block">The <c>block</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool TryParseTable(
-        IReadOnlyList<string> lines,
-        ref int index,
-        out MarkdownBlock block)
+    private static bool TryParseTable(
+            IReadOnlyList<string> lines,
+            ref int index,
+            out MarkdownBlock block)
     {
         block = null!;
 
@@ -203,7 +203,7 @@ private static bool TryParseTable(
     /// </summary>
     /// <param name="line">The <c>line</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static List<string> SplitTableRow(string line)
+    private static List<string> SplitTableRow(string line)
     {
         string trimmed = line.Trim().Trim('|');
 
@@ -217,62 +217,62 @@ private static List<string> SplitTableRow(string line)
     /// Performs the <c>HeadingPattern</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-[GeneratedRegex(
-        @"^(?<marks>#{1,6})\s+(?<text>.+?)\s*$",
-        RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+            @"^(?<marks>#{1,6})\s+(?<text>.+?)\s*$",
+            RegexOptions.CultureInvariant)]
     private static partial Regex HeadingPattern();
 
     /// <summary>
     /// Performs the <c>CheckboxPattern</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-[GeneratedRegex(
-        @"^\s*[-*+]\s+\[(?<state>[ xX])\]\s+(?<text>.*)$",
-        RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+            @"^\s*[-*+]\s+\[(?<state>[ xX])\]\s+(?<text>.*)$",
+            RegexOptions.CultureInvariant)]
     private static partial Regex CheckboxPattern();
 
     /// <summary>
     /// Performs the <c>UnorderedListPattern</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-[GeneratedRegex(
-        @"^\s*[-*+]\s+(?<text>.+)$",
-        RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+            @"^\s*[-*+]\s+(?<text>.+)$",
+            RegexOptions.CultureInvariant)]
     private static partial Regex UnorderedListPattern();
 
     /// <summary>
     /// Performs the <c>OrderedListPattern</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-[GeneratedRegex(
-        @"^\s*\d+[.)]\s+(?<text>.+)$",
-        RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+            @"^\s*\d+[.)]\s+(?<text>.+)$",
+            RegexOptions.CultureInvariant)]
     private static partial Regex OrderedListPattern();
 
     /// <summary>
     /// Performs the <c>QuotePattern</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-[GeneratedRegex(
-        @"^\s*>\s?(?<text>.*)$",
-        RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+            @"^\s*>\s?(?<text>.*)$",
+            RegexOptions.CultureInvariant)]
     private static partial Regex QuotePattern();
 
     /// <summary>
     /// Performs the <c>CodeFencePattern</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-[GeneratedRegex(
-        @"^\s*\x60{3}(?<language>[A-Za-z0-9_.+-]*)\s*$",
-        RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+            @"^\s*\x60{3}(?<language>[A-Za-z0-9_.+-]*)\s*$",
+            RegexOptions.CultureInvariant)]
     private static partial Regex CodeFencePattern();
 
     /// <summary>
     /// Performs the <c>TableSeparatorPattern</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-[GeneratedRegex(
-        @"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$",
-        RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+            @"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$",
+            RegexOptions.CultureInvariant)]
     private static partial Regex TableSeparatorPattern();
 }

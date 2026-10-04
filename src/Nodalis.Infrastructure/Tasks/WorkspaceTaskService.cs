@@ -18,7 +18,7 @@ public sealed partial class WorkspaceTaskService
     /// Initializes a new instance of <see cref="WorkspaceTaskService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public WorkspaceTaskService(string workspaceRoot)
+    public WorkspaceTaskService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -32,8 +32,8 @@ public WorkspaceTaskService(string workspaceRoot)
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<TaskCollection> RefreshAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<TaskCollection> RefreshAsync(
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(
             cancellationToken);
@@ -135,10 +135,10 @@ public async Task<TaskCollection> RefreshAsync(
     /// <param name="includeCompleted">The <c>includeCompleted</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<IReadOnlyList<TaskItem>> GetTasksAsync(
-        string? contextPath,
-        bool includeCompleted = false,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<TaskItem>> GetTasksAsync(
+            string? contextPath,
+            bool includeCompleted = false,
+            CancellationToken cancellationToken = default)
     {
         global::Nodalis.Core.Tasks.TaskCollection catalog = await RefreshAsync(
             cancellationToken);
@@ -179,10 +179,10 @@ public async Task<IReadOnlyList<TaskItem>> GetTasksAsync(
     /// <param name="completed">The <c>completed</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task SetCompletedAsync(
-        TaskItem task,
-        bool completed,
-        CancellationToken cancellationToken = default)
+    public async Task SetCompletedAsync(
+            TaskItem task,
+            bool completed,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(task);
 
@@ -293,9 +293,9 @@ public async Task SetCompletedAsync(
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="links">The <c>links</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private (Guid? ApplicationId, Guid? ProjectId) ResolveContext(
-        string? contextPath,
-        LinkIndexCatalog links)
+    private (Guid? ApplicationId, Guid? ProjectId) ResolveContext(
+            string? contextPath,
+            LinkIndexCatalog links)
     {
         if (string.IsNullOrWhiteSpace(contextPath))
         {
@@ -361,22 +361,22 @@ private (Guid? ApplicationId, Guid? ProjectId) ResolveContext(
     /// </summary>
     /// <param name="relativePath">The <c>relativePath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private string ResolveWorkspacePath(
-        string relativePath) =>
-        Path.GetFullPath(
-            Path.Combine(
-                _workspaceRoot,
-                relativePath.Replace(
-                    '/',
-                    Path.DirectorySeparatorChar)));
+    private string ResolveWorkspacePath(
+            string relativePath) =>
+            Path.GetFullPath(
+                Path.Combine(
+                    _workspaceRoot,
+                    relativePath.Replace(
+                        '/',
+                        Path.DirectorySeparatorChar)));
 
     /// <summary>
     /// Performs the <c>ParseMetadata</c> operation.
     /// </summary>
     /// <param name="body">The <c>body</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static (string Text, string? Owner, DateOnly? DueDate)
-        ParseMetadata(string body)
+    private static (string Text, string? Owner, DateOnly? DueDate)
+            ParseMetadata(string body)
     {
         string[] segments = body
             .Split(
@@ -450,23 +450,23 @@ private static (string Text, string? Owner, DateOnly? DueDate)
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string NormalizeMetadataKey(
-        string value) =>
-        value
-            .Trim()
-            .ToLowerInvariant()
-            .Replace(
-                "é",
-                "e",
-                StringComparison.Ordinal)
-            .Replace(
-                "è",
-                "e",
-                StringComparison.Ordinal)
-            .Replace(
-                "ê",
-                "e",
-                StringComparison.Ordinal);
+    private static string NormalizeMetadataKey(
+            string value) =>
+            value
+                .Trim()
+                .ToLowerInvariant()
+                .Replace(
+                    "é",
+                    "e",
+                    StringComparison.Ordinal)
+                .Replace(
+                    "è",
+                    "e",
+                    StringComparison.Ordinal)
+                .Replace(
+                    "ê",
+                    "e",
+                    StringComparison.Ordinal);
 
     /// <summary>
     /// Performs the <c>SetCheckboxState</c> operation.
@@ -474,9 +474,9 @@ private static string NormalizeMetadataKey(
     /// <param name="line">The <c>line</c> value.</param>
     /// <param name="completed">The <c>completed</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string SetCheckboxState(
-        string line,
-        bool completed)
+    private static string SetCheckboxState(
+            string line,
+            bool completed)
     {
         global::System.Text.RegularExpressions.Match match = CheckboxPattern().Match(
             line);
@@ -500,10 +500,10 @@ private static string SetCheckboxState(
     /// <param name="lineNumber">The <c>lineNumber</c> value.</param>
     /// <param name="body">The <c>body</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Guid CreateTaskId(
-        Guid sourceDocumentId,
-        int lineNumber,
-        string body)
+    private static Guid CreateTaskId(
+            Guid sourceDocumentId,
+            int lineNumber,
+            string body)
     {
         byte[] bytes = SHA256.HashData(
             Encoding.UTF8.GetBytes(
@@ -521,12 +521,12 @@ private static Guid CreateTaskId(
     /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
     /// <param name="child">The <c>child</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsRelativeAncestor(
-        string candidateParent,
-        string child) =>
-        child.StartsWith(
-            candidateParent.TrimEnd('/') + "/",
-            StringComparison.OrdinalIgnoreCase);
+    private static bool IsRelativeAncestor(
+            string candidateParent,
+            string child) =>
+            child.StartsWith(
+                candidateParent.TrimEnd('/') + "/",
+                StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Performs the <c>IsRelativeAncestorOrEqual</c> operation.
@@ -534,24 +534,24 @@ private static bool IsRelativeAncestor(
     /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
     /// <param name="child">The <c>child</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsRelativeAncestorOrEqual(
-        string candidateParent,
-        string child) =>
-        string.Equals(
-            candidateParent.TrimEnd('/'),
-            child.TrimEnd('/'),
-            StringComparison.OrdinalIgnoreCase) ||
-        IsRelativeAncestor(
-            candidateParent,
-            child);
+    private static bool IsRelativeAncestorOrEqual(
+            string candidateParent,
+            string child) =>
+            string.Equals(
+                candidateParent.TrimEnd('/'),
+                child.TrimEnd('/'),
+                StringComparison.OrdinalIgnoreCase) ||
+            IsRelativeAncestor(
+                candidateParent,
+                child);
 
     /// <summary>
     /// Performs the <c>CheckboxPattern</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-[GeneratedRegex(
-        @"^(?<prefix>\s*[-*+]\s+\[)(?<checked>[ xX])(?<suffix>\]\s+(?<body>.*))$",
-        RegexOptions.CultureInvariant)]
+    [GeneratedRegex(
+            @"^(?<prefix>\s*[-*+]\s+\[)(?<checked>[ xX])(?<suffix>\]\s+(?<body>.*))$",
+            RegexOptions.CultureInvariant)]
     private static partial Regex CheckboxPattern();
 
 }

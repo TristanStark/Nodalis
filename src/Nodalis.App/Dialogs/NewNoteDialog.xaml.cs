@@ -9,8 +9,8 @@ public partial class NewNoteDialog : Window
     /// Initializes a new instance of <see cref="NewNoteDialog"/>.
     /// </summary>
     /// <param name="templates">The <c>templates</c> value.</param>
-public NewNoteDialog(
-        IReadOnlyCollection<MarkdownTemplateDefinition> templates)
+    public NewNoteDialog(
+            IReadOnlyCollection<MarkdownTemplateDefinition> templates)
     {
         ArgumentNullException.ThrowIfNull(templates);
 
@@ -54,9 +54,9 @@ public NewNoteDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Create_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void Create_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         string title = TitleTextBox.Text.Trim();
 

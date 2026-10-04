@@ -8,9 +8,9 @@ public static class GlossaryTextMatcher
     /// <param name="text">The <c>text</c> value.</param>
     /// <param name="entries">The <c>entries</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public static IReadOnlyList<GlossaryTextMatch> Match(
-        string text,
-        IReadOnlyList<GlossaryEntry> entries)
+    public static IReadOnlyList<GlossaryTextMatch> Match(
+            string text,
+            IReadOnlyList<GlossaryEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(entries);
@@ -87,8 +87,8 @@ public static IReadOnlyList<GlossaryTextMatch> Match(
     /// </summary>
     /// <param name="entries">The <c>entries</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Dictionary<string, GlossaryEntry> BuildEffectiveTokens(
-        IReadOnlyList<GlossaryEntry> entries)
+    private static Dictionary<string, GlossaryEntry> BuildEffectiveTokens(
+            IReadOnlyList<GlossaryEntry> entries)
     {
         global::System.Collections.Generic.Dictionary<string, global::Nodalis.Core.Glossary.GlossaryEntry> result = new Dictionary<string, GlossaryEntry>(
             StringComparer.CurrentCultureIgnoreCase);
@@ -127,10 +127,10 @@ private static Dictionary<string, GlossaryEntry> BuildEffectiveTokens(
     /// <param name="value">The <c>value</c> value.</param>
     /// <param name="entry">The <c>entry</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void AddToken(
-        IDictionary<string, GlossaryEntry> tokens,
-        string value,
-        GlossaryEntry entry)
+    private static void AddToken(
+            IDictionary<string, GlossaryEntry> tokens,
+            string value,
+            GlossaryEntry entry)
     {
         string token = value.Trim();
 
@@ -150,10 +150,10 @@ private static void AddToken(
     /// <param name="start">The <c>start</c> value.</param>
     /// <param name="end">The <c>end</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsBoundaryMatch(
-        string text,
-        int start,
-        int end)
+    private static bool IsBoundaryMatch(
+            string text,
+            int start,
+            int end)
     {
         bool beforeIsWord =
             start > 0 &&
@@ -172,11 +172,11 @@ private static bool IsBoundaryMatch(
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsWordCharacter(char value) =>
-        char.IsLetterOrDigit(value) ||
-        value == '_' ||
-        value == '\'' ||
-        value == '’';
+    private static bool IsWordCharacter(char value) =>
+            char.IsLetterOrDigit(value) ||
+            value == '_' ||
+            value == '\'' ||
+            value == '’';
 
     /// <summary>
     /// Performs the <c>IsRangeFree</c> operation.
@@ -185,10 +185,10 @@ private static bool IsWordCharacter(char value) =>
     /// <param name="start">The <c>start</c> value.</param>
     /// <param name="length">The <c>length</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsRangeFree(
-        IReadOnlyList<bool> occupied,
-        int start,
-        int length)
+    private static bool IsRangeFree(
+            IReadOnlyList<bool> occupied,
+            int start,
+            int length)
     {
         for (int index = start;
              index < start + length;

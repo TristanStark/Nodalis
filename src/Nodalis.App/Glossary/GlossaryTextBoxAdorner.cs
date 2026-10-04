@@ -15,8 +15,8 @@ public sealed class GlossaryTextBoxAdorner : Adorner
     /// Initializes a new instance of <see cref="GlossaryTextBoxAdorner"/>.
     /// </summary>
     /// <param name="textBox">The <c>textBox</c> value.</param>
-public GlossaryTextBoxAdorner(TextBox textBox)
-        : base(textBox)
+    public GlossaryTextBoxAdorner(TextBox textBox)
+            : base(textBox)
     {
         _textBox = textBox;
         IsHitTestVisible = false;
@@ -35,8 +35,8 @@ public GlossaryTextBoxAdorner(TextBox textBox)
     /// </summary>
     /// <param name="matches">The <c>matches</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public void SetMatches(
-        IReadOnlyList<GlossaryTextMatch> matches)
+    public void SetMatches(
+            IReadOnlyList<GlossaryTextMatch> matches)
     {
         _matches = matches ?? [];
         InvalidateVisual();
@@ -47,8 +47,8 @@ public void SetMatches(
     /// </summary>
     /// <param name="drawingContext">The <c>drawingContext</c> value.</param>
     /// <returns>The result of the operation.</returns>
-protected override void OnRender(
-        DrawingContext drawingContext)
+    protected override void OnRender(
+            DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
 
@@ -85,10 +85,10 @@ protected override void OnRender(
     /// <param name="pen">The <c>pen</c> value.</param>
     /// <param name="match">The <c>match</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void DrawMatch(
-        DrawingContext drawingContext,
-        Pen pen,
-        GlossaryTextMatch match)
+    private void DrawMatch(
+            DrawingContext drawingContext,
+            Pen pen,
+            GlossaryTextMatch match)
     {
         if (match.Start < 0 ||
             match.Length <= 0 ||

@@ -18,10 +18,10 @@ public partial class DecisionListDialog : Window
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="scopeLabel">The <c>scopeLabel</c> value.</param>
-public DecisionListDialog(
-        string workspaceRoot,
-        string? contextPath,
-        string scopeLabel)
+    public DecisionListDialog(
+            string workspaceRoot,
+            string? contextPath,
+            string scopeLabel)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -42,9 +42,9 @@ public DecisionListDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void SearchTextBox_TextChanged(
-        object sender,
-        TextChangedEventArgs e)
+    private async void SearchTextBox_TextChanged(
+            object sender,
+            TextChangedEventArgs e)
     {
         await RefreshAsync();
     }
@@ -55,9 +55,9 @@ private async void SearchTextBox_TextChanged(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void DecisionsList_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e)
+    private void DecisionsList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
     {
         if (DecisionsList.SelectedItem is not DecisionRecord decision)
         {
@@ -72,7 +72,7 @@ private void DecisionsList_MouseDoubleClick(
     /// Performs the <c>RefreshAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private async Task RefreshAsync()
+    private async Task RefreshAsync()
     {
         try
         {

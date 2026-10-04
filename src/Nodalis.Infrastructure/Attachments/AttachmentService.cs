@@ -13,7 +13,7 @@ public sealed class AttachmentService
     /// Initializes a new instance of <see cref="AttachmentService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public AttachmentService(string workspaceRoot)
+    public AttachmentService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -29,10 +29,10 @@ public AttachmentService(string workspaceRoot)
     /// <param name="ownerDocumentPath">The <c>ownerDocumentPath</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<AttachmentReference> CopyIntoWorkspaceAsync(
-        string sourcePath,
-        string ownerDocumentPath,
-        CancellationToken cancellationToken = default)
+    public async Task<AttachmentReference> CopyIntoWorkspaceAsync(
+            string sourcePath,
+            string ownerDocumentPath,
+            CancellationToken cancellationToken = default)
     {
         string source = ValidateExistingFile(
             sourcePath);
@@ -132,9 +132,9 @@ public async Task<AttachmentReference> CopyIntoWorkspaceAsync(
     /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
     /// <param name="ownerDocumentPath">The <c>ownerDocumentPath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public AttachmentReference CreateExternalReference(
-        string sourcePath,
-        string ownerDocumentPath)
+    public AttachmentReference CreateExternalReference(
+            string sourcePath,
+            string ownerDocumentPath)
     {
         string source = ValidateExistingFile(
             sourcePath);
@@ -152,9 +152,9 @@ public AttachmentReference CreateExternalReference(
     /// <param name="markdownTarget">The <c>markdownTarget</c> value.</param>
     /// <param name="ownerDocumentPath">The <c>ownerDocumentPath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public AttachmentReference Resolve(
-        string markdownTarget,
-        string ownerDocumentPath)
+    public AttachmentReference Resolve(
+            string markdownTarget,
+            string ownerDocumentPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(markdownTarget);
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerDocumentPath);
@@ -224,11 +224,11 @@ public AttachmentReference Resolve(
     /// <param name="ownerDocumentPath">The <c>ownerDocumentPath</c> value.</param>
     /// <param name="forceAbsolute">The <c>forceAbsolute</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private AttachmentReference CreateReference(
-        AttachmentStorageMode mode,
-        string fullPath,
-        string ownerDocumentPath,
-        bool forceAbsolute = false)
+    private AttachmentReference CreateReference(
+            AttachmentStorageMode mode,
+            string fullPath,
+            string ownerDocumentPath,
+            bool forceAbsolute = false)
     {
         string path = Path.GetFullPath(
             fullPath);
@@ -263,8 +263,8 @@ private AttachmentReference CreateReference(
     /// </summary>
     /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string ValidateExistingFile(
-        string sourcePath)
+    private static string ValidateExistingFile(
+            string sourcePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
 
@@ -287,9 +287,9 @@ private static string ValidateExistingFile(
     /// <param name="candidate">The <c>candidate</c> value.</param>
     /// <param name="root">The <c>root</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsInsideOrEqual(
-        string candidate,
-        string root)
+    private static bool IsInsideOrEqual(
+            string candidate,
+            string root)
     {
         string fullCandidate = Path.GetFullPath(candidate)
             .TrimEnd(

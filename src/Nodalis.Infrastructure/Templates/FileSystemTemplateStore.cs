@@ -17,7 +17,7 @@ public sealed class FileSystemTemplateStore : ITemplateStore
     /// Initializes a new instance of <see cref="FileSystemTemplateStore"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public FileSystemTemplateStore(string workspaceRoot)
+    public FileSystemTemplateStore(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -31,8 +31,8 @@ public FileSystemTemplateStore(string workspaceRoot)
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task InitializeDefaultsAsync(
-        CancellationToken cancellationToken = default)
+    public async Task InitializeDefaultsAsync(
+            CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(_templatesRoot);
 
@@ -67,8 +67,8 @@ public async Task InitializeDefaultsAsync(
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<TemplateCatalog> LoadTemplateCatalogAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<TemplateCatalog> LoadTemplateCatalogAsync(
+            CancellationToken cancellationToken = default)
     {
         string path = Path.Combine(
             _templatesRoot,
@@ -110,8 +110,8 @@ public async Task<TemplateCatalog> LoadTemplateCatalogAsync(
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<ProjectProfileCatalog> LoadProjectProfilesAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<ProjectProfileCatalog> LoadProjectProfilesAsync(
+            CancellationToken cancellationToken = default)
     {
         string path = Path.Combine(
             _templatesRoot,
@@ -137,10 +137,10 @@ public async Task<ProjectProfileCatalog> LoadProjectProfilesAsync(
     /// <param name="variables">The <c>variables</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<string> RenderAsync(
-        string templateKey,
-        IReadOnlyDictionary<string, string> variables,
-        CancellationToken cancellationToken = default)
+    public async Task<string> RenderAsync(
+            string templateKey,
+            IReadOnlyDictionary<string, string> variables,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(templateKey);
         ArgumentNullException.ThrowIfNull(variables);
@@ -171,7 +171,7 @@ public async Task<string> RenderAsync(
     /// </summary>
     /// <param name="fileName">The <c>fileName</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private string ResolveTemplatePath(string fileName)
+    private string ResolveTemplatePath(string fileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
@@ -201,8 +201,8 @@ private string ResolveTemplatePath(string fileName)
     /// </summary>
     /// <param name="template">The <c>template</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void ValidateDefinition(
-        MarkdownTemplateDefinition template)
+    private static void ValidateDefinition(
+            MarkdownTemplateDefinition template)
     {
         if (string.IsNullOrWhiteSpace(template.Key) ||
             string.IsNullOrWhiteSpace(template.DisplayName) ||
@@ -221,10 +221,10 @@ private static void ValidateDefinition(
     /// <param name="value">The <c>value</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static Task WriteJsonIfMissingAsync<T>(
-        string path,
-        T value,
-        CancellationToken cancellationToken)
+    private static Task WriteJsonIfMissingAsync<T>(
+            string path,
+            T value,
+            CancellationToken cancellationToken)
     {
         if (File.Exists(path))
         {
@@ -241,12 +241,12 @@ private static Task WriteJsonIfMissingAsync<T>(
     /// Performs the <c>CreateDefaultTemplateCatalog</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private static TemplateCatalog CreateDefaultTemplateCatalog() =>
-        new()
-        {
-            Templates =
-            [
-                new MarkdownTemplateDefinition
+    private static TemplateCatalog CreateDefaultTemplateCatalog() =>
+            new()
+            {
+                Templates =
+                [
+                    new MarkdownTemplateDefinition
                 {
                     Key = "note",
                     DisplayName = "Note",
@@ -381,14 +381,14 @@ private static TemplateCatalog CreateDefaultTemplateCatalog() =>
                     FileName = "dependencies.md",
                     Category = "Projet"
                 }
-            ]
-        };
+                ]
+            };
 
     /// <summary>
     /// Performs the <c>CreateDefaultProjectProfiles</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private static ProjectProfileCatalog CreateDefaultProjectProfiles()
+    private static ProjectProfileCatalog CreateDefaultProjectProfiles()
     {
         static ProjectSectionTemplateDefinition Section(
             string name,
@@ -463,150 +463,150 @@ private static ProjectProfileCatalog CreateDefaultProjectProfiles()
     /// Performs the <c>CreateDefaultTemplateFiles</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private static IReadOnlyDictionary<string, string>
-        CreateDefaultTemplateFiles() =>
-        new Dictionary<string, string>(
-            StringComparer.OrdinalIgnoreCase)
-        {
-            ["note.md"] =
-                "# {{title}}\n\n" +
-                "_Créé le {{date}}_\n\n",
-            ["meeting.md"] =
-                "# Réunion — {{title}}\n\n" +
-                "**Date :** {{date}}\n\n" +
-                "## Participants\n\n" +
-                "## Contexte\n\n" +
-                "## Ordre du jour\n\n" +
-                "## Notes\n\n" +
-                "## Décisions\n\n" +
-                "## Actions\n\n" +
-                "## Transcription IA\n\n" +
-                "## Résumé IA\n\n" +
-                "## Contenu Outlook\n\n",
-            ["decision.md"] =
-                "# Décision — {{title}}\n\n" +
-                "**Date :** {{date}}\n\n" +
-                "## Contexte\n\n" +
-                "## Décision\n\n" +
-                "## Justification\n\n" +
-                "## Impacts\n\n" +
-                "## Sources et liens\n\n",
-            ["milestones.md"] =
-                "# Jalons\n\n" +
-                "| Jalon | Date cible | Statut | Description | Lien |\n" +
-                "| --- | --- | --- | --- | --- |\n",
-            ["glossary.md"] =
-                "# Glossaire\n\n" +
-                "## Exemple\n\n" +
-                "**Définition :** Définition du terme.\n\n" +
-                "**Synonymes :** synonyme 1; synonyme 2\n\n" +
-                "**Acronymes :** EX\n\n" +
-                "**Liens :** [[Document lié]]\n\n",
-            ["documentation.md"] =
-                "# Documentation\n\n" +
-                "## Objectif\n\n" +
-                "## Périmètre\n\n" +
-                "## Références\n\n" +
-                "## Points ouverts\n\n",
-            ["functional.md"] =
-                "# Fonctionnel\n\n" +
-                "## Besoin\n\n" +
-                "## Règles métier\n\n" +
-                "## Parcours / traitements\n\n" +
-                "## Données fonctionnelles\n\n" +
-                "## Interfaces\n\n" +
-                "## Cas particuliers\n\n",
-            ["technical.md"] =
-                "# Technique\n\n" +
-                "## Contexte\n\n" +
-                "## Architecture / réalisation\n\n" +
-                "## Points d'attention\n\n",
-            ["technical-simple.md"] =
-                "# Technique\n\n" +
-                "## Contexte\n\n" +
-                "## Réalisation\n\n" +
-                "## Configuration\n\n" +
-                "## Points d'attention\n\n",
-            ["technical-medium.md"] =
-                "# Technique\n\n" +
-                "## Contexte\n\n" +
-                "## Architecture\n\n" +
-                "## Composants\n\n" +
-                "## Flux et données\n\n" +
-                "## Interfaces\n\n" +
-                "## Configuration\n\n" +
-                "## Exploitation\n\n" +
-                "## Points d'attention\n\n",
-            ["technical-complex.md"] =
-                "# Technique\n\n" +
-                "## Contexte\n\n" +
-                "## Architecture\n\n" +
-                "## Composants et responsabilités\n\n" +
-                "## Flux et modèle de données\n\n" +
-                "## Interfaces / API\n\n" +
-                "## Configuration et environnements\n\n" +
-                "## Sécurité\n\n" +
-                "## Performance et capacité\n\n" +
-                "## Observabilité\n\n" +
-                "## Déploiement / rollback\n\n" +
-                "## Exploitation et reprise\n\n" +
-                "## Décisions d'architecture liées\n\n" +
-                "## Points d'attention\n\n",
-            ["tests.md"] =
-                "# Tests\n\n" +
-                "## Périmètre\n\n" +
-                "## Cas de test\n\n" +
-                "## Résultats\n\n",
-            ["tests-simple.md"] =
-                "# Tests\n\n" +
-                "## Périmètre\n\n" +
-                "## Cas de test\n\n" +
-                "## Résultats\n\n",
-            ["tests-medium.md"] =
-                "# Tests\n\n" +
-                "## Stratégie\n\n" +
-                "## Environnements et données\n\n" +
-                "## Tests unitaires\n\n" +
-                "## Tests d'intégration\n\n" +
-                "## Tests fonctionnels / recette\n\n" +
-                "## Non-régression\n\n" +
-                "## Résultats et anomalies\n\n",
-            ["tests-complex.md"] =
-                "# Tests\n\n" +
-                "## Stratégie et traçabilité\n\n" +
-                "## Environnements\n\n" +
-                "## Jeux de données\n\n" +
-                "## Tests unitaires\n\n" +
-                "## Tests de composants\n\n" +
-                "## Tests d'intégration\n\n" +
-                "## Tests système\n\n" +
-                "## Recette fonctionnelle\n\n" +
-                "## Performance / volumétrie\n\n" +
-                "## Sécurité\n\n" +
-                "## Résilience / reprise\n\n" +
-                "## Non-régression\n\n" +
-                "## Résultats et anomalies\n\n",
-            ["risks.md"] =
-                "# Risques\n\n" +
-                "| Risque | Probabilité | Impact | Mitigation | Statut |\n" +
-                "| --- | --- | --- | --- | --- |\n",
-            ["operations.md"] =
-                "# Exploitation\n\n" +
-                "## Supervision\n\n" +
-                "## Procédures récurrentes\n\n" +
-                "## Incidents connus\n\n" +
-                "## Sauvegarde / restauration\n\n" +
-                "## Contacts et escalade\n\n",
-            ["deployment.md"] =
-                "# Déploiement\n\n" +
-                "## Prérequis\n\n" +
-                "## Procédure\n\n" +
-                "## Contrôles post-déploiement\n\n" +
-                "## Rollback\n\n" +
-                "## Validation\n\n",
-            ["dependencies.md"] =
-                "# Dépendances\n\n" +
-                "| Dépendance | Type | Responsable | Version / contrainte | Impact |\n" +
-                "| --- | --- | --- | --- | --- |\n"
-        };
+    private static IReadOnlyDictionary<string, string>
+            CreateDefaultTemplateFiles() =>
+            new Dictionary<string, string>(
+                StringComparer.OrdinalIgnoreCase)
+            {
+                ["note.md"] =
+                    "# {{title}}\n\n" +
+                    "_Créé le {{date}}_\n\n",
+                ["meeting.md"] =
+                    "# Réunion — {{title}}\n\n" +
+                    "**Date :** {{date}}\n\n" +
+                    "## Participants\n\n" +
+                    "## Contexte\n\n" +
+                    "## Ordre du jour\n\n" +
+                    "## Notes\n\n" +
+                    "## Décisions\n\n" +
+                    "## Actions\n\n" +
+                    "## Transcription IA\n\n" +
+                    "## Résumé IA\n\n" +
+                    "## Contenu Outlook\n\n",
+                ["decision.md"] =
+                    "# Décision — {{title}}\n\n" +
+                    "**Date :** {{date}}\n\n" +
+                    "## Contexte\n\n" +
+                    "## Décision\n\n" +
+                    "## Justification\n\n" +
+                    "## Impacts\n\n" +
+                    "## Sources et liens\n\n",
+                ["milestones.md"] =
+                    "# Jalons\n\n" +
+                    "| Jalon | Date cible | Statut | Description | Lien |\n" +
+                    "| --- | --- | --- | --- | --- |\n",
+                ["glossary.md"] =
+                    "# Glossaire\n\n" +
+                    "## Exemple\n\n" +
+                    "**Définition :** Définition du terme.\n\n" +
+                    "**Synonymes :** synonyme 1; synonyme 2\n\n" +
+                    "**Acronymes :** EX\n\n" +
+                    "**Liens :** [[Document lié]]\n\n",
+                ["documentation.md"] =
+                    "# Documentation\n\n" +
+                    "## Objectif\n\n" +
+                    "## Périmètre\n\n" +
+                    "## Références\n\n" +
+                    "## Points ouverts\n\n",
+                ["functional.md"] =
+                    "# Fonctionnel\n\n" +
+                    "## Besoin\n\n" +
+                    "## Règles métier\n\n" +
+                    "## Parcours / traitements\n\n" +
+                    "## Données fonctionnelles\n\n" +
+                    "## Interfaces\n\n" +
+                    "## Cas particuliers\n\n",
+                ["technical.md"] =
+                    "# Technique\n\n" +
+                    "## Contexte\n\n" +
+                    "## Architecture / réalisation\n\n" +
+                    "## Points d'attention\n\n",
+                ["technical-simple.md"] =
+                    "# Technique\n\n" +
+                    "## Contexte\n\n" +
+                    "## Réalisation\n\n" +
+                    "## Configuration\n\n" +
+                    "## Points d'attention\n\n",
+                ["technical-medium.md"] =
+                    "# Technique\n\n" +
+                    "## Contexte\n\n" +
+                    "## Architecture\n\n" +
+                    "## Composants\n\n" +
+                    "## Flux et données\n\n" +
+                    "## Interfaces\n\n" +
+                    "## Configuration\n\n" +
+                    "## Exploitation\n\n" +
+                    "## Points d'attention\n\n",
+                ["technical-complex.md"] =
+                    "# Technique\n\n" +
+                    "## Contexte\n\n" +
+                    "## Architecture\n\n" +
+                    "## Composants et responsabilités\n\n" +
+                    "## Flux et modèle de données\n\n" +
+                    "## Interfaces / API\n\n" +
+                    "## Configuration et environnements\n\n" +
+                    "## Sécurité\n\n" +
+                    "## Performance et capacité\n\n" +
+                    "## Observabilité\n\n" +
+                    "## Déploiement / rollback\n\n" +
+                    "## Exploitation et reprise\n\n" +
+                    "## Décisions d'architecture liées\n\n" +
+                    "## Points d'attention\n\n",
+                ["tests.md"] =
+                    "# Tests\n\n" +
+                    "## Périmètre\n\n" +
+                    "## Cas de test\n\n" +
+                    "## Résultats\n\n",
+                ["tests-simple.md"] =
+                    "# Tests\n\n" +
+                    "## Périmètre\n\n" +
+                    "## Cas de test\n\n" +
+                    "## Résultats\n\n",
+                ["tests-medium.md"] =
+                    "# Tests\n\n" +
+                    "## Stratégie\n\n" +
+                    "## Environnements et données\n\n" +
+                    "## Tests unitaires\n\n" +
+                    "## Tests d'intégration\n\n" +
+                    "## Tests fonctionnels / recette\n\n" +
+                    "## Non-régression\n\n" +
+                    "## Résultats et anomalies\n\n",
+                ["tests-complex.md"] =
+                    "# Tests\n\n" +
+                    "## Stratégie et traçabilité\n\n" +
+                    "## Environnements\n\n" +
+                    "## Jeux de données\n\n" +
+                    "## Tests unitaires\n\n" +
+                    "## Tests de composants\n\n" +
+                    "## Tests d'intégration\n\n" +
+                    "## Tests système\n\n" +
+                    "## Recette fonctionnelle\n\n" +
+                    "## Performance / volumétrie\n\n" +
+                    "## Sécurité\n\n" +
+                    "## Résilience / reprise\n\n" +
+                    "## Non-régression\n\n" +
+                    "## Résultats et anomalies\n\n",
+                ["risks.md"] =
+                    "# Risques\n\n" +
+                    "| Risque | Probabilité | Impact | Mitigation | Statut |\n" +
+                    "| --- | --- | --- | --- | --- |\n",
+                ["operations.md"] =
+                    "# Exploitation\n\n" +
+                    "## Supervision\n\n" +
+                    "## Procédures récurrentes\n\n" +
+                    "## Incidents connus\n\n" +
+                    "## Sauvegarde / restauration\n\n" +
+                    "## Contacts et escalade\n\n",
+                ["deployment.md"] =
+                    "# Déploiement\n\n" +
+                    "## Prérequis\n\n" +
+                    "## Procédure\n\n" +
+                    "## Contrôles post-déploiement\n\n" +
+                    "## Rollback\n\n" +
+                    "## Validation\n\n",
+                ["dependencies.md"] =
+                    "# Dépendances\n\n" +
+                    "| Dépendance | Type | Responsable | Version / contrainte | Impact |\n" +
+                    "| --- | --- | --- | --- | --- |\n"
+            };
 }

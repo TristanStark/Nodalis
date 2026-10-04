@@ -14,11 +14,11 @@ public sealed class WorkspaceSearchService
     /// <param name="query">The <c>query</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<SearchResultSet> SearchAsync(
-        string workspaceRoot,
-        string? contextPath,
-        string query,
-        CancellationToken cancellationToken = default)
+    public async Task<SearchResultSet> SearchAsync(
+            string workspaceRoot,
+            string? contextPath,
+            string query,
+            CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
@@ -128,12 +128,12 @@ public async Task<SearchResultSet> SearchAsync(
     /// <param name="shouldSkipDirectory">The <c>shouldSkipDirectory</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task<List<SearchResult>> SearchDirectoryAsync(
-        string root,
-        string query,
-        SearchScopeKind scope,
-        Func<string, bool> shouldSkipDirectory,
-        CancellationToken cancellationToken)
+    private static async Task<List<SearchResult>> SearchDirectoryAsync(
+            string root,
+            string query,
+            SearchScopeKind scope,
+            Func<string, bool> shouldSkipDirectory,
+            CancellationToken cancellationToken)
     {
         global::System.Collections.Generic.List<global::Nodalis.Core.Search.SearchResult> results = new List<SearchResult>();
         global::System.Collections.Generic.Stack<string> pending = new Stack<string>();
@@ -192,12 +192,12 @@ private static async Task<List<SearchResult>> SearchDirectoryAsync(
     /// <param name="results">The <c>results</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static async Task SearchFileAsync(
-        string file,
-        string query,
-        SearchScopeKind scope,
-        ICollection<SearchResult> results,
-        CancellationToken cancellationToken)
+    private static async Task SearchFileAsync(
+            string file,
+            string query,
+            SearchScopeKind scope,
+            ICollection<SearchResult> results,
+            CancellationToken cancellationToken)
     {
         string[] lines = await File.ReadAllLinesAsync(
             file,
@@ -249,9 +249,9 @@ private static async Task SearchFileAsync(
     /// <param name="line">The <c>line</c> value.</param>
     /// <param name="query">The <c>query</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string BuildExcerpt(
-        string line,
-        string query)
+    private static string BuildExcerpt(
+            string line,
+            string query)
     {
         string trimmed = line.Trim();
 
@@ -288,9 +288,9 @@ private static string BuildExcerpt(
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string ResolveContextDirectory(
-        string workspaceRoot,
-        string? contextPath)
+    private static string ResolveContextDirectory(
+            string workspaceRoot,
+            string? contextPath)
     {
         if (string.IsNullOrWhiteSpace(contextPath))
         {
@@ -318,10 +318,10 @@ private static string ResolveContextDirectory(
     /// <param name="root">The <c>root</c> value.</param>
     /// <param name="fileName">The <c>fileName</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static string? FindAncestorContaining(
-        string startDirectory,
-        string root,
-        string fileName)
+    private static string? FindAncestorContaining(
+            string startDirectory,
+            string root,
+            string fileName)
     {
         for (string? current = startDirectory;
              current is not null && IsInsideOrEqual(current, root);
@@ -352,9 +352,9 @@ private static string? FindAncestorContaining(
     /// <param name="candidate">The <c>candidate</c> value.</param>
     /// <param name="root">The <c>root</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static bool IsInsideOrEqual(
-        string candidate,
-        string root)
+    private static bool IsInsideOrEqual(
+            string candidate,
+            string root)
     {
         string fullCandidate = Path.GetFullPath(candidate)
             .TrimEnd(
@@ -380,8 +380,8 @@ private static bool IsInsideOrEqual(
     /// </summary>
     /// <param name="results">The <c>results</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void Sort(
-        List<SearchResult> results)
+    private static void Sort(
+            List<SearchResult> results)
     {
         results.Sort(
             (left, right) =>

@@ -19,9 +19,9 @@ public partial class GlossaryLookupDialog : Window
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
-public GlossaryLookupDialog(
-        string workspaceRoot,
-        string? contextPath)
+    public GlossaryLookupDialog(
+            string workspaceRoot,
+            string? contextPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -46,9 +46,9 @@ public GlossaryLookupDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async void SearchTextBox_TextChanged(
-        object sender,
-        System.Windows.Controls.TextChangedEventArgs e)
+    private async void SearchTextBox_TextChanged(
+            object sender,
+            System.Windows.Controls.TextChangedEventArgs e)
     {
         _lookupCancellation?.Cancel();
         _lookupCancellation?.Dispose();
@@ -147,9 +147,9 @@ private async void SearchTextBox_TextChanged(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void OpenPrimary_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void OpenPrimary_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         if (_primary is null)
         {
@@ -166,9 +166,9 @@ private void OpenPrimary_Click(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void AlternativesList_MouseDoubleClick(
-        object sender,
-        MouseButtonEventArgs e)
+    private void AlternativesList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
     {
         if (AlternativesList.SelectedItem is not GlossaryEntry entry)
         {
@@ -185,9 +185,9 @@ private void AlternativesList_MouseDoubleClick(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Window_PreviewKeyDown(
-        object sender,
-        KeyEventArgs e)
+    private void Window_PreviewKeyDown(
+            object sender,
+            KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
@@ -200,7 +200,7 @@ private void Window_PreviewKeyDown(
     /// </summary>
     /// <param name="message">The <c>message</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void ClearResult(string message)
+    private void ClearResult(string message)
     {
         _primary = null;
         PrimaryCard.Visibility = Visibility.Collapsed;

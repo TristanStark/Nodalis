@@ -13,7 +13,7 @@ public sealed class DocxImportRuleStore
     /// Initializes a new instance of <see cref="DocxImportRuleStore"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-public DocxImportRuleStore(string workspaceRoot)
+    public DocxImportRuleStore(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -28,8 +28,8 @@ public DocxImportRuleStore(string workspaceRoot)
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-public async Task<DocxImportRuleCatalog> LoadAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<DocxImportRuleCatalog> LoadAsync(
+            CancellationToken cancellationToken = default)
     {
         await EnsureDefaultAsync(
             cancellationToken);
@@ -56,8 +56,8 @@ public async Task<DocxImportRuleCatalog> LoadAsync(
     /// </summary>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private async Task EnsureDefaultAsync(
-        CancellationToken cancellationToken)
+    private async Task EnsureDefaultAsync(
+            CancellationToken cancellationToken)
     {
         if (File.Exists(_path))
         {
@@ -77,28 +77,28 @@ private async Task EnsureDefaultAsync(
     /// Performs the <c>CreateDefault</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-private static DocxImportRuleCatalog CreateDefault() =>
-        new()
-        {
-            Detection = new DocxEntityDetectionRules
+    private static DocxImportRuleCatalog CreateDefault() =>
+            new()
             {
-                ApplicationLabels =
-                [
-                    "Application",
+                Detection = new DocxEntityDetectionRules
+                {
+                    ApplicationLabels =
+                    [
+                        "Application",
                     "Application cible",
                     "Appli"
-                ],
-                ProjectLabels =
-                [
-                    "Projet",
+                    ],
+                    ProjectLabels =
+                    [
+                        "Projet",
                     "Projet cible",
                     "Project"
-                ],
-                MaxContentParagraphs = 80
-            },
-            SectionMappings =
-            [
-                Rule(
+                    ],
+                    MaxContentParagraphs = 80
+                },
+                SectionMappings =
+                [
+                    Rule(
                     "Technique",
                     "Documentation technique",
                     "Technique",
@@ -146,8 +146,8 @@ private static DocxImportRuleCatalog CreateDefault() =>
                     "Documentation",
                     "Présentation",
                     "Description générale")
-            ]
-        };
+                ]
+            };
 
     /// <summary>
     /// Performs the <c>Rule</c> operation.
@@ -155,24 +155,24 @@ private static DocxImportRuleCatalog CreateDefault() =>
     /// <param name="target">The <c>target</c> value.</param>
     /// <param name="aliases">The <c>aliases</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static DocxSectionMappingRule Rule(
-        string target,
-        params string[] aliases) =>
-        new()
-        {
-            TargetSection = target,
-            HeadingAliases = aliases.ToList(),
-            MaximumHeadingLevel = 3,
-            AllowPrefixMatch = true
-        };
+    private static DocxSectionMappingRule Rule(
+            string target,
+            params string[] aliases) =>
+            new()
+            {
+                TargetSection = target,
+                HeadingAliases = aliases.ToList(),
+                MaximumHeadingLevel = 3,
+                AllowPrefixMatch = true
+            };
 
     /// <summary>
     /// Performs the <c>Validate</c> operation.
     /// </summary>
     /// <param name="catalog">The <c>catalog</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private static void Validate(
-        DocxImportRuleCatalog catalog)
+    private static void Validate(
+            DocxImportRuleCatalog catalog)
     {
         if (catalog.Detection.MaxContentParagraphs is < 1 or > 10_000)
         {

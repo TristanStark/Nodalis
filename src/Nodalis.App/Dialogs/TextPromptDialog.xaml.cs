@@ -10,10 +10,10 @@ public partial class TextPromptDialog : Window
     /// <param name="title">The <c>title</c> value.</param>
     /// <param name="prompt">The <c>prompt</c> value.</param>
     /// <param name="initialValue">The <c>initialValue</c> value.</param>
-public TextPromptDialog(
-        string title,
-        string prompt,
-        string initialValue = "")
+    public TextPromptDialog(
+            string title,
+            string prompt,
+            string initialValue = "")
     {
         InitializeComponent();
 
@@ -36,9 +36,9 @@ public TextPromptDialog(
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
     /// <returns>The result of the operation.</returns>
-private void Ok_Click(
-        object sender,
-        RoutedEventArgs e)
+    private void Ok_Click(
+            object sender,
+            RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(ValueTextBox.Text))
         {
