@@ -7,7 +7,8 @@
         Height="900"
         MinWidth="1024"
         MinHeight="640"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
     <Window.Resources>
         <HierarchicalDataTemplate DataType="{x:Type navigation:NavigationNodeViewModel}"
                                   ItemsSource="{Binding Children}">
@@ -63,9 +64,8 @@
                     <Button Margin="0,0,8,0"
                             Click="ToggleContextPanel_Click"
                             Content="Contexte" />
-                    <Button Content="Nouvelle note  Ctrl+N"
-                            IsEnabled="False"
-                            ToolTip="Disponible avec le moteur de templates" />
+                    <Button Click="NewNote_Click"
+                            Content="Nouvelle note  Ctrl+N" />
                 </StackPanel>
             </Grid>
         </Border>
