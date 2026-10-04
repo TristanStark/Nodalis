@@ -31,6 +31,7 @@ using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Decisions;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
+using Nodalis.Infrastructure.Importing;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Meetings;
 using Nodalis.Infrastructure.Milestones;
@@ -54,6 +55,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceMilestoneService _milestoneService;
     private readonly WorkspaceMeetingService _meetingService;
     private readonly WorkspaceDecisionService _decisionService;
+    private readonly WorkspaceDocxImportService _docxImportService;
     private readonly DispatcherTimer _previewTimer;
 
     private NavigationNodeViewModel _root;
@@ -104,6 +106,8 @@ public partial class MainWindow : Window
         _meetingService = new WorkspaceMeetingService(
             root.FullPath);
         _decisionService = new WorkspaceDecisionService(
+            root.FullPath);
+        _docxImportService = new WorkspaceDocxImportService(
             root.FullPath);
         _contextPanelOpen = preferences.IsContextPanelOpen;
         _previewVisible = preferences.Editor.LivePreview;
@@ -1060,6 +1064,13 @@ public partial class MainWindow : Window
         RoutedEventArgs e)
     {
         await AttachFileAsync();
+    }
+
+    private async void ImportDocx_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await ImportDocxAsync();
     }
 
     private async void ShowAllTasks_Click(
@@ -2472,6 +2483,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "docx.import",
+                Title = "Importer un DOCX",
+                Subtitle = "Prévisualiser, remapper puis valider un document Word local",
+                Keywords = ["docx", "word", "import", "prévisualisation", "mapping"],
+                ExecuteAsync = ImportDocxAsync
+            },
+            new()
+            {
                 Id = "tasks.context",
                 Title = "Tâches du contexte",
                 Subtitle = "Projet / Application / Global selon la sélection",
@@ -3282,6 +3301,95 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"Tâche · {task.Text} · ligne {task.LineNumber}";
+    }
+
+    private async Task ImportDocxAsync()
+    {
+        var picker = new OpenFileDialog
+        {
+            Title = "Importer un document Word",
+            Filter = "Documents Word (*.docx)|*.docx",
+            Multiselect = false,
+            CheckFileExists = true
+        };
+
+        if (picker.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        DocxImportPreview? preview = null;
+
+        try
+        {
+            StatusText.Text =
+                "Import DOCX · analyse du document…";
+
+            preview = await _docxImportService.PreparePreviewAsync(
+                picker.FileName);
+
+            var dialog = new DocxImportPreviewDialog(
+                preview)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true ||
+                dialog.CommitRequest is null)
+            {
+                _docxImportService.DiscardStagedCopy(
+                    preview.StagedImport);
+
+                preview = null;
+                StatusText.Text =
+                    "Import DOCX annulé";
+                return;
+            }
+
+            StatusText.Text =
+                "Import DOCX · écriture dans le workspace…";
+
+            var result = await _docxImportService.CommitAsync(
+                preview,
+                dialog.CommitRequest);
+
+            preview = null;
+
+            await RefreshNavigationAsync(
+                result.ProjectDirectory);
+            await RefreshLinkIndexAndContextAsync();
+            await RefreshDashboardTasksAsync();
+            await RefreshDashboardMilestonesAsync();
+
+            StatusText.Text =
+                $"Import DOCX terminé · {result.GeneratedFiles.Count} fichier(s) Markdown créé(s)";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException)
+        {
+            MessageBox.Show(
+                this,
+                $"Le document Word n'a pas pu être importé.\n\n{exception.Message}",
+                "Import DOCX",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            StatusText.Text =
+                "Import DOCX en échec";
+        }
+        finally
+        {
+            if (preview is not null &&
+                File.Exists(
+                    preview.StagedImport.StagedCopyPath))
+            {
+                _docxImportService.DiscardStagedCopy(
+                    preview.StagedImport);
+            }
+        }
     }
 
     private async Task AttachFileAsync()
