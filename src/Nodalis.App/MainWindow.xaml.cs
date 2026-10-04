@@ -1105,93 +1105,106 @@ public partial class MainWindow : Window
             }
         }
 
-        if (Keyboard.Modifiers == ModifierKeys.Control &&
-            e.Key == Key.K)
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.InternalLink))
         {
             e.Handled = true;
             await OpenInternalLinkPickerAsync();
             return;
         }
 
-        if (Keyboard.Modifiers == ModifierKeys.Control &&
-            e.Key == Key.F)
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.Search))
         {
             e.Handled = true;
             await SearchAsync();
             return;
         }
 
-        if (Keyboard.Modifiers == ModifierKeys.Control &&
-            e.Key == Key.P)
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.CommandPalette))
         {
             e.Handled = true;
             await ShowCommandPaletteAsync();
             return;
         }
 
-        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Alt) &&
-            e.Key == Key.N)
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.QuickNote))
         {
             e.Handled = true;
             await CaptureQuickNoteAsync();
             return;
         }
 
-        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) &&
-            e.Key == Key.Q)
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.QuickNotesOverview))
         {
             e.Handled = true;
             await ShowQuickNotesAsync();
             return;
         }
 
-        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) &&
-            e.Key == Key.N)
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.NewProject))
         {
             e.Handled = true;
             await CreateProjectAsync();
             return;
         }
 
-        if (Keyboard.Modifiers == ModifierKeys.Control)
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.NewNote))
         {
-            if (e.Key == Key.N)
-            {
-                e.Handled = true;
-                await CreateNoteAsync();
-                return;
-            }
+            e.Handled = true;
+            await CreateNoteAsync();
+            return;
+        }
 
-            if (e.Key == Key.S)
-            {
-                e.Handled = true;
-                await SaveCurrentDocumentAsync();
-                return;
-            }
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.Save))
+        {
+            e.Handled = true;
+            await SaveCurrentDocumentAsync();
+            return;
+        }
 
-            if (e.Key == Key.B &&
-                _documentSession is not null)
-            {
-                e.Handled = true;
-                WrapSelection("**", "**");
-                return;
-            }
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.Bold) &&
+            _documentSession is not null)
+        {
+            e.Handled = true;
+            WrapSelection("**", "**");
+            return;
+        }
 
-            if (e.Key == Key.I &&
-                _documentSession is not null)
-            {
-                e.Handled = true;
-                WrapSelection("*", "*");
-                return;
-            }
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.Italic) &&
+            _documentSession is not null)
+        {
+            e.Handled = true;
+            WrapSelection("*", "*");
+            return;
+        }
 
-            if (e.Key == Key.Oem3 &&
-                _documentSession is not null)
-            {
-                e.Handled = true;
-                var marker = ((char)96).ToString();
-                WrapSelection(marker, marker);
-            }
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.InlineCode) &&
+            _documentSession is not null)
+        {
+            e.Handled = true;
+            var marker = ((char)96).ToString();
+            WrapSelection(marker, marker);
         }
     }
 
