@@ -18,6 +18,8 @@ Le socle actuellement disponible comprend :
 - recherche exacte regroupée Projet / Application / Global ;
 - Command Palette ;
 - dashboard d'accueil avec favoris, récents, tâches ouvertes et jalons prochains ;
+- tâches Markdown consolidées avec filtres de contexte et navigation vers la source ;
+- jalons projet éditables avec vue liste et timeline chronologique ;
 - persistance atomique et détection des modifications externes ;
 - zéro dépendance NuGet ;
 - zéro API réseau dans le produit.
