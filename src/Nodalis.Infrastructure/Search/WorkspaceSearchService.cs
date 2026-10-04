@@ -6,7 +6,15 @@ namespace Nodalis.Infrastructure.Search;
 
 public sealed class WorkspaceSearchService
 {
-    public async Task<SearchResultSet> SearchAsync(
+    /// <summary>
+    /// Performs the <c>SearchAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="query">The <c>query</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<SearchResultSet> SearchAsync(
         string workspaceRoot,
         string? contextPath,
         string query,
@@ -15,22 +23,22 @@ public sealed class WorkspaceSearchService
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
 
-        var root = Path.GetFullPath(workspaceRoot);
-        var contextDirectory = ResolveContextDirectory(
+        string root = Path.GetFullPath(workspaceRoot);
+        string contextDirectory = ResolveContextDirectory(
             root,
             contextPath);
 
-        var projectDirectory = FindAncestorContaining(
+        string? projectDirectory = FindAncestorContaining(
             contextDirectory,
             root,
             WorkspaceLayout.ProjectManifestFileName);
 
-        var applicationDirectory = FindAncestorContaining(
+        string? applicationDirectory = FindAncestorContaining(
             contextDirectory,
             root,
             WorkspaceLayout.ApplicationManifestFileName);
 
-        var results = new SearchResultSet();
+        global::Nodalis.Core.Search.SearchResultSet results = new SearchResultSet();
 
         if (projectDirectory is not null)
         {
@@ -60,7 +68,7 @@ public sealed class WorkspaceSearchService
                     SearchScopeKind.Application,
                     shouldSkipDirectory: directory =>
                     {
-                        var name = Path.GetFileName(directory);
+                        string name = Path.GetFileName(directory);
 
                         return name.Equals(
                                    WorkspaceLayout.ProjectsDirectoryName,
@@ -87,7 +95,7 @@ public sealed class WorkspaceSearchService
                         return false;
                     }
 
-                    var name = Path.GetFileName(directory);
+                    string name = Path.GetFileName(directory);
 
                     return name.Equals(
                                WorkspaceLayout.ApplicationsDirectoryName,
@@ -111,29 +119,38 @@ public sealed class WorkspaceSearchService
         return results;
     }
 
-    private static async Task<List<SearchResult>> SearchDirectoryAsync(
+    /// <summary>
+    /// Performs the <c>SearchDirectoryAsync</c> operation.
+    /// </summary>
+    /// <param name="root">The <c>root</c> value.</param>
+    /// <param name="query">The <c>query</c> value.</param>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <param name="shouldSkipDirectory">The <c>shouldSkipDirectory</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<List<SearchResult>> SearchDirectoryAsync(
         string root,
         string query,
         SearchScopeKind scope,
         Func<string, bool> shouldSkipDirectory,
         CancellationToken cancellationToken)
     {
-        var results = new List<SearchResult>();
-        var pending = new Stack<string>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Search.SearchResult> results = new List<SearchResult>();
+        global::System.Collections.Generic.Stack<string> pending = new Stack<string>();
         pending.Push(root);
 
         while (pending.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var directory = pending.Pop();
+            string directory = pending.Pop();
 
             if (shouldSkipDirectory(directory))
             {
                 continue;
             }
 
-            foreach (var child in Directory
+            foreach (string child in Directory
                          .EnumerateDirectories(directory)
                          .OrderBy(
                              path => Path.GetFileName(path),
@@ -145,7 +162,7 @@ public sealed class WorkspaceSearchService
                 }
             }
 
-            foreach (var file in Directory
+            foreach (string file in Directory
                          .EnumerateFiles(
                              directory,
                              "*.md",
@@ -166,18 +183,27 @@ public sealed class WorkspaceSearchService
         return results;
     }
 
-    private static async Task SearchFileAsync(
+    /// <summary>
+    /// Performs the <c>SearchFileAsync</c> operation.
+    /// </summary>
+    /// <param name="file">The <c>file</c> value.</param>
+    /// <param name="query">The <c>query</c> value.</param>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <param name="results">The <c>results</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task SearchFileAsync(
         string file,
         string query,
         SearchScopeKind scope,
         ICollection<SearchResult> results,
         CancellationToken cancellationToken)
     {
-        var lines = await File.ReadAllLinesAsync(
+        string[] lines = await File.ReadAllLinesAsync(
             file,
             cancellationToken);
 
-        var fileNameMatches = Path
+        bool fileNameMatches = Path
             .GetFileNameWithoutExtension(file)
             .Contains(
                 query,
@@ -195,7 +221,7 @@ public sealed class WorkspaceSearchService
             });
         }
 
-        for (var index = 0; index < lines.Length; index++)
+        for (int index = 0; index < lines.Length; index++)
         {
             if (!lines[index].Contains(
                     query,
@@ -217,30 +243,36 @@ public sealed class WorkspaceSearchService
         }
     }
 
-    private static string BuildExcerpt(
+    /// <summary>
+    /// Performs the <c>BuildExcerpt</c> operation.
+    /// </summary>
+    /// <param name="line">The <c>line</c> value.</param>
+    /// <param name="query">The <c>query</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string BuildExcerpt(
         string line,
         string query)
     {
-        var trimmed = line.Trim();
+        string trimmed = line.Trim();
 
         if (trimmed.Length <= 180)
         {
             return trimmed;
         }
 
-        var index = trimmed.IndexOf(
+        int index = trimmed.IndexOf(
             query,
             StringComparison.CurrentCultureIgnoreCase);
 
-        var start = Math.Max(
+        int start = Math.Max(
             0,
             index - 70);
 
-        var length = Math.Min(
+        int length = Math.Min(
             180,
             trimmed.Length - start);
 
-        var excerpt = trimmed.Substring(
+        string excerpt = trimmed.Substring(
             start,
             length);
 
@@ -250,7 +282,13 @@ public sealed class WorkspaceSearchService
             (start + length < trimmed.Length ? "…" : string.Empty);
     }
 
-    private static string ResolveContextDirectory(
+    /// <summary>
+    /// Performs the <c>ResolveContextDirectory</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ResolveContextDirectory(
         string workspaceRoot,
         string? contextPath)
     {
@@ -259,7 +297,7 @@ public sealed class WorkspaceSearchService
             return workspaceRoot;
         }
 
-        var fullPath = Path.GetFullPath(contextPath);
+        string fullPath = Path.GetFullPath(contextPath);
 
         if (File.Exists(fullPath) ||
             Path.HasExtension(fullPath))
@@ -273,12 +311,19 @@ public sealed class WorkspaceSearchService
             : workspaceRoot;
     }
 
-    private static string? FindAncestorContaining(
+    /// <summary>
+    /// Performs the <c>FindAncestorContaining</c> operation.
+    /// </summary>
+    /// <param name="startDirectory">The <c>startDirectory</c> value.</param>
+    /// <param name="root">The <c>root</c> value.</param>
+    /// <param name="fileName">The <c>fileName</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string? FindAncestorContaining(
         string startDirectory,
         string root,
         string fileName)
     {
-        for (var current = startDirectory;
+        for (string current = startDirectory;
              current is not null && IsInsideOrEqual(current, root);
              current = Directory.GetParent(current)?.FullName)
         {
@@ -301,16 +346,22 @@ public sealed class WorkspaceSearchService
         return null;
     }
 
-    private static bool IsInsideOrEqual(
+    /// <summary>
+    /// Performs the <c>IsInsideOrEqual</c> operation.
+    /// </summary>
+    /// <param name="candidate">The <c>candidate</c> value.</param>
+    /// <param name="root">The <c>root</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsInsideOrEqual(
         string candidate,
         string root)
     {
-        var fullCandidate = Path.GetFullPath(candidate)
+        string fullCandidate = Path.GetFullPath(candidate)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);
 
-        var fullRoot = Path.GetFullPath(root)
+        string fullRoot = Path.GetFullPath(root)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);
@@ -324,13 +375,18 @@ public sealed class WorkspaceSearchService
                    StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void Sort(
+    /// <summary>
+    /// Performs the <c>Sort</c> operation.
+    /// </summary>
+    /// <param name="results">The <c>results</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void Sort(
         List<SearchResult> results)
     {
         results.Sort(
             (left, right) =>
             {
-                var byFile = StringComparer.CurrentCultureIgnoreCase.Compare(
+                int byFile = StringComparer.CurrentCultureIgnoreCase.Compare(
                     left.DisplayName,
                     right.DisplayName);
 

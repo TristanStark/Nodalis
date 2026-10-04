@@ -13,7 +13,12 @@ public partial class MilestoneListDialog : Window
     private readonly string? _contextPath;
     private string? _projectDirectory;
 
-    public MilestoneListDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="MilestoneListDialog"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+public MilestoneListDialog(
         string workspaceRoot,
         string? contextPath)
     {
@@ -31,7 +36,13 @@ public partial class MilestoneListDialog : Window
 
     public MilestoneItem? SelectedMilestone { get; private set; }
 
-    private async void Add_Click(
+    /// <summary>
+    /// Performs the <c>Add_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void Add_Click(
         object sender,
         RoutedEventArgs e)
     {
@@ -40,7 +51,7 @@ public partial class MilestoneListDialog : Window
             return;
         }
 
-        var dialog = new MilestoneEditorDialog
+        global::Nodalis.App.Dialogs.MilestoneEditorDialog dialog = new MilestoneEditorDialog
         {
             Owner = this
         };
@@ -70,11 +81,17 @@ public partial class MilestoneListDialog : Window
         }
     }
 
-    private async void Edit_Click(
+    /// <summary>
+    /// Performs the <c>Edit_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void Edit_Click(
         object sender,
         RoutedEventArgs e)
     {
-        var milestone = GetSelectedMilestone();
+        global::Nodalis.Core.Milestones.MilestoneItem? milestone = GetSelectedMilestone();
 
         if (milestone is null)
         {
@@ -84,7 +101,7 @@ public partial class MilestoneListDialog : Window
             return;
         }
 
-        var dialog = new MilestoneEditorDialog(
+        global::Nodalis.App.Dialogs.MilestoneEditorDialog dialog = new MilestoneEditorDialog(
             milestone)
         {
             Owner = this
@@ -117,11 +134,17 @@ public partial class MilestoneListDialog : Window
         }
     }
 
-    private async void Delete_Click(
+    /// <summary>
+    /// Performs the <c>Delete_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void Delete_Click(
         object sender,
         RoutedEventArgs e)
     {
-        var milestone = GetSelectedMilestone();
+        global::Nodalis.Core.Milestones.MilestoneItem? milestone = GetSelectedMilestone();
 
         if (milestone is null)
         {
@@ -131,7 +154,7 @@ public partial class MilestoneListDialog : Window
             return;
         }
 
-        var answer = MessageBox.Show(
+        global::System.Windows.MessageBoxResult answer = MessageBox.Show(
             this,
             $"Supprimer le jalon « {milestone.Name} » ?",
             "Supprimer le jalon",
@@ -163,19 +186,36 @@ public partial class MilestoneListDialog : Window
         }
     }
 
-    private void MilestonesList_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>MilestonesList_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void MilestonesList_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e) =>
         OpenSelectedFrom(
             MilestonesList);
 
-    private void TimelineList_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>TimelineList_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void TimelineList_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e) =>
         OpenSelectedFrom(
             TimelineList);
 
-    private void OpenSelectedFrom(ListBox list)
+    /// <summary>
+    /// Performs the <c>OpenSelectedFrom</c> operation.
+    /// </summary>
+    /// <param name="list">The <c>list</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void OpenSelectedFrom(ListBox list)
     {
         if (list.SelectedItem is not MilestoneItem milestone)
         {
@@ -186,11 +226,19 @@ public partial class MilestoneListDialog : Window
         DialogResult = true;
     }
 
-    private MilestoneItem? GetSelectedMilestone() =>
+    /// <summary>
+    /// Performs the <c>GetSelectedMilestone</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private MilestoneItem? GetSelectedMilestone() =>
         TimelineList.SelectedItem as MilestoneItem ??
         MilestonesList.SelectedItem as MilestoneItem;
 
-    private async Task<bool> EnsureProjectDirectoryAsync()
+    /// <summary>
+    /// Performs the <c>EnsureProjectDirectoryAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task<bool> EnsureProjectDirectoryAsync()
     {
         if (_projectDirectory is not null)
         {
@@ -211,7 +259,11 @@ public partial class MilestoneListDialog : Window
         return false;
     }
 
-    private async Task RefreshAsync()
+    /// <summary>
+    /// Performs the <c>RefreshAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task RefreshAsync()
     {
         try
         {
@@ -222,7 +274,7 @@ public partial class MilestoneListDialog : Window
                 return;
             }
 
-            var milestones = await _milestones.GetMilestonesAsync(
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> milestones = await _milestones.GetMilestonesAsync(
                 _projectDirectory);
 
             MilestonesList.ItemsSource = milestones;
@@ -252,7 +304,13 @@ public partial class MilestoneListDialog : Window
         }
     }
 
-    private void ShowError(
+    /// <summary>
+    /// Performs the <c>ShowError</c> operation.
+    /// </summary>
+    /// <param name="title">The <c>title</c> value.</param>
+    /// <param name="message">The <c>message</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void ShowError(
         string title,
         string message)
     {

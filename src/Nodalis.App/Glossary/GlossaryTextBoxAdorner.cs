@@ -11,7 +11,11 @@ public sealed class GlossaryTextBoxAdorner : Adorner
     private readonly TextBox _textBox;
     private IReadOnlyList<GlossaryTextMatch> _matches = [];
 
-    public GlossaryTextBoxAdorner(TextBox textBox)
+    /// <summary>
+    /// Initializes a new instance of <see cref="GlossaryTextBoxAdorner"/>.
+    /// </summary>
+    /// <param name="textBox">The <c>textBox</c> value.</param>
+public GlossaryTextBoxAdorner(TextBox textBox)
         : base(textBox)
     {
         _textBox = textBox;
@@ -26,14 +30,24 @@ public sealed class GlossaryTextBoxAdorner : Adorner
                 (_, _) => InvalidateVisual()));
     }
 
-    public void SetMatches(
+    /// <summary>
+    /// Performs the <c>SetMatches</c> operation.
+    /// </summary>
+    /// <param name="matches">The <c>matches</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public void SetMatches(
         IReadOnlyList<GlossaryTextMatch> matches)
     {
         _matches = matches ?? [];
         InvalidateVisual();
     }
 
-    protected override void OnRender(
+    /// <summary>
+    /// Performs the <c>OnRender</c> operation.
+    /// </summary>
+    /// <param name="drawingContext">The <c>drawingContext</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+protected override void OnRender(
         DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
@@ -44,18 +58,18 @@ public sealed class GlossaryTextBoxAdorner : Adorner
             return;
         }
 
-        var brush =
+        global::System.Windows.Media.Brush brush =
             Application.Current.TryFindResource("AccentBrush") as Brush ??
             Brushes.CornflowerBlue;
 
-        var pen = new Pen(
+        global::System.Windows.Media.Pen pen = new Pen(
             brush,
             1)
         {
             DashStyle = DashStyles.Dot
         };
 
-        foreach (var match in _matches)
+        foreach (global::Nodalis.Core.Glossary.GlossaryTextMatch match in _matches)
         {
             DrawMatch(
                 drawingContext,
@@ -64,7 +78,14 @@ public sealed class GlossaryTextBoxAdorner : Adorner
         }
     }
 
-    private void DrawMatch(
+    /// <summary>
+    /// Performs the <c>DrawMatch</c> operation.
+    /// </summary>
+    /// <param name="drawingContext">The <c>drawingContext</c> value.</param>
+    /// <param name="pen">The <c>pen</c> value.</param>
+    /// <param name="match">The <c>match</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void DrawMatch(
         DrawingContext drawingContext,
         Pen pen,
         GlossaryTextMatch match)
@@ -76,21 +97,21 @@ public sealed class GlossaryTextBoxAdorner : Adorner
             return;
         }
 
-        var firstLine = _textBox.GetLineIndexFromCharacterIndex(
+        int firstLine = _textBox.GetLineIndexFromCharacterIndex(
             match.Start);
 
-        var lastCharacter = Math.Max(
+        int lastCharacter = Math.Max(
             match.Start,
             match.Start + match.Length - 1);
 
-        var lastLine = _textBox.GetLineIndexFromCharacterIndex(
+        int lastLine = _textBox.GetLineIndexFromCharacterIndex(
             lastCharacter);
 
-        for (var line = firstLine;
+        for (int line = firstLine;
              line <= lastLine;
              line++)
         {
-            var lineStart = _textBox.GetCharacterIndexFromLineIndex(
+            int lineStart = _textBox.GetCharacterIndexFromLineIndex(
                 line);
 
             if (lineStart < 0)
@@ -98,14 +119,14 @@ public sealed class GlossaryTextBoxAdorner : Adorner
                 continue;
             }
 
-            var lineLength = _textBox.GetLineLength(
+            int lineLength = _textBox.GetLineLength(
                 line);
 
-            var segmentStart = Math.Max(
+            int segmentStart = Math.Max(
                 match.Start,
                 lineStart);
 
-            var segmentEnd = Math.Min(
+            int segmentEnd = Math.Min(
                 match.Start + match.Length,
                 lineStart + lineLength);
 
@@ -114,11 +135,11 @@ public sealed class GlossaryTextBoxAdorner : Adorner
                 continue;
             }
 
-            var startRect = _textBox.GetRectFromCharacterIndex(
+            global::System.Windows.Rect startRect = _textBox.GetRectFromCharacterIndex(
                 segmentStart,
                 trailingEdge: false);
 
-            var endRect = _textBox.GetRectFromCharacterIndex(
+            global::System.Windows.Rect endRect = _textBox.GetRectFromCharacterIndex(
                 segmentEnd - 1,
                 trailingEdge: true);
 
@@ -128,7 +149,7 @@ public sealed class GlossaryTextBoxAdorner : Adorner
                 continue;
             }
 
-            var y = Math.Max(
+            double y = Math.Max(
                 startRect.Bottom - 1,
                 startRect.Top + 1);
 

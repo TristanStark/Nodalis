@@ -9,22 +9,28 @@ namespace Nodalis.Infrastructure.Navigation;
 
 public sealed class WorkspaceNavigationBuilder
 {
-    public async Task<WorkspaceNavigationNode> BuildAsync(
+    /// <summary>
+    /// Performs the <c>BuildAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<WorkspaceNavigationNode> BuildAsync(
         string workspaceRoot,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
-        var root = Path.GetFullPath(workspaceRoot);
-        var workspaceStore = new FileSystemWorkspaceStore(root);
-        var workspace = await workspaceStore.LoadAsync(cancellationToken);
+        string root = Path.GetFullPath(workspaceRoot);
+        global::Nodalis.Infrastructure.Persistence.FileSystemWorkspaceStore workspaceStore = new FileSystemWorkspaceStore(root);
+        global::Nodalis.Core.Domain.WorkspaceManifest workspace = await workspaceStore.LoadAsync(cancellationToken);
 
-        var children = new List<WorkspaceNavigationNode>
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children = new List<WorkspaceNavigationNode>
         {
             BuildGlobalNode(root)
         };
 
-        var applicationsPath = Path.Combine(
+        string applicationsPath = Path.Combine(
             root,
             WorkspaceLayout.ApplicationsDirectoryName);
 
@@ -43,9 +49,14 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static WorkspaceNavigationNode BuildGlobalNode(string workspaceRoot)
+    /// <summary>
+    /// Performs the <c>BuildGlobalNode</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static WorkspaceNavigationNode BuildGlobalNode(string workspaceRoot)
     {
-        var children = EnumerateMarkdownFiles(workspaceRoot)
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children = EnumerateMarkdownFiles(workspaceRoot)
             .Select(file =>
                 BuildDocumentNode(
                     workspaceRoot,
@@ -62,16 +73,23 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static async Task<WorkspaceNavigationNode> BuildApplicationsRootAsync(
+    /// <summary>
+    /// Performs the <c>BuildApplicationsRootAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="applicationsPath">The <c>applicationsPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<WorkspaceNavigationNode> BuildApplicationsRootAsync(
         string workspaceRoot,
         string applicationsPath,
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(applicationsPath);
 
-        var applications = new List<WorkspaceNavigationNode>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> applications = new List<WorkspaceNavigationNode>();
 
-        foreach (var directory in EnumerateDirectories(applicationsPath))
+        foreach (string directory in EnumerateDirectories(applicationsPath))
         {
             applications.Add(await BuildApplicationAsync(
                 workspaceRoot,
@@ -89,29 +107,36 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static async Task<WorkspaceNavigationNode> BuildApplicationAsync(
+    /// <summary>
+    /// Performs the <c>BuildApplicationAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="directory">The <c>directory</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<WorkspaceNavigationNode> BuildApplicationAsync(
         string workspaceRoot,
         string directory,
         CancellationToken cancellationToken)
     {
-        var manifestPath = Path.Combine(
+        string manifestPath = Path.Combine(
             directory,
             WorkspaceLayout.ApplicationManifestFileName);
 
-        var manifest = await TryReadManifestAsync<ApplicationManifest>(
+        global::Nodalis.Core.Domain.ApplicationManifest? manifest = await TryReadManifestAsync<ApplicationManifest>(
             manifestPath,
             cancellationToken);
 
-        var children = new List<WorkspaceNavigationNode>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children = new List<WorkspaceNavigationNode>();
 
-        foreach (var file in EnumerateMarkdownFiles(directory))
+        foreach (string file in EnumerateMarkdownFiles(directory))
         {
             children.Add(BuildDocumentNode(workspaceRoot, file));
         }
 
-        foreach (var childDirectory in EnumerateDirectories(directory))
+        foreach (string childDirectory in EnumerateDirectories(directory))
         {
-            var name = Path.GetFileName(childDirectory);
+            string name = Path.GetFileName(childDirectory);
 
             if (name.Equals(
                     WorkspaceLayout.ModulesDirectoryName,
@@ -152,14 +177,21 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static async Task<WorkspaceNavigationNode> BuildModulesRootAsync(
+    /// <summary>
+    /// Performs the <c>BuildModulesRootAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="modulesPath">The <c>modulesPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<WorkspaceNavigationNode> BuildModulesRootAsync(
         string workspaceRoot,
         string modulesPath,
         CancellationToken cancellationToken)
     {
-        var modules = new List<WorkspaceNavigationNode>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> modules = new List<WorkspaceNavigationNode>();
 
-        foreach (var directory in EnumerateDirectories(modulesPath))
+        foreach (string directory in EnumerateDirectories(modulesPath))
         {
             modules.Add(await BuildModuleAsync(
                 workspaceRoot,
@@ -177,29 +209,36 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static async Task<WorkspaceNavigationNode> BuildModuleAsync(
+    /// <summary>
+    /// Performs the <c>BuildModuleAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="directory">The <c>directory</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<WorkspaceNavigationNode> BuildModuleAsync(
         string workspaceRoot,
         string directory,
         CancellationToken cancellationToken)
     {
-        var manifestPath = Path.Combine(
+        string manifestPath = Path.Combine(
             directory,
             WorkspaceLayout.ModuleManifestFileName);
 
-        var manifest = await TryReadManifestAsync<ModuleManifest>(
+        global::Nodalis.Core.Domain.ModuleManifest? manifest = await TryReadManifestAsync<ModuleManifest>(
             manifestPath,
             cancellationToken);
 
-        var children = new List<WorkspaceNavigationNode>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children = new List<WorkspaceNavigationNode>();
 
-        foreach (var file in EnumerateMarkdownFiles(directory))
+        foreach (string file in EnumerateMarkdownFiles(directory))
         {
             children.Add(BuildDocumentNode(workspaceRoot, file));
         }
 
-        foreach (var childDirectory in EnumerateDirectories(directory))
+        foreach (string childDirectory in EnumerateDirectories(directory))
         {
-            var name = Path.GetFileName(childDirectory);
+            string name = Path.GetFileName(childDirectory);
 
             if (name.Equals(
                     WorkspaceLayout.ModulesDirectoryName,
@@ -240,14 +279,21 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static async Task<WorkspaceNavigationNode> BuildProjectsRootAsync(
+    /// <summary>
+    /// Performs the <c>BuildProjectsRootAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="projectsPath">The <c>projectsPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<WorkspaceNavigationNode> BuildProjectsRootAsync(
         string workspaceRoot,
         string projectsPath,
         CancellationToken cancellationToken)
     {
-        var projects = new List<WorkspaceNavigationNode>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> projects = new List<WorkspaceNavigationNode>();
 
-        foreach (var directory in EnumerateDirectories(projectsPath))
+        foreach (string directory in EnumerateDirectories(projectsPath))
         {
             projects.Add(await BuildProjectAsync(
                 workspaceRoot,
@@ -265,29 +311,36 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static async Task<WorkspaceNavigationNode> BuildProjectAsync(
+    /// <summary>
+    /// Performs the <c>BuildProjectAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="directory">The <c>directory</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<WorkspaceNavigationNode> BuildProjectAsync(
         string workspaceRoot,
         string directory,
         CancellationToken cancellationToken)
     {
-        var manifestPath = Path.Combine(
+        string manifestPath = Path.Combine(
             directory,
             WorkspaceLayout.ProjectManifestFileName);
 
-        var manifest = await TryReadManifestAsync<ProjectManifest>(
+        global::Nodalis.Core.Domain.ProjectManifest? manifest = await TryReadManifestAsync<ProjectManifest>(
             manifestPath,
             cancellationToken);
 
-        var children = new List<WorkspaceNavigationNode>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children = new List<WorkspaceNavigationNode>();
 
-        foreach (var file in EnumerateMarkdownFiles(directory))
+        foreach (string file in EnumerateMarkdownFiles(directory))
         {
             children.Add(BuildDocumentNode(workspaceRoot, file));
         }
 
-        foreach (var childDirectory in EnumerateDirectories(directory))
+        foreach (string childDirectory in EnumerateDirectories(directory))
         {
-            var name = Path.GetFileName(childDirectory);
+            string name = Path.GetFileName(childDirectory);
 
             if (name.Equals(
                     WorkspaceLayout.SubProjectsDirectoryName,
@@ -317,14 +370,21 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static async Task<WorkspaceNavigationNode> BuildSubProjectsRootAsync(
+    /// <summary>
+    /// Performs the <c>BuildSubProjectsRootAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<WorkspaceNavigationNode> BuildSubProjectsRootAsync(
         string workspaceRoot,
         string path,
         CancellationToken cancellationToken)
     {
-        var projects = new List<WorkspaceNavigationNode>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> projects = new List<WorkspaceNavigationNode>();
 
-        foreach (var directory in EnumerateDirectories(path))
+        foreach (string directory in EnumerateDirectories(path))
         {
             projects.Add(await BuildProjectAsync(
                 workspaceRoot,
@@ -342,7 +402,15 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static async Task<WorkspaceNavigationNode> BuildGenericFolderAsync(
+    /// <summary>
+    /// Performs the <c>BuildGenericFolderAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="directory">The <c>directory</c> value.</param>
+    /// <param name="kind">The <c>kind</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<WorkspaceNavigationNode> BuildGenericFolderAsync(
         string workspaceRoot,
         string directory,
         WorkspaceNodeKind kind,
@@ -350,14 +418,14 @@ public sealed class WorkspaceNavigationBuilder
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var children = new List<WorkspaceNavigationNode>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children = new List<WorkspaceNavigationNode>();
 
-        foreach (var file in EnumerateMarkdownFiles(directory))
+        foreach (string file in EnumerateMarkdownFiles(directory))
         {
             children.Add(BuildDocumentNode(workspaceRoot, file));
         }
 
-        foreach (var childDirectory in EnumerateDirectories(directory))
+        foreach (string childDirectory in EnumerateDirectories(directory))
         {
             children.Add(await BuildGenericFolderAsync(
                 workspaceRoot,
@@ -376,7 +444,13 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static WorkspaceNavigationNode BuildDocumentNode(
+    /// <summary>
+    /// Performs the <c>BuildDocumentNode</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="file">The <c>file</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static WorkspaceNavigationNode BuildDocumentNode(
         string workspaceRoot,
         string file)
     {
@@ -389,7 +463,14 @@ public sealed class WorkspaceNavigationBuilder
         };
     }
 
-    private static void AddDocumentIfExists(
+    /// <summary>
+    /// Performs the <c>AddDocumentIfExists</c> operation.
+    /// </summary>
+    /// <param name="children">The <c>children</c> value.</param>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="file">The <c>file</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void AddDocumentIfExists(
         ICollection<WorkspaceNavigationNode> children,
         string workspaceRoot,
         string file)
@@ -400,26 +481,46 @@ public sealed class WorkspaceNavigationBuilder
         }
     }
 
-    private static IEnumerable<string> EnumerateDirectories(string path) =>
+    /// <summary>
+    /// Performs the <c>EnumerateDirectories</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static IEnumerable<string> EnumerateDirectories(string path) =>
         Directory
             .EnumerateDirectories(path)
             .Where(directory =>
                 !Path.GetFileName(directory).StartsWith(".", StringComparison.Ordinal))
             .OrderBy(directory => Path.GetFileName(directory), StringComparer.CurrentCultureIgnoreCase);
 
-    private static IEnumerable<string> EnumerateMarkdownFiles(string path) =>
+    /// <summary>
+    /// Performs the <c>EnumerateMarkdownFiles</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static IEnumerable<string> EnumerateMarkdownFiles(string path) =>
         Directory
             .EnumerateFiles(path, "*.md", SearchOption.TopDirectoryOnly)
             .OrderBy(file => Path.GetFileName(file), StringComparer.CurrentCultureIgnoreCase);
 
-    private static List<WorkspaceNavigationNode> Sort(
+    /// <summary>
+    /// Performs the <c>Sort</c> operation.
+    /// </summary>
+    /// <param name="nodes">The <c>nodes</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<WorkspaceNavigationNode> Sort(
         IEnumerable<WorkspaceNavigationNode> nodes) =>
         nodes
             .OrderBy(node => GetKindOrder(node.Kind))
             .ThenBy(node => node.DisplayName, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-    private static int GetKindOrder(WorkspaceNodeKind kind) =>
+    /// <summary>
+    /// Performs the <c>GetKindOrder</c> operation.
+    /// </summary>
+    /// <param name="kind">The <c>kind</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static int GetKindOrder(WorkspaceNodeKind kind) =>
         kind switch
         {
             WorkspaceNodeKind.Document => 20,
@@ -427,7 +528,14 @@ public sealed class WorkspaceNavigationBuilder
             _ => 10
         };
 
-    private static async Task<T?> TryReadManifestAsync<T>(
+    /// <summary>
+    /// Performs the <c>TryReadManifestAsync</c> operation.
+    /// </summary>
+    /// <typeparam name="T">The <c>T</c> type.</typeparam>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<T?> TryReadManifestAsync<T>(
         string path,
         CancellationToken cancellationToken)
         where T : class
@@ -453,11 +561,17 @@ public sealed class WorkspaceNavigationBuilder
         }
     }
 
-    private static Guid CreatePathId(
+    /// <summary>
+    /// Performs the <c>CreatePathId</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Guid CreatePathId(
         string workspaceRoot,
         string path)
     {
-        var relativePath = Path.GetRelativePath(
+        string relativePath = Path.GetRelativePath(
             workspaceRoot,
             Path.GetFullPath(path));
 
@@ -465,9 +579,14 @@ public sealed class WorkspaceNavigationBuilder
             relativePath.Replace('\\', '/').ToUpperInvariant());
     }
 
-    private static Guid CreateDeterministicId(string value)
+    /// <summary>
+    /// Performs the <c>CreateDeterministicId</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Guid CreateDeterministicId(string value)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
         return new Guid(hash.AsSpan(0, 16));
     }
 }

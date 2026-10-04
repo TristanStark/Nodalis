@@ -8,7 +8,11 @@ public sealed class DocumentStructureService
     private readonly string _workspaceRoot;
     private readonly WorkspaceLinkIndexService _linkIndex;
 
-    public DocumentStructureService(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="DocumentStructureService"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public DocumentStructureService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -16,7 +20,14 @@ public sealed class DocumentStructureService
         _linkIndex = new WorkspaceLinkIndexService(_workspaceRoot);
     }
 
-    public async Task<string> RenameAsync(
+    /// <summary>
+    /// Performs the <c>RenameAsync</c> operation.
+    /// </summary>
+    /// <param name="documentPath">The <c>documentPath</c> value.</param>
+    /// <param name="newName">The <c>newName</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<string> RenameAsync(
         string documentPath,
         string newName,
         CancellationToken cancellationToken = default)
@@ -24,7 +35,7 @@ public sealed class DocumentStructureService
         ArgumentException.ThrowIfNullOrWhiteSpace(documentPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(newName);
 
-        var source = Path.GetFullPath(documentPath);
+        string source = Path.GetFullPath(documentPath);
 
         if (!File.Exists(source))
         {
@@ -42,12 +53,12 @@ public sealed class DocumentStructureService
                 "Only Markdown documents can be renamed by this service.");
         }
 
-        var directory = Path.GetDirectoryName(source)
+        string directory = Path.GetDirectoryName(source)
             ?? throw new InvalidOperationException(
                 "Cannot determine the document directory.");
 
-        var oldDisplayName = Path.GetFileNameWithoutExtension(source);
-        var requestedName = newName.Trim();
+        string oldDisplayName = Path.GetFileNameWithoutExtension(source);
+        string requestedName = newName.Trim();
 
         if (requestedName.EndsWith(
                 ".md",
@@ -57,11 +68,11 @@ public sealed class DocumentStructureService
                 requestedName);
         }
 
-        var safeFileName =
+        string safeFileName =
             WindowsPathRules.SanitizeSegment(requestedName) +
             ".md";
 
-        var directDestination = Path.Combine(
+        string directDestination = Path.Combine(
             directory,
             safeFileName);
 
@@ -76,7 +87,7 @@ public sealed class DocumentStructureService
         await _linkIndex.RefreshAsync(
             cancellationToken);
 
-        var destination = WindowsPathRules.GetUniqueFilePath(
+        string destination = WindowsPathRules.GetUniqueFilePath(
             directory,
             safeFileName);
 

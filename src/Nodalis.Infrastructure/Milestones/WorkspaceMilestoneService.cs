@@ -15,7 +15,11 @@ public sealed class WorkspaceMilestoneService
     private readonly string _workspaceRoot;
     private readonly WorkspaceLinkIndexService _linkIndex;
 
-    public WorkspaceMilestoneService(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="WorkspaceMilestoneService"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public WorkspaceMilestoneService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -23,15 +27,21 @@ public sealed class WorkspaceMilestoneService
         _linkIndex = new WorkspaceLinkIndexService(_workspaceRoot);
     }
 
-    public async Task<IReadOnlyList<MilestoneItem>> GetMilestonesAsync(
+    /// <summary>
+    /// Performs the <c>GetMilestonesAsync</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<MilestoneItem>> GetMilestonesAsync(
         string? contextPath,
         CancellationToken cancellationToken = default)
     {
-        var links = await _linkIndex.RefreshAsync(cancellationToken);
-        var context = ResolveContext(contextPath, links);
-        var result = new List<MilestoneItem>();
+        global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
+        (global::System.Guid? ApplicationId, global::System.Guid? ProjectId) context = ResolveContext(contextPath, links);
+        global::System.Collections.Generic.List<global::Nodalis.Core.Milestones.MilestoneItem> result = new List<MilestoneItem>();
 
-        foreach (var project in links.Targets.Where(target =>
+        foreach (global::Nodalis.Core.Links.LinkTargetEntry project in links.Targets.Where(target =>
                      target.Kind == LinkTargetKind.Project))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -45,7 +55,7 @@ public sealed class WorkspaceMilestoneService
             if (context.ProjectId is null &&
                 context.ApplicationId is Guid applicationId)
             {
-                var projectApplication = FindApplicationForProject(
+                global::Nodalis.Core.Links.LinkTargetEntry? projectApplication = FindApplicationForProject(
                     project,
                     links);
 
@@ -55,10 +65,10 @@ public sealed class WorkspaceMilestoneService
                 }
             }
 
-            var projectDirectory = ResolveWorkspacePath(
+            string projectDirectory = ResolveWorkspacePath(
                 project.RelativePath);
 
-            var sourcePath = await ResolveMilestoneFileAsync(
+            string sourcePath = await ResolveMilestoneFileAsync(
                 projectDirectory,
                 cancellationToken);
 
@@ -67,12 +77,12 @@ public sealed class WorkspaceMilestoneService
                 continue;
             }
 
-            var relativeSource = NormalizeRelativePath(
+            string relativeSource = NormalizeRelativePath(
                 Path.GetRelativePath(
                     _workspaceRoot,
                     sourcePath));
 
-            var lines = await File.ReadAllLinesAsync(
+            string[] lines = await File.ReadAllLinesAsync(
                 sourcePath,
                 cancellationToken);
 
@@ -91,7 +101,14 @@ public sealed class WorkspaceMilestoneService
             .ToArray();
     }
 
-    public async Task<IReadOnlyList<MilestoneItem>> GetUpcomingAsync(
+    /// <summary>
+    /// Performs the <c>GetUpcomingAsync</c> operation.
+    /// </summary>
+    /// <param name="today">The <c>today</c> value.</param>
+    /// <param name="forwardDays">The <c>forwardDays</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<MilestoneItem>> GetUpcomingAsync(
         DateOnly today,
         int forwardDays = 60,
         CancellationToken cancellationToken = default)
@@ -101,8 +118,8 @@ public sealed class WorkspaceMilestoneService
             throw new ArgumentOutOfRangeException(nameof(forwardDays));
         }
 
-        var maximum = today.AddDays(forwardDays);
-        var all = await GetMilestonesAsync(
+        global::System.DateOnly maximum = today.AddDays(forwardDays);
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> all = await GetMilestonesAsync(
             _workspaceRoot,
             cancellationToken);
 
@@ -117,7 +134,14 @@ public sealed class WorkspaceMilestoneService
             .ToArray();
     }
 
-    public async Task<MilestoneItem> AddAsync(
+    /// <summary>
+    /// Performs the <c>AddAsync</c> operation.
+    /// </summary>
+    /// <param name="projectDirectory">The <c>projectDirectory</c> value.</param>
+    /// <param name="draft">The <c>draft</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<MilestoneItem> AddAsync(
         string projectDirectory,
         MilestoneDraft draft,
         CancellationToken cancellationToken = default)
@@ -125,14 +149,14 @@ public sealed class WorkspaceMilestoneService
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
         ValidateDraft(draft);
 
-        var fullProjectDirectory = Path.GetFullPath(projectDirectory);
-        var manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+        string fullProjectDirectory = Path.GetFullPath(projectDirectory);
+        global::Nodalis.Core.Domain.ProjectManifest manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
             Path.Combine(
                 fullProjectDirectory,
                 WorkspaceLayout.ProjectManifestFileName),
             cancellationToken);
 
-        var sourcePath = await ResolveMilestoneFileAsync(
+        string sourcePath = await ResolveMilestoneFileAsync(
             fullProjectDirectory,
             cancellationToken);
 
@@ -140,29 +164,29 @@ public sealed class WorkspaceMilestoneService
             sourcePath,
             cancellationToken);
 
-        var session = await TextDocumentSession.OpenAsync(
+        global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
             sourcePath,
             cancellationToken);
 
-        var existing = session.Content.TrimEnd();
-        var row = FormatRow(draft);
-        var updated = existing + Environment.NewLine + row + Environment.NewLine;
+        string existing = session.Content.TrimEnd();
+        string row = FormatRow(draft);
+        string updated = existing + Environment.NewLine + row + Environment.NewLine;
 
         await session.SaveAsync(
             updated,
             cancellationToken);
 
-        var lines = updated
+        string[] lines = updated
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n')
             .Split('\n');
 
-        var relativeSource = NormalizeRelativePath(
+        string relativeSource = NormalizeRelativePath(
             Path.GetRelativePath(
                 _workspaceRoot,
                 sourcePath));
 
-        var parsed = ParseTable(
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> parsed = ParseTable(
             lines,
             manifest.Id,
             manifest.Name,
@@ -175,7 +199,14 @@ public sealed class WorkspaceMilestoneService
                 StringComparison.Ordinal));
     }
 
-    public async Task<MilestoneItem> UpdateAsync(
+    /// <summary>
+    /// Performs the <c>UpdateAsync</c> operation.
+    /// </summary>
+    /// <param name="item">The <c>item</c> value.</param>
+    /// <param name="draft">The <c>draft</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<MilestoneItem> UpdateAsync(
         MilestoneItem item,
         MilestoneDraft draft,
         CancellationToken cancellationToken = default)
@@ -183,7 +214,7 @@ public sealed class WorkspaceMilestoneService
         ArgumentNullException.ThrowIfNull(item);
         ValidateDraft(draft);
 
-        var sourcePath = ResolveWorkspacePath(
+        string sourcePath = ResolveWorkspacePath(
             item.SourceRelativePath);
 
         if (!File.Exists(sourcePath))
@@ -193,25 +224,25 @@ public sealed class WorkspaceMilestoneService
                 sourcePath);
         }
 
-        var session = await TextDocumentSession.OpenAsync(
+        global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
             sourcePath,
             cancellationToken);
 
-        var newline = session.Content.Contains(
+        string newline = session.Content.Contains(
             "\r\n",
             StringComparison.Ordinal)
             ? "\r\n"
             : "\n";
 
-        var normalized = session.Content
+        string normalized = session.Content
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
 
-        var hadTrailingNewline = normalized.EndsWith(
+        bool hadTrailingNewline = normalized.EndsWith(
             "\n",
             StringComparison.Ordinal);
 
-        var lines = normalized.Split('\n').ToList();
+        global::System.Collections.Generic.List<string> lines = normalized.Split('\n').ToList();
 
         if (hadTrailingNewline &&
             lines.Count > 0 &&
@@ -220,16 +251,16 @@ public sealed class WorkspaceMilestoneService
             lines.RemoveAt(lines.Count - 1);
         }
 
-        var index = LocateSourceLine(
+        int index = LocateSourceLine(
             lines,
             item.LineNumber,
             item.RawLine,
             sourcePath);
 
-        var replacement = FormatRow(draft);
+        string replacement = FormatRow(draft);
         lines[index] = replacement;
 
-        var content = string.Join(
+        string content = string.Join(
             newline,
             lines);
 
@@ -258,34 +289,40 @@ public sealed class WorkspaceMilestoneService
         };
     }
 
-    public async Task DeleteAsync(
+    /// <summary>
+    /// Performs the <c>DeleteAsync</c> operation.
+    /// </summary>
+    /// <param name="item">The <c>item</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task DeleteAsync(
         MilestoneItem item,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        var sourcePath = ResolveWorkspacePath(
+        string sourcePath = ResolveWorkspacePath(
             item.SourceRelativePath);
 
-        var session = await TextDocumentSession.OpenAsync(
+        global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
             sourcePath,
             cancellationToken);
 
-        var newline = session.Content.Contains(
+        string newline = session.Content.Contains(
             "\r\n",
             StringComparison.Ordinal)
             ? "\r\n"
             : "\n";
 
-        var normalized = session.Content
+        string normalized = session.Content
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
 
-        var hadTrailingNewline = normalized.EndsWith(
+        bool hadTrailingNewline = normalized.EndsWith(
             "\n",
             StringComparison.Ordinal);
 
-        var lines = normalized.Split('\n').ToList();
+        global::System.Collections.Generic.List<string> lines = normalized.Split('\n').ToList();
 
         if (hadTrailingNewline &&
             lines.Count > 0 &&
@@ -294,7 +331,7 @@ public sealed class WorkspaceMilestoneService
             lines.RemoveAt(lines.Count - 1);
         }
 
-        var index = LocateSourceLine(
+        int index = LocateSourceLine(
             lines,
             item.LineNumber,
             item.RawLine,
@@ -302,7 +339,7 @@ public sealed class WorkspaceMilestoneService
 
         lines.RemoveAt(index);
 
-        var content = string.Join(
+        string content = string.Join(
             newline,
             lines);
 
@@ -316,19 +353,25 @@ public sealed class WorkspaceMilestoneService
             cancellationToken);
     }
 
-    public async Task<string?> GetProjectDirectoryForContextAsync(
+    /// <summary>
+    /// Performs the <c>GetProjectDirectoryForContextAsync</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<string?> GetProjectDirectoryForContextAsync(
         string? contextPath,
         CancellationToken cancellationToken = default)
     {
-        var links = await _linkIndex.RefreshAsync(cancellationToken);
-        var context = ResolveContext(contextPath, links);
+        global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
+        (global::System.Guid? ApplicationId, global::System.Guid? ProjectId) context = ResolveContext(contextPath, links);
 
         if (context.ProjectId is not Guid projectId)
         {
             return null;
         }
 
-        var project = links.Targets.FirstOrDefault(target =>
+        global::Nodalis.Core.Links.LinkTargetEntry? project = links.Targets.FirstOrDefault(target =>
             target.Kind == LinkTargetKind.Project &&
             target.Id == projectId);
 
@@ -337,21 +380,27 @@ public sealed class WorkspaceMilestoneService
             : ResolveWorkspacePath(project.RelativePath);
     }
 
-    private async Task<string> ResolveMilestoneFileAsync(
+    /// <summary>
+    /// Performs the <c>ResolveMilestoneFileAsync</c> operation.
+    /// </summary>
+    /// <param name="projectDirectory">The <c>projectDirectory</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task<string> ResolveMilestoneFileAsync(
         string projectDirectory,
         CancellationToken cancellationToken)
     {
-        var manifestPath = Path.Combine(
+        string manifestPath = Path.Combine(
             projectDirectory,
             WorkspaceLayout.ProjectManifestFileName);
 
         if (File.Exists(manifestPath))
         {
-            var manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+            global::Nodalis.Core.Domain.ProjectManifest manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
                 manifestPath,
                 cancellationToken);
 
-            var section = manifest.Sections.FirstOrDefault(candidate =>
+            global::Nodalis.Core.Domain.SectionManifest? section = manifest.Sections.FirstOrDefault(candidate =>
                 string.Equals(
                     candidate.TemplateKey,
                     "milestones",
@@ -359,7 +408,7 @@ public sealed class WorkspaceMilestoneService
 
             if (section is not null)
             {
-                var safeName = WindowsPathRules.SanitizeSegment(
+                string safeName = WindowsPathRules.SanitizeSegment(
                     section.Name);
 
                 return Path.Combine(
@@ -375,7 +424,13 @@ public sealed class WorkspaceMilestoneService
             "Jalons.md");
     }
 
-    private static async Task EnsureMilestoneFileAsync(
+    /// <summary>
+    /// Performs the <c>EnsureMilestoneFileAsync</c> operation.
+    /// </summary>
+    /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task EnsureMilestoneFileAsync(
         string sourcePath,
         CancellationToken cancellationToken)
     {
@@ -384,7 +439,7 @@ public sealed class WorkspaceMilestoneService
             return;
         }
 
-        var directory = Path.GetDirectoryName(sourcePath)
+        string directory = Path.GetDirectoryName(sourcePath)
             ?? throw new InvalidOperationException(
                 "Impossible de déterminer le dossier du fichier de jalons.");
 
@@ -398,20 +453,28 @@ public sealed class WorkspaceMilestoneService
             cancellationToken);
     }
 
-    private static IReadOnlyList<MilestoneItem> ParseTable(
+    /// <summary>
+    /// Performs the <c>ParseTable</c> operation.
+    /// </summary>
+    /// <param name="lines">The <c>lines</c> value.</param>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <param name="projectName">The <c>projectName</c> value.</param>
+    /// <param name="sourceRelativePath">The <c>sourceRelativePath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static IReadOnlyList<MilestoneItem> ParseTable(
         IReadOnlyList<string> lines,
         Guid projectId,
         string projectName,
         string sourceRelativePath)
     {
-        var result = new List<MilestoneItem>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Milestones.MilestoneItem> result = new List<MilestoneItem>();
         Dictionary<string, int>? columns = null;
 
-        for (var index = 0;
+        for (int index = 0;
              index < lines.Count;
              index++)
         {
-            var line = lines[index];
+            string line = lines[index];
 
             if (!line.TrimStart().StartsWith(
                     "|",
@@ -420,7 +483,7 @@ public sealed class WorkspaceMilestoneService
                 continue;
             }
 
-            var cells = SplitTableRow(line);
+            global::System.Collections.Generic.List<string> cells = SplitTableRow(line);
 
             if (cells.Count == 0)
             {
@@ -455,7 +518,7 @@ public sealed class WorkspaceMilestoneService
                 continue;
             }
 
-            var name = GetCell(
+            string name = GetCell(
                 cells,
                 columns,
                 "jalon");
@@ -465,7 +528,7 @@ public sealed class WorkspaceMilestoneService
                 continue;
             }
 
-            var dateText = GetCell(
+            string dateText = GetCell(
                 cells,
                 columns,
                 "date cible");
@@ -477,12 +540,12 @@ public sealed class WorkspaceMilestoneService
                     "yyyy-MM-dd",
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.None,
-                    out var parsedDate))
+                    out global::System.DateOnly parsedDate))
             {
                 targetDate = parsedDate;
             }
 
-            var description = GetCell(
+            string description = GetCell(
                 cells,
                 columns,
                 "description",
@@ -534,7 +597,12 @@ public sealed class WorkspaceMilestoneService
         return result;
     }
 
-    private static string FormatRow(
+    /// <summary>
+    /// Performs the <c>FormatRow</c> operation.
+    /// </summary>
+    /// <param name="draft">The <c>draft</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string FormatRow(
         MilestoneDraft draft) =>
         $"| {EscapeCell(draft.Name.Trim())} | " +
         $"{(draft.TargetDate is DateOnly date ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : string.Empty)} | " +
@@ -542,13 +610,21 @@ public sealed class WorkspaceMilestoneService
         $"{EscapeCell(draft.Description.Trim())} | " +
         $"{EscapeCell(NormalizeOptional(draft.Link) ?? string.Empty)} |";
 
-    private static int LocateSourceLine(
+    /// <summary>
+    /// Performs the <c>LocateSourceLine</c> operation.
+    /// </summary>
+    /// <param name="lines">The <c>lines</c> value.</param>
+    /// <param name="expectedLineNumber">The <c>expectedLineNumber</c> value.</param>
+    /// <param name="rawLine">The <c>rawLine</c> value.</param>
+    /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static int LocateSourceLine(
         IReadOnlyList<string> lines,
         int expectedLineNumber,
         string rawLine,
         string sourcePath)
     {
-        var expectedIndex = expectedLineNumber - 1;
+        int expectedIndex = expectedLineNumber - 1;
 
         if (expectedIndex >= 0 &&
             expectedIndex < lines.Count &&
@@ -560,7 +636,7 @@ public sealed class WorkspaceMilestoneService
             return expectedIndex;
         }
 
-        var candidates = lines
+        int[] candidates = lines
             .Select((line, index) =>
                 (line, index))
             .Where(candidate =>
@@ -581,7 +657,13 @@ public sealed class WorkspaceMilestoneService
         return candidates[0];
     }
 
-    private (Guid? ApplicationId, Guid? ProjectId) ResolveContext(
+    /// <summary>
+    /// Performs the <c>ResolveContext</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="links">The <c>links</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private (Guid? ApplicationId, Guid? ProjectId) ResolveContext(
         string? contextPath,
         LinkIndexCatalog links)
     {
@@ -590,19 +672,19 @@ public sealed class WorkspaceMilestoneService
             return (null, null);
         }
 
-        var fullPath = Path.GetFullPath(contextPath);
+        string fullPath = Path.GetFullPath(contextPath);
 
-        var contextDirectory =
+        string contextDirectory =
             File.Exists(fullPath)
                 ? Path.GetDirectoryName(fullPath) ?? _workspaceRoot
                 : fullPath;
 
-        var relative = NormalizeRelativePath(
+        string relative = NormalizeRelativePath(
             Path.GetRelativePath(
                 _workspaceRoot,
                 contextDirectory));
 
-        var project = links.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry? project = links.Targets
             .Where(target =>
                 target.Kind == LinkTargetKind.Project &&
                 IsRelativeAncestorOrEqual(
@@ -614,7 +696,7 @@ public sealed class WorkspaceMilestoneService
 
         if (project is not null)
         {
-            var application = FindApplicationForProject(
+            global::Nodalis.Core.Links.LinkTargetEntry? application = FindApplicationForProject(
                 project,
                 links);
 
@@ -623,7 +705,7 @@ public sealed class WorkspaceMilestoneService
                 project.Id);
         }
 
-        var app = links.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry? app = links.Targets
             .Where(target =>
                 target.Kind == LinkTargetKind.Application &&
                 IsRelativeAncestorOrEqual(
@@ -638,7 +720,13 @@ public sealed class WorkspaceMilestoneService
             null);
     }
 
-    private static LinkTargetEntry? FindApplicationForProject(
+    /// <summary>
+    /// Performs the <c>FindApplicationForProject</c> operation.
+    /// </summary>
+    /// <param name="project">The <c>project</c> value.</param>
+    /// <param name="links">The <c>links</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static LinkTargetEntry? FindApplicationForProject(
         LinkTargetEntry project,
         LinkIndexCatalog links) =>
         links.Targets
@@ -651,7 +739,12 @@ public sealed class WorkspaceMilestoneService
                 target.RelativePath.Length)
             .FirstOrDefault();
 
-    private string ResolveWorkspacePath(
+    /// <summary>
+    /// Performs the <c>ResolveWorkspacePath</c> operation.
+    /// </summary>
+    /// <param name="relativePath">The <c>relativePath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private string ResolveWorkspacePath(
         string relativePath) =>
         Path.GetFullPath(
             Path.Combine(
@@ -660,9 +753,14 @@ public sealed class WorkspaceMilestoneService
                     '/',
                     Path.DirectorySeparatorChar)));
 
-    private static List<string> SplitTableRow(string line)
+    /// <summary>
+    /// Performs the <c>SplitTableRow</c> operation.
+    /// </summary>
+    /// <param name="line">The <c>line</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<string> SplitTableRow(string line)
     {
-        var trimmed = line.Trim();
+        string trimmed = line.Trim();
 
         if (trimmed.StartsWith(
                 "|",
@@ -678,11 +776,11 @@ public sealed class WorkspaceMilestoneService
             trimmed = trimmed[..^1];
         }
 
-        var cells = new List<string>();
-        var current = new StringBuilder();
-        var escaped = false;
+        global::System.Collections.Generic.List<string> cells = new List<string>();
+        global::System.Text.StringBuilder current = new StringBuilder();
+        bool escaped = false;
 
-        foreach (var character in trimmed)
+        foreach (char character in trimmed)
         {
             if (escaped)
             {
@@ -728,7 +826,12 @@ public sealed class WorkspaceMilestoneService
         return cells;
     }
 
-    private static bool IsSeparatorRow(
+    /// <summary>
+    /// Performs the <c>IsSeparatorRow</c> operation.
+    /// </summary>
+    /// <param name="cells">The <c>cells</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsSeparatorRow(
         IReadOnlyList<string> cells) =>
         cells.Count > 0 &&
         cells.All(cell =>
@@ -738,16 +841,23 @@ public sealed class WorkspaceMilestoneService
                     character == '-' ||
                     char.IsWhiteSpace(character)));
 
-    private static string GetCell(
+    /// <summary>
+    /// Performs the <c>GetCell</c> operation.
+    /// </summary>
+    /// <param name="cells">The <c>cells</c> value.</param>
+    /// <param name="columns">The <c>columns</c> value.</param>
+    /// <param name="keys">The <c>keys</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string GetCell(
         IReadOnlyList<string> cells,
         IReadOnlyDictionary<string, int> columns,
         params string[] keys)
     {
-        foreach (var key in keys)
+        foreach (string key in keys)
         {
             if (columns.TryGetValue(
                     key,
-                    out var index) &&
+                    out int index) &&
                 index >= 0 &&
                 index < cells.Count)
             {
@@ -758,7 +868,12 @@ public sealed class WorkspaceMilestoneService
         return string.Empty;
     }
 
-    private static string NormalizeHeader(string value) =>
+    /// <summary>
+    /// Performs the <c>NormalizeHeader</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeHeader(string value) =>
         value
             .Trim()
             .ToLowerInvariant()
@@ -766,26 +881,46 @@ public sealed class WorkspaceMilestoneService
             .Replace("è", "e", StringComparison.Ordinal)
             .Replace("ê", "e", StringComparison.Ordinal);
 
-    private static string EscapeCell(string value) =>
+    /// <summary>
+    /// Performs the <c>EscapeCell</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string EscapeCell(string value) =>
         value.Replace(
             "|",
             "\\|",
             StringComparison.Ordinal);
 
-    private static string UnescapeCell(string value) =>
+    /// <summary>
+    /// Performs the <c>UnescapeCell</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string UnescapeCell(string value) =>
         value.Replace(
             "\\|",
             "|",
             StringComparison.Ordinal);
 
-    private static string? NormalizeOptional(string? value) =>
+    /// <summary>
+    /// Performs the <c>NormalizeOptional</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value)
             ? null
             : value.Trim();
 
-    private static bool IsCompletedStatus(string status)
+    /// <summary>
+    /// Performs the <c>IsCompletedStatus</c> operation.
+    /// </summary>
+    /// <param name="status">The <c>status</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsCompletedStatus(string status)
     {
-        var normalized = NormalizeHeader(status);
+        string normalized = NormalizeHeader(status);
 
         return normalized is
             "termine" or
@@ -797,12 +932,19 @@ public sealed class WorkspaceMilestoneService
             "completed";
     }
 
-    private static Guid CreateMilestoneId(
+    /// <summary>
+    /// Performs the <c>CreateMilestoneId</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <param name="lineNumber">The <c>lineNumber</c> value.</param>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Guid CreateMilestoneId(
         Guid projectId,
         int lineNumber,
         string name)
     {
-        var bytes = SHA256.HashData(
+        byte[] bytes = SHA256.HashData(
             Encoding.UTF8.GetBytes(
                 $"{projectId:D}|{lineNumber}|{name.Trim()}"));
 
@@ -812,14 +954,26 @@ public sealed class WorkspaceMilestoneService
                 16));
     }
 
-    private static bool IsRelativeAncestor(
+    /// <summary>
+    /// Performs the <c>IsRelativeAncestor</c> operation.
+    /// </summary>
+    /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
+    /// <param name="child">The <c>child</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsRelativeAncestor(
         string candidateParent,
         string child) =>
         child.StartsWith(
             candidateParent.TrimEnd('/') + "/",
             StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsRelativeAncestorOrEqual(
+    /// <summary>
+    /// Performs the <c>IsRelativeAncestorOrEqual</c> operation.
+    /// </summary>
+    /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
+    /// <param name="child">The <c>child</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsRelativeAncestorOrEqual(
         string candidateParent,
         string child) =>
         string.Equals(
@@ -830,12 +984,22 @@ public sealed class WorkspaceMilestoneService
             candidateParent,
             child);
 
-    private static string NormalizeRelativePath(string path) =>
+    /// <summary>
+    /// Performs the <c>NormalizeRelativePath</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeRelativePath(string path) =>
         path.Replace(
             Path.DirectorySeparatorChar,
             '/');
 
-    private static void ValidateDraft(MilestoneDraft draft)
+    /// <summary>
+    /// Performs the <c>ValidateDraft</c> operation.
+    /// </summary>
+    /// <param name="draft">The <c>draft</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void ValidateDraft(MilestoneDraft draft)
     {
         ArgumentNullException.ThrowIfNull(draft);
         ArgumentException.ThrowIfNullOrWhiteSpace(draft.Name);

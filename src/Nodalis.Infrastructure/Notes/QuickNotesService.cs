@@ -7,15 +7,22 @@ namespace Nodalis.Infrastructure.Notes;
 
 public sealed class QuickNotesService
 {
-    public async Task<IReadOnlyList<QuickNoteScope>> ResolveScopesAsync(
+    /// <summary>
+    /// Performs the <c>ResolveScopesAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<QuickNoteScope>> ResolveScopesAsync(
         string workspaceRoot,
         string? contextPath,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
-        var root = Path.GetFullPath(workspaceRoot);
-        var contextDirectory = ResolveContextDirectory(
+        string root = Path.GetFullPath(workspaceRoot);
+        string contextDirectory = ResolveContextDirectory(
             root,
             contextPath);
 
@@ -24,7 +31,7 @@ public sealed class QuickNotesService
         string? applicationDirectory = null;
         ApplicationManifest? application = null;
 
-        for (var current = contextDirectory;
+        for (string current = contextDirectory;
              current is not null && IsInsideOrEqual(current, root);
              current = Directory.GetParent(current)?.FullName)
         {
@@ -32,7 +39,7 @@ public sealed class QuickNotesService
 
             if (project is null)
             {
-                var projectManifestPath = Path.Combine(
+                string projectManifestPath = Path.Combine(
                     current,
                     WorkspaceLayout.ProjectManifestFileName);
 
@@ -47,7 +54,7 @@ public sealed class QuickNotesService
 
             if (application is null)
             {
-                var applicationManifestPath = Path.Combine(
+                string applicationManifestPath = Path.Combine(
                     current,
                     WorkspaceLayout.ApplicationManifestFileName);
 
@@ -75,7 +82,7 @@ public sealed class QuickNotesService
             }
         }
 
-        var scopes = new List<QuickNoteScope>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Notes.QuickNoteScope> scopes = new List<QuickNoteScope>();
 
         if (project is not null &&
             projectDirectory is not null)
@@ -115,7 +122,7 @@ public sealed class QuickNotesService
                 WorkspaceLayout.GlobalQuickNotesFileName)
         });
 
-        foreach (var scope in scopes)
+        foreach (global::Nodalis.Core.Notes.QuickNoteScope scope in scopes)
         {
             await EnsureQuickNotesFileAsync(
                 scope,
@@ -125,7 +132,15 @@ public sealed class QuickNotesService
         return scopes;
     }
 
-    public async Task AppendAsync(
+    /// <summary>
+    /// Performs the <c>AppendAsync</c> operation.
+    /// </summary>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <param name="text">The <c>text</c> value.</param>
+    /// <param name="timestamp">The <c>timestamp</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task AppendAsync(
         QuickNoteScope scope,
         string text,
         DateTimeOffset timestamp,
@@ -138,17 +153,17 @@ public sealed class QuickNotesService
             scope,
             cancellationToken);
 
-        var session = await TextDocumentSession.OpenAsync(
+        global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
             scope.FilePath,
             cancellationToken);
 
-        var existing = session.Content.TrimEnd();
-        var entry =
+        string existing = session.Content.TrimEnd();
+        string entry =
             $"## {timestamp:yyyy-MM-dd HH:mm}\n\n" +
             text.Trim() +
             "\n";
 
-        var updated = string.IsNullOrEmpty(existing)
+        string updated = string.IsNullOrEmpty(existing)
             ? $"# Notes rapides\n\n{entry}"
             : $"{existing}\n\n{entry}";
 
@@ -157,19 +172,26 @@ public sealed class QuickNotesService
             cancellationToken);
     }
 
-    public async Task<IReadOnlyList<QuickNotesSnapshot>> ReadAggregateAsync(
+    /// <summary>
+    /// Performs the <c>ReadAggregateAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<QuickNotesSnapshot>> ReadAggregateAsync(
         string workspaceRoot,
         string? contextPath,
         CancellationToken cancellationToken = default)
     {
-        var scopes = await ResolveScopesAsync(
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.QuickNoteScope> scopes = await ResolveScopesAsync(
             workspaceRoot,
             contextPath,
             cancellationToken);
 
-        var snapshots = new List<QuickNotesSnapshot>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Notes.QuickNotesSnapshot> snapshots = new List<QuickNotesSnapshot>();
 
-        foreach (var scope in scopes)
+        foreach (global::Nodalis.Core.Notes.QuickNoteScope scope in scopes)
         {
             snapshots.Add(new QuickNotesSnapshot
             {
@@ -183,14 +205,19 @@ public sealed class QuickNotesService
         return snapshots;
     }
 
-    public static string FormatAggregateMarkdown(
+    /// <summary>
+    /// Performs the <c>FormatAggregateMarkdown</c> operation.
+    /// </summary>
+    /// <param name="snapshots">The <c>snapshots</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static string FormatAggregateMarkdown(
         IReadOnlyList<QuickNotesSnapshot> snapshots)
     {
         ArgumentNullException.ThrowIfNull(snapshots);
 
-        var sections = snapshots.Select(snapshot =>
+        global::System.Collections.Generic.IEnumerable<string> sections = snapshots.Select(snapshot =>
         {
-            var content = RemoveTopHeading(
+            string content = RemoveTopHeading(
                 snapshot.Content);
 
             return $"# {snapshot.Scope.DisplayName}\n\n{content.Trim()}";
@@ -201,7 +228,13 @@ public sealed class QuickNotesService
             sections) + "\n";
     }
 
-    private static async Task EnsureQuickNotesFileAsync(
+    /// <summary>
+    /// Performs the <c>EnsureQuickNotesFileAsync</c> operation.
+    /// </summary>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task EnsureQuickNotesFileAsync(
         QuickNoteScope scope,
         CancellationToken cancellationToken)
     {
@@ -219,7 +252,13 @@ public sealed class QuickNotesService
             cancellationToken);
     }
 
-    private static string ResolveContextDirectory(
+    /// <summary>
+    /// Performs the <c>ResolveContextDirectory</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ResolveContextDirectory(
         string workspaceRoot,
         string? contextPath)
     {
@@ -228,7 +267,7 @@ public sealed class QuickNotesService
             return workspaceRoot;
         }
 
-        var fullPath = Path.GetFullPath(contextPath);
+        string fullPath = Path.GetFullPath(contextPath);
 
         if (File.Exists(fullPath) ||
             Path.HasExtension(fullPath))
@@ -242,16 +281,22 @@ public sealed class QuickNotesService
             : workspaceRoot;
     }
 
-    private static bool IsInsideOrEqual(
+    /// <summary>
+    /// Performs the <c>IsInsideOrEqual</c> operation.
+    /// </summary>
+    /// <param name="candidate">The <c>candidate</c> value.</param>
+    /// <param name="root">The <c>root</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsInsideOrEqual(
         string candidate,
         string root)
     {
-        var fullCandidate = Path.GetFullPath(candidate)
+        string fullCandidate = Path.GetFullPath(candidate)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);
 
-        var fullRoot = Path.GetFullPath(root)
+        string fullRoot = Path.GetFullPath(root)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);
@@ -265,11 +310,16 @@ public sealed class QuickNotesService
                    StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string RemoveTopHeading(
+    /// <summary>
+    /// Performs the <c>RemoveTopHeading</c> operation.
+    /// </summary>
+    /// <param name="markdown">The <c>markdown</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string RemoveTopHeading(
         string markdown)
     {
-        using var reader = new StringReader(markdown);
-        var firstLine = reader.ReadLine();
+        using global::System.IO.StringReader reader = new StringReader(markdown);
+        string? firstLine = reader.ReadLine();
 
         if (firstLine is not null &&
             firstLine.StartsWith("# ", StringComparison.Ordinal))

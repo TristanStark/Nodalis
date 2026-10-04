@@ -12,16 +12,27 @@ public sealed class DocxImportAnalyzer
     private readonly WorkspaceLinkIndexService _linkIndex;
     private readonly DocxImportRuleStore _ruleStore;
 
-    public DocxImportAnalyzer(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="DocxImportAnalyzer"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public DocxImportAnalyzer(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
-        var root = Path.GetFullPath(workspaceRoot);
+        string root = Path.GetFullPath(workspaceRoot);
         _linkIndex = new WorkspaceLinkIndexService(root);
         _ruleStore = new DocxImportRuleStore(root);
     }
 
-    public async Task<DocxImportAnalysis> AnalyzeAsync(
+    /// <summary>
+    /// Performs the <c>AnalyzeAsync</c> operation.
+    /// </summary>
+    /// <param name="document">The <c>document</c> value.</param>
+    /// <param name="sourceFileName">The <c>sourceFileName</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<DocxImportAnalysis> AnalyzeAsync(
         ParsedDocxDocument document,
         string sourceFileName,
         CancellationToken cancellationToken = default)
@@ -29,27 +40,27 @@ public sealed class DocxImportAnalyzer
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceFileName);
 
-        var rules = await _ruleStore.LoadAsync(cancellationToken);
-        var links = await _linkIndex.RefreshAsync(cancellationToken);
+        global::Nodalis.Core.Importing.DocxImportRuleCatalog rules = await _ruleStore.LoadAsync(cancellationToken);
+        global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
 
-        var evidence = BuildEvidence(
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.EvidenceItem> evidence = BuildEvidence(
             document,
             sourceFileName,
             rules.Detection.MaxContentParagraphs);
 
-        var explicitApplications = ExtractLabeledValues(
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.LabeledValue> explicitApplications = ExtractLabeledValues(
             evidence,
             rules.Detection.ApplicationLabels);
 
-        var explicitProjects = ExtractLabeledValues(
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.LabeledValue> explicitProjects = ExtractLabeledValues(
             evidence,
             rules.Detection.ProjectLabels);
 
-        var applicationTargets = links.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry[] applicationTargets = links.Targets
             .Where(target => target.Kind == LinkTargetKind.Application)
             .ToArray();
 
-        var applicationCandidates = RankTargets(
+        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxDetectedTarget> applicationCandidates = RankTargets(
             applicationTargets,
             evidence,
             explicitApplications);
@@ -59,13 +70,13 @@ public sealed class DocxImportAnalyzer
                 ? applicationCandidates[0].Id
                 : null;
 
-        var projectTargets = links.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry[] projectTargets = links.Targets
             .Where(target => target.Kind == LinkTargetKind.Project)
             .ToArray();
 
         if (resolvedApplicationId is Guid applicationId)
         {
-            var application = applicationTargets.Single(target =>
+            global::Nodalis.Core.Links.LinkTargetEntry application = applicationTargets.Single(target =>
                 target.Id == applicationId);
 
             projectTargets = projectTargets
@@ -76,25 +87,25 @@ public sealed class DocxImportAnalyzer
                 .ToArray();
         }
 
-        var projectCandidates = RankTargets(
+        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxDetectedTarget> projectCandidates = RankTargets(
             projectTargets,
             evidence,
             explicitProjects);
 
-        var mapped = MapSections(
+        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxMappedSection> mapped = MapSections(
             document.Blocks,
             rules.SectionMappings,
-            out var unmapped);
+            out global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxBlock>? unmapped);
 
-        var proposedApplication = FindStrongestUnmatchedLabel(
+        string? proposedApplication = FindStrongestUnmatchedLabel(
             explicitApplications,
             applicationTargets);
 
-        var proposedProject = FindStrongestUnmatchedLabel(
+        string? proposedProject = FindStrongestUnmatchedLabel(
             explicitProjects,
             projectTargets);
 
-        var notes = BuildDetectionNotes(
+        global::System.Collections.Generic.List<string> notes = BuildDetectionNotes(
             applicationCandidates,
             projectCandidates,
             proposedApplication,
@@ -113,12 +124,19 @@ public sealed class DocxImportAnalyzer
         };
     }
 
-    private static IReadOnlyList<EvidenceItem> BuildEvidence(
+    /// <summary>
+    /// Performs the <c>BuildEvidence</c> operation.
+    /// </summary>
+    /// <param name="document">The <c>document</c> value.</param>
+    /// <param name="sourceFileName">The <c>sourceFileName</c> value.</param>
+    /// <param name="maximumParagraphs">The <c>maximumParagraphs</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static IReadOnlyList<EvidenceItem> BuildEvidence(
         ParsedDocxDocument document,
         string sourceFileName,
         int maximumParagraphs)
     {
-        var result = new List<EvidenceItem>();
+        global::System.Collections.Generic.List<global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.EvidenceItem> result = new List<EvidenceItem>();
 
         AddEvidence(
             result,
@@ -146,7 +164,7 @@ public sealed class DocxImportAnalyzer
             EvidenceKind.Metadata,
             document.Metadata.Description);
 
-        foreach (var header in document.Headers)
+        foreach (string header in document.Headers)
         {
             AddEvidence(
                 result,
@@ -154,7 +172,7 @@ public sealed class DocxImportAnalyzer
                 header);
         }
 
-        foreach (var paragraph in document.Blocks
+        foreach (global::Nodalis.Core.Importing.DocxParagraph paragraph in document.Blocks
                      .Where(block =>
                          block.Kind == DocxBlockKind.Paragraph &&
                          block.Paragraph is not null)
@@ -172,7 +190,14 @@ public sealed class DocxImportAnalyzer
         return result;
     }
 
-    private static void AddEvidence(
+    /// <summary>
+    /// Performs the <c>AddEvidence</c> operation.
+    /// </summary>
+    /// <param name="target">The <c>target</c> value.</param>
+    /// <param name="kind">The <c>kind</c> value.</param>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void AddEvidence(
         ICollection<EvidenceItem> target,
         EvidenceKind kind,
         string? value)
@@ -182,7 +207,7 @@ public sealed class DocxImportAnalyzer
             return;
         }
 
-        foreach (var line in NormalizeNewlines(value)
+        foreach (string line in NormalizeNewlines(value)
                      .Split(
                          '\n',
                          StringSplitOptions.TrimEntries |
@@ -195,28 +220,34 @@ public sealed class DocxImportAnalyzer
         }
     }
 
-    private static IReadOnlyList<LabeledValue> ExtractLabeledValues(
+    /// <summary>
+    /// Performs the <c>ExtractLabeledValues</c> operation.
+    /// </summary>
+    /// <param name="evidence">The <c>evidence</c> value.</param>
+    /// <param name="labels">The <c>labels</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static IReadOnlyList<LabeledValue> ExtractLabeledValues(
         IReadOnlyList<EvidenceItem> evidence,
         IReadOnlyList<string> labels)
     {
-        var result = new List<LabeledValue>();
+        global::System.Collections.Generic.List<global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.LabeledValue> result = new List<LabeledValue>();
 
-        foreach (var item in evidence)
+        foreach (global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.EvidenceItem item in evidence)
         {
-            var source = item.Text.Trim()
+            string source = item.Text.Trim()
                 .TrimStart('-', '*', '•')
                 .Trim();
 
-            foreach (var label in labels
+            foreach (string label in labels
                          .Where(label =>
                              !string.IsNullOrWhiteSpace(label)))
             {
-                var pattern =
+                string pattern =
                     "^\\s*" +
                     Regex.Escape(label.Trim()) +
                     "\\s*[:=]\\s*(?<value>.+?)\\s*$";
 
-                var match = Regex.Match(
+                global::System.Text.RegularExpressions.Match match = Regex.Match(
                     source,
                     pattern,
                     RegexOptions.IgnoreCase |
@@ -228,7 +259,7 @@ public sealed class DocxImportAnalyzer
                     continue;
                 }
 
-                var value = match.Groups["value"].Value.Trim();
+                string value = match.Groups["value"].Value.Trim();
 
                 if (!string.IsNullOrWhiteSpace(value))
                 {
@@ -251,16 +282,23 @@ public sealed class DocxImportAnalyzer
             .ToArray();
     }
 
-    private static List<DocxDetectedTarget> RankTargets(
+    /// <summary>
+    /// Performs the <c>RankTargets</c> operation.
+    /// </summary>
+    /// <param name="targets">The <c>targets</c> value.</param>
+    /// <param name="evidence">The <c>evidence</c> value.</param>
+    /// <param name="labeledValues">The <c>labeledValues</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<DocxDetectedTarget> RankTargets(
         IReadOnlyList<LinkTargetEntry> targets,
         IReadOnlyList<EvidenceItem> evidence,
         IReadOnlyList<LabeledValue> labeledValues)
     {
-        var ranked = new List<DocxDetectedTarget>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxDetectedTarget> ranked = new List<DocxDetectedTarget>();
 
-        foreach (var target in targets)
+        foreach (global::Nodalis.Core.Links.LinkTargetEntry target in targets)
         {
-            var normalizedName = NormalizeForComparison(
+            string normalizedName = NormalizeForComparison(
                 target.DisplayName);
 
             if (string.IsNullOrWhiteSpace(normalizedName))
@@ -268,10 +306,10 @@ public sealed class DocxImportAnalyzer
                 continue;
             }
 
-            var confidence = 0;
-            var reasons = new List<string>();
+            int confidence = 0;
+            global::System.Collections.Generic.List<string> reasons = new List<string>();
 
-            var explicitMatches = labeledValues
+            global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.LabeledValue[] explicitMatches = labeledValues
                 .Where(value =>
                     string.Equals(
                         NormalizeForComparison(value.Value),
@@ -281,7 +319,7 @@ public sealed class DocxImportAnalyzer
 
             if (explicitMatches.Length > 0)
             {
-                var strongest = explicitMatches
+                global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.LabeledValue strongest = explicitMatches
                     .OrderByDescending(value =>
                         ExplicitScore(value.Kind))
                     .First();
@@ -294,9 +332,9 @@ public sealed class DocxImportAnalyzer
                     $"Identifiant explicite « {strongest.SourceText} »");
             }
 
-            foreach (var kind in Enum.GetValues<EvidenceKind>())
+            foreach (global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.EvidenceKind kind in Enum.GetValues<EvidenceKind>())
             {
-                var occurrence = evidence.FirstOrDefault(item =>
+                global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.EvidenceItem? occurrence = evidence.FirstOrDefault(item =>
                     item.Kind == kind &&
                     ContainsNormalizedPhrase(
                         item.Text,
@@ -335,7 +373,7 @@ public sealed class DocxImportAnalyzer
                 });
         }
 
-        var ordered = ranked
+        global::Nodalis.Core.Importing.DocxDetectedTarget[] ordered = ranked
             .OrderByDescending(candidate =>
                 candidate.Confidence)
             .ThenBy(candidate =>
@@ -348,7 +386,7 @@ public sealed class DocxImportAnalyzer
             return [];
         }
 
-        var strongestScore = ordered[0].Confidence;
+        int strongestScore = ordered[0].Confidence;
 
         return ordered
             .Where(candidate =>
@@ -358,26 +396,33 @@ public sealed class DocxImportAnalyzer
             .ToList();
     }
 
-    private static List<DocxMappedSection> MapSections(
+    /// <summary>
+    /// Performs the <c>MapSections</c> operation.
+    /// </summary>
+    /// <param name="blocks">The <c>blocks</c> value.</param>
+    /// <param name="rules">The <c>rules</c> value.</param>
+    /// <param name="unmappedBlocks">The <c>unmappedBlocks</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<DocxMappedSection> MapSections(
         IReadOnlyList<DocxBlock> blocks,
         IReadOnlyList<DocxSectionMappingRule> rules,
         out List<DocxBlock> unmappedBlocks)
     {
-        var result = new List<DocxMappedSection>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxMappedSection> result = new List<DocxMappedSection>();
         unmappedBlocks = [];
 
         DocxMappedSection? current = null;
 
-        for (var index = 0;
+        for (int index = 0;
              index < blocks.Count;
              index++)
         {
-            var block = blocks[index];
+            global::Nodalis.Core.Importing.DocxBlock block = blocks[index];
 
             if (block.Kind == DocxBlockKind.Paragraph &&
                 block.Paragraph is { HeadingLevel: int headingLevel } paragraph)
             {
-                var rule = FindMappingRule(
+                global::Nodalis.Core.Importing.DocxSectionMappingRule? rule = FindMappingRule(
                     paragraph.Text,
                     headingLevel,
                     rules);
@@ -414,24 +459,31 @@ public sealed class DocxImportAnalyzer
         return result;
     }
 
-    private static DocxSectionMappingRule? FindMappingRule(
+    /// <summary>
+    /// Performs the <c>FindMappingRule</c> operation.
+    /// </summary>
+    /// <param name="heading">The <c>heading</c> value.</param>
+    /// <param name="headingLevel">The <c>headingLevel</c> value.</param>
+    /// <param name="rules">The <c>rules</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static DocxSectionMappingRule? FindMappingRule(
         string heading,
         int headingLevel,
         IReadOnlyList<DocxSectionMappingRule> rules)
     {
-        var normalizedHeading = NormalizeForComparison(
+        string normalizedHeading = NormalizeForComparison(
             heading);
 
-        foreach (var rule in rules)
+        foreach (global::Nodalis.Core.Importing.DocxSectionMappingRule rule in rules)
         {
             if (headingLevel > rule.MaximumHeadingLevel)
             {
                 continue;
             }
 
-            foreach (var alias in rule.HeadingAliases)
+            foreach (string alias in rule.HeadingAliases)
             {
-                var normalizedAlias = NormalizeForComparison(
+                string normalizedAlias = NormalizeForComparison(
                     alias);
 
                 if (string.Equals(
@@ -451,15 +503,21 @@ public sealed class DocxImportAnalyzer
         return null;
     }
 
-    private static string? FindStrongestUnmatchedLabel(
+    /// <summary>
+    /// Performs the <c>FindStrongestUnmatchedLabel</c> operation.
+    /// </summary>
+    /// <param name="labeledValues">The <c>labeledValues</c> value.</param>
+    /// <param name="targets">The <c>targets</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string? FindStrongestUnmatchedLabel(
         IReadOnlyList<LabeledValue> labeledValues,
         IReadOnlyList<LinkTargetEntry> targets)
     {
-        foreach (var value in labeledValues
+        foreach (global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer.LabeledValue value in labeledValues
                      .OrderByDescending(item =>
                          ExplicitScore(item.Kind)))
         {
-            var normalized = NormalizeForComparison(
+            string normalized = NormalizeForComparison(
                 value.Value);
 
             if (targets.Any(target =>
@@ -477,14 +535,23 @@ public sealed class DocxImportAnalyzer
         return null;
     }
 
-    private static List<string> BuildDetectionNotes(
+    /// <summary>
+    /// Performs the <c>BuildDetectionNotes</c> operation.
+    /// </summary>
+    /// <param name="applications">The <c>applications</c> value.</param>
+    /// <param name="projects">The <c>projects</c> value.</param>
+    /// <param name="proposedApplication">The <c>proposedApplication</c> value.</param>
+    /// <param name="proposedProject">The <c>proposedProject</c> value.</param>
+    /// <param name="sections">The <c>sections</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<string> BuildDetectionNotes(
         IReadOnlyList<DocxDetectedTarget> applications,
         IReadOnlyList<DocxDetectedTarget> projects,
         string? proposedApplication,
         string? proposedProject,
         IReadOnlyList<DocxMappedSection> sections)
     {
-        var notes = new List<string>();
+        global::System.Collections.Generic.List<string> notes = new List<string>();
 
         notes.Add(
             applications.Count switch
@@ -520,7 +587,12 @@ public sealed class DocxImportAnalyzer
         return notes;
     }
 
-    private static int ExplicitScore(EvidenceKind kind) =>
+    /// <summary>
+    /// Performs the <c>ExplicitScore</c> operation.
+    /// </summary>
+    /// <param name="kind">The <c>kind</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static int ExplicitScore(EvidenceKind kind) =>
         kind switch
         {
             EvidenceKind.Header => 98,
@@ -530,7 +602,12 @@ public sealed class DocxImportAnalyzer
             _ => 80
         };
 
-    private static int OccurrenceScore(EvidenceKind kind) =>
+    /// <summary>
+    /// Performs the <c>OccurrenceScore</c> operation.
+    /// </summary>
+    /// <param name="kind">The <c>kind</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static int OccurrenceScore(EvidenceKind kind) =>
         kind switch
         {
             EvidenceKind.Header => 72,
@@ -540,7 +617,12 @@ public sealed class DocxImportAnalyzer
             _ => 20
         };
 
-    private static string EvidenceLabel(EvidenceKind kind) =>
+    /// <summary>
+    /// Performs the <c>EvidenceLabel</c> operation.
+    /// </summary>
+    /// <param name="kind">The <c>kind</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string EvidenceLabel(EvidenceKind kind) =>
         kind switch
         {
             EvidenceKind.FileName => "Nom du fichier",
@@ -550,11 +632,17 @@ public sealed class DocxImportAnalyzer
             _ => "Source"
         };
 
-    private static bool ContainsNormalizedPhrase(
+    /// <summary>
+    /// Performs the <c>ContainsNormalizedPhrase</c> operation.
+    /// </summary>
+    /// <param name="source">The <c>source</c> value.</param>
+    /// <param name="normalizedPhrase">The <c>normalizedPhrase</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool ContainsNormalizedPhrase(
         string source,
         string normalizedPhrase)
     {
-        var normalizedSource = NormalizeForComparison(
+        string normalizedSource = NormalizeForComparison(
             source);
 
         if (string.IsNullOrWhiteSpace(normalizedSource) ||
@@ -578,17 +666,22 @@ public sealed class DocxImportAnalyzer
                    StringComparison.Ordinal);
     }
 
-    private static string NormalizeForComparison(string value)
+    /// <summary>
+    /// Performs the <c>NormalizeForComparison</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeForComparison(string value)
     {
-        var decomposed = (value ?? string.Empty)
+        string decomposed = (value ?? string.Empty)
             .Normalize(
                 NormalizationForm.FormD);
 
-        var builder = new StringBuilder();
+        global::System.Text.StringBuilder builder = new StringBuilder();
 
-        foreach (var character in decomposed)
+        foreach (char character in decomposed)
         {
-            var category = CharUnicodeInfo.GetUnicodeCategory(
+            global::System.Globalization.UnicodeCategory category = CharUnicodeInfo.GetUnicodeCategory(
                 character);
 
             if (category ==
@@ -613,16 +706,26 @@ public sealed class DocxImportAnalyzer
                     StringSplitOptions.RemoveEmptyEntries));
     }
 
-    private static string TrimEvidence(string value)
+    /// <summary>
+    /// Performs the <c>TrimEvidence</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string TrimEvidence(string value)
     {
-        var trimmed = value.Trim();
+        string trimmed = value.Trim();
 
         return trimmed.Length <= 100
             ? trimmed
             : trimmed[..97] + "...";
     }
 
-    private static string NormalizeNewlines(string value) =>
+    /// <summary>
+    /// Performs the <c>NormalizeNewlines</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeNewlines(string value) =>
         (value ?? string.Empty)
             .Replace(
                 "\r\n",
@@ -632,12 +735,18 @@ public sealed class DocxImportAnalyzer
                 '\r',
                 '\n');
 
-    private static bool IsRelativeAncestor(
+    /// <summary>
+    /// Performs the <c>IsRelativeAncestor</c> operation.
+    /// </summary>
+    /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
+    /// <param name="child">The <c>child</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsRelativeAncestor(
         string candidateParent,
         string child)
     {
-        var parent = candidateParent.Trim('/');
-        var descendant = child.Trim('/');
+        string parent = candidateParent.Trim('/');
+        string descendant = child.Trim('/');
 
         return descendant.StartsWith(
             parent + "/",

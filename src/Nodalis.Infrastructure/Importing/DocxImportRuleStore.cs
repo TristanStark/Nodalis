@@ -9,7 +9,11 @@ public sealed class DocxImportRuleStore
 
     private readonly string _path;
 
-    public DocxImportRuleStore(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="DocxImportRuleStore"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public DocxImportRuleStore(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -19,13 +23,18 @@ public sealed class DocxImportRuleStore
             FileName);
     }
 
-    public async Task<DocxImportRuleCatalog> LoadAsync(
+    /// <summary>
+    /// Performs the <c>LoadAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<DocxImportRuleCatalog> LoadAsync(
         CancellationToken cancellationToken = default)
     {
         await EnsureDefaultAsync(
             cancellationToken);
 
-        var catalog = await AtomicJsonFile.ReadAsync<DocxImportRuleCatalog>(
+        global::Nodalis.Core.Importing.DocxImportRuleCatalog catalog = await AtomicJsonFile.ReadAsync<DocxImportRuleCatalog>(
             _path,
             cancellationToken);
 
@@ -42,7 +51,12 @@ public sealed class DocxImportRuleStore
         return catalog;
     }
 
-    private async Task EnsureDefaultAsync(
+    /// <summary>
+    /// Performs the <c>EnsureDefaultAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task EnsureDefaultAsync(
         CancellationToken cancellationToken)
     {
         if (File.Exists(_path))
@@ -59,7 +73,11 @@ public sealed class DocxImportRuleStore
             cancellationToken);
     }
 
-    private static DocxImportRuleCatalog CreateDefault() =>
+    /// <summary>
+    /// Performs the <c>CreateDefault</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private static DocxImportRuleCatalog CreateDefault() =>
         new()
         {
             Detection = new DocxEntityDetectionRules
@@ -131,7 +149,13 @@ public sealed class DocxImportRuleStore
             ]
         };
 
-    private static DocxSectionMappingRule Rule(
+    /// <summary>
+    /// Performs the <c>Rule</c> operation.
+    /// </summary>
+    /// <param name="target">The <c>target</c> value.</param>
+    /// <param name="aliases">The <c>aliases</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static DocxSectionMappingRule Rule(
         string target,
         params string[] aliases) =>
         new()
@@ -142,7 +166,12 @@ public sealed class DocxImportRuleStore
             AllowPrefixMatch = true
         };
 
-    private static void Validate(
+    /// <summary>
+    /// Performs the <c>Validate</c> operation.
+    /// </summary>
+    /// <param name="catalog">The <c>catalog</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void Validate(
         DocxImportRuleCatalog catalog)
     {
         if (catalog.Detection.MaxContentParagraphs is < 1 or > 10_000)
@@ -151,7 +180,7 @@ public sealed class DocxImportRuleStore
                 "MaxContentParagraphs doit être compris entre 1 et 10000.");
         }
 
-        var duplicateTarget = catalog.SectionMappings
+        global::System.Linq.IGrouping<string, global::Nodalis.Core.Importing.DocxSectionMappingRule>? duplicateTarget = catalog.SectionMappings
             .GroupBy(
                 rule => rule.TargetSection.Trim(),
                 StringComparer.CurrentCultureIgnoreCase)
@@ -164,7 +193,7 @@ public sealed class DocxImportRuleStore
                 $"Plusieurs règles DOCX ciblent la section '{duplicateTarget.Key}'.");
         }
 
-        foreach (var rule in catalog.SectionMappings)
+        foreach (global::Nodalis.Core.Importing.DocxSectionMappingRule rule in catalog.SectionMappings)
         {
             if (string.IsNullOrWhiteSpace(rule.TargetSection) ||
                 rule.HeadingAliases.Count == 0 ||

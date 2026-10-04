@@ -6,7 +6,14 @@ namespace Nodalis.App.Dialogs;
 
 public partial class DecisionDialog : Window
 {
-    public DecisionDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="DecisionDialog"/>.
+    /// </summary>
+    /// <param name="scopeKind">The <c>scopeKind</c> value.</param>
+    /// <param name="scopeName">The <c>scopeName</c> value.</param>
+    /// <param name="sourceDisplayName">The <c>sourceDisplayName</c> value.</param>
+    /// <param name="sourceCandidates">The <c>sourceCandidates</c> value.</param>
+public DecisionDialog(
         string scopeKind,
         string scopeName,
         string? sourceDisplayName = null,
@@ -23,7 +30,7 @@ public partial class DecisionDialog : Window
         DatePicker.SelectedDate = DateTime.Today;
         StatusTextBox.Text = "Actée";
 
-        var candidates = sourceCandidates?
+        string[] candidates = sourceCandidates?
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.CurrentCultureIgnoreCase)
             .ToArray() ?? [];
@@ -44,7 +51,13 @@ public partial class DecisionDialog : Window
 
     public DecisionDraft? Draft { get; private set; }
 
-    private void SourceDecisionComboBox_SelectionChanged(
+    /// <summary>
+    /// Performs the <c>SourceDecisionComboBox_SelectionChanged</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void SourceDecisionComboBox_SelectionChanged(
         object sender,
         SelectionChangedEventArgs e)
     {
@@ -61,7 +74,13 @@ public partial class DecisionDialog : Window
         }
     }
 
-    private void Create_Click(
+    /// <summary>
+    /// Performs the <c>Create_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Create_Click(
         object sender,
         RoutedEventArgs e)
     {

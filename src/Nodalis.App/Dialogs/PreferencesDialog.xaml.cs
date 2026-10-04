@@ -7,7 +7,12 @@ public partial class PreferencesDialog : Window
 {
     private readonly EditorPreferences _initial;
 
-    public PreferencesDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="PreferencesDialog"/>.
+    /// </summary>
+    /// <param name="editor">The <c>editor</c> value.</param>
+    /// <param name="contextPanelOpen">The <c>contextPanelOpen</c> value.</param>
+public PreferencesDialog(
         EditorPreferences editor,
         bool contextPanelOpen)
     {
@@ -29,7 +34,13 @@ public partial class PreferencesDialog : Window
 
     public bool ContextPanelOpen { get; private set; }
 
-    private void Save_Click(
+    /// <summary>
+    /// Performs the <c>Save_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Save_Click(
         object sender,
         RoutedEventArgs e)
     {
@@ -69,7 +80,12 @@ public partial class PreferencesDialog : Window
         DialogResult = true;
     }
 
-    private void ShowValidation(string message)
+    /// <summary>
+    /// Performs the <c>ShowValidation</c> operation.
+    /// </summary>
+    /// <param name="message">The <c>message</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void ShowValidation(string message)
     {
         MessageBox.Show(
             this,

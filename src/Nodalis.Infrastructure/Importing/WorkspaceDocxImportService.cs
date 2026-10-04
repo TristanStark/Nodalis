@@ -16,23 +16,33 @@ public sealed class WorkspaceDocxImportService
     private readonly string _workspaceRoot;
     private readonly DocxParser _parser = new();
 
-    public WorkspaceDocxImportService(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="WorkspaceDocxImportService"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public WorkspaceDocxImportService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
     }
 
-    public async Task<DocxImportResult> ImportAsync(
+    /// <summary>
+    /// Performs the <c>ImportAsync</c> operation.
+    /// </summary>
+    /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<DocxImportResult> ImportAsync(
         string sourcePath,
         CancellationToken cancellationToken = default)
     {
-        var staged = await StageAsync(
+        global::Nodalis.Core.Importing.DocxStagedImport staged = await StageAsync(
             sourcePath,
             cancellationToken);
 
         try
         {
-            var sourceCopyPath = await CommitStagedCopyAsync(
+            string sourceCopyPath = await CommitStagedCopyAsync(
                 staged,
                 cancellationToken);
 
@@ -50,31 +60,37 @@ public sealed class WorkspaceDocxImportService
         }
     }
 
-    public async Task<DocxImportPreview> PreparePreviewAsync(
+    /// <summary>
+    /// Performs the <c>PreparePreviewAsync</c> operation.
+    /// </summary>
+    /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<DocxImportPreview> PreparePreviewAsync(
         string sourcePath,
         CancellationToken cancellationToken = default)
     {
-        var staged = await StageAsync(
+        global::Nodalis.Core.Importing.DocxStagedImport staged = await StageAsync(
             sourcePath,
             cancellationToken);
 
         try
         {
-            var analyzer = new DocxImportAnalyzer(
+            global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer analyzer = new DocxImportAnalyzer(
                 _workspaceRoot);
 
-            var analysis = await analyzer.AnalyzeAsync(
+            global::Nodalis.Core.Importing.DocxImportAnalysis analysis = await analyzer.AnalyzeAsync(
                 staged.Document,
                 Path.GetFileName(sourcePath),
                 cancellationToken);
 
-            var indexService = new WorkspaceLinkIndexService(
+            global::Nodalis.Infrastructure.Links.WorkspaceLinkIndexService indexService = new WorkspaceLinkIndexService(
                 _workspaceRoot);
 
-            var index = await indexService.RefreshAsync(
+            global::Nodalis.Core.Links.LinkIndexCatalog index = await indexService.RefreshAsync(
                 cancellationToken);
 
-            var applications = index.Targets
+            global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportTargetOption> applications = index.Targets
                 .Where(target =>
                     target.Kind == LinkTargetKind.Application)
                 .Select(target =>
@@ -91,9 +107,9 @@ public sealed class WorkspaceDocxImportService
                     StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
-            var projects = new List<DocxImportTargetOption>();
+            global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportTargetOption> projects = new List<DocxImportTargetOption>();
 
-            foreach (var target in index.Targets
+            foreach (global::Nodalis.Core.Links.LinkTargetEntry target in index.Targets
                          .Where(target =>
                              target.Kind == LinkTargetKind.Project)
                          .OrderBy(target =>
@@ -102,9 +118,9 @@ public sealed class WorkspaceDocxImportService
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var projectDirectory = ResolveRelativePath(
+                string projectDirectory = ResolveRelativePath(
                     target.RelativePath);
-                var manifestPath = Path.Combine(
+                string manifestPath = Path.Combine(
                     projectDirectory,
                     WorkspaceLayout.ProjectManifestFileName);
 
@@ -113,7 +129,7 @@ public sealed class WorkspaceDocxImportService
                     continue;
                 }
 
-                var manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+                global::Nodalis.Core.Domain.ProjectManifest manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
                     manifestPath,
                     cancellationToken);
 
@@ -128,7 +144,7 @@ public sealed class WorkspaceDocxImportService
                     });
             }
 
-            var sections = BuildSectionPreviews(
+            global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportSectionPreview> sections = BuildSectionPreviews(
                 analysis);
 
             var suggestedApplicationId =
@@ -157,7 +173,7 @@ public sealed class WorkspaceDocxImportService
                     applications[0].Id;
             }
 
-            var suggestedNewProjectName =
+            string suggestedNewProjectName =
                 suggestedProjectId is null
                     ? analysis.ProposedProjectName ??
                       Path.GetFileNameWithoutExtension(
@@ -188,7 +204,14 @@ public sealed class WorkspaceDocxImportService
         }
     }
 
-    public async Task<DocxImportPlan> BuildPlanAsync(
+    /// <summary>
+    /// Performs the <c>BuildPlanAsync</c> operation.
+    /// </summary>
+    /// <param name="preview">The <c>preview</c> value.</param>
+    /// <param name="request">The <c>request</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<DocxImportPlan> BuildPlanAsync(
         DocxImportPreview preview,
         DocxImportCommitRequest request,
         CancellationToken cancellationToken = default)
@@ -200,11 +223,11 @@ public sealed class WorkspaceDocxImportService
             preview,
             request);
 
-        var selected = request.Sections
+        global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection[] selected = request.Sections
             .Where(section => section.Include)
             .Select(section =>
             {
-                var previewSection = preview.Sections
+                global::Nodalis.Core.Importing.DocxImportSectionPreview previewSection = preview.Sections
                     .Single(candidate =>
                         candidate.Index == section.SectionIndex);
 
@@ -214,17 +237,17 @@ public sealed class WorkspaceDocxImportService
             })
             .ToArray();
 
-        var changes = new List<DocxImportPlannedChange>();
-        var warnings = preview.Conflicts.ToList();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportPlannedChange> changes = new List<DocxImportPlannedChange>();
+        global::System.Collections.Generic.List<string> warnings = preview.Conflicts.ToList();
 
         string projectDirectory;
         string projectDisplayName;
         ProjectManifest? existingProject = null;
-        var createsProject = request.ProjectId is null;
+        bool createsProject = request.ProjectId is null;
 
         if (request.ProjectId is Guid existingProjectId)
         {
-            var target = preview.Projects.Single(project =>
+            global::Nodalis.Core.Importing.DocxImportTargetOption target = preview.Projects.Single(project =>
                 project.Id == existingProjectId);
 
             if (target.ApplicationId != request.ApplicationId)
@@ -243,13 +266,13 @@ public sealed class WorkspaceDocxImportService
                     WorkspaceLayout.ProjectManifestFileName),
                 cancellationToken);
 
-            var requestedSections = selected
+            string[] requestedSections = selected
                 .Select(section => section.TargetSection)
                 .Distinct(
                     StringComparer.CurrentCultureIgnoreCase)
                 .ToArray();
 
-            var missingSections = requestedSections
+            string[] missingSections = requestedSections
                 .Where(section =>
                     !existingProject.Sections.Any(existing =>
                         string.Equals(
@@ -271,12 +294,12 @@ public sealed class WorkspaceDocxImportService
         }
         else
         {
-            var discovery = new ProjectCreationTargetDiscovery();
-            var targets = await discovery.DiscoverAsync(
+            global::Nodalis.Infrastructure.Projects.ProjectCreationTargetDiscovery discovery = new ProjectCreationTargetDiscovery();
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Projects.ProjectCreationTarget> targets = await discovery.DiscoverAsync(
                 _workspaceRoot,
                 cancellationToken);
 
-            var applicationTarget = targets
+            global::Nodalis.Core.Projects.ProjectCreationTarget applicationTarget = targets
                 .FirstOrDefault(target =>
                     target.ApplicationId == request.ApplicationId &&
                     target.ModuleId is null &&
@@ -284,7 +307,7 @@ public sealed class WorkspaceDocxImportService
                 ?? throw new InvalidDataException(
                     "L'application choisie n'est plus disponible.");
 
-            var projectsDirectory = Path.Combine(
+            string projectsDirectory = Path.Combine(
                 applicationTarget.ParentDirectory,
                 WorkspaceLayout.ProjectsDirectoryName);
 
@@ -319,20 +342,20 @@ public sealed class WorkspaceDocxImportService
                         WorkspaceLayout.GlobalQuickNotesFileName),
                     "Notes rapides du projet"));
 
-            var templateStore = new FileSystemTemplateStore(
+            global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore templateStore = new FileSystemTemplateStore(
                 _workspaceRoot);
 
-            var profileCatalog =
+            global::Nodalis.Core.Templates.ProjectProfileCatalog profileCatalog =
                 await templateStore.LoadProjectProfilesAsync(
                     cancellationToken);
 
-            var profile = profileCatalog.Profiles.SingleOrDefault(candidate =>
+            global::Nodalis.Core.Templates.ProjectProfileDefinition profile = profileCatalog.Profiles.SingleOrDefault(candidate =>
                     candidate.Complexity ==
                     request.NewProjectComplexity)
                 ?? throw new InvalidDataException(
                     $"Aucun profil de projet '{request.NewProjectComplexity}' n'est disponible.");
 
-            foreach (var section in profile.Sections
+            foreach (global::Nodalis.Core.Templates.ProjectSectionTemplateDefinition section in profile.Sections
                          .Where(section =>
                              !string.IsNullOrWhiteSpace(
                                  section.TemplateKey))
@@ -352,25 +375,25 @@ public sealed class WorkspaceDocxImportService
             }
         }
 
-        var sourceStem =
+        string sourceStem =
             Path.GetFileNameWithoutExtension(
                 preview.StagedImport.OriginalSourcePath);
 
-        foreach (var group in selected
+        foreach (global::System.Linq.IGrouping<string, global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection> group in selected
                      .GroupBy(
                          item => item.TargetSection,
                          StringComparer.CurrentCultureIgnoreCase))
         {
-            var sectionName = group.Key.Trim();
-            var sectionDirectory = Path.Combine(
+            string sectionName = group.Key.Trim();
+            string sectionDirectory = Path.Combine(
                 projectDirectory,
                 WindowsPathRules.SanitizeSegment(
                     sectionName));
 
-            var desiredFileName =
+            string desiredFileName =
                 $"Import - {sourceStem}.md";
 
-            var destination =
+            string destination =
                 WindowsPathRules.GetUniqueFilePath(
                     sectionDirectory,
                     desiredFileName);
@@ -392,12 +415,12 @@ public sealed class WorkspaceDocxImportService
                     $"{group.Count()} section(s) Word → section Nodalis « {sectionName} »"));
         }
 
-        var sourcesDirectory = Path.Combine(
+        string sourcesDirectory = Path.Combine(
             _workspaceRoot,
             WorkspaceLayout.ImportsDirectoryName,
             WorkspaceLayout.ImportSourcesDirectoryName);
 
-        var sourceCopyPath =
+        string sourceCopyPath =
             WindowsPathRules.GetUniqueFilePath(
                 sourcesDirectory,
                 Path.GetFileName(
@@ -436,7 +459,14 @@ public sealed class WorkspaceDocxImportService
         };
     }
 
-    public async Task<DocxImportCommitResult> CommitAsync(
+    /// <summary>
+    /// Performs the <c>CommitAsync</c> operation.
+    /// </summary>
+    /// <param name="preview">The <c>preview</c> value.</param>
+    /// <param name="request">The <c>request</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<DocxImportCommitResult> CommitAsync(
         DocxImportPreview preview,
         DocxImportCommitRequest request,
         CancellationToken cancellationToken = default)
@@ -448,11 +478,11 @@ public sealed class WorkspaceDocxImportService
             preview,
             request);
 
-        var selected = request.Sections
+        global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection[] selected = request.Sections
             .Where(section => section.Include)
             .Select(section =>
             {
-                var previewSection = preview.Sections
+                global::Nodalis.Core.Importing.DocxImportSectionPreview previewSection = preview.Sections
                     .Single(candidate =>
                         candidate.Index == section.SectionIndex);
 
@@ -462,13 +492,13 @@ public sealed class WorkspaceDocxImportService
             })
             .ToArray();
 
-        var projectDirectory = string.Empty;
-        var projectId = Guid.Empty;
-        var createdProject = false;
+        string projectDirectory = string.Empty;
+        global::System.Guid projectId = Guid.Empty;
+        bool createdProject = false;
         string? manifestPath = null;
         string? originalManifest = null;
-        var generatedFiles = new List<string>();
-        var createdDirectories = new List<string>();
+        global::System.Collections.Generic.List<string> generatedFiles = new List<string>();
+        global::System.Collections.Generic.List<string> createdDirectories = new List<string>();
 
         try
         {
@@ -476,7 +506,7 @@ public sealed class WorkspaceDocxImportService
 
             if (request.ProjectId is Guid existingProjectId)
             {
-                var target = preview.Projects.Single(project =>
+                global::Nodalis.Core.Importing.DocxImportTargetOption target = preview.Projects.Single(project =>
                     project.Id == existingProjectId);
 
                 if (target.ApplicationId != request.ApplicationId)
@@ -504,12 +534,12 @@ public sealed class WorkspaceDocxImportService
             }
             else
             {
-                var discovery = new ProjectCreationTargetDiscovery();
-                var targets = await discovery.DiscoverAsync(
+                global::Nodalis.Infrastructure.Projects.ProjectCreationTargetDiscovery discovery = new ProjectCreationTargetDiscovery();
+                global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Projects.ProjectCreationTarget> targets = await discovery.DiscoverAsync(
                     _workspaceRoot,
                     cancellationToken);
 
-                var applicationTarget = targets
+                global::Nodalis.Core.Projects.ProjectCreationTarget applicationTarget = targets
                     .FirstOrDefault(target =>
                         target.ApplicationId == request.ApplicationId &&
                         target.ModuleId is null &&
@@ -517,10 +547,10 @@ public sealed class WorkspaceDocxImportService
                     ?? throw new InvalidDataException(
                         "L'application choisie n'est plus disponible.");
 
-                var creator = new FileSystemProjectCreator(
+                global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator creator = new FileSystemProjectCreator(
                     _workspaceRoot);
 
-                var created = await creator.CreateAsync(
+                global::Nodalis.Core.Projects.ProjectCreationResult created = await creator.CreateAsync(
                     new ProjectCreationRequest
                     {
                         Name = request.NewProjectName!.Trim(),
@@ -538,7 +568,7 @@ public sealed class WorkspaceDocxImportService
                     WorkspaceLayout.ProjectManifestFileName);
             }
 
-            var updatedProject = EnsureSections(
+            global::Nodalis.Core.Domain.ProjectManifest updatedProject = EnsureSections(
                 project,
                 selected.Select(section =>
                     section.TargetSection));
@@ -553,15 +583,15 @@ public sealed class WorkspaceDocxImportService
                     cancellationToken);
             }
 
-            foreach (var group in selected
+            foreach (global::System.Linq.IGrouping<string, global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection> group in selected
                          .GroupBy(
                              item => item.TargetSection,
                              StringComparer.CurrentCultureIgnoreCase))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var sectionName = group.Key.Trim();
-                var sectionDirectory = Path.Combine(
+                string sectionName = group.Key.Trim();
+                string sectionDirectory = Path.Combine(
                     projectDirectory,
                     WindowsPathRules.SanitizeSegment(
                         sectionName));
@@ -574,15 +604,15 @@ public sealed class WorkspaceDocxImportService
                         sectionDirectory);
                 }
 
-                var sourceStem =
+                string sourceStem =
                     Path.GetFileNameWithoutExtension(
                         preview.StagedImport.OriginalSourcePath);
 
-                var destination = WindowsPathRules.GetUniqueFilePath(
+                string destination = WindowsPathRules.GetUniqueFilePath(
                     sectionDirectory,
                     $"Import - {sourceStem}.md");
 
-                var markdown = BuildImportedMarkdown(
+                string markdown = BuildImportedMarkdown(
                     Path.GetFileName(
                         preview.StagedImport.OriginalSourcePath),
                     group);
@@ -596,7 +626,7 @@ public sealed class WorkspaceDocxImportService
                     destination);
             }
 
-            var sourceCopyPath = await CommitStagedCopyAsync(
+            string sourceCopyPath = await CommitStagedCopyAsync(
                 preview.StagedImport,
                 cancellationToken);
 
@@ -627,13 +657,13 @@ public sealed class WorkspaceDocxImportService
             }
             else
             {
-                foreach (var file in generatedFiles)
+                foreach (string file in generatedFiles)
                 {
                     TryDelete(
                         file);
                 }
 
-                foreach (var directory in createdDirectories
+                foreach (string directory in createdDirectories
                              .OrderByDescending(path =>
                                  path.Length))
                 {
@@ -665,13 +695,19 @@ public sealed class WorkspaceDocxImportService
         }
     }
 
-    public async Task<DocxStagedImport> StageAsync(
+    /// <summary>
+    /// Performs the <c>StageAsync</c> operation.
+    /// </summary>
+    /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<DocxStagedImport> StageAsync(
         string sourcePath,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
 
-        var fullSourcePath = Path.GetFullPath(sourcePath);
+        string fullSourcePath = Path.GetFullPath(sourcePath);
 
         if (!File.Exists(fullSourcePath))
         {
@@ -689,12 +725,12 @@ public sealed class WorkspaceDocxImportService
                 "Seuls les fichiers .docx sont acceptés par l'import Word.");
         }
 
-        var stagingDirectory = GetStagingDirectory();
+        string stagingDirectory = GetStagingDirectory();
 
         Directory.CreateDirectory(
             stagingDirectory);
 
-        var stagedPath = Path.Combine(
+        string stagedPath = Path.Combine(
             stagingDirectory,
             $"{Guid.NewGuid():N}-{WindowsPathRules.SanitizeSegment(Path.GetFileNameWithoutExtension(fullSourcePath))}.docx");
 
@@ -705,7 +741,7 @@ public sealed class WorkspaceDocxImportService
                 stagedPath,
                 cancellationToken);
 
-            var document = await _parser.ParseAsync(
+            global::Nodalis.Core.Importing.ParsedDocxDocument document = await _parser.ParseAsync(
                 stagedPath,
                 cancellationToken);
 
@@ -724,14 +760,20 @@ public sealed class WorkspaceDocxImportService
         }
     }
 
-    public Task<string> CommitStagedCopyAsync(
+    /// <summary>
+    /// Performs the <c>CommitStagedCopyAsync</c> operation.
+    /// </summary>
+    /// <param name="staged">The <c>staged</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public Task<string> CommitStagedCopyAsync(
         DocxStagedImport staged,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(staged);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var stagedPath = Path.GetFullPath(
+        string stagedPath = Path.GetFullPath(
             staged.StagedCopyPath);
 
         EnsureIsStagingPath(
@@ -744,7 +786,7 @@ public sealed class WorkspaceDocxImportService
                 stagedPath);
         }
 
-        var sourcesDirectory = Path.Combine(
+        string sourcesDirectory = Path.Combine(
             _workspaceRoot,
             WorkspaceLayout.ImportsDirectoryName,
             WorkspaceLayout.ImportSourcesDirectoryName);
@@ -752,7 +794,7 @@ public sealed class WorkspaceDocxImportService
         Directory.CreateDirectory(
             sourcesDirectory);
 
-        var destination = WindowsPathRules.GetUniqueFilePath(
+        string destination = WindowsPathRules.GetUniqueFilePath(
             sourcesDirectory,
             Path.GetFileName(staged.OriginalSourcePath));
 
@@ -764,12 +806,17 @@ public sealed class WorkspaceDocxImportService
             destination);
     }
 
-    public void DiscardStagedCopy(
+    /// <summary>
+    /// Performs the <c>DiscardStagedCopy</c> operation.
+    /// </summary>
+    /// <param name="staged">The <c>staged</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public void DiscardStagedCopy(
         DocxStagedImport staged)
     {
         ArgumentNullException.ThrowIfNull(staged);
 
-        var stagedPath = Path.GetFullPath(
+        string stagedPath = Path.GetFullPath(
             staged.StagedCopyPath);
 
         EnsureIsStagingPath(
@@ -779,13 +826,18 @@ public sealed class WorkspaceDocxImportService
             stagedPath);
     }
 
-    private static List<DocxImportSectionPreview> BuildSectionPreviews(
+    /// <summary>
+    /// Performs the <c>BuildSectionPreviews</c> operation.
+    /// </summary>
+    /// <param name="analysis">The <c>analysis</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<DocxImportSectionPreview> BuildSectionPreviews(
         DocxImportAnalysis analysis)
     {
-        var result = new List<DocxImportSectionPreview>();
-        var index = 0;
+        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportSectionPreview> result = new List<DocxImportSectionPreview>();
+        int index = 0;
 
-        foreach (var mapped in analysis.MappedSections)
+        foreach (global::Nodalis.Core.Importing.DocxMappedSection mapped in analysis.MappedSections)
         {
             result.Add(
                 new DocxImportSectionPreview
@@ -818,12 +870,19 @@ public sealed class WorkspaceDocxImportService
         return result;
     }
 
-    private static List<string> BuildPreviewWarnings(
+    /// <summary>
+    /// Performs the <c>BuildPreviewWarnings</c> operation.
+    /// </summary>
+    /// <param name="applications">The <c>applications</c> value.</param>
+    /// <param name="analysis">The <c>analysis</c> value.</param>
+    /// <param name="sections">The <c>sections</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<string> BuildPreviewWarnings(
         IReadOnlyList<DocxImportTargetOption> applications,
         DocxImportAnalysis analysis,
         IReadOnlyList<DocxImportSectionPreview> sections)
     {
-        var warnings = new List<string>();
+        global::System.Collections.Generic.List<string> warnings = new List<string>();
 
         if (applications.Count == 0)
         {
@@ -852,7 +911,13 @@ public sealed class WorkspaceDocxImportService
         return warnings;
     }
 
-    private static void ValidateCommitRequest(
+    /// <summary>
+    /// Performs the <c>ValidateCommitRequest</c> operation.
+    /// </summary>
+    /// <param name="preview">The <c>preview</c> value.</param>
+    /// <param name="request">The <c>request</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void ValidateCommitRequest(
         DocxImportPreview preview,
         DocxImportCommitRequest request)
     {
@@ -887,11 +952,11 @@ public sealed class WorkspaceDocxImportService
                 "Sélectionnez au moins une section à importer.");
         }
 
-        var availableIndexes = preview.Sections
+        global::System.Collections.Generic.HashSet<int> availableIndexes = preview.Sections
             .Select(section => section.Index)
             .ToHashSet();
 
-        foreach (var section in request.Sections)
+        foreach (global::Nodalis.Core.Importing.DocxImportSectionSelection section in request.Sections)
         {
             if (!availableIndexes.Contains(
                     section.SectionIndex))
@@ -910,18 +975,24 @@ public sealed class WorkspaceDocxImportService
         }
     }
 
-    private static ProjectManifest EnsureSections(
+    /// <summary>
+    /// Performs the <c>EnsureSections</c> operation.
+    /// </summary>
+    /// <param name="project">The <c>project</c> value.</param>
+    /// <param name="targetSections">The <c>targetSections</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static ProjectManifest EnsureSections(
         ProjectManifest project,
         IEnumerable<string> targetSections)
     {
-        var sections = project.Sections.ToList();
-        var nextOrder = sections.Count == 0
+        global::System.Collections.Generic.List<global::Nodalis.Core.Domain.SectionManifest> sections = project.Sections.ToList();
+        int nextOrder = sections.Count == 0
             ? 10
             : sections.Max(section =>
                 section.Order) + 10;
-        var changed = false;
+        bool changed = false;
 
-        foreach (var targetSection in targetSections
+        foreach (string targetSection in targetSections
                      .Select(name => name.Trim())
                      .Where(name =>
                          !string.IsNullOrWhiteSpace(name))
@@ -958,15 +1029,21 @@ public sealed class WorkspaceDocxImportService
             : project;
     }
 
-    private static string BuildImportedMarkdown(
+    /// <summary>
+    /// Performs the <c>BuildImportedMarkdown</c> operation.
+    /// </summary>
+    /// <param name="sourceFileName">The <c>sourceFileName</c> value.</param>
+    /// <param name="sections">The <c>sections</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string BuildImportedMarkdown(
         string sourceFileName,
         IEnumerable<SelectedSection> sections)
     {
-        var sourceStem =
+        string sourceStem =
             Path.GetFileNameWithoutExtension(
                 sourceFileName);
 
-        var builder = new StringBuilder();
+        global::System.Text.StringBuilder builder = new StringBuilder();
 
         builder.AppendLine(
             $"# Import — {sourceStem}");
@@ -975,13 +1052,13 @@ public sealed class WorkspaceDocxImportService
             $"> Source : {sourceFileName}");
         builder.AppendLine();
 
-        foreach (var section in sections)
+        foreach (global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection section in sections)
         {
             builder.AppendLine(
                 $"## {section.Preview.SourceHeading}");
             builder.AppendLine();
 
-            var markdown =
+            string markdown =
                 section.Preview.MarkdownPreview.Trim();
 
             if (!string.IsNullOrWhiteSpace(markdown))
@@ -995,7 +1072,14 @@ public sealed class WorkspaceDocxImportService
         return builder.ToString();
     }
 
-    private DocxImportPlannedChange PlanChange(
+    /// <summary>
+    /// Performs the <c>PlanChange</c> operation.
+    /// </summary>
+    /// <param name="action">The <c>action</c> value.</param>
+    /// <param name="fullPath">The <c>fullPath</c> value.</param>
+    /// <param name="description">The <c>description</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private DocxImportPlannedChange PlanChange(
         string action,
         string fullPath,
         string description) =>
@@ -1008,7 +1092,12 @@ public sealed class WorkspaceDocxImportService
             Description = description
         };
 
-    private string ToWorkspaceRelativePath(
+    /// <summary>
+    /// Performs the <c>ToWorkspaceRelativePath</c> operation.
+    /// </summary>
+    /// <param name="fullPath">The <c>fullPath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private string ToWorkspaceRelativePath(
         string fullPath) =>
         Path.GetRelativePath(
                 _workspaceRoot,
@@ -1017,7 +1106,12 @@ public sealed class WorkspaceDocxImportService
                 Path.DirectorySeparatorChar,
                 '/');
 
-    private string ResolveRelativePath(
+    /// <summary>
+    /// Performs the <c>ResolveRelativePath</c> operation.
+    /// </summary>
+    /// <param name="relativePath">The <c>relativePath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private string ResolveRelativePath(
         string relativePath) =>
         Path.GetFullPath(
             Path.Combine(
@@ -1026,15 +1120,24 @@ public sealed class WorkspaceDocxImportService
                     '/',
                     Path.DirectorySeparatorChar)));
 
-    private string GetStagingDirectory() =>
+    /// <summary>
+    /// Performs the <c>GetStagingDirectory</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private string GetStagingDirectory() =>
         Path.Combine(
             _workspaceRoot,
             WorkspaceLayout.ImportsDirectoryName,
             WorkspaceLayout.ImportStagingDirectoryName);
 
-    private void EnsureIsStagingPath(string path)
+    /// <summary>
+    /// Performs the <c>EnsureIsStagingPath</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void EnsureIsStagingPath(string path)
     {
-        var root = Path.GetFullPath(
+        string root = Path.GetFullPath(
                 GetStagingDirectory())
             .TrimEnd(
                 Path.DirectorySeparatorChar,
@@ -1049,7 +1152,12 @@ public sealed class WorkspaceDocxImportService
         }
     }
 
-    private static void TryDelete(string path)
+    /// <summary>
+    /// Performs the <c>TryDelete</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void TryDelete(string path)
     {
         try
         {
@@ -1064,7 +1172,12 @@ public sealed class WorkspaceDocxImportService
         }
     }
 
-    private static void TryDeleteEmptyDirectory(
+    /// <summary>
+    /// Performs the <c>TryDeleteEmptyDirectory</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void TryDeleteEmptyDirectory(
         string path)
     {
         try
@@ -1081,12 +1194,19 @@ public sealed class WorkspaceDocxImportService
         }
     }
 
-    private static async Task CopyAsync(
+    /// <summary>
+    /// Performs the <c>CopyAsync</c> operation.
+    /// </summary>
+    /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
+    /// <param name="destinationPath">The <c>destinationPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task CopyAsync(
         string sourcePath,
         string destinationPath,
         CancellationToken cancellationToken)
     {
-        await using var source = new FileStream(
+        await using global::System.IO.FileStream source = new FileStream(
             sourcePath,
             FileMode.Open,
             FileAccess.Read,
@@ -1094,7 +1214,7 @@ public sealed class WorkspaceDocxImportService
             bufferSize: 81920,
             useAsync: true);
 
-        await using var destination = new FileStream(
+        await using global::System.IO.FileStream destination = new FileStream(
             destinationPath,
             FileMode.CreateNew,
             FileAccess.Write,

@@ -18,7 +18,12 @@ public partial class DocxImportPreviewDialog : Window
     private DocxImportPlan? _lastPlan;
     private bool _refreshingPlan;
 
-    public DocxImportPreviewDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="DocxImportPreviewDialog"/>.
+    /// </summary>
+    /// <param name="preview">The <c>preview</c> value.</param>
+    /// <param name="planBuilder">The <c>planBuilder</c> value.</param>
+public DocxImportPreviewDialog(
         DocxImportPreview preview,
         Func<DocxImportCommitRequest, Task<DocxImportPlan>> planBuilder)
     {
@@ -39,7 +44,7 @@ public partial class DocxImportPreviewDialog : Window
                 })
             .ToList();
 
-        foreach (var section in _sections)
+        foreach (global::Nodalis.App.Dialogs.DocxImportPreviewDialog.SectionRow section in _sections)
         {
             section.PropertyChanged += Section_PropertyChanged;
         }
@@ -91,7 +96,7 @@ public partial class DocxImportPreviewDialog : Window
 
         SelectSuggestedApplication();
 
-        var createNew =
+        bool createNew =
             preview.SuggestedProjectId is null;
 
         CreateNewProjectCheckBox.IsChecked =
@@ -119,14 +124,19 @@ public partial class DocxImportPreviewDialog : Window
 
     public DocxImportCommitRequest? CommitRequest { get; private set; }
 
-    private static IReadOnlyList<string> BuildDetectionDetails(
+    /// <summary>
+    /// Performs the <c>BuildDetectionDetails</c> operation.
+    /// </summary>
+    /// <param name="preview">The <c>preview</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static IReadOnlyList<string> BuildDetectionDetails(
         DocxImportPreview preview)
     {
-        var details = preview.Analysis.DetectionNotes.ToList();
+        global::System.Collections.Generic.List<string> details = preview.Analysis.DetectionNotes.ToList();
 
-        foreach (var candidate in preview.Analysis.ApplicationCandidates)
+        foreach (global::Nodalis.Core.Importing.DocxDetectedTarget candidate in preview.Analysis.ApplicationCandidates)
         {
-            var evidence = candidate.Evidence.Count == 0
+            string evidence = candidate.Evidence.Count == 0
                 ? "aucune raison détaillée"
                 : string.Join(
                     " ; ",
@@ -137,9 +147,9 @@ public partial class DocxImportPreviewDialog : Window
                 $"{candidate.Confidence} % · {evidence}");
         }
 
-        foreach (var candidate in preview.Analysis.ProjectCandidates)
+        foreach (global::Nodalis.Core.Importing.DocxDetectedTarget candidate in preview.Analysis.ProjectCandidates)
         {
-            var evidence = candidate.Evidence.Count == 0
+            string evidence = candidate.Evidence.Count == 0
                 ? "aucune raison détaillée"
                 : string.Join(
                     " ; ",
@@ -169,9 +179,13 @@ public partial class DocxImportPreviewDialog : Window
         return details;
     }
 
-    private void SelectSuggestedApplication()
+    /// <summary>
+    /// Performs the <c>SelectSuggestedApplication</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void SelectSuggestedApplication()
     {
-        var suggested = _preview.SuggestedApplicationId is Guid applicationId
+        global::Nodalis.Core.Importing.DocxImportTargetOption? suggested = _preview.SuggestedApplicationId is Guid applicationId
             ? _preview.Applications.FirstOrDefault(application =>
                 application.Id == applicationId)
             : null;
@@ -181,7 +195,13 @@ public partial class DocxImportPreviewDialog : Window
             _preview.Applications.FirstOrDefault();
     }
 
-    private void ApplicationComboBox_SelectionChanged(
+    /// <summary>
+    /// Performs the <c>ApplicationComboBox_SelectionChanged</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void ApplicationComboBox_SelectionChanged(
         object sender,
         SelectionChangedEventArgs e)
     {
@@ -190,21 +210,39 @@ public partial class DocxImportPreviewDialog : Window
         InvalidatePlan();
     }
 
-    private void TargetSelection_Changed(
+    /// <summary>
+    /// Performs the <c>TargetSelection_Changed</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void TargetSelection_Changed(
         object sender,
         SelectionChangedEventArgs e)
     {
         InvalidatePlan();
     }
 
-    private void TargetText_Changed(
+    /// <summary>
+    /// Performs the <c>TargetText_Changed</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void TargetText_Changed(
         object sender,
         TextChangedEventArgs e)
     {
         InvalidatePlan();
     }
 
-    private void CreateNewProjectCheckBox_Changed(
+    /// <summary>
+    /// Performs the <c>CreateNewProjectCheckBox_Changed</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void CreateNewProjectCheckBox_Changed(
         object sender,
         RoutedEventArgs e)
     {
@@ -212,7 +250,13 @@ public partial class DocxImportPreviewDialog : Window
         InvalidatePlan();
     }
 
-    private void Section_PropertyChanged(
+    /// <summary>
+    /// Performs the <c>Section_PropertyChanged</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Section_PropertyChanged(
         object? sender,
         PropertyChangedEventArgs e)
     {
@@ -224,7 +268,12 @@ public partial class DocxImportPreviewDialog : Window
         }
     }
 
-    private void RefreshProjectChoices(
+    /// <summary>
+    /// Performs the <c>RefreshProjectChoices</c> operation.
+    /// </summary>
+    /// <param name="preserveSelection">The <c>preserveSelection</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void RefreshProjectChoices(
         bool preserveSelection)
     {
         if (ApplicationComboBox.SelectedItem is not
@@ -236,13 +285,13 @@ public partial class DocxImportPreviewDialog : Window
             return;
         }
 
-        var previousId = preserveSelection &&
+        global::System.Guid? previousId = preserveSelection &&
                          ProjectComboBox.SelectedItem is
                              DocxImportTargetOption previous
             ? previous.Id
             : (Guid?)null;
 
-        var projects = _preview.Projects
+        global::Nodalis.Core.Importing.DocxImportTargetOption[] projects = _preview.Projects
             .Where(project =>
                 project.ApplicationId ==
                 application.Id)
@@ -254,7 +303,7 @@ public partial class DocxImportPreviewDialog : Window
         ProjectComboBox.ItemsSource =
             projects;
 
-        var selected = previousId is Guid id
+        global::Nodalis.Core.Importing.DocxImportTargetOption? selected = previousId is Guid id
             ? projects.FirstOrDefault(project =>
                 project.Id == id)
             : null;
@@ -271,9 +320,13 @@ public partial class DocxImportPreviewDialog : Window
             projects.FirstOrDefault();
     }
 
-    private void ApplyProjectMode()
+    /// <summary>
+    /// Performs the <c>ApplyProjectMode</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void ApplyProjectMode()
     {
-        var createNew =
+        bool createNew =
             CreateNewProjectCheckBox.IsChecked == true;
 
         ProjectComboBox.IsEnabled =
@@ -284,7 +337,11 @@ public partial class DocxImportPreviewDialog : Window
             createNew;
     }
 
-    private void InvalidatePlan()
+    /// <summary>
+    /// Performs the <c>InvalidatePlan</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void InvalidatePlan()
     {
         _plannedRequest = null;
         _lastPlan = null;
@@ -312,7 +369,13 @@ public partial class DocxImportPreviewDialog : Window
         }
     }
 
-    private async void ImportTabs_SelectionChanged(
+    /// <summary>
+    /// Performs the <c>ImportTabs_SelectionChanged</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void ImportTabs_SelectionChanged(
         object sender,
         SelectionChangedEventArgs e)
     {
@@ -329,11 +392,17 @@ public partial class DocxImportPreviewDialog : Window
             showValidationMessages: false);
     }
 
-    private async void Import_Click(
+    /// <summary>
+    /// Performs the <c>Import_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void Import_Click(
         object sender,
         RoutedEventArgs e)
     {
-        var request = BuildCurrentRequest(
+        global::Nodalis.Core.Importing.DocxImportCommitRequest? request = BuildCurrentRequest(
             showValidationMessages: true);
 
         if (request is null)
@@ -364,7 +433,12 @@ public partial class DocxImportPreviewDialog : Window
         DialogResult = true;
     }
 
-    private async Task<bool> RefreshPlanAsync(
+    /// <summary>
+    /// Performs the <c>RefreshPlanAsync</c> operation.
+    /// </summary>
+    /// <param name="showValidationMessages">The <c>showValidationMessages</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task<bool> RefreshPlanAsync(
         bool showValidationMessages)
     {
         if (_refreshingPlan)
@@ -372,7 +446,7 @@ public partial class DocxImportPreviewDialog : Window
             return false;
         }
 
-        var request = BuildCurrentRequest(
+        global::Nodalis.Core.Importing.DocxImportCommitRequest? request = BuildCurrentRequest(
             showValidationMessages);
 
         if (request is null)
@@ -404,7 +478,7 @@ public partial class DocxImportPreviewDialog : Window
             PlanTargetText.Text =
                 "Calcul des fichiers qui seront créés ou modifiés…";
 
-            var plan = await _planBuilder(
+            global::Nodalis.Core.Importing.DocxImportPlan plan = await _planBuilder(
                 request);
 
             _plannedRequest = request;
@@ -463,7 +537,12 @@ public partial class DocxImportPreviewDialog : Window
         }
     }
 
-    private void DisplayPlan(
+    /// <summary>
+    /// Performs the <c>DisplayPlan</c> operation.
+    /// </summary>
+    /// <param name="plan">The <c>plan</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void DisplayPlan(
         DocxImportPlan plan)
     {
         PlanTargetText.Text =
@@ -484,7 +563,12 @@ public partial class DocxImportPreviewDialog : Window
             $"{plan.Warnings.Count} avertissement(s)";
     }
 
-    private DocxImportCommitRequest? BuildCurrentRequest(
+    /// <summary>
+    /// Performs the <c>BuildCurrentRequest</c> operation.
+    /// </summary>
+    /// <param name="showValidationMessages">The <c>showValidationMessages</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private DocxImportCommitRequest? BuildCurrentRequest(
         bool showValidationMessages)
     {
         void Show(
@@ -515,7 +599,7 @@ public partial class DocxImportPreviewDialog : Window
             return null;
         }
 
-        var createNew =
+        bool createNew =
             CreateNewProjectCheckBox.IsChecked == true;
 
         DocxImportTargetOption? project = null;
@@ -546,7 +630,7 @@ public partial class DocxImportPreviewDialog : Window
             }
         }
 
-        var included = _sections
+        global::Nodalis.App.Dialogs.DocxImportPreviewDialog.SectionRow[] included = _sections
             .Where(section =>
                 section.Include)
             .ToArray();
@@ -569,7 +653,7 @@ public partial class DocxImportPreviewDialog : Window
             return null;
         }
 
-        var complexity =
+        global::Nodalis.Core.Domain.ProjectComplexity complexity =
             ComplexityComboBox.SelectedItem is
                 ComplexityChoice choice
                 ? choice.Complexity
@@ -598,7 +682,13 @@ public partial class DocxImportPreviewDialog : Window
         };
     }
 
-    private static bool RequestsEquivalent(
+    /// <summary>
+    /// Performs the <c>RequestsEquivalent</c> operation.
+    /// </summary>
+    /// <param name="left">The <c>left</c> value.</param>
+    /// <param name="right">The <c>right</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool RequestsEquivalent(
         DocxImportCommitRequest left,
         DocxImportCommitRequest right)
     {
@@ -616,13 +706,13 @@ public partial class DocxImportPreviewDialog : Window
             return false;
         }
 
-        for (var index = 0;
+        for (int index = 0;
              index < left.Sections.Count;
              index++)
         {
-            var leftSection =
+            global::Nodalis.Core.Importing.DocxImportSectionSelection leftSection =
                 left.Sections[index];
-            var rightSection =
+            global::Nodalis.Core.Importing.DocxImportSectionSelection rightSection =
                 right.Sections[index];
 
             if (leftSection.SectionIndex !=

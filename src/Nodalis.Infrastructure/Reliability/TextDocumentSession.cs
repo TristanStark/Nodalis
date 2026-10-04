@@ -7,7 +7,12 @@ public sealed class TextDocumentSession
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    private TextDocumentSession(
+    /// <summary>
+    /// Initializes a new instance of <see cref="TextDocumentSession"/>.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="snapshot">The <c>snapshot</c> value.</param>
+private TextDocumentSession(
         string path,
         TextDocumentSnapshot snapshot)
     {
@@ -22,22 +27,33 @@ public sealed class TextDocumentSession
 
     public FileRevision Revision { get; private set; }
 
-    public static async Task<TextDocumentSession> OpenAsync(
+    /// <summary>
+    /// Performs the <c>OpenAsync</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static async Task<TextDocumentSession> OpenAsync(
         string path,
         CancellationToken cancellationToken = default)
     {
-        var snapshot = await ReadSnapshotAsync(path, cancellationToken);
+        global::Nodalis.Infrastructure.Reliability.TextDocumentSnapshot snapshot = await ReadSnapshotAsync(path, cancellationToken);
         return new TextDocumentSession(path, snapshot);
     }
 
-    public async Task<bool> HasExternalChangesAsync(
+    /// <summary>
+    /// Performs the <c>HasExternalChangesAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<bool> HasExternalChangesAsync(
         CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
 
         try
         {
-            var current = await ReadRevisionAsync(Path, cancellationToken);
+            global::Nodalis.Infrastructure.Reliability.FileRevision current = await ReadRevisionAsync(Path, cancellationToken);
             return current != Revision;
         }
         finally
@@ -46,7 +62,13 @@ public sealed class TextDocumentSession
         }
     }
 
-    public async Task SaveAsync(
+    /// <summary>
+    /// Performs the <c>SaveAsync</c> operation.
+    /// </summary>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task SaveAsync(
         string content,
         CancellationToken cancellationToken = default)
     {
@@ -56,7 +78,7 @@ public sealed class TextDocumentSession
 
         try
         {
-            var current = await ReadRevisionAsync(Path, cancellationToken);
+            global::Nodalis.Infrastructure.Reliability.FileRevision current = await ReadRevisionAsync(Path, cancellationToken);
 
             if (current != Revision)
             {
@@ -68,7 +90,7 @@ public sealed class TextDocumentSession
                 content,
                 cancellationToken);
 
-            var updated = await ReadSnapshotAsync(Path, cancellationToken);
+            global::Nodalis.Infrastructure.Reliability.TextDocumentSnapshot updated = await ReadSnapshotAsync(Path, cancellationToken);
             Content = updated.Content;
             Revision = updated.Revision;
         }
@@ -78,14 +100,19 @@ public sealed class TextDocumentSession
         }
     }
 
-    public async Task ReloadAsync(
+    /// <summary>
+    /// Performs the <c>ReloadAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task ReloadAsync(
         CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
 
         try
         {
-            var snapshot = await ReadSnapshotAsync(Path, cancellationToken);
+            global::Nodalis.Infrastructure.Reliability.TextDocumentSnapshot snapshot = await ReadSnapshotAsync(Path, cancellationToken);
             Content = snapshot.Content;
             Revision = snapshot.Revision;
         }
@@ -95,13 +122,19 @@ public sealed class TextDocumentSession
         }
     }
 
-    private static async Task<TextDocumentSnapshot> ReadSnapshotAsync(
+    /// <summary>
+    /// Performs the <c>ReadSnapshotAsync</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<TextDocumentSnapshot> ReadSnapshotAsync(
         string path,
         CancellationToken cancellationToken)
     {
-        var fullPath = System.IO.Path.GetFullPath(path);
+        string fullPath = System.IO.Path.GetFullPath(path);
 
-        await using var stream = new FileStream(
+        await using global::System.IO.FileStream stream = new FileStream(
             fullPath,
             FileMode.Open,
             FileAccess.Read,
@@ -109,17 +142,17 @@ public sealed class TextDocumentSession
             bufferSize: 4096,
             useAsync: true);
 
-        using var memory = new MemoryStream();
+        using global::System.IO.MemoryStream memory = new MemoryStream();
         await stream.CopyToAsync(memory, cancellationToken);
-        var bytes = memory.ToArray();
+        byte[] bytes = memory.ToArray();
 
-        var content = new UTF8Encoding(
+        string content = new UTF8Encoding(
             encoderShouldEmitUTF8Identifier: false,
             throwOnInvalidBytes: true)
             .GetString(bytes);
 
-        var info = new FileInfo(fullPath);
-        var revision = new FileRevision(
+        global::System.IO.FileInfo info = new FileInfo(fullPath);
+        global::Nodalis.Infrastructure.Reliability.FileRevision revision = new FileRevision(
             bytes.LongLength,
             info.LastWriteTimeUtc,
             Convert.ToHexString(SHA256.HashData(bytes)));
@@ -127,11 +160,17 @@ public sealed class TextDocumentSession
         return new TextDocumentSnapshot(content, revision);
     }
 
-    private static async Task<FileRevision> ReadRevisionAsync(
+    /// <summary>
+    /// Performs the <c>ReadRevisionAsync</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<FileRevision> ReadRevisionAsync(
         string path,
         CancellationToken cancellationToken)
     {
-        var snapshot = await ReadSnapshotAsync(path, cancellationToken);
+        global::Nodalis.Infrastructure.Reliability.TextDocumentSnapshot snapshot = await ReadSnapshotAsync(path, cancellationToken);
         return snapshot.Revision;
     }
 }

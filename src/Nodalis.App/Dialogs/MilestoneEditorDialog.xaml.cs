@@ -5,7 +5,11 @@ namespace Nodalis.App.Dialogs;
 
 public partial class MilestoneEditorDialog : Window
 {
-    public MilestoneEditorDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="MilestoneEditorDialog"/>.
+    /// </summary>
+    /// <param name="existing">The <c>existing</c> value.</param>
+public MilestoneEditorDialog(
         MilestoneItem? existing = null)
     {
         InitializeComponent();
@@ -35,7 +39,13 @@ public partial class MilestoneEditorDialog : Window
 
     public MilestoneDraft? Draft { get; private set; }
 
-    private void Save_Click(
+    /// <summary>
+    /// Performs the <c>Save_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Save_Click(
         object sender,
         RoutedEventArgs e)
     {

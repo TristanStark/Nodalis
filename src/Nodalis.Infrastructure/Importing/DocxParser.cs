@@ -26,13 +26,19 @@ public sealed class DocxParser
     private static readonly XNamespace DublinCoreTermsNamespace =
         "http://purl.org/dc/terms/";
 
-    public Task<ParsedDocxDocument> ParseAsync(
+    /// <summary>
+    /// Performs the <c>ParseAsync</c> operation.
+    /// </summary>
+    /// <param name="docxPath">The <c>docxPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public Task<ParsedDocxDocument> ParseAsync(
         string docxPath,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(docxPath);
 
-        var fullPath = Path.GetFullPath(docxPath);
+        string fullPath = Path.GetFullPath(docxPath);
 
         if (!File.Exists(fullPath))
         {
@@ -48,59 +54,65 @@ public sealed class DocxParser
             cancellationToken);
     }
 
-    private static ParsedDocxDocument Parse(
+    /// <summary>
+    /// Performs the <c>Parse</c> operation.
+    /// </summary>
+    /// <param name="fullPath">The <c>fullPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static ParsedDocxDocument Parse(
         string fullPath,
         CancellationToken cancellationToken)
     {
         try
         {
-            using var archive = ZipFile.OpenRead(fullPath);
+            using global::System.IO.Compression.ZipArchive archive = ZipFile.OpenRead(fullPath);
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var documentEntry = archive.GetEntry(
+            global::System.IO.Compression.ZipArchiveEntry documentEntry = archive.GetEntry(
                 "word/document.xml")
                 ?? throw new InvalidDataException(
                     "Le DOCX ne contient pas word/document.xml.");
 
-            var relationships = ReadRelationships(
+            global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxRelationship> relationships = ReadRelationships(
                 archive,
                 cancellationToken);
 
-            var styles = ReadStyles(
+            global::System.Collections.Generic.IReadOnlyDictionary<string, global::Nodalis.Infrastructure.Importing.DocxParser.StyleInfo> styles = ReadStyles(
                 archive,
                 cancellationToken);
 
-            var metadata = ReadMetadata(
+            global::Nodalis.Core.Importing.DocxDocumentMetadata metadata = ReadMetadata(
                 archive,
                 cancellationToken);
 
-            var headers = ReadHeaders(
+            global::System.Collections.Generic.List<string> headers = ReadHeaders(
                 archive,
                 cancellationToken);
 
             XDocument documentXml;
 
-            using (var stream = documentEntry.Open())
+            using (global::System.IO.Stream stream = documentEntry.Open())
             {
                 documentXml = XDocument.Load(
                     stream,
                     LoadOptions.PreserveWhitespace);
             }
 
-            var body = documentXml.Root?
+            global::System.Xml.Linq.XElement body = documentXml.Root?
                 .Element(
                     WordNamespace + "body")
                 ?? throw new InvalidDataException(
                     "Le document Word ne contient pas de corps exploitable.");
 
-            var relationshipMap = relationships.ToDictionary(
+            global::System.Collections.Generic.Dictionary<string, global::Nodalis.Core.Importing.DocxRelationship> relationshipMap = relationships.ToDictionary(
                 relationship => relationship.Id,
                 StringComparer.Ordinal);
 
-            var blocks = new List<DocxBlock>();
+            global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxBlock> blocks = new List<DocxBlock>();
 
-            foreach (var element in body.Elements())
+            foreach (global::System.Xml.Linq.XElement element in body.Elements())
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -160,15 +172,22 @@ public sealed class DocxParser
         }
     }
 
-    private static DocxParagraph ParseParagraph(
+    /// <summary>
+    /// Performs the <c>ParseParagraph</c> operation.
+    /// </summary>
+    /// <param name="paragraph">The <c>paragraph</c> value.</param>
+    /// <param name="styles">The <c>styles</c> value.</param>
+    /// <param name="relationships">The <c>relationships</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static DocxParagraph ParseParagraph(
         XElement paragraph,
         IReadOnlyDictionary<string, StyleInfo> styles,
         IReadOnlyDictionary<string, DocxRelationship> relationships)
     {
-        var properties = paragraph.Element(
+        global::System.Xml.Linq.XElement? properties = paragraph.Element(
             WordNamespace + "pPr");
 
-        var styleId = properties?
+        string? styleId = properties?
             .Element(
                 WordNamespace + "pStyle")?
             .Attribute(
@@ -177,30 +196,30 @@ public sealed class DocxParser
 
         styles.TryGetValue(
             styleId ?? string.Empty,
-            out var style);
+            out global::Nodalis.Infrastructure.Importing.DocxParser.StyleInfo? style);
 
-        var numbering = properties?
+        global::System.Xml.Linq.XElement? numbering = properties?
             .Element(
                 WordNamespace + "numPr");
 
-        var numberingId = ParseIntegerAttribute(
+        int? numberingId = ParseIntegerAttribute(
             numbering?
                 .Element(
                     WordNamespace + "numId"),
             "val");
 
-        var listLevel = ParseIntegerAttribute(
+        int? listLevel = ParseIntegerAttribute(
             numbering?
                 .Element(
                     WordNamespace + "ilvl"),
             "val");
 
-        var hyperlinks = new List<DocxHyperlink>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxHyperlink> hyperlinks = new List<DocxHyperlink>();
 
-        foreach (var hyperlink in paragraph.Elements(
+        foreach (global::System.Xml.Linq.XElement hyperlink in paragraph.Elements(
                      WordNamespace + "hyperlink"))
         {
-            var text = ExtractText(
+            string text = ExtractText(
                 hyperlink)
                 .Trim();
 
@@ -209,7 +228,7 @@ public sealed class DocxParser
                 continue;
             }
 
-            var relationshipId = hyperlink
+            string? relationshipId = hyperlink
                 .Attribute(
                     OfficeRelationshipNamespace + "id")?
                 .Value;
@@ -217,7 +236,7 @@ public sealed class DocxParser
             if (!string.IsNullOrWhiteSpace(relationshipId) &&
                 relationships.TryGetValue(
                     relationshipId,
-                    out var relationship))
+                    out global::Nodalis.Core.Importing.DocxRelationship? relationship))
             {
                 hyperlinks.Add(
                     new DocxHyperlink
@@ -229,7 +248,7 @@ public sealed class DocxParser
                 continue;
             }
 
-            var anchor = hyperlink
+            string? anchor = hyperlink
                 .Attribute(
                     WordNamespace + "anchor")?
                 .Value;
@@ -264,19 +283,24 @@ public sealed class DocxParser
         };
     }
 
-    private static DocxTable ParseTable(XElement table)
+    /// <summary>
+    /// Performs the <c>ParseTable</c> operation.
+    /// </summary>
+    /// <param name="table">The <c>table</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static DocxTable ParseTable(XElement table)
     {
-        var rows = new List<DocxTableRow>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxTableRow> rows = new List<DocxTableRow>();
 
-        foreach (var row in table.Elements(
+        foreach (global::System.Xml.Linq.XElement row in table.Elements(
                      WordNamespace + "tr"))
         {
-            var cells = new List<DocxTableCell>();
+            global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxTableCell> cells = new List<DocxTableCell>();
 
-            foreach (var cell in row.Elements(
+            foreach (global::System.Xml.Linq.XElement cell in row.Elements(
                          WordNamespace + "tc"))
             {
-                var paragraphs = cell.Elements(
+                string[] paragraphs = cell.Elements(
                         WordNamespace + "p")
                     .Select(ExtractText)
                     .Select(text => text.Trim())
@@ -306,11 +330,17 @@ public sealed class DocxParser
         };
     }
 
-    private static IReadOnlyDictionary<string, StyleInfo> ReadStyles(
+    /// <summary>
+    /// Performs the <c>ReadStyles</c> operation.
+    /// </summary>
+    /// <param name="archive">The <c>archive</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static IReadOnlyDictionary<string, StyleInfo> ReadStyles(
         ZipArchive archive,
         CancellationToken cancellationToken)
     {
-        var entry = archive.GetEntry(
+        global::System.IO.Compression.ZipArchiveEntry? entry = archive.GetEntry(
             "word/styles.xml");
 
         if (entry is null)
@@ -323,18 +353,18 @@ public sealed class DocxParser
 
         XDocument xml;
 
-        using (var stream = entry.Open())
+        using (global::System.IO.Stream stream = entry.Open())
         {
             xml = XDocument.Load(stream);
         }
 
-        var result = new Dictionary<string, StyleInfo>(
+        global::System.Collections.Generic.Dictionary<string, global::Nodalis.Infrastructure.Importing.DocxParser.StyleInfo> result = new Dictionary<string, StyleInfo>(
             StringComparer.OrdinalIgnoreCase);
 
-        foreach (var styleElement in xml.Descendants(
+        foreach (global::System.Xml.Linq.XElement styleElement in xml.Descendants(
                      WordNamespace + "style"))
         {
-            var styleId = styleElement
+            string? styleId = styleElement
                 .Attribute(
                     WordNamespace + "styleId")?
                 .Value;
@@ -344,7 +374,7 @@ public sealed class DocxParser
                 continue;
             }
 
-            var type = styleElement
+            string? type = styleElement
                 .Attribute(
                     WordNamespace + "type")?
                 .Value;
@@ -358,14 +388,14 @@ public sealed class DocxParser
                 continue;
             }
 
-            var name = styleElement
+            string? name = styleElement
                 .Element(
                     WordNamespace + "name")?
                 .Attribute(
                     WordNamespace + "val")?
                 .Value;
 
-            var outlineLevel = ParseIntegerAttribute(
+            int? outlineLevel = ParseIntegerAttribute(
                 styleElement
                     .Element(
                         WordNamespace + "pPr")?
@@ -386,11 +416,17 @@ public sealed class DocxParser
         return result;
     }
 
-    private static List<DocxRelationship> ReadRelationships(
+    /// <summary>
+    /// Performs the <c>ReadRelationships</c> operation.
+    /// </summary>
+    /// <param name="archive">The <c>archive</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<DocxRelationship> ReadRelationships(
         ZipArchive archive,
         CancellationToken cancellationToken)
     {
-        var entry = archive.GetEntry(
+        global::System.IO.Compression.ZipArchiveEntry? entry = archive.GetEntry(
             "word/_rels/document.xml.rels");
 
         if (entry is null)
@@ -402,7 +438,7 @@ public sealed class DocxParser
 
         XDocument xml;
 
-        using (var stream = entry.Open())
+        using (global::System.IO.Stream stream = entry.Open())
         {
             xml = XDocument.Load(stream);
         }
@@ -432,13 +468,19 @@ public sealed class DocxParser
             .ToList();
     }
 
-    private static List<string> ReadHeaders(
+    /// <summary>
+    /// Performs the <c>ReadHeaders</c> operation.
+    /// </summary>
+    /// <param name="archive">The <c>archive</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<string> ReadHeaders(
         ZipArchive archive,
         CancellationToken cancellationToken)
     {
-        var result = new List<string>();
+        global::System.Collections.Generic.List<string> result = new List<string>();
 
-        foreach (var entry in archive.Entries
+        foreach (global::System.IO.Compression.ZipArchiveEntry entry in archive.Entries
                      .Where(entry =>
                          entry.FullName.StartsWith(
                              "word/header",
@@ -454,12 +496,12 @@ public sealed class DocxParser
 
             XDocument xml;
 
-            using (var stream = entry.Open())
+            using (global::System.IO.Stream stream = entry.Open())
             {
                 xml = XDocument.Load(stream);
             }
 
-            var text = string.Join(
+            string text = string.Join(
                     Environment.NewLine,
                     xml.Descendants(
                             WordNamespace + "p")
@@ -478,11 +520,17 @@ public sealed class DocxParser
         return result;
     }
 
-    private static DocxDocumentMetadata ReadMetadata(
+    /// <summary>
+    /// Performs the <c>ReadMetadata</c> operation.
+    /// </summary>
+    /// <param name="archive">The <c>archive</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static DocxDocumentMetadata ReadMetadata(
         ZipArchive archive,
         CancellationToken cancellationToken)
     {
-        var entry = archive.GetEntry(
+        global::System.IO.Compression.ZipArchiveEntry? entry = archive.GetEntry(
             "docProps/core.xml");
 
         if (entry is null)
@@ -494,12 +542,12 @@ public sealed class DocxParser
 
         XDocument xml;
 
-        using (var stream = entry.Open())
+        using (global::System.IO.Stream stream = entry.Open())
         {
             xml = XDocument.Load(stream);
         }
 
-        var root = xml.Root;
+        global::System.Xml.Linq.XElement? root = xml.Root;
 
         return new DocxDocumentMetadata
         {
@@ -532,11 +580,16 @@ public sealed class DocxParser
         };
     }
 
-    private static string ExtractText(XElement element)
+    /// <summary>
+    /// Performs the <c>ExtractText</c> operation.
+    /// </summary>
+    /// <param name="element">The <c>element</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ExtractText(XElement element)
     {
-        var builder = new System.Text.StringBuilder();
+        global::System.Text.StringBuilder builder = new System.Text.StringBuilder();
 
-        foreach (var node in element.Descendants())
+        foreach (global::System.Xml.Linq.XElement node in element.Descendants())
         {
             if (node.Name ==
                 WordNamespace + "t")
@@ -565,11 +618,17 @@ public sealed class DocxParser
         return builder.ToString();
     }
 
-    private static int? ParseIntegerAttribute(
+    /// <summary>
+    /// Performs the <c>ParseIntegerAttribute</c> operation.
+    /// </summary>
+    /// <param name="element">The <c>element</c> value.</param>
+    /// <param name="attributeName">The <c>attributeName</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static int? ParseIntegerAttribute(
         XElement? element,
         string attributeName)
     {
-        var value = element?
+        string? value = element?
             .Attribute(
                 WordNamespace + attributeName)?
             .Value;
@@ -578,16 +637,22 @@ public sealed class DocxParser
             value,
             NumberStyles.Integer,
             CultureInfo.InvariantCulture,
-            out var result)
+            out int result)
             ? result
             : null;
     }
 
-    private static int? InferHeadingLevel(
+    /// <summary>
+    /// Performs the <c>InferHeadingLevel</c> operation.
+    /// </summary>
+    /// <param name="styleId">The <c>styleId</c> value.</param>
+    /// <param name="styleName">The <c>styleName</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static int? InferHeadingLevel(
         string? styleId,
         string? styleName)
     {
-        foreach (var candidate in new[]
+        foreach (string candidate in new[]
                  {
                      styleName,
                      styleId
@@ -598,7 +663,7 @@ public sealed class DocxParser
                 continue;
             }
 
-            var normalized = candidate
+            string normalized = candidate
                 .Trim()
                 .Replace(
                     " ",
@@ -615,7 +680,7 @@ public sealed class DocxParser
                 continue;
             }
 
-            var digits = new string(
+            string digits = new string(
                 normalized
                     .Reverse()
                     .TakeWhile(char.IsDigit)
@@ -626,7 +691,7 @@ public sealed class DocxParser
                     digits,
                     NumberStyles.Integer,
                     CultureInfo.InvariantCulture,
-                    out var level) &&
+                    out int level) &&
                 level is >= 1 and <= 9)
             {
                 return level;
@@ -636,11 +701,17 @@ public sealed class DocxParser
         return null;
     }
 
-    private static string? Value(
+    /// <summary>
+    /// Performs the <c>Value</c> operation.
+    /// </summary>
+    /// <param name="root">The <c>root</c> value.</param>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string? Value(
         XElement? root,
         XName name)
     {
-        var value = root?
+        string? value = root?
             .Element(name)?
             .Value
             .Trim();
@@ -650,14 +721,19 @@ public sealed class DocxParser
             : value;
     }
 
-    private static DateTimeOffset? ParseDate(
+    /// <summary>
+    /// Performs the <c>ParseDate</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static DateTimeOffset? ParseDate(
         string? value) =>
         DateTimeOffset.TryParse(
             value,
             CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeUniversal |
             DateTimeStyles.AdjustToUniversal,
-            out var result)
+            out global::System.DateTimeOffset result)
             ? result
             : null;
 

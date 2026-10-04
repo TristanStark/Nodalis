@@ -7,7 +7,11 @@ namespace Nodalis.Infrastructure.Settings;
 
 public sealed class UserPreferencesStore : IUserPreferencesStore
 {
-    public UserPreferencesStore(string? preferencesPath = null)
+    /// <summary>
+    /// Initializes a new instance of <see cref="UserPreferencesStore"/>.
+    /// </summary>
+    /// <param name="preferencesPath">The <c>preferencesPath</c> value.</param>
+public UserPreferencesStore(string? preferencesPath = null)
     {
         PreferencesPath = Path.GetFullPath(
             preferencesPath ?? GetDefaultPreferencesPath());
@@ -15,7 +19,12 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
 
     public string PreferencesPath { get; }
 
-    public async Task<UserPreferences> LoadAsync(
+    /// <summary>
+    /// Performs the <c>LoadAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<UserPreferences> LoadAsync(
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(PreferencesPath))
@@ -25,7 +34,7 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
 
         try
         {
-            var preferences = await AtomicJsonFile.ReadAsync<UserPreferences>(
+            global::Nodalis.Core.Settings.UserPreferences preferences = await AtomicJsonFile.ReadAsync<UserPreferences>(
                 PreferencesPath,
                 cancellationToken);
 
@@ -46,7 +55,13 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
         }
     }
 
-    public Task SaveAsync(
+    /// <summary>
+    /// Performs the <c>SaveAsync</c> operation.
+    /// </summary>
+    /// <param name="preferences">The <c>preferences</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public Task SaveAsync(
         UserPreferences preferences,
         CancellationToken cancellationToken = default)
     {
@@ -65,10 +80,15 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
             cancellationToken);
     }
 
-    private static UserPreferences Normalize(UserPreferences preferences)
+    /// <summary>
+    /// Performs the <c>Normalize</c> operation.
+    /// </summary>
+    /// <param name="preferences">The <c>preferences</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static UserPreferences Normalize(UserPreferences preferences)
     {
-        var sourceEditor = preferences.Editor ?? new EditorPreferences();
-        var editor = sourceEditor with
+        global::Nodalis.Core.Settings.EditorPreferences sourceEditor = preferences.Editor ?? new EditorPreferences();
+        global::Nodalis.Core.Settings.EditorPreferences editor = sourceEditor with
         {
             FontSize = Math.Clamp(sourceEditor.FontSize, 8, 48),
             AutosaveDelayMilliseconds = Math.Clamp(
@@ -103,9 +123,13 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
         };
     }
 
-    private static string GetDefaultPreferencesPath()
+    /// <summary>
+    /// Performs the <c>GetDefaultPreferencesPath</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private static string GetDefaultPreferencesPath()
     {
-        var localApplicationData = Environment.GetFolderPath(
+        string localApplicationData = Environment.GetFolderPath(
             Environment.SpecialFolder.LocalApplicationData);
 
         if (string.IsNullOrWhiteSpace(localApplicationData))

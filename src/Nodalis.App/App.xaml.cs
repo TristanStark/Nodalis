@@ -11,7 +11,12 @@ namespace Nodalis.App;
 
 public partial class App : Application
 {
-    protected override async void OnStartup(StartupEventArgs e)
+    /// <summary>
+    /// Performs the <c>OnStartup</c> operation.
+    /// </summary>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -41,10 +46,10 @@ public partial class App : Application
                 return;
             }
 
-            var preferencesStore = new UserPreferencesStore();
-            var preferences = await preferencesStore.LoadAsync();
+            global::Nodalis.Infrastructure.Settings.UserPreferencesStore preferencesStore = new UserPreferencesStore();
+            global::Nodalis.Core.Settings.UserPreferences preferences = await preferencesStore.LoadAsync();
 
-            var resolved = await ResolveWorkspaceAsync(
+            (string WorkspacePath, global::Nodalis.Core.Settings.UserPreferences Preferences)? resolved = await ResolveWorkspaceAsync(
                 preferences,
                 preferencesStore);
 
@@ -56,15 +61,15 @@ public partial class App : Application
 
             preferences = resolved.Value.Preferences;
 
-            var templateStore = new FileSystemTemplateStore(
+            global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore templateStore = new FileSystemTemplateStore(
                 resolved.Value.WorkspacePath);
             await templateStore.InitializeDefaultsAsync();
 
-            var navigationBuilder = new WorkspaceNavigationBuilder();
-            var root = await navigationBuilder.BuildAsync(
+            global::Nodalis.Infrastructure.Navigation.WorkspaceNavigationBuilder navigationBuilder = new WorkspaceNavigationBuilder();
+            global::Nodalis.Core.Navigation.WorkspaceNavigationNode root = await navigationBuilder.BuildAsync(
                 resolved.Value.WorkspacePath);
 
-            var window = new MainWindow(
+            global::Nodalis.App.MainWindow window = new MainWindow(
                 root,
                 preferences,
                 preferencesStore,
@@ -86,7 +91,13 @@ public partial class App : Application
         }
     }
 
-    private void ApplyNodalisWindowStyle(
+    /// <summary>
+    /// Performs the <c>ApplyNodalisWindowStyle</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void ApplyNodalisWindowStyle(
         object sender,
         RoutedEventArgs e)
     {
@@ -105,14 +116,20 @@ public partial class App : Application
         window.Style = style;
     }
 
-    private static async Task<(string WorkspacePath, UserPreferences Preferences)?>
+    /// <summary>
+    /// Performs the <c>ResolveWorkspaceAsync</c> operation.
+    /// </summary>
+    /// <param name="preferences">The <c>preferences</c> value.</param>
+    /// <param name="preferencesStore">The <c>preferencesStore</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<(string WorkspacePath, UserPreferences Preferences)?>
         ResolveWorkspaceAsync(
             UserPreferences preferences,
             UserPreferencesStore preferencesStore)
     {
         if (!string.IsNullOrWhiteSpace(preferences.WorkspaceRootPath))
         {
-            var configuredPath = Path.GetFullPath(
+            string configuredPath = Path.GetFullPath(
                 preferences.WorkspaceRootPath);
 
             if (Directory.Exists(configuredPath) &&
@@ -124,7 +141,7 @@ public partial class App : Application
             }
         }
 
-        var dialog = new OpenFolderDialog
+        global::Microsoft.Win32.OpenFolderDialog dialog = new OpenFolderDialog
         {
             Title = "Choisir le dossier du workspace Nodalis",
             Multiselect = false
@@ -135,20 +152,20 @@ public partial class App : Application
             return null;
         }
 
-        var workspacePath = Path.GetFullPath(dialog.FolderName);
-        var manifestPath = Path.Combine(
+        string workspacePath = Path.GetFullPath(dialog.FolderName);
+        string manifestPath = Path.Combine(
             workspacePath,
             WorkspaceLayout.WorkspaceManifestFileName);
 
         if (!File.Exists(manifestPath))
         {
-            var containsFiles = Directory
+            bool containsFiles = Directory
                 .EnumerateFileSystemEntries(workspacePath)
                 .Any();
 
             if (containsFiles)
             {
-                var answer = MessageBox.Show(
+                global::System.Windows.MessageBoxResult answer = MessageBox.Show(
                     "Ce dossier n'est pas encore un workspace Nodalis. " +
                     "Nodalis peut l'initialiser sans supprimer ni modifier " +
                     "les fichiers déjà présents. Continuer ?",
@@ -162,18 +179,18 @@ public partial class App : Application
                 }
             }
 
-            var directoryName = new DirectoryInfo(workspacePath).Name;
-            var workspaceName = string.IsNullOrWhiteSpace(directoryName)
+            string directoryName = new DirectoryInfo(workspacePath).Name;
+            string workspaceName = string.IsNullOrWhiteSpace(directoryName)
                 ? "Nodalis"
                 : directoryName;
 
-            var workspaceStore = new FileSystemWorkspaceStore(
+            global::Nodalis.Infrastructure.Persistence.FileSystemWorkspaceStore workspaceStore = new FileSystemWorkspaceStore(
                 workspacePath);
 
             await workspaceStore.InitializeAsync(workspaceName);
         }
 
-        var updatedPreferences = preferences with
+        global::Nodalis.Core.Settings.UserPreferences updatedPreferences = preferences with
         {
             WorkspaceRootPath = workspacePath
         };

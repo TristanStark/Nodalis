@@ -5,7 +5,11 @@ namespace Nodalis.App.Dialogs;
 
 public partial class QuickNoteDialog : Window
 {
-    public QuickNoteDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="QuickNoteDialog"/>.
+    /// </summary>
+    /// <param name="scopes">The <c>scopes</c> value.</param>
+public QuickNoteDialog(
         IReadOnlyList<QuickNoteScope> scopes)
     {
         ArgumentNullException.ThrowIfNull(scopes);
@@ -27,7 +31,13 @@ public partial class QuickNoteDialog : Window
 
     public string NoteText => NoteTextBox.Text.Trim();
 
-    private void Save_Click(
+    /// <summary>
+    /// Performs the <c>Save_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Save_Click(
         object sender,
         RoutedEventArgs e)
     {

@@ -2,7 +2,13 @@ namespace Nodalis.Core.Glossary;
 
 public static class GlossaryTextMatcher
 {
-    public static IReadOnlyList<GlossaryTextMatch> Match(
+    /// <summary>
+    /// Performs the <c>Match</c> operation.
+    /// </summary>
+    /// <param name="text">The <c>text</c> value.</param>
+    /// <param name="entries">The <c>entries</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static IReadOnlyList<GlossaryTextMatch> Match(
         string text,
         IReadOnlyList<GlossaryEntry> entries)
     {
@@ -15,20 +21,20 @@ public static class GlossaryTextMatcher
             return [];
         }
 
-        var tokens = BuildEffectiveTokens(entries);
-        var occupied = new bool[text.Length];
-        var matches = new List<GlossaryTextMatch>();
+        global::System.Collections.Generic.Dictionary<string, global::Nodalis.Core.Glossary.GlossaryEntry> tokens = BuildEffectiveTokens(entries);
+        bool[] occupied = new bool[text.Length];
+        global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryTextMatch> matches = new List<GlossaryTextMatch>();
 
-        foreach (var pair in tokens
+        foreach (global::System.Collections.Generic.KeyValuePair<string, global::Nodalis.Core.Glossary.GlossaryEntry> pair in tokens
                      .OrderByDescending(pair => pair.Key.Length)
                      .ThenBy(pair => pair.Key, StringComparer.CurrentCultureIgnoreCase))
         {
-            var token = pair.Key;
-            var searchFrom = 0;
+            string token = pair.Key;
+            int searchFrom = 0;
 
             while (searchFrom < text.Length)
             {
-                var index = text.IndexOf(
+                int index = text.IndexOf(
                     token,
                     searchFrom,
                     StringComparison.CurrentCultureIgnoreCase);
@@ -38,7 +44,7 @@ public static class GlossaryTextMatcher
                     break;
                 }
 
-                var end = index + token.Length;
+                int end = index + token.Length;
 
                 if (IsBoundaryMatch(
                         text,
@@ -49,7 +55,7 @@ public static class GlossaryTextMatcher
                         index,
                         token.Length))
                 {
-                    for (var position = index;
+                    for (int position = index;
                          position < end;
                          position++)
                     {
@@ -76,20 +82,25 @@ public static class GlossaryTextMatcher
             .ToArray();
     }
 
-    private static Dictionary<string, GlossaryEntry> BuildEffectiveTokens(
+    /// <summary>
+    /// Performs the <c>BuildEffectiveTokens</c> operation.
+    /// </summary>
+    /// <param name="entries">The <c>entries</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Dictionary<string, GlossaryEntry> BuildEffectiveTokens(
         IReadOnlyList<GlossaryEntry> entries)
     {
-        var result = new Dictionary<string, GlossaryEntry>(
+        global::System.Collections.Generic.Dictionary<string, global::Nodalis.Core.Glossary.GlossaryEntry> result = new Dictionary<string, GlossaryEntry>(
             StringComparer.CurrentCultureIgnoreCase);
 
-        foreach (var entry in entries)
+        foreach (global::Nodalis.Core.Glossary.GlossaryEntry entry in entries)
         {
             AddToken(
                 result,
                 entry.Term,
                 entry);
 
-            foreach (var acronym in entry.Acronyms)
+            foreach (string acronym in entry.Acronyms)
             {
                 AddToken(
                     result,
@@ -97,7 +108,7 @@ public static class GlossaryTextMatcher
                     entry);
             }
 
-            foreach (var synonym in entry.Synonyms)
+            foreach (string synonym in entry.Synonyms)
             {
                 AddToken(
                     result,
@@ -109,12 +120,19 @@ public static class GlossaryTextMatcher
         return result;
     }
 
-    private static void AddToken(
+    /// <summary>
+    /// Performs the <c>AddToken</c> operation.
+    /// </summary>
+    /// <param name="tokens">The <c>tokens</c> value.</param>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <param name="entry">The <c>entry</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void AddToken(
         IDictionary<string, GlossaryEntry> tokens,
         string value,
         GlossaryEntry entry)
     {
-        var token = value.Trim();
+        string token = value.Trim();
 
         if (token.Length < 2 ||
             tokens.ContainsKey(token))
@@ -125,16 +143,23 @@ public static class GlossaryTextMatcher
         tokens[token] = entry;
     }
 
-    private static bool IsBoundaryMatch(
+    /// <summary>
+    /// Performs the <c>IsBoundaryMatch</c> operation.
+    /// </summary>
+    /// <param name="text">The <c>text</c> value.</param>
+    /// <param name="start">The <c>start</c> value.</param>
+    /// <param name="end">The <c>end</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsBoundaryMatch(
         string text,
         int start,
         int end)
     {
-        var beforeIsWord =
+        bool beforeIsWord =
             start > 0 &&
             IsWordCharacter(text[start - 1]);
 
-        var afterIsWord =
+        bool afterIsWord =
             end < text.Length &&
             IsWordCharacter(text[end]);
 
@@ -142,18 +167,30 @@ public static class GlossaryTextMatcher
                !afterIsWord;
     }
 
-    private static bool IsWordCharacter(char value) =>
+    /// <summary>
+    /// Performs the <c>IsWordCharacter</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsWordCharacter(char value) =>
         char.IsLetterOrDigit(value) ||
         value == '_' ||
         value == '\'' ||
         value == '’';
 
-    private static bool IsRangeFree(
+    /// <summary>
+    /// Performs the <c>IsRangeFree</c> operation.
+    /// </summary>
+    /// <param name="occupied">The <c>occupied</c> value.</param>
+    /// <param name="start">The <c>start</c> value.</param>
+    /// <param name="length">The <c>length</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsRangeFree(
         IReadOnlyList<bool> occupied,
         int start,
         int length)
     {
-        for (var index = start;
+        for (int index = start;
              index < start + length;
              index++)
         {

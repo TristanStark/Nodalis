@@ -11,7 +11,14 @@ public partial class TaskListDialog : Window
     private readonly string? _contextPath;
     private readonly Func<TaskItem, bool, Task> _toggleTaskAsync;
 
-    public TaskListDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="TaskListDialog"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="scopeLabel">The <c>scopeLabel</c> value.</param>
+    /// <param name="toggleTaskAsync">The <c>toggleTaskAsync</c> value.</param>
+public TaskListDialog(
         string workspaceRoot,
         string? contextPath,
         string scopeLabel,
@@ -35,12 +42,24 @@ public partial class TaskListDialog : Window
 
     public TaskItem? SelectedTask { get; private set; }
 
-    private async void IncludeCompletedCheckBox_Changed(
+    /// <summary>
+    /// Performs the <c>IncludeCompletedCheckBox_Changed</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void IncludeCompletedCheckBox_Changed(
         object sender,
         RoutedEventArgs e) =>
         await RefreshAsync();
 
-    private async void TaskCheckBox_Click(
+    /// <summary>
+    /// Performs the <c>TaskCheckBox_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void TaskCheckBox_Click(
         object sender,
         RoutedEventArgs e)
     {
@@ -52,7 +71,7 @@ public partial class TaskListDialog : Window
 
         try
         {
-            var completed = checkBox.IsChecked == true;
+            bool completed = checkBox.IsChecked == true;
 
             await _toggleTaskAsync(
                 task,
@@ -71,7 +90,13 @@ public partial class TaskListDialog : Window
         }
     }
 
-    private void TasksList_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>TasksList_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void TasksList_MouseDoubleClick(
         object sender,
         System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -84,7 +109,11 @@ public partial class TaskListDialog : Window
         DialogResult = true;
     }
 
-    private async Task RefreshAsync()
+    /// <summary>
+    /// Performs the <c>RefreshAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task RefreshAsync()
     {
         try
         {

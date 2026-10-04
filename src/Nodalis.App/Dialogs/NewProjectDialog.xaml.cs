@@ -11,7 +11,12 @@ public partial class NewProjectDialog : Window
         ProjectComplexity Complexity,
         string DisplayName);
 
-    public NewProjectDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="NewProjectDialog"/>.
+    /// </summary>
+    /// <param name="targets">The <c>targets</c> value.</param>
+    /// <param name="profiles">The <c>profiles</c> value.</param>
+public NewProjectDialog(
         IReadOnlyList<ProjectCreationTarget> targets,
         IReadOnlyList<ProjectProfileDefinition> profiles)
     {
@@ -60,7 +65,13 @@ public partial class NewProjectDialog : Window
                 StringSplitOptions.RemoveEmptyEntries)
             .ToArray();
 
-    private void Create_Click(
+    /// <summary>
+    /// Performs the <c>Create_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Create_Click(
         object sender,
         RoutedEventArgs e)
     {

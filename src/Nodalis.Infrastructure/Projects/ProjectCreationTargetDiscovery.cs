@@ -6,14 +6,20 @@ namespace Nodalis.Infrastructure.Projects;
 
 public sealed class ProjectCreationTargetDiscovery
 {
-    public async Task<IReadOnlyList<ProjectCreationTarget>> DiscoverAsync(
+    /// <summary>
+    /// Performs the <c>DiscoverAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<ProjectCreationTarget>> DiscoverAsync(
         string workspaceRoot,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
-        var root = Path.GetFullPath(workspaceRoot);
-        var applicationsRoot = Path.Combine(
+        string root = Path.GetFullPath(workspaceRoot);
+        string applicationsRoot = Path.Combine(
             root,
             WorkspaceLayout.ApplicationsDirectoryName);
 
@@ -22,15 +28,15 @@ public sealed class ProjectCreationTargetDiscovery
             return [];
         }
 
-        var targets = new List<ProjectCreationTarget>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Projects.ProjectCreationTarget> targets = new List<ProjectCreationTarget>();
 
-        foreach (var applicationDirectory in Directory
+        foreach (string applicationDirectory in Directory
                      .EnumerateDirectories(applicationsRoot)
                      .OrderBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var manifestPath = Path.Combine(
+            string manifestPath = Path.Combine(
                 applicationDirectory,
                 WorkspaceLayout.ApplicationManifestFileName);
 
@@ -39,7 +45,7 @@ public sealed class ProjectCreationTargetDiscovery
                 continue;
             }
 
-            var application = await AtomicJsonFile.ReadAsync<ApplicationManifest>(
+            global::Nodalis.Core.Domain.ApplicationManifest application = await AtomicJsonFile.ReadAsync<ApplicationManifest>(
                 manifestPath,
                 cancellationToken);
 
@@ -51,7 +57,7 @@ public sealed class ProjectCreationTargetDiscovery
                 DisplayName = application.Name
             });
 
-            var modulesRoot = Path.Combine(
+            string modulesRoot = Path.Combine(
                 applicationDirectory,
                 WorkspaceLayout.ModulesDirectoryName);
 
@@ -64,7 +70,7 @@ public sealed class ProjectCreationTargetDiscovery
                     cancellationToken);
             }
 
-            var projectsRoot = Path.Combine(
+            string projectsRoot = Path.Combine(
                 applicationDirectory,
                 WorkspaceLayout.ProjectsDirectoryName);
 
@@ -87,19 +93,27 @@ public sealed class ProjectCreationTargetDiscovery
             .ToArray();
     }
 
-    private static async Task DiscoverModulesAsync(
+    /// <summary>
+    /// Performs the <c>DiscoverModulesAsync</c> operation.
+    /// </summary>
+    /// <param name="modulesRoot">The <c>modulesRoot</c> value.</param>
+    /// <param name="application">The <c>application</c> value.</param>
+    /// <param name="targets">The <c>targets</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task DiscoverModulesAsync(
         string modulesRoot,
         ApplicationManifest application,
         ICollection<ProjectCreationTarget> targets,
         CancellationToken cancellationToken)
     {
-        foreach (var moduleDirectory in Directory
+        foreach (string moduleDirectory in Directory
                      .EnumerateDirectories(modulesRoot)
                      .OrderBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var manifestPath = Path.Combine(
+            string manifestPath = Path.Combine(
                 moduleDirectory,
                 WorkspaceLayout.ModuleManifestFileName);
 
@@ -108,7 +122,7 @@ public sealed class ProjectCreationTargetDiscovery
                 continue;
             }
 
-            var module = await AtomicJsonFile.ReadAsync<ModuleManifest>(
+            global::Nodalis.Core.Domain.ModuleManifest module = await AtomicJsonFile.ReadAsync<ModuleManifest>(
                 manifestPath,
                 cancellationToken);
 
@@ -122,7 +136,7 @@ public sealed class ProjectCreationTargetDiscovery
                 DisplayName = $"{application.Name} / {module.Name}"
             });
 
-            var nestedModules = Path.Combine(
+            string nestedModules = Path.Combine(
                 moduleDirectory,
                 WorkspaceLayout.ModulesDirectoryName);
 
@@ -135,7 +149,7 @@ public sealed class ProjectCreationTargetDiscovery
                     cancellationToken);
             }
 
-            var projectsRoot = Path.Combine(
+            string projectsRoot = Path.Combine(
                 moduleDirectory,
                 WorkspaceLayout.ProjectsDirectoryName);
 
@@ -151,20 +165,29 @@ public sealed class ProjectCreationTargetDiscovery
         }
     }
 
-    private static async Task DiscoverProjectsAsync(
+    /// <summary>
+    /// Performs the <c>DiscoverProjectsAsync</c> operation.
+    /// </summary>
+    /// <param name="projectsRoot">The <c>projectsRoot</c> value.</param>
+    /// <param name="application">The <c>application</c> value.</param>
+    /// <param name="module">The <c>module</c> value.</param>
+    /// <param name="targets">The <c>targets</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task DiscoverProjectsAsync(
         string projectsRoot,
         ApplicationManifest application,
         ModuleManifest? module,
         ICollection<ProjectCreationTarget> targets,
         CancellationToken cancellationToken)
     {
-        foreach (var projectDirectory in Directory
+        foreach (string projectDirectory in Directory
                      .EnumerateDirectories(projectsRoot)
                      .OrderBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var manifestPath = Path.Combine(
+            string manifestPath = Path.Combine(
                 projectDirectory,
                 WorkspaceLayout.ProjectManifestFileName);
 
@@ -173,7 +196,7 @@ public sealed class ProjectCreationTargetDiscovery
                 continue;
             }
 
-            var project = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+            global::Nodalis.Core.Domain.ProjectManifest project = await AtomicJsonFile.ReadAsync<ProjectManifest>(
                 manifestPath,
                 cancellationToken);
 
@@ -191,7 +214,7 @@ public sealed class ProjectCreationTargetDiscovery
                     : $"{application.Name} / {module.Name} / {project.Name} (sous-projet)"
             });
 
-            var subProjectsRoot = Path.Combine(
+            string subProjectsRoot = Path.Combine(
                 projectDirectory,
                 WorkspaceLayout.SubProjectsDirectoryName);
 

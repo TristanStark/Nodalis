@@ -7,7 +7,12 @@ namespace Nodalis.App.Dialogs;
 
 public partial class QuickNotesOverviewDialog : Window
 {
-    public QuickNotesOverviewDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="QuickNotesOverviewDialog"/>.
+    /// </summary>
+    /// <param name="snapshots">The <c>snapshots</c> value.</param>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public QuickNotesOverviewDialog(
         IReadOnlyList<QuickNotesSnapshot> snapshots,
         string workspaceRoot)
     {
@@ -15,7 +20,7 @@ public partial class QuickNotesOverviewDialog : Window
 
         InitializeComponent();
 
-        var markdown = QuickNotesService.FormatAggregateMarkdown(
+        string markdown = QuickNotesService.FormatAggregateMarkdown(
             snapshots);
 
         Preview.Document = MarkdownFlowDocumentRenderer.Render(

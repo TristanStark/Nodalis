@@ -16,7 +16,11 @@ public sealed class WorkspaceMeetingService
     private readonly WorkspaceLinkIndexService _linkIndex;
     private readonly FileSystemTemplateStore _templateStore;
 
-    public WorkspaceMeetingService(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="WorkspaceMeetingService"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public WorkspaceMeetingService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -25,7 +29,14 @@ public sealed class WorkspaceMeetingService
         _templateStore = new FileSystemTemplateStore(_workspaceRoot);
     }
 
-    public async Task<MeetingCreationResult> CreateAsync(
+    /// <summary>
+    /// Performs the <c>CreateAsync</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="draft">The <c>draft</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<MeetingCreationResult> CreateAsync(
         string? contextPath,
         MeetingDraft draft,
         CancellationToken cancellationToken = default)
@@ -33,20 +44,20 @@ public sealed class WorkspaceMeetingService
         ArgumentNullException.ThrowIfNull(draft);
         ArgumentException.ThrowIfNullOrWhiteSpace(draft.Title);
 
-        var links = await _linkIndex.RefreshAsync(cancellationToken);
-        var scope = ResolveScope(contextPath, links)
+        global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
+        (global::Nodalis.Core.Links.LinkTargetEntry Target, string KindLabel) scope = ResolveScope(contextPath, links)
             ?? throw new InvalidOperationException(
                 "Sélectionnez une application, un projet ou un document rattaché avant de créer une réunion.");
 
-        var scopeDirectory = ResolveWorkspacePath(scope.Target.RelativePath);
-        var meetingsDirectory = Path.Combine(
+        string scopeDirectory = ResolveWorkspacePath(scope.Target.RelativePath);
+        string meetingsDirectory = Path.Combine(
             scopeDirectory,
             MeetingsDirectoryName);
 
         Directory.CreateDirectory(meetingsDirectory);
 
-        var documentId = Guid.NewGuid();
-        var variables = MarkdownTemplateRenderer.CreateStandardVariables(
+        global::System.Guid documentId = Guid.NewGuid();
+        global::System.Collections.Generic.Dictionary<string, string> variables = MarkdownTemplateRenderer.CreateStandardVariables(
             draft.Title.Trim(),
             documentId,
             DateTimeOffset.Now,
@@ -59,7 +70,7 @@ public sealed class WorkspaceMeetingService
 
         variables["date"] = draft.Date.ToString("yyyy-MM-dd");
 
-        var content = await _templateStore.RenderAsync(
+        string content = await _templateStore.RenderAsync(
             "meeting",
             variables,
             cancellationToken);
@@ -106,13 +117,13 @@ public sealed class WorkspaceMeetingService
             "Contenu Outlook",
             NormalizeText(draft.OutlookContent));
 
-        var safeTitle = WindowsPathRules.SanitizeSegment(
+        string safeTitle = WindowsPathRules.SanitizeSegment(
             draft.Title.Trim());
 
-        var desiredFileName =
+        string desiredFileName =
             $"{draft.Date:yyyy-MM-dd} - {safeTitle}.md";
 
-        var filePath = WindowsPathRules.GetUniqueFilePath(
+        string filePath = WindowsPathRules.GetUniqueFilePath(
             meetingsDirectory,
             desiredFileName);
 
@@ -130,26 +141,38 @@ public sealed class WorkspaceMeetingService
         };
     }
 
-    public async Task<(string ScopeKind, string ScopeName)?> ResolveScopeAsync(
+    /// <summary>
+    /// Performs the <c>ResolveScopeAsync</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<(string ScopeKind, string ScopeName)?> ResolveScopeAsync(
         string? contextPath,
         CancellationToken cancellationToken = default)
     {
-        var links = await _linkIndex.RefreshAsync(cancellationToken);
-        var scope = ResolveScope(contextPath, links);
+        global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
+        (global::Nodalis.Core.Links.LinkTargetEntry Target, string KindLabel)? scope = ResolveScope(contextPath, links);
 
         if (scope is null)
         {
             return null;
         }
 
-        var resolved = scope.Value;
+        (global::Nodalis.Core.Links.LinkTargetEntry Target, string KindLabel) resolved = scope.Value;
 
         return (
             resolved.KindLabel,
             resolved.Target.DisplayName);
     }
 
-    private (LinkTargetEntry Target, string KindLabel)? ResolveScope(
+    /// <summary>
+    /// Performs the <c>ResolveScope</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="links">The <c>links</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private (LinkTargetEntry Target, string KindLabel)? ResolveScope(
         string? contextPath,
         LinkIndexCatalog links)
     {
@@ -158,7 +181,7 @@ public sealed class WorkspaceMeetingService
             return null;
         }
 
-        var fullPath = Path.GetFullPath(contextPath);
+        string fullPath = Path.GetFullPath(contextPath);
 
         if (!IsWithinWorkspace(fullPath))
         {
@@ -166,16 +189,16 @@ public sealed class WorkspaceMeetingService
                 "Le contexte de réunion se trouve hors du workspace.");
         }
 
-        var contextDirectory = File.Exists(fullPath)
+        string contextDirectory = File.Exists(fullPath)
             ? Path.GetDirectoryName(fullPath) ?? _workspaceRoot
             : fullPath;
 
-        var relativePath = NormalizeRelativePath(
+        string relativePath = NormalizeRelativePath(
             Path.GetRelativePath(
                 _workspaceRoot,
                 contextDirectory));
 
-        var project = links.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry? project = links.Targets
             .Where(target =>
                 target.Kind == LinkTargetKind.Project &&
                 IsRelativeAncestorOrEqual(
@@ -190,7 +213,7 @@ public sealed class WorkspaceMeetingService
             return (project, "Projet");
         }
 
-        var application = links.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry? application = links.Targets
             .Where(target =>
                 target.Kind == LinkTargetKind.Application &&
                 IsRelativeAncestorOrEqual(
@@ -205,20 +228,27 @@ public sealed class WorkspaceMeetingService
             : (application, "Application");
     }
 
-    private static string InsertScopeMetadata(
+    /// <summary>
+    /// Performs the <c>InsertScopeMetadata</c> operation.
+    /// </summary>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <param name="scopeKind">The <c>scopeKind</c> value.</param>
+    /// <param name="scopeName">The <c>scopeName</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string InsertScopeMetadata(
         string content,
         string scopeKind,
         string scopeName)
     {
-        var normalized = NormalizeNewlines(content);
-        var lines = normalized.Split('\n').ToList();
+        string normalized = NormalizeNewlines(content);
+        global::System.Collections.Generic.List<string> lines = normalized.Split('\n').ToList();
 
-        var dateIndex = lines.FindIndex(line =>
+        int dateIndex = lines.FindIndex(line =>
             line.TrimStart().StartsWith(
                 "**Date :**",
                 StringComparison.CurrentCultureIgnoreCase));
 
-        var metadata = $"**{scopeKind} :** {scopeName}";
+        string metadata = $"**{scopeKind} :** {scopeName}";
 
         if (dateIndex >= 0)
         {
@@ -228,7 +258,7 @@ public sealed class WorkspaceMeetingService
         }
         else
         {
-            var titleIndex = lines.FindIndex(line =>
+            int titleIndex = lines.FindIndex(line =>
                 line.StartsWith(
                     "# ",
                     StringComparison.Ordinal));
@@ -245,16 +275,23 @@ public sealed class WorkspaceMeetingService
             lines);
     }
 
-    private static string ReplaceSection(
+    /// <summary>
+    /// Performs the <c>ReplaceSection</c> operation.
+    /// </summary>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <param name="heading">The <c>heading</c> value.</param>
+    /// <param name="body">The <c>body</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ReplaceSection(
         string content,
         string heading,
         string body)
     {
-        var normalized = NormalizeNewlines(content);
-        var lines = normalized.Split('\n').ToList();
-        var expected = $"## {heading}";
+        string normalized = NormalizeNewlines(content);
+        global::System.Collections.Generic.List<string> lines = normalized.Split('\n').ToList();
+        string expected = $"## {heading}";
 
-        var headingIndex = lines.FindIndex(line =>
+        int headingIndex = lines.FindIndex(line =>
             string.Equals(
                 line.Trim(),
                 expected,
@@ -262,7 +299,7 @@ public sealed class WorkspaceMeetingService
 
         if (headingIndex < 0)
         {
-            var trimmed = normalized.TrimEnd();
+            string trimmed = normalized.TrimEnd();
             return trimmed +
                    "\n\n" +
                    expected +
@@ -271,7 +308,7 @@ public sealed class WorkspaceMeetingService
                    "\n";
         }
 
-        var nextHeading = lines.FindIndex(
+        int nextHeading = lines.FindIndex(
             headingIndex + 1,
             line => line.TrimStart().StartsWith(
                 "## ",
@@ -286,7 +323,7 @@ public sealed class WorkspaceMeetingService
             headingIndex + 1,
             nextHeading - headingIndex - 1);
 
-        var replacement = new List<string>
+        global::System.Collections.Generic.List<string> replacement = new List<string>
         {
             string.Empty
         };
@@ -310,12 +347,17 @@ public sealed class WorkspaceMeetingService
             lines);
     }
 
-    private static string NormalizeBullets(string value)
+    /// <summary>
+    /// Performs the <c>NormalizeBullets</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeBullets(string value)
     {
-        var lines = NormalizeInputLines(value);
-        var result = new List<string>();
+        global::System.Collections.Generic.IReadOnlyList<string> lines = NormalizeInputLines(value);
+        global::System.Collections.Generic.List<string> result = new List<string>();
 
-        foreach (var line in lines)
+        foreach (string line in lines)
         {
             if (line.StartsWith(
                     "- ",
@@ -337,12 +379,17 @@ public sealed class WorkspaceMeetingService
             result);
     }
 
-    private static string NormalizeActions(string value)
+    /// <summary>
+    /// Performs the <c>NormalizeActions</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeActions(string value)
     {
-        var lines = NormalizeInputLines(value);
-        var result = new List<string>();
+        global::System.Collections.Generic.IReadOnlyList<string> lines = NormalizeInputLines(value);
+        global::System.Collections.Generic.List<string> result = new List<string>();
 
-        foreach (var line in lines)
+        foreach (string line in lines)
         {
             if (line.StartsWith(
                     "- [ ] ",
@@ -361,7 +408,7 @@ public sealed class WorkspaceMeetingService
                 continue;
             }
 
-            var action = line;
+            string action = line;
 
             if (action.StartsWith(
                     "- ",
@@ -381,17 +428,32 @@ public sealed class WorkspaceMeetingService
             result);
     }
 
-    private static IReadOnlyList<string> NormalizeInputLines(string value) =>
+    /// <summary>
+    /// Performs the <c>NormalizeInputLines</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static IReadOnlyList<string> NormalizeInputLines(string value) =>
         NormalizeNewlines(value)
             .Split(
                 '\n',
                 StringSplitOptions.TrimEntries |
                 StringSplitOptions.RemoveEmptyEntries);
 
-    private static string NormalizeText(string value) =>
+    /// <summary>
+    /// Performs the <c>NormalizeText</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeText(string value) =>
         NormalizeNewlines(value).Trim();
 
-    private static string NormalizeNewlines(string value) =>
+    /// <summary>
+    /// Performs the <c>NormalizeNewlines</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeNewlines(string value) =>
         (value ?? string.Empty)
             .Replace(
                 "\r\n",
@@ -401,10 +463,20 @@ public sealed class WorkspaceMeetingService
                 '\r',
                 '\n');
 
-    private static string EnsureTrailingNewline(string value) =>
+    /// <summary>
+    /// Performs the <c>EnsureTrailingNewline</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string EnsureTrailingNewline(string value) =>
         NormalizeNewlines(value).TrimEnd() + "\n";
 
-    private string ResolveWorkspacePath(string relativePath) =>
+    /// <summary>
+    /// Performs the <c>ResolveWorkspacePath</c> operation.
+    /// </summary>
+    /// <param name="relativePath">The <c>relativePath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private string ResolveWorkspacePath(string relativePath) =>
         Path.GetFullPath(
             Path.Combine(
                 _workspaceRoot,
@@ -412,9 +484,14 @@ public sealed class WorkspaceMeetingService
                     '/',
                     Path.DirectorySeparatorChar)));
 
-    private bool IsWithinWorkspace(string path)
+    /// <summary>
+    /// Performs the <c>IsWithinWorkspace</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private bool IsWithinWorkspace(string path)
     {
-        var root = _workspaceRoot.TrimEnd(
+        string root = _workspaceRoot.TrimEnd(
             Path.DirectorySeparatorChar,
             Path.AltDirectorySeparatorChar);
 
@@ -427,12 +504,18 @@ public sealed class WorkspaceMeetingService
                    StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsRelativeAncestorOrEqual(
+    /// <summary>
+    /// Performs the <c>IsRelativeAncestorOrEqual</c> operation.
+    /// </summary>
+    /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
+    /// <param name="child">The <c>child</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsRelativeAncestorOrEqual(
         string candidateParent,
         string child)
     {
-        var parent = candidateParent.Trim('/');
-        var descendant = child.Trim('/');
+        string parent = candidateParent.Trim('/');
+        string descendant = child.Trim('/');
 
         return string.Equals(
                    parent,
@@ -443,7 +526,12 @@ public sealed class WorkspaceMeetingService
                    StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string NormalizeRelativePath(string path) =>
+    /// <summary>
+    /// Performs the <c>NormalizeRelativePath</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeRelativePath(string path) =>
         path.Replace(
             Path.DirectorySeparatorChar,
             '/');

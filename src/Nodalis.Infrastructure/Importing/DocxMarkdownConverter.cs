@@ -5,14 +5,19 @@ namespace Nodalis.Infrastructure.Importing;
 
 public static class DocxMarkdownConverter
 {
-    public static string ConvertBlocks(
+    /// <summary>
+    /// Performs the <c>ConvertBlocks</c> operation.
+    /// </summary>
+    /// <param name="blocks">The <c>blocks</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static string ConvertBlocks(
         IReadOnlyList<DocxBlock> blocks)
     {
         ArgumentNullException.ThrowIfNull(blocks);
 
-        var builder = new StringBuilder();
+        global::System.Text.StringBuilder builder = new StringBuilder();
 
-        foreach (var block in blocks)
+        foreach (global::Nodalis.Core.Importing.DocxBlock block in blocks)
         {
             switch (block.Kind)
             {
@@ -36,11 +41,17 @@ public static class DocxMarkdownConverter
             builder.ToString());
     }
 
-    private static void AppendParagraph(
+    /// <summary>
+    /// Performs the <c>AppendParagraph</c> operation.
+    /// </summary>
+    /// <param name="builder">The <c>builder</c> value.</param>
+    /// <param name="paragraph">The <c>paragraph</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void AppendParagraph(
         StringBuilder builder,
         DocxParagraph paragraph)
     {
-        var text = ApplyHyperlinks(
+        string text = ApplyHyperlinks(
             paragraph.Text,
             paragraph.Hyperlinks);
 
@@ -52,7 +63,7 @@ public static class DocxMarkdownConverter
 
         if (paragraph.HeadingLevel is int headingLevel)
         {
-            var level = Math.Clamp(
+            int level = Math.Clamp(
                 headingLevel,
                 1,
                 6);
@@ -70,7 +81,7 @@ public static class DocxMarkdownConverter
 
         if (paragraph.IsListItem)
         {
-            var level = Math.Max(
+            int level = Math.Max(
                 0,
                 paragraph.ListLevel ?? 0);
 
@@ -89,7 +100,13 @@ public static class DocxMarkdownConverter
         builder.AppendLine();
     }
 
-    private static void AppendTable(
+    /// <summary>
+    /// Performs the <c>AppendTable</c> operation.
+    /// </summary>
+    /// <param name="builder">The <c>builder</c> value.</param>
+    /// <param name="table">The <c>table</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void AppendTable(
         StringBuilder builder,
         DocxTable table)
     {
@@ -98,7 +115,7 @@ public static class DocxMarkdownConverter
             return;
         }
 
-        var columnCount = table.Rows.Max(row =>
+        int columnCount = table.Rows.Max(row =>
             row.Cells.Count);
 
         if (columnCount == 0)
@@ -113,7 +130,7 @@ public static class DocxMarkdownConverter
 
         builder.Append('|');
 
-        for (var index = 0;
+        for (int index = 0;
              index < columnCount;
              index++)
         {
@@ -122,7 +139,7 @@ public static class DocxMarkdownConverter
 
         builder.AppendLine();
 
-        foreach (var row in table.Rows.Skip(1))
+        foreach (global::Nodalis.Core.Importing.DocxTableRow row in table.Rows.Skip(1))
         {
             AppendTableRow(
                 builder,
@@ -133,18 +150,25 @@ public static class DocxMarkdownConverter
         builder.AppendLine();
     }
 
-    private static void AppendTableRow(
+    /// <summary>
+    /// Performs the <c>AppendTableRow</c> operation.
+    /// </summary>
+    /// <param name="builder">The <c>builder</c> value.</param>
+    /// <param name="row">The <c>row</c> value.</param>
+    /// <param name="columnCount">The <c>columnCount</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void AppendTableRow(
         StringBuilder builder,
         DocxTableRow row,
         int columnCount)
     {
         builder.Append('|');
 
-        for (var index = 0;
+        for (int index = 0;
              index < columnCount;
              index++)
         {
-            var text = index < row.Cells.Count
+            string text = index < row.Cells.Count
                 ? EscapeTableCell(
                     row.Cells[index].Text)
                 : string.Empty;
@@ -157,13 +181,19 @@ public static class DocxMarkdownConverter
         builder.AppendLine();
     }
 
-    private static string ApplyHyperlinks(
+    /// <summary>
+    /// Performs the <c>ApplyHyperlinks</c> operation.
+    /// </summary>
+    /// <param name="text">The <c>text</c> value.</param>
+    /// <param name="hyperlinks">The <c>hyperlinks</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ApplyHyperlinks(
         string text,
         IReadOnlyList<DocxHyperlink> hyperlinks)
     {
-        var result = text;
+        string result = text;
 
-        foreach (var hyperlink in hyperlinks)
+        foreach (global::Nodalis.Core.Importing.DocxHyperlink hyperlink in hyperlinks)
         {
             if (string.IsNullOrWhiteSpace(hyperlink.Text) ||
                 string.IsNullOrWhiteSpace(hyperlink.Target))
@@ -171,7 +201,7 @@ public static class DocxMarkdownConverter
                 continue;
             }
 
-            var index = result.IndexOf(
+            int index = result.IndexOf(
                 hyperlink.Text,
                 StringComparison.CurrentCulture);
 
@@ -180,7 +210,7 @@ public static class DocxMarkdownConverter
                 continue;
             }
 
-            var replacement =
+            string replacement =
                 $"[{EscapeLinkText(hyperlink.Text)}](<{hyperlink.Target.Trim()}>)";
 
             result =
@@ -192,7 +222,12 @@ public static class DocxMarkdownConverter
         return result;
     }
 
-    private static string EscapeTableCell(string value) =>
+    /// <summary>
+    /// Performs the <c>EscapeTableCell</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string EscapeTableCell(string value) =>
         (value ?? string.Empty)
             .Replace(
                 "\r\n",
@@ -211,7 +246,12 @@ public static class DocxMarkdownConverter
                 StringComparison.Ordinal)
             .Trim();
 
-    private static string EscapeLinkText(string value) =>
+    /// <summary>
+    /// Performs the <c>EscapeLinkText</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string EscapeLinkText(string value) =>
         value
             .Replace(
                 "[",
@@ -222,9 +262,14 @@ public static class DocxMarkdownConverter
                 "\\]",
                 StringComparison.Ordinal);
 
-    private static string NormalizeSpacing(string value)
+    /// <summary>
+    /// Performs the <c>NormalizeSpacing</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeSpacing(string value)
     {
-        var normalized = value
+        string normalized = value
             .Replace(
                 "\r\n",
                 "\n",

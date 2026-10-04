@@ -82,7 +82,14 @@ public partial class MainWindow : Window
     private IReadOnlyList<GlossaryEntry> _glossaryEntries = [];
     private IReadOnlyList<GlossaryTextMatch> _glossaryMatches = [];
 
-    public MainWindow(
+    /// <summary>
+    /// Initializes a new instance of <see cref="MainWindow"/>.
+    /// </summary>
+    /// <param name="root">The <c>root</c> value.</param>
+    /// <param name="preferences">The <c>preferences</c> value.</param>
+    /// <param name="preferencesStore">The <c>preferencesStore</c> value.</param>
+    /// <param name="templateStore">The <c>templateStore</c> value.</param>
+public MainWindow(
         WorkspaceNavigationNode root,
         UserPreferences preferences,
         IUserPreferencesStore preferencesStore,
@@ -168,7 +175,12 @@ public partial class MainWindow : Window
         };
     }
 
-    protected override async void OnClosing(CancelEventArgs e)
+    /// <summary>
+    /// Performs the <c>OnClosing</c> operation.
+    /// </summary>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+protected override async void OnClosing(CancelEventArgs e)
     {
         if (_allowClose)
         {
@@ -226,11 +238,17 @@ public partial class MainWindow : Window
         Close();
     }
 
-    private void NavigationTree_PreviewMouseRightButtonDown(
+    /// <summary>
+    /// Performs the <c>NavigationTree_PreviewMouseRightButtonDown</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void NavigationTree_PreviewMouseRightButtonDown(
         object sender,
         MouseButtonEventArgs e)
     {
-        var item = FindVisualParent<TreeViewItem>(
+        global::System.Windows.Controls.TreeViewItem? item = FindVisualParent<TreeViewItem>(
             e.OriginalSource as DependencyObject);
 
         if (item is not null)
@@ -240,7 +258,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private void NavigationTree_ContextMenuOpening(
+    /// <summary>
+    /// Performs the <c>NavigationTree_ContextMenuOpening</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void NavigationTree_ContextMenuOpening(
         object sender,
         ContextMenuEventArgs e)
     {
@@ -250,13 +274,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        var menu = new ContextMenu();
+        global::System.Windows.Controls.ContextMenu menu = new ContextMenu();
 
         void AddItem(
             string header,
             RoutedEventHandler handler)
         {
-            var item = new MenuItem
+            global::System.Windows.Controls.MenuItem item = new MenuItem
             {
                 Header = header
             };
@@ -330,9 +354,13 @@ public partial class MainWindow : Window
         NavigationTree.ContextMenu = menu;
     }
 
-    private async Task CreateApplicationAsync()
+    /// <summary>
+    /// Performs the <c>CreateApplicationAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task CreateApplicationAsync()
     {
-        var dialog = new TextPromptDialog(
+        global::Nodalis.App.Dialogs.TextPromptDialog dialog = new TextPromptDialog(
             "Nouvelle application",
             "Nom de l'application :")
         {
@@ -346,10 +374,10 @@ public partial class MainWindow : Window
 
         try
         {
-            var service = new ApplicationStructureService(
+            global::Nodalis.Infrastructure.Applications.ApplicationStructureService service = new ApplicationStructureService(
                 _root.FullPath);
 
-            var path = await service.CreateApplicationAsync(
+            string path = await service.CreateApplicationAsync(
                 dialog.Value);
 
             await RefreshNavigationAsync(path);
@@ -366,10 +394,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task CreateModuleAsync(
+    /// <summary>
+    /// Performs the <c>CreateModuleAsync</c> operation.
+    /// </summary>
+    /// <param name="parent">The <c>parent</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task CreateModuleAsync(
         NavigationNodeViewModel parent)
     {
-        var dialog = new TextPromptDialog(
+        global::Nodalis.App.Dialogs.TextPromptDialog dialog = new TextPromptDialog(
             "Nouveau module",
             parent.Kind == WorkspaceNodeKind.Application
                 ? $"Nom du module dans {parent.DisplayName} :"
@@ -395,20 +428,20 @@ public partial class MainWindow : Window
             }
             else
             {
-                var manifestReader = new ApplicationStructureService(
+                global::Nodalis.Infrastructure.Applications.ApplicationStructureService manifestReader = new ApplicationStructureService(
                     _root.FullPath);
 
-                var manifest = await manifestReader.LoadModuleAsync(
+                global::Nodalis.Core.Domain.ModuleManifest manifest = await manifestReader.LoadModuleAsync(
                     parent.FullPath);
 
                 applicationId = manifest.ApplicationId;
                 parentModuleId = manifest.Id;
             }
 
-            var service = new ApplicationStructureService(
+            global::Nodalis.Infrastructure.Applications.ApplicationStructureService service = new ApplicationStructureService(
                 _root.FullPath);
 
-            var path = await service.CreateModuleAsync(
+            string path = await service.CreateModuleAsync(
                 parent.FullPath,
                 applicationId,
                 parentModuleId,
@@ -428,10 +461,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RenameDocumentAsync(
+    /// <summary>
+    /// Performs the <c>RenameDocumentAsync</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task RenameDocumentAsync(
         NavigationNodeViewModel node)
     {
-        var dialog = new TextPromptDialog(
+        global::Nodalis.App.Dialogs.TextPromptDialog dialog = new TextPromptDialog(
             "Renommer le document",
             $"Nouveau nom pour {node.DisplayName} :",
             node.DisplayName)
@@ -456,10 +494,10 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var service = new DocumentStructureService(
+            global::Nodalis.Infrastructure.Documents.DocumentStructureService service = new DocumentStructureService(
                 _root.FullPath);
 
-            var path = await service.RenameAsync(
+            string path = await service.RenameAsync(
                 node.FullPath,
                 dialog.Value);
 
@@ -478,10 +516,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RenameApplicationOrModuleAsync(
+    /// <summary>
+    /// Performs the <c>RenameApplicationOrModuleAsync</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task RenameApplicationOrModuleAsync(
         NavigationNodeViewModel node)
     {
-        var dialog = new TextPromptDialog(
+        global::Nodalis.App.Dialogs.TextPromptDialog dialog = new TextPromptDialog(
             "Renommer",
             $"Nouveau nom pour {node.DisplayName} :",
             node.DisplayName)
@@ -506,10 +549,10 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var service = new ApplicationStructureService(
+            global::Nodalis.Infrastructure.Applications.ApplicationStructureService service = new ApplicationStructureService(
                 _root.FullPath);
 
-            var path = node.Kind == WorkspaceNodeKind.Application
+            string path = node.Kind == WorkspaceNodeKind.Application
                 ? await service.RenameApplicationAsync(
                     node.FullPath,
                     dialog.Value)
@@ -531,19 +574,24 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task MoveModuleAsync(
+    /// <summary>
+    /// Performs the <c>MoveModuleAsync</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task MoveModuleAsync(
         NavigationNodeViewModel node)
     {
         try
         {
-            var service = new ApplicationStructureService(
+            global::Nodalis.Infrastructure.Applications.ApplicationStructureService service = new ApplicationStructureService(
                 _root.FullPath);
 
-            var manifest = await service.LoadModuleAsync(
+            global::Nodalis.Core.Domain.ModuleManifest manifest = await service.LoadModuleAsync(
                 node.FullPath);
 
-            var discovery = new ProjectCreationTargetDiscovery();
-            var targets = (await discovery.DiscoverAsync(
+            global::Nodalis.Infrastructure.Projects.ProjectCreationTargetDiscovery discovery = new ProjectCreationTargetDiscovery();
+            global::Nodalis.Core.Projects.ProjectCreationTarget[] targets = (await discovery.DiscoverAsync(
                     _root.FullPath))
                 .Where(target =>
                     target.ApplicationId == manifest.ApplicationId &&
@@ -565,7 +613,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var dialog = new MoveModuleDialog(targets)
+            global::Nodalis.App.Dialogs.MoveModuleDialog dialog = new MoveModuleDialog(targets)
             {
                 Owner = this
             };
@@ -581,7 +629,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var path = await service.MoveModuleAsync(
+            string path = await service.MoveModuleAsync(
                 node.FullPath,
                 dialog.SelectedTarget.ParentDirectory,
                 dialog.SelectedTarget.ModuleId);
@@ -601,10 +649,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task DeleteApplicationOrModuleAsync(
+    /// <summary>
+    /// Performs the <c>DeleteApplicationOrModuleAsync</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task DeleteApplicationOrModuleAsync(
         NavigationNodeViewModel node)
     {
-        var answer = MessageBox.Show(
+        global::System.Windows.MessageBoxResult answer = MessageBox.Show(
             this,
             $"Supprimer « {node.DisplayName} » ?\n\n" +
             "La suppression sera refusée si l'élément contient des données.",
@@ -625,7 +678,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var service = new ApplicationStructureService(
+            global::Nodalis.Infrastructure.Applications.ApplicationStructureService service = new ApplicationStructureService(
                 _root.FullPath);
 
             if (node.Kind == WorkspaceNodeKind.Application)
@@ -654,7 +707,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowStructureError(
+    /// <summary>
+    /// Performs the <c>ShowStructureError</c> operation.
+    /// </summary>
+    /// <param name="title">The <c>title</c> value.</param>
+    /// <param name="exception">The <c>exception</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void ShowStructureError(
         string title,
         Exception exception)
     {
@@ -666,7 +725,13 @@ public partial class MainWindow : Window
             MessageBoxImage.Error);
     }
 
-    private static T? FindVisualParent<T>(
+    /// <summary>
+    /// Performs the <c>FindVisualParent</c> operation.
+    /// </summary>
+    /// <typeparam name="T">The <c>T</c> type.</typeparam>
+    /// <param name="child">The <c>child</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static T? FindVisualParent<T>(
         DependencyObject? child)
         where T : DependencyObject
     {
@@ -683,7 +748,13 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private async void NavigationTree_SelectedItemChanged(
+    /// <summary>
+    /// Performs the <c>NavigationTree_SelectedItemChanged</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void NavigationTree_SelectedItemChanged(
         object sender,
         RoutedPropertyChangedEventArgs<object> e)
     {
@@ -693,13 +764,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        var previous = _selectedNode;
+        global::Nodalis.App.Navigation.NavigationNodeViewModel? previous = _selectedNode;
 
         if (previous is not null &&
             previous.Kind == WorkspaceNodeKind.Document &&
             !ReferenceEquals(previous, node))
         {
-            var canLeave = await TryCloseCurrentDocumentAsync(
+            bool canLeave = await TryCloseCurrentDocumentAsync(
                 "changer de document");
 
             if (!canLeave)
@@ -715,11 +786,16 @@ public partial class MainWindow : Window
         await DisplayNodeAsync(node);
     }
 
-    private async Task DisplayNodeAsync(NavigationNodeViewModel node)
+    /// <summary>
+    /// Performs the <c>DisplayNodeAsync</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task DisplayNodeAsync(NavigationNodeViewModel node)
     {
         DocumentTitleText.Text = node.DisplayName;
 
-        var relativePath = Path.GetRelativePath(
+        string relativePath = Path.GetRelativePath(
             _root.FullPath,
             node.FullPath);
 
@@ -752,12 +828,17 @@ public partial class MainWindow : Window
         ShowNodeSummary(node);
     }
 
-    private async Task OpenDocumentAsync(
+    /// <summary>
+    /// Performs the <c>OpenDocumentAsync</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task OpenDocumentAsync(
         NavigationNodeViewModel node)
     {
         try
         {
-            var session = await TextDocumentSession.OpenAsync(
+            global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
                 node.FullPath);
 
             _documentSession = session;
@@ -819,7 +900,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowNodeSummary(
+    /// <summary>
+    /// Performs the <c>ShowNodeSummary</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void ShowNodeSummary(
         NavigationNodeViewModel node)
     {
         _documentSession = null;
@@ -846,7 +932,12 @@ public partial class MainWindow : Window
             $"{GetKindLabel(node.Kind)} · {node.Children.Count} élément(s)";
     }
 
-    private async Task<bool> TryCloseCurrentDocumentAsync(
+    /// <summary>
+    /// Performs the <c>TryCloseCurrentDocumentAsync</c> operation.
+    /// </summary>
+    /// <param name="actionDescription">The <c>actionDescription</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task<bool> TryCloseCurrentDocumentAsync(
         string actionDescription)
     {
         if (_autosave is null)
@@ -858,7 +949,7 @@ public partial class MainWindow : Window
 
         if (_documentDirty)
         {
-            var answer = MessageBox.Show(
+            global::System.Windows.MessageBoxResult answer = MessageBox.Show(
                 this,
                 "Les dernières modifications n'ont pas pu être enregistrées " +
                 "(le fichier a peut-être été modifié ailleurs ou est verrouillé).\n\n" +
@@ -883,7 +974,13 @@ public partial class MainWindow : Window
         return true;
     }
 
-    private void MarkdownEditorTextBox_TextChanged(
+    /// <summary>
+    /// Performs the <c>MarkdownEditorTextBox_TextChanged</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void MarkdownEditorTextBox_TextChanged(
         object sender,
         System.Windows.Controls.TextChangedEventArgs e)
     {
@@ -908,7 +1005,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private void PreviewTimer_Tick(
+    /// <summary>
+    /// Performs the <c>PreviewTimer_Tick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void PreviewTimer_Tick(
         object? sender,
         EventArgs e)
     {
@@ -917,7 +1020,11 @@ public partial class MainWindow : Window
         UpdateGlossaryAnnotations();
     }
 
-    private void RenderPreview()
+    /// <summary>
+    /// Performs the <c>RenderPreview</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void RenderPreview()
     {
         if (!_previewVisible ||
             _selectedNode?.Kind != WorkspaceNodeKind.Document)
@@ -925,7 +1032,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var baseDirectory = Path.GetDirectoryName(
+        string? baseDirectory = Path.GetDirectoryName(
             _selectedNode.FullPath);
 
         MarkdownPreview.Document =
@@ -936,7 +1043,13 @@ public partial class MainWindow : Window
                 OnMarkdownLinkClicked);
     }
 
-    private void Autosave_Saved(
+    /// <summary>
+    /// Performs the <c>Autosave_Saved</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Autosave_Saved(
         object? sender,
         EventArgs e)
     {
@@ -983,7 +1096,13 @@ public partial class MainWindow : Window
         });
     }
 
-    private void Autosave_ConflictDetected(
+    /// <summary>
+    /// Performs the <c>Autosave_ConflictDetected</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Autosave_ConflictDetected(
         object? sender,
         AutosaveConflictEventArgs e)
     {
@@ -1013,7 +1132,13 @@ public partial class MainWindow : Window
         });
     }
 
-    private void Autosave_SaveFailed(
+    /// <summary>
+    /// Performs the <c>Autosave_SaveFailed</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Autosave_SaveFailed(
         object? sender,
         AutosaveFailureEventArgs e)
     {
@@ -1025,56 +1150,104 @@ public partial class MainWindow : Window
         });
     }
 
-    private async void NewNote_Click(
+    /// <summary>
+    /// Performs the <c>NewNote_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void NewNote_Click(
         object sender,
         RoutedEventArgs e)
     {
         await CreateNoteAsync();
     }
 
-    private async void NewProject_Click(
+    /// <summary>
+    /// Performs the <c>NewProject_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void NewProject_Click(
         object sender,
         RoutedEventArgs e)
     {
         await CreateProjectAsync();
     }
 
-    private async void CaptureQuickNote_Click(
+    /// <summary>
+    /// Performs the <c>CaptureQuickNote_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void CaptureQuickNote_Click(
         object sender,
         RoutedEventArgs e)
     {
         await CaptureQuickNoteAsync();
     }
 
-    private async void ShowQuickNotes_Click(
+    /// <summary>
+    /// Performs the <c>ShowQuickNotes_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void ShowQuickNotes_Click(
         object sender,
         RoutedEventArgs e)
     {
         await ShowQuickNotesAsync();
     }
 
-    private async void CommandPalette_Click(
+    /// <summary>
+    /// Performs the <c>CommandPalette_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void CommandPalette_Click(
         object sender,
         RoutedEventArgs e)
     {
         await ShowCommandPaletteAsync();
     }
 
-    private async void AttachFile_Click(
+    /// <summary>
+    /// Performs the <c>AttachFile_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void AttachFile_Click(
         object sender,
         RoutedEventArgs e)
     {
         await AttachFileAsync();
     }
 
-    private async void ImportDocx_Click(
+    /// <summary>
+    /// Performs the <c>ImportDocx_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void ImportDocx_Click(
         object sender,
         RoutedEventArgs e)
     {
         await ImportDocxAsync();
     }
 
-    private async void ShowAllTasks_Click(
+    /// <summary>
+    /// Performs the <c>ShowAllTasks_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void ShowAllTasks_Click(
         object sender,
         RoutedEventArgs e)
     {
@@ -1082,7 +1255,13 @@ public partial class MainWindow : Window
             global: true);
     }
 
-    private async void MainWindow_PreviewKeyDown(
+    /// <summary>
+    /// Performs the <c>MainWindow_PreviewKeyDown</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void MainWindow_PreviewKeyDown(
         object sender,
         KeyEventArgs e)
     {
@@ -1215,12 +1394,16 @@ public partial class MainWindow : Window
             _documentSession is not null)
         {
             e.Handled = true;
-            var marker = ((char)96).ToString();
+            string marker = ((char)96).ToString();
             WrapSelection(marker, marker);
         }
     }
 
-    private async Task SaveCurrentDocumentAsync()
+    /// <summary>
+    /// Performs the <c>SaveCurrentDocumentAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task SaveCurrentDocumentAsync()
     {
         if (_autosave is null)
         {
@@ -1235,25 +1418,49 @@ public partial class MainWindow : Window
                 : "Enregistré";
     }
 
-    private void Bold_Click(
+    /// <summary>
+    /// Performs the <c>Bold_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Bold_Click(
         object sender,
         RoutedEventArgs e) =>
         WrapSelection("**", "**");
 
-    private void Italic_Click(
+    /// <summary>
+    /// Performs the <c>Italic_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Italic_Click(
         object sender,
         RoutedEventArgs e) =>
         WrapSelection("*", "*");
 
-    private void InlineCode_Click(
+    /// <summary>
+    /// Performs the <c>InlineCode_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void InlineCode_Click(
         object sender,
         RoutedEventArgs e)
     {
-        var marker = ((char)96).ToString();
+        string marker = ((char)96).ToString();
         WrapSelection(marker, marker);
     }
 
-    private void WrapSelection(
+    /// <summary>
+    /// Performs the <c>WrapSelection</c> operation.
+    /// </summary>
+    /// <param name="prefix">The <c>prefix</c> value.</param>
+    /// <param name="suffix">The <c>suffix</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void WrapSelection(
         string prefix,
         string suffix)
     {
@@ -1284,7 +1491,13 @@ public partial class MainWindow : Window
         MarkdownEditorTextBox.Focus();
     }
 
-    private void TogglePreview_Click(
+    /// <summary>
+    /// Performs the <c>TogglePreview_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void TogglePreview_Click(
         object sender,
         RoutedEventArgs e)
     {
@@ -1297,7 +1510,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ApplyPreviewState()
+    /// <summary>
+    /// Performs the <c>ApplyPreviewState</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void ApplyPreviewState()
     {
         if (_previewVisible)
         {
@@ -1316,14 +1533,19 @@ public partial class MainWindow : Window
         PreviewSplitter.Visibility = Visibility.Collapsed;
     }
 
-    private async void OnInternalLinkClicked(string target)
+    /// <summary>
+    /// Performs the <c>OnInternalLinkClicked</c> operation.
+    /// </summary>
+    /// <param name="target">The <c>target</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void OnInternalLinkClicked(string target)
     {
         if (_linkIndex.Targets.Count == 0)
         {
             await RefreshLinkIndexAsync();
         }
 
-        var resolution = WorkspaceLinkIndexService.Resolve(
+        global::Nodalis.Core.Links.LinkResolution resolution = WorkspaceLinkIndexService.Resolve(
             _linkIndex,
             target);
 
@@ -1340,7 +1562,11 @@ public partial class MainWindow : Window
                 : $"Lien interne ambigu : {target} ({resolution.Candidates.Count} cibles)";
     }
 
-    private void ShowDashboard()
+    /// <summary>
+    /// Performs the <c>ShowDashboard</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void ShowDashboard()
     {
         _documentSession = null;
         _autosave = null;
@@ -1367,7 +1593,11 @@ public partial class MainWindow : Window
             "Accueil · favoris et éléments récents locaux";
     }
 
-    private void RefreshDashboard()
+    /// <summary>
+    /// Performs the <c>RefreshDashboard</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void RefreshDashboard()
     {
         FavoritesList.ItemsSource = _preferences.Favorites
             .Select(reference =>
@@ -1378,7 +1608,7 @@ public partial class MainWindow : Window
             .Cast<DashboardItemViewModel>()
             .ToArray();
 
-        var recent = _preferences.RecentItems
+        global::Nodalis.App.Dashboard.DashboardItemViewModel[] recent = _preferences.RecentItems
             .OrderByDescending(item => item.LastOpenedUtc)
             .Select(item =>
                 CreateDashboardItem(
@@ -1397,7 +1627,7 @@ public partial class MainWindow : Window
             .Take(10)
             .ToArray();
 
-        var recentDocuments = recent
+        global::Nodalis.App.Dashboard.DashboardItemViewModel[] recentDocuments = recent
             .Where(item =>
                 string.Equals(
                     item.KindLabel,
@@ -1415,18 +1645,24 @@ public partial class MainWindow : Window
             .ToArray();
     }
 
-    private DashboardItemViewModel? CreateDashboardItem(
+    /// <summary>
+    /// Performs the <c>CreateDashboardItem</c> operation.
+    /// </summary>
+    /// <param name="reference">The <c>reference</c> value.</param>
+    /// <param name="lastOpenedUtc">The <c>lastOpenedUtc</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private DashboardItemViewModel? CreateDashboardItem(
         UserItemReference reference,
         DateTimeOffset? lastOpenedUtc)
     {
         if (!Guid.TryParse(
                 reference.Key,
-                out var targetId))
+                out global::System.Guid targetId))
         {
             return null;
         }
 
-        var target = _linkIndex.Targets.FirstOrDefault(candidate =>
+        global::Nodalis.Core.Links.LinkTargetEntry? target = _linkIndex.Targets.FirstOrDefault(candidate =>
             candidate.Id == targetId);
 
         if (target is null)
@@ -1455,7 +1691,12 @@ public partial class MainWindow : Window
         };
     }
 
-    private static string ToDashboardKindLabel(
+    /// <summary>
+    /// Performs the <c>ToDashboardKindLabel</c> operation.
+    /// </summary>
+    /// <param name="kind">The <c>kind</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ToDashboardKindLabel(
         string kind) =>
         kind.Equals(
             "project",
@@ -1473,7 +1714,12 @@ public partial class MainWindow : Window
                 ? "Document"
                 : kind;
 
-    private static bool IsMeetingDashboardItem(
+    /// <summary>
+    /// Performs the <c>IsMeetingDashboardItem</c> operation.
+    /// </summary>
+    /// <param name="item">The <c>item</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsMeetingDashboardItem(
         DashboardItemViewModel item) =>
         item.Context?.Contains(
             "Réunions",
@@ -1488,7 +1734,13 @@ public partial class MainWindow : Window
             "Reunion",
             StringComparison.CurrentCultureIgnoreCase);
 
-    private async void DashboardList_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>DashboardList_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void DashboardList_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e)
     {
@@ -1498,7 +1750,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var target = _linkIndex.Targets.FirstOrDefault(candidate =>
+        global::Nodalis.Core.Links.LinkTargetEntry? target = _linkIndex.Targets.FirstOrDefault(candidate =>
             candidate.Id == item.TargetId);
 
         if (target is null)
@@ -1512,10 +1764,15 @@ public partial class MainWindow : Window
             target);
     }
 
-    private bool IsFavorite(
+    /// <summary>
+    /// Performs the <c>IsFavorite</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private bool IsFavorite(
         NavigationNodeViewModel node)
     {
-        var target = FindIndexedTarget(
+        global::Nodalis.Core.Links.LinkTargetEntry? target = FindIndexedTarget(
             node);
 
         return target is not null &&
@@ -1526,7 +1783,12 @@ public partial class MainWindow : Window
                        StringComparison.OrdinalIgnoreCase));
     }
 
-    private async Task ToggleFavoriteAsync(
+    /// <summary>
+    /// Performs the <c>ToggleFavoriteAsync</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task ToggleFavoriteAsync(
         NavigationNodeViewModel node)
     {
         if (_linkIndex.Targets.Count == 0)
@@ -1534,7 +1796,7 @@ public partial class MainWindow : Window
             await RefreshLinkIndexAsync();
         }
 
-        var target = FindIndexedTarget(
+        global::Nodalis.Core.Links.LinkTargetEntry? target = FindIndexedTarget(
             node);
 
         if (target is null)
@@ -1551,9 +1813,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        var key = target.Id.ToString("D");
+        string key = target.Id.ToString("D");
 
-        var favorites = _preferences.Favorites
+        global::System.Collections.Generic.List<global::Nodalis.Core.Settings.UserItemReference> favorites = _preferences.Favorites
             .Where(reference =>
                 !string.Equals(
                     reference.Key,
@@ -1561,7 +1823,7 @@ public partial class MainWindow : Window
                     StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        var removed =
+        bool removed =
             favorites.Count !=
             _preferences.Favorites.Count;
 
@@ -1587,7 +1849,12 @@ public partial class MainWindow : Window
             : $"Ajouté aux favoris · {target.DisplayName}";
     }
 
-    private async Task TrackRecentContextAsync(
+    /// <summary>
+    /// Performs the <c>TrackRecentContextAsync</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task TrackRecentContextAsync(
         NavigationNodeViewModel node)
     {
         if (_linkIndex.Targets.Count == 0)
@@ -1595,9 +1862,9 @@ public partial class MainWindow : Window
             await RefreshLinkIndexAsync();
         }
 
-        var targets = new List<LinkTargetEntry>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkTargetEntry> targets = new List<LinkTargetEntry>();
 
-        var primary = FindIndexedTarget(
+        global::Nodalis.Core.Links.LinkTargetEntry? primary = FindIndexedTarget(
             node);
 
         if (primary is not null &&
@@ -1611,7 +1878,7 @@ public partial class MainWindow : Window
 
         if (primary?.Kind == LinkTargetKind.Document)
         {
-            var parentProject = _linkIndex.Targets
+            global::Nodalis.Core.Links.LinkTargetEntry? parentProject = _linkIndex.Targets
                 .Where(candidate =>
                     candidate.Kind == LinkTargetKind.Project &&
                     IsRelativeAncestor(
@@ -1633,15 +1900,15 @@ public partial class MainWindow : Window
             return;
         }
 
-        var recent = _preferences.RecentItems
+        global::System.Collections.Generic.List<global::Nodalis.Core.Settings.RecentItemReference> recent = _preferences.RecentItems
             .ToList();
 
-        var now = DateTimeOffset.UtcNow;
+        global::System.DateTimeOffset now = DateTimeOffset.UtcNow;
 
-        foreach (var target in targets
+        foreach (global::Nodalis.Core.Links.LinkTargetEntry target in targets
                      .DistinctBy(target => target.Id))
         {
-            var key = target.Id.ToString("D");
+            string key = target.Id.ToString("D");
 
             recent.RemoveAll(item =>
                 string.Equals(
@@ -1675,7 +1942,12 @@ public partial class MainWindow : Window
         RefreshDashboard();
     }
 
-    private LinkTargetEntry? FindIndexedTarget(
+    /// <summary>
+    /// Performs the <c>FindIndexedTarget</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private LinkTargetEntry? FindIndexedTarget(
         NavigationNodeViewModel node)
     {
         if (node.Kind is
@@ -1692,7 +1964,7 @@ public partial class MainWindow : Window
             return null;
         }
 
-        var relativePath = Path.GetRelativePath(
+        string relativePath = Path.GetRelativePath(
                 _root.FullPath,
                 node.FullPath)
             .Replace(
@@ -1707,7 +1979,12 @@ public partial class MainWindow : Window
                 StringComparison.OrdinalIgnoreCase));
     }
 
-    private static UserItemReference CreateUserItemReference(
+    /// <summary>
+    /// Performs the <c>CreateUserItemReference</c> operation.
+    /// </summary>
+    /// <param name="target">The <c>target</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static UserItemReference CreateUserItemReference(
         LinkTargetEntry target) =>
         new()
         {
@@ -1718,11 +1995,17 @@ public partial class MainWindow : Window
             DisplayName = target.DisplayName
         };
 
-    private static bool IsRelativeAncestor(
+    /// <summary>
+    /// Performs the <c>IsRelativeAncestor</c> operation.
+    /// </summary>
+    /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
+    /// <param name="child">The <c>child</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsRelativeAncestor(
         string candidateParent,
         string child)
     {
-        var parent = candidateParent
+        string parent = candidateParent
             .TrimEnd('/') + "/";
 
         return child.StartsWith(
@@ -1730,13 +2013,21 @@ public partial class MainWindow : Window
             StringComparison.OrdinalIgnoreCase);
     }
 
-    private async Task RefreshLinkIndexAsync()
+    /// <summary>
+    /// Performs the <c>RefreshLinkIndexAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task RefreshLinkIndexAsync()
     {
         _linkIndex = await _linkIndexService.RefreshAsync();
         RefreshDashboard();
     }
 
-    private async Task RefreshLinkIndexAndContextAsync()
+    /// <summary>
+    /// Performs the <c>RefreshLinkIndexAndContextAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task RefreshLinkIndexAndContextAsync()
     {
         await RefreshLinkIndexAsync();
 
@@ -1748,16 +2039,21 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UpdateLinkContext(string documentPath)
+    /// <summary>
+    /// Performs the <c>UpdateLinkContext</c> operation.
+    /// </summary>
+    /// <param name="documentPath">The <c>documentPath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void UpdateLinkContext(string documentPath)
     {
-        var relativePath = Path.GetRelativePath(
+        string relativePath = Path.GetRelativePath(
                 _root.FullPath,
                 Path.GetFullPath(documentPath))
             .Replace(
                 Path.DirectorySeparatorChar,
                 '/');
 
-        var target = _linkIndex.Targets.FirstOrDefault(candidate =>
+        global::Nodalis.Core.Links.LinkTargetEntry? target = _linkIndex.Targets.FirstOrDefault(candidate =>
             candidate.Kind == LinkTargetKind.Document &&
             string.Equals(
                 candidate.RelativePath,
@@ -1772,12 +2068,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        var backlinks = _linkIndex.References
+        global::Nodalis.Core.Links.BacklinkEntry[] backlinks = _linkIndex.References
             .Where(reference =>
                 reference.TargetId == target.Id)
             .Select(reference =>
             {
-                var source = _linkIndex.Targets.FirstOrDefault(candidate =>
+                global::Nodalis.Core.Links.LinkTargetEntry? source = _linkIndex.Targets.FirstOrDefault(candidate =>
                     candidate.Id == reference.SourceId);
 
                 return source is null
@@ -1800,37 +2096,43 @@ public partial class MainWindow : Window
 
         BacklinksList.ItemsSource = backlinks;
 
-        var unresolved = _linkIndex.References
+        global::Nodalis.Core.Links.LinkReferenceEntry[] unresolved = _linkIndex.References
             .Where(reference =>
                 reference.SourceId == target.Id &&
                 reference.TargetId is null)
             .ToArray();
 
-        var missing = unresolved.Count(reference =>
+        int missing = unresolved.Count(reference =>
             WorkspaceLinkIndexService.Resolve(
                 _linkIndex,
                 reference.RawTarget).Status ==
             LinkResolutionStatus.Missing);
 
-        var ambiguous = unresolved.Length - missing;
+        int ambiguous = unresolved.Length - missing;
 
         ContextBrokenLinksText.Text =
             $"Liens internes : {backlinks.Length} backlink(s) · " +
             $"{missing} cassé(s) · {ambiguous} ambigu(s)";
     }
 
-    private async Task NavigateToLinkTargetAsync(
+    /// <summary>
+    /// Performs the <c>NavigateToLinkTargetAsync</c> operation.
+    /// </summary>
+    /// <param name="target">The <c>target</c> value.</param>
+    /// <param name="lineNumber">The <c>lineNumber</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task NavigateToLinkTargetAsync(
         LinkTargetEntry target,
         int? lineNumber = null)
     {
-        var fullPath = Path.GetFullPath(
+        string fullPath = Path.GetFullPath(
             Path.Combine(
                 _root.FullPath,
                 target.RelativePath.Replace(
                     '/',
                     Path.DirectorySeparatorChar)));
 
-        var node = FindAndExpand(
+        global::Nodalis.App.Navigation.NavigationNodeViewModel? node = FindAndExpand(
             _root,
             fullPath);
 
@@ -1874,7 +2176,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task OpenInternalLinkPickerAsync()
+    /// <summary>
+    /// Performs the <c>OpenInternalLinkPickerAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task OpenInternalLinkPickerAsync()
     {
         if (_documentSession is null)
         {
@@ -1899,13 +2205,17 @@ public partial class MainWindow : Window
                 : alias);
     }
 
-    private async Task RefreshInternalLinkSuggestionsAsync()
+    /// <summary>
+    /// Performs the <c>RefreshInternalLinkSuggestionsAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task RefreshInternalLinkSuggestionsAsync()
     {
         if (_documentSession is null ||
             !TryGetOpenInternalLinkToken(
-                out var start,
-                out var length,
-                out var query))
+                out int start,
+                out int length,
+                out string? query))
         {
             InternalLinkPopup.IsOpen = false;
             return;
@@ -1918,7 +2228,15 @@ public partial class MainWindow : Window
             alias: null);
     }
 
-    private async Task OpenInternalLinkSuggestionsAsync(
+    /// <summary>
+    /// Performs the <c>OpenInternalLinkSuggestionsAsync</c> operation.
+    /// </summary>
+    /// <param name="query">The <c>query</c> value.</param>
+    /// <param name="start">The <c>start</c> value.</param>
+    /// <param name="length">The <c>length</c> value.</param>
+    /// <param name="alias">The <c>alias</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task OpenInternalLinkSuggestionsAsync(
         string query,
         int start,
         int length,
@@ -1929,9 +2247,9 @@ public partial class MainWindow : Window
             await RefreshLinkIndexAsync();
         }
 
-        var normalized = query.Trim();
+        string normalized = query.Trim();
 
-        var suggestions = _linkIndex.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry[] suggestions = _linkIndex.Targets
             .Where(target =>
                 string.IsNullOrWhiteSpace(normalized) ||
                 target.DisplayName.Contains(
@@ -1979,7 +2297,14 @@ public partial class MainWindow : Window
         InternalLinkPopup.IsOpen = true;
     }
 
-    private bool TryGetOpenInternalLinkToken(
+    /// <summary>
+    /// Performs the <c>TryGetOpenInternalLinkToken</c> operation.
+    /// </summary>
+    /// <param name="start">The <c>start</c> value.</param>
+    /// <param name="length">The <c>length</c> value.</param>
+    /// <param name="query">The <c>query</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private bool TryGetOpenInternalLinkToken(
         out int start,
         out int length,
         out string query)
@@ -1998,7 +2323,7 @@ public partial class MainWindow : Window
         }
 
         var beforeCaret = text[..caret];
-        var open = beforeCaret.LastIndexOf(
+        int open = beforeCaret.LastIndexOf(
             "[[",
             StringComparison.Ordinal);
 
@@ -2007,7 +2332,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var close = beforeCaret.LastIndexOf(
+        int close = beforeCaret.LastIndexOf(
             "]]",
             StringComparison.Ordinal);
 
@@ -2031,7 +2356,12 @@ public partial class MainWindow : Window
         return true;
     }
 
-    private void MoveInternalLinkSelection(int delta)
+    /// <summary>
+    /// Performs the <c>MoveInternalLinkSelection</c> operation.
+    /// </summary>
+    /// <param name="delta">The <c>delta</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void MoveInternalLinkSelection(int delta)
     {
         if (InternalLinkSuggestions.Items.Count == 0)
         {
@@ -2049,24 +2379,28 @@ public partial class MainWindow : Window
             InternalLinkSuggestions.SelectedItem);
     }
 
-    private void CompleteInternalLinkSuggestion()
+    /// <summary>
+    /// Performs the <c>CompleteInternalLinkSuggestion</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void CompleteInternalLinkSuggestion()
     {
         if (InternalLinkSuggestions.SelectedItem is not LinkTargetEntry target)
         {
             return;
         }
 
-        var duplicateDisplayNames = _linkIndex.Targets.Count(candidate =>
+        int duplicateDisplayNames = _linkIndex.Targets.Count(candidate =>
             string.Equals(
                 candidate.DisplayName,
                 target.DisplayName,
                 StringComparison.CurrentCultureIgnoreCase));
 
-        var linkTarget = duplicateDisplayNames == 1
+        string linkTarget = duplicateDisplayNames == 1
             ? target.DisplayName
             : target.QualifiedName;
 
-        var syntax = string.IsNullOrWhiteSpace(_linkSuggestionAlias)
+        string syntax = string.IsNullOrWhiteSpace(_linkSuggestionAlias)
             ? $"[[{linkTarget}]]"
             : $"[[{linkTarget}|{_linkSuggestionAlias.Trim()}]]";
 
@@ -2091,12 +2425,24 @@ public partial class MainWindow : Window
         MarkdownEditorTextBox.Focus();
     }
 
-    private void InternalLinkSuggestions_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>InternalLinkSuggestions_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void InternalLinkSuggestions_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e) =>
         CompleteInternalLinkSuggestion();
 
-    private async void BacklinksList_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>BacklinksList_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void BacklinksList_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e)
     {
@@ -2110,27 +2456,32 @@ public partial class MainWindow : Window
             backlink.LineNumber);
     }
 
-    private async void OnMarkdownLinkClicked(string target)
+    /// <summary>
+    /// Performs the <c>OnMarkdownLinkClicked</c> operation.
+    /// </summary>
+    /// <param name="target">The <c>target</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void OnMarkdownLinkClicked(string target)
     {
         if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
         {
-            var baseDirectory = Path.GetDirectoryName(
+            string? baseDirectory = Path.GetDirectoryName(
                 _selectedNode.FullPath);
 
             if (!string.IsNullOrWhiteSpace(baseDirectory) &&
                 !Uri.TryCreate(
                     target,
                     UriKind.Absolute,
-                    out var absoluteUri))
+                    out global::System.Uri? absoluteUri))
             {
-                var localPath = Path.GetFullPath(
+                string localPath = Path.GetFullPath(
                     Path.Combine(
                         baseDirectory,
                         target.Replace(
                             '/',
                             Path.DirectorySeparatorChar)));
 
-                var match = _root
+                global::Nodalis.App.Navigation.NavigationNodeViewModel? match = _root
                     .DescendantsAndSelf()
                     .FirstOrDefault(node =>
                         string.Equals(
@@ -2162,7 +2513,7 @@ public partial class MainWindow : Window
             if (Uri.TryCreate(
                     target,
                     UriKind.Absolute,
-                    out var uri) &&
+                    out global::System.Uri? uri) &&
                 !uri.IsFile)
             {
                 CopyExternalTargetToClipboard(
@@ -2170,10 +2521,10 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var attachmentService = new AttachmentService(
+            global::Nodalis.Infrastructure.Attachments.AttachmentService attachmentService = new AttachmentService(
                 _root.FullPath);
 
-            var reference = attachmentService.Resolve(
+            global::Nodalis.Core.Attachments.AttachmentReference reference = attachmentService.Resolve(
                 target,
                 _selectedNode.FullPath);
 
@@ -2221,7 +2572,12 @@ public partial class MainWindow : Window
             target);
     }
 
-    private void CopyExternalTargetToClipboard(
+    /// <summary>
+    /// Performs the <c>CopyExternalTargetToClipboard</c> operation.
+    /// </summary>
+    /// <param name="target">The <c>target</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void CopyExternalTargetToClipboard(
         string target)
     {
         try
@@ -2236,9 +2592,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task SearchAsync()
+    /// <summary>
+    /// Performs the <c>SearchAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task SearchAsync()
     {
-        var dialog = new SearchDialog(
+        global::Nodalis.App.Dialogs.SearchDialog dialog = new SearchDialog(
             _root.FullPath,
             _selectedNode?.FullPath)
         {
@@ -2251,7 +2611,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var target = _root
+        global::Nodalis.App.Navigation.NavigationNodeViewModel? target = _root
             .DescendantsAndSelf()
             .FirstOrDefault(node =>
                 node.Kind == WorkspaceNodeKind.Document &&
@@ -2289,7 +2649,12 @@ public partial class MainWindow : Window
             $"Résultat · {target.DisplayName} · ligne {dialog.SelectedResult.LineNumber}";
     }
 
-    private void MoveCaretToLine(int lineNumber)
+    /// <summary>
+    /// Performs the <c>MoveCaretToLine</c> operation.
+    /// </summary>
+    /// <param name="lineNumber">The <c>lineNumber</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void MoveCaretToLine(int lineNumber)
     {
         if (_documentSession is null ||
             lineNumber <= 1)
@@ -2299,8 +2664,8 @@ public partial class MainWindow : Window
         }
 
         var text = MarkdownEditorTextBox.Text;
-        var currentLine = 1;
-        var index = 0;
+        int currentLine = 1;
+        int index = 0;
 
         while (index < text.Length &&
                currentLine < lineNumber)
@@ -2320,11 +2685,15 @@ public partial class MainWindow : Window
             Math.Max(0, lineNumber - 1));
     }
 
-    private async Task ShowCommandPaletteAsync()
+    /// <summary>
+    /// Performs the <c>ShowCommandPaletteAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task ShowCommandPaletteAsync()
     {
-        var commands = BuildPaletteCommands();
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.App.Commands.PaletteCommand> commands = BuildPaletteCommands();
 
-        var dialog = new CommandPaletteDialog(commands)
+        global::Nodalis.App.Dialogs.CommandPaletteDialog dialog = new CommandPaletteDialog(commands)
         {
             Owner = this
         };
@@ -2338,9 +2707,13 @@ public partial class MainWindow : Window
         await dialog.SelectedCommand.ExecuteAsync();
     }
 
-    private async Task ShowPreferencesAsync()
+    /// <summary>
+    /// Performs the <c>ShowPreferencesAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task ShowPreferencesAsync()
     {
-        var dialog = new PreferencesDialog(
+        global::Nodalis.App.Dialogs.PreferencesDialog dialog = new PreferencesDialog(
             _preferences.Editor,
             _contextPanelOpen)
         {
@@ -2353,8 +2726,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        var editor = dialog.Editor;
-        var autosaveDelayChanged =
+        global::Nodalis.Core.Settings.EditorPreferences editor = dialog.Editor;
+        bool autosaveDelayChanged =
             editor.AutosaveDelayMilliseconds !=
             _preferences.Editor.AutosaveDelayMilliseconds;
 
@@ -2414,9 +2787,13 @@ public partial class MainWindow : Window
             "Préférences enregistrées localement";
     }
 
-    private IReadOnlyList<PaletteCommand> BuildPaletteCommands()
+    /// <summary>
+    /// Performs the <c>BuildPaletteCommands</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private IReadOnlyList<PaletteCommand> BuildPaletteCommands()
     {
-        var commands = new List<PaletteCommand>
+        global::System.Collections.Generic.List<global::Nodalis.App.Commands.PaletteCommand> commands = new List<PaletteCommand>
         {
             new()
             {
@@ -2548,7 +2925,7 @@ public partial class MainWindow : Window
             }
         };
 
-        foreach (var node in _root
+        foreach (global::Nodalis.App.Navigation.NavigationNodeViewModel node in _root
                      .DescendantsAndSelf()
                      .Where(node => node.Kind is
                          WorkspaceNodeKind.Application or
@@ -2556,7 +2933,7 @@ public partial class MainWindow : Window
                          WorkspaceNodeKind.Project or
                          WorkspaceNodeKind.Document))
         {
-            var capturedNode = node;
+            global::Nodalis.App.Navigation.NavigationNodeViewModel capturedNode = node;
             commands.Add(new PaletteCommand
             {
                 Id = $"open:{capturedNode.Id:D}",
@@ -2579,14 +2956,18 @@ public partial class MainWindow : Window
         return commands;
     }
 
-    private void AttachGlossaryAdorner()
+    /// <summary>
+    /// Performs the <c>AttachGlossaryAdorner</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void AttachGlossaryAdorner()
     {
         if (_glossaryAdorner is not null)
         {
             return;
         }
 
-        var layer = AdornerLayer.GetAdornerLayer(
+        global::System.Windows.Documents.AdornerLayer layer = AdornerLayer.GetAdornerLayer(
             MarkdownEditorTextBox);
 
         if (layer is null)
@@ -2601,16 +2982,21 @@ public partial class MainWindow : Window
             _glossaryAdorner);
     }
 
-    private async Task RefreshGlossaryContextAsync(
+    /// <summary>
+    /// Performs the <c>RefreshGlossaryContextAsync</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task RefreshGlossaryContextAsync(
         string? contextPath)
     {
         _glossaryScopes = await _glossaryService.ResolveScopesAsync(
             _root.FullPath,
             contextPath);
 
-        var entries = new List<GlossaryEntry>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryEntry> entries = new List<GlossaryEntry>();
 
-        foreach (var scope in _glossaryScopes)
+        foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in _glossaryScopes)
         {
             entries.AddRange(
                 await _glossaryService.LoadEntriesAsync(
@@ -2620,7 +3006,11 @@ public partial class MainWindow : Window
         _glossaryEntries = entries;
     }
 
-    private void UpdateGlossaryAnnotations()
+    /// <summary>
+    /// Performs the <c>UpdateGlossaryAnnotations</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void UpdateGlossaryAnnotations()
     {
         if (_documentSession is null ||
             _glossaryAdorner is null)
@@ -2638,11 +3028,17 @@ public partial class MainWindow : Window
             _glossaryMatches);
     }
 
-    private void MarkdownEditorTextBox_PreviewMouseMove(
+    /// <summary>
+    /// Performs the <c>MarkdownEditorTextBox_PreviewMouseMove</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void MarkdownEditorTextBox_PreviewMouseMove(
         object sender,
         MouseEventArgs e)
     {
-        var match = FindGlossaryMatchAtPoint(
+        global::Nodalis.Core.Glossary.GlossaryTextMatch match = FindGlossaryMatchAtPoint(
             e.GetPosition(MarkdownEditorTextBox));
 
         MarkdownEditorTextBox.ToolTip =
@@ -2651,11 +3047,17 @@ public partial class MainWindow : Window
                 : $"{match.Entry.Term}\n{match.Entry.Definition}\n\n{match.Entry.Scope.DisplayName}\nDouble-cliquer pour ouvrir.";
     }
 
-    private async void MarkdownEditorTextBox_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>MarkdownEditorTextBox_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void MarkdownEditorTextBox_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e)
     {
-        var match = FindGlossaryMatchAtPoint(
+        global::Nodalis.Core.Glossary.GlossaryTextMatch match = FindGlossaryMatchAtPoint(
             e.GetPosition(MarkdownEditorTextBox));
 
         if (match is null)
@@ -2668,11 +3070,17 @@ public partial class MainWindow : Window
             match.Entry);
     }
 
-    private void MarkdownEditorTextBox_ContextMenuOpening(
+    /// <summary>
+    /// Performs the <c>MarkdownEditorTextBox_ContextMenuOpening</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void MarkdownEditorTextBox_ContextMenuOpening(
         object sender,
         ContextMenuEventArgs e)
     {
-        var menu = new ContextMenu();
+        global::System.Windows.Controls.ContextMenu menu = new ContextMenu();
 
         menu.Items.Add(new MenuItem
         {
@@ -2695,7 +3103,7 @@ public partial class MainWindow : Window
             CommandTarget = MarkdownEditorTextBox
         });
 
-        var selected = NormalizeGlossarySelection(
+        string selected = NormalizeGlossarySelection(
             MarkdownEditorTextBox.SelectedText);
 
         if (!string.IsNullOrWhiteSpace(selected) &&
@@ -2704,16 +3112,16 @@ public partial class MainWindow : Window
             menu.Items.Add(
                 new Separator());
 
-            var addToGlossary = new MenuItem
+            global::System.Windows.Controls.MenuItem addToGlossary = new MenuItem
             {
                 Header = "Ajouter au glossaire"
             };
 
-            foreach (var scope in _glossaryScopes)
+            foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in _glossaryScopes)
             {
-                var capturedScope = scope;
+                global::Nodalis.Core.Glossary.GlossaryScope capturedScope = scope;
 
-                var scopeItem = new MenuItem
+                global::System.Windows.Controls.MenuItem scopeItem = new MenuItem
                 {
                     Header = scope.DisplayName,
                     FontWeight =
@@ -2748,7 +3156,12 @@ public partial class MainWindow : Window
         MarkdownEditorTextBox.ContextMenu = menu;
     }
 
-    private GlossaryTextMatch? FindGlossaryMatchAtPoint(
+    /// <summary>
+    /// Performs the <c>FindGlossaryMatchAtPoint</c> operation.
+    /// </summary>
+    /// <param name="point">The <c>point</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private GlossaryTextMatch? FindGlossaryMatchAtPoint(
         Point point)
     {
         if (_glossaryMatches.Count == 0)
@@ -2770,11 +3183,17 @@ public partial class MainWindow : Window
             index < match.Start + match.Length);
     }
 
-    private async Task AddGlossaryEntryAsync(
+    /// <summary>
+    /// Performs the <c>AddGlossaryEntryAsync</c> operation.
+    /// </summary>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <param name="term">The <c>term</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task AddGlossaryEntryAsync(
         GlossaryScope scope,
         string term)
     {
-        var dialog = new AddGlossaryEntryDialog(
+        global::Nodalis.App.Dialogs.AddGlossaryEntryDialog dialog = new AddGlossaryEntryDialog(
             scope,
             term)
         {
@@ -2788,11 +3207,11 @@ public partial class MainWindow : Window
 
         try
         {
-            var currentPath = _documentSession?.Path;
-            var targetPath = Path.GetFullPath(
+            string? currentPath = _documentSession?.Path;
+            string targetPath = Path.GetFullPath(
                 scope.FilePath);
 
-            var isCurrentDocument =
+            bool isCurrentDocument =
                 currentPath is not null &&
                 string.Equals(
                     Path.GetFullPath(currentPath),
@@ -2862,13 +3281,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task OpenGlossaryEntryAsync(
+    /// <summary>
+    /// Performs the <c>OpenGlossaryEntryAsync</c> operation.
+    /// </summary>
+    /// <param name="entry">The <c>entry</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task OpenGlossaryEntryAsync(
         GlossaryEntry entry)
     {
-        var path = Path.GetFullPath(
+        string path = Path.GetFullPath(
             entry.Scope.FilePath);
 
-        var node = FindAndExpand(
+        global::Nodalis.App.Navigation.NavigationNodeViewModel? node = FindAndExpand(
             _root,
             path);
 
@@ -2911,7 +3335,12 @@ public partial class MainWindow : Window
             $"Glossaire · {entry.Term} · {entry.Scope.DisplayName}";
     }
 
-    private static string NormalizeGlossarySelection(
+    /// <summary>
+    /// Performs the <c>NormalizeGlossarySelection</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeGlossarySelection(
         string value) =>
         string.Join(
             " ",
@@ -2920,11 +3349,15 @@ public partial class MainWindow : Window
                 StringSplitOptions.TrimEntries |
                 StringSplitOptions.RemoveEmptyEntries));
 
-    private async Task RefreshDashboardTasksAsync()
+    /// <summary>
+    /// Performs the <c>RefreshDashboardTasksAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task RefreshDashboardTasksAsync()
     {
         try
         {
-            var tasks = await _taskService.GetTasksAsync(
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> tasks = await _taskService.GetTasksAsync(
                 _root.FullPath,
                 includeCompleted: false);
 
@@ -2952,11 +3385,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RefreshDashboardMilestonesAsync()
+    /// <summary>
+    /// Performs the <c>RefreshDashboardMilestonesAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task RefreshDashboardMilestonesAsync()
     {
         try
         {
-            var milestones = await _milestoneService.GetUpcomingAsync(
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> milestones = await _milestoneService.GetUpcomingAsync(
                 DateOnly.FromDateTime(DateTime.Today),
                 forwardDays: 60);
 
@@ -2979,7 +3416,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void DashboardMilestoneList_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>DashboardMilestoneList_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void DashboardMilestoneList_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e)
     {
@@ -2992,17 +3435,22 @@ public partial class MainWindow : Window
             milestone);
     }
 
-    private async Task NavigateToMilestoneAsync(
+    /// <summary>
+    /// Performs the <c>NavigateToMilestoneAsync</c> operation.
+    /// </summary>
+    /// <param name="milestone">The <c>milestone</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task NavigateToMilestoneAsync(
         MilestoneItem milestone)
     {
-        var fullPath = Path.GetFullPath(
+        string fullPath = Path.GetFullPath(
             Path.Combine(
                 _root.FullPath,
                 milestone.SourceRelativePath.Replace(
                     '/',
                     Path.DirectorySeparatorChar)));
 
-        var node = FindAndExpand(
+        global::Nodalis.App.Navigation.NavigationNodeViewModel? node = FindAndExpand(
             _root,
             fullPath);
 
@@ -3047,15 +3495,19 @@ public partial class MainWindow : Window
             $"Jalon · {milestone.Name} · {milestone.ProjectName} · ligne {milestone.LineNumber}";
     }
 
-    private async Task ShowMilestonesAsync()
+    /// <summary>
+    /// Performs the <c>ShowMilestonesAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task ShowMilestonesAsync()
     {
-        var contextPath =
+        string contextPath =
             _selectedNode?.FullPath ??
             _root.FullPath;
 
         try
         {
-            var projectDirectory =
+            string? projectDirectory =
                 await _milestoneService.GetProjectDirectoryForContextAsync(
                     contextPath);
 
@@ -3070,7 +3522,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var dialog = new MilestoneListDialog(
+            global::Nodalis.App.Dialogs.MilestoneListDialog dialog = new MilestoneListDialog(
                 _root.FullPath,
                 projectDirectory)
             {
@@ -3100,17 +3552,22 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task ShowTasksAsync(bool global)
+    /// <summary>
+    /// Performs the <c>ShowTasksAsync</c> operation.
+    /// </summary>
+    /// <param name="global">The <c>global</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task ShowTasksAsync(bool global)
     {
-        var contextPath = global
+        string contextPath = global
             ? _root.FullPath
             : _selectedNode?.FullPath ?? _root.FullPath;
 
-        var scopeLabel = global
+        string scopeLabel = global
             ? "Global · toutes les applications et tous les projets"
             : $"Contexte · {_selectedNode?.DisplayName ?? _root.DisplayName}";
 
-        var dialog = new TaskListDialog(
+        global::Nodalis.App.Dialogs.TaskListDialog dialog = new TaskListDialog(
             _root.FullPath,
             contextPath,
             scopeLabel,
@@ -3127,7 +3584,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void DashboardTaskCheckBox_Click(
+    /// <summary>
+    /// Performs the <c>DashboardTaskCheckBox_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void DashboardTaskCheckBox_Click(
         object sender,
         RoutedEventArgs e)
     {
@@ -3162,7 +3625,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void DashboardTaskList_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>DashboardTaskList_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void DashboardTaskList_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e)
     {
@@ -3175,18 +3644,24 @@ public partial class MainWindow : Window
             task);
     }
 
-    private async Task ToggleTaskFromViewAsync(
+    /// <summary>
+    /// Performs the <c>ToggleTaskFromViewAsync</c> operation.
+    /// </summary>
+    /// <param name="task">The <c>task</c> value.</param>
+    /// <param name="completed">The <c>completed</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task ToggleTaskFromViewAsync(
         TaskItem task,
         bool completed)
     {
-        var sourcePath = Path.GetFullPath(
+        string sourcePath = Path.GetFullPath(
             Path.Combine(
                 _root.FullPath,
                 task.SourceRelativePath.Replace(
                     '/',
                     Path.DirectorySeparatorChar)));
 
-        var isCurrentDocument =
+        bool isCurrentDocument =
             _documentSession is not null &&
             string.Equals(
                 Path.GetFullPath(_documentSession.Path),
@@ -3249,17 +3724,22 @@ public partial class MainWindow : Window
             : $"Tâche rouverte · {task.Text}";
     }
 
-    private async Task NavigateToTaskAsync(
+    /// <summary>
+    /// Performs the <c>NavigateToTaskAsync</c> operation.
+    /// </summary>
+    /// <param name="task">The <c>task</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task NavigateToTaskAsync(
         TaskItem task)
     {
-        var fullPath = Path.GetFullPath(
+        string fullPath = Path.GetFullPath(
             Path.Combine(
                 _root.FullPath,
                 task.SourceRelativePath.Replace(
                     '/',
                     Path.DirectorySeparatorChar)));
 
-        var node = FindAndExpand(
+        global::Nodalis.App.Navigation.NavigationNodeViewModel? node = FindAndExpand(
             _root,
             fullPath);
 
@@ -3304,9 +3784,13 @@ public partial class MainWindow : Window
             $"Tâche · {task.Text} · ligne {task.LineNumber}";
     }
 
-    private async Task ImportDocxAsync()
+    /// <summary>
+    /// Performs the <c>ImportDocxAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task ImportDocxAsync()
     {
-        var picker = new OpenFileDialog
+        global::Microsoft.Win32.OpenFileDialog picker = new OpenFileDialog
         {
             Title = "Importer un document Word",
             Filter = "Documents Word (*.docx)|*.docx",
@@ -3329,7 +3813,7 @@ public partial class MainWindow : Window
             preview = await _docxImportService.PreparePreviewAsync(
                 picker.FileName);
 
-            var dialog = new DocxImportPreviewDialog(
+            global::Nodalis.App.Dialogs.DocxImportPreviewDialog dialog = new DocxImportPreviewDialog(
                 preview,
                 request => _docxImportService.BuildPlanAsync(
                     preview,
@@ -3353,7 +3837,7 @@ public partial class MainWindow : Window
             StatusText.Text =
                 "Import DOCX · écriture dans le workspace…";
 
-            var result = await _docxImportService.CommitAsync(
+            global::Nodalis.Core.Importing.DocxImportCommitResult result = await _docxImportService.CommitAsync(
                 preview,
                 dialog.CommitRequest);
 
@@ -3416,7 +3900,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task AttachFileAsync()
+    /// <summary>
+    /// Performs the <c>AttachFileAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task AttachFileAsync()
     {
         if (_documentSession is null ||
             _selectedNode?.Kind != WorkspaceNodeKind.Document)
@@ -3430,7 +3918,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var picker = new OpenFileDialog
+        global::Microsoft.Win32.OpenFileDialog picker = new OpenFileDialog
         {
             Title = "Choisir une pièce jointe",
             Multiselect = false,
@@ -3442,7 +3930,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var mode = MessageBox.Show(
+        global::System.Windows.MessageBoxResult mode = MessageBox.Show(
             this,
             "Voulez-vous copier ce fichier dans le workspace Nodalis ?\n\n" +
             "Oui : copie locale dans Attachments.\n" +
@@ -3459,10 +3947,10 @@ public partial class MainWindow : Window
 
         try
         {
-            var service = new AttachmentService(
+            global::Nodalis.Infrastructure.Attachments.AttachmentService service = new AttachmentService(
                 _root.FullPath);
 
-            var attachment = mode == MessageBoxResult.Yes
+            global::Nodalis.Core.Attachments.AttachmentReference attachment = mode == MessageBoxResult.Yes
                 ? await service.CopyIntoWorkspaceAsync(
                     picker.FileName,
                     _selectedNode.FullPath)
@@ -3475,10 +3963,10 @@ public partial class MainWindow : Window
                 ? attachment.DisplayName
                 : MarkdownEditorTextBox.SelectedText.Trim();
 
-            var isImage = IsImageAttachment(
+            bool isImage = IsImageAttachment(
                 attachment.FullPath);
 
-            var syntax = isImage
+            string syntax = isImage
                 ? $"![{label}]({attachment.MarkdownTarget})"
                 : $"[{label}]({attachment.MarkdownTarget})";
 
@@ -3508,10 +3996,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private static bool IsImageAttachment(
+    /// <summary>
+    /// Performs the <c>IsImageAttachment</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsImageAttachment(
         string path)
     {
-        var extension = Path.GetExtension(path);
+        string extension = Path.GetExtension(path);
 
         return extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
                extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
@@ -3521,9 +4014,13 @@ public partial class MainWindow : Window
                extension.Equals(".webp", StringComparison.OrdinalIgnoreCase);
     }
 
-    private async Task ShowGlossaryAsync()
+    /// <summary>
+    /// Performs the <c>ShowGlossaryAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task ShowGlossaryAsync()
     {
-        var dialog = new GlossaryLookupDialog(
+        global::Nodalis.App.Dialogs.GlossaryLookupDialog dialog = new GlossaryLookupDialog(
             _root.FullPath,
             _selectedNode?.FullPath)
         {
@@ -3540,20 +4037,24 @@ public partial class MainWindow : Window
             dialog.SelectedEntry);
     }
 
-    private async Task CaptureQuickNoteAsync()
+    /// <summary>
+    /// Performs the <c>CaptureQuickNoteAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task CaptureQuickNoteAsync()
     {
         try
         {
-            var service = new QuickNotesService();
-            var contextPath =
+            global::Nodalis.Infrastructure.Notes.QuickNotesService service = new QuickNotesService();
+            string contextPath =
                 _selectedNode?.FullPath ??
                 _root.FullPath;
 
-            var scopes = await service.ResolveScopesAsync(
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.QuickNoteScope> scopes = await service.ResolveScopesAsync(
                 _root.FullPath,
                 contextPath);
 
-            var dialog = new QuickNoteDialog(scopes)
+            global::Nodalis.App.Dialogs.QuickNoteDialog dialog = new QuickNoteDialog(scopes)
             {
                 Owner = this
             };
@@ -3563,10 +4064,10 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var targetPath = Path.GetFullPath(
+            string targetPath = Path.GetFullPath(
                 dialog.SelectedScope.FilePath);
 
-            var currentPath = _documentSession?.Path;
+            string? currentPath = _documentSession?.Path;
 
             if (currentPath is not null &&
                 string.Equals(
@@ -3636,20 +4137,24 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task ShowQuickNotesAsync()
+    /// <summary>
+    /// Performs the <c>ShowQuickNotesAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task ShowQuickNotesAsync()
     {
         try
         {
-            var service = new QuickNotesService();
-            var contextPath =
+            global::Nodalis.Infrastructure.Notes.QuickNotesService service = new QuickNotesService();
+            string contextPath =
                 _selectedNode?.FullPath ??
                 _root.FullPath;
 
-            var snapshots = await service.ReadAggregateAsync(
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.QuickNotesSnapshot> snapshots = await service.ReadAggregateAsync(
                 _root.FullPath,
                 contextPath);
 
-            var dialog = new QuickNotesOverviewDialog(
+            global::Nodalis.App.Dialogs.QuickNotesOverviewDialog dialog = new QuickNotesOverviewDialog(
                 snapshots,
                 _root.FullPath)
             {
@@ -3672,12 +4177,16 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task CreateProjectAsync()
+    /// <summary>
+    /// Performs the <c>CreateProjectAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task CreateProjectAsync()
     {
         try
         {
-            var targetDiscovery = new ProjectCreationTargetDiscovery();
-            var targets = await targetDiscovery.DiscoverAsync(
+            global::Nodalis.Infrastructure.Projects.ProjectCreationTargetDiscovery targetDiscovery = new ProjectCreationTargetDiscovery();
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Projects.ProjectCreationTarget> targets = await targetDiscovery.DiscoverAsync(
                 _root.FullPath);
 
             if (targets.Count == 0)
@@ -3692,9 +4201,9 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var profiles = await _templateStore.LoadProjectProfilesAsync();
+            global::Nodalis.Core.Templates.ProjectProfileCatalog profiles = await _templateStore.LoadProjectProfilesAsync();
 
-            var dialog = new NewProjectDialog(
+            global::Nodalis.App.Dialogs.NewProjectDialog dialog = new NewProjectDialog(
                 targets,
                 profiles.Profiles)
             {
@@ -3712,10 +4221,10 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var creator = new FileSystemProjectCreator(
+            global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator creator = new FileSystemProjectCreator(
                 _root.FullPath);
 
-            var result = await creator.CreateAsync(
+            global::Nodalis.Core.Projects.ProjectCreationResult result = await creator.CreateAsync(
                 new ProjectCreationRequest
                 {
                     Name = dialog.ProjectName,
@@ -3745,15 +4254,19 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task CreateDecisionAsync()
+    /// <summary>
+    /// Performs the <c>CreateDecisionAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task CreateDecisionAsync()
     {
-        var contextPath =
+        string contextPath =
             _selectedNode?.FullPath ??
             _root.FullPath;
 
         try
         {
-            var scope = await _decisionService.ResolveScopeAsync(
+            (string ScopeKind, string ScopeName)? scope = await _decisionService.ResolveScopeAsync(
                 contextPath);
 
             if (scope is null)
@@ -3779,7 +4292,7 @@ public partial class MainWindow : Window
                     sourcePath);
             }
 
-            var dialog = new DecisionDialog(
+            global::Nodalis.App.Dialogs.DecisionDialog dialog = new DecisionDialog(
                 scope.Value.ScopeKind,
                 scope.Value.ScopeName,
                 sourceDisplayName,
@@ -3794,7 +4307,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var result = await _decisionService.CreateAsync(
+            global::Nodalis.Core.Decisions.DecisionCreationResult result = await _decisionService.CreateAsync(
                 contextPath,
                 dialog.Draft,
                 sourcePath);
@@ -3833,15 +4346,19 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task ShowDecisionsAsync()
+    /// <summary>
+    /// Performs the <c>ShowDecisionsAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task ShowDecisionsAsync()
     {
-        var contextPath =
+        string contextPath =
             _selectedNode?.FullPath ??
             _root.FullPath;
 
         try
         {
-            var scope = await _decisionService.ResolveScopeAsync(
+            (string ScopeKind, string ScopeName)? scope = await _decisionService.ResolveScopeAsync(
                 contextPath);
 
             if (scope is null)
@@ -3855,7 +4372,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var dialog = new DecisionListDialog(
+            global::Nodalis.App.Dialogs.DecisionListDialog dialog = new DecisionListDialog(
                 _root.FullPath,
                 contextPath,
                 $"{scope.Value.ScopeKind} · {scope.Value.ScopeName}")
@@ -3884,17 +4401,22 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task NavigateToDecisionAsync(
+    /// <summary>
+    /// Performs the <c>NavigateToDecisionAsync</c> operation.
+    /// </summary>
+    /// <param name="decision">The <c>decision</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task NavigateToDecisionAsync(
         DecisionRecord decision)
     {
-        var fullPath = Path.GetFullPath(
+        string fullPath = Path.GetFullPath(
             Path.Combine(
                 _root.FullPath,
                 decision.SourceRelativePath.Replace(
                     '/',
                     Path.DirectorySeparatorChar)));
 
-        var node = FindAndExpand(
+        global::Nodalis.App.Navigation.NavigationNodeViewModel? node = FindAndExpand(
             _root,
             fullPath);
 
@@ -3936,15 +4458,19 @@ public partial class MainWindow : Window
             $"Décision · {decision.Title}";
     }
 
-    private async Task CreateMeetingAsync()
+    /// <summary>
+    /// Performs the <c>CreateMeetingAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task CreateMeetingAsync()
     {
-        var contextPath =
+        string contextPath =
             _selectedNode?.FullPath ??
             _root.FullPath;
 
         try
         {
-            var scope = await _meetingService.ResolveScopeAsync(
+            (string ScopeKind, string ScopeName)? scope = await _meetingService.ResolveScopeAsync(
                 contextPath);
 
             if (scope is null)
@@ -3958,7 +4484,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var dialog = new MeetingDialog(
+            global::Nodalis.App.Dialogs.MeetingDialog dialog = new MeetingDialog(
                 scope.Value.ScopeKind,
                 scope.Value.ScopeName)
             {
@@ -3971,7 +4497,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var result = await _meetingService.CreateAsync(
+            global::Nodalis.Core.Meetings.MeetingCreationResult result = await _meetingService.CreateAsync(
                 contextPath,
                 dialog.Draft);
 
@@ -4009,9 +4535,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task CreateNoteAsync()
+    /// <summary>
+    /// Performs the <c>CreateNoteAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task CreateNoteAsync()
     {
-        var targetDirectory = ResolveNewNoteDirectory();
+        string? targetDirectory = ResolveNewNoteDirectory();
 
         if (targetDirectory is null)
         {
@@ -4027,9 +4557,9 @@ public partial class MainWindow : Window
 
         try
         {
-            var catalog = await _templateStore.LoadTemplateCatalogAsync();
+            global::Nodalis.Core.Templates.TemplateCatalog catalog = await _templateStore.LoadTemplateCatalogAsync();
 
-            var dialog = new NewNoteDialog(catalog.Templates)
+            global::Nodalis.App.Dialogs.NewNoteDialog dialog = new NewNoteDialog(catalog.Templates)
             {
                 Owner = this
             };
@@ -4039,8 +4569,8 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var documentId = Guid.NewGuid();
-            var variables = MarkdownTemplateRenderer.CreateStandardVariables(
+            global::System.Guid documentId = Guid.NewGuid();
+            global::System.Collections.Generic.Dictionary<string, string> variables = MarkdownTemplateRenderer.CreateStandardVariables(
                 dialog.NoteTitle,
                 documentId,
                 DateTimeOffset.Now,
@@ -4066,7 +4596,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                var definition = catalog.Templates.Single(
+                global::Nodalis.Core.Templates.MarkdownTemplateDefinition definition = catalog.Templates.Single(
                     template => string.Equals(
                         template.Key,
                         dialog.SelectedTemplateKey,
@@ -4088,7 +4618,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            var filePath = WindowsPathRules.GetUniqueFilePath(
+            string filePath = WindowsPathRules.GetUniqueFilePath(
                 targetDirectory,
                 desiredFileName);
 
@@ -4124,7 +4654,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private string? ResolveNewNoteDirectory()
+    /// <summary>
+    /// Performs the <c>ResolveNewNoteDirectory</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private string? ResolveNewNoteDirectory()
     {
         if (_selectedNode is null)
         {
@@ -4149,12 +4683,17 @@ public partial class MainWindow : Window
             : null;
     }
 
-    private async Task RefreshNavigationAsync(
+    /// <summary>
+    /// Performs the <c>RefreshNavigationAsync</c> operation.
+    /// </summary>
+    /// <param name="openPath">The <c>openPath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task RefreshNavigationAsync(
         string? openPath = null)
     {
-        var expandedIds = GetExpandedNodeIds();
+        global::System.Collections.Generic.HashSet<global::System.Guid> expandedIds = GetExpandedNodeIds();
 
-        var root = await _navigationBuilder.BuildAsync(
+        global::Nodalis.Core.Navigation.WorkspaceNavigationNode root = await _navigationBuilder.BuildAsync(
             _root.FullPath);
 
         _root = CreateRootViewModel(
@@ -4171,7 +4710,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var target = FindAndExpand(
+        global::Nodalis.App.Navigation.NavigationNodeViewModel? target = FindAndExpand(
             _root,
             Path.GetFullPath(openPath));
 
@@ -4185,18 +4724,28 @@ public partial class MainWindow : Window
         await DisplayNodeAsync(target);
     }
 
-    private HashSet<Guid> GetExpandedNodeIds() =>
+    /// <summary>
+    /// Performs the <c>GetExpandedNodeIds</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private HashSet<Guid> GetExpandedNodeIds() =>
         _root
             .DescendantsAndSelf()
             .Where(node => node.IsExpanded)
             .Select(node => node.Id)
             .ToHashSet();
 
-    private static NavigationNodeViewModel CreateRootViewModel(
+    /// <summary>
+    /// Performs the <c>CreateRootViewModel</c> operation.
+    /// </summary>
+    /// <param name="root">The <c>root</c> value.</param>
+    /// <param name="expandedIds">The <c>expandedIds</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static NavigationNodeViewModel CreateRootViewModel(
         WorkspaceNavigationNode root,
         IReadOnlySet<Guid> expandedIds)
     {
-        var viewModel = new NavigationNodeViewModel(
+        global::Nodalis.App.Navigation.NavigationNodeViewModel viewModel = new NavigationNodeViewModel(
             root,
             expandedIds);
 
@@ -4204,7 +4753,13 @@ public partial class MainWindow : Window
         return viewModel;
     }
 
-    private static NavigationNodeViewModel? FindAndExpand(
+    /// <summary>
+    /// Performs the <c>FindAndExpand</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <param name="targetPath">The <c>targetPath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static NavigationNodeViewModel? FindAndExpand(
         NavigationNodeViewModel node,
         string targetPath)
     {
@@ -4216,9 +4771,9 @@ public partial class MainWindow : Window
             return node;
         }
 
-        foreach (var child in node.Children)
+        foreach (global::Nodalis.App.Navigation.NavigationNodeViewModel child in node.Children)
         {
-            var found = FindAndExpand(
+            global::Nodalis.App.Navigation.NavigationNodeViewModel? found = FindAndExpand(
                 child,
                 targetPath);
 
@@ -4234,7 +4789,13 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private void ToggleContextPanel_Click(
+    /// <summary>
+    /// Performs the <c>ToggleContextPanel_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void ToggleContextPanel_Click(
         object sender,
         RoutedEventArgs e)
     {
@@ -4249,7 +4810,11 @@ public partial class MainWindow : Window
         ApplyContextPanelState();
     }
 
-    private void ApplyContextPanelState()
+    /// <summary>
+    /// Performs the <c>ApplyContextPanelState</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void ApplyContextPanelState()
     {
         if (_contextPanelOpen)
         {
@@ -4268,7 +4833,12 @@ public partial class MainWindow : Window
         ContextSplitter.Visibility = Visibility.Collapsed;
     }
 
-    private static string GetKindLabel(WorkspaceNodeKind kind) =>
+    /// <summary>
+    /// Performs the <c>GetKindLabel</c> operation.
+    /// </summary>
+    /// <param name="kind">The <c>kind</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string GetKindLabel(WorkspaceNodeKind kind) =>
         kind switch
         {
             WorkspaceNodeKind.Workspace => "Workspace",

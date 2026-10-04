@@ -10,13 +10,21 @@ namespace Nodalis.App.Markdown;
 
 public static class MarkdownFlowDocumentRenderer
 {
-    public static FlowDocument Render(
+    /// <summary>
+    /// Performs the <c>Render</c> operation.
+    /// </summary>
+    /// <param name="markdown">The <c>markdown</c> value.</param>
+    /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
+    /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
+    /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static FlowDocument Render(
         string markdown,
         string? baseDirectory = null,
         Action<string>? internalLinkClicked = null,
         Action<string>? linkClicked = null)
     {
-        var document = new FlowDocument
+        global::System.Windows.Documents.FlowDocument document = new FlowDocument
         {
             PagePadding = new Thickness(22),
             FontFamily = new FontFamily("Segoe UI"),
@@ -25,7 +33,7 @@ public static class MarkdownFlowDocumentRenderer
             Background = GetBrush("WindowBackgroundBrush", Brushes.Transparent)
         };
 
-        foreach (var block in MarkdownDocumentParser.Parse(markdown))
+        foreach (global::Nodalis.Core.Markdown.MarkdownBlock block in MarkdownDocumentParser.Parse(markdown))
         {
             document.Blocks.Add(
                 CreateBlock(
@@ -38,7 +46,15 @@ public static class MarkdownFlowDocumentRenderer
         return document;
     }
 
-    private static Block CreateBlock(
+    /// <summary>
+    /// Performs the <c>CreateBlock</c> operation.
+    /// </summary>
+    /// <param name="block">The <c>block</c> value.</param>
+    /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
+    /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
+    /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Block CreateBlock(
         MarkdownBlock block,
         string? baseDirectory,
         Action<string>? internalLinkClicked,
@@ -103,13 +119,21 @@ public static class MarkdownFlowDocumentRenderer
         };
     }
 
-    private static Paragraph CreateHeading(
+    /// <summary>
+    /// Performs the <c>CreateHeading</c> operation.
+    /// </summary>
+    /// <param name="block">The <c>block</c> value.</param>
+    /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
+    /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
+    /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Paragraph CreateHeading(
         MarkdownBlock block,
         string? baseDirectory,
         Action<string>? internalLinkClicked,
         Action<string>? linkClicked)
     {
-        var paragraph = CreateParagraph(
+        global::System.Windows.Documents.Paragraph paragraph = CreateParagraph(
             block.Text,
             baseDirectory,
             internalLinkClicked,
@@ -135,13 +159,21 @@ public static class MarkdownFlowDocumentRenderer
         return paragraph;
     }
 
-    private static Paragraph CreateParagraph(
+    /// <summary>
+    /// Performs the <c>CreateParagraph</c> operation.
+    /// </summary>
+    /// <param name="text">The <c>text</c> value.</param>
+    /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
+    /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
+    /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Paragraph CreateParagraph(
         string text,
         string? baseDirectory,
         Action<string>? internalLinkClicked,
         Action<string>? linkClicked)
     {
-        var paragraph = new Paragraph
+        global::System.Windows.Documents.Paragraph paragraph = new Paragraph
         {
             Margin = new Thickness(0, 4, 0, 7),
             LineHeight = 22
@@ -157,14 +189,23 @@ public static class MarkdownFlowDocumentRenderer
         return paragraph;
     }
 
-    private static Paragraph CreatePrefixedParagraph(
+    /// <summary>
+    /// Performs the <c>CreatePrefixedParagraph</c> operation.
+    /// </summary>
+    /// <param name="prefix">The <c>prefix</c> value.</param>
+    /// <param name="text">The <c>text</c> value.</param>
+    /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
+    /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
+    /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Paragraph CreatePrefixedParagraph(
         string prefix,
         string text,
         string? baseDirectory,
         Action<string>? internalLinkClicked,
         Action<string>? linkClicked)
     {
-        var paragraph = new Paragraph
+        global::System.Windows.Documents.Paragraph paragraph = new Paragraph
         {
             Margin = new Thickness(16, 2, 0, 4),
             LineHeight = 22
@@ -186,13 +227,21 @@ public static class MarkdownFlowDocumentRenderer
         return paragraph;
     }
 
-    private static Paragraph CreateQuote(
+    /// <summary>
+    /// Performs the <c>CreateQuote</c> operation.
+    /// </summary>
+    /// <param name="text">The <c>text</c> value.</param>
+    /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
+    /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
+    /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Paragraph CreateQuote(
         string text,
         string? baseDirectory,
         Action<string>? internalLinkClicked,
         Action<string>? linkClicked)
     {
-        var paragraph = CreateParagraph(
+        global::System.Windows.Documents.Paragraph paragraph = CreateParagraph(
             text,
             baseDirectory,
             internalLinkClicked,
@@ -211,10 +260,15 @@ public static class MarkdownFlowDocumentRenderer
         return paragraph;
     }
 
-    private static Paragraph CreateCodeBlock(
+    /// <summary>
+    /// Performs the <c>CreateCodeBlock</c> operation.
+    /// </summary>
+    /// <param name="block">The <c>block</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Paragraph CreateCodeBlock(
         MarkdownBlock block)
     {
-        var paragraph = new Paragraph(
+        global::System.Windows.Documents.Paragraph paragraph = new Paragraph(
             new Run(block.Text))
         {
             Margin = new Thickness(0, 8, 0, 8),
@@ -234,46 +288,54 @@ public static class MarkdownFlowDocumentRenderer
         return paragraph;
     }
 
-    private static Table CreateTable(
+    /// <summary>
+    /// Performs the <c>CreateTable</c> operation.
+    /// </summary>
+    /// <param name="block">The <c>block</c> value.</param>
+    /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
+    /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
+    /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Table CreateTable(
         MarkdownBlock block,
         string? baseDirectory,
         Action<string>? internalLinkClicked,
         Action<string>? linkClicked)
     {
-        var table = new Table
+        global::System.Windows.Documents.Table table = new Table
         {
             CellSpacing = 0,
             Margin = new Thickness(0, 8, 0, 10)
         };
 
-        var columnCount = block.TableRows.Count == 0
+        int columnCount = block.TableRows.Count == 0
             ? 0
             : block.TableRows.Max(row => row.Count);
 
-        for (var index = 0; index < columnCount; index++)
+        for (int index = 0; index < columnCount; index++)
         {
             table.Columns.Add(new TableColumn());
         }
 
-        var group = new TableRowGroup();
+        global::System.Windows.Documents.TableRowGroup group = new TableRowGroup();
         table.RowGroups.Add(group);
 
-        for (var rowIndex = 0;
+        for (int rowIndex = 0;
              rowIndex < block.TableRows.Count;
              rowIndex++)
         {
-            var sourceRow = block.TableRows[rowIndex];
-            var row = new TableRow();
+            global::System.Collections.Generic.List<string> sourceRow = block.TableRows[rowIndex];
+            global::System.Windows.Documents.TableRow row = new TableRow();
 
-            for (var columnIndex = 0;
+            for (int columnIndex = 0;
                  columnIndex < columnCount;
                  columnIndex++)
             {
-                var text = columnIndex < sourceRow.Count
+                string text = columnIndex < sourceRow.Count
                     ? sourceRow[columnIndex]
                     : string.Empty;
 
-                var paragraph = CreateParagraph(
+                global::System.Windows.Documents.Paragraph paragraph = CreateParagraph(
                     text,
                     baseDirectory,
                     internalLinkClicked,
@@ -303,14 +365,23 @@ public static class MarkdownFlowDocumentRenderer
         return table;
     }
 
-    private static void AddInlines(
+    /// <summary>
+    /// Performs the <c>AddInlines</c> operation.
+    /// </summary>
+    /// <param name="target">The <c>target</c> value.</param>
+    /// <param name="text">The <c>text</c> value.</param>
+    /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
+    /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
+    /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void AddInlines(
         InlineCollection target,
         string text,
         string? baseDirectory,
         Action<string>? internalLinkClicked,
         Action<string>? linkClicked)
     {
-        foreach (var inline in MarkdownInlineParser.Parse(text))
+        foreach (global::Nodalis.Core.Markdown.MarkdownInline inline in MarkdownInlineParser.Parse(text))
         {
             target.Add(
                 CreateInline(
@@ -321,7 +392,15 @@ public static class MarkdownFlowDocumentRenderer
         }
     }
 
-    private static Inline CreateInline(
+    /// <summary>
+    /// Performs the <c>CreateInline</c> operation.
+    /// </summary>
+    /// <param name="inline">The <c>inline</c> value.</param>
+    /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
+    /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
+    /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Inline CreateInline(
         MarkdownInline inline,
         string? baseDirectory,
         Action<string>? internalLinkClicked,
@@ -365,12 +444,19 @@ public static class MarkdownFlowDocumentRenderer
         };
     }
 
-    private static Hyperlink CreateLink(
+    /// <summary>
+    /// Performs the <c>CreateLink</c> operation.
+    /// </summary>
+    /// <param name="text">The <c>text</c> value.</param>
+    /// <param name="target">The <c>target</c> value.</param>
+    /// <param name="clicked">The <c>clicked</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Hyperlink CreateLink(
         string text,
         string? target,
         Action<string>? clicked)
     {
-        var hyperlink = new Hyperlink(
+        global::System.Windows.Documents.Hyperlink hyperlink = new Hyperlink(
             new Run(text))
         {
             Foreground = GetBrush(
@@ -388,7 +474,13 @@ public static class MarkdownFlowDocumentRenderer
         return hyperlink;
     }
 
-    private static Inline CreateImageInline(
+    /// <summary>
+    /// Performs the <c>CreateImageInline</c> operation.
+    /// </summary>
+    /// <param name="inline">The <c>inline</c> value.</param>
+    /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Inline CreateImageInline(
         MarkdownInline inline,
         string? baseDirectory)
     {
@@ -397,7 +489,7 @@ public static class MarkdownFlowDocumentRenderer
             Uri.TryCreate(
                 inline.Target,
                 UriKind.Absolute,
-                out var absoluteUri) &&
+                out global::System.Uri? absoluteUri) &&
             !absoluteUri.IsFile)
         {
             return new Run(
@@ -410,7 +502,7 @@ public static class MarkdownFlowDocumentRenderer
             };
         }
 
-        var path = Path.IsPathRooted(inline.Target)
+        string path = Path.IsPathRooted(inline.Target)
             ? inline.Target
             : Path.Combine(baseDirectory, inline.Target);
 
@@ -430,9 +522,9 @@ public static class MarkdownFlowDocumentRenderer
 
         try
         {
-            var bitmap = new BitmapImage();
+            global::System.Windows.Media.Imaging.BitmapImage bitmap = new BitmapImage();
 
-            using (var stream = new FileStream(
+            using (global::System.IO.FileStream stream = new FileStream(
                        path,
                        FileMode.Open,
                        FileAccess.Read,
@@ -474,7 +566,13 @@ public static class MarkdownFlowDocumentRenderer
         }
     }
 
-    private static Brush GetBrush(
+    /// <summary>
+    /// Performs the <c>GetBrush</c> operation.
+    /// </summary>
+    /// <param name="resourceKey">The <c>resourceKey</c> value.</param>
+    /// <param name="fallback">The <c>fallback</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Brush GetBrush(
         string resourceKey,
         Brush fallback) =>
         Application.Current.TryFindResource(resourceKey) as Brush

@@ -13,7 +13,11 @@ public sealed class FileSystemTemplateStore : ITemplateStore
 
     private readonly string _templatesRoot;
 
-    public FileSystemTemplateStore(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="FileSystemTemplateStore"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public FileSystemTemplateStore(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -22,7 +26,12 @@ public sealed class FileSystemTemplateStore : ITemplateStore
             WorkspaceLayout.TemplatesDirectoryName);
     }
 
-    public async Task InitializeDefaultsAsync(
+    /// <summary>
+    /// Performs the <c>InitializeDefaultsAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task InitializeDefaultsAsync(
         CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(_templatesRoot);
@@ -37,9 +46,9 @@ public sealed class FileSystemTemplateStore : ITemplateStore
             CreateDefaultProjectProfiles(),
             cancellationToken);
 
-        foreach (var template in CreateDefaultTemplateFiles())
+        foreach (global::System.Collections.Generic.KeyValuePair<string, string> template in CreateDefaultTemplateFiles())
         {
-            var path = ResolveTemplatePath(template.Key);
+            string path = ResolveTemplatePath(template.Key);
 
             if (File.Exists(path))
             {
@@ -53,14 +62,19 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         }
     }
 
-    public async Task<TemplateCatalog> LoadTemplateCatalogAsync(
+    /// <summary>
+    /// Performs the <c>LoadTemplateCatalogAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<TemplateCatalog> LoadTemplateCatalogAsync(
         CancellationToken cancellationToken = default)
     {
-        var path = Path.Combine(
+        string path = Path.Combine(
             _templatesRoot,
             TemplateCatalogFileName);
 
-        var catalog = await AtomicJsonFile.ReadAsync<TemplateCatalog>(
+        global::Nodalis.Core.Templates.TemplateCatalog catalog = await AtomicJsonFile.ReadAsync<TemplateCatalog>(
             path,
             cancellationToken);
 
@@ -70,7 +84,7 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                 $"Unsupported template catalog schema {catalog.SchemaVersion}.");
         }
 
-        var duplicateKey = catalog.Templates
+        global::System.Linq.IGrouping<string, global::Nodalis.Core.Templates.MarkdownTemplateDefinition>? duplicateKey = catalog.Templates
             .GroupBy(
                 template => template.Key,
                 StringComparer.OrdinalIgnoreCase)
@@ -82,7 +96,7 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                 $"Duplicate template key '{duplicateKey.Key}'.");
         }
 
-        foreach (var template in catalog.Templates)
+        foreach (global::Nodalis.Core.Templates.MarkdownTemplateDefinition template in catalog.Templates)
         {
             ValidateDefinition(template);
             ResolveTemplatePath(template.FileName);
@@ -91,14 +105,19 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         return catalog;
     }
 
-    public async Task<ProjectProfileCatalog> LoadProjectProfilesAsync(
+    /// <summary>
+    /// Performs the <c>LoadProjectProfilesAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<ProjectProfileCatalog> LoadProjectProfilesAsync(
         CancellationToken cancellationToken = default)
     {
-        var path = Path.Combine(
+        string path = Path.Combine(
             _templatesRoot,
             ProjectProfilesFileName);
 
-        var catalog = await AtomicJsonFile.ReadAsync<ProjectProfileCatalog>(
+        global::Nodalis.Core.Templates.ProjectProfileCatalog catalog = await AtomicJsonFile.ReadAsync<ProjectProfileCatalog>(
             path,
             cancellationToken);
 
@@ -111,7 +130,14 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         return catalog;
     }
 
-    public async Task<string> RenderAsync(
+    /// <summary>
+    /// Performs the <c>RenderAsync</c> operation.
+    /// </summary>
+    /// <param name="templateKey">The <c>templateKey</c> value.</param>
+    /// <param name="variables">The <c>variables</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<string> RenderAsync(
         string templateKey,
         IReadOnlyDictionary<string, string> variables,
         CancellationToken cancellationToken = default)
@@ -119,9 +145,9 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         ArgumentException.ThrowIfNullOrWhiteSpace(templateKey);
         ArgumentNullException.ThrowIfNull(variables);
 
-        var catalog = await LoadTemplateCatalogAsync(cancellationToken);
+        global::Nodalis.Core.Templates.TemplateCatalog catalog = await LoadTemplateCatalogAsync(cancellationToken);
 
-        var definition = catalog.Templates.SingleOrDefault(
+        global::Nodalis.Core.Templates.MarkdownTemplateDefinition definition = catalog.Templates.SingleOrDefault(
             template => string.Equals(
                 template.Key,
                 templateKey,
@@ -129,9 +155,9 @@ public sealed class FileSystemTemplateStore : ITemplateStore
             ?? throw new KeyNotFoundException(
                 $"Template '{templateKey}' was not found.");
 
-        var path = ResolveTemplatePath(definition.FileName);
+        string path = ResolveTemplatePath(definition.FileName);
 
-        var template = await File.ReadAllTextAsync(
+        string template = await File.ReadAllTextAsync(
             path,
             cancellationToken);
 
@@ -140,19 +166,24 @@ public sealed class FileSystemTemplateStore : ITemplateStore
             variables);
     }
 
-    private string ResolveTemplatePath(string fileName)
+    /// <summary>
+    /// Performs the <c>ResolveTemplatePath</c> operation.
+    /// </summary>
+    /// <param name="fileName">The <c>fileName</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private string ResolveTemplatePath(string fileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
-        var root = Path.GetFullPath(_templatesRoot)
+        string root = Path.GetFullPath(_templatesRoot)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);
 
-        var fullPath = Path.GetFullPath(
+        string fullPath = Path.GetFullPath(
             Path.Combine(root, fileName));
 
-        var prefix = root + Path.DirectorySeparatorChar;
+        string prefix = root + Path.DirectorySeparatorChar;
 
         if (!fullPath.StartsWith(
                 prefix,
@@ -165,7 +196,12 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         return fullPath;
     }
 
-    private static void ValidateDefinition(
+    /// <summary>
+    /// Performs the <c>ValidateDefinition</c> operation.
+    /// </summary>
+    /// <param name="template">The <c>template</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void ValidateDefinition(
         MarkdownTemplateDefinition template)
     {
         if (string.IsNullOrWhiteSpace(template.Key) ||
@@ -177,7 +213,15 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         }
     }
 
-    private static Task WriteJsonIfMissingAsync<T>(
+    /// <summary>
+    /// Performs the <c>WriteJsonIfMissingAsync</c> operation.
+    /// </summary>
+    /// <typeparam name="T">The <c>T</c> type.</typeparam>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static Task WriteJsonIfMissingAsync<T>(
         string path,
         T value,
         CancellationToken cancellationToken)
@@ -193,7 +237,11 @@ public sealed class FileSystemTemplateStore : ITemplateStore
             cancellationToken);
     }
 
-    private static TemplateCatalog CreateDefaultTemplateCatalog() =>
+    /// <summary>
+    /// Performs the <c>CreateDefaultTemplateCatalog</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private static TemplateCatalog CreateDefaultTemplateCatalog() =>
         new()
         {
             Templates =
@@ -336,7 +384,11 @@ public sealed class FileSystemTemplateStore : ITemplateStore
             ]
         };
 
-    private static ProjectProfileCatalog CreateDefaultProjectProfiles()
+    /// <summary>
+    /// Performs the <c>CreateDefaultProjectProfiles</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private static ProjectProfileCatalog CreateDefaultProjectProfiles()
     {
         static ProjectSectionTemplateDefinition Section(
             string name,
@@ -407,7 +459,11 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         };
     }
 
-    private static IReadOnlyDictionary<string, string>
+    /// <summary>
+    /// Performs the <c>CreateDefaultTemplateFiles</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private static IReadOnlyDictionary<string, string>
         CreateDefaultTemplateFiles() =>
         new Dictionary<string, string>(
             StringComparer.OrdinalIgnoreCase)

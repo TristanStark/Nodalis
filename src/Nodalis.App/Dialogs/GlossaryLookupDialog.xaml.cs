@@ -14,7 +14,12 @@ public partial class GlossaryLookupDialog : Window
     private CancellationTokenSource? _lookupCancellation;
     private GlossaryEntry? _primary;
 
-    public GlossaryLookupDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="GlossaryLookupDialog"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+public GlossaryLookupDialog(
         string workspaceRoot,
         string? contextPath)
     {
@@ -35,7 +40,13 @@ public partial class GlossaryLookupDialog : Window
 
     public GlossaryEntry? SelectedEntry { get; private set; }
 
-    private async void SearchTextBox_TextChanged(
+    /// <summary>
+    /// Performs the <c>SearchTextBox_TextChanged</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void SearchTextBox_TextChanged(
         object sender,
         System.Windows.Controls.TextChangedEventArgs e)
     {
@@ -51,7 +62,7 @@ public partial class GlossaryLookupDialog : Window
             return;
         }
 
-        var cancellation = new CancellationTokenSource();
+        global::System.Threading.CancellationTokenSource cancellation = new CancellationTokenSource();
         _lookupCancellation = cancellation;
 
         try
@@ -130,7 +141,13 @@ public partial class GlossaryLookupDialog : Window
         }
     }
 
-    private void OpenPrimary_Click(
+    /// <summary>
+    /// Performs the <c>OpenPrimary_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void OpenPrimary_Click(
         object sender,
         RoutedEventArgs e)
     {
@@ -143,7 +160,13 @@ public partial class GlossaryLookupDialog : Window
         DialogResult = true;
     }
 
-    private void AlternativesList_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>AlternativesList_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void AlternativesList_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e)
     {
@@ -156,7 +179,13 @@ public partial class GlossaryLookupDialog : Window
         DialogResult = true;
     }
 
-    private void Window_PreviewKeyDown(
+    /// <summary>
+    /// Performs the <c>Window_PreviewKeyDown</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Window_PreviewKeyDown(
         object sender,
         KeyEventArgs e)
     {
@@ -166,7 +195,12 @@ public partial class GlossaryLookupDialog : Window
         }
     }
 
-    private void ClearResult(string message)
+    /// <summary>
+    /// Performs the <c>ClearResult</c> operation.
+    /// </summary>
+    /// <param name="message">The <c>message</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void ClearResult(string message)
     {
         _primary = null;
         PrimaryCard.Visibility = Visibility.Collapsed;

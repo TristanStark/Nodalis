@@ -5,11 +5,18 @@ namespace Nodalis.Infrastructure.Persistence;
 
 internal static class AtomicJsonFile
 {
-    public static async Task<T> ReadAsync<T>(
+    /// <summary>
+    /// Performs the <c>ReadAsync</c> operation.
+    /// </summary>
+    /// <typeparam name="T">The <c>T</c> type.</typeparam>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static async Task<T> ReadAsync<T>(
         string path,
         CancellationToken cancellationToken = default)
     {
-        await using var stream = new FileStream(
+        await using global::System.IO.FileStream stream = new FileStream(
             path,
             FileMode.Open,
             FileAccess.Read,
@@ -17,7 +24,7 @@ internal static class AtomicJsonFile
             bufferSize: 4096,
             useAsync: true);
 
-        var value = await JsonSerializer.DeserializeAsync<T>(
+        T? value = await JsonSerializer.DeserializeAsync<T>(
             stream,
             JsonDefaults.Options,
             cancellationToken);
@@ -26,7 +33,15 @@ internal static class AtomicJsonFile
             $"JSON file '{path}' contained no value.");
     }
 
-    public static Task WriteAsync<T>(
+    /// <summary>
+    /// Performs the <c>WriteAsync</c> operation.
+    /// </summary>
+    /// <typeparam name="T">The <c>T</c> type.</typeparam>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static Task WriteAsync<T>(
         string path,
         T value,
         CancellationToken cancellationToken = default)

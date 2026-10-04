@@ -14,9 +14,14 @@ public sealed class WorkspaceCatalog
 
     public IReadOnlyCollection<ProjectManifest> Projects => _projects.Values.ToArray();
 
-    public ApplicationManifest CreateApplication(string name)
+    /// <summary>
+    /// Performs the <c>CreateApplication</c> operation.
+    /// </summary>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ApplicationManifest CreateApplication(string name)
     {
-        var application = new ApplicationManifest
+        global::Nodalis.Core.Domain.ApplicationManifest application = new ApplicationManifest
         {
             Id = Guid.NewGuid(),
             Name = NormalizeName(name)
@@ -26,15 +31,26 @@ public sealed class WorkspaceCatalog
         return application;
     }
 
-    public ApplicationManifest RenameApplication(Guid applicationId, string name)
+    /// <summary>
+    /// Performs the <c>RenameApplication</c> operation.
+    /// </summary>
+    /// <param name="applicationId">The <c>applicationId</c> value.</param>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ApplicationManifest RenameApplication(Guid applicationId, string name)
     {
-        var existing = GetApplication(applicationId);
-        var updated = existing with { Name = NormalizeName(name) };
+        global::Nodalis.Core.Domain.ApplicationManifest existing = GetApplication(applicationId);
+        global::Nodalis.Core.Domain.ApplicationManifest updated = existing with { Name = NormalizeName(name) };
         _applications[applicationId] = updated;
         return updated;
     }
 
-    public void DeleteApplication(Guid applicationId)
+    /// <summary>
+    /// Performs the <c>DeleteApplication</c> operation.
+    /// </summary>
+    /// <param name="applicationId">The <c>applicationId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public void DeleteApplication(Guid applicationId)
     {
         GetApplication(applicationId);
 
@@ -48,14 +64,21 @@ public sealed class WorkspaceCatalog
         _applications.Remove(applicationId);
     }
 
-    public ModuleManifest CreateModule(
+    /// <summary>
+    /// Performs the <c>CreateModule</c> operation.
+    /// </summary>
+    /// <param name="applicationId">The <c>applicationId</c> value.</param>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <param name="parentModuleId">The <c>parentModuleId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ModuleManifest CreateModule(
         Guid applicationId,
         string name,
         Guid? parentModuleId = null)
     {
         GetApplication(applicationId);
 
-        var module = new ModuleManifest
+        global::Nodalis.Core.Domain.ModuleManifest module = new ModuleManifest
         {
             Id = Guid.NewGuid(),
             ApplicationId = applicationId,
@@ -72,18 +95,30 @@ public sealed class WorkspaceCatalog
         return module;
     }
 
-    public ModuleManifest RenameModule(Guid moduleId, string name)
+    /// <summary>
+    /// Performs the <c>RenameModule</c> operation.
+    /// </summary>
+    /// <param name="moduleId">The <c>moduleId</c> value.</param>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ModuleManifest RenameModule(Guid moduleId, string name)
     {
-        var existing = GetModule(moduleId);
-        var updated = existing with { Name = NormalizeName(name) };
+        global::Nodalis.Core.Domain.ModuleManifest existing = GetModule(moduleId);
+        global::Nodalis.Core.Domain.ModuleManifest updated = existing with { Name = NormalizeName(name) };
         _modules[moduleId] = updated;
         return updated;
     }
 
-    public ModuleManifest MoveModule(Guid moduleId, Guid? newParentModuleId)
+    /// <summary>
+    /// Performs the <c>MoveModule</c> operation.
+    /// </summary>
+    /// <param name="moduleId">The <c>moduleId</c> value.</param>
+    /// <param name="newParentModuleId">The <c>newParentModuleId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ModuleManifest MoveModule(Guid moduleId, Guid? newParentModuleId)
     {
-        var existing = GetModule(moduleId);
-        var updated = existing with { ParentModuleId = newParentModuleId };
+        global::Nodalis.Core.Domain.ModuleManifest existing = GetModule(moduleId);
+        global::Nodalis.Core.Domain.ModuleManifest updated = existing with { ParentModuleId = newParentModuleId };
 
         HierarchyValidator.ValidateModule(
             updated,
@@ -94,7 +129,12 @@ public sealed class WorkspaceCatalog
         return updated;
     }
 
-    public void DeleteModule(Guid moduleId)
+    /// <summary>
+    /// Performs the <c>DeleteModule</c> operation.
+    /// </summary>
+    /// <param name="moduleId">The <c>moduleId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public void DeleteModule(Guid moduleId)
     {
         GetModule(moduleId);
 
@@ -113,7 +153,17 @@ public sealed class WorkspaceCatalog
         _modules.Remove(moduleId);
     }
 
-    public ProjectManifest CreateProject(
+    /// <summary>
+    /// Performs the <c>CreateProject</c> operation.
+    /// </summary>
+    /// <param name="applicationId">The <c>applicationId</c> value.</param>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <param name="initialComplexity">The <c>initialComplexity</c> value.</param>
+    /// <param name="moduleId">The <c>moduleId</c> value.</param>
+    /// <param name="parentProjectId">The <c>parentProjectId</c> value.</param>
+    /// <param name="sections">The <c>sections</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ProjectManifest CreateProject(
         Guid applicationId,
         string name,
         ProjectComplexity initialComplexity,
@@ -123,7 +173,7 @@ public sealed class WorkspaceCatalog
     {
         GetApplication(applicationId);
 
-        var project = new ProjectManifest
+        global::Nodalis.Core.Domain.ProjectManifest project = new ProjectManifest
         {
             Id = Guid.NewGuid(),
             Name = NormalizeName(name),
@@ -146,21 +196,34 @@ public sealed class WorkspaceCatalog
         return project;
     }
 
-    public ProjectManifest RenameProject(Guid projectId, string name)
+    /// <summary>
+    /// Performs the <c>RenameProject</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ProjectManifest RenameProject(Guid projectId, string name)
     {
-        var existing = GetProject(projectId);
-        var updated = existing with { Name = NormalizeName(name) };
+        global::Nodalis.Core.Domain.ProjectManifest existing = GetProject(projectId);
+        global::Nodalis.Core.Domain.ProjectManifest updated = existing with { Name = NormalizeName(name) };
         _projects[projectId] = updated;
         return updated;
     }
 
-    public ProjectManifest MoveProject(
+    /// <summary>
+    /// Performs the <c>MoveProject</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <param name="newModuleId">The <c>newModuleId</c> value.</param>
+    /// <param name="newParentProjectId">The <c>newParentProjectId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ProjectManifest MoveProject(
         Guid projectId,
         Guid? newModuleId,
         Guid? newParentProjectId)
     {
-        var existing = GetProject(projectId);
-        var updated = existing with
+        global::Nodalis.Core.Domain.ProjectManifest existing = GetProject(projectId);
+        global::Nodalis.Core.Domain.ProjectManifest updated = existing with
         {
             ModuleId = newModuleId,
             ParentProjectId = newParentProjectId
@@ -176,7 +239,7 @@ public sealed class WorkspaceCatalog
 
         if (HasProjectDescendants(projectId))
         {
-            var descendants = GetProjectDescendants(projectId);
+            global::System.Collections.Generic.IReadOnlyCollection<global::Nodalis.Core.Domain.ProjectManifest> descendants = GetProjectDescendants(projectId);
             if (descendants.Any(descendant => descendant.ModuleId != newModuleId))
             {
                 throw new DomainValidationException(
@@ -188,7 +251,12 @@ public sealed class WorkspaceCatalog
         return updated;
     }
 
-    public void DeleteProject(Guid projectId)
+    /// <summary>
+    /// Performs the <c>DeleteProject</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public void DeleteProject(Guid projectId)
     {
         GetProject(projectId);
 
@@ -201,15 +269,24 @@ public sealed class WorkspaceCatalog
         _projects.Remove(projectId);
     }
 
-    public SectionManifest AddSection(
+    /// <summary>
+    /// Performs the <c>AddSection</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <param name="isSingleton">The <c>isSingleton</c> value.</param>
+    /// <param name="templateKey">The <c>templateKey</c> value.</param>
+    /// <param name="order">The <c>order</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public SectionManifest AddSection(
         Guid projectId,
         string name,
         bool isSingleton,
         string? templateKey = null,
         int? order = null)
     {
-        var project = GetProject(projectId);
-        var normalizedName = NormalizeName(name);
+        global::Nodalis.Core.Domain.ProjectManifest project = GetProject(projectId);
+        string normalizedName = NormalizeName(name);
 
         if (isSingleton &&
             project.Sections.Any(section =>
@@ -220,10 +297,10 @@ public sealed class WorkspaceCatalog
                 $"Singleton section '{normalizedName}' already exists.");
         }
 
-        var nextOrder = order ??
+        int nextOrder = order ??
             (project.Sections.Count == 0 ? 10 : project.Sections.Max(section => section.Order) + 10);
 
-        var section = new SectionManifest
+        global::Nodalis.Core.Domain.SectionManifest section = new SectionManifest
         {
             Id = Guid.NewGuid(),
             Name = normalizedName,
@@ -243,14 +320,21 @@ public sealed class WorkspaceCatalog
         return section;
     }
 
-    public SectionManifest RenameSection(
+    /// <summary>
+    /// Performs the <c>RenameSection</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <param name="sectionId">The <c>sectionId</c> value.</param>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public SectionManifest RenameSection(
         Guid projectId,
         Guid sectionId,
         string name)
     {
-        var project = GetProject(projectId);
-        var section = GetSection(project, sectionId);
-        var normalizedName = NormalizeName(name);
+        global::Nodalis.Core.Domain.ProjectManifest project = GetProject(projectId);
+        global::Nodalis.Core.Domain.SectionManifest section = GetSection(project, sectionId);
+        string normalizedName = NormalizeName(name);
 
         if (section.IsSingleton &&
             project.Sections.Any(candidate =>
@@ -262,7 +346,7 @@ public sealed class WorkspaceCatalog
                 $"Singleton section '{normalizedName}' already exists.");
         }
 
-        var updatedSection = section with { Name = normalizedName };
+        global::Nodalis.Core.Domain.SectionManifest updatedSection = section with { Name = normalizedName };
 
         ReplaceProject(project with
         {
@@ -274,11 +358,18 @@ public sealed class WorkspaceCatalog
         return updatedSection;
     }
 
-    public void ReorderSection(Guid projectId, Guid sectionId, int order)
+    /// <summary>
+    /// Performs the <c>ReorderSection</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <param name="sectionId">The <c>sectionId</c> value.</param>
+    /// <param name="order">The <c>order</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public void ReorderSection(Guid projectId, Guid sectionId, int order)
     {
-        var project = GetProject(projectId);
-        var section = GetSection(project, sectionId);
-        var updatedSection = section with { Order = order };
+        global::Nodalis.Core.Domain.ProjectManifest project = GetProject(projectId);
+        global::Nodalis.Core.Domain.SectionManifest section = GetSection(project, sectionId);
+        global::Nodalis.Core.Domain.SectionManifest updatedSection = section with { Order = order };
 
         ReplaceProject(project with
         {
@@ -289,9 +380,15 @@ public sealed class WorkspaceCatalog
         });
     }
 
-    public void DeleteSection(Guid projectId, Guid sectionId)
+    /// <summary>
+    /// Performs the <c>DeleteSection</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <param name="sectionId">The <c>sectionId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public void DeleteSection(Guid projectId, Guid sectionId)
     {
-        var project = GetProject(projectId);
+        global::Nodalis.Core.Domain.ProjectManifest project = GetProject(projectId);
         GetSection(project, sectionId);
 
         ReplaceProject(project with
@@ -302,29 +399,49 @@ public sealed class WorkspaceCatalog
         });
     }
 
-    public ApplicationManifest GetApplication(Guid applicationId) =>
-        _applications.TryGetValue(applicationId, out var application)
+    /// <summary>
+    /// Performs the <c>GetApplication</c> operation.
+    /// </summary>
+    /// <param name="applicationId">The <c>applicationId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ApplicationManifest GetApplication(Guid applicationId) =>
+        _applications.TryGetValue(applicationId, out global::Nodalis.Core.Domain.ApplicationManifest? application)
             ? application
             : throw new KeyNotFoundException($"Application '{applicationId}' was not found.");
 
-    public ModuleManifest GetModule(Guid moduleId) =>
-        _modules.TryGetValue(moduleId, out var module)
+    /// <summary>
+    /// Performs the <c>GetModule</c> operation.
+    /// </summary>
+    /// <param name="moduleId">The <c>moduleId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ModuleManifest GetModule(Guid moduleId) =>
+        _modules.TryGetValue(moduleId, out global::Nodalis.Core.Domain.ModuleManifest? module)
             ? module
             : throw new KeyNotFoundException($"Module '{moduleId}' was not found.");
 
-    public ProjectManifest GetProject(Guid projectId) =>
-        _projects.TryGetValue(projectId, out var project)
+    /// <summary>
+    /// Performs the <c>GetProject</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public ProjectManifest GetProject(Guid projectId) =>
+        _projects.TryGetValue(projectId, out global::Nodalis.Core.Domain.ProjectManifest? project)
             ? project
             : throw new KeyNotFoundException($"Project '{projectId}' was not found.");
 
-    private void ValidateParentProjectPlacement(ProjectManifest project)
+    /// <summary>
+    /// Performs the <c>ValidateParentProjectPlacement</c> operation.
+    /// </summary>
+    /// <param name="project">The <c>project</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void ValidateParentProjectPlacement(ProjectManifest project)
     {
         if (project.ParentProjectId is not Guid parentProjectId)
         {
             return;
         }
 
-        var parent = GetProject(parentProjectId);
+        global::Nodalis.Core.Domain.ProjectManifest parent = GetProject(parentProjectId);
 
         if (parent.ApplicationId != project.ApplicationId)
         {
@@ -339,20 +456,30 @@ public sealed class WorkspaceCatalog
         }
     }
 
-    private bool HasProjectDescendants(Guid projectId) =>
+    /// <summary>
+    /// Performs the <c>HasProjectDescendants</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private bool HasProjectDescendants(Guid projectId) =>
         _projects.Values.Any(project => project.ParentProjectId == projectId);
 
-    private IReadOnlyCollection<ProjectManifest> GetProjectDescendants(Guid projectId)
+    /// <summary>
+    /// Performs the <c>GetProjectDescendants</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private IReadOnlyCollection<ProjectManifest> GetProjectDescendants(Guid projectId)
     {
-        var descendants = new List<ProjectManifest>();
-        var pending = new Queue<Guid>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Domain.ProjectManifest> descendants = new List<ProjectManifest>();
+        global::System.Collections.Generic.Queue<global::System.Guid> pending = new Queue<Guid>();
         pending.Enqueue(projectId);
 
         while (pending.Count > 0)
         {
-            var parentId = pending.Dequeue();
+            global::System.Guid parentId = pending.Dequeue();
 
-            foreach (var child in _projects.Values.Where(
+            foreach (global::Nodalis.Core.Domain.ProjectManifest child in _projects.Values.Where(
                          project => project.ParentProjectId == parentId))
             {
                 descendants.Add(child);
@@ -363,15 +490,31 @@ public sealed class WorkspaceCatalog
         return descendants;
     }
 
-    private static SectionManifest GetSection(ProjectManifest project, Guid sectionId) =>
+    /// <summary>
+    /// Performs the <c>GetSection</c> operation.
+    /// </summary>
+    /// <param name="project">The <c>project</c> value.</param>
+    /// <param name="sectionId">The <c>sectionId</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static SectionManifest GetSection(ProjectManifest project, Guid sectionId) =>
         project.Sections.SingleOrDefault(section => section.Id == sectionId)
         ?? throw new KeyNotFoundException(
             $"Section '{sectionId}' was not found in project '{project.Id}'.");
 
-    private void ReplaceProject(ProjectManifest project) =>
+    /// <summary>
+    /// Performs the <c>ReplaceProject</c> operation.
+    /// </summary>
+    /// <param name="project">The <c>project</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void ReplaceProject(ProjectManifest project) =>
         _projects[project.Id] = project;
 
-    private static string NormalizeName(string name)
+    /// <summary>
+    /// Performs the <c>NormalizeName</c> operation.
+    /// </summary>
+    /// <param name="name">The <c>name</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeName(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         return name.Trim();

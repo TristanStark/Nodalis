@@ -9,7 +9,11 @@ public sealed class AttachmentService
     private readonly string _workspaceRoot;
     private readonly WorkspaceLinkIndexService _linkIndex;
 
-    public AttachmentService(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="AttachmentService"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public AttachmentService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -18,15 +22,22 @@ public sealed class AttachmentService
             _workspaceRoot);
     }
 
-    public async Task<AttachmentReference> CopyIntoWorkspaceAsync(
+    /// <summary>
+    /// Performs the <c>CopyIntoWorkspaceAsync</c> operation.
+    /// </summary>
+    /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
+    /// <param name="ownerDocumentPath">The <c>ownerDocumentPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<AttachmentReference> CopyIntoWorkspaceAsync(
         string sourcePath,
         string ownerDocumentPath,
         CancellationToken cancellationToken = default)
     {
-        var source = ValidateExistingFile(
+        string source = ValidateExistingFile(
             sourcePath);
 
-        var owner = Path.GetFullPath(
+        string owner = Path.GetFullPath(
             ownerDocumentPath);
 
         if (!File.Exists(owner))
@@ -36,7 +47,7 @@ public sealed class AttachmentService
                 owner);
         }
 
-        var ownerTarget = await _linkIndex.FindByPathAsync(
+        global::Nodalis.Core.Links.LinkTargetEntry? ownerTarget = await _linkIndex.FindByPathAsync(
             owner,
             cancellationToken);
 
@@ -56,7 +67,7 @@ public sealed class AttachmentService
                 "The owner document could not be indexed.");
         }
 
-        var directory = Path.Combine(
+        string directory = Path.Combine(
             _workspaceRoot,
             WorkspaceLayout.AttachmentsDirectoryName,
             ownerTarget.Id.ToString("D"));
@@ -64,24 +75,24 @@ public sealed class AttachmentService
         Directory.CreateDirectory(
             directory);
 
-        var destination = WindowsPathRules.GetUniqueFilePath(
+        string destination = WindowsPathRules.GetUniqueFilePath(
             directory,
             Path.GetFileName(source));
 
-        var temporary = Path.Combine(
+        string temporary = Path.Combine(
             directory,
             $".{Path.GetFileName(destination)}.{Guid.NewGuid():N}.tmp");
 
         try
         {
-            await using (var input = new FileStream(
+            await using (global::System.IO.FileStream input = new FileStream(
                 source,
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read,
                 81920,
                 useAsync: true))
-            await using (var output = new FileStream(
+            await using (global::System.IO.FileStream output = new FileStream(
                 temporary,
                 FileMode.CreateNew,
                 FileAccess.Write,
@@ -115,11 +126,17 @@ public sealed class AttachmentService
             owner);
     }
 
-    public AttachmentReference CreateExternalReference(
+    /// <summary>
+    /// Performs the <c>CreateExternalReference</c> operation.
+    /// </summary>
+    /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
+    /// <param name="ownerDocumentPath">The <c>ownerDocumentPath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public AttachmentReference CreateExternalReference(
         string sourcePath,
         string ownerDocumentPath)
     {
-        var source = ValidateExistingFile(
+        string source = ValidateExistingFile(
             sourcePath);
 
         return CreateReference(
@@ -129,14 +146,20 @@ public sealed class AttachmentService
             forceAbsolute: true);
     }
 
-    public AttachmentReference Resolve(
+    /// <summary>
+    /// Performs the <c>Resolve</c> operation.
+    /// </summary>
+    /// <param name="markdownTarget">The <c>markdownTarget</c> value.</param>
+    /// <param name="ownerDocumentPath">The <c>ownerDocumentPath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public AttachmentReference Resolve(
         string markdownTarget,
         string ownerDocumentPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(markdownTarget);
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerDocumentPath);
 
-        var ownerDirectory = Path.GetDirectoryName(
+        string ownerDirectory = Path.GetDirectoryName(
             Path.GetFullPath(ownerDocumentPath))
             ?? _workspaceRoot;
 
@@ -145,7 +168,7 @@ public sealed class AttachmentService
         if (Uri.TryCreate(
                 markdownTarget,
                 UriKind.Absolute,
-                out var uri))
+                out global::System.Uri? uri))
         {
             if (!uri.IsFile)
             {
@@ -177,7 +200,7 @@ public sealed class AttachmentService
         fullPath = Path.GetFullPath(
             fullPath);
 
-        var isInsideWorkspace = IsInsideOrEqual(
+        bool isInsideWorkspace = IsInsideOrEqual(
             fullPath,
             _workspaceRoot);
 
@@ -193,20 +216,28 @@ public sealed class AttachmentService
         };
     }
 
-    private AttachmentReference CreateReference(
+    /// <summary>
+    /// Performs the <c>CreateReference</c> operation.
+    /// </summary>
+    /// <param name="mode">The <c>mode</c> value.</param>
+    /// <param name="fullPath">The <c>fullPath</c> value.</param>
+    /// <param name="ownerDocumentPath">The <c>ownerDocumentPath</c> value.</param>
+    /// <param name="forceAbsolute">The <c>forceAbsolute</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private AttachmentReference CreateReference(
         AttachmentStorageMode mode,
         string fullPath,
         string ownerDocumentPath,
         bool forceAbsolute = false)
     {
-        var path = Path.GetFullPath(
+        string path = Path.GetFullPath(
             fullPath);
 
-        var ownerDirectory = Path.GetDirectoryName(
+        string ownerDirectory = Path.GetDirectoryName(
             ownerDocumentPath)
             ?? _workspaceRoot;
 
-        var markdownTarget = forceAbsolute
+        string markdownTarget = forceAbsolute
             ? path.Replace(
                 Path.DirectorySeparatorChar,
                 '/')
@@ -227,12 +258,17 @@ public sealed class AttachmentService
         };
     }
 
-    private static string ValidateExistingFile(
+    /// <summary>
+    /// Performs the <c>ValidateExistingFile</c> operation.
+    /// </summary>
+    /// <param name="sourcePath">The <c>sourcePath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ValidateExistingFile(
         string sourcePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
 
-        var fullPath = Path.GetFullPath(
+        string fullPath = Path.GetFullPath(
             sourcePath);
 
         if (!File.Exists(fullPath))
@@ -245,16 +281,22 @@ public sealed class AttachmentService
         return fullPath;
     }
 
-    private static bool IsInsideOrEqual(
+    /// <summary>
+    /// Performs the <c>IsInsideOrEqual</c> operation.
+    /// </summary>
+    /// <param name="candidate">The <c>candidate</c> value.</param>
+    /// <param name="root">The <c>root</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsInsideOrEqual(
         string candidate,
         string root)
     {
-        var fullCandidate = Path.GetFullPath(candidate)
+        string fullCandidate = Path.GetFullPath(candidate)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);
 
-        var fullRoot = Path.GetFullPath(root)
+        string fullRoot = Path.GetFullPath(root)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);

@@ -11,7 +11,12 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
     private Task _pendingTask = Task.CompletedTask;
     private bool _disposed;
 
-    public DocumentAutosaveController(
+    /// <summary>
+    /// Initializes a new instance of <see cref="DocumentAutosaveController"/>.
+    /// </summary>
+    /// <param name="session">The <c>session</c> value.</param>
+    /// <param name="delay">The <c>delay</c> value.</param>
+public DocumentAutosaveController(
         TextDocumentSession session,
         TimeSpan delay)
     {
@@ -32,7 +37,12 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
 
     public event EventHandler<AutosaveFailureEventArgs>? SaveFailed;
 
-    public void Schedule(string content)
+    /// <summary>
+    /// Performs the <c>Schedule</c> operation.
+    /// </summary>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public void Schedule(string content)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(content);
@@ -43,12 +53,17 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
         _scheduledSave?.Dispose();
 
         _scheduledSave = new CancellationTokenSource();
-        var token = _scheduledSave.Token;
+        global::System.Threading.CancellationToken token = _scheduledSave.Token;
 
         _pendingTask = SaveAfterDelayAsync(token);
     }
 
-    public async Task FlushAsync(
+    /// <summary>
+    /// Performs the <c>FlushAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task FlushAsync(
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -64,7 +79,7 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
                 return;
             }
 
-            var content = _pendingContent;
+            string content = _pendingContent;
             _pendingContent = null;
             await SaveCoreAsync(content, cancellationToken);
         }
@@ -74,7 +89,11 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    /// <summary>
+    /// Performs the <c>DisposeAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+public async ValueTask DisposeAsync()
     {
         if (_disposed)
         {
@@ -96,7 +115,12 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
         _disposed = true;
     }
 
-    private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Performs the <c>SaveAfterDelayAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -110,7 +134,7 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
                     return;
                 }
 
-                var content = _pendingContent;
+                string content = _pendingContent;
                 _pendingContent = null;
                 await SaveCoreAsync(content, cancellationToken);
             }
@@ -124,7 +148,13 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
         }
     }
 
-    private async Task SaveCoreAsync(
+    /// <summary>
+    /// Performs the <c>SaveCoreAsync</c> operation.
+    /// </summary>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task SaveCoreAsync(
         string content,
         CancellationToken cancellationToken)
     {

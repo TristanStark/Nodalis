@@ -4,12 +4,17 @@ namespace Nodalis.Core.Markdown;
 
 public static partial class MarkdownInlineParser
 {
-    public static IReadOnlyList<MarkdownInline> Parse(string text)
+    /// <summary>
+    /// Performs the <c>Parse</c> operation.
+    /// </summary>
+    /// <param name="text">The <c>text</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static IReadOnlyList<MarkdownInline> Parse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        var result = new List<MarkdownInline>();
-        var position = 0;
+        global::System.Collections.Generic.List<global::Nodalis.Core.Markdown.MarkdownInline> result = new List<MarkdownInline>();
+        int position = 0;
 
         foreach (Match match in InlinePattern().Matches(text))
         {
@@ -38,12 +43,17 @@ public static partial class MarkdownInlineParser
         return result;
     }
 
-    private static MarkdownInline CreateInline(Match match)
+    /// <summary>
+    /// Performs the <c>CreateInline</c> operation.
+    /// </summary>
+    /// <param name="match">The <c>match</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static MarkdownInline CreateInline(Match match)
     {
         if (match.Groups["internal"].Success)
         {
-            var target = match.Groups["internalTarget"].Value;
-            var alias = match.Groups["internalAlias"].Success
+            string target = match.Groups["internalTarget"].Value;
+            string alias = match.Groups["internalAlias"].Success
                 ? match.Groups["internalAlias"].Value
                 : target;
 
@@ -109,7 +119,11 @@ public static partial class MarkdownInlineParser
         };
     }
 
-    [GeneratedRegex(
+    /// <summary>
+    /// Performs the <c>InlinePattern</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+[GeneratedRegex(
         @"(?<internal>\[\[(?<internalTarget>[^\]|\r\n]+)(?:\|(?<internalAlias>[^\]\r\n]+))?\]\])|" +
         @"(?<image>!\[(?<imageAlt>[^\]\r\n]*)\]\((?<imageTarget>[^)\r\n]+)\))|" +
         @"(?<link>\[(?<linkText>[^\]\r\n]+)\]\((?<linkTarget>[^)\r\n]+)\))|" +

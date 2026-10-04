@@ -8,15 +8,22 @@ namespace Nodalis.Infrastructure.Glossary;
 
 public sealed class GlossaryService
 {
-    public async Task<IReadOnlyList<GlossaryScope>> ResolveScopesAsync(
+    /// <summary>
+    /// Performs the <c>ResolveScopesAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<GlossaryScope>> ResolveScopesAsync(
         string workspaceRoot,
         string? contextPath,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
-        var root = Path.GetFullPath(workspaceRoot);
-        var contextDirectory = ResolveContextDirectory(
+        string root = Path.GetFullPath(workspaceRoot);
+        string contextDirectory = ResolveContextDirectory(
             root,
             contextPath);
 
@@ -25,7 +32,7 @@ public sealed class GlossaryService
         string? applicationDirectory = null;
         ApplicationManifest? application = null;
 
-        for (var current = contextDirectory;
+        for (string current = contextDirectory;
              current is not null && IsInsideOrEqual(current, root);
              current = Directory.GetParent(current)?.FullName)
         {
@@ -33,7 +40,7 @@ public sealed class GlossaryService
 
             if (project is null)
             {
-                var projectManifestPath = Path.Combine(
+                string projectManifestPath = Path.Combine(
                     current,
                     WorkspaceLayout.ProjectManifestFileName);
 
@@ -48,7 +55,7 @@ public sealed class GlossaryService
 
             if (application is null)
             {
-                var applicationManifestPath = Path.Combine(
+                string applicationManifestPath = Path.Combine(
                     current,
                     WorkspaceLayout.ApplicationManifestFileName);
 
@@ -76,19 +83,19 @@ public sealed class GlossaryService
             }
         }
 
-        var scopes = new List<GlossaryScope>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryScope> scopes = new List<GlossaryScope>();
 
         if (project is not null &&
             projectDirectory is not null)
         {
-            var glossarySection = project.Sections
+            global::Nodalis.Core.Domain.SectionManifest? glossarySection = project.Sections
                 .FirstOrDefault(section =>
                     string.Equals(
                         section.TemplateKey,
                         "glossary",
                         StringComparison.OrdinalIgnoreCase));
 
-            var glossaryDirectory = glossarySection is null
+            string glossaryDirectory = glossarySection is null
                 ? Path.Combine(
                     projectDirectory,
                     "Glossaire")
@@ -97,7 +104,7 @@ public sealed class GlossaryService
                     WindowsPathRules.SanitizeSegment(
                         glossarySection.Name));
 
-            var glossaryFile = glossarySection is null
+            string glossaryFile = glossarySection is null
                 ? Path.Combine(
                     glossaryDirectory,
                     WorkspaceLayout.GlobalGlossaryFileName)
@@ -139,7 +146,7 @@ public sealed class GlossaryService
                 WorkspaceLayout.GlobalGlossaryFileName)
         });
 
-        foreach (var scope in scopes)
+        foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in scopes)
         {
             await EnsureGlossaryFileAsync(
                 scope,
@@ -149,7 +156,13 @@ public sealed class GlossaryService
         return scopes;
     }
 
-    public async Task<IReadOnlyList<GlossaryEntry>> LoadEntriesAsync(
+    /// <summary>
+    /// Performs the <c>LoadEntriesAsync</c> operation.
+    /// </summary>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<GlossaryEntry>> LoadEntriesAsync(
         GlossaryScope scope,
         CancellationToken cancellationToken = default)
     {
@@ -159,7 +172,7 @@ public sealed class GlossaryService
             scope,
             cancellationToken);
 
-        var markdown = await File.ReadAllTextAsync(
+        string markdown = await File.ReadAllTextAsync(
             scope.FilePath,
             cancellationToken);
 
@@ -168,19 +181,26 @@ public sealed class GlossaryService
             scope);
     }
 
-    public async Task<IReadOnlyList<GlossaryEntry>> LoadEffectiveEntriesAsync(
+    /// <summary>
+    /// Performs the <c>LoadEffectiveEntriesAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<GlossaryEntry>> LoadEffectiveEntriesAsync(
         string workspaceRoot,
         string? contextPath,
         CancellationToken cancellationToken = default)
     {
-        var scopes = await ResolveScopesAsync(
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Glossary.GlossaryScope> scopes = await ResolveScopesAsync(
             workspaceRoot,
             contextPath,
             cancellationToken);
 
-        var entries = new List<GlossaryEntry>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryEntry> entries = new List<GlossaryEntry>();
 
-        foreach (var scope in scopes)
+        foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in scopes)
         {
             entries.AddRange(
                 await LoadEntriesAsync(
@@ -191,7 +211,15 @@ public sealed class GlossaryService
         return entries;
     }
 
-    public async Task<GlossaryResolution> ResolveAsync(
+    /// <summary>
+    /// Performs the <c>ResolveAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="query">The <c>query</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<GlossaryResolution> ResolveAsync(
         string workspaceRoot,
         string? contextPath,
         string query,
@@ -199,21 +227,21 @@ public sealed class GlossaryService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
 
-        var normalizedQuery = query.Trim();
-        var scopes = await ResolveScopesAsync(
+        string normalizedQuery = query.Trim();
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Glossary.GlossaryScope> scopes = await ResolveScopesAsync(
             workspaceRoot,
             contextPath,
             cancellationToken);
 
-        var matches = new List<GlossaryEntry>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryEntry> matches = new List<GlossaryEntry>();
 
-        foreach (var scope in scopes)
+        foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in scopes)
         {
-            var entries = await LoadEntriesAsync(
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Glossary.GlossaryEntry> entries = await LoadEntriesAsync(
                 scope,
                 cancellationToken);
 
-            var exactTerms = entries
+            global::Nodalis.Core.Glossary.GlossaryEntry[] exactTerms = entries
                 .Where(entry => string.Equals(
                     entry.Term,
                     normalizedQuery,
@@ -248,7 +276,14 @@ public sealed class GlossaryService
         };
     }
 
-    public async Task AppendAsync(
+    /// <summary>
+    /// Performs the <c>AppendAsync</c> operation.
+    /// </summary>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <param name="draft">The <c>draft</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task AppendAsync(
         GlossaryScope scope,
         GlossaryEntryDraft draft,
         CancellationToken cancellationToken = default)
@@ -262,7 +297,7 @@ public sealed class GlossaryService
             scope,
             cancellationToken);
 
-        var existingEntries = await LoadEntriesAsync(
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Glossary.GlossaryEntry> existingEntries = await LoadEntriesAsync(
             scope,
             cancellationToken);
 
@@ -276,14 +311,14 @@ public sealed class GlossaryService
                 $"Le terme '{draft.Term.Trim()}' existe déjà dans {scope.DisplayName}.");
         }
 
-        var session = await TextDocumentSession.OpenAsync(
+        global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
             scope.FilePath,
             cancellationToken);
 
-        var existing = session.Content.TrimEnd();
-        var block = FormatEntry(draft);
+        string existing = session.Content.TrimEnd();
+        string block = FormatEntry(draft);
 
-        var updated = string.IsNullOrWhiteSpace(existing)
+        string updated = string.IsNullOrWhiteSpace(existing)
             ? $"# Glossaire\n\n{block}"
             : $"{existing}\n\n{block}";
 
@@ -292,27 +327,33 @@ public sealed class GlossaryService
             cancellationToken);
     }
 
-    public static IReadOnlyList<GlossaryEntry> Parse(
+    /// <summary>
+    /// Performs the <c>Parse</c> operation.
+    /// </summary>
+    /// <param name="markdown">The <c>markdown</c> value.</param>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static IReadOnlyList<GlossaryEntry> Parse(
         string markdown,
         GlossaryScope scope)
     {
         ArgumentNullException.ThrowIfNull(markdown);
         ArgumentNullException.ThrowIfNull(scope);
 
-        var lines = markdown
+        string[] lines = markdown
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n')
             .Split('\n');
 
-        var entries = new List<GlossaryEntry>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryEntry> entries = new List<GlossaryEntry>();
         EntryBuilder? current = null;
         FieldKind activeField = FieldKind.None;
 
-        for (var index = 0;
+        for (int index = 0;
              index < lines.Length;
              index++)
         {
-            var line = lines[index];
+            string line = lines[index];
 
             if (line.StartsWith(
                     "## ",
@@ -341,7 +382,7 @@ public sealed class GlossaryService
             if (TryReadField(
                     line,
                     "Définition",
-                    out var definition))
+                    out string? definition))
             {
                 activeField = FieldKind.Definition;
                 AppendDefinition(
@@ -353,7 +394,7 @@ public sealed class GlossaryService
             if (TryReadField(
                     line,
                     "Synonymes",
-                    out var synonyms))
+                    out string? synonyms))
             {
                 activeField = FieldKind.None;
                 current.Synonyms.AddRange(
@@ -364,7 +405,7 @@ public sealed class GlossaryService
             if (TryReadField(
                     line,
                     "Acronymes",
-                    out var acronyms))
+                    out string? acronyms))
             {
                 activeField = FieldKind.None;
                 current.Acronyms.AddRange(
@@ -375,7 +416,7 @@ public sealed class GlossaryService
             if (TryReadField(
                     line,
                     "Synonymes / acronymes",
-                    out var legacyAliases))
+                    out string? legacyAliases))
             {
                 activeField = FieldKind.None;
                 current.Synonyms.AddRange(
@@ -386,7 +427,7 @@ public sealed class GlossaryService
             if (TryReadField(
                     line,
                     "Liens",
-                    out var links))
+                    out string? links))
             {
                 activeField = FieldKind.None;
                 current.Links.AddRange(
@@ -421,12 +462,17 @@ public sealed class GlossaryService
         return entries;
     }
 
-    public static string FormatEntry(
+    /// <summary>
+    /// Performs the <c>FormatEntry</c> operation.
+    /// </summary>
+    /// <param name="draft">The <c>draft</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static string FormatEntry(
         GlossaryEntryDraft draft)
     {
         ArgumentNullException.ThrowIfNull(draft);
 
-        var builder = new StringBuilder();
+        global::System.Text.StringBuilder builder = new StringBuilder();
 
         builder.AppendLine(
             $"## {draft.Term.Trim()}");
@@ -452,7 +498,13 @@ public sealed class GlossaryService
             .TrimEnd() + "\n";
     }
 
-    private static async Task EnsureGlossaryFileAsync(
+    /// <summary>
+    /// Performs the <c>EnsureGlossaryFileAsync</c> operation.
+    /// </summary>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task EnsureGlossaryFileAsync(
         GlossaryScope scope,
         CancellationToken cancellationToken)
     {
@@ -470,12 +522,19 @@ public sealed class GlossaryService
             cancellationToken);
     }
 
-    private static bool TryReadField(
+    /// <summary>
+    /// Performs the <c>TryReadField</c> operation.
+    /// </summary>
+    /// <param name="line">The <c>line</c> value.</param>
+    /// <param name="fieldName">The <c>fieldName</c> value.</param>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool TryReadField(
         string line,
         string fieldName,
         out string value)
     {
-        var prefix = $"**{fieldName} :**";
+        string prefix = $"**{fieldName} :**";
 
         if (line.StartsWith(
                 prefix,
@@ -489,7 +548,14 @@ public sealed class GlossaryService
         return false;
     }
 
-    private static void AddCurrentIfMeaningful(
+    /// <summary>
+    /// Performs the <c>AddCurrentIfMeaningful</c> operation.
+    /// </summary>
+    /// <param name="entries">The <c>entries</c> value.</param>
+    /// <param name="current">The <c>current</c> value.</param>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void AddCurrentIfMeaningful(
         ICollection<GlossaryEntry> entries,
         EntryBuilder? current,
         GlossaryScope scope)
@@ -500,17 +566,17 @@ public sealed class GlossaryService
             return;
         }
 
-        var definition = current.Definition
+        string definition = current.Definition
             .ToString()
             .Trim();
 
-        var synonyms = NormalizeValues(
+        global::System.Collections.Generic.List<string> synonyms = NormalizeValues(
             current.Synonyms);
 
-        var acronyms = NormalizeValues(
+        global::System.Collections.Generic.List<string> acronyms = NormalizeValues(
             current.Acronyms);
 
-        var links = NormalizeValues(
+        global::System.Collections.Generic.List<string> links = NormalizeValues(
             current.Links);
 
         if (string.IsNullOrWhiteSpace(definition) &&
@@ -533,7 +599,13 @@ public sealed class GlossaryService
         });
     }
 
-    private static void AppendDefinition(
+    /// <summary>
+    /// Performs the <c>AppendDefinition</c> operation.
+    /// </summary>
+    /// <param name="builder">The <c>builder</c> value.</param>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void AppendDefinition(
         EntryBuilder builder,
         string value)
     {
@@ -556,7 +628,12 @@ public sealed class GlossaryService
             value.Trim());
     }
 
-    private static IEnumerable<string> SplitValues(
+    /// <summary>
+    /// Performs the <c>SplitValues</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static IEnumerable<string> SplitValues(
         string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -564,7 +641,7 @@ public sealed class GlossaryService
             return [];
         }
 
-        var separator = value.Contains(';')
+        char separator = value.Contains(';')
             ? ';'
             : ',';
 
@@ -575,7 +652,12 @@ public sealed class GlossaryService
                 StringSplitOptions.RemoveEmptyEntries);
     }
 
-    private static List<string> NormalizeValues(
+    /// <summary>
+    /// Performs the <c>NormalizeValues</c> operation.
+    /// </summary>
+    /// <param name="values">The <c>values</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<string> NormalizeValues(
         IEnumerable<string> values) =>
         values
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -584,13 +666,24 @@ public sealed class GlossaryService
             .OrderBy(value => value, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-    private static string JoinValues(
+    /// <summary>
+    /// Performs the <c>JoinValues</c> operation.
+    /// </summary>
+    /// <param name="values">The <c>values</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string JoinValues(
         IEnumerable<string> values) =>
         string.Join(
             "; ",
             NormalizeValues(values));
 
-    private static string ResolveContextDirectory(
+    /// <summary>
+    /// Performs the <c>ResolveContextDirectory</c> operation.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ResolveContextDirectory(
         string workspaceRoot,
         string? contextPath)
     {
@@ -599,7 +692,7 @@ public sealed class GlossaryService
             return workspaceRoot;
         }
 
-        var fullPath = Path.GetFullPath(
+        string fullPath = Path.GetFullPath(
             contextPath);
 
         if (File.Exists(fullPath) ||
@@ -614,16 +707,22 @@ public sealed class GlossaryService
             : workspaceRoot;
     }
 
-    private static bool IsInsideOrEqual(
+    /// <summary>
+    /// Performs the <c>IsInsideOrEqual</c> operation.
+    /// </summary>
+    /// <param name="candidate">The <c>candidate</c> value.</param>
+    /// <param name="root">The <c>root</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsInsideOrEqual(
         string candidate,
         string root)
     {
-        var fullCandidate = Path.GetFullPath(candidate)
+        string fullCandidate = Path.GetFullPath(candidate)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);
 
-        var fullRoot = Path.GetFullPath(root)
+        string fullRoot = Path.GetFullPath(root)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);

@@ -12,7 +12,13 @@ public partial class DecisionListDialog : Window
     private readonly WorkspaceDecisionService _decisions;
     private readonly string? _contextPath;
 
-    public DecisionListDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="DecisionListDialog"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="scopeLabel">The <c>scopeLabel</c> value.</param>
+public DecisionListDialog(
         string workspaceRoot,
         string? contextPath,
         string scopeLabel)
@@ -30,14 +36,26 @@ public partial class DecisionListDialog : Window
 
     public DecisionRecord? SelectedDecision { get; private set; }
 
-    private async void SearchTextBox_TextChanged(
+    /// <summary>
+    /// Performs the <c>SearchTextBox_TextChanged</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void SearchTextBox_TextChanged(
         object sender,
         TextChangedEventArgs e)
     {
         await RefreshAsync();
     }
 
-    private void DecisionsList_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>DecisionsList_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void DecisionsList_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e)
     {
@@ -50,7 +68,11 @@ public partial class DecisionListDialog : Window
         DialogResult = true;
     }
 
-    private async Task RefreshAsync()
+    /// <summary>
+    /// Performs the <c>RefreshAsync</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private async Task RefreshAsync()
     {
         try
         {

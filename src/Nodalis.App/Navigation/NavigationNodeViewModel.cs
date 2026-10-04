@@ -10,7 +10,12 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
     private bool _isExpanded;
     private bool _isSelected;
 
-    public NavigationNodeViewModel(
+    /// <summary>
+    /// Initializes a new instance of <see cref="NavigationNodeViewModel"/>.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <param name="expandedNodeIds">The <c>expandedNodeIds</c> value.</param>
+public NavigationNodeViewModel(
         WorkspaceNavigationNode node,
         IReadOnlySet<Guid> expandedNodeIds)
     {
@@ -66,20 +71,29 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
         }
     }
 
-    public IEnumerable<NavigationNodeViewModel> DescendantsAndSelf()
+    /// <summary>
+    /// Performs the <c>DescendantsAndSelf</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+public IEnumerable<NavigationNodeViewModel> DescendantsAndSelf()
     {
         yield return this;
 
-        foreach (var child in Children)
+        foreach (global::Nodalis.App.Navigation.NavigationNodeViewModel child in Children)
         {
-            foreach (var descendant in child.DescendantsAndSelf())
+            foreach (global::Nodalis.App.Navigation.NavigationNodeViewModel descendant in child.DescendantsAndSelf())
             {
                 yield return descendant;
             }
         }
     }
 
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+    /// <summary>
+    /// Performs the <c>OnPropertyChanged</c> operation.
+    /// </summary>
+    /// <param name="propertyName">The <c>propertyName</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(
             this,
             new PropertyChangedEventArgs(propertyName));

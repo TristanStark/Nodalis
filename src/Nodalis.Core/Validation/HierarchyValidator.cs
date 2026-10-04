@@ -4,7 +4,15 @@ namespace Nodalis.Core.Validation;
 
 public static class HierarchyValidator
 {
-    public static void ValidateProject(
+    /// <summary>
+    /// Performs the <c>ValidateProject</c> operation.
+    /// </summary>
+    /// <param name="project">The <c>project</c> value.</param>
+    /// <param name="applications">The <c>applications</c> value.</param>
+    /// <param name="modules">The <c>modules</c> value.</param>
+    /// <param name="projects">The <c>projects</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static void ValidateProject(
         ProjectManifest project,
         IReadOnlyCollection<ApplicationManifest> applications,
         IReadOnlyCollection<ModuleManifest> modules,
@@ -22,7 +30,7 @@ public static class HierarchyValidator
 
         if (project.ModuleId is Guid moduleId)
         {
-            var module = modules.SingleOrDefault(candidate => candidate.Id == moduleId)
+            global::Nodalis.Core.Domain.ModuleManifest module = modules.SingleOrDefault(candidate => candidate.Id == moduleId)
                 ?? throw new DomainValidationException("The selected module does not exist.");
 
             if (module.ApplicationId != project.ApplicationId)
@@ -33,7 +41,7 @@ public static class HierarchyValidator
 
         if (project.ParentProjectId is Guid parentProjectId)
         {
-            var parent = projects.SingleOrDefault(candidate => candidate.Id == parentProjectId)
+            global::Nodalis.Core.Domain.ProjectManifest parent = projects.SingleOrDefault(candidate => candidate.Id == parentProjectId)
                 ?? throw new DomainValidationException("The parent project does not exist.");
 
             if (parent.ApplicationId != project.ApplicationId)
@@ -45,7 +53,14 @@ public static class HierarchyValidator
         }
     }
 
-    public static void ValidateModule(
+    /// <summary>
+    /// Performs the <c>ValidateModule</c> operation.
+    /// </summary>
+    /// <param name="module">The <c>module</c> value.</param>
+    /// <param name="applications">The <c>applications</c> value.</param>
+    /// <param name="modules">The <c>modules</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static void ValidateModule(
         ModuleManifest module,
         IReadOnlyCollection<ApplicationManifest> applications,
         IReadOnlyCollection<ModuleManifest> modules)
@@ -62,7 +77,7 @@ public static class HierarchyValidator
 
         if (module.ParentModuleId is Guid parentModuleId)
         {
-            var parent = modules.SingleOrDefault(candidate => candidate.Id == parentModuleId)
+            global::Nodalis.Core.Domain.ModuleManifest parent = modules.SingleOrDefault(candidate => candidate.Id == parentModuleId)
                 ?? throw new DomainValidationException("The parent module does not exist.");
 
             if (parent.ApplicationId != module.ApplicationId)
@@ -74,12 +89,19 @@ public static class HierarchyValidator
         }
     }
 
-    private static void EnsureNoProjectCycle(
+    /// <summary>
+    /// Performs the <c>EnsureNoProjectCycle</c> operation.
+    /// </summary>
+    /// <param name="projectId">The <c>projectId</c> value.</param>
+    /// <param name="parentProjectId">The <c>parentProjectId</c> value.</param>
+    /// <param name="projects">The <c>projects</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void EnsureNoProjectCycle(
         Guid projectId,
         Guid parentProjectId,
         IReadOnlyCollection<ProjectManifest> projects)
     {
-        var visited = new HashSet<Guid> { projectId };
+        global::System.Collections.Generic.HashSet<global::System.Guid> visited = new HashSet<Guid> { projectId };
         Guid? currentId = parentProjectId;
 
         while (currentId is Guid id)
@@ -93,12 +115,19 @@ public static class HierarchyValidator
         }
     }
 
-    private static void EnsureNoModuleCycle(
+    /// <summary>
+    /// Performs the <c>EnsureNoModuleCycle</c> operation.
+    /// </summary>
+    /// <param name="moduleId">The <c>moduleId</c> value.</param>
+    /// <param name="parentModuleId">The <c>parentModuleId</c> value.</param>
+    /// <param name="modules">The <c>modules</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void EnsureNoModuleCycle(
         Guid moduleId,
         Guid parentModuleId,
         IReadOnlyCollection<ModuleManifest> modules)
     {
-        var visited = new HashSet<Guid> { moduleId };
+        global::System.Collections.Generic.HashSet<global::System.Guid> visited = new HashSet<Guid> { moduleId };
         Guid? currentId = parentModuleId;
 
         while (currentId is Guid id)

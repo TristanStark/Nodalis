@@ -4,26 +4,31 @@ namespace Nodalis.Core.Markdown;
 
 public static partial class MarkdownDocumentParser
 {
-    public static IReadOnlyList<MarkdownBlock> Parse(string markdown)
+    /// <summary>
+    /// Performs the <c>Parse</c> operation.
+    /// </summary>
+    /// <param name="markdown">The <c>markdown</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static IReadOnlyList<MarkdownBlock> Parse(string markdown)
     {
         ArgumentNullException.ThrowIfNull(markdown);
 
-        var lineFeed = ((char)10).ToString();
-        var carriageReturnLineFeed = string.Concat((char)13, (char)10);
+        string lineFeed = ((char)10).ToString();
+        string carriageReturnLineFeed = string.Concat((char)13, (char)10);
 
-        var normalized = markdown
+        string normalized = markdown
             .Replace(
                 carriageReturnLineFeed,
                 lineFeed,
                 StringComparison.Ordinal)
             .Replace((char)13, (char)10);
 
-        var lines = normalized.Split((char)10);
-        var blocks = new List<MarkdownBlock>();
+        string[] lines = normalized.Split((char)10);
+        global::System.Collections.Generic.List<global::Nodalis.Core.Markdown.MarkdownBlock> blocks = new List<MarkdownBlock>();
 
-        for (var index = 0; index < lines.Length;)
+        for (int index = 0; index < lines.Length;)
         {
-            var line = lines[index];
+            string line = lines[index];
 
             if (string.IsNullOrWhiteSpace(line))
             {
@@ -31,11 +36,11 @@ public static partial class MarkdownDocumentParser
                 continue;
             }
 
-            var fence = CodeFencePattern().Match(line);
+            global::System.Text.RegularExpressions.Match fence = CodeFencePattern().Match(line);
             if (fence.Success)
             {
-                var language = fence.Groups["language"].Value;
-                var code = new List<string>();
+                string language = fence.Groups["language"].Value;
+                global::System.Collections.Generic.List<string> code = new List<string>();
                 index++;
 
                 while (index < lines.Length &&
@@ -62,13 +67,13 @@ public static partial class MarkdownDocumentParser
                 continue;
             }
 
-            if (TryParseTable(lines, ref index, out var table))
+            if (TryParseTable(lines, ref index, out global::Nodalis.Core.Markdown.MarkdownBlock? table))
             {
                 blocks.Add(table);
                 continue;
             }
 
-            var heading = HeadingPattern().Match(line);
+            global::System.Text.RegularExpressions.Match heading = HeadingPattern().Match(line);
             if (heading.Success)
             {
                 blocks.Add(new MarkdownBlock
@@ -82,7 +87,7 @@ public static partial class MarkdownDocumentParser
                 continue;
             }
 
-            var checkbox = CheckboxPattern().Match(line);
+            global::System.Text.RegularExpressions.Match checkbox = CheckboxPattern().Match(line);
             if (checkbox.Success)
             {
                 blocks.Add(new MarkdownBlock
@@ -97,7 +102,7 @@ public static partial class MarkdownDocumentParser
                 continue;
             }
 
-            var unordered = UnorderedListPattern().Match(line);
+            global::System.Text.RegularExpressions.Match unordered = UnorderedListPattern().Match(line);
             if (unordered.Success)
             {
                 blocks.Add(new MarkdownBlock
@@ -110,7 +115,7 @@ public static partial class MarkdownDocumentParser
                 continue;
             }
 
-            var ordered = OrderedListPattern().Match(line);
+            global::System.Text.RegularExpressions.Match ordered = OrderedListPattern().Match(line);
             if (ordered.Success)
             {
                 blocks.Add(new MarkdownBlock
@@ -123,7 +128,7 @@ public static partial class MarkdownDocumentParser
                 continue;
             }
 
-            var quote = QuotePattern().Match(line);
+            global::System.Text.RegularExpressions.Match quote = QuotePattern().Match(line);
             if (quote.Success)
             {
                 blocks.Add(new MarkdownBlock
@@ -148,7 +153,14 @@ public static partial class MarkdownDocumentParser
         return blocks;
     }
 
-    private static bool TryParseTable(
+    /// <summary>
+    /// Performs the <c>TryParseTable</c> operation.
+    /// </summary>
+    /// <param name="lines">The <c>lines</c> value.</param>
+    /// <param name="index">The <c>index</c> value.</param>
+    /// <param name="block">The <c>block</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool TryParseTable(
         IReadOnlyList<string> lines,
         ref int index,
         out MarkdownBlock block)
@@ -162,7 +174,7 @@ public static partial class MarkdownDocumentParser
             return false;
         }
 
-        var rows = new List<List<string>>
+        global::System.Collections.Generic.List<global::System.Collections.Generic.List<string>> rows = new List<List<string>>
         {
             SplitTableRow(lines[index])
         };
@@ -186,9 +198,14 @@ public static partial class MarkdownDocumentParser
         return true;
     }
 
-    private static List<string> SplitTableRow(string line)
+    /// <summary>
+    /// Performs the <c>SplitTableRow</c> operation.
+    /// </summary>
+    /// <param name="line">The <c>line</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<string> SplitTableRow(string line)
     {
-        var trimmed = line.Trim().Trim('|');
+        string trimmed = line.Trim().Trim('|');
 
         return trimmed
             .Split('|')
@@ -196,37 +213,65 @@ public static partial class MarkdownDocumentParser
             .ToList();
     }
 
-    [GeneratedRegex(
+    /// <summary>
+    /// Performs the <c>HeadingPattern</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+[GeneratedRegex(
         @"^(?<marks>#{1,6})\s+(?<text>.+?)\s*$",
         RegexOptions.CultureInvariant)]
     private static partial Regex HeadingPattern();
 
-    [GeneratedRegex(
+    /// <summary>
+    /// Performs the <c>CheckboxPattern</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+[GeneratedRegex(
         @"^\s*[-*+]\s+\[(?<state>[ xX])\]\s+(?<text>.*)$",
         RegexOptions.CultureInvariant)]
     private static partial Regex CheckboxPattern();
 
-    [GeneratedRegex(
+    /// <summary>
+    /// Performs the <c>UnorderedListPattern</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+[GeneratedRegex(
         @"^\s*[-*+]\s+(?<text>.+)$",
         RegexOptions.CultureInvariant)]
     private static partial Regex UnorderedListPattern();
 
-    [GeneratedRegex(
+    /// <summary>
+    /// Performs the <c>OrderedListPattern</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+[GeneratedRegex(
         @"^\s*\d+[.)]\s+(?<text>.+)$",
         RegexOptions.CultureInvariant)]
     private static partial Regex OrderedListPattern();
 
-    [GeneratedRegex(
+    /// <summary>
+    /// Performs the <c>QuotePattern</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+[GeneratedRegex(
         @"^\s*>\s?(?<text>.*)$",
         RegexOptions.CultureInvariant)]
     private static partial Regex QuotePattern();
 
-    [GeneratedRegex(
+    /// <summary>
+    /// Performs the <c>CodeFencePattern</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+[GeneratedRegex(
         @"^\s*\x60{3}(?<language>[A-Za-z0-9_.+-]*)\s*$",
         RegexOptions.CultureInvariant)]
     private static partial Regex CodeFencePattern();
 
-    [GeneratedRegex(
+    /// <summary>
+    /// Performs the <c>TableSeparatorPattern</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+[GeneratedRegex(
         @"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$",
         RegexOptions.CultureInvariant)]
     private static partial Regex TableSeparatorPattern();

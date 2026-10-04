@@ -14,7 +14,12 @@ public partial class SearchDialog : Window
     private readonly string? _contextPath;
     private CancellationTokenSource? _searchCancellation;
 
-    public SearchDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="SearchDialog"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+public SearchDialog(
         string workspaceRoot,
         string? contextPath)
     {
@@ -35,7 +40,13 @@ public partial class SearchDialog : Window
 
     public SearchResult? SelectedResult { get; private set; }
 
-    private async void SearchTextBox_TextChanged(
+    /// <summary>
+    /// Performs the <c>SearchTextBox_TextChanged</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async void SearchTextBox_TextChanged(
         object sender,
         TextChangedEventArgs e)
     {
@@ -50,7 +61,7 @@ public partial class SearchDialog : Window
             return;
         }
 
-        var cancellation = new CancellationTokenSource();
+        global::System.Threading.CancellationTokenSource cancellation = new CancellationTokenSource();
         _searchCancellation = cancellation;
 
         try
@@ -110,7 +121,13 @@ public partial class SearchDialog : Window
         }
     }
 
-    private void Results_SelectionChanged(
+    /// <summary>
+    /// Performs the <c>Results_SelectionChanged</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Results_SelectionChanged(
         object sender,
         SelectionChangedEventArgs e)
     {
@@ -136,12 +153,24 @@ public partial class SearchDialog : Window
         }
     }
 
-    private void Results_MouseDoubleClick(
+    /// <summary>
+    /// Performs the <c>Results_MouseDoubleClick</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Results_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e) =>
         AcceptSelectedResult();
 
-    private void Window_PreviewKeyDown(
+    /// <summary>
+    /// Performs the <c>Window_PreviewKeyDown</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Window_PreviewKeyDown(
         object sender,
         KeyEventArgs e)
     {
@@ -159,7 +188,11 @@ public partial class SearchDialog : Window
         }
     }
 
-    private void AcceptSelectedResult()
+    /// <summary>
+    /// Performs the <c>AcceptSelectedResult</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void AcceptSelectedResult()
     {
         SelectedResult =
             ProjectResults.SelectedItem as SearchResult ??
@@ -172,7 +205,11 @@ public partial class SearchDialog : Window
         }
     }
 
-    private void ClearResults()
+    /// <summary>
+    /// Performs the <c>ClearResults</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private void ClearResults()
     {
         ProjectResults.ItemsSource = null;
         ApplicationResults.ItemsSource = null;
@@ -189,7 +226,12 @@ public partial class SearchDialog : Window
         StatusText.Text = "Saisissez un terme exact.";
     }
 
-    private static string FormatCount(int count) =>
+    /// <summary>
+    /// Performs the <c>FormatCount</c> operation.
+    /// </summary>
+    /// <param name="count">The <c>count</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string FormatCount(int count) =>
         count == 1
             ? "1 résultat"
             : $"{count} résultats";

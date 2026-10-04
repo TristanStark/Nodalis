@@ -5,7 +5,12 @@ namespace Nodalis.App.Dialogs;
 
 public partial class AddGlossaryEntryDialog : Window
 {
-    public AddGlossaryEntryDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="AddGlossaryEntryDialog"/>.
+    /// </summary>
+    /// <param name="scope">The <c>scope</c> value.</param>
+    /// <param name="term">The <c>term</c> value.</param>
+public AddGlossaryEntryDialog(
         GlossaryScope scope,
         string term)
     {
@@ -33,7 +38,13 @@ public partial class AddGlossaryEntryDialog : Window
             Definition = string.Empty
         };
 
-    private void Add_Click(
+    /// <summary>
+    /// Performs the <c>Add_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Add_Click(
         object sender,
         RoutedEventArgs e)
     {
@@ -67,7 +78,12 @@ public partial class AddGlossaryEntryDialog : Window
         DialogResult = true;
     }
 
-    private static List<string> ParseValues(string value) =>
+    /// <summary>
+    /// Performs the <c>ParseValues</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<string> ParseValues(string value) =>
         value
             .Split(
                 [';', ','],
@@ -77,7 +93,12 @@ public partial class AddGlossaryEntryDialog : Window
                 StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-    private static List<string> ParseLinks(string value) =>
+    /// <summary>
+    /// Performs the <c>ParseLinks</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<string> ParseLinks(string value) =>
         value
             .Replace(
                 "\r\n",

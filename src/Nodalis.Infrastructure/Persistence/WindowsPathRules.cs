@@ -6,12 +6,17 @@ public static class WindowsPathRules
         BuildReservedNames(),
         StringComparer.OrdinalIgnoreCase);
 
-    public static string SanitizeSegment(string value)
+    /// <summary>
+    /// Performs the <c>SanitizeSegment</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static string SanitizeSegment(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
 
-        var invalidCharacters = Path.GetInvalidFileNameChars();
-        var sanitized = new string(
+        char[] invalidCharacters = Path.GetInvalidFileNameChars();
+        string sanitized = new string(
             value.Trim()
                 .Select(character => invalidCharacters.Contains(character) ? '_' : character)
                 .ToArray())
@@ -22,7 +27,7 @@ public static class WindowsPathRules
             sanitized = "_";
         }
 
-        var stem = Path.GetFileNameWithoutExtension(sanitized);
+        string stem = Path.GetFileNameWithoutExtension(sanitized);
         if (ReservedNames.Contains(stem))
         {
             sanitized = $"_{sanitized}";
@@ -31,18 +36,24 @@ public static class WindowsPathRules
         return sanitized;
     }
 
-    public static string GetUniqueFilePath(
+    /// <summary>
+    /// Performs the <c>GetUniqueFilePath</c> operation.
+    /// </summary>
+    /// <param name="parentDirectory">The <c>parentDirectory</c> value.</param>
+    /// <param name="desiredFileName">The <c>desiredFileName</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static string GetUniqueFilePath(
         string parentDirectory,
         string desiredFileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(parentDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(desiredFileName);
 
-        var extension = Path.GetExtension(desiredFileName);
-        var stem = Path.GetFileNameWithoutExtension(desiredFileName);
+        string extension = Path.GetExtension(desiredFileName);
+        string stem = Path.GetFileNameWithoutExtension(desiredFileName);
 
-        var safeStem = SanitizeSegment(stem);
-        var safeExtension = string.IsNullOrWhiteSpace(extension)
+        string safeStem = SanitizeSegment(stem);
+        string safeExtension = string.IsNullOrWhiteSpace(extension)
             ? string.Empty
             : new string(
                 extension
@@ -52,7 +63,7 @@ public static class WindowsPathRules
                             : character)
                     .ToArray());
 
-        var candidate = Path.Combine(
+        string candidate = Path.Combine(
             parentDirectory,
             safeStem + safeExtension);
 
@@ -61,7 +72,7 @@ public static class WindowsPathRules
             return candidate;
         }
 
-        for (var index = 2; ; index++)
+        for (int index = 2; ; index++)
         {
             candidate = Path.Combine(
                 parentDirectory,
@@ -74,19 +85,25 @@ public static class WindowsPathRules
         }
     }
 
-    public static string GetUniqueDirectoryPath(string parentDirectory, string desiredName)
+    /// <summary>
+    /// Performs the <c>GetUniqueDirectoryPath</c> operation.
+    /// </summary>
+    /// <param name="parentDirectory">The <c>parentDirectory</c> value.</param>
+    /// <param name="desiredName">The <c>desiredName</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static string GetUniqueDirectoryPath(string parentDirectory, string desiredName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(parentDirectory);
 
-        var safeName = SanitizeSegment(desiredName);
-        var candidate = Path.Combine(parentDirectory, safeName);
+        string safeName = SanitizeSegment(desiredName);
+        string candidate = Path.Combine(parentDirectory, safeName);
 
         if (!Directory.Exists(candidate) && !File.Exists(candidate))
         {
             return candidate;
         }
 
-        for (var index = 2; ; index++)
+        for (int index = 2; ; index++)
         {
             candidate = Path.Combine(parentDirectory, $"{safeName} ({index})");
             if (!Directory.Exists(candidate) && !File.Exists(candidate))
@@ -96,14 +113,18 @@ public static class WindowsPathRules
         }
     }
 
-    private static IEnumerable<string> BuildReservedNames()
+    /// <summary>
+    /// Performs the <c>BuildReservedNames</c> operation.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+private static IEnumerable<string> BuildReservedNames()
     {
         yield return "CON";
         yield return "PRN";
         yield return "AUX";
         yield return "NUL";
 
-        for (var index = 1; index <= 9; index++)
+        for (int index = 1; index <= 9; index++)
         {
             yield return $"COM{index}";
             yield return $"LPT{index}";

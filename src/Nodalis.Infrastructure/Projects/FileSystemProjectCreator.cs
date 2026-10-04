@@ -13,13 +13,23 @@ public sealed class FileSystemProjectCreator : IProjectCreator
 {
     private readonly FileSystemTemplateStore _templateStore;
 
-    public FileSystemProjectCreator(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="FileSystemProjectCreator"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public FileSystemProjectCreator(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         _templateStore = new FileSystemTemplateStore(workspaceRoot);
     }
 
-    public async Task<ProjectCreationResult> CreateAsync(
+    /// <summary>
+    /// Performs the <c>CreateAsync</c> operation.
+    /// </summary>
+    /// <param name="request">The <c>request</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<ProjectCreationResult> CreateAsync(
         ProjectCreationRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -27,18 +37,18 @@ public sealed class FileSystemProjectCreator : IProjectCreator
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Name);
         ArgumentNullException.ThrowIfNull(request.Target);
 
-        var name = request.Name.Trim();
-        var profileCatalog = await _templateStore.LoadProjectProfilesAsync(
+        string name = request.Name.Trim();
+        global::Nodalis.Core.Templates.ProjectProfileCatalog profileCatalog = await _templateStore.LoadProjectProfilesAsync(
             cancellationToken);
 
-        var profile = profileCatalog.Profiles.SingleOrDefault(
+        global::Nodalis.Core.Templates.ProjectProfileDefinition profile = profileCatalog.Profiles.SingleOrDefault(
             candidate => candidate.Complexity == request.Complexity)
             ?? throw new InvalidDataException(
                 $"No project profile exists for '{request.Complexity}'.");
 
         ValidateProfile(profile);
 
-        var containerDirectory = request.Target.ParentProjectId is null
+        string containerDirectory = request.Target.ParentProjectId is null
             ? Path.Combine(
                 request.Target.ParentDirectory,
                 WorkspaceLayout.ProjectsDirectoryName)
@@ -48,22 +58,22 @@ public sealed class FileSystemProjectCreator : IProjectCreator
 
         Directory.CreateDirectory(containerDirectory);
 
-        var finalDirectory = WindowsPathRules.GetUniqueDirectoryPath(
+        string finalDirectory = WindowsPathRules.GetUniqueDirectoryPath(
             containerDirectory,
             name);
 
-        var stagingDirectory = Path.Combine(
+        string stagingDirectory = Path.Combine(
             containerDirectory,
             $".nodalis-project-{Guid.NewGuid():N}.tmp");
 
-        var projectId = Guid.NewGuid();
-        var createdPaths = new List<string>();
+        global::System.Guid projectId = Guid.NewGuid();
+        global::System.Collections.Generic.List<string> createdPaths = new List<string>();
 
         try
         {
             Directory.CreateDirectory(stagingDirectory);
 
-            var sections = profile.Sections
+            global::System.Collections.Generic.List<global::Nodalis.Core.Domain.SectionManifest> sections = profile.Sections
                 .OrderBy(section => section.Order)
                 .Select(section => new SectionManifest
                 {
@@ -77,7 +87,7 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                 })
                 .ToList();
 
-            var project = new ProjectManifest
+            global::Nodalis.Core.Domain.ProjectManifest project = new ProjectManifest
             {
                 Id = projectId,
                 Name = name,
@@ -102,7 +112,7 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                 "# Notes rapides\n\n",
                 cancellationToken);
 
-            var overviewPath = Path.Combine(
+            string overviewPath = Path.Combine(
                 stagingDirectory,
                 "Présentation.md");
 
@@ -111,11 +121,11 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                 BuildOverview(request, project),
                 cancellationToken);
 
-            foreach (var section in sections)
+            foreach (global::Nodalis.Core.Domain.SectionManifest section in sections)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var sectionDirectory = Path.Combine(
+                string sectionDirectory = Path.Combine(
                     stagingDirectory,
                     WindowsPathRules.SanitizeSegment(section.Name));
 
@@ -126,7 +136,7 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                     continue;
                 }
 
-                var variables = MarkdownTemplateRenderer.CreateStandardVariables(
+                global::System.Collections.Generic.Dictionary<string, string> variables = MarkdownTemplateRenderer.CreateStandardVariables(
                     section.Name,
                     section.Id,
                     DateTimeOffset.Now,
@@ -138,7 +148,7 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                         ["module.name"] = request.Target.ModuleName ?? string.Empty
                     });
 
-                var content = await _templateStore.RenderAsync(
+                string content = await _templateStore.RenderAsync(
                     section.TemplateKey,
                     variables,
                     cancellationToken);
@@ -176,11 +186,17 @@ public sealed class FileSystemProjectCreator : IProjectCreator
         }
     }
 
-    private static string BuildOverview(
+    /// <summary>
+    /// Performs the <c>BuildOverview</c> operation.
+    /// </summary>
+    /// <param name="request">The <c>request</c> value.</param>
+    /// <param name="project">The <c>project</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string BuildOverview(
         ProjectCreationRequest request,
         ProjectManifest project)
     {
-        var builder = new StringBuilder();
+        global::System.Text.StringBuilder builder = new StringBuilder();
 
         builder.AppendLine($"# {project.Name}");
         builder.AppendLine();
@@ -204,7 +220,7 @@ public sealed class FileSystemProjectCreator : IProjectCreator
         builder.AppendLine("## Liens métier");
         builder.AppendLine();
 
-        var links = request.BusinessLinks
+        string[] links = request.BusinessLinks
             .Where(link => !string.IsNullOrWhiteSpace(link))
             .Select(link => link.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -216,7 +232,7 @@ public sealed class FileSystemProjectCreator : IProjectCreator
         }
         else
         {
-            foreach (var link in links)
+            foreach (string link in links)
             {
                 builder.AppendLine($"- {link}");
             }
@@ -226,9 +242,14 @@ public sealed class FileSystemProjectCreator : IProjectCreator
         return builder.ToString();
     }
 
-    private static void ValidateProfile(ProjectProfileDefinition profile)
+    /// <summary>
+    /// Performs the <c>ValidateProfile</c> operation.
+    /// </summary>
+    /// <param name="profile">The <c>profile</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static void ValidateProfile(ProjectProfileDefinition profile)
     {
-        var duplicate = profile.Sections
+        global::System.Linq.IGrouping<string, global::Nodalis.Core.Templates.ProjectSectionTemplateDefinition>? duplicate = profile.Sections
             .GroupBy(
                 section => section.Name.Trim(),
                 StringComparer.OrdinalIgnoreCase)

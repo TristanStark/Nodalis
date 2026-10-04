@@ -4,7 +4,13 @@ namespace Nodalis.App.Dialogs;
 
 public partial class TextPromptDialog : Window
 {
-    public TextPromptDialog(
+    /// <summary>
+    /// Initializes a new instance of <see cref="TextPromptDialog"/>.
+    /// </summary>
+    /// <param name="title">The <c>title</c> value.</param>
+    /// <param name="prompt">The <c>prompt</c> value.</param>
+    /// <param name="initialValue">The <c>initialValue</c> value.</param>
+public TextPromptDialog(
         string title,
         string prompt,
         string initialValue = "")
@@ -24,7 +30,13 @@ public partial class TextPromptDialog : Window
 
     public string Value => ValueTextBox.Text.Trim();
 
-    private void Ok_Click(
+    /// <summary>
+    /// Performs the <c>Ok_Click</c> operation.
+    /// </summary>
+    /// <param name="sender">The <c>sender</c> value.</param>
+    /// <param name="e">The <c>e</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private void Ok_Click(
         object sender,
         RoutedEventArgs e)
     {

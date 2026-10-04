@@ -13,7 +13,11 @@ public sealed class WorkspaceLinkIndexService
     private readonly string _indexPath;
     private readonly WorkspaceNavigationBuilder _navigationBuilder = new();
 
-    public WorkspaceLinkIndexService(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="WorkspaceLinkIndexService"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public WorkspaceLinkIndexService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -23,7 +27,12 @@ public sealed class WorkspaceLinkIndexService
             WorkspaceLayout.LinkIndexFileName);
     }
 
-    public async Task<LinkIndexCatalog> LoadAsync(
+    /// <summary>
+    /// Performs the <c>LoadAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<LinkIndexCatalog> LoadAsync(
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(_indexPath))
@@ -33,7 +42,7 @@ public sealed class WorkspaceLinkIndexService
 
         try
         {
-            var catalog = await AtomicJsonFile.ReadAsync<LinkIndexCatalog>(
+            global::Nodalis.Core.Links.LinkIndexCatalog catalog = await AtomicJsonFile.ReadAsync<LinkIndexCatalog>(
                 _indexPath,
                 cancellationToken);
 
@@ -53,18 +62,23 @@ public sealed class WorkspaceLinkIndexService
         }
     }
 
-    public async Task<LinkIndexCatalog> RefreshAsync(
+    /// <summary>
+    /// Performs the <c>RefreshAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<LinkIndexCatalog> RefreshAsync(
         CancellationToken cancellationToken = default)
     {
-        var previous = await LoadExistingUnsafeAsync(
+        global::Nodalis.Core.Links.LinkIndexCatalog previous = await LoadExistingUnsafeAsync(
             cancellationToken);
 
-        var navigation = await _navigationBuilder.BuildAsync(
+        global::Nodalis.Core.Navigation.WorkspaceNavigationNode navigation = await _navigationBuilder.BuildAsync(
             _workspaceRoot,
             cancellationToken);
 
-        var targets = new List<LinkTargetEntry>();
-        var matchedPreviousIds = new HashSet<Guid>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkTargetEntry> targets = new List<LinkTargetEntry>();
+        global::System.Collections.Generic.HashSet<global::System.Guid> matchedPreviousIds = new HashSet<Guid>();
 
         await CollectTargetsAsync(
             navigation,
@@ -76,11 +90,11 @@ public sealed class WorkspaceLinkIndexService
             targets,
             cancellationToken);
 
-        var references = await BuildReferencesAsync(
+        global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkReferenceEntry> references = await BuildReferencesAsync(
             targets,
             cancellationToken);
 
-        var catalog = new LinkIndexCatalog
+        global::Nodalis.Core.Links.LinkIndexCatalog catalog = new LinkIndexCatalog
         {
             UpdatedUtc = DateTimeOffset.UtcNow,
             Targets = targets
@@ -97,33 +111,45 @@ public sealed class WorkspaceLinkIndexService
         return catalog;
     }
 
-    public async Task<LinkResolution> ResolveAsync(
+    /// <summary>
+    /// Performs the <c>ResolveAsync</c> operation.
+    /// </summary>
+    /// <param name="rawTarget">The <c>rawTarget</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<LinkResolution> ResolveAsync(
         string rawTarget,
         CancellationToken cancellationToken = default)
     {
-        var catalog = await LoadAsync(cancellationToken);
+        global::Nodalis.Core.Links.LinkIndexCatalog catalog = await LoadAsync(cancellationToken);
         return Resolve(catalog, rawTarget);
     }
 
-    public static LinkResolution Resolve(
+    /// <summary>
+    /// Performs the <c>Resolve</c> operation.
+    /// </summary>
+    /// <param name="catalog">The <c>catalog</c> value.</param>
+    /// <param name="rawTarget">The <c>rawTarget</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static LinkResolution Resolve(
         LinkIndexCatalog catalog,
         string rawTarget)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentException.ThrowIfNullOrWhiteSpace(rawTarget);
 
-        var target = rawTarget.Trim();
+        string target = rawTarget.Trim();
 
-        if (Guid.TryParse(target, out var targetId))
+        if (Guid.TryParse(target, out global::System.Guid targetId))
         {
-            var byId = catalog.Targets
+            global::Nodalis.Core.Links.LinkTargetEntry[] byId = catalog.Targets
                 .Where(candidate => candidate.Id == targetId)
                 .ToArray();
 
             return BuildResolution(byId);
         }
 
-        var qualified = catalog.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry[] qualified = catalog.Targets
             .Where(candidate => string.Equals(
                 candidate.QualifiedName,
                 target,
@@ -135,7 +161,7 @@ public sealed class WorkspaceLinkIndexService
             return BuildResolution(qualified);
         }
 
-        var currentNames = catalog.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry[] currentNames = catalog.Targets
             .Where(candidate => string.Equals(
                 candidate.DisplayName,
                 target,
@@ -147,7 +173,7 @@ public sealed class WorkspaceLinkIndexService
             return BuildResolution(currentNames);
         }
 
-        var aliases = catalog.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry[] aliases = catalog.Targets
             .Where(candidate => candidate.Aliases.Any(alias =>
                 string.Equals(
                     alias,
@@ -158,12 +184,18 @@ public sealed class WorkspaceLinkIndexService
         return BuildResolution(aliases);
     }
 
-    public async Task<LinkTargetEntry?> FindByPathAsync(
+    /// <summary>
+    /// Performs the <c>FindByPathAsync</c> operation.
+    /// </summary>
+    /// <param name="fullPath">The <c>fullPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<LinkTargetEntry?> FindByPathAsync(
         string fullPath,
         CancellationToken cancellationToken = default)
     {
-        var catalog = await LoadAsync(cancellationToken);
-        var relativePath = NormalizeRelativePath(
+        global::Nodalis.Core.Links.LinkIndexCatalog catalog = await LoadAsync(cancellationToken);
+        string relativePath = NormalizeRelativePath(
             Path.GetRelativePath(
                 _workspaceRoot,
                 Path.GetFullPath(fullPath)));
@@ -175,12 +207,18 @@ public sealed class WorkspaceLinkIndexService
                 StringComparison.OrdinalIgnoreCase));
     }
 
-    public async Task<IReadOnlyList<LinkTargetEntry>> GetSuggestionsAsync(
+    /// <summary>
+    /// Performs the <c>GetSuggestionsAsync</c> operation.
+    /// </summary>
+    /// <param name="query">The <c>query</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<LinkTargetEntry>> GetSuggestionsAsync(
         string query,
         CancellationToken cancellationToken = default)
     {
-        var catalog = await LoadAsync(cancellationToken);
-        var normalized = query.Trim();
+        global::Nodalis.Core.Links.LinkIndexCatalog catalog = await LoadAsync(cancellationToken);
+        string normalized = query.Trim();
 
         IEnumerable<LinkTargetEntry> candidates = catalog.Targets;
 
@@ -212,12 +250,18 @@ public sealed class WorkspaceLinkIndexService
             .ToArray();
     }
 
-    public async Task<IReadOnlyList<BacklinkEntry>> GetBacklinksAsync(
+    /// <summary>
+    /// Performs the <c>GetBacklinksAsync</c> operation.
+    /// </summary>
+    /// <param name="targetId">The <c>targetId</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<BacklinkEntry>> GetBacklinksAsync(
         Guid targetId,
         CancellationToken cancellationToken = default)
     {
-        var catalog = await LoadAsync(cancellationToken);
-        var targetsById = catalog.Targets.ToDictionary(target => target.Id);
+        global::Nodalis.Core.Links.LinkIndexCatalog catalog = await LoadAsync(cancellationToken);
+        global::System.Collections.Generic.Dictionary<global::System.Guid, global::Nodalis.Core.Links.LinkTargetEntry> targetsById = catalog.Targets.ToDictionary(target => target.Id);
 
         return catalog.References
             .Where(reference => reference.TargetId == targetId)
@@ -234,25 +278,33 @@ public sealed class WorkspaceLinkIndexService
             .ToArray();
     }
 
-    public async Task RegisterRenameAsync(
+    /// <summary>
+    /// Performs the <c>RegisterRenameAsync</c> operation.
+    /// </summary>
+    /// <param name="oldFullPath">The <c>oldFullPath</c> value.</param>
+    /// <param name="newFullPath">The <c>newFullPath</c> value.</param>
+    /// <param name="oldDisplayName">The <c>oldDisplayName</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task RegisterRenameAsync(
         string oldFullPath,
         string newFullPath,
         string oldDisplayName,
         CancellationToken cancellationToken = default)
     {
-        var catalog = await LoadAsync(cancellationToken);
+        global::Nodalis.Core.Links.LinkIndexCatalog catalog = await LoadAsync(cancellationToken);
 
-        var oldRelativePath = NormalizeRelativePath(
+        string oldRelativePath = NormalizeRelativePath(
             Path.GetRelativePath(
                 _workspaceRoot,
                 Path.GetFullPath(oldFullPath)));
 
-        var newRelativePath = NormalizeRelativePath(
+        string newRelativePath = NormalizeRelativePath(
             Path.GetRelativePath(
                 _workspaceRoot,
                 Path.GetFullPath(newFullPath)));
 
-        var existing = catalog.Targets.FirstOrDefault(target =>
+        global::Nodalis.Core.Links.LinkTargetEntry? existing = catalog.Targets.FirstOrDefault(target =>
             string.Equals(
                 target.RelativePath,
                 oldRelativePath,
@@ -264,19 +316,19 @@ public sealed class WorkspaceLinkIndexService
             return;
         }
 
-        var aliases = MergeAliases(
+        global::System.Collections.Generic.List<string> aliases = MergeAliases(
             existing.Aliases,
             oldDisplayName,
             existing.DisplayName,
             existing.QualifiedName);
 
-        var updated = existing with
+        global::Nodalis.Core.Links.LinkTargetEntry updated = existing with
         {
             RelativePath = newRelativePath,
             Aliases = aliases
         };
 
-        var targets = catalog.Targets
+        global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkTargetEntry> targets = catalog.Targets
             .Select(target => target.Id == existing.Id ? updated : target)
             .ToList();
 
@@ -292,7 +344,12 @@ public sealed class WorkspaceLinkIndexService
         await RefreshAsync(cancellationToken);
     }
 
-    private async Task<LinkIndexCatalog> LoadExistingUnsafeAsync(
+    /// <summary>
+    /// Performs the <c>LoadExistingUnsafeAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task<LinkIndexCatalog> LoadExistingUnsafeAsync(
         CancellationToken cancellationToken)
     {
         if (!File.Exists(_indexPath))
@@ -312,7 +369,19 @@ public sealed class WorkspaceLinkIndexService
         }
     }
 
-    private async Task CollectTargetsAsync(
+    /// <summary>
+    /// Performs the <c>CollectTargetsAsync</c> operation.
+    /// </summary>
+    /// <param name="node">The <c>node</c> value.</param>
+    /// <param name="breadcrumb">The <c>breadcrumb</c> value.</param>
+    /// <param name="scopeIdentity">The <c>scopeIdentity</c> value.</param>
+    /// <param name="scopeRootPath">The <c>scopeRootPath</c> value.</param>
+    /// <param name="previousTargets">The <c>previousTargets</c> value.</param>
+    /// <param name="matchedPreviousIds">The <c>matchedPreviousIds</c> value.</param>
+    /// <param name="targets">The <c>targets</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task CollectTargetsAsync(
         WorkspaceNavigationNode node,
         IReadOnlyList<string> breadcrumb,
         string scopeIdentity,
@@ -324,7 +393,7 @@ public sealed class WorkspaceLinkIndexService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var includeInBreadcrumb = node.Kind is
+        bool includeInBreadcrumb = node.Kind is
             WorkspaceNodeKind.Global or
             WorkspaceNodeKind.Application or
             WorkspaceNodeKind.Module or
@@ -332,12 +401,12 @@ public sealed class WorkspaceLinkIndexService
             WorkspaceNodeKind.Section or
             WorkspaceNodeKind.Folder;
 
-        var currentBreadcrumb = includeInBreadcrumb
+        string[] currentBreadcrumb = includeInBreadcrumb
             ? breadcrumb.Append(node.DisplayName).ToArray()
             : breadcrumb.ToArray();
 
-        var currentScopeIdentity = scopeIdentity;
-        var currentScopeRootPath = scopeRootPath;
+        string currentScopeIdentity = scopeIdentity;
+        string currentScopeRootPath = scopeRootPath;
 
         if (node.Kind == WorkspaceNodeKind.Application)
         {
@@ -360,19 +429,19 @@ public sealed class WorkspaceLinkIndexService
             WorkspaceNodeKind.Module or
             WorkspaceNodeKind.Project)
         {
-            var relativePath = NormalizeRelativePath(
+            string relativePath = NormalizeRelativePath(
                 Path.GetRelativePath(
                     _workspaceRoot,
                     node.FullPath));
 
-            var qualifiedName = string.Join(
+            string qualifiedName = string.Join(
                 " / ",
                 currentBreadcrumb);
 
-            var existing = previousTargets.FirstOrDefault(target =>
+            global::Nodalis.Core.Links.LinkTargetEntry? existing = previousTargets.FirstOrDefault(target =>
                 target.Id == node.Id);
 
-            var aliases = existing is null
+            global::System.Collections.Generic.List<string> aliases = existing is null
                 ? []
                 : MergeAliases(
                     existing.Aliases,
@@ -398,21 +467,21 @@ public sealed class WorkspaceLinkIndexService
         }
         else if (node.Kind == WorkspaceNodeKind.Document)
         {
-            var relativePath = NormalizeRelativePath(
+            string relativePath = NormalizeRelativePath(
                 Path.GetRelativePath(
                     _workspaceRoot,
                     node.FullPath));
 
-            var localRelativePath = NormalizeRelativePath(
+            string localRelativePath = NormalizeRelativePath(
                 Path.GetRelativePath(
                     currentScopeRootPath,
                     node.FullPath));
 
-            var contentHash = await ComputeHashAsync(
+            string contentHash = await ComputeHashAsync(
                 node.FullPath,
                 cancellationToken);
 
-            var existing = MatchDocument(
+            global::Nodalis.Core.Links.LinkTargetEntry? existing = MatchDocument(
                 previousTargets,
                 matchedPreviousIds,
                 relativePath,
@@ -420,19 +489,19 @@ public sealed class WorkspaceLinkIndexService
                 localRelativePath,
                 contentHash);
 
-            var displayName = node.DisplayName;
-            var qualifiedName = string.Join(
+            string displayName = node.DisplayName;
+            string qualifiedName = string.Join(
                 " / ",
                 currentBreadcrumb.Append(displayName));
 
-            var aliases = existing is null
+            global::System.Collections.Generic.List<string> aliases = existing is null
                 ? []
                 : MergeAliases(
                     existing.Aliases,
                     existing.DisplayName,
                     existing.QualifiedName);
 
-            var id = existing?.Id ?? Guid.NewGuid();
+            global::System.Guid id = existing?.Id ?? Guid.NewGuid();
 
             targets.Add(new LinkTargetEntry
             {
@@ -453,7 +522,7 @@ public sealed class WorkspaceLinkIndexService
             }
         }
 
-        foreach (var child in node.Children)
+        foreach (global::Nodalis.Core.Navigation.WorkspaceNavigationNode child in node.Children)
         {
             await CollectTargetsAsync(
                 child,
@@ -467,23 +536,29 @@ public sealed class WorkspaceLinkIndexService
         }
     }
 
-    private async Task<List<LinkReferenceEntry>> BuildReferencesAsync(
+    /// <summary>
+    /// Performs the <c>BuildReferencesAsync</c> operation.
+    /// </summary>
+    /// <param name="targets">The <c>targets</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private async Task<List<LinkReferenceEntry>> BuildReferencesAsync(
         IReadOnlyList<LinkTargetEntry> targets,
         CancellationToken cancellationToken)
     {
-        var catalog = new LinkIndexCatalog
+        global::Nodalis.Core.Links.LinkIndexCatalog catalog = new LinkIndexCatalog
         {
             Targets = targets.ToList()
         };
 
-        var references = new List<LinkReferenceEntry>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkReferenceEntry> references = new List<LinkReferenceEntry>();
 
-        foreach (var source in targets.Where(target =>
+        foreach (global::Nodalis.Core.Links.LinkTargetEntry source in targets.Where(target =>
                      target.Kind == LinkTargetKind.Document))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var fullPath = Path.Combine(
+            string fullPath = Path.Combine(
                 _workspaceRoot,
                 source.RelativePath.Replace(
                     '/',
@@ -494,15 +569,15 @@ public sealed class WorkspaceLinkIndexService
                 continue;
             }
 
-            var lines = await File.ReadAllLinesAsync(
+            string[] lines = await File.ReadAllLinesAsync(
                 fullPath,
                 cancellationToken);
 
-            for (var lineIndex = 0;
+            for (int lineIndex = 0;
                  lineIndex < lines.Length;
                  lineIndex++)
             {
-                foreach (var inline in MarkdownInlineParser.Parse(
+                foreach (global::Nodalis.Core.Markdown.MarkdownInline inline in MarkdownInlineParser.Parse(
                              lines[lineIndex]))
                 {
                     if (inline.Kind != MarkdownInlineKind.InternalLink ||
@@ -511,7 +586,7 @@ public sealed class WorkspaceLinkIndexService
                         continue;
                     }
 
-                    var resolution = Resolve(
+                    global::Nodalis.Core.Links.LinkResolution resolution = Resolve(
                         catalog,
                         inline.Target);
 
@@ -532,7 +607,17 @@ public sealed class WorkspaceLinkIndexService
         return references;
     }
 
-    private static LinkTargetEntry? MatchDocument(
+    /// <summary>
+    /// Performs the <c>MatchDocument</c> operation.
+    /// </summary>
+    /// <param name="previousTargets">The <c>previousTargets</c> value.</param>
+    /// <param name="matchedPreviousIds">The <c>matchedPreviousIds</c> value.</param>
+    /// <param name="relativePath">The <c>relativePath</c> value.</param>
+    /// <param name="scopeIdentity">The <c>scopeIdentity</c> value.</param>
+    /// <param name="localRelativePath">The <c>localRelativePath</c> value.</param>
+    /// <param name="contentHash">The <c>contentHash</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static LinkTargetEntry? MatchDocument(
         IReadOnlyList<LinkTargetEntry> previousTargets,
         ISet<Guid> matchedPreviousIds,
         string relativePath,
@@ -540,13 +625,13 @@ public sealed class WorkspaceLinkIndexService
         string localRelativePath,
         string contentHash)
     {
-        var documents = previousTargets
+        global::Nodalis.Core.Links.LinkTargetEntry[] documents = previousTargets
             .Where(target =>
                 target.Kind == LinkTargetKind.Document &&
                 !matchedPreviousIds.Contains(target.Id))
             .ToArray();
 
-        var byPath = documents.FirstOrDefault(target =>
+        global::Nodalis.Core.Links.LinkTargetEntry? byPath = documents.FirstOrDefault(target =>
             string.Equals(
                 target.RelativePath,
                 relativePath,
@@ -557,7 +642,7 @@ public sealed class WorkspaceLinkIndexService
             return byPath;
         }
 
-        var byStableScope = documents.FirstOrDefault(target =>
+        global::Nodalis.Core.Links.LinkTargetEntry? byStableScope = documents.FirstOrDefault(target =>
             string.Equals(
                 target.ScopeIdentity,
                 scopeIdentity,
@@ -572,7 +657,7 @@ public sealed class WorkspaceLinkIndexService
             return byStableScope;
         }
 
-        var sameScopeHash = documents
+        global::Nodalis.Core.Links.LinkTargetEntry[] sameScopeHash = documents
             .Where(target =>
                 string.Equals(
                     target.ScopeIdentity,
@@ -589,7 +674,7 @@ public sealed class WorkspaceLinkIndexService
             return sameScopeHash[0];
         }
 
-        var globalHash = documents
+        global::Nodalis.Core.Links.LinkTargetEntry[] globalHash = documents
             .Where(target => string.Equals(
                 target.ContentHash,
                 contentHash,
@@ -601,15 +686,21 @@ public sealed class WorkspaceLinkIndexService
             : null;
     }
 
-    private static List<string> MergeAliases(
+    /// <summary>
+    /// Performs the <c>MergeAliases</c> operation.
+    /// </summary>
+    /// <param name="existing">The <c>existing</c> value.</param>
+    /// <param name="candidates">The <c>candidates</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static List<string> MergeAliases(
         IEnumerable<string> existing,
         params string?[] candidates)
     {
-        var aliases = new HashSet<string>(
+        global::System.Collections.Generic.HashSet<string> aliases = new HashSet<string>(
             existing.Where(value => !string.IsNullOrWhiteSpace(value)),
             StringComparer.CurrentCultureIgnoreCase);
 
-        foreach (var candidate in candidates)
+        foreach (string? candidate in candidates)
         {
             if (!string.IsNullOrWhiteSpace(candidate))
             {
@@ -622,7 +713,12 @@ public sealed class WorkspaceLinkIndexService
             .ToList();
     }
 
-    private static LinkResolution BuildResolution(
+    /// <summary>
+    /// Performs the <c>BuildResolution</c> operation.
+    /// </summary>
+    /// <param name="candidates">The <c>candidates</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static LinkResolution BuildResolution(
         IReadOnlyList<LinkTargetEntry> candidates)
     {
         if (candidates.Count == 1)
@@ -644,7 +740,12 @@ public sealed class WorkspaceLinkIndexService
         };
     }
 
-    private static LinkTargetKind ToLinkTargetKind(
+    /// <summary>
+    /// Performs the <c>ToLinkTargetKind</c> operation.
+    /// </summary>
+    /// <param name="kind">The <c>kind</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static LinkTargetKind ToLinkTargetKind(
         WorkspaceNodeKind kind) =>
         kind switch
         {
@@ -657,11 +758,17 @@ public sealed class WorkspaceLinkIndexService
                 "Unsupported link target kind.")
         };
 
-    private static async Task<string> ComputeHashAsync(
+    /// <summary>
+    /// Performs the <c>ComputeHashAsync</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task<string> ComputeHashAsync(
         string path,
         CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(
+        await using global::System.IO.FileStream stream = new FileStream(
             path,
             FileMode.Open,
             FileAccess.Read,
@@ -669,21 +776,31 @@ public sealed class WorkspaceLinkIndexService
             4096,
             useAsync: true);
 
-        var hash = await SHA256.HashDataAsync(
+        byte[] hash = await SHA256.HashDataAsync(
             stream,
             cancellationToken);
 
         return Convert.ToHexString(hash);
     }
 
-    private static string NormalizeRelativePath(string path) =>
+    /// <summary>
+    /// Performs the <c>NormalizeRelativePath</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeRelativePath(string path) =>
         path.Replace(
             Path.DirectorySeparatorChar,
             '/');
 
-    private static string BuildExcerpt(string line)
+    /// <summary>
+    /// Performs the <c>BuildExcerpt</c> operation.
+    /// </summary>
+    /// <param name="line">The <c>line</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string BuildExcerpt(string line)
     {
-        var trimmed = line.Trim();
+        string trimmed = line.Trim();
 
         return trimmed.Length <= 220
             ? trimmed

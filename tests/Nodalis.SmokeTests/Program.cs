@@ -34,7 +34,7 @@ using Nodalis.Infrastructure.Settings;
 using Nodalis.Infrastructure.Tasks;
 using Nodalis.Infrastructure.Templates;
 
-var root = Path.Combine(
+string root = Path.Combine(
     Path.GetTempPath(),
     "Nodalis-SmokeTests",
     Guid.NewGuid().ToString("N"));
@@ -75,9 +75,9 @@ finally
 
 static async Task VerifyWorkspacePersistenceAsync(string root)
 {
-    var store = new FileSystemWorkspaceStore(root);
-    var created = await store.InitializeAsync("Smoke Test Workspace");
-    var loaded = await store.LoadAsync();
+    global::Nodalis.Infrastructure.Persistence.FileSystemWorkspaceStore store = new FileSystemWorkspaceStore(root);
+    global::Nodalis.Core.Domain.WorkspaceManifest created = await store.InitializeAsync("Smoke Test Workspace");
+    global::Nodalis.Core.Domain.WorkspaceManifest loaded = await store.LoadAsync();
 
     Assert(created.Id == loaded.Id, "Workspace identity must survive persistence.");
     Assert(File.Exists(Path.Combine(root, WorkspaceLayout.GlobalQuickNotesFileName)),
@@ -90,27 +90,27 @@ static async Task VerifyWorkspacePersistenceAsync(string root)
 
 static async Task VerifyWorkspaceNavigationAsync(string root)
 {
-    var applicationId = Guid.NewGuid();
-    var projectId = Guid.NewGuid();
+    global::System.Guid applicationId = Guid.NewGuid();
+    global::System.Guid projectId = Guid.NewGuid();
 
-    var applicationPath = Path.Combine(
+    string applicationPath = Path.Combine(
         root,
         WorkspaceLayout.ApplicationsDirectoryName,
         "Application A");
 
-    var projectPath = Path.Combine(
+    string projectPath = Path.Combine(
         applicationPath,
         WorkspaceLayout.ProjectsDirectoryName,
         "Projet Patate");
 
-    var testsPath = Path.Combine(
+    string testsPath = Path.Combine(
         projectPath,
         "Tests",
         "Unitaires");
 
     Directory.CreateDirectory(testsPath);
 
-    var jsonOptions = new JsonSerializerOptions
+    global::System.Text.Json.JsonSerializerOptions jsonOptions = new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
@@ -146,24 +146,24 @@ static async Task VerifyWorkspaceNavigationAsync(string root)
         Path.Combine(testsPath, "Tests couteau.md"),
         "# Tests couteau\n");
 
-    var builder = new WorkspaceNavigationBuilder();
-    var navigation = await builder.BuildAsync(root);
+    global::Nodalis.Infrastructure.Navigation.WorkspaceNavigationBuilder builder = new WorkspaceNavigationBuilder();
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode navigation = await builder.BuildAsync(root);
 
-    var applications = navigation.Children.Single(
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode applications = navigation.Children.Single(
         node => node.Kind == WorkspaceNodeKind.ApplicationsRoot);
 
-    var application = applications.Children.Single();
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode application = applications.Children.Single();
     Assert(application.Id == applicationId,
         "Navigation must use the application manifest identity.");
 
-    var projects = application.Children.Single(
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode projects = application.Children.Single(
         node => node.Kind == WorkspaceNodeKind.ProjectsRoot);
 
-    var project = projects.Children.Single();
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode project = projects.Children.Single();
     Assert(project.Id == projectId,
         "Navigation must use the project manifest identity.");
 
-    var documentNames = DescendantsAndSelf(project)
+    global::System.Collections.Generic.HashSet<string> documentNames = DescendantsAndSelf(project)
         .Where(node => node.Kind == WorkspaceNodeKind.Document)
         .Select(node => node.DisplayName)
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -175,22 +175,22 @@ static async Task VerifyWorkspaceNavigationAsync(string root)
 
 static async Task VerifyTemplatesAsync(string root)
 {
-    var store = new FileSystemTemplateStore(root);
+    global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore store = new FileSystemTemplateStore(root);
     await store.InitializeDefaultsAsync();
 
-    var catalog = await store.LoadTemplateCatalogAsync();
+    global::Nodalis.Core.Templates.TemplateCatalog catalog = await store.LoadTemplateCatalogAsync();
     Assert(catalog.Templates.Any(template => template.Key == "note"),
         "The default note template must exist.");
     Assert(catalog.Templates.Any(template => template.Key == "meeting"),
         "The default meeting template must exist.");
 
-    var profiles = await store.LoadProjectProfilesAsync();
+    global::Nodalis.Core.Templates.ProjectProfileCatalog profiles = await store.LoadProjectProfilesAsync();
     Assert(profiles.Profiles.Count == 3,
         "Simple, Medium and Complex project profiles must exist.");
 
-    foreach (var profile in profiles.Profiles)
+    foreach (global::Nodalis.Core.Templates.ProjectProfileDefinition profile in profiles.Profiles)
     {
-        var sectionNames = profile.Sections
+        global::System.Collections.Generic.HashSet<string> sectionNames = profile.Sections
             .Select(section => section.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -202,11 +202,11 @@ static async Task VerifyTemplatesAsync(string root)
             "Every initial project profile must contain the four mandatory sections.");
     }
 
-    var simpleProfile = profiles.Profiles.Single(profile =>
+    global::Nodalis.Core.Templates.ProjectProfileDefinition simpleProfile = profiles.Profiles.Single(profile =>
         profile.Complexity == ProjectComplexity.Simple);
-    var mediumProfile = profiles.Profiles.Single(profile =>
+    global::Nodalis.Core.Templates.ProjectProfileDefinition mediumProfile = profiles.Profiles.Single(profile =>
         profile.Complexity == ProjectComplexity.Medium);
-    var complexProfile = profiles.Profiles.Single(profile =>
+    global::Nodalis.Core.Templates.ProjectProfileDefinition complexProfile = profiles.Profiles.Single(profile =>
         profile.Complexity == ProjectComplexity.Complex);
 
     Assert(
@@ -217,7 +217,7 @@ static async Task VerifyTemplatesAsync(string root)
             section.Name == "Tests").TemplateKey == "tests-simple",
         "Simple projects must stay minimal and use simple technical/test templates.");
 
-    var mediumNames = mediumProfile.Sections
+    global::System.Collections.Generic.HashSet<string> mediumNames = mediumProfile.Sections
         .Select(section => section.Name)
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -230,7 +230,7 @@ static async Task VerifyTemplatesAsync(string root)
             section.Name == "Tests").TemplateKey == "tests-medium",
         "Medium projects must add project-management sections and richer templates.");
 
-    var complexNames = complexProfile.Sections
+    global::System.Collections.Generic.HashSet<string> complexNames = complexProfile.Sections
         .Select(section => section.Name)
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -243,21 +243,21 @@ static async Task VerifyTemplatesAsync(string root)
             section.Name == "Tests").TemplateKey == "tests-complex",
         "Complex projects must add operational sections and the deepest templates.");
 
-    var variables = MarkdownTemplateRenderer.CreateStandardVariables(
+    global::System.Collections.Generic.Dictionary<string, string> variables = MarkdownTemplateRenderer.CreateStandardVariables(
         "Ma note",
         Guid.NewGuid(),
         new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.FromHours(2)));
 
-    var rendered = await store.RenderAsync("note", variables);
+    string rendered = await store.RenderAsync("note", variables);
 
     Assert(rendered.Contains("# Ma note", StringComparison.Ordinal) &&
            rendered.Contains("2026-10-04", StringComparison.Ordinal),
         "Template rendering must substitute standard variables.");
 
-    var complexTests = await store.RenderAsync(
+    string complexTests = await store.RenderAsync(
         "tests-complex",
         variables);
-    var complexTechnical = await store.RenderAsync(
+    string complexTechnical = await store.RenderAsync(
         "technical-complex",
         variables);
 
@@ -282,7 +282,7 @@ static async Task VerifyTemplatesAsync(string root)
             variables),
         "Unknown template variables must fail explicitly.");
 
-    var templatePath = Path.Combine(
+    string templatePath = Path.Combine(
         root,
         WorkspaceLayout.TemplatesDirectoryName,
         "note.md");
@@ -294,10 +294,10 @@ static async Task VerifyTemplatesAsync(string root)
     Assert(await File.ReadAllTextAsync(templatePath) == customized,
         "Default initialization must never overwrite a customized template.");
 
-    var duplicatePath = Path.Combine(root, "duplicate.md");
+    string duplicatePath = Path.Combine(root, "duplicate.md");
     await File.WriteAllTextAsync(duplicatePath, "existing");
 
-    var uniquePath = WindowsPathRules.GetUniqueFilePath(
+    string uniquePath = WindowsPathRules.GetUniqueFilePath(
         root,
         "duplicate.md");
 
@@ -308,15 +308,15 @@ static async Task VerifyTemplatesAsync(string root)
 
 static async Task VerifyProjectCreationAsync(string root)
 {
-    var applicationId = Guid.NewGuid();
-    var applicationPath = Path.Combine(
+    global::System.Guid applicationId = Guid.NewGuid();
+    string applicationPath = Path.Combine(
         root,
         WorkspaceLayout.ApplicationsDirectoryName,
         "Application Project Creator");
 
     Directory.CreateDirectory(applicationPath);
 
-    var jsonOptions = new JsonSerializerOptions
+    global::System.Text.Json.JsonSerializerOptions jsonOptions = new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
@@ -334,16 +334,16 @@ static async Task VerifyProjectCreationAsync(string root)
             },
             jsonOptions));
 
-    var discovery = new ProjectCreationTargetDiscovery();
-    var targets = await discovery.DiscoverAsync(root);
+    global::Nodalis.Infrastructure.Projects.ProjectCreationTargetDiscovery discovery = new ProjectCreationTargetDiscovery();
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Projects.ProjectCreationTarget> targets = await discovery.DiscoverAsync(root);
 
-    var applicationTarget = targets.Single(
+    global::Nodalis.Core.Projects.ProjectCreationTarget applicationTarget = targets.Single(
         target => target.ApplicationId == applicationId &&
                   target.ModuleId is null &&
                   target.ParentProjectId is null);
 
-    var creator = new FileSystemProjectCreator(root);
-    var result = await creator.CreateAsync(
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator creator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationResult result = await creator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Généré",
@@ -365,7 +365,7 @@ static async Task VerifyProjectCreationAsync(string root)
     Assert(File.Exists(result.OverviewFilePath),
         "Project creation must generate Présentation.md.");
 
-    var overview = await File.ReadAllTextAsync(
+    string overview = await File.ReadAllTextAsync(
         result.OverviewFilePath);
 
     Assert(
@@ -373,18 +373,18 @@ static async Task VerifyProjectCreationAsync(string root)
         overview.Contains("RTC: WI-456", StringComparison.Ordinal),
         "Business links must be copied into the project overview.");
 
-    foreach (var requiredSection in new[] { "Jalons", "Technique", "Glossaire", "Tests" })
+    foreach (string requiredSection in new[] { "Jalons", "Technique", "Glossaire", "Tests" })
     {
         Assert(
             Directory.Exists(Path.Combine(result.ProjectDirectory, requiredSection)),
             $"Project profile must create the '{requiredSection}' section.");
     }
 
-    var refreshedTargets = await discovery.DiscoverAsync(root);
-    var parentTarget = refreshedTargets.Single(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Projects.ProjectCreationTarget> refreshedTargets = await discovery.DiscoverAsync(root);
+    global::Nodalis.Core.Projects.ProjectCreationTarget parentTarget = refreshedTargets.Single(
         target => target.ParentProjectId == result.Project.Id);
 
-    var child = await creator.CreateAsync(
+    global::Nodalis.Core.Projects.ProjectCreationResult child = await creator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Sous-projet Généré",
@@ -403,9 +403,9 @@ static async Task VerifyProjectCreationAsync(string root)
 
 static async Task VerifyApplicationStructureAsync(string root)
 {
-    var service = new ApplicationStructureService(root);
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService service = new ApplicationStructureService(root);
 
-    var applicationPath = await service.CreateApplicationAsync(
+    string applicationPath = await service.CreateApplicationAsync(
         "Application Gestion");
 
     Assert(
@@ -423,39 +423,39 @@ static async Task VerifyApplicationStructureAsync(string root)
             WorkspaceLayout.GlobalGlossaryFileName)),
         "Creating an application must initialize its singleton notes.");
 
-    var appJson = await File.ReadAllTextAsync(
+    string appJson = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         appJson,
         new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         })!;
 
-    var modulePath = await service.CreateModuleAsync(
+    string modulePath = await service.CreateModuleAsync(
         applicationPath,
         application.Id,
         parentModuleId: null,
         "Module Racine");
 
-    var module = await service.LoadModuleAsync(modulePath);
+    global::Nodalis.Core.Domain.ModuleManifest module = await service.LoadModuleAsync(modulePath);
 
-    var childPath = await service.CreateModuleAsync(
+    string childPath = await service.CreateModuleAsync(
         modulePath,
         application.Id,
         module.Id,
         "Sous-module");
 
-    var child = await service.LoadModuleAsync(childPath);
+    global::Nodalis.Core.Domain.ModuleManifest child = await service.LoadModuleAsync(childPath);
 
     Assert(
         child.ParentModuleId == module.Id,
         "Nested modules must persist their parent module id.");
 
-    var renamedChild = await service.RenameModuleAsync(
+    string renamedChild = await service.RenameModuleAsync(
         childPath,
         "Sous-module renommé");
 
@@ -470,12 +470,12 @@ static async Task VerifyApplicationStructureAsync(string root)
         () => service.DeleteModuleAsync(modulePath),
         "A module containing another module must not be deleted.");
 
-    var movedChild = await service.MoveModuleAsync(
+    string movedChild = await service.MoveModuleAsync(
         renamedChild,
         applicationPath,
         newParentModuleId: null);
 
-    var movedManifest = await service.LoadModuleAsync(movedChild);
+    global::Nodalis.Core.Domain.ModuleManifest movedManifest = await service.LoadModuleAsync(movedChild);
 
     Assert(
         movedManifest.ParentModuleId is null &&
@@ -490,7 +490,7 @@ static async Task VerifyApplicationStructureAsync(string root)
         !Directory.Exists(modulePath),
         "An empty module must be deletable.");
 
-    var renamedApplication = await service.RenameApplicationAsync(
+    string renamedApplication = await service.RenameApplicationAsync(
         applicationPath,
         "Application Gestion Renommée");
 
@@ -502,7 +502,7 @@ static async Task VerifyApplicationStructureAsync(string root)
         () => service.DeleteApplicationAsync(renamedApplication),
         "An application containing a module must not be deleted.");
 
-    var movedChildAfterApplicationRename = Path.Combine(
+    string movedChildAfterApplicationRename = Path.Combine(
         renamedApplication,
         WorkspaceLayout.ModulesDirectoryName,
         Path.GetFileName(movedChild));
@@ -520,24 +520,24 @@ static async Task VerifyApplicationStructureAsync(string root)
 
 static async Task VerifyQuickNotesAsync(string root)
 {
-    var structure = new ApplicationStructureService(root);
-    var applicationPath = await structure.CreateApplicationAsync(
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    string applicationPath = await structure.CreateApplicationAsync(
         "Application Notes");
 
-    var applicationJson = await File.ReadAllTextAsync(
+    string applicationJson = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationJson,
         new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         })!;
 
-    var creator = new FileSystemProjectCreator(root);
-    var target = new ProjectCreationTarget
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator creator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationTarget target = new ProjectCreationTarget
     {
         ApplicationId = application.Id,
         ApplicationName = application.Name,
@@ -545,7 +545,7 @@ static async Task VerifyQuickNotesAsync(string root)
         DisplayName = application.Name
     };
 
-    var project = await creator.CreateAsync(
+    global::Nodalis.Core.Projects.ProjectCreationResult project = await creator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Notes",
@@ -553,8 +553,8 @@ static async Task VerifyQuickNotesAsync(string root)
             Target = target
         });
 
-    var notes = new QuickNotesService();
-    var scopes = await notes.ResolveScopesAsync(
+    global::Nodalis.Infrastructure.Notes.QuickNotesService notes = new QuickNotesService();
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.QuickNoteScope> scopes = await notes.ResolveScopesAsync(
         root,
         project.OverviewFilePath);
 
@@ -572,7 +572,7 @@ static async Task VerifyQuickNotesAsync(string root)
             2026, 10, 4, 14, 0, 0,
             TimeSpan.FromHours(2)));
 
-    var projectNotes = await File.ReadAllTextAsync(
+    string projectNotes = await File.ReadAllTextAsync(
         scopes[0].FilePath);
 
     Assert(
@@ -584,11 +584,11 @@ static async Task VerifyQuickNotesAsync(string root)
             StringComparison.Ordinal),
         "Quick note capture must append a timestamped Markdown entry.");
 
-    var aggregate = await notes.ReadAggregateAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.QuickNotesSnapshot> aggregate = await notes.ReadAggregateAsync(
         root,
         project.ProjectDirectory);
 
-    var aggregateMarkdown =
+    string aggregateMarkdown =
         QuickNotesService.FormatAggregateMarkdown(
             aggregate);
 
@@ -604,7 +604,7 @@ static async Task VerifyQuickNotesAsync(string root)
             StringComparison.Ordinal),
         "Aggregated quick notes must clearly distinguish every relevant scope.");
 
-    var modulePath = await structure.CreateModuleAsync(
+    string modulePath = await structure.CreateModuleAsync(
         applicationPath,
         application.Id,
         parentModuleId: null,
@@ -622,24 +622,24 @@ static async Task VerifyQuickNotesAsync(string root)
 
 static async Task VerifySearchAsync(string root)
 {
-    var structure = new ApplicationStructureService(root);
-    var applicationPath = await structure.CreateApplicationAsync(
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    string applicationPath = await structure.CreateApplicationAsync(
         "Application Recherche");
 
-    var applicationJson = await File.ReadAllTextAsync(
+    string applicationJson = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationJson,
         new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         })!;
 
-    var creator = new FileSystemProjectCreator(root);
-    var project = await creator.CreateAsync(
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator creator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationResult project = await creator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Recherche",
@@ -653,15 +653,15 @@ static async Task VerifySearchAsync(string root)
             }
         });
 
-    var globalFile = Path.Combine(
+    string globalFile = Path.Combine(
         root,
         "Recherche globale.md");
 
-    var applicationFile = Path.Combine(
+    string applicationFile = Path.Combine(
         applicationPath,
         "Recherche application.md");
 
-    var projectFile = Path.Combine(
+    string projectFile = Path.Combine(
         project.ProjectDirectory,
         "Recherche projet.md");
 
@@ -677,8 +677,8 @@ static async Task VerifySearchAsync(string root)
         projectFile,
         "# Projet\n\nsteak projet\n");
 
-    var search = new WorkspaceSearchService();
-    var results = await search.SearchAsync(
+    global::Nodalis.Infrastructure.Search.WorkspaceSearchService search = new WorkspaceSearchService();
+    global::Nodalis.Core.Search.SearchResultSet results = await search.SearchAsync(
         root,
         projectFile,
         "steak");
@@ -718,24 +718,24 @@ static async Task VerifySearchAsync(string root)
 
 static async Task VerifyLinksAndBacklinksAsync(string root)
 {
-    var structure = new ApplicationStructureService(root);
-    var applicationPath = await structure.CreateApplicationAsync(
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    string applicationPath = await structure.CreateApplicationAsync(
         "Application Liens");
 
-    var applicationJson = await File.ReadAllTextAsync(
+    string applicationJson = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationJson,
         new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         })!;
 
-    var projectCreator = new FileSystemProjectCreator(root);
-    var project = await projectCreator.CreateAsync(
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator projectCreator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationResult project = await projectCreator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Liens",
@@ -749,11 +749,11 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
             }
         });
 
-    var sourcePath = Path.Combine(
+    string sourcePath = Path.Combine(
         project.ProjectDirectory,
         "Source.md");
 
-    var targetPath = Path.Combine(
+    string targetPath = Path.Combine(
         project.ProjectDirectory,
         "Cible.md");
 
@@ -765,21 +765,21 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         targetPath,
         "# Cible\n\nContenu stable.\n");
 
-    var indexService = new WorkspaceLinkIndexService(root);
-    var initial = await indexService.RefreshAsync();
+    global::Nodalis.Infrastructure.Links.WorkspaceLinkIndexService indexService = new WorkspaceLinkIndexService(root);
+    global::Nodalis.Core.Links.LinkIndexCatalog initial = await indexService.RefreshAsync();
 
-    var target = initial.Targets.Single(candidate =>
+    global::Nodalis.Core.Links.LinkTargetEntry target = initial.Targets.Single(candidate =>
         candidate.Kind == LinkTargetKind.Document &&
         candidate.DisplayName == "Cible" &&
         candidate.RelativePath.EndsWith(
             "Cible.md",
             StringComparison.OrdinalIgnoreCase));
 
-    var source = initial.Targets.Single(candidate =>
+    global::Nodalis.Core.Links.LinkTargetEntry source = initial.Targets.Single(candidate =>
         candidate.Kind == LinkTargetKind.Document &&
         candidate.DisplayName == "Source");
 
-    var resolved = WorkspaceLinkIndexService.Resolve(
+    global::Nodalis.Core.Links.LinkResolution resolved = WorkspaceLinkIndexService.Resolve(
         initial,
         "Cible");
 
@@ -788,7 +788,7 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         resolved.Target?.Id == target.Id,
         "A unique [[document]] link must resolve to the indexed target id.");
 
-    var broken = initial.References.Single(reference =>
+    global::Nodalis.Core.Links.LinkReferenceEntry broken = initial.References.Single(reference =>
         reference.SourceId == source.Id &&
         reference.RawTarget == "Introuvable");
 
@@ -799,7 +799,7 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
             broken.RawTarget).Status == LinkResolutionStatus.Missing,
         "Broken internal links must be represented explicitly in the index.");
 
-    var backlinks = await indexService.GetBacklinksAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Links.BacklinkEntry> backlinks = await indexService.GetBacklinksAsync(
         target.Id);
 
     Assert(
@@ -808,14 +808,14 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         backlinks[0].LineNumber == 3,
         "Backlinks must point to the source document and occurrence line.");
 
-    var documentStructure = new DocumentStructureService(root);
-    var renamedPath = await documentStructure.RenameAsync(
+    global::Nodalis.Infrastructure.Documents.DocumentStructureService documentStructure = new DocumentStructureService(root);
+    string renamedPath = await documentStructure.RenameAsync(
         targetPath,
         "Cible renommée");
 
-    var renamedIndex = await indexService.LoadAsync();
+    global::Nodalis.Core.Links.LinkIndexCatalog renamedIndex = await indexService.LoadAsync();
 
-    var renamed = renamedIndex.Targets.Single(candidate =>
+    global::Nodalis.Core.Links.LinkTargetEntry renamed = renamedIndex.Targets.Single(candidate =>
         candidate.Kind == LinkTargetKind.Document &&
         candidate.RelativePath.EndsWith(
             "Cible renommée.md",
@@ -825,7 +825,7 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         renamed.Id == target.Id,
         "Renaming a document must preserve its immutable link target id.");
 
-    var oldNameResolution = WorkspaceLinkIndexService.Resolve(
+    global::Nodalis.Core.Links.LinkResolution oldNameResolution = WorkspaceLinkIndexService.Resolve(
         renamedIndex,
         "Cible");
 
@@ -835,7 +835,7 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         oldNameResolution.Target.DisplayName == "Cible renommée",
         "The former document name must remain a resolving alias after rename.");
 
-    var renamedBacklinks = await indexService.GetBacklinksAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Links.BacklinkEntry> renamedBacklinks = await indexService.GetBacklinksAsync(
         target.Id);
 
     Assert(
@@ -843,13 +843,13 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         renamedBacklinks[0].RawTarget == "Cible",
         "Existing Markdown links must remain valid without rewriting after rename.");
 
-    var renamedApplicationPath = await structure.RenameApplicationAsync(
+    string renamedApplicationPath = await structure.RenameApplicationAsync(
         applicationPath,
         "Application Liens Renommée");
 
-    var afterParentRename = await indexService.RefreshAsync();
+    global::Nodalis.Core.Links.LinkIndexCatalog afterParentRename = await indexService.RefreshAsync();
 
-    var targetAfterParentRename = afterParentRename.Targets.Single(candidate =>
+    global::Nodalis.Core.Links.LinkTargetEntry targetAfterParentRename = afterParentRename.Targets.Single(candidate =>
         candidate.Id == target.Id);
 
     Assert(
@@ -870,24 +870,24 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
 
 static async Task VerifyGlossaryAsync(string root)
 {
-    var structure = new ApplicationStructureService(root);
-    var applicationPath = await structure.CreateApplicationAsync(
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    string applicationPath = await structure.CreateApplicationAsync(
         "Application Glossaire");
 
-    var applicationJson = await File.ReadAllTextAsync(
+    string applicationJson = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationJson,
         new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         })!;
 
-    var projectCreator = new FileSystemProjectCreator(root);
-    var project = await projectCreator.CreateAsync(
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator projectCreator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationResult project = await projectCreator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Glossaire",
@@ -901,8 +901,8 @@ static async Task VerifyGlossaryAsync(string root)
             }
         });
 
-    var glossary = new GlossaryService();
-    var scopes = await glossary.ResolveScopesAsync(
+    global::Nodalis.Infrastructure.Glossary.GlossaryService glossary = new GlossaryService();
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Glossary.GlossaryScope> scopes = await glossary.ResolveScopesAsync(
         root,
         project.OverviewFilePath);
 
@@ -940,7 +940,7 @@ static async Task VerifyGlossaryAsync(string root)
             Definition = "Définition projet"
         });
 
-    var projectResolution = await glossary.ResolveAsync(
+    global::Nodalis.Core.Glossary.GlossaryResolution projectResolution = await glossary.ResolveAsync(
         root,
         project.ProjectDirectory,
         "Steak");
@@ -953,7 +953,7 @@ static async Task VerifyGlossaryAsync(string root)
         projectResolution.Alternatives[1].Scope.Kind == GlossaryScopeKind.Global,
         "Glossary resolution must prioritize Project over Application over Global.");
 
-    var synonymResolution = await glossary.ResolveAsync(
+    global::Nodalis.Core.Glossary.GlossaryResolution synonymResolution = await glossary.ResolveAsync(
         root,
         project.ProjectDirectory,
         "bifteck");
@@ -963,7 +963,7 @@ static async Task VerifyGlossaryAsync(string root)
         synonymResolution.Primary.Term == "Steak",
         "Glossary synonyms must resolve case-insensitively.");
 
-    var acronymResolution = await glossary.ResolveAsync(
+    global::Nodalis.Core.Glossary.GlossaryResolution acronymResolution = await glossary.ResolveAsync(
         root,
         project.ProjectDirectory,
         "stk");
@@ -973,7 +973,7 @@ static async Task VerifyGlossaryAsync(string root)
         acronymResolution.Primary.Term == "Steak",
         "Glossary acronyms must resolve case-insensitively.");
 
-    var applicationResolution = await glossary.ResolveAsync(
+    global::Nodalis.Core.Glossary.GlossaryResolution applicationResolution = await glossary.ResolveAsync(
         root,
         applicationPath,
         "Steak");
@@ -994,7 +994,7 @@ static async Task VerifyGlossaryAsync(string root)
             }),
         "A glossary must reject duplicate terms inside the same scope.");
 
-    var parsed = GlossaryService.Parse(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Glossary.GlossaryEntry> parsed = GlossaryService.Parse(
         "## API\n\n**Définition :** Interface\n\n**Synonymes :** service\n\n**Acronymes :** API\n\n**Liens :** [[Technique]]\n",
         scopes[0]);
 
@@ -1006,8 +1006,8 @@ static async Task VerifyGlossaryAsync(string root)
         parsed[0].Links.Single() == "[[Technique]]",
         "Structured glossary Markdown must round-trip term metadata.");
 
-    var matcherScope = scopes[0];
-    var matcherEntries = new List<GlossaryEntry>
+    global::Nodalis.Core.Glossary.GlossaryScope matcherScope = scopes[0];
+    global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryEntry> matcherEntries = new List<GlossaryEntry>
     {
         new()
         {
@@ -1033,7 +1033,7 @@ static async Task VerifyGlossaryAsync(string root)
     const string sourceText =
         "Base de données, STEAK et bifteck. Steakhouse ne doit pas matcher.";
 
-    var textMatches = GlossaryTextMatcher.Match(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Glossary.GlossaryTextMatch> textMatches = GlossaryTextMatcher.Match(
         sourceText,
         matcherEntries);
 
@@ -1065,24 +1065,24 @@ static async Task VerifyGlossaryAsync(string root)
 
 static async Task VerifyAttachmentsAsync(string root)
 {
-    var structure = new ApplicationStructureService(root);
-    var applicationPath = await structure.CreateApplicationAsync(
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    string applicationPath = await structure.CreateApplicationAsync(
         "Application Pièces Jointes");
 
-    var applicationJson = await File.ReadAllTextAsync(
+    string applicationJson = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationJson,
         new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         })!;
 
-    var projectCreator = new FileSystemProjectCreator(root);
-    var project = await projectCreator.CreateAsync(
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator projectCreator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationResult project = await projectCreator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Pièces Jointes",
@@ -1096,7 +1096,7 @@ static async Task VerifyAttachmentsAsync(string root)
             }
         });
 
-    var notePath = Path.Combine(
+    string notePath = Path.Combine(
         project.ProjectDirectory,
         "Note pièces jointes.md");
 
@@ -1104,10 +1104,10 @@ static async Task VerifyAttachmentsAsync(string root)
         notePath,
         "# Note\n");
 
-    var linkIndex = new WorkspaceLinkIndexService(root);
+    global::Nodalis.Infrastructure.Links.WorkspaceLinkIndexService linkIndex = new WorkspaceLinkIndexService(root);
     await linkIndex.RefreshAsync();
 
-    var externalRoot = Path.Combine(
+    string externalRoot = Path.Combine(
         Path.GetTempPath(),
         "Nodalis-Attachment-Source",
         Guid.NewGuid().ToString("N"));
@@ -1115,11 +1115,11 @@ static async Task VerifyAttachmentsAsync(string root)
     Directory.CreateDirectory(
         externalRoot);
 
-    var sourcePath = Path.Combine(
+    string sourcePath = Path.Combine(
         externalRoot,
         "specification.bin");
 
-    var sourceBytes = Enumerable
+    byte[] sourceBytes = Enumerable
         .Range(0, 256)
         .Select(value => (byte)value)
         .ToArray();
@@ -1130,9 +1130,9 @@ static async Task VerifyAttachmentsAsync(string root)
 
     try
     {
-        var attachments = new AttachmentService(root);
+        global::Nodalis.Infrastructure.Attachments.AttachmentService attachments = new AttachmentService(root);
 
-        var copied = await attachments.CopyIntoWorkspaceAsync(
+        global::Nodalis.Core.Attachments.AttachmentReference copied = await attachments.CopyIntoWorkspaceAsync(
             sourcePath,
             notePath);
 
@@ -1155,7 +1155,7 @@ static async Task VerifyAttachmentsAsync(string root)
             !Path.IsPathRooted(copied.MarkdownTarget),
             "Copied attachments must use a relative Markdown target.");
 
-        var resolvedCopy = attachments.Resolve(
+        global::Nodalis.Core.Attachments.AttachmentReference resolvedCopy = attachments.Resolve(
             copied.MarkdownTarget,
             notePath);
 
@@ -1167,7 +1167,7 @@ static async Task VerifyAttachmentsAsync(string root)
                 StringComparison.OrdinalIgnoreCase),
             "Relative attachment targets must resolve from their owner document.");
 
-        var external = attachments.CreateExternalReference(
+        global::Nodalis.Core.Attachments.AttachmentReference external = attachments.CreateExternalReference(
             sourcePath,
             notePath);
 
@@ -1177,7 +1177,7 @@ static async Task VerifyAttachmentsAsync(string root)
             external.Exists,
             "External attachments must keep an explicit absolute local reference.");
 
-        var resolvedExternal = attachments.Resolve(
+        global::Nodalis.Core.Attachments.AttachmentReference resolvedExternal = attachments.Resolve(
             external.MarkdownTarget,
             notePath);
 
@@ -1189,7 +1189,7 @@ static async Task VerifyAttachmentsAsync(string root)
         File.Delete(
             copied.FullPath);
 
-        var missing = attachments.Resolve(
+        global::Nodalis.Core.Attachments.AttachmentReference missing = attachments.Resolve(
             copied.MarkdownTarget,
             notePath);
 
@@ -1197,11 +1197,11 @@ static async Task VerifyAttachmentsAsync(string root)
             !missing.Exists,
             "Deleted attachment files must be detected as missing.");
 
-        var secondCopy = await attachments.CopyIntoWorkspaceAsync(
+        global::Nodalis.Core.Attachments.AttachmentReference secondCopy = await attachments.CopyIntoWorkspaceAsync(
             sourcePath,
             notePath);
 
-        var thirdCopy = await attachments.CopyIntoWorkspaceAsync(
+        global::Nodalis.Core.Attachments.AttachmentReference thirdCopy = await attachments.CopyIntoWorkspaceAsync(
             sourcePath,
             notePath);
 
@@ -1225,24 +1225,24 @@ static async Task VerifyAttachmentsAsync(string root)
 
 static async Task VerifyTasksAsync(string root)
 {
-    var structure = new ApplicationStructureService(root);
-    var applicationPath = await structure.CreateApplicationAsync(
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    string applicationPath = await structure.CreateApplicationAsync(
         "Application Tâches");
 
-    var applicationJson = await File.ReadAllTextAsync(
+    string applicationJson = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationJson,
         new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         })!;
 
-    var projectCreator = new FileSystemProjectCreator(root);
-    var project = await projectCreator.CreateAsync(
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator projectCreator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationResult project = await projectCreator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Tâches",
@@ -1256,7 +1256,7 @@ static async Task VerifyTasksAsync(string root)
             }
         });
 
-    var meetingPath = Path.Combine(
+    string meetingPath = Path.Combine(
         project.ProjectDirectory,
         "Réunion tâches.md");
 
@@ -1266,7 +1266,7 @@ static async Task VerifyTasksAsync(string root)
         "- [ ] Préparer recette | Responsable: Alice | Échéance: 2026-10-10\n" +
         "- [x] Action déjà terminée\n");
 
-    var applicationTaskPath = Path.Combine(
+    string applicationTaskPath = Path.Combine(
         applicationPath,
         "Action application.md");
 
@@ -1274,7 +1274,7 @@ static async Task VerifyTasksAsync(string root)
         applicationTaskPath,
         "- [ ] Vérifier application | Owner: Bob | Due: 2026-11-01\n");
 
-    var globalTaskPath = Path.Combine(
+    string globalTaskPath = Path.Combine(
         root,
         "Action globale.md");
 
@@ -1282,9 +1282,9 @@ static async Task VerifyTasksAsync(string root)
         globalTaskPath,
         "- [ ] Action globale\n");
 
-    var service = new WorkspaceTaskService(root);
+    global::Nodalis.Infrastructure.Tasks.WorkspaceTaskService service = new WorkspaceTaskService(root);
 
-    var projectTasks = await service.GetTasksAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> projectTasks = await service.GetTasksAsync(
         project.ProjectDirectory);
 
     Assert(
@@ -1295,7 +1295,7 @@ static async Task VerifyTasksAsync(string root)
         projectTasks[0].ProjectId == project.Project.Id,
         "Project task view must extract open checkboxes, metadata and project context.");
 
-    var applicationTasks = await service.GetTasksAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> applicationTasks = await service.GetTasksAsync(
         applicationPath);
 
     Assert(
@@ -1306,7 +1306,7 @@ static async Task VerifyTasksAsync(string root)
             task.Text == "Vérifier application"),
         "Application task view must include application-level and project tasks.");
 
-    var globalTasks = await service.GetTasksAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> globalTasks = await service.GetTasksAsync(
         root);
 
     Assert(
@@ -1315,7 +1315,7 @@ static async Task VerifyTasksAsync(string root)
             task.Text == "Action globale"),
         "Global task view must include tasks from every scope.");
 
-    var allProjectTasks = await service.GetTasksAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> allProjectTasks = await service.GetTasksAsync(
         project.ProjectDirectory,
         includeCompleted: true);
 
@@ -1326,9 +1326,9 @@ static async Task VerifyTasksAsync(string root)
             task.Text == "Action déjà terminée"),
         "Completed tasks must be available when explicitly requested.");
 
-    var taskToMove = projectTasks.Single();
+    global::Nodalis.Core.Tasks.TaskItem taskToMove = projectTasks.Single();
 
-    var originalContent = await File.ReadAllTextAsync(
+    string originalContent = await File.ReadAllTextAsync(
         meetingPath);
 
     await File.WriteAllTextAsync(
@@ -1339,7 +1339,7 @@ static async Task VerifyTasksAsync(string root)
         taskToMove,
         completed: true);
 
-    var updatedContent = await File.ReadAllTextAsync(
+    string updatedContent = await File.ReadAllTextAsync(
         meetingPath);
 
     Assert(
@@ -1348,7 +1348,7 @@ static async Task VerifyTasksAsync(string root)
             StringComparison.Ordinal),
         "Task toggle must relocate a uniquely moved source line safely.");
 
-    var ambiguousPath = Path.Combine(
+    string ambiguousPath = Path.Combine(
         project.ProjectDirectory,
         "Tâches ambiguës.md");
 
@@ -1359,10 +1359,10 @@ static async Task VerifyTasksAsync(string root)
         ambiguousPath,
         duplicateTask + duplicateTask);
 
-    var refreshed = await service.GetTasksAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> refreshed = await service.GetTasksAsync(
         project.ProjectDirectory);
 
-    var ambiguous = refreshed.First(task =>
+    global::Nodalis.Core.Tasks.TaskItem ambiguous = refreshed.First(task =>
         task.SourceRelativePath.EndsWith(
             "Tâches ambiguës.md",
             StringComparison.OrdinalIgnoreCase));
@@ -1380,24 +1380,24 @@ static async Task VerifyTasksAsync(string root)
 
 static async Task VerifyMilestonesAsync(string root)
 {
-    var structure = new ApplicationStructureService(root);
-    var applicationPath = await structure.CreateApplicationAsync(
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    string applicationPath = await structure.CreateApplicationAsync(
         "Application Jalons");
 
-    var applicationJson = await File.ReadAllTextAsync(
+    string applicationJson = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationJson,
         new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         })!;
 
-    var projectCreator = new FileSystemProjectCreator(root);
-    var project = await projectCreator.CreateAsync(
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator projectCreator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationResult project = await projectCreator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Jalons",
@@ -1411,9 +1411,9 @@ static async Task VerifyMilestonesAsync(string root)
             }
         });
 
-    var service = new WorkspaceMilestoneService(root);
+    global::Nodalis.Infrastructure.Milestones.WorkspaceMilestoneService service = new WorkspaceMilestoneService(root);
 
-    var first = await service.AddAsync(
+    global::Nodalis.Core.Milestones.MilestoneItem first = await service.AddAsync(
         project.ProjectDirectory,
         new MilestoneDraft
         {
@@ -1443,7 +1443,7 @@ static async Task VerifyMilestonesAsync(string root)
             Status = "À faire"
         });
 
-    var projectMilestones = await service.GetMilestonesAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> projectMilestones = await service.GetMilestonesAsync(
         project.ProjectDirectory);
 
     Assert(
@@ -1455,7 +1455,7 @@ static async Task VerifyMilestonesAsync(string root)
             item.Link == "outil://jalon/123"),
         "Milestone tables must persist dates, description, links and escaped pipes.");
 
-    var updated = await service.UpdateAsync(
+    global::Nodalis.Core.Milestones.MilestoneItem updated = await service.UpdateAsync(
         first,
         new MilestoneDraft
         {
@@ -1471,7 +1471,7 @@ static async Task VerifyMilestonesAsync(string root)
         updated.Status == "En cours",
         "Editing a milestone must update local Markdown metadata.");
 
-    var upcoming = await service.GetUpcomingAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> upcoming = await service.GetUpcomingAsync(
         new DateOnly(2026, 10, 4),
         forwardDays: 30);
 
@@ -1485,20 +1485,20 @@ static async Task VerifyMilestonesAsync(string root)
             item.Name == "Ancien jalon"),
         "Upcoming milestones must exclude completed and past milestones.");
 
-    var sourcePath = Path.Combine(
+    string sourcePath = Path.Combine(
         root,
         updated.SourceRelativePath.Replace(
             '/',
             Path.DirectorySeparatorChar));
 
-    var current = await File.ReadAllTextAsync(
+    string current = await File.ReadAllTextAsync(
         sourcePath);
 
     await File.WriteAllTextAsync(
         sourcePath,
         "Note avant la table\n" + current);
 
-    var relocated = await service.UpdateAsync(
+    global::Nodalis.Core.Milestones.MilestoneItem relocated = await service.UpdateAsync(
         updated,
         new MilestoneDraft
         {
@@ -1513,8 +1513,8 @@ static async Task VerifyMilestonesAsync(string root)
         relocated.TargetDate == new DateOnly(2026, 10, 13),
         "Milestone editing must relocate a uniquely moved source row safely.");
 
-    var duplicateRow = relocated.RawLine;
-    var duplicatedContent = await File.ReadAllTextAsync(
+    string duplicateRow = relocated.RawLine;
+    string duplicatedContent = await File.ReadAllTextAsync(
         sourcePath);
 
     await File.WriteAllTextAsync(
@@ -1538,16 +1538,16 @@ static async Task VerifyMilestonesAsync(string root)
 
 static async Task VerifyMeetingsAsync(string root)
 {
-    var structure = new ApplicationStructureService(root);
-    var applicationPath = await structure.CreateApplicationAsync(
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    string applicationPath = await structure.CreateApplicationAsync(
         "Application Réunions");
 
-    var applicationJson = await File.ReadAllTextAsync(
+    string applicationJson = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationJson,
         new JsonSerializerOptions
         {
@@ -1556,8 +1556,8 @@ static async Task VerifyMeetingsAsync(string root)
         ?? throw new InvalidDataException(
             "Meeting smoke test application manifest is invalid.");
 
-    var creator = new FileSystemProjectCreator(root);
-    var project = await creator.CreateAsync(
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator creator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationResult project = await creator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Réunions",
@@ -1571,8 +1571,8 @@ static async Task VerifyMeetingsAsync(string root)
             }
         });
 
-    var service = new WorkspaceMeetingService(root);
-    var result = await service.CreateAsync(
+    global::Nodalis.Infrastructure.Meetings.WorkspaceMeetingService service = new WorkspaceMeetingService(root);
+    global::Nodalis.Core.Meetings.MeetingCreationResult result = await service.CreateAsync(
         project.ProjectDirectory,
         new MeetingDraft
         {
@@ -1603,7 +1603,7 @@ static async Task VerifyMeetingsAsync(string root)
             StringComparison.Ordinal),
         "Meeting filenames must use the meeting date and title.");
 
-    var content = await File.ReadAllTextAsync(
+    string content = await File.ReadAllTextAsync(
         result.FilePath);
 
     Assert(
@@ -1627,7 +1627,7 @@ static async Task VerifyMeetingsAsync(string root)
             StringComparison.Ordinal),
         "Meeting assistant must persist structured participants, decisions, actions and pasted Outlook content.");
 
-    var scope = await service.ResolveScopeAsync(
+    (string ScopeKind, string ScopeName)? scope = await service.ResolveScopeAsync(
         result.FilePath);
 
     Assert(
@@ -1636,7 +1636,7 @@ static async Task VerifyMeetingsAsync(string root)
         scope.Value.ScopeName == "Projet Réunions",
         "Meeting context resolution must keep the meeting attached to its project.");
 
-    var tasks = await new WorkspaceTaskService(root)
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> tasks = await new WorkspaceTaskService(root)
         .GetTasksAsync(
             project.ProjectDirectory);
 
@@ -1652,16 +1652,16 @@ static async Task VerifyMeetingsAsync(string root)
 
 static async Task VerifyDecisionsAsync(string root)
 {
-    var structure = new ApplicationStructureService(root);
-    var applicationPath = await structure.CreateApplicationAsync(
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    string applicationPath = await structure.CreateApplicationAsync(
         "Application Décisions");
 
-    var applicationJson = await File.ReadAllTextAsync(
+    string applicationJson = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationJson,
         new JsonSerializerOptions
         {
@@ -1670,8 +1670,8 @@ static async Task VerifyDecisionsAsync(string root)
         ?? throw new InvalidDataException(
             "Decision smoke test application manifest is invalid.");
 
-    var creator = new FileSystemProjectCreator(root);
-    var project = await creator.CreateAsync(
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator creator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationResult project = await creator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Décisions",
@@ -1685,8 +1685,8 @@ static async Task VerifyDecisionsAsync(string root)
             }
         });
 
-    var meetingService = new WorkspaceMeetingService(root);
-    var meeting = await meetingService.CreateAsync(
+    global::Nodalis.Infrastructure.Meetings.WorkspaceMeetingService meetingService = new WorkspaceMeetingService(root);
+    global::Nodalis.Core.Meetings.MeetingCreationResult meeting = await meetingService.CreateAsync(
         project.ProjectDirectory,
         new MeetingDraft
         {
@@ -1697,8 +1697,8 @@ static async Task VerifyDecisionsAsync(string root)
                 "Geler l'API publique avant la recette"
         });
 
-    var decisionService = new WorkspaceDecisionService(root);
-    var candidates = await decisionService.ExtractDecisionCandidatesAsync(
+    global::Nodalis.Infrastructure.Decisions.WorkspaceDecisionService decisionService = new WorkspaceDecisionService(root);
+    global::System.Collections.Generic.IReadOnlyList<string> candidates = await decisionService.ExtractDecisionCandidatesAsync(
         meeting.FilePath);
 
     Assert(
@@ -1708,24 +1708,24 @@ static async Task VerifyDecisionsAsync(string root)
             StringComparer.CurrentCultureIgnoreCase),
         "Decision service must extract explicit decisions from a meeting section.");
 
-    var linksBefore = await new WorkspaceLinkIndexService(root)
+    global::Nodalis.Core.Links.LinkIndexCatalog linksBefore = await new WorkspaceLinkIndexService(root)
         .RefreshAsync();
 
-    var meetingRelative = Path.GetRelativePath(
+    string meetingRelative = Path.GetRelativePath(
             root,
             meeting.FilePath)
         .Replace(
             Path.DirectorySeparatorChar,
             '/');
 
-    var meetingTarget = linksBefore.Targets.Single(target =>
+    global::Nodalis.Core.Links.LinkTargetEntry meetingTarget = linksBefore.Targets.Single(target =>
         target.Kind == LinkTargetKind.Document &&
         string.Equals(
             target.RelativePath,
             meetingRelative,
             StringComparison.OrdinalIgnoreCase));
 
-    var created = await decisionService.CreateAsync(
+    global::Nodalis.Core.Decisions.DecisionCreationResult created = await decisionService.CreateAsync(
         meeting.FilePath,
         new DecisionDraft
         {
@@ -1746,7 +1746,7 @@ static async Task VerifyDecisionsAsync(string root)
         WorkspaceDecisionService.DecisionsDirectoryName,
         "Decision Records must be stored in a dedicated decision directory.");
 
-    var content = await File.ReadAllTextAsync(
+    string content = await File.ReadAllTextAsync(
         created.FilePath);
 
     Assert(
@@ -1764,7 +1764,7 @@ static async Task VerifyDecisionsAsync(string root)
             StringComparison.Ordinal),
         "Decision Records must persist readable metadata, content and source link.");
 
-    var listed = await decisionService.GetDecisionsAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Decisions.DecisionRecord> listed = await decisionService.GetDecisionsAsync(
         project.ProjectDirectory);
 
     Assert(
@@ -1773,7 +1773,7 @@ static async Task VerifyDecisionsAsync(string root)
         listed[0].Status == "Actée",
         "Project decision view must list persisted Decision Records.");
 
-    var searched = await decisionService.SearchAsync(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Decisions.DecisionRecord> searched = await decisionService.SearchAsync(
         project.ProjectDirectory,
         "PostgreSQL");
 
@@ -1781,9 +1781,9 @@ static async Task VerifyDecisionsAsync(string root)
         searched.Count == 1,
         "Decision search must find text across Decision Record content.");
 
-    var linkService = new WorkspaceLinkIndexService(root);
-    var catalogWithDecision = await linkService.RefreshAsync();
-    var backlinks = await linkService.GetBacklinksAsync(
+    global::Nodalis.Infrastructure.Links.WorkspaceLinkIndexService linkService = new WorkspaceLinkIndexService(root);
+    global::Nodalis.Core.Links.LinkIndexCatalog catalogWithDecision = await linkService.RefreshAsync();
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Links.BacklinkEntry> backlinks = await linkService.GetBacklinksAsync(
         meetingTarget.Id);
 
     Assert(
@@ -1793,13 +1793,13 @@ static async Task VerifyDecisionsAsync(string root)
                 StringComparison.OrdinalIgnoreCase)),
         "A Decision Record must create a backlink on its source document.");
 
-    var renamedMeeting = await new DocumentStructureService(root)
+    string renamedMeeting = await new DocumentStructureService(root)
         .RenameAsync(
             meeting.FilePath,
             "Comité architecture renommé");
 
-    var afterRename = await linkService.RefreshAsync();
-    var oldReferenceResolution = WorkspaceLinkIndexService.Resolve(
+    global::Nodalis.Core.Links.LinkIndexCatalog afterRename = await linkService.RefreshAsync();
+    global::Nodalis.Core.Links.LinkResolution oldReferenceResolution = WorkspaceLinkIndexService.Resolve(
         afterRename,
         meetingTarget.QualifiedName);
 
@@ -1812,7 +1812,7 @@ static async Task VerifyDecisionsAsync(string root)
 
 static async Task VerifyDocxImportAsync(string root)
 {
-    var sourceDirectory = Path.Combine(
+    string sourceDirectory = Path.Combine(
         Path.GetTempPath(),
         "Nodalis-Docx-Source",
         Guid.NewGuid().ToString("N"));
@@ -1822,20 +1822,20 @@ static async Task VerifyDocxImportAsync(string root)
 
     try
     {
-        var sourcePath = Path.Combine(
+        string sourcePath = Path.Combine(
             sourceDirectory,
             "specification.docx");
 
         CreateSyntheticDocx(
             sourcePath);
 
-        var originalBytes = await File.ReadAllBytesAsync(
+        byte[] originalBytes = await File.ReadAllBytesAsync(
             sourcePath);
-        var originalWriteTime = File.GetLastWriteTimeUtc(
+        global::System.DateTime originalWriteTime = File.GetLastWriteTimeUtc(
             sourcePath);
 
-        var service = new WorkspaceDocxImportService(root);
-        var result = await service.ImportAsync(
+        global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService service = new WorkspaceDocxImportService(root);
+        global::Nodalis.Core.Importing.DocxImportResult result = await service.ImportAsync(
             sourcePath);
 
         Assert(
@@ -1851,7 +1851,7 @@ static async Task VerifyDocxImportAsync(string root)
                 StringComparison.OrdinalIgnoreCase),
             "DOCX import must parse a dedicated workspace copy.");
 
-        var sourceBytesAfterImport = await File.ReadAllBytesAsync(
+        byte[] sourceBytesAfterImport = await File.ReadAllBytesAsync(
             sourcePath);
 
         Assert(
@@ -1861,7 +1861,7 @@ static async Task VerifyDocxImportAsync(string root)
             originalWriteTime,
             "DOCX import must never modify the original source file.");
 
-        var document = result.Document;
+        global::Nodalis.Core.Importing.ParsedDocxDocument document = result.Document;
 
         Assert(
             document.Metadata.Title == "Spécification synthétique" &&
@@ -1887,7 +1887,7 @@ static async Task VerifyDocxImportAsync(string root)
             document.Blocks[0].Paragraph?.StyleName == "Titre 1",
             "DOCX parser must preserve block order and resolve heading styles.");
 
-        var linkParagraph = document.Blocks[1].Paragraph;
+        global::Nodalis.Core.Importing.DocxParagraph? linkParagraph = document.Blocks[1].Paragraph;
 
         Assert(
             linkParagraph is not null &&
@@ -1899,7 +1899,7 @@ static async Task VerifyDocxImportAsync(string root)
             "https://example.test/documentation",
             "DOCX parser must extract hyperlink relationships.");
 
-        var listParagraph = document.Blocks[2].Paragraph;
+        global::Nodalis.Core.Importing.DocxParagraph? listParagraph = document.Blocks[2].Paragraph;
 
         Assert(
             listParagraph is not null &&
@@ -1908,7 +1908,7 @@ static async Task VerifyDocxImportAsync(string root)
             listParagraph.ListLevel == 0,
             "DOCX parser must expose list numbering metadata.");
 
-        var table = document.Blocks[3].Table;
+        global::Nodalis.Core.Importing.DocxTable? table = document.Blocks[3].Table;
 
         Assert(
             table is not null &&
@@ -1928,7 +1928,7 @@ static async Task VerifyDocxImportAsync(string root)
                     StringComparison.OrdinalIgnoreCase)),
             "DOCX parser must retain useful document relationships.");
 
-        var invalidPath = Path.Combine(
+        string invalidPath = Path.Combine(
             sourceDirectory,
             "invalide.docx");
 
@@ -1936,7 +1936,7 @@ static async Task VerifyDocxImportAsync(string root)
             invalidPath,
             "ceci n'est pas une archive DOCX");
 
-        var copiesBeforeFailure = Directory.GetFiles(
+        int copiesBeforeFailure = Directory.GetFiles(
             Path.Combine(
                 root,
                 WorkspaceLayout.ImportsDirectoryName,
@@ -1948,7 +1948,7 @@ static async Task VerifyDocxImportAsync(string root)
                 invalidPath),
             "Invalid DOCX files must fail explicitly.");
 
-        var copiesAfterFailure = Directory.GetFiles(
+        int copiesAfterFailure = Directory.GetFiles(
             Path.Combine(
                 root,
                 WorkspaceLayout.ImportsDirectoryName,
@@ -1975,7 +1975,7 @@ static void CreateSyntheticDocx(string path)
     Directory.CreateDirectory(
         Path.GetDirectoryName(path)!);
 
-    using var archive = ZipFile.Open(
+    using global::System.IO.Compression.ZipArchive archive = ZipFile.Open(
         path,
         ZipArchiveMode.Create);
 
@@ -2094,12 +2094,12 @@ static void WriteZipEntry(
     string name,
     string content)
 {
-    var entry = archive.CreateEntry(
+    global::System.IO.Compression.ZipArchiveEntry entry = archive.CreateEntry(
         name,
         CompressionLevel.Fastest);
 
-    using var stream = entry.Open();
-    using var writer = new StreamWriter(
+    using global::System.IO.Stream stream = entry.Open();
+    using global::System.IO.StreamWriter writer = new StreamWriter(
         stream,
         new System.Text.UTF8Encoding(
             encoderShouldEmitUTF8Identifier: false));
@@ -2110,16 +2110,16 @@ static void WriteZipEntry(
 
 static async Task VerifyDocxImportAnalysisAsync(string root)
 {
-    var structure = new ApplicationStructureService(root);
-    var applicationPath = await structure.CreateApplicationAsync(
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    string applicationPath = await structure.CreateApplicationAsync(
         "Application Import DOCX");
 
-    var applicationManifestText = await File.ReadAllTextAsync(
+    string applicationManifestText = await File.ReadAllTextAsync(
         Path.Combine(
             applicationPath,
             WorkspaceLayout.ApplicationManifestFileName));
 
-    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
         applicationManifestText,
         new JsonSerializerOptions
         {
@@ -2128,8 +2128,8 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
         ?? throw new InvalidDataException(
             "DOCX analysis application manifest is invalid.");
 
-    var creator = new FileSystemProjectCreator(root);
-    var project = await creator.CreateAsync(
+    global::Nodalis.Infrastructure.Projects.FileSystemProjectCreator creator = new FileSystemProjectCreator(root);
+    global::Nodalis.Core.Projects.ProjectCreationResult project = await creator.CreateAsync(
         new ProjectCreationRequest
         {
             Name = "Projet Import DOCX",
@@ -2143,7 +2143,7 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
             }
         });
 
-    var sourceDirectory = Path.Combine(
+    string sourceDirectory = Path.Combine(
         Path.GetTempPath(),
         "Nodalis-Docx-Analysis",
         Guid.NewGuid().ToString("N"));
@@ -2153,19 +2153,19 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
 
     try
     {
-        var sourcePath = Path.Combine(
+        string sourcePath = Path.Combine(
             sourceDirectory,
             "SPEC_Application_Import_DOCX.docx");
 
         CreateSyntheticDocx(
             sourcePath);
 
-        var imported = await new WorkspaceDocxImportService(root)
+        global::Nodalis.Core.Importing.DocxImportResult imported = await new WorkspaceDocxImportService(root)
             .ImportAsync(
                 sourcePath);
 
-        var analyzer = new DocxImportAnalyzer(root);
-        var analysis = await analyzer.AnalyzeAsync(
+        global::Nodalis.Infrastructure.Importing.DocxImportAnalyzer analyzer = new DocxImportAnalyzer(root);
+        global::Nodalis.Core.Importing.DocxImportAnalysis analysis = await analyzer.AnalyzeAsync(
             imported.Document,
             Path.GetFileName(sourcePath));
 
@@ -2181,7 +2181,7 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
             analysis.ProjectCandidates[0].Confidence >= 90,
             "Explicit project labels must resolve inside the detected application.");
 
-        var technical = analysis.MappedSections.Single(section =>
+        global::Nodalis.Core.Importing.DocxMappedSection technical = analysis.MappedSections.Single(section =>
             section.TargetSection == "Technique");
 
         Assert(
@@ -2191,10 +2191,10 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                 block.Kind == DocxBlockKind.Table),
             "Configurable heading rules must map Word content while preserving block order.");
 
-        var previewService =
+        global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService previewService =
             new WorkspaceDocxImportService(root);
 
-        var preview = await previewService.PreparePreviewAsync(
+        global::Nodalis.Core.Importing.DocxImportPreview preview = await previewService.PreparePreviewAsync(
             sourcePath);
 
         Assert(
@@ -2209,18 +2209,18 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                 "Technique"),
             "DOCX preview must stage a disposable copy and expose detected targets and sections before validation.");
 
-        var technicalPreview = preview.Sections.Single(section =>
+        global::Nodalis.Core.Importing.DocxImportSectionPreview technicalPreview = preview.Sections.Single(section =>
             section.SuggestedTargetSection ==
             "Technique");
 
-        var manifestPath = Path.Combine(
+        string manifestPath = Path.Combine(
             project.ProjectDirectory,
             WorkspaceLayout.ProjectManifestFileName);
 
-        var manifestBeforePlan = await File.ReadAllTextAsync(
+        string manifestBeforePlan = await File.ReadAllTextAsync(
             manifestPath);
 
-        var request = new DocxImportCommitRequest
+        global::Nodalis.Core.Importing.DocxImportCommitRequest request = new DocxImportCommitRequest
         {
             ApplicationId = application.Id,
             ProjectId = project.Project.Id,
@@ -2236,7 +2236,7 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
             ]
         };
 
-        var plan = await previewService.BuildPlanAsync(
+        global::Nodalis.Core.Importing.DocxImportPlan plan = await previewService.BuildPlanAsync(
             preview,
             request);
 
@@ -2281,7 +2281,7 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                     "Section DOCX")),
             "Building a DOCX plan must not perform any business write.");
 
-        var committed = await previewService.CommitAsync(
+        global::Nodalis.Core.Importing.DocxImportCommitResult committed = await previewService.CommitAsync(
             preview,
             request);
 
@@ -2298,7 +2298,7 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                 StringComparison.OrdinalIgnoreCase),
             "Validated DOCX imports must consume the staged copy and honor an explicit section remapping.");
 
-        var importedMarkdown = await File.ReadAllTextAsync(
+        string importedMarkdown = await File.ReadAllTextAsync(
             committed.GeneratedFiles[0]);
 
         Assert(
@@ -2313,7 +2313,7 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                 StringComparison.Ordinal),
             "Validated DOCX imports must persist converted Markdown content without losing links or tables.");
 
-        var proposedDocument = new ParsedDocxDocument
+        global::Nodalis.Core.Importing.ParsedDocxDocument proposedDocument = new ParsedDocxDocument
         {
             Headers =
             [
@@ -2342,7 +2342,7 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
             ]
         };
 
-        var proposed = await analyzer.AnalyzeAsync(
+        global::Nodalis.Core.Importing.DocxImportAnalysis proposed = await analyzer.AnalyzeAsync(
             proposedDocument,
             "nouveau-projet.docx");
 
@@ -2355,15 +2355,15 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
             proposed.MappedSections.Single().TargetSection == "Tests",
             "A missing explicitly named project must be proposed for creation, never created silently.");
 
-        var otherApplicationPath = await structure.CreateApplicationAsync(
+        string otherApplicationPath = await structure.CreateApplicationAsync(
             "Application Import Ambiguë");
 
-        var otherManifestText = await File.ReadAllTextAsync(
+        string otherManifestText = await File.ReadAllTextAsync(
             Path.Combine(
                 otherApplicationPath,
                 WorkspaceLayout.ApplicationManifestFileName));
 
-        var otherApplication = JsonSerializer.Deserialize<ApplicationManifest>(
+        global::Nodalis.Core.Domain.ApplicationManifest otherApplication = JsonSerializer.Deserialize<ApplicationManifest>(
             otherManifestText,
             new JsonSerializerOptions
             {
@@ -2400,7 +2400,7 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                 }
             });
 
-        var ambiguous = await analyzer.AnalyzeAsync(
+        global::Nodalis.Core.Importing.DocxImportAnalysis ambiguous = await analyzer.AnalyzeAsync(
             new ParsedDocxDocument
             {
                 Headers =
@@ -2429,8 +2429,8 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
 
 static void VerifyMarkdownParser()
 {
-    var fence = new string((char)96, 3);
-    var markdown =
+    string fence = new string((char)96, 3);
+    string markdown =
         "# Titre\n\n" +
         "Texte **gras** et *italique* avec [[Projet Patate|le projet]].\n\n" +
         "- [x] Action terminée\n" +
@@ -2444,7 +2444,7 @@ static void VerifyMarkdownParser()
         "Console.WriteLine(1);\n" +
         fence + "\n";
 
-    var blocks = MarkdownDocumentParser.Parse(markdown);
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Markdown.MarkdownBlock> blocks = MarkdownDocumentParser.Parse(markdown);
 
     Assert(blocks.Any(block =>
             block.Kind == MarkdownBlockKind.Heading &&
@@ -2468,7 +2468,7 @@ static void VerifyMarkdownParser()
             block.Text.Contains("Console.WriteLine", StringComparison.Ordinal)),
         "Fenced code blocks must be parsed.");
 
-    var inlines = MarkdownInlineParser.Parse(
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Markdown.MarkdownInline> inlines = MarkdownInlineParser.Parse(
         "A **bold** *italic* [[Target|Alias]] [link](file.md)");
 
     Assert(inlines.Any(inline =>
@@ -2490,15 +2490,15 @@ static void VerifyMarkdownParser()
 
 static async Task VerifyUserPreferencesAsync(string root)
 {
-    var preferencesPath = Path.Combine(root, "User", "preferences.json");
-    var store = new UserPreferencesStore(preferencesPath);
+    string preferencesPath = Path.Combine(root, "User", "preferences.json");
+    global::Nodalis.Infrastructure.Settings.UserPreferencesStore store = new UserPreferencesStore(preferencesPath);
 
-    var defaults = await store.LoadAsync();
+    global::Nodalis.Core.Settings.UserPreferences defaults = await store.LoadAsync();
     Assert(defaults.IsContextPanelOpen,
         "Missing preferences must return safe defaults.");
 
-    var projectId = Guid.NewGuid();
-    var preferences = defaults with
+    global::System.Guid projectId = Guid.NewGuid();
+    global::Nodalis.Core.Settings.UserPreferences preferences = defaults with
     {
         WorkspaceRootPath = Path.Combine(root, "Workspace"),
         NavigationPanelWidth = 50,
@@ -2532,7 +2532,7 @@ static async Task VerifyUserPreferencesAsync(string root)
     };
 
     await store.SaveAsync(preferences);
-    var loaded = await store.LoadAsync();
+    global::Nodalis.Core.Settings.UserPreferences loaded = await store.LoadAsync();
 
     Assert(loaded.WorkspaceRootPath == preferences.WorkspaceRootPath,
         "Preferences must persist the local workspace path.");
@@ -2548,7 +2548,7 @@ static async Task VerifyUserPreferencesAsync(string root)
         "Favorites and expanded nodes must survive persistence.");
 
     await File.WriteAllTextAsync(preferencesPath, "{ definitely not valid json");
-    var recovered = await store.LoadAsync();
+    global::Nodalis.Core.Settings.UserPreferences recovered = await store.LoadAsync();
 
     Assert(recovered.WorkspaceRootPath is null &&
            recovered.Favorites.Count == 0 &&
@@ -2560,10 +2560,10 @@ static async Task VerifyUserPreferencesAsync(string root)
 
 static async Task VerifyDocumentReliabilityAsync(string root)
 {
-    var documentPath = Path.Combine(root, "Documents", "note.md");
+    string documentPath = Path.Combine(root, "Documents", "note.md");
     await AtomicFileWriter.WriteAllTextAsync(documentPath, "# Version 1\n");
 
-    var session = await TextDocumentSession.OpenAsync(documentPath);
+    global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(documentPath);
     Assert(session.Content == "# Version 1\n",
         "A text session must load the document content.");
 
@@ -2585,7 +2585,7 @@ static async Task VerifyDocumentReliabilityAsync(string root)
 
     await session.ReloadAsync();
 
-    await using var autosave = new DocumentAutosaveController(
+    await using global::Nodalis.Infrastructure.Reliability.DocumentAutosaveController autosave = new DocumentAutosaveController(
         session,
         TimeSpan.FromSeconds(30));
 
@@ -2595,7 +2595,7 @@ static async Task VerifyDocumentReliabilityAsync(string root)
     Assert(await File.ReadAllTextAsync(documentPath) == "# Autosaved\n",
         "Flushing autosave must persist pending content.");
 
-    var conflictRaised = false;
+    bool conflictRaised = false;
     autosave.ConflictDetected += (_, _) => conflictRaised = true;
 
     await File.WriteAllTextAsync(documentPath, "# External again\n");
@@ -2607,7 +2607,7 @@ static async Task VerifyDocumentReliabilityAsync(string root)
     Assert(await File.ReadAllTextAsync(documentPath) == "# External again\n",
         "Autosave conflicts must never overwrite external changes.");
 
-    var temporaryFiles = Directory
+    string[] temporaryFiles = Directory
         .EnumerateFiles(
             Path.GetDirectoryName(documentPath)!,
             "*.tmp",
@@ -2620,22 +2620,22 @@ static async Task VerifyDocumentReliabilityAsync(string root)
 
 static void VerifyDomainCatalog()
 {
-    var catalog = new WorkspaceCatalog();
+    global::Nodalis.Core.Domain.WorkspaceCatalog catalog = new WorkspaceCatalog();
 
-    var application = catalog.CreateApplication("Application A");
-    var module = catalog.CreateModule(application.Id, "Module A1");
+    global::Nodalis.Core.Domain.ApplicationManifest application = catalog.CreateApplication("Application A");
+    global::Nodalis.Core.Domain.ModuleManifest module = catalog.CreateModule(application.Id, "Module A1");
 
     AssertThrows<DomainValidationException>(
         () => catalog.MoveModule(module.Id, module.Id),
         "A module cannot become its own parent.");
 
-    var project = catalog.CreateProject(
+    global::Nodalis.Core.Domain.ProjectManifest project = catalog.CreateProject(
         application.Id,
         "Projet Patate",
         ProjectComplexity.Simple,
         module.Id);
 
-    var glossary = catalog.AddSection(
+    global::Nodalis.Core.Domain.SectionManifest glossary = catalog.AddSection(
         project.Id,
         "Glossaire",
         isSingleton: true,
@@ -2649,7 +2649,7 @@ static void VerifyDomainCatalog()
 
     catalog.RenameSection(project.Id, glossary.Id, "Glossaire projet");
 
-    var child = catalog.CreateProject(
+    global::Nodalis.Core.Domain.ProjectManifest child = catalog.CreateProject(
         application.Id,
         "Sous-projet Cuisson",
         ProjectComplexity.Simple,
@@ -2713,9 +2713,9 @@ static IEnumerable<WorkspaceNavigationNode> DescendantsAndSelf(
 {
     yield return node;
 
-    foreach (var child in node.Children)
+    foreach (global::Nodalis.Core.Navigation.WorkspaceNavigationNode child in node.Children)
     {
-        foreach (var descendant in DescendantsAndSelf(child))
+        foreach (global::Nodalis.Core.Navigation.WorkspaceNavigationNode descendant in DescendantsAndSelf(child))
         {
             yield return descendant;
         }

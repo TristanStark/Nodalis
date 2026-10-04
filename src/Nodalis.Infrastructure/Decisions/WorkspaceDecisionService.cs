@@ -17,7 +17,11 @@ public sealed class WorkspaceDecisionService
     private readonly WorkspaceLinkIndexService _linkIndex;
     private readonly FileSystemTemplateStore _templateStore;
 
-    public WorkspaceDecisionService(string workspaceRoot)
+    /// <summary>
+    /// Initializes a new instance of <see cref="WorkspaceDecisionService"/>.
+    /// </summary>
+    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
+public WorkspaceDecisionService(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -26,7 +30,15 @@ public sealed class WorkspaceDecisionService
         _templateStore = new FileSystemTemplateStore(_workspaceRoot);
     }
 
-    public async Task<DecisionCreationResult> CreateAsync(
+    /// <summary>
+    /// Performs the <c>CreateAsync</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="draft">The <c>draft</c> value.</param>
+    /// <param name="sourceDocumentPath">The <c>sourceDocumentPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<DecisionCreationResult> CreateAsync(
         string? contextPath,
         DecisionDraft draft,
         string? sourceDocumentPath = null,
@@ -36,25 +48,25 @@ public sealed class WorkspaceDecisionService
         ArgumentException.ThrowIfNullOrWhiteSpace(draft.Title);
         ArgumentException.ThrowIfNullOrWhiteSpace(draft.Decision);
 
-        var links = await _linkIndex.RefreshAsync(cancellationToken);
-        var scope = ResolveScope(contextPath, links)
+        global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
+        (global::Nodalis.Core.Links.LinkTargetEntry Target, string KindLabel) scope = ResolveScope(contextPath, links)
             ?? throw new InvalidOperationException(
                 "Sélectionnez une application, un projet ou un document rattaché avant de créer une décision.");
 
-        var scopeDirectory = ResolveWorkspacePath(
+        string scopeDirectory = ResolveWorkspacePath(
             scope.Target.RelativePath);
-        var decisionsDirectory = Path.Combine(
+        string decisionsDirectory = Path.Combine(
             scopeDirectory,
             DecisionsDirectoryName);
 
         Directory.CreateDirectory(decisionsDirectory);
 
-        var source = ResolveSourceTarget(
+        global::Nodalis.Core.Links.LinkTargetEntry? source = ResolveSourceTarget(
             sourceDocumentPath,
             links);
 
-        var documentId = Guid.NewGuid();
-        var variables = MarkdownTemplateRenderer.CreateStandardVariables(
+        global::System.Guid documentId = Guid.NewGuid();
+        global::System.Collections.Generic.Dictionary<string, string> variables = MarkdownTemplateRenderer.CreateStandardVariables(
             draft.Title.Trim(),
             documentId,
             DateTimeOffset.Now,
@@ -70,7 +82,7 @@ public sealed class WorkspaceDecisionService
                 "yyyy-MM-dd",
                 CultureInfo.InvariantCulture);
 
-        var content = await _templateStore.RenderAsync(
+        string content = await _templateStore.RenderAsync(
             "decision",
             variables,
             cancellationToken);
@@ -99,7 +111,7 @@ public sealed class WorkspaceDecisionService
             "Impacts",
             draft.Impacts);
 
-        var linksBody = BuildLinksBody(
+        string linksBody = BuildLinksBody(
             draft.Links,
             source);
 
@@ -108,10 +120,10 @@ public sealed class WorkspaceDecisionService
             "Sources et liens",
             linksBody);
 
-        var safeTitle = WindowsPathRules.SanitizeSegment(
+        string safeTitle = WindowsPathRules.SanitizeSegment(
             draft.Title.Trim());
 
-        var filePath = WindowsPathRules.GetUniqueFilePath(
+        string filePath = WindowsPathRules.GetUniqueFilePath(
             decisionsDirectory,
             $"{draft.Date:yyyy-MM-dd} - {safeTitle}.md");
 
@@ -128,19 +140,25 @@ public sealed class WorkspaceDecisionService
         };
     }
 
-    public async Task<IReadOnlyList<DecisionRecord>> GetDecisionsAsync(
+    /// <summary>
+    /// Performs the <c>GetDecisionsAsync</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<DecisionRecord>> GetDecisionsAsync(
         string? contextPath,
         CancellationToken cancellationToken = default)
     {
-        var links = await _linkIndex.RefreshAsync(cancellationToken);
-        var scope = ResolveScope(contextPath, links);
+        global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
+        (global::Nodalis.Core.Links.LinkTargetEntry Target, string KindLabel)? scope = ResolveScope(contextPath, links);
 
         if (scope is null)
         {
             return [];
         }
 
-        var directory = Path.Combine(
+        string directory = Path.Combine(
             ResolveWorkspacePath(scope.Value.Target.RelativePath),
             DecisionsDirectoryName);
 
@@ -149,16 +167,16 @@ public sealed class WorkspaceDecisionService
             return [];
         }
 
-        var result = new List<DecisionRecord>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Decisions.DecisionRecord> result = new List<DecisionRecord>();
 
-        foreach (var filePath in Directory.EnumerateFiles(
+        foreach (string filePath in Directory.EnumerateFiles(
                      directory,
                      "*.md",
                      SearchOption.TopDirectoryOnly))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var content = await File.ReadAllTextAsync(
+            string content = await File.ReadAllTextAsync(
                 filePath,
                 cancellationToken);
 
@@ -178,12 +196,19 @@ public sealed class WorkspaceDecisionService
             .ToArray();
     }
 
-    public async Task<IReadOnlyList<DecisionRecord>> SearchAsync(
+    /// <summary>
+    /// Performs the <c>SearchAsync</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="query">The <c>query</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<DecisionRecord>> SearchAsync(
         string? contextPath,
         string query,
         CancellationToken cancellationToken = default)
     {
-        var decisions = await GetDecisionsAsync(
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Decisions.DecisionRecord> decisions = await GetDecisionsAsync(
             contextPath,
             cancellationToken);
 
@@ -192,7 +217,7 @@ public sealed class WorkspaceDecisionService
             return decisions;
         }
 
-        var needle = query.Trim();
+        string needle = query.Trim();
 
         return decisions
             .Where(item =>
@@ -207,13 +232,19 @@ public sealed class WorkspaceDecisionService
             .ToArray();
     }
 
-    public async Task<IReadOnlyList<string>> ExtractDecisionCandidatesAsync(
+    /// <summary>
+    /// Performs the <c>ExtractDecisionCandidatesAsync</c> operation.
+    /// </summary>
+    /// <param name="sourceDocumentPath">The <c>sourceDocumentPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<IReadOnlyList<string>> ExtractDecisionCandidatesAsync(
         string sourceDocumentPath,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceDocumentPath);
 
-        var fullPath = Path.GetFullPath(sourceDocumentPath);
+        string fullPath = Path.GetFullPath(sourceDocumentPath);
 
         if (!File.Exists(fullPath))
         {
@@ -228,11 +259,11 @@ public sealed class WorkspaceDecisionService
                 "Le document source se trouve hors du workspace.");
         }
 
-        var content = await File.ReadAllTextAsync(
+        string content = await File.ReadAllTextAsync(
             fullPath,
             cancellationToken);
 
-        var section = ReadSection(
+        string section = ReadSection(
             content,
             "Décisions");
 
@@ -252,26 +283,38 @@ public sealed class WorkspaceDecisionService
             .ToArray();
     }
 
-    public async Task<(string ScopeKind, string ScopeName)?> ResolveScopeAsync(
+    /// <summary>
+    /// Performs the <c>ResolveScopeAsync</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<(string ScopeKind, string ScopeName)?> ResolveScopeAsync(
         string? contextPath,
         CancellationToken cancellationToken = default)
     {
-        var links = await _linkIndex.RefreshAsync(cancellationToken);
-        var scope = ResolveScope(contextPath, links);
+        global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
+        (global::Nodalis.Core.Links.LinkTargetEntry Target, string KindLabel)? scope = ResolveScope(contextPath, links);
 
         if (scope is null)
         {
             return null;
         }
 
-        var resolved = scope.Value;
+        (global::Nodalis.Core.Links.LinkTargetEntry Target, string KindLabel) resolved = scope.Value;
 
         return (
             resolved.KindLabel,
             resolved.Target.DisplayName);
     }
 
-    private (LinkTargetEntry Target, string KindLabel)? ResolveScope(
+    /// <summary>
+    /// Performs the <c>ResolveScope</c> operation.
+    /// </summary>
+    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="links">The <c>links</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private (LinkTargetEntry Target, string KindLabel)? ResolveScope(
         string? contextPath,
         LinkIndexCatalog links)
     {
@@ -280,7 +323,7 @@ public sealed class WorkspaceDecisionService
             return null;
         }
 
-        var fullPath = Path.GetFullPath(contextPath);
+        string fullPath = Path.GetFullPath(contextPath);
 
         if (!IsWithinWorkspace(fullPath))
         {
@@ -288,16 +331,16 @@ public sealed class WorkspaceDecisionService
                 "Le contexte de décision se trouve hors du workspace.");
         }
 
-        var contextDirectory = File.Exists(fullPath)
+        string contextDirectory = File.Exists(fullPath)
             ? Path.GetDirectoryName(fullPath) ?? _workspaceRoot
             : fullPath;
 
-        var relativePath = NormalizeRelativePath(
+        string relativePath = NormalizeRelativePath(
             Path.GetRelativePath(
                 _workspaceRoot,
                 contextDirectory));
 
-        var project = links.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry? project = links.Targets
             .Where(target =>
                 target.Kind == LinkTargetKind.Project &&
                 IsRelativeAncestorOrEqual(
@@ -312,7 +355,7 @@ public sealed class WorkspaceDecisionService
             return (project, "Projet");
         }
 
-        var application = links.Targets
+        global::Nodalis.Core.Links.LinkTargetEntry? application = links.Targets
             .Where(target =>
                 target.Kind == LinkTargetKind.Application &&
                 IsRelativeAncestorOrEqual(
@@ -327,7 +370,13 @@ public sealed class WorkspaceDecisionService
             : (application, "Application");
     }
 
-    private LinkTargetEntry? ResolveSourceTarget(
+    /// <summary>
+    /// Performs the <c>ResolveSourceTarget</c> operation.
+    /// </summary>
+    /// <param name="sourceDocumentPath">The <c>sourceDocumentPath</c> value.</param>
+    /// <param name="links">The <c>links</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private LinkTargetEntry? ResolveSourceTarget(
         string? sourceDocumentPath,
         LinkIndexCatalog links)
     {
@@ -336,7 +385,7 @@ public sealed class WorkspaceDecisionService
             return null;
         }
 
-        var fullPath = Path.GetFullPath(sourceDocumentPath);
+        string fullPath = Path.GetFullPath(sourceDocumentPath);
 
         if (!File.Exists(fullPath) ||
             !IsWithinWorkspace(fullPath))
@@ -344,7 +393,7 @@ public sealed class WorkspaceDecisionService
             return null;
         }
 
-        var relativePath = NormalizeRelativePath(
+        string relativePath = NormalizeRelativePath(
             Path.GetRelativePath(
                 _workspaceRoot,
                 fullPath));
@@ -357,21 +406,29 @@ public sealed class WorkspaceDecisionService
                 StringComparison.OrdinalIgnoreCase));
     }
 
-    private DecisionRecord ParseDecision(
+    /// <summary>
+    /// Performs the <c>ParseDecision</c> operation.
+    /// </summary>
+    /// <param name="filePath">The <c>filePath</c> value.</param>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <param name="scopeKind">The <c>scopeKind</c> value.</param>
+    /// <param name="scopeName">The <c>scopeName</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private DecisionRecord ParseDecision(
         string filePath,
         string content,
         string scopeKind,
         string scopeName)
     {
-        var lines = NormalizeNewlines(content)
+        string[] lines = NormalizeNewlines(content)
             .Split('\n');
 
-        var titleLine = lines.FirstOrDefault(line =>
+        string? titleLine = lines.FirstOrDefault(line =>
             line.StartsWith(
                 "# ",
                 StringComparison.Ordinal));
 
-        var title = titleLine is null
+        string title = titleLine is null
             ? Path.GetFileNameWithoutExtension(filePath)
             : titleLine[2..].Trim();
 
@@ -382,7 +439,7 @@ public sealed class WorkspaceDecisionService
             title = title["Décision — ".Length..].Trim();
         }
 
-        var dateText = ReadMetadata(lines, "Date");
+        string dateText = ReadMetadata(lines, "Date");
         DateOnly? date = null;
 
         if (DateOnly.TryParseExact(
@@ -390,7 +447,7 @@ public sealed class WorkspaceDecisionService
                 "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
-                out var parsedDate))
+                out global::System.DateOnly parsedDate))
         {
             date = parsedDate;
         }
@@ -415,29 +472,38 @@ public sealed class WorkspaceDecisionService
         };
     }
 
-    private static string InsertMetadata(
+    /// <summary>
+    /// Performs the <c>InsertMetadata</c> operation.
+    /// </summary>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <param name="scopeKind">The <c>scopeKind</c> value.</param>
+    /// <param name="scopeName">The <c>scopeName</c> value.</param>
+    /// <param name="status">The <c>status</c> value.</param>
+    /// <param name="sourceQualifiedName">The <c>sourceQualifiedName</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string InsertMetadata(
         string content,
         string scopeKind,
         string scopeName,
         string status,
         string? sourceQualifiedName)
     {
-        var lines = NormalizeNewlines(content)
+        global::System.Collections.Generic.List<string> lines = NormalizeNewlines(content)
             .Split('\n')
             .ToList();
 
-        var dateIndex = lines.FindIndex(line =>
+        int dateIndex = lines.FindIndex(line =>
             line.TrimStart().StartsWith(
                 "**Date :**",
                 StringComparison.CurrentCultureIgnoreCase));
 
-        var insertIndex = dateIndex >= 0
+        int insertIndex = dateIndex >= 0
             ? dateIndex + 1
             : Math.Min(
                 1,
                 lines.Count);
 
-        var metadata = new List<string>
+        global::System.Collections.Generic.List<string> metadata = new List<string>
         {
             $"**{scopeKind} :** {scopeName}"
         };
@@ -463,11 +529,17 @@ public sealed class WorkspaceDecisionService
             lines);
     }
 
-    private static string BuildLinksBody(
+    /// <summary>
+    /// Performs the <c>BuildLinksBody</c> operation.
+    /// </summary>
+    /// <param name="links">The <c>links</c> value.</param>
+    /// <param name="source">The <c>source</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string BuildLinksBody(
         string links,
         LinkTargetEntry? source)
     {
-        var entries = new List<string>();
+        global::System.Collections.Generic.List<string> entries = new List<string>();
 
         if (source is not null)
         {
@@ -493,16 +565,23 @@ public sealed class WorkspaceDecisionService
             entries);
     }
 
-    private static string ReplaceSection(
+    /// <summary>
+    /// Performs the <c>ReplaceSection</c> operation.
+    /// </summary>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <param name="heading">The <c>heading</c> value.</param>
+    /// <param name="body">The <c>body</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ReplaceSection(
         string content,
         string heading,
         string body)
     {
-        var normalized = NormalizeNewlines(content);
-        var lines = normalized.Split('\n').ToList();
-        var expected = $"## {heading}";
+        string normalized = NormalizeNewlines(content);
+        global::System.Collections.Generic.List<string> lines = normalized.Split('\n').ToList();
+        string expected = $"## {heading}";
 
-        var headingIndex = lines.FindIndex(line =>
+        int headingIndex = lines.FindIndex(line =>
             string.Equals(
                 line.Trim(),
                 expected,
@@ -518,7 +597,7 @@ public sealed class WorkspaceDecisionService
                    "\n";
         }
 
-        var nextHeading = lines.FindIndex(
+        int nextHeading = lines.FindIndex(
             headingIndex + 1,
             line => line.TrimStart().StartsWith(
                 "## ",
@@ -533,7 +612,7 @@ public sealed class WorkspaceDecisionService
             headingIndex + 1,
             nextHeading - headingIndex - 1);
 
-        var replacement = new List<string>
+        global::System.Collections.Generic.List<string> replacement = new List<string>
         {
             string.Empty
         };
@@ -557,15 +636,21 @@ public sealed class WorkspaceDecisionService
             lines);
     }
 
-    private static string ReadSection(
+    /// <summary>
+    /// Performs the <c>ReadSection</c> operation.
+    /// </summary>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <param name="heading">The <c>heading</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ReadSection(
         string content,
         string heading)
     {
-        var lines = NormalizeNewlines(content)
+        string[] lines = NormalizeNewlines(content)
             .Split('\n');
 
-        var expected = $"## {heading}";
-        var start = Array.FindIndex(
+        string expected = $"## {heading}";
+        int start = Array.FindIndex(
             lines,
             line => string.Equals(
                 line.Trim(),
@@ -577,7 +662,7 @@ public sealed class WorkspaceDecisionService
             return string.Empty;
         }
 
-        var end = Array.FindIndex(
+        int end = Array.FindIndex(
             lines,
             start + 1,
             line => line.TrimStart().StartsWith(
@@ -595,13 +680,19 @@ public sealed class WorkspaceDecisionService
             .Trim();
     }
 
-    private static string ReadMetadata(
+    /// <summary>
+    /// Performs the <c>ReadMetadata</c> operation.
+    /// </summary>
+    /// <param name="lines">The <c>lines</c> value.</param>
+    /// <param name="key">The <c>key</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string ReadMetadata(
         IReadOnlyList<string> lines,
         string key)
     {
-        var prefix = $"**{key} :**";
+        string prefix = $"**{key} :**";
 
-        var line = lines.FirstOrDefault(candidate =>
+        string? line = lines.FirstOrDefault(candidate =>
             candidate.TrimStart().StartsWith(
                 prefix,
                 StringComparison.CurrentCultureIgnoreCase));
@@ -613,9 +704,14 @@ public sealed class WorkspaceDecisionService
                 .Trim();
     }
 
-    private static string StripBullet(string line)
+    /// <summary>
+    /// Performs the <c>StripBullet</c> operation.
+    /// </summary>
+    /// <param name="line">The <c>line</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string StripBullet(string line)
     {
-        var value = line.Trim();
+        string value = line.Trim();
 
         if (value.StartsWith(
                 "- ",
@@ -630,7 +726,13 @@ public sealed class WorkspaceDecisionService
         return value;
     }
 
-    private static bool Contains(
+    /// <summary>
+    /// Performs the <c>Contains</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <param name="needle">The <c>needle</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool Contains(
         string value,
         string needle) =>
         !string.IsNullOrWhiteSpace(value) &&
@@ -638,10 +740,20 @@ public sealed class WorkspaceDecisionService
             needle,
             StringComparison.CurrentCultureIgnoreCase);
 
-    private static string EnsureTrailingNewline(string value) =>
+    /// <summary>
+    /// Performs the <c>EnsureTrailingNewline</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string EnsureTrailingNewline(string value) =>
         NormalizeNewlines(value).TrimEnd() + "\n";
 
-    private static string NormalizeNewlines(string value) =>
+    /// <summary>
+    /// Performs the <c>NormalizeNewlines</c> operation.
+    /// </summary>
+    /// <param name="value">The <c>value</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeNewlines(string value) =>
         (value ?? string.Empty)
             .Replace(
                 "\r\n",
@@ -651,7 +763,12 @@ public sealed class WorkspaceDecisionService
                 '\r',
                 '\n');
 
-    private string ResolveWorkspacePath(string relativePath) =>
+    /// <summary>
+    /// Performs the <c>ResolveWorkspacePath</c> operation.
+    /// </summary>
+    /// <param name="relativePath">The <c>relativePath</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private string ResolveWorkspacePath(string relativePath) =>
         Path.GetFullPath(
             Path.Combine(
                 _workspaceRoot,
@@ -659,9 +776,14 @@ public sealed class WorkspaceDecisionService
                     '/',
                     Path.DirectorySeparatorChar)));
 
-    private bool IsWithinWorkspace(string path)
+    /// <summary>
+    /// Performs the <c>IsWithinWorkspace</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private bool IsWithinWorkspace(string path)
     {
-        var root = _workspaceRoot.TrimEnd(
+        string root = _workspaceRoot.TrimEnd(
             Path.DirectorySeparatorChar,
             Path.AltDirectorySeparatorChar);
 
@@ -674,12 +796,18 @@ public sealed class WorkspaceDecisionService
                    StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsRelativeAncestorOrEqual(
+    /// <summary>
+    /// Performs the <c>IsRelativeAncestorOrEqual</c> operation.
+    /// </summary>
+    /// <param name="candidateParent">The <c>candidateParent</c> value.</param>
+    /// <param name="child">The <c>child</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static bool IsRelativeAncestorOrEqual(
         string candidateParent,
         string child)
     {
-        var parent = candidateParent.Trim('/');
-        var descendant = child.Trim('/');
+        string parent = candidateParent.Trim('/');
+        string descendant = child.Trim('/');
 
         return string.Equals(
                    parent,
@@ -690,7 +818,12 @@ public sealed class WorkspaceDecisionService
                    StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string NormalizeRelativePath(string path) =>
+    /// <summary>
+    /// Performs the <c>NormalizeRelativePath</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static string NormalizeRelativePath(string path) =>
         path.Replace(
             Path.DirectorySeparatorChar,
             '/');

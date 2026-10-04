@@ -7,7 +7,11 @@ namespace Nodalis.Infrastructure.Persistence;
 
 public sealed class FileSystemWorkspaceStore : IWorkspaceStore
 {
-    public FileSystemWorkspaceStore(string rootPath)
+    /// <summary>
+    /// Initializes a new instance of <see cref="FileSystemWorkspaceStore"/>.
+    /// </summary>
+    /// <param name="rootPath">The <c>rootPath</c> value.</param>
+public FileSystemWorkspaceStore(string rootPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         RootPath = Path.GetFullPath(rootPath);
@@ -19,7 +23,13 @@ public sealed class FileSystemWorkspaceStore : IWorkspaceStore
         RootPath,
         WorkspaceLayout.WorkspaceManifestFileName);
 
-    public async Task<WorkspaceManifest> InitializeAsync(
+    /// <summary>
+    /// Performs the <c>InitializeAsync</c> operation.
+    /// </summary>
+    /// <param name="workspaceName">The <c>workspaceName</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<WorkspaceManifest> InitializeAsync(
         string workspaceName,
         CancellationToken cancellationToken = default)
     {
@@ -43,10 +53,10 @@ public sealed class FileSystemWorkspaceStore : IWorkspaceStore
             RootPath,
             WorkspaceLayout.TemplatesDirectoryName));
 
-        var templateStore = new FileSystemTemplateStore(RootPath);
+        global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore templateStore = new FileSystemTemplateStore(RootPath);
         await templateStore.InitializeDefaultsAsync(cancellationToken);
 
-        var manifest = new WorkspaceManifest
+        global::Nodalis.Core.Domain.WorkspaceManifest manifest = new WorkspaceManifest
         {
             Id = Guid.NewGuid(),
             Name = workspaceName.Trim()
@@ -67,7 +77,12 @@ public sealed class FileSystemWorkspaceStore : IWorkspaceStore
         return manifest;
     }
 
-    public async Task<WorkspaceManifest> LoadAsync(
+    /// <summary>
+    /// Performs the <c>LoadAsync</c> operation.
+    /// </summary>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public async Task<WorkspaceManifest> LoadAsync(
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(ManifestPath))
@@ -77,7 +92,7 @@ public sealed class FileSystemWorkspaceStore : IWorkspaceStore
                 ManifestPath);
         }
 
-        var manifest = await AtomicJsonFile.ReadAsync<WorkspaceManifest>(
+        global::Nodalis.Core.Domain.WorkspaceManifest manifest = await AtomicJsonFile.ReadAsync<WorkspaceManifest>(
             ManifestPath,
             cancellationToken);
 
@@ -90,7 +105,13 @@ public sealed class FileSystemWorkspaceStore : IWorkspaceStore
         return manifest;
     }
 
-    public Task SaveAsync(
+    /// <summary>
+    /// Performs the <c>SaveAsync</c> operation.
+    /// </summary>
+    /// <param name="manifest">The <c>manifest</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public Task SaveAsync(
         WorkspaceManifest manifest,
         CancellationToken cancellationToken = default)
     {
@@ -105,7 +126,14 @@ public sealed class FileSystemWorkspaceStore : IWorkspaceStore
         return AtomicJsonFile.WriteAsync(ManifestPath, manifest, cancellationToken);
     }
 
-    private static async Task CreateTextFileIfMissingAsync(
+    /// <summary>
+    /// Performs the <c>CreateTextFileIfMissingAsync</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+private static async Task CreateTextFileIfMissingAsync(
         string path,
         string content,
         CancellationToken cancellationToken)

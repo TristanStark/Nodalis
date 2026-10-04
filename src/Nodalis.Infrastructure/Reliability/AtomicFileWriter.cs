@@ -4,7 +4,14 @@ namespace Nodalis.Infrastructure.Reliability;
 
 public static class AtomicFileWriter
 {
-    public static Task WriteAllTextAsync(
+    /// <summary>
+    /// Performs the <c>WriteAllTextAsync</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="content">The <c>content</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static Task WriteAllTextAsync(
         string path,
         string content,
         CancellationToken cancellationToken = default)
@@ -15,7 +22,7 @@ public static class AtomicFileWriter
             path,
             async (stream, token) =>
             {
-                await using var writer = new StreamWriter(
+                await using global::System.IO.StreamWriter writer = new StreamWriter(
                     stream,
                     new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
                     bufferSize: 4096,
@@ -27,7 +34,14 @@ public static class AtomicFileWriter
             cancellationToken);
     }
 
-    public static async Task WriteAsync(
+    /// <summary>
+    /// Performs the <c>WriteAsync</c> operation.
+    /// </summary>
+    /// <param name="path">The <c>path</c> value.</param>
+    /// <param name="writeAsync">The <c>writeAsync</c> value.</param>
+    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <returns>The result of the operation.</returns>
+public static async Task WriteAsync(
         string path,
         Func<Stream, CancellationToken, Task> writeAsync,
         CancellationToken cancellationToken = default)
@@ -35,8 +49,8 @@ public static class AtomicFileWriter
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(writeAsync);
 
-        var fullPath = System.IO.Path.GetFullPath(path);
-        var directory = System.IO.Path.GetDirectoryName(fullPath);
+        string fullPath = System.IO.Path.GetFullPath(path);
+        string? directory = System.IO.Path.GetDirectoryName(fullPath);
 
         if (string.IsNullOrWhiteSpace(directory))
         {
@@ -46,13 +60,13 @@ public static class AtomicFileWriter
 
         Directory.CreateDirectory(directory);
 
-        var temporaryPath = System.IO.Path.Combine(
+        string temporaryPath = System.IO.Path.Combine(
             directory,
             $".{System.IO.Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
 
         try
         {
-            await using (var stream = new FileStream(
+            await using (global::System.IO.FileStream stream = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,
                 FileAccess.Write,
