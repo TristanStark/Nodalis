@@ -344,8 +344,10 @@ public sealed class FileSystemTemplateStore : ITemplateStore
             ["glossary.md"] =
                 "# Glossaire\n\n" +
                 "## Exemple\n\n" +
-                "**Définition :**\n\n" +
-                "**Synonymes / acronymes :**\n\n",
+                "**Définition :** Définition du terme.\n\n" +
+                "**Synonymes :** synonyme 1; synonyme 2\n\n" +
+                "**Acronymes :** EX\n\n" +
+                "**Liens :** [[Document lié]]\n\n",
             ["technical.md"] =
                 "# Technique\n\n" +
                 "## Contexte\n\n" +
