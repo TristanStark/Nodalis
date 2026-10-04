@@ -44,6 +44,18 @@
         <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}" />
     </Style>
 
+    <Style TargetType="ComboBox">
+        <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    </Style>
+
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="Padding" Value="8,5" />
+    </Style>
+
     <Style TargetType="TreeView">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
