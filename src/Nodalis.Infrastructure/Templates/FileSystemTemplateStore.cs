@@ -218,7 +218,8 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                     Key = "decision",
                     DisplayName = "Decision Record",
                     FileName = "decision.md",
-                    Category = "Projet"
+                    Category = "Projet",
+                    DefaultFileName = "{{date}} - {{title}}.md"
                 },
                 new MarkdownTemplateDefinition
                 {
@@ -236,6 +237,20 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                 },
                 new MarkdownTemplateDefinition
                 {
+                    Key = "documentation",
+                    DisplayName = "Documentation projet",
+                    FileName = "documentation.md",
+                    Category = "Documentation"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "functional",
+                    DisplayName = "Documentation fonctionnelle",
+                    FileName = "functional.md",
+                    Category = "Documentation"
+                },
+                new MarkdownTemplateDefinition
+                {
                     Key = "technical",
                     DisplayName = "Documentation technique",
                     FileName = "technical.md",
@@ -243,9 +258,79 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                 },
                 new MarkdownTemplateDefinition
                 {
+                    Key = "technical-simple",
+                    DisplayName = "Technique — Simple",
+                    FileName = "technical-simple.md",
+                    Category = "Profils projet"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "technical-medium",
+                    DisplayName = "Technique — Moyen",
+                    FileName = "technical-medium.md",
+                    Category = "Profils projet"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "technical-complex",
+                    DisplayName = "Technique — Complexe",
+                    FileName = "technical-complex.md",
+                    Category = "Profils projet"
+                },
+                new MarkdownTemplateDefinition
+                {
                     Key = "tests",
                     DisplayName = "Tests",
                     FileName = "tests.md",
+                    Category = "Projet"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "tests-simple",
+                    DisplayName = "Tests — Simple",
+                    FileName = "tests-simple.md",
+                    Category = "Profils projet"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "tests-medium",
+                    DisplayName = "Tests — Moyen",
+                    FileName = "tests-medium.md",
+                    Category = "Profils projet"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "tests-complex",
+                    DisplayName = "Tests — Complexe",
+                    FileName = "tests-complex.md",
+                    Category = "Profils projet"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "risks",
+                    DisplayName = "Risques",
+                    FileName = "risks.md",
+                    Category = "Projet"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "operations",
+                    DisplayName = "Exploitation",
+                    FileName = "operations.md",
+                    Category = "Documentation"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "deployment",
+                    DisplayName = "Déploiement",
+                    FileName = "deployment.md",
+                    Category = "Documentation"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "dependencies",
+                    DisplayName = "Dépendances",
+                    FileName = "dependencies.md",
                     Category = "Projet"
                 }
             ]
@@ -253,37 +338,18 @@ public sealed class FileSystemTemplateStore : ITemplateStore
 
     private static ProjectProfileCatalog CreateDefaultProjectProfiles()
     {
-        static List<ProjectSectionTemplateDefinition> MinimumSections() =>
-        [
-            new ProjectSectionTemplateDefinition
+        static ProjectSectionTemplateDefinition Section(
+            string name,
+            int order,
+            string? templateKey = null,
+            bool singleton = true) =>
+            new()
             {
-                Name = "Jalons",
-                Order = 10,
-                IsSingleton = true,
-                TemplateKey = "milestones"
-            },
-            new ProjectSectionTemplateDefinition
-            {
-                Name = "Technique",
-                Order = 20,
-                IsSingleton = true,
-                TemplateKey = "technical"
-            },
-            new ProjectSectionTemplateDefinition
-            {
-                Name = "Glossaire",
-                Order = 30,
-                IsSingleton = true,
-                TemplateKey = "glossary"
-            },
-            new ProjectSectionTemplateDefinition
-            {
-                Name = "Tests",
-                Order = 40,
-                IsSingleton = true,
-                TemplateKey = "tests"
-            }
-        ];
+                Name = name,
+                Order = order,
+                IsSingleton = singleton,
+                TemplateKey = templateKey
+            };
 
         return new ProjectProfileCatalog
         {
@@ -293,19 +359,49 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                 {
                     Complexity = ProjectComplexity.Simple,
                     DisplayName = "Simple",
-                    Sections = MinimumSections()
+                    Sections =
+                    [
+                        Section("Jalons", 10, "milestones"),
+                        Section("Technique", 20, "technical-simple"),
+                        Section("Glossaire", 30, "glossary"),
+                        Section("Tests", 40, "tests-simple")
+                    ]
                 },
                 new ProjectProfileDefinition
                 {
                     Complexity = ProjectComplexity.Medium,
                     DisplayName = "Moyen",
-                    Sections = MinimumSections()
+                    Sections =
+                    [
+                        Section("Jalons", 10, "milestones"),
+                        Section("Documentation", 20, "documentation"),
+                        Section("Technique", 30, "technical-medium"),
+                        Section("Glossaire", 40, "glossary"),
+                        Section("Tests", 50, "tests-medium"),
+                        Section("Réunions", 60, singleton: false),
+                        Section("Décisions", 70, singleton: false),
+                        Section("Risques", 80, "risks")
+                    ]
                 },
                 new ProjectProfileDefinition
                 {
                     Complexity = ProjectComplexity.Complex,
                     DisplayName = "Complexe",
-                    Sections = MinimumSections()
+                    Sections =
+                    [
+                        Section("Jalons", 10, "milestones"),
+                        Section("Documentation", 20, "documentation"),
+                        Section("Fonctionnel", 30, "functional"),
+                        Section("Technique", 40, "technical-complex"),
+                        Section("Exploitation", 50, "operations"),
+                        Section("Déploiement", 60, "deployment"),
+                        Section("Glossaire", 70, "glossary"),
+                        Section("Tests", 80, "tests-complex"),
+                        Section("Réunions", 90, singleton: false),
+                        Section("Décisions", 100, singleton: false),
+                        Section("Risques", 110, "risks"),
+                        Section("Dépendances", 120, "dependencies")
+                    ]
                 }
             ]
         };
@@ -350,15 +446,111 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                 "**Synonymes :** synonyme 1; synonyme 2\n\n" +
                 "**Acronymes :** EX\n\n" +
                 "**Liens :** [[Document lié]]\n\n",
+            ["documentation.md"] =
+                "# Documentation\n\n" +
+                "## Objectif\n\n" +
+                "## Périmètre\n\n" +
+                "## Références\n\n" +
+                "## Points ouverts\n\n",
+            ["functional.md"] =
+                "# Fonctionnel\n\n" +
+                "## Besoin\n\n" +
+                "## Règles métier\n\n" +
+                "## Parcours / traitements\n\n" +
+                "## Données fonctionnelles\n\n" +
+                "## Interfaces\n\n" +
+                "## Cas particuliers\n\n",
             ["technical.md"] =
                 "# Technique\n\n" +
                 "## Contexte\n\n" +
                 "## Architecture / réalisation\n\n" +
                 "## Points d'attention\n\n",
+            ["technical-simple.md"] =
+                "# Technique\n\n" +
+                "## Contexte\n\n" +
+                "## Réalisation\n\n" +
+                "## Configuration\n\n" +
+                "## Points d'attention\n\n",
+            ["technical-medium.md"] =
+                "# Technique\n\n" +
+                "## Contexte\n\n" +
+                "## Architecture\n\n" +
+                "## Composants\n\n" +
+                "## Flux et données\n\n" +
+                "## Interfaces\n\n" +
+                "## Configuration\n\n" +
+                "## Exploitation\n\n" +
+                "## Points d'attention\n\n",
+            ["technical-complex.md"] =
+                "# Technique\n\n" +
+                "## Contexte\n\n" +
+                "## Architecture\n\n" +
+                "## Composants et responsabilités\n\n" +
+                "## Flux et modèle de données\n\n" +
+                "## Interfaces / API\n\n" +
+                "## Configuration et environnements\n\n" +
+                "## Sécurité\n\n" +
+                "## Performance et capacité\n\n" +
+                "## Observabilité\n\n" +
+                "## Déploiement / rollback\n\n" +
+                "## Exploitation et reprise\n\n" +
+                "## Décisions d'architecture liées\n\n" +
+                "## Points d'attention\n\n",
             ["tests.md"] =
                 "# Tests\n\n" +
                 "## Périmètre\n\n" +
                 "## Cas de test\n\n" +
-                "## Résultats\n\n"
+                "## Résultats\n\n",
+            ["tests-simple.md"] =
+                "# Tests\n\n" +
+                "## Périmètre\n\n" +
+                "## Cas de test\n\n" +
+                "## Résultats\n\n",
+            ["tests-medium.md"] =
+                "# Tests\n\n" +
+                "## Stratégie\n\n" +
+                "## Environnements et données\n\n" +
+                "## Tests unitaires\n\n" +
+                "## Tests d'intégration\n\n" +
+                "## Tests fonctionnels / recette\n\n" +
+                "## Non-régression\n\n" +
+                "## Résultats et anomalies\n\n",
+            ["tests-complex.md"] =
+                "# Tests\n\n" +
+                "## Stratégie et traçabilité\n\n" +
+                "## Environnements\n\n" +
+                "## Jeux de données\n\n" +
+                "## Tests unitaires\n\n" +
+                "## Tests de composants\n\n" +
+                "## Tests d'intégration\n\n" +
+                "## Tests système\n\n" +
+                "## Recette fonctionnelle\n\n" +
+                "## Performance / volumétrie\n\n" +
+                "## Sécurité\n\n" +
+                "## Résilience / reprise\n\n" +
+                "## Non-régression\n\n" +
+                "## Résultats et anomalies\n\n",
+            ["risks.md"] =
+                "# Risques\n\n" +
+                "| Risque | Probabilité | Impact | Mitigation | Statut |\n" +
+                "| --- | --- | --- | --- | --- |\n",
+            ["operations.md"] =
+                "# Exploitation\n\n" +
+                "## Supervision\n\n" +
+                "## Procédures récurrentes\n\n" +
+                "## Incidents connus\n\n" +
+                "## Sauvegarde / restauration\n\n" +
+                "## Contacts et escalade\n\n",
+            ["deployment.md"] =
+                "# Déploiement\n\n" +
+                "## Prérequis\n\n" +
+                "## Procédure\n\n" +
+                "## Contrôles post-déploiement\n\n" +
+                "## Rollback\n\n" +
+                "## Validation\n\n",
+            ["dependencies.md"] =
+                "# Dépendances\n\n" +
+                "| Dépendance | Type | Responsable | Version / contrainte | Impact |\n" +
+                "| --- | --- | --- | --- | --- |\n"
         };
 }
