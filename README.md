@@ -22,6 +22,7 @@ Le socle actuellement disponible comprend :
 - jalons projet éditables avec vue liste et timeline chronologique ;
 - assistant de compte-rendu de réunion avec actions Markdown, décisions et contenus collés ;
 - Decision Records reliés à leur source, consultables et recherchables par contexte ;
+- import DOCX local avec détection Application/Projet, remapping des sections, aperçu Markdown et plan exact des fichiers avant validation ;
 - persistance atomique et détection des modifications externes ;
 - zéro dépendance NuGet ;
 - zéro API réseau dans le produit.
