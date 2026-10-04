@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Nodalis.Core.Attachments;
+using Nodalis.Core.Decisions;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Glossary;
 using Nodalis.Core.Links;
@@ -14,6 +15,7 @@ using Nodalis.Core.Templates;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
+using Nodalis.Infrastructure.Decisions;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Links;
@@ -49,6 +51,7 @@ try
     await VerifyTasksAsync(root);
     await VerifyMilestonesAsync(root);
     await VerifyMeetingsAsync(root);
+    await VerifyDecisionsAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -1577,6 +1580,166 @@ static async Task VerifyMeetingsAsync(string root)
         tasks.Any(task =>
             task.Text == "Envoyer le compte-rendu"),
         "Meeting actions must immediately surface as project Markdown tasks.");
+}
+
+static async Task VerifyDecisionsAsync(string root)
+{
+    var structure = new ApplicationStructureService(root);
+    var applicationPath = await structure.CreateApplicationAsync(
+        "Application Décisions");
+
+    var applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })
+        ?? throw new InvalidDataException(
+            "Decision smoke test application manifest is invalid.");
+
+    var creator = new FileSystemProjectCreator(root);
+    var project = await creator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Décisions",
+            Complexity = ProjectComplexity.Simple,
+            Target = new ProjectCreationTarget
+            {
+                ApplicationId = application.Id,
+                ApplicationName = application.Name,
+                ParentDirectory = applicationPath,
+                DisplayName = application.Name
+            }
+        });
+
+    var meetingService = new WorkspaceMeetingService(root);
+    var meeting = await meetingService.CreateAsync(
+        project.ProjectDirectory,
+        new MeetingDraft
+        {
+            Title = "Comité architecture",
+            Date = new DateOnly(2026, 10, 5),
+            Decisions =
+                "Adopter PostgreSQL pour le référentiel\n" +
+                "Geler l'API publique avant la recette"
+        });
+
+    var decisionService = new WorkspaceDecisionService(root);
+    var candidates = await decisionService.ExtractDecisionCandidatesAsync(
+        meeting.FilePath);
+
+    Assert(
+        candidates.Count == 2 &&
+        candidates.Contains(
+            "Adopter PostgreSQL pour le référentiel",
+            StringComparer.CurrentCultureIgnoreCase),
+        "Decision service must extract explicit decisions from a meeting section.");
+
+    var linksBefore = await new WorkspaceLinkIndexService(root)
+        .RefreshAsync();
+
+    var meetingRelative = Path.GetRelativePath(
+            root,
+            meeting.FilePath)
+        .Replace(
+            Path.DirectorySeparatorChar,
+            '/');
+
+    var meetingTarget = linksBefore.Targets.Single(target =>
+        target.Kind == LinkTargetKind.Document &&
+        string.Equals(
+            target.RelativePath,
+            meetingRelative,
+            StringComparison.OrdinalIgnoreCase));
+
+    var created = await decisionService.CreateAsync(
+        meeting.FilePath,
+        new DecisionDraft
+        {
+            Title = "Référentiel PostgreSQL",
+            Date = new DateOnly(2026, 10, 5),
+            Decision = candidates[0],
+            Context = "Le stockage doit rester local et auditable.",
+            Justification = "Référentiel relationnel structuré.",
+            Impacts = "Adapter le schéma de persistence.",
+            Status = "Actée",
+            Links = "Documentation technique"
+        },
+        meeting.FilePath);
+
+    Assert(
+        Path.GetFileName(
+            Path.GetDirectoryName(created.FilePath)) ==
+        WorkspaceDecisionService.DecisionsDirectoryName,
+        "Decision Records must be stored in a dedicated decision directory.");
+
+    var content = await File.ReadAllTextAsync(
+        created.FilePath);
+
+    Assert(
+        content.Contains(
+            "# Décision — Référentiel PostgreSQL",
+            StringComparison.Ordinal) &&
+        content.Contains(
+            "**Statut :** Actée",
+            StringComparison.Ordinal) &&
+        content.Contains(
+            $"[[{meetingTarget.QualifiedName}]]",
+            StringComparison.Ordinal) &&
+        content.Contains(
+            "Adopter PostgreSQL pour le référentiel",
+            StringComparison.Ordinal),
+        "Decision Records must persist readable metadata, content and source link.");
+
+    var listed = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+
+    Assert(
+        listed.Count == 1 &&
+        listed[0].Title == "Référentiel PostgreSQL" &&
+        listed[0].Status == "Actée",
+        "Project decision view must list persisted Decision Records.");
+
+    var searched = await decisionService.SearchAsync(
+        project.ProjectDirectory,
+        "PostgreSQL");
+
+    Assert(
+        searched.Count == 1,
+        "Decision search must find text across Decision Record content.");
+
+    var linkService = new WorkspaceLinkIndexService(root);
+    var catalogWithDecision = await linkService.RefreshAsync();
+    var backlinks = await linkService.GetBacklinksAsync(
+        meetingTarget.Id);
+
+    Assert(
+        backlinks.Any(backlink =>
+            backlink.Source.RelativePath.EndsWith(
+                Path.GetFileName(created.FilePath),
+                StringComparison.OrdinalIgnoreCase)),
+        "A Decision Record must create a backlink on its source document.");
+
+    var renamedMeeting = await new DocumentStructureService(root)
+        .RenameAsync(
+            meeting.FilePath,
+            "Comité architecture renommé");
+
+    var afterRename = await linkService.RefreshAsync();
+    var oldReferenceResolution = WorkspaceLinkIndexService.Resolve(
+        afterRename,
+        meetingTarget.QualifiedName);
+
+    Assert(
+        oldReferenceResolution.Status == LinkResolutionStatus.Resolved &&
+        oldReferenceResolution.Target?.Id == meetingTarget.Id &&
+        File.Exists(renamedMeeting),
+        "Decision source references must survive source document renames.");
 }
 
 static void VerifyMarkdownParser()
