@@ -197,6 +197,47 @@ static async Task VerifyTemplatesAsync(string root)
             "Every initial project profile must contain the four mandatory sections.");
     }
 
+    var simpleProfile = profiles.Profiles.Single(profile =>
+        profile.Complexity == ProjectComplexity.Simple);
+    var mediumProfile = profiles.Profiles.Single(profile =>
+        profile.Complexity == ProjectComplexity.Medium);
+    var complexProfile = profiles.Profiles.Single(profile =>
+        profile.Complexity == ProjectComplexity.Complex);
+
+    Assert(
+        simpleProfile.Sections.Count == 4 &&
+        simpleProfile.Sections.Single(section =>
+            section.Name == "Technique").TemplateKey == "technical-simple" &&
+        simpleProfile.Sections.Single(section =>
+            section.Name == "Tests").TemplateKey == "tests-simple",
+        "Simple projects must stay minimal and use simple technical/test templates.");
+
+    var mediumNames = mediumProfile.Sections
+        .Select(section => section.Name)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    Assert(
+        mediumNames.IsSupersetOf(
+            ["Documentation", "Réunions", "Décisions", "Risques"]) &&
+        mediumProfile.Sections.Single(section =>
+            section.Name == "Technique").TemplateKey == "technical-medium" &&
+        mediumProfile.Sections.Single(section =>
+            section.Name == "Tests").TemplateKey == "tests-medium",
+        "Medium projects must add project-management sections and richer templates.");
+
+    var complexNames = complexProfile.Sections
+        .Select(section => section.Name)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    Assert(
+        complexNames.IsSupersetOf(
+            ["Fonctionnel", "Exploitation", "Déploiement", "Dépendances"]) &&
+        complexProfile.Sections.Single(section =>
+            section.Name == "Technique").TemplateKey == "technical-complex" &&
+        complexProfile.Sections.Single(section =>
+            section.Name == "Tests").TemplateKey == "tests-complex",
+        "Complex projects must add operational sections and the deepest templates.");
+
     var variables = MarkdownTemplateRenderer.CreateStandardVariables(
         "Ma note",
         Guid.NewGuid(),
@@ -207,6 +248,28 @@ static async Task VerifyTemplatesAsync(string root)
     Assert(rendered.Contains("# Ma note", StringComparison.Ordinal) &&
            rendered.Contains("2026-10-04", StringComparison.Ordinal),
         "Template rendering must substitute standard variables.");
+
+    var complexTests = await store.RenderAsync(
+        "tests-complex",
+        variables);
+    var complexTechnical = await store.RenderAsync(
+        "technical-complex",
+        variables);
+
+    Assert(
+        complexTests.Contains(
+            "## Performance / volumétrie",
+            StringComparison.Ordinal) &&
+        complexTests.Contains(
+            "## Résilience / reprise",
+            StringComparison.Ordinal) &&
+        complexTechnical.Contains(
+            "## Observabilité",
+            StringComparison.Ordinal) &&
+        complexTechnical.Contains(
+            "## Déploiement / rollback",
+            StringComparison.Ordinal),
+        "Complex profile templates must expose advanced test and technical coverage.");
 
     AssertThrows<TemplateRenderException>(
         () => MarkdownTemplateRenderer.Render(
