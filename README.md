@@ -33,11 +33,14 @@ Le socle actuellement disponible comprend :
 | `Ctrl+N` | Nouvelle note depuis template / Libre |
 | `Ctrl+Shift+N` | Nouveau projet / sous-projet |
 | `Ctrl+Alt+N` | Capturer une note rapide |
+| `Ctrl+Shift+Q` | Voir les notes rapides agrégées |
 | `Ctrl+F` | Recherche Projet / Application / Global |
+| `Ctrl+K` | Insérer ou ouvrir un lien interne |
 | `Ctrl+P` | Command Palette |
 | `Ctrl+S` | Forcer l'enregistrement |
 | `Ctrl+B` | Gras |
 | `Ctrl+I` | Italique |
+| `Ctrl+`` | Code inline |
 
 Les scopes métier de connaissance sont volontairement **Global, Application et Projet**.
 Les modules servent à structurer une application mais n'ont pas leur propre glossaire
