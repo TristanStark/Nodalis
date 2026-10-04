@@ -12,6 +12,7 @@ using Nodalis.Infrastructure.Notes;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
+using Nodalis.Infrastructure.Search;
 using Nodalis.Infrastructure.Settings;
 using Nodalis.Infrastructure.Templates;
 
@@ -28,6 +29,7 @@ try
     await VerifyProjectCreationAsync(root);
     await VerifyApplicationStructureAsync(root);
     await VerifyQuickNotesAsync(root);
+    await VerifySearchAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -526,6 +528,102 @@ static async Task VerifyQuickNotesAsync(string root)
             modulePath,
             WorkspaceLayout.GlobalGlossaryFileName)),
         "Modules must not create quick-note or glossary scopes.");
+}
+
+static async Task VerifySearchAsync(string root)
+{
+    var structure = new ApplicationStructureService(root);
+    var applicationPath = await structure.CreateApplicationAsync(
+        "Application Recherche");
+
+    var applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
+
+    var creator = new FileSystemProjectCreator(root);
+    var project = await creator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Recherche",
+            Complexity = ProjectComplexity.Simple,
+            Target = new ProjectCreationTarget
+            {
+                ApplicationId = application.Id,
+                ApplicationName = application.Name,
+                ParentDirectory = applicationPath,
+                DisplayName = application.Name
+            }
+        });
+
+    var globalFile = Path.Combine(
+        root,
+        "Recherche globale.md");
+
+    var applicationFile = Path.Combine(
+        applicationPath,
+        "Recherche application.md");
+
+    var projectFile = Path.Combine(
+        project.ProjectDirectory,
+        "Recherche projet.md");
+
+    await File.WriteAllTextAsync(
+        globalFile,
+        "# Global\n\nsteak global\n");
+
+    await File.WriteAllTextAsync(
+        applicationFile,
+        "# Application\n\nsteak application\n");
+
+    await File.WriteAllTextAsync(
+        projectFile,
+        "# Projet\n\nsteak projet\n");
+
+    var search = new WorkspaceSearchService();
+    var results = await search.SearchAsync(
+        root,
+        projectFile,
+        "steak");
+
+    Assert(
+        results.Project.Any(result =>
+            result.FilePath == projectFile),
+        "Project search must include current-project documents.");
+
+    Assert(
+        results.Application.Any(result =>
+            result.FilePath == applicationFile),
+        "Application search must include application-level documents.");
+
+    Assert(
+        results.Global.Any(result =>
+            result.FilePath == globalFile),
+        "Global search must include global documents.");
+
+    Assert(
+        !results.Application.Any(result =>
+            result.FilePath == projectFile) &&
+        !results.Global.Any(result =>
+            result.FilePath == applicationFile ||
+            result.FilePath == projectFile),
+        "Search scopes must not duplicate lower-scope matches.");
+
+    Assert(
+        results.Project
+            .Concat(results.Application)
+            .Concat(results.Global)
+            .All(result =>
+                result.LineNumber > 0 &&
+                !string.IsNullOrWhiteSpace(result.Excerpt)),
+        "Search results must expose navigable line numbers and excerpts.");
 }
 
 static void VerifyMarkdownParser()
