@@ -46,3 +46,12 @@ jobs:
           if ($process.ExitCode -ne 0) {
             throw "Published Nodalis.exe failed startup smoke test with exit code $($process.ExitCode)."
           }
+
+      - name: Upload portable CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nodalis-win-x64-${{ github.sha }}
+          path: |
+            artifacts/Nodalis-win-x64.zip
+            artifacts/SHA256SUMS.txt
+          if-no-files-found: error
