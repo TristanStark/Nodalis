@@ -71,5 +71,5 @@ Smoke tests sans framework tiers :
 dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj -c Release
 ```
 
-Voir `docs/architecture.md` et `docs/workspace-format.md` pour les décisions
-de conception actuelles.
+Voir `docs/architecture.md`, `docs/workspace-format.md` et
+`docs/project-profiles.md` pour les décisions de conception actuelles.
