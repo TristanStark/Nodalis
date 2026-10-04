@@ -63,6 +63,14 @@ jobs:
         shell: pwsh
         run: ./scripts/publish-portable.ps1 -Version "${{ steps.version.outputs.version }}"
 
+      - name: Start published portable binary
+        shell: pwsh
+        run: |
+          $process = Start-Process "artifacts/Nodalis-win-x64/Nodalis.exe" -ArgumentList "--smoke-test" -PassThru -Wait
+          if ($process.ExitCode -ne 0) {
+            throw "Published Nodalis.exe failed startup smoke test with exit code $($process.ExitCode)."
+          }
+
       - name: Upload portable archive
         uses: actions/upload-artifact@v4
         with:
