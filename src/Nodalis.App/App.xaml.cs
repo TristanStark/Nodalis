@@ -24,6 +24,23 @@ public partial class App : Application
 
         try
         {
+            if (e.Args.Any(argument =>
+                    string.Equals(
+                        argument,
+                        "--smoke-test",
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                if (TryFindResource(
+                        "NodalisWindowStyle") is not Style)
+                {
+                    throw new InvalidOperationException(
+                        "Le thème WPF Nodalis n'a pas pu être chargé.");
+                }
+
+                Shutdown(0);
+                return;
+            }
+
             var preferencesStore = new UserPreferencesStore();
             var preferences = await preferencesStore.LoadAsync();
 
