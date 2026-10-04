@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Nodalis.Core.Domain;
+using Nodalis.Core.Links;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Markdown;
 using Nodalis.Core.Projects;
@@ -7,6 +8,8 @@ using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Applications;
+using Nodalis.Infrastructure.Documents;
+using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Notes;
 using Nodalis.Infrastructure.Persistence;
@@ -30,6 +33,7 @@ try
     await VerifyApplicationStructureAsync(root);
     await VerifyQuickNotesAsync(root);
     await VerifySearchAsync(root);
+    await VerifyLinksAndBacklinksAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -624,6 +628,158 @@ static async Task VerifySearchAsync(string root)
                 result.LineNumber > 0 &&
                 !string.IsNullOrWhiteSpace(result.Excerpt)),
         "Search results must expose navigable line numbers and excerpts.");
+}
+
+static async Task VerifyLinksAndBacklinksAsync(string root)
+{
+    var structure = new ApplicationStructureService(root);
+    var applicationPath = await structure.CreateApplicationAsync(
+        "Application Liens");
+
+    var applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
+
+    var projectCreator = new FileSystemProjectCreator(root);
+    var project = await projectCreator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Liens",
+            Complexity = ProjectComplexity.Simple,
+            Target = new ProjectCreationTarget
+            {
+                ApplicationId = application.Id,
+                ApplicationName = application.Name,
+                ParentDirectory = applicationPath,
+                DisplayName = application.Name
+            }
+        });
+
+    var sourcePath = Path.Combine(
+        project.ProjectDirectory,
+        "Source.md");
+
+    var targetPath = Path.Combine(
+        project.ProjectDirectory,
+        "Cible.md");
+
+    await File.WriteAllTextAsync(
+        sourcePath,
+        "# Source\n\nVoir [[Cible]] puis [[Introuvable]].\n");
+
+    await File.WriteAllTextAsync(
+        targetPath,
+        "# Cible\n\nContenu stable.\n");
+
+    var indexService = new WorkspaceLinkIndexService(root);
+    var initial = await indexService.RefreshAsync();
+
+    var target = initial.Targets.Single(candidate =>
+        candidate.Kind == LinkTargetKind.Document &&
+        candidate.DisplayName == "Cible" &&
+        candidate.RelativePath.EndsWith(
+            "Cible.md",
+            StringComparison.OrdinalIgnoreCase));
+
+    var source = initial.Targets.Single(candidate =>
+        candidate.Kind == LinkTargetKind.Document &&
+        candidate.DisplayName == "Source");
+
+    var resolved = WorkspaceLinkIndexService.Resolve(
+        initial,
+        "Cible");
+
+    Assert(
+        resolved.Status == LinkResolutionStatus.Resolved &&
+        resolved.Target?.Id == target.Id,
+        "A unique [[document]] link must resolve to the indexed target id.");
+
+    var broken = initial.References.Single(reference =>
+        reference.SourceId == source.Id &&
+        reference.RawTarget == "Introuvable");
+
+    Assert(
+        broken.TargetId is null &&
+        WorkspaceLinkIndexService.Resolve(
+            initial,
+            broken.RawTarget).Status == LinkResolutionStatus.Missing,
+        "Broken internal links must be represented explicitly in the index.");
+
+    var backlinks = await indexService.GetBacklinksAsync(
+        target.Id);
+
+    Assert(
+        backlinks.Count == 1 &&
+        backlinks[0].Source.Id == source.Id &&
+        backlinks[0].LineNumber == 3,
+        "Backlinks must point to the source document and occurrence line.");
+
+    var documentStructure = new DocumentStructureService(root);
+    var renamedPath = await documentStructure.RenameAsync(
+        targetPath,
+        "Cible renommée");
+
+    var renamedIndex = await indexService.LoadAsync();
+
+    var renamed = renamedIndex.Targets.Single(candidate =>
+        candidate.Kind == LinkTargetKind.Document &&
+        candidate.RelativePath.EndsWith(
+            "Cible renommée.md",
+            StringComparison.OrdinalIgnoreCase));
+
+    Assert(
+        renamed.Id == target.Id,
+        "Renaming a document must preserve its immutable link target id.");
+
+    var oldNameResolution = WorkspaceLinkIndexService.Resolve(
+        renamedIndex,
+        "Cible");
+
+    Assert(
+        oldNameResolution.Status == LinkResolutionStatus.Resolved &&
+        oldNameResolution.Target?.Id == target.Id &&
+        oldNameResolution.Target.DisplayName == "Cible renommée",
+        "The former document name must remain a resolving alias after rename.");
+
+    var renamedBacklinks = await indexService.GetBacklinksAsync(
+        target.Id);
+
+    Assert(
+        renamedBacklinks.Count == 1 &&
+        renamedBacklinks[0].RawTarget == "Cible",
+        "Existing Markdown links must remain valid without rewriting after rename.");
+
+    var renamedApplicationPath = await structure.RenameApplicationAsync(
+        applicationPath,
+        "Application Liens Renommée");
+
+    var afterParentRename = await indexService.RefreshAsync();
+
+    var targetAfterParentRename = afterParentRename.Targets.Single(candidate =>
+        candidate.Id == target.Id);
+
+    Assert(
+        targetAfterParentRename.DisplayName == "Cible renommée" &&
+        File.Exists(Path.Combine(
+            root,
+            targetAfterParentRename.RelativePath.Replace(
+                '/',
+                Path.DirectorySeparatorChar))),
+        "Document identity must survive parent application path changes.");
+
+    Assert(
+        WorkspaceLinkIndexService.Resolve(
+            afterParentRename,
+            "Cible").Target?.Id == target.Id,
+        "Historical aliases must survive parent folder renames.");
 }
 
 static void VerifyMarkdownParser()
