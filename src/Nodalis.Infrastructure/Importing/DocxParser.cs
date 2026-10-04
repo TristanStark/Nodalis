@@ -75,6 +75,10 @@ public sealed class DocxParser
                 archive,
                 cancellationToken);
 
+            var headers = ReadHeaders(
+                archive,
+                cancellationToken);
+
             XDocument documentXml;
 
             using (var stream = documentEntry.Open())
@@ -133,6 +137,7 @@ public sealed class DocxParser
             {
                 Metadata = metadata,
                 Blocks = blocks,
+                Headers = headers,
                 Relationships = relationships
             };
         }
@@ -425,6 +430,52 @@ public sealed class DocxParser
                 !string.IsNullOrWhiteSpace(
                     relationship.Id))
             .ToList();
+    }
+
+    private static List<string> ReadHeaders(
+        ZipArchive archive,
+        CancellationToken cancellationToken)
+    {
+        var result = new List<string>();
+
+        foreach (var entry in archive.Entries
+                     .Where(entry =>
+                         entry.FullName.StartsWith(
+                             "word/header",
+                             StringComparison.OrdinalIgnoreCase) &&
+                         entry.FullName.EndsWith(
+                             ".xml",
+                             StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(entry =>
+                         entry.FullName,
+                         StringComparer.OrdinalIgnoreCase))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            XDocument xml;
+
+            using (var stream = entry.Open())
+            {
+                xml = XDocument.Load(stream);
+            }
+
+            var text = string.Join(
+                    Environment.NewLine,
+                    xml.Descendants(
+                            WordNamespace + "p")
+                        .Select(ExtractText)
+                        .Select(value => value.Trim())
+                        .Where(value =>
+                            !string.IsNullOrWhiteSpace(value)))
+                .Trim();
+
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                result.Add(text);
+            }
+        }
+
+        return result;
     }
 
     private static DocxDocumentMetadata ReadMetadata(
