@@ -32,8 +32,10 @@
             </StackPanel>
         </Border>
 
-        <TabControl Grid.Row="1"
-                    Margin="14">
+        <TabControl x:Name="ImportTabs"
+                    Grid.Row="1"
+                    Margin="14"
+                    SelectionChanged="ImportTabs_SelectionChanged">
             <TabItem Header="Cible">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <Grid Margin="16">
@@ -233,6 +235,86 @@
                 </Grid>
             </TabItem>
 
+            <TabItem x:Name="FilesTab"
+                     Header="Fichiers">
+                <Grid Margin="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Plan d'écriture"
+                               FontSize="16"
+                               FontWeight="SemiBold" />
+
+                    <TextBlock x:Name="PlanTargetText"
+                               Grid.Row="1"
+                               Margin="0,6,0,10"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               Text="Sélectionnez une cible valide pour calculer le plan."
+                               TextWrapping="Wrap" />
+
+                    <ListBox x:Name="PlannedChangesList"
+                             Grid.Row="2"
+                             BorderThickness="0"
+                             Background="Transparent">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,3"
+                                        Padding="10"
+                                        Background="{StaticResource PanelBackgroundBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="72" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{Binding Action}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource AccentBrush}" />
+
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding RelativePath}"
+                                                       FontFamily="Consolas"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Text="{Binding Description}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <TextBlock Grid.Row="3"
+                               Margin="0,14,0,6"
+                               Text="Avertissements du plan"
+                               FontWeight="SemiBold" />
+
+                    <ItemsControl x:Name="PlanWarningsItems"
+                                  Grid.Row="4">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Margin="0,2"
+                                           TextWrapping="Wrap">
+                                    <Run Text="• " />
+                                    <Run Text="{Binding}" />
+                                </TextBlock>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </TabItem>
+
             <TabItem Header="Diagnostic">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="16">
@@ -282,10 +364,11 @@
                             Margin="0,0,8,0"
                             IsCancel="True"
                             Content="Annuler" />
-                    <Button Width="140"
+                    <Button x:Name="ImportButton"
+                            Width="170"
                             IsDefault="True"
                             Click="Import_Click"
-                            Content="Valider l'import" />
+                            Content="Prévisualiser les fichiers" />
                 </StackPanel>
             </Grid>
         </Border>
