@@ -1,0 +1,293 @@
+<Window x:Class="Nodalis.App.Dialogs.DocxImportPreviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Prévisualisation de l'import DOCX"
+        Width="980"
+        Height="760"
+        MinWidth="820"
+        MinHeight="620"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False">
+    <Grid Background="{StaticResource WindowBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="70" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="58" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="18,0"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Importer un document Word"
+                           FontSize="19"
+                           FontWeight="SemiBold" />
+                <TextBlock x:Name="SourceText"
+                           Margin="0,4,0,0"
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </Border>
+
+        <TabControl Grid.Row="1"
+                    Margin="14">
+            <TabItem Header="Cible">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="16">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Grid.ColumnSpan="2"
+                                   Margin="0,0,0,16"
+                                   Text="Choisissez explicitement la destination. La détection automatique ne modifie jamais le workspace avant validation."
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <TextBlock Grid.Row="1"
+                                   VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="Application" />
+                        <ComboBox x:Name="ApplicationComboBox"
+                                  Grid.Row="1"
+                                  Grid.Column="1"
+                                  MinHeight="32"
+                                  DisplayMemberPath="QualifiedName"
+                                  SelectionChanged="ApplicationComboBox_SelectionChanged" />
+
+                        <TextBlock Grid.Row="2"
+                                   Margin="0,14,0,0"
+                                   VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="Projet existant" />
+                        <ComboBox x:Name="ProjectComboBox"
+                                  Grid.Row="2"
+                                  Grid.Column="1"
+                                  Margin="0,14,0,0"
+                                  MinHeight="32"
+                                  DisplayMemberPath="QualifiedName" />
+
+                        <CheckBox x:Name="CreateNewProjectCheckBox"
+                                  Grid.Row="3"
+                                  Grid.Column="1"
+                                  Margin="0,16,0,0"
+                                  Checked="CreateNewProjectCheckBox_Changed"
+                                  Unchecked="CreateNewProjectCheckBox_Changed"
+                                  Content="Créer un nouveau projet pour cet import" />
+
+                        <TextBlock Grid.Row="4"
+                                   Margin="0,14,0,0"
+                                   VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="Nom du nouveau projet" />
+                        <TextBox x:Name="NewProjectNameTextBox"
+                                 Grid.Row="4"
+                                 Grid.Column="1"
+                                 Margin="0,14,0,0"
+                                 MinHeight="32"
+                                 Padding="7,4" />
+
+                        <TextBlock Grid.Row="5"
+                                   Margin="0,12,0,0"
+                                   VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="Structure initiale" />
+                        <ComboBox x:Name="ComplexityComboBox"
+                                  Grid.Row="5"
+                                  Grid.Column="1"
+                                  Margin="0,12,0,0"
+                                  MinHeight="32"
+                                  DisplayMemberPath="DisplayName" />
+
+                        <Border Grid.Row="6"
+                                Grid.ColumnSpan="2"
+                                Margin="0,22,0,0"
+                                Padding="12"
+                                Background="{StaticResource PanelBackgroundBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="5">
+                            <StackPanel>
+                                <TextBlock Text="Détection"
+                                           FontWeight="SemiBold" />
+                                <ItemsControl x:Name="DetectionNotesItems"
+                                              Margin="0,8,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Margin="0,2"
+                                                       TextWrapping="Wrap">
+                                                <Run Text="• " />
+                                                <Run Text="{Binding}" />
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Sections">
+                <Grid Margin="14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Margin="0,0,0,8"
+                                   Text="Sections détectées"
+                                   FontWeight="SemiBold" />
+
+                        <ListBox x:Name="SectionsListBox"
+                                 Grid.Row="1"
+                                 SelectionMode="Single">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="2,3"
+                                            Padding="10"
+                                            Background="{StaticResource PanelBackgroundBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <CheckBox IsChecked="{Binding Include, Mode=TwoWay}"
+                                                      FontWeight="SemiBold"
+                                                      Content="{Binding SourceHeading}" />
+
+                                            <Grid Grid.Row="1"
+                                                  Margin="22,8,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Margin="0,5,8,0"
+                                                           Text="Vers :" />
+                                                <TextBox Grid.Column="1"
+                                                         MinHeight="30"
+                                                         Padding="6,3"
+                                                         Text="{Binding TargetSection, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </Grid>
+
+                                            <TextBlock Grid.Row="2"
+                                                       Margin="22,6,0,0"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource SecondaryTextBrush}">
+                                                <Run Text="{Binding BlockCount}" />
+                                                <Run Text=" bloc(s) Word" />
+                                            </TextBlock>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Margin="0,0,0,8"
+                                   Text="Aperçu Markdown"
+                                   FontWeight="SemiBold" />
+
+                        <TextBox Grid.Row="1"
+                                 Padding="10"
+                                 IsReadOnly="True"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 FontFamily="Consolas"
+                                 Text="{Binding SelectedItem.MarkdownPreview, ElementName=SectionsListBox, Mode=OneWay}" />
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Diagnostic">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+                        <TextBlock Text="Points d'attention"
+                                   FontSize="16"
+                                   FontWeight="SemiBold" />
+
+                        <ItemsControl x:Name="WarningsItems"
+                                      Margin="0,10,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,3"
+                                            Padding="10"
+                                            Background="{StaticResource PanelBackgroundBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                        <TextBlock Text="{Binding}"
+                                                   TextWrapping="Wrap" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Margin="0,20,0,0"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   Text="Le fichier DOCX original n'est jamais modifié. Une copie temporaire est conservée uniquement pendant cette prévisualisation ; Annuler la supprime."
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="2"
+                Padding="14,9"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid>
+                <TextBlock x:Name="SummaryText"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+
+                <StackPanel HorizontalAlignment="Right"
+                            Orientation="Horizontal">
+                    <Button Width="96"
+                            Margin="0,0,8,0"
+                            IsCancel="True"
+                            Content="Annuler" />
+                    <Button Width="140"
+                            IsDefault="True"
+                            Click="Import_Click"
+                            Content="Valider l'import" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
