@@ -1,6 +1,8 @@
 using Nodalis.Core.Domain;
+using Nodalis.Core.Settings;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Settings;
 
 var root = Path.Combine(
     Path.GetTempPath(),
@@ -10,6 +12,7 @@ var root = Path.Combine(
 try
 {
     await VerifyWorkspacePersistenceAsync(root);
+    await VerifyUserPreferencesAsync(root);
     VerifyDomainCatalog();
 
     Console.WriteLine("Nodalis smoke tests passed.");
@@ -36,6 +39,72 @@ static async Task VerifyWorkspacePersistenceAsync(string root)
         "Global glossary must be created.");
     Assert(WindowsPathRules.SanitizeSegment("CON") == "_CON",
         "Reserved Windows names must be escaped.");
+}
+
+static async Task VerifyUserPreferencesAsync(string root)
+{
+    var preferencesPath = Path.Combine(root, "User", "preferences.json");
+    var store = new UserPreferencesStore(preferencesPath);
+
+    var defaults = await store.LoadAsync();
+    Assert(defaults.IsContextPanelOpen,
+        "Missing preferences must return safe defaults.");
+
+    var projectId = Guid.NewGuid();
+    var preferences = defaults with
+    {
+        WorkspaceRootPath = Path.Combine(root, "Workspace"),
+        NavigationPanelWidth = 50,
+        ContextPanelWidth = 5_000,
+        ExpandedNodeIds = [projectId],
+        Favorites =
+        [
+            new UserItemReference
+            {
+                Kind = "project",
+                Key = projectId.ToString("D"),
+                DisplayName = "Projet Patate"
+            }
+        ],
+        RecentItems =
+        [
+            new RecentItemReference
+            {
+                Item = new UserItemReference
+                {
+                    Kind = "document",
+                    Key = "Applications/Application A/Notes rapides.md"
+                }
+            }
+        ],
+        Editor = defaults.Editor with
+        {
+            FontSize = 100,
+            AutosaveDelayMilliseconds = 20
+        }
+    };
+
+    await store.SaveAsync(preferences);
+    var loaded = await store.LoadAsync();
+
+    Assert(loaded.WorkspaceRootPath == preferences.WorkspaceRootPath,
+        "Preferences must persist the local workspace path.");
+    Assert(loaded.NavigationPanelWidth == 180,
+        "Navigation width must be normalized.");
+    Assert(loaded.ContextPanelWidth == 800,
+        "Context width must be normalized.");
+    Assert(loaded.Editor.FontSize == 48,
+        "Editor font size must be normalized.");
+    Assert(loaded.Editor.AutosaveDelayMilliseconds == 100,
+        "Autosave delay must be normalized.");
+    Assert(loaded.Favorites.Count == 1 && loaded.ExpandedNodeIds.Contains(projectId),
+        "Favorites and expanded nodes must survive persistence.");
+
+    await File.WriteAllTextAsync(preferencesPath, "{ definitely not valid json");
+    var recovered = await store.LoadAsync();
+
+    Assert(recovered == UserPreferences.Default,
+        "Corrupted preferences must safely return defaults.");
 }
 
 static void VerifyDomainCatalog()
