@@ -21,6 +21,7 @@ using Nodalis.Core.Links;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
+using Nodalis.Core.Tasks;
 using Nodalis.Core.Templates;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
@@ -32,6 +33,7 @@ using Nodalis.Infrastructure.Notes;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
+using Nodalis.Infrastructure.Tasks;
 
 namespace Nodalis.App;
 
@@ -42,6 +44,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceNavigationBuilder _navigationBuilder = new();
     private readonly GlossaryService _glossaryService = new();
     private readonly WorkspaceLinkIndexService _linkIndexService;
+    private readonly WorkspaceTaskService _taskService;
     private readonly DispatcherTimer _previewTimer;
 
     private NavigationNodeViewModel _root;
@@ -84,6 +87,8 @@ public partial class MainWindow : Window
         _preferencesStore = preferencesStore;
         _templateStore = templateStore;
         _linkIndexService = new WorkspaceLinkIndexService(
+            root.FullPath);
+        _taskService = new WorkspaceTaskService(
             root.FullPath);
         _contextPanelOpen = preferences.IsContextPanelOpen;
         _previewVisible = preferences.Editor.LivePreview;
@@ -129,6 +134,7 @@ public partial class MainWindow : Window
                 await RefreshGlossaryContextAsync(
                     _selectedNode?.FullPath ?? _root.FullPath);
                 UpdateGlossaryAnnotations();
+                await RefreshDashboardTasksAsync();
             }
             catch (Exception exception) when (
                 exception is IOException or
@@ -941,6 +947,7 @@ public partial class MainWindow : Window
                     await RefreshGlossaryContextAsync(
                         _selectedNode?.FullPath ?? _root.FullPath);
                     UpdateGlossaryAnnotations();
+                    await RefreshDashboardTasksAsync();
                 }
                 catch (Exception exception) when (
                     exception is IOException or
@@ -1036,6 +1043,14 @@ public partial class MainWindow : Window
         RoutedEventArgs e)
     {
         await AttachFileAsync();
+    }
+
+    private async void ShowAllTasks_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await ShowTasksAsync(
+            global: true);
     }
 
     private async void MainWindow_PreviewKeyDown(
@@ -1303,6 +1318,7 @@ public partial class MainWindow : Window
         _glossaryAdorner?.SetMatches([]);
 
         RefreshDashboard();
+        _ = RefreshDashboardTasksAsync();
 
         StatusText.Text =
             "Accueil · favoris et éléments récents locaux";
@@ -2325,6 +2341,22 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "tasks.context",
+                Title = "Tâches du contexte",
+                Subtitle = "Projet / Application / Global selon la sélection",
+                Keywords = ["tâches", "actions", "checkbox", "projet"],
+                ExecuteAsync = () => ShowTasksAsync(global: false)
+            },
+            new()
+            {
+                Id = "tasks.global",
+                Title = "Toutes les tâches",
+                Subtitle = "Vue consolidée de toutes les tâches Markdown",
+                Keywords = ["tâches", "actions", "global", "checkbox"],
+                ExecuteAsync = () => ShowTasksAsync(global: true)
+            },
+            new()
+            {
                 Id = "glossary.lookup",
                 Title = "Consulter le glossaire",
                 Subtitle = "Projet → Application → Global",
@@ -2720,6 +2752,242 @@ public partial class MainWindow : Window
                 [' ', '\t', '\r', '\n'],
                 StringSplitOptions.TrimEntries |
                 StringSplitOptions.RemoveEmptyEntries));
+
+    private async Task RefreshDashboardTasksAsync()
+    {
+        try
+        {
+            var tasks = await _taskService.GetTasksAsync(
+                _root.FullPath,
+                includeCompleted: false);
+
+            OpenTasksList.ItemsSource = tasks
+                .OrderBy(task =>
+                    task.DueDate ?? DateOnly.MaxValue)
+                .ThenBy(
+                    task => task.Text,
+                    StringComparer.CurrentCultureIgnoreCase)
+                .Take(12)
+                .ToArray();
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            OpenTasksList.ItemsSource = null;
+
+            if (DashboardHost.Visibility == Visibility.Visible)
+            {
+                StatusText.Text =
+                    $"Tâches indisponibles : {exception.Message}";
+            }
+        }
+    }
+
+    private async Task ShowTasksAsync(bool global)
+    {
+        var contextPath = global
+            ? _root.FullPath
+            : _selectedNode?.FullPath ?? _root.FullPath;
+
+        var scopeLabel = global
+            ? "Global · toutes les applications et tous les projets"
+            : $"Contexte · {_selectedNode?.DisplayName ?? _root.DisplayName}";
+
+        var dialog = new TaskListDialog(
+            _root.FullPath,
+            contextPath,
+            scopeLabel,
+            ToggleTaskFromViewAsync)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() == true &&
+            dialog.SelectedTask is not null)
+        {
+            await NavigateToTaskAsync(
+                dialog.SelectedTask);
+        }
+    }
+
+    private async void DashboardTaskCheckBox_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (sender is not CheckBox checkBox ||
+            checkBox.DataContext is not TaskItem task)
+        {
+            return;
+        }
+
+        try
+        {
+            await ToggleTaskFromViewAsync(
+                task,
+                checkBox.IsChecked == true);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            TaskSourceConflictException)
+        {
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Mettre à jour la tâche",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        finally
+        {
+            await RefreshDashboardTasksAsync();
+        }
+    }
+
+    private async void DashboardTaskList_MouseDoubleClick(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (OpenTasksList.SelectedItem is not TaskItem task)
+        {
+            return;
+        }
+
+        await NavigateToTaskAsync(
+            task);
+    }
+
+    private async Task ToggleTaskFromViewAsync(
+        TaskItem task,
+        bool completed)
+    {
+        var sourcePath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                task.SourceRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        var isCurrentDocument =
+            _documentSession is not null &&
+            string.Equals(
+                Path.GetFullPath(_documentSession.Path),
+                sourcePath,
+                StringComparison.OrdinalIgnoreCase);
+
+        var caret = MarkdownEditorTextBox.CaretIndex;
+
+        if (isCurrentDocument &&
+            _autosave is not null)
+        {
+            await _autosave.FlushAsync();
+
+            if (_documentDirty)
+            {
+                MessageBox.Show(
+                    this,
+                    "Le document source contient des modifications non enregistrées. " +
+                    "Résolvez d'abord le conflit avant de modifier cette tâche depuis la vue consolidée.",
+                    "Tâche",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                return;
+            }
+        }
+
+        await _taskService.SetCompletedAsync(
+            task,
+            completed);
+
+        if (isCurrentDocument &&
+            _documentSession is not null)
+        {
+            await _documentSession.ReloadAsync();
+
+            _suppressEditorChanges = true;
+            MarkdownEditorTextBox.Text =
+                _documentSession.Content;
+            MarkdownEditorTextBox.CaretIndex =
+                Math.Min(
+                    caret,
+                    MarkdownEditorTextBox.Text.Length);
+            _suppressEditorChanges = false;
+
+            _documentDirty = false;
+            SaveStateText.Text = "Enregistré";
+
+            await RefreshLinkIndexAndContextAsync();
+            await RefreshGlossaryContextAsync(
+                sourcePath);
+            UpdateGlossaryAnnotations();
+            RenderPreview();
+        }
+
+        await RefreshDashboardTasksAsync();
+
+        StatusText.Text = completed
+            ? $"Tâche terminée · {task.Text}"
+            : $"Tâche rouverte · {task.Text}";
+    }
+
+    private async Task NavigateToTaskAsync(
+        TaskItem task)
+    {
+        var fullPath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                task.SourceRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        var node = FindAndExpand(
+            _root,
+            fullPath);
+
+        if (node is null)
+        {
+            await RefreshNavigationAsync();
+            node = FindAndExpand(
+                _root,
+                fullPath);
+        }
+
+        if (node is null)
+        {
+            StatusText.Text =
+                $"Document source introuvable : {task.SourceRelativePath}";
+            return;
+        }
+
+        if (_selectedNode is not null &&
+            _selectedNode.Kind == WorkspaceNodeKind.Document &&
+            !ReferenceEquals(
+                _selectedNode,
+                node) &&
+            !await TryCloseCurrentDocumentAsync(
+                "ouvrir la tâche"))
+        {
+            return;
+        }
+
+        _restoringSelection = true;
+        node.IsSelected = true;
+        _restoringSelection = false;
+
+        _selectedNode = node;
+        await DisplayNodeAsync(
+            node);
+
+        MoveCaretToLine(
+            task.LineNumber);
+
+        StatusText.Text =
+            $"Tâche · {task.Text} · ligne {task.LineNumber}";
+    }
 
     private async Task AttachFileAsync()
     {
