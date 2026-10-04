@@ -40,7 +40,7 @@ public partial class DocxImportPreviewDialog : Window
 
         WarningsItems.ItemsSource =
             preview.Conflicts.Count == 0
-                ? ["Aucun conflit bloquant détecté."]
+                ? new[] { "Aucun conflit bloquant détecté." }
                 : preview.Conflicts;
 
         ApplicationComboBox.ItemsSource =
