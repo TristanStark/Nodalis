@@ -41,7 +41,6 @@ public partial class MilestoneListDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void Add_Click(
             object sender,
             RoutedEventArgs e)
@@ -86,7 +85,6 @@ public partial class MilestoneListDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void Edit_Click(
             object sender,
             RoutedEventArgs e)
@@ -139,7 +137,6 @@ public partial class MilestoneListDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void Delete_Click(
             object sender,
             RoutedEventArgs e)
@@ -191,7 +188,6 @@ public partial class MilestoneListDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void MilestonesList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e) =>
@@ -203,7 +199,6 @@ public partial class MilestoneListDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void TimelineList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e) =>
@@ -214,7 +209,6 @@ public partial class MilestoneListDialog : Window
     /// Performs the <c>OpenSelectedFrom</c> operation.
     /// </summary>
     /// <param name="list">The <c>list</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void OpenSelectedFrom(ListBox list)
     {
         if (list.SelectedItem is not MilestoneItem milestone)
@@ -309,7 +303,6 @@ public partial class MilestoneListDialog : Window
     /// </summary>
     /// <param name="title">The <c>title</c> value.</param>
     /// <param name="message">The <c>message</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void ShowError(
             string title,
             string message)

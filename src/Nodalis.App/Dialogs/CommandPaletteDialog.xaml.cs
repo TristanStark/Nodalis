@@ -34,7 +34,6 @@ public partial class CommandPaletteDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void SearchTextBox_TextChanged(
             object sender,
             System.Windows.Controls.TextChangedEventArgs e) =>
@@ -45,7 +44,6 @@ public partial class CommandPaletteDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void SearchTextBox_PreviewKeyDown(
             object sender,
             KeyEventArgs e)
@@ -83,7 +81,6 @@ public partial class CommandPaletteDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void CommandsList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e) =>
@@ -92,7 +89,6 @@ public partial class CommandPaletteDialog : Window
     /// <summary>
     /// Performs the <c>ApplyFilter</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void ApplyFilter()
     {
         string query = SearchTextBox.Text.Trim();
@@ -116,7 +112,6 @@ public partial class CommandPaletteDialog : Window
     /// Performs the <c>MoveSelection</c> operation.
     /// </summary>
     /// <param name="delta">The <c>delta</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void MoveSelection(int delta)
     {
         if (CommandsList.Items.Count == 0)
@@ -138,7 +133,6 @@ public partial class CommandPaletteDialog : Window
     /// <summary>
     /// Performs the <c>AcceptSelection</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void AcceptSelection()
     {
         if (CommandsList.SelectedItem is not PaletteCommand command)

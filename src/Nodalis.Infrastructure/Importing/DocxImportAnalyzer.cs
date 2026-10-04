@@ -196,7 +196,6 @@ public sealed class DocxImportAnalyzer
     /// <param name="target">The <c>target</c> value.</param>
     /// <param name="kind">The <c>kind</c> value.</param>
     /// <param name="value">The <c>value</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void AddEvidence(
             ICollection<EvidenceItem> target,
             EvidenceKind kind,

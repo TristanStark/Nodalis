@@ -47,7 +47,6 @@ public partial class TaskListDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void IncludeCompletedCheckBox_Changed(
             object sender,
             RoutedEventArgs e) =>
@@ -58,7 +57,6 @@ public partial class TaskListDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void TaskCheckBox_Click(
             object sender,
             RoutedEventArgs e)
@@ -95,7 +93,6 @@ public partial class TaskListDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void TasksList_MouseDoubleClick(
             object sender,
             System.Windows.Input.MouseButtonEventArgs e)

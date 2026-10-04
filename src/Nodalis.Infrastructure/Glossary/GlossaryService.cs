@@ -554,7 +554,6 @@ public sealed class GlossaryService
     /// <param name="entries">The <c>entries</c> value.</param>
     /// <param name="current">The <c>current</c> value.</param>
     /// <param name="scope">The <c>scope</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void AddCurrentIfMeaningful(
             ICollection<GlossaryEntry> entries,
             EntryBuilder? current,
@@ -604,7 +603,6 @@ public sealed class GlossaryService
     /// </summary>
     /// <param name="builder">The <c>builder</c> value.</param>
     /// <param name="value">The <c>value</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void AppendDefinition(
             EntryBuilder builder,
             string value)

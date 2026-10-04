@@ -126,7 +126,6 @@ public static class GlossaryTextMatcher
     /// <param name="tokens">The <c>tokens</c> value.</param>
     /// <param name="value">The <c>value</c> value.</param>
     /// <param name="entry">The <c>entry</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void AddToken(
             IDictionary<string, GlossaryEntry> tokens,
             string value,

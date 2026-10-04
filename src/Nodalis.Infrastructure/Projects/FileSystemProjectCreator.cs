@@ -246,7 +246,6 @@ public sealed class FileSystemProjectCreator : IProjectCreator
     /// Performs the <c>ValidateProfile</c> operation.
     /// </summary>
     /// <param name="profile">The <c>profile</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void ValidateProfile(ProjectProfileDefinition profile)
     {
         global::System.Linq.IGrouping<string, global::Nodalis.Core.Templates.ProjectSectionTemplateDefinition>? duplicate = profile.Sections

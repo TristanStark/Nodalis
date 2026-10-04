@@ -998,7 +998,6 @@ public sealed class WorkspaceMilestoneService
     /// Performs the <c>ValidateDraft</c> operation.
     /// </summary>
     /// <param name="draft">The <c>draft</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void ValidateDraft(MilestoneDraft draft)
     {
         ArgumentNullException.ThrowIfNull(draft);

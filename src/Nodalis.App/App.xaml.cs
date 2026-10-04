@@ -15,7 +15,6 @@ public partial class App : Application
     /// Performs the <c>OnStartup</c> operation.
     /// </summary>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -96,7 +95,6 @@ public partial class App : Application
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void ApplyNodalisWindowStyle(
             object sender,
             RoutedEventArgs e)

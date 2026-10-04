@@ -92,7 +92,6 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
     /// Performs the <c>OnPropertyChanged</c> operation.
     /// </summary>
     /// <param name="propertyName">The <c>propertyName</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
             PropertyChanged?.Invoke(
                 this,

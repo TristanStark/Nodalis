@@ -810,7 +810,6 @@ public sealed class WorkspaceDocxImportService
     /// Performs the <c>DiscardStagedCopy</c> operation.
     /// </summary>
     /// <param name="staged">The <c>staged</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     public void DiscardStagedCopy(
             DocxStagedImport staged)
     {
@@ -916,7 +915,6 @@ public sealed class WorkspaceDocxImportService
     /// </summary>
     /// <param name="preview">The <c>preview</c> value.</param>
     /// <param name="request">The <c>request</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void ValidateCommitRequest(
             DocxImportPreview preview,
             DocxImportCommitRequest request)
@@ -1134,7 +1132,6 @@ public sealed class WorkspaceDocxImportService
     /// Performs the <c>EnsureIsStagingPath</c> operation.
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void EnsureIsStagingPath(string path)
     {
         string root = Path.GetFullPath(
@@ -1156,7 +1153,6 @@ public sealed class WorkspaceDocxImportService
     /// Performs the <c>TryDelete</c> operation.
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void TryDelete(string path)
     {
         try
@@ -1176,7 +1172,6 @@ public sealed class WorkspaceDocxImportService
     /// Performs the <c>TryDeleteEmptyDirectory</c> operation.
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void TryDeleteEmptyDirectory(
             string path)
     {

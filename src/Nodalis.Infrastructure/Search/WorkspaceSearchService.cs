@@ -379,7 +379,6 @@ public sealed class WorkspaceSearchService
     /// Performs the <c>Sort</c> operation.
     /// </summary>
     /// <param name="results">The <c>results</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void Sort(
             List<SearchResult> results)
     {

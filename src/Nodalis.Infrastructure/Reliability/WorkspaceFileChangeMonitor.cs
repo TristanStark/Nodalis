@@ -37,7 +37,6 @@ public sealed class WorkspaceFileChangeMonitor : IDisposable
     /// <summary>
     /// Performs the <c>Dispose</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     public void Dispose()
     {
         _watcher.EnableRaisingEvents = false;
@@ -53,7 +52,6 @@ public sealed class WorkspaceFileChangeMonitor : IDisposable
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="eventArgs">The <c>eventArgs</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void OnChanged(object sender, FileSystemEventArgs eventArgs)
     {
         if (ShouldIgnore(eventArgs.FullPath))
@@ -74,7 +72,6 @@ public sealed class WorkspaceFileChangeMonitor : IDisposable
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="eventArgs">The <c>eventArgs</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void OnRenamed(object sender, RenamedEventArgs eventArgs)
     {
         if (ShouldIgnore(eventArgs.FullPath) && ShouldIgnore(eventArgs.OldFullPath))

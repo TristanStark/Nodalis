@@ -39,7 +39,6 @@ public partial class PreferencesDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Save_Click(
             object sender,
             RoutedEventArgs e)
@@ -84,7 +83,6 @@ public partial class PreferencesDialog : Window
     /// Performs the <c>ShowValidation</c> operation.
     /// </summary>
     /// <param name="message">The <c>message</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void ShowValidation(string message)
     {
         MessageBox.Show(

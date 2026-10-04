@@ -469,7 +469,6 @@ public sealed class WorkspaceNavigationBuilder
     /// <param name="children">The <c>children</c> value.</param>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="file">The <c>file</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void AddDocumentIfExists(
             ICollection<WorkspaceNavigationNode> children,
             string workspaceRoot,

@@ -45,7 +45,6 @@ public partial class SearchDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void SearchTextBox_TextChanged(
             object sender,
             TextChangedEventArgs e)
@@ -126,7 +125,6 @@ public partial class SearchDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Results_SelectionChanged(
             object sender,
             SelectionChangedEventArgs e)
@@ -158,7 +156,6 @@ public partial class SearchDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Results_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e) =>
@@ -169,7 +166,6 @@ public partial class SearchDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Window_PreviewKeyDown(
             object sender,
             KeyEventArgs e)
@@ -191,7 +187,6 @@ public partial class SearchDialog : Window
     /// <summary>
     /// Performs the <c>AcceptSelectedResult</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void AcceptSelectedResult()
     {
         SelectedResult =
@@ -208,7 +203,6 @@ public partial class SearchDialog : Window
     /// <summary>
     /// Performs the <c>ClearResults</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void ClearResults()
     {
         ProjectResults.ItemsSource = null;

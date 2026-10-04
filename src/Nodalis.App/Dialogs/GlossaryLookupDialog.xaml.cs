@@ -45,7 +45,6 @@ public partial class GlossaryLookupDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void SearchTextBox_TextChanged(
             object sender,
             System.Windows.Controls.TextChangedEventArgs e)
@@ -146,7 +145,6 @@ public partial class GlossaryLookupDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void OpenPrimary_Click(
             object sender,
             RoutedEventArgs e)
@@ -165,7 +163,6 @@ public partial class GlossaryLookupDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void AlternativesList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e)
@@ -184,7 +181,6 @@ public partial class GlossaryLookupDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Window_PreviewKeyDown(
             object sender,
             KeyEventArgs e)
@@ -199,7 +195,6 @@ public partial class GlossaryLookupDialog : Window
     /// Performs the <c>ClearResult</c> operation.
     /// </summary>
     /// <param name="message">The <c>message</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void ClearResult(string message)
     {
         _primary = null;

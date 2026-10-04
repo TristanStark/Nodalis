@@ -373,7 +373,6 @@ public static class MarkdownFlowDocumentRenderer
     /// <param name="baseDirectory">The <c>baseDirectory</c> value.</param>
     /// <param name="internalLinkClicked">The <c>internalLinkClicked</c> value.</param>
     /// <param name="linkClicked">The <c>linkClicked</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void AddInlines(
             InlineCollection target,
             string text,

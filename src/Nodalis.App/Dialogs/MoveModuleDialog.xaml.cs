@@ -32,7 +32,6 @@ public partial class MoveModuleDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Move_Click(
             object sender,
             RoutedEventArgs e)

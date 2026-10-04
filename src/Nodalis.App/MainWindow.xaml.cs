@@ -179,7 +179,6 @@ public partial class MainWindow : Window
     /// Performs the <c>OnClosing</c> operation.
     /// </summary>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     protected override async void OnClosing(CancelEventArgs e)
     {
         if (_allowClose)
@@ -243,7 +242,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void NavigationTree_PreviewMouseRightButtonDown(
             object sender,
             MouseButtonEventArgs e)
@@ -263,7 +261,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void NavigationTree_ContextMenuOpening(
             object sender,
             ContextMenuEventArgs e)
@@ -712,7 +709,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="title">The <c>title</c> value.</param>
     /// <param name="exception">The <c>exception</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void ShowStructureError(
             string title,
             Exception exception)
@@ -753,7 +749,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void NavigationTree_SelectedItemChanged(
             object sender,
             RoutedPropertyChangedEventArgs<object> e)
@@ -904,7 +899,6 @@ public partial class MainWindow : Window
     /// Performs the <c>ShowNodeSummary</c> operation.
     /// </summary>
     /// <param name="node">The <c>node</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void ShowNodeSummary(
             NavigationNodeViewModel node)
     {
@@ -979,7 +973,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void MarkdownEditorTextBox_TextChanged(
             object sender,
             System.Windows.Controls.TextChangedEventArgs e)
@@ -1010,7 +1003,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void PreviewTimer_Tick(
             object? sender,
             EventArgs e)
@@ -1023,7 +1015,6 @@ public partial class MainWindow : Window
     /// <summary>
     /// Performs the <c>RenderPreview</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void RenderPreview()
     {
         if (!_previewVisible ||
@@ -1048,7 +1039,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Autosave_Saved(
             object? sender,
             EventArgs e)
@@ -1101,7 +1091,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Autosave_ConflictDetected(
             object? sender,
             AutosaveConflictEventArgs e)
@@ -1137,7 +1126,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Autosave_SaveFailed(
             object? sender,
             AutosaveFailureEventArgs e)
@@ -1155,7 +1143,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void NewNote_Click(
             object sender,
             RoutedEventArgs e)
@@ -1168,7 +1155,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void NewProject_Click(
             object sender,
             RoutedEventArgs e)
@@ -1181,7 +1167,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void CaptureQuickNote_Click(
             object sender,
             RoutedEventArgs e)
@@ -1194,7 +1179,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void ShowQuickNotes_Click(
             object sender,
             RoutedEventArgs e)
@@ -1207,7 +1191,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void CommandPalette_Click(
             object sender,
             RoutedEventArgs e)
@@ -1220,7 +1203,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void AttachFile_Click(
             object sender,
             RoutedEventArgs e)
@@ -1233,7 +1215,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void ImportDocx_Click(
             object sender,
             RoutedEventArgs e)
@@ -1246,7 +1227,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void ShowAllTasks_Click(
             object sender,
             RoutedEventArgs e)
@@ -1260,7 +1240,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void MainWindow_PreviewKeyDown(
             object sender,
             KeyEventArgs e)
@@ -1423,7 +1402,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Bold_Click(
             object sender,
             RoutedEventArgs e) =>
@@ -1434,7 +1412,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Italic_Click(
             object sender,
             RoutedEventArgs e) =>
@@ -1445,7 +1422,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void InlineCode_Click(
             object sender,
             RoutedEventArgs e)
@@ -1459,7 +1435,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="prefix">The <c>prefix</c> value.</param>
     /// <param name="suffix">The <c>suffix</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void WrapSelection(
             string prefix,
             string suffix)
@@ -1496,7 +1471,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void TogglePreview_Click(
             object sender,
             RoutedEventArgs e)
@@ -1513,7 +1487,6 @@ public partial class MainWindow : Window
     /// <summary>
     /// Performs the <c>ApplyPreviewState</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void ApplyPreviewState()
     {
         if (_previewVisible)
@@ -1537,7 +1510,6 @@ public partial class MainWindow : Window
     /// Performs the <c>OnInternalLinkClicked</c> operation.
     /// </summary>
     /// <param name="target">The <c>target</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void OnInternalLinkClicked(string target)
     {
         if (_linkIndex.Targets.Count == 0)
@@ -1565,7 +1537,6 @@ public partial class MainWindow : Window
     /// <summary>
     /// Performs the <c>ShowDashboard</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void ShowDashboard()
     {
         _documentSession = null;
@@ -1596,7 +1567,6 @@ public partial class MainWindow : Window
     /// <summary>
     /// Performs the <c>RefreshDashboard</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void RefreshDashboard()
     {
         FavoritesList.ItemsSource = _preferences.Favorites
@@ -1739,7 +1709,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void DashboardList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e)
@@ -2043,7 +2012,6 @@ public partial class MainWindow : Window
     /// Performs the <c>UpdateLinkContext</c> operation.
     /// </summary>
     /// <param name="documentPath">The <c>documentPath</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void UpdateLinkContext(string documentPath)
     {
         string relativePath = Path.GetRelativePath(
@@ -2360,7 +2328,6 @@ public partial class MainWindow : Window
     /// Performs the <c>MoveInternalLinkSelection</c> operation.
     /// </summary>
     /// <param name="delta">The <c>delta</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void MoveInternalLinkSelection(int delta)
     {
         if (InternalLinkSuggestions.Items.Count == 0)
@@ -2382,7 +2349,6 @@ public partial class MainWindow : Window
     /// <summary>
     /// Performs the <c>CompleteInternalLinkSuggestion</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void CompleteInternalLinkSuggestion()
     {
         if (InternalLinkSuggestions.SelectedItem is not LinkTargetEntry target)
@@ -2430,7 +2396,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void InternalLinkSuggestions_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e) =>
@@ -2441,7 +2406,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void BacklinksList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e)
@@ -2460,7 +2424,6 @@ public partial class MainWindow : Window
     /// Performs the <c>OnMarkdownLinkClicked</c> operation.
     /// </summary>
     /// <param name="target">The <c>target</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void OnMarkdownLinkClicked(string target)
     {
         if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
@@ -2576,7 +2539,6 @@ public partial class MainWindow : Window
     /// Performs the <c>CopyExternalTargetToClipboard</c> operation.
     /// </summary>
     /// <param name="target">The <c>target</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void CopyExternalTargetToClipboard(
             string target)
     {
@@ -2653,7 +2615,6 @@ public partial class MainWindow : Window
     /// Performs the <c>MoveCaretToLine</c> operation.
     /// </summary>
     /// <param name="lineNumber">The <c>lineNumber</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void MoveCaretToLine(int lineNumber)
     {
         if (_documentSession is null ||
@@ -2959,7 +2920,6 @@ public partial class MainWindow : Window
     /// <summary>
     /// Performs the <c>AttachGlossaryAdorner</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void AttachGlossaryAdorner()
     {
         if (_glossaryAdorner is not null)
@@ -3009,7 +2969,6 @@ public partial class MainWindow : Window
     /// <summary>
     /// Performs the <c>UpdateGlossaryAnnotations</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void UpdateGlossaryAnnotations()
     {
         if (_documentSession is null ||
@@ -3033,7 +2992,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void MarkdownEditorTextBox_PreviewMouseMove(
             object sender,
             MouseEventArgs e)
@@ -3052,7 +3010,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void MarkdownEditorTextBox_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e)
@@ -3075,7 +3032,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void MarkdownEditorTextBox_ContextMenuOpening(
             object sender,
             ContextMenuEventArgs e)
@@ -3421,7 +3377,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void DashboardMilestoneList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e)
@@ -3589,7 +3544,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void DashboardTaskCheckBox_Click(
             object sender,
             RoutedEventArgs e)
@@ -3630,7 +3584,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void DashboardTaskList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e)
@@ -4794,7 +4747,6 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void ToggleContextPanel_Click(
             object sender,
             RoutedEventArgs e)
@@ -4813,7 +4765,6 @@ public partial class MainWindow : Window
     /// <summary>
     /// Performs the <c>ApplyContextPanelState</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void ApplyContextPanelState()
     {
         if (_contextPanelOpen)

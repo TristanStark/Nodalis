@@ -41,7 +41,6 @@ public partial class DecisionListDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void SearchTextBox_TextChanged(
             object sender,
             TextChangedEventArgs e)
@@ -54,7 +53,6 @@ public partial class DecisionListDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void DecisionsList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e)

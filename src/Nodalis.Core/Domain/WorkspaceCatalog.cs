@@ -49,7 +49,6 @@ public sealed class WorkspaceCatalog
     /// Performs the <c>DeleteApplication</c> operation.
     /// </summary>
     /// <param name="applicationId">The <c>applicationId</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     public void DeleteApplication(Guid applicationId)
     {
         GetApplication(applicationId);
@@ -133,7 +132,6 @@ public sealed class WorkspaceCatalog
     /// Performs the <c>DeleteModule</c> operation.
     /// </summary>
     /// <param name="moduleId">The <c>moduleId</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     public void DeleteModule(Guid moduleId)
     {
         GetModule(moduleId);
@@ -255,7 +253,6 @@ public sealed class WorkspaceCatalog
     /// Performs the <c>DeleteProject</c> operation.
     /// </summary>
     /// <param name="projectId">The <c>projectId</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     public void DeleteProject(Guid projectId)
     {
         GetProject(projectId);
@@ -364,7 +361,6 @@ public sealed class WorkspaceCatalog
     /// <param name="projectId">The <c>projectId</c> value.</param>
     /// <param name="sectionId">The <c>sectionId</c> value.</param>
     /// <param name="order">The <c>order</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     public void ReorderSection(Guid projectId, Guid sectionId, int order)
     {
         global::Nodalis.Core.Domain.ProjectManifest project = GetProject(projectId);
@@ -385,7 +381,6 @@ public sealed class WorkspaceCatalog
     /// </summary>
     /// <param name="projectId">The <c>projectId</c> value.</param>
     /// <param name="sectionId">The <c>sectionId</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     public void DeleteSection(Guid projectId, Guid sectionId)
     {
         global::Nodalis.Core.Domain.ProjectManifest project = GetProject(projectId);
@@ -433,7 +428,6 @@ public sealed class WorkspaceCatalog
     /// Performs the <c>ValidateParentProjectPlacement</c> operation.
     /// </summary>
     /// <param name="project">The <c>project</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void ValidateParentProjectPlacement(ProjectManifest project)
     {
         if (project.ParentProjectId is not Guid parentProjectId)
@@ -505,7 +499,6 @@ public sealed class WorkspaceCatalog
     /// Performs the <c>ReplaceProject</c> operation.
     /// </summary>
     /// <param name="project">The <c>project</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void ReplaceProject(ProjectManifest project) =>
             _projects[project.Id] = project;
 

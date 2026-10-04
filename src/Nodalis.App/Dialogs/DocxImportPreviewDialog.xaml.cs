@@ -183,7 +183,6 @@ public partial class DocxImportPreviewDialog : Window
     /// <summary>
     /// Performs the <c>SelectSuggestedApplication</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void SelectSuggestedApplication()
     {
         global::Nodalis.Core.Importing.DocxImportTargetOption? suggested = _preview.SuggestedApplicationId is Guid applicationId
@@ -201,7 +200,6 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void ApplicationComboBox_SelectionChanged(
             object sender,
             SelectionChangedEventArgs e)
@@ -216,7 +214,6 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void TargetSelection_Changed(
             object sender,
             SelectionChangedEventArgs e)
@@ -229,7 +226,6 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void TargetText_Changed(
             object sender,
             TextChangedEventArgs e)
@@ -242,7 +238,6 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void CreateNewProjectCheckBox_Changed(
             object sender,
             RoutedEventArgs e)
@@ -256,7 +251,6 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void Section_PropertyChanged(
             object? sender,
             PropertyChangedEventArgs e)
@@ -273,7 +267,6 @@ public partial class DocxImportPreviewDialog : Window
     /// Performs the <c>RefreshProjectChoices</c> operation.
     /// </summary>
     /// <param name="preserveSelection">The <c>preserveSelection</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void RefreshProjectChoices(
             bool preserveSelection)
     {
@@ -324,7 +317,6 @@ public partial class DocxImportPreviewDialog : Window
     /// <summary>
     /// Performs the <c>ApplyProjectMode</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void ApplyProjectMode()
     {
         bool createNew =
@@ -341,7 +333,6 @@ public partial class DocxImportPreviewDialog : Window
     /// <summary>
     /// Performs the <c>InvalidatePlan</c> operation.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private void InvalidatePlan()
     {
         _plannedRequest = null;
@@ -375,7 +366,6 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void ImportTabs_SelectionChanged(
             object sender,
             SelectionChangedEventArgs e)
@@ -398,7 +388,6 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private async void Import_Click(
             object sender,
             RoutedEventArgs e)
@@ -542,7 +531,6 @@ public partial class DocxImportPreviewDialog : Window
     /// Performs the <c>DisplayPlan</c> operation.
     /// </summary>
     /// <param name="plan">The <c>plan</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void DisplayPlan(
             DocxImportPlan plan)
     {

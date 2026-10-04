@@ -34,7 +34,6 @@ public sealed class GlossaryTextBoxAdorner : Adorner
     /// Performs the <c>SetMatches</c> operation.
     /// </summary>
     /// <param name="matches">The <c>matches</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     public void SetMatches(
             IReadOnlyList<GlossaryTextMatch> matches)
     {
@@ -46,7 +45,6 @@ public sealed class GlossaryTextBoxAdorner : Adorner
     /// Performs the <c>OnRender</c> operation.
     /// </summary>
     /// <param name="drawingContext">The <c>drawingContext</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     protected override void OnRender(
             DrawingContext drawingContext)
     {
@@ -84,7 +82,6 @@ public sealed class GlossaryTextBoxAdorner : Adorner
     /// <param name="drawingContext">The <c>drawingContext</c> value.</param>
     /// <param name="pen">The <c>pen</c> value.</param>
     /// <param name="match">The <c>match</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private void DrawMatch(
             DrawingContext drawingContext,
             Pen pen,

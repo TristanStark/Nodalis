@@ -170,7 +170,6 @@ public sealed class DocxImportRuleStore
     /// Performs the <c>Validate</c> operation.
     /// </summary>
     /// <param name="catalog">The <c>catalog</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void Validate(
             DocxImportRuleCatalog catalog)
     {

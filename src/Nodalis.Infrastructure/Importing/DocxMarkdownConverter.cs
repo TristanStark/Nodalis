@@ -46,7 +46,6 @@ public static class DocxMarkdownConverter
     /// </summary>
     /// <param name="builder">The <c>builder</c> value.</param>
     /// <param name="paragraph">The <c>paragraph</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void AppendParagraph(
             StringBuilder builder,
             DocxParagraph paragraph)
@@ -105,7 +104,6 @@ public static class DocxMarkdownConverter
     /// </summary>
     /// <param name="builder">The <c>builder</c> value.</param>
     /// <param name="table">The <c>table</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void AppendTable(
             StringBuilder builder,
             DocxTable table)
@@ -156,7 +154,6 @@ public static class DocxMarkdownConverter
     /// <param name="builder">The <c>builder</c> value.</param>
     /// <param name="row">The <c>row</c> value.</param>
     /// <param name="columnCount">The <c>columnCount</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void AppendTableRow(
             StringBuilder builder,
             DocxTableRow row,

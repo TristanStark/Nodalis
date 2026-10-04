@@ -200,7 +200,6 @@ public sealed class FileSystemTemplateStore : ITemplateStore
     /// Performs the <c>ValidateDefinition</c> operation.
     /// </summary>
     /// <param name="template">The <c>template</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void ValidateDefinition(
             MarkdownTemplateDefinition template)
     {

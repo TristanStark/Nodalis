@@ -11,7 +11,6 @@ public static class HierarchyValidator
     /// <param name="applications">The <c>applications</c> value.</param>
     /// <param name="modules">The <c>modules</c> value.</param>
     /// <param name="projects">The <c>projects</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     public static void ValidateProject(
             ProjectManifest project,
             IReadOnlyCollection<ApplicationManifest> applications,
@@ -59,7 +58,6 @@ public static class HierarchyValidator
     /// <param name="module">The <c>module</c> value.</param>
     /// <param name="applications">The <c>applications</c> value.</param>
     /// <param name="modules">The <c>modules</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     public static void ValidateModule(
             ModuleManifest module,
             IReadOnlyCollection<ApplicationManifest> applications,
@@ -95,7 +93,6 @@ public static class HierarchyValidator
     /// <param name="projectId">The <c>projectId</c> value.</param>
     /// <param name="parentProjectId">The <c>parentProjectId</c> value.</param>
     /// <param name="projects">The <c>projects</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void EnsureNoProjectCycle(
             Guid projectId,
             Guid parentProjectId,
@@ -121,7 +118,6 @@ public static class HierarchyValidator
     /// <param name="moduleId">The <c>moduleId</c> value.</param>
     /// <param name="parentModuleId">The <c>parentModuleId</c> value.</param>
     /// <param name="modules">The <c>modules</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     private static void EnsureNoModuleCycle(
             Guid moduleId,
             Guid parentModuleId,

@@ -41,7 +41,6 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
     /// Performs the <c>Schedule</c> operation.
     /// </summary>
     /// <param name="content">The <c>content</c> value.</param>
-    /// <returns>The result of the operation.</returns>
     public void Schedule(string content)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
