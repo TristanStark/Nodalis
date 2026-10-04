@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Nodalis.App.Commands;
 using Nodalis.App.Dialogs;
 using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
@@ -858,10 +859,25 @@ public partial class MainWindow : Window
         await ShowQuickNotesAsync();
     }
 
+    private async void CommandPalette_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await ShowCommandPaletteAsync();
+    }
+
     private async void MainWindow_PreviewKeyDown(
         object sender,
         KeyEventArgs e)
     {
+        if (Keyboard.Modifiers == ModifierKeys.Control &&
+            e.Key == Key.P)
+        {
+            e.Handled = true;
+            await ShowCommandPaletteAsync();
+            return;
+        }
+
         if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Alt) &&
             e.Key == Key.N)
         {
@@ -1086,6 +1102,101 @@ public partial class MainWindow : Window
         {
             StatusText.Text = target;
         }
+    }
+
+    private async Task ShowCommandPaletteAsync()
+    {
+        var commands = BuildPaletteCommands();
+
+        var dialog = new CommandPaletteDialog(commands)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true ||
+            dialog.SelectedCommand is null)
+        {
+            return;
+        }
+
+        await dialog.SelectedCommand.ExecuteAsync();
+    }
+
+    private IReadOnlyList<PaletteCommand> BuildPaletteCommands()
+    {
+        var commands = new List<PaletteCommand>
+        {
+            new()
+            {
+                Id = "note.new",
+                Title = "Nouvelle note",
+                Subtitle = "Créer une note depuis un template ou en mode libre",
+                Keywords = ["note", "template", "créer"],
+                ExecuteAsync = CreateNoteAsync
+            },
+            new()
+            {
+                Id = "project.new",
+                Title = "Nouveau projet",
+                Subtitle = "Créer un projet ou sous-projet depuis un profil",
+                Keywords = ["projet", "simple", "moyen", "complexe"],
+                ExecuteAsync = CreateProjectAsync
+            },
+            new()
+            {
+                Id = "application.new",
+                Title = "Nouvelle application",
+                Subtitle = "Créer une application dans le workspace",
+                Keywords = ["application", "créer"],
+                ExecuteAsync = CreateApplicationAsync
+            },
+            new()
+            {
+                Id = "quick-note.capture",
+                Title = "Ajouter une note rapide",
+                Subtitle = "Projet / Application / Global",
+                Keywords = ["rapide", "capture", "idée"],
+                ExecuteAsync = CaptureQuickNoteAsync
+            },
+            new()
+            {
+                Id = "quick-note.overview",
+                Title = "Voir les notes rapides agrégées",
+                Subtitle = "Projet → Application → Global",
+                Keywords = ["rapide", "notes", "agrégé"],
+                ExecuteAsync = ShowQuickNotesAsync
+            }
+        };
+
+        foreach (var node in _root
+                     .DescendantsAndSelf()
+                     .Where(node => node.Kind is
+                         WorkspaceNodeKind.Application or
+                         WorkspaceNodeKind.Module or
+                         WorkspaceNodeKind.Project or
+                         WorkspaceNodeKind.Document))
+        {
+            var capturedNode = node;
+            commands.Add(new PaletteCommand
+            {
+                Id = $"open:{capturedNode.Id:D}",
+                Title = $"Ouvrir · {capturedNode.DisplayName}",
+                Subtitle = GetKindLabel(capturedNode.Kind),
+                Keywords =
+                [
+                    "ouvrir",
+                    capturedNode.DisplayName,
+                    GetKindLabel(capturedNode.Kind)
+                ],
+                ExecuteAsync = () =>
+                {
+                    capturedNode.IsSelected = true;
+                    return Task.CompletedTask;
+                }
+            });
+        }
+
+        return commands;
     }
 
     private async Task CaptureQuickNoteAsync()
