@@ -18,6 +18,7 @@ using Nodalis.App.Navigation;
 using Nodalis.Core.Abstractions;
 using Nodalis.Core.Glossary;
 using Nodalis.Core.Links;
+using Nodalis.Core.Milestones;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
@@ -28,6 +29,7 @@ using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Links;
+using Nodalis.Infrastructure.Milestones;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Notes;
 using Nodalis.Infrastructure.Persistence;
@@ -45,6 +47,7 @@ public partial class MainWindow : Window
     private readonly GlossaryService _glossaryService = new();
     private readonly WorkspaceLinkIndexService _linkIndexService;
     private readonly WorkspaceTaskService _taskService;
+    private readonly WorkspaceMilestoneService _milestoneService;
     private readonly DispatcherTimer _previewTimer;
 
     private NavigationNodeViewModel _root;
@@ -89,6 +92,8 @@ public partial class MainWindow : Window
         _linkIndexService = new WorkspaceLinkIndexService(
             root.FullPath);
         _taskService = new WorkspaceTaskService(
+            root.FullPath);
+        _milestoneService = new WorkspaceMilestoneService(
             root.FullPath);
         _contextPanelOpen = preferences.IsContextPanelOpen;
         _previewVisible = preferences.Editor.LivePreview;
@@ -135,6 +140,7 @@ public partial class MainWindow : Window
                     _selectedNode?.FullPath ?? _root.FullPath);
                 UpdateGlossaryAnnotations();
                 await RefreshDashboardTasksAsync();
+                await RefreshDashboardMilestonesAsync();
             }
             catch (Exception exception) when (
                 exception is IOException or
@@ -948,6 +954,7 @@ public partial class MainWindow : Window
                         _selectedNode?.FullPath ?? _root.FullPath);
                     UpdateGlossaryAnnotations();
                     await RefreshDashboardTasksAsync();
+                    await RefreshDashboardMilestonesAsync();
                 }
                 catch (Exception exception) when (
                     exception is IOException or
@@ -1319,6 +1326,7 @@ public partial class MainWindow : Window
 
         RefreshDashboard();
         _ = RefreshDashboardTasksAsync();
+        _ = RefreshDashboardMilestonesAsync();
 
         StatusText.Text =
             "Accueil · favoris et éléments récents locaux";
@@ -2783,6 +2791,101 @@ public partial class MainWindow : Window
                     $"Tâches indisponibles : {exception.Message}";
             }
         }
+    }
+
+    private async Task RefreshDashboardMilestonesAsync()
+    {
+        try
+        {
+            var milestones = await _milestoneService.GetUpcomingAsync(
+                DateOnly.FromDateTime(DateTime.Today),
+                forwardDays: 60);
+
+            UpcomingMilestonesList.ItemsSource = milestones
+                .Take(12)
+                .ToArray();
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            UpcomingMilestonesList.ItemsSource = null;
+
+            if (DashboardHost.Visibility == Visibility.Visible)
+            {
+                StatusText.Text =
+                    $"Jalons indisponibles : {exception.Message}";
+            }
+        }
+    }
+
+    private async void DashboardMilestoneList_MouseDoubleClick(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (UpcomingMilestonesList.SelectedItem is not MilestoneItem milestone)
+        {
+            return;
+        }
+
+        await NavigateToMilestoneAsync(
+            milestone);
+    }
+
+    private async Task NavigateToMilestoneAsync(
+        MilestoneItem milestone)
+    {
+        var fullPath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                milestone.SourceRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        var node = FindAndExpand(
+            _root,
+            fullPath);
+
+        if (node is null)
+        {
+            await RefreshNavigationAsync();
+            node = FindAndExpand(
+                _root,
+                fullPath);
+        }
+
+        if (node is null)
+        {
+            StatusText.Text =
+                $"Document de jalons introuvable : {milestone.SourceRelativePath}";
+            return;
+        }
+
+        if (_selectedNode is not null &&
+            _selectedNode.Kind == WorkspaceNodeKind.Document &&
+            !ReferenceEquals(
+                _selectedNode,
+                node) &&
+            !await TryCloseCurrentDocumentAsync(
+                "ouvrir le jalon"))
+        {
+            return;
+        }
+
+        _restoringSelection = true;
+        node.IsSelected = true;
+        _restoringSelection = false;
+
+        _selectedNode = node;
+        await DisplayNodeAsync(
+            node);
+
+        MoveCaretToLine(
+            milestone.LineNumber);
+
+        StatusText.Text =
+            $"Jalon · {milestone.Name} · {milestone.ProjectName} · ligne {milestone.LineNumber}";
     }
 
     private async Task ShowTasksAsync(bool global)
