@@ -147,12 +147,12 @@ public async Task<DocxImportPreview> PreparePreviewAsync(
             global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportSectionPreview> sections = BuildSectionPreviews(
                 analysis);
 
-            var suggestedApplicationId =
+            Guid? suggestedApplicationId =
                 analysis.ApplicationCandidates.Count == 1
                     ? analysis.ApplicationCandidates[0].Id
                     : null;
 
-            var suggestedProjectId =
+            Guid? suggestedProjectId =
                 analysis.ProjectCandidates.Count == 1
                     ? analysis.ProjectCandidates[0].Id
                     : null;
