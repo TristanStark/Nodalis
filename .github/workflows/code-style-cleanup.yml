@@ -1,0 +1,51 @@
+name: One-time C# style cleanup
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Nodalis.sln
+
+      - name: Replace var with explicit types
+        run: dotnet format style Nodalis.sln --no-restore --diagnostics IDE0008
+
+      - name: Add missing XML documentation
+        run: dotnet run --project tools/Nodalis.CodeStyle/Nodalis.CodeStyle.csproj --configuration Release -- --fix
+
+      - name: Verify migrated code style
+        run: dotnet run --project tools/Nodalis.CodeStyle/Nodalis.CodeStyle.csproj --configuration Release -- --check
+
+      - name: Commit cleanup
+        shell: pwsh
+        run: |
+          if (-not (git status --porcelain)) {
+            Write-Host "No cleanup changes were required."
+            exit 0
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- '*.cs'
+          git commit -m "chore(style): use explicit types and add XML documentation"
+          git push origin HEAD:develop

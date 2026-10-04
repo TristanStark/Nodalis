@@ -26,6 +26,9 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-constraints.ps1
 
+      - name: Verify C# code style
+        run: dotnet run --project tools/Nodalis.CodeStyle/Nodalis.CodeStyle.csproj --configuration Release -- --check
+
       - name: Restore
         run: dotnet restore Nodalis.sln
 
