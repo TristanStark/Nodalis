@@ -19,6 +19,8 @@ PRISE DE NOTE/
 ├── Notes rapides.md
 ├── Glossaire.md
 ├── Attachments/
+├── Imports/
+│   └── Sources/
 ├── Templates/
 └── Applications/
     └── Application A/
@@ -60,6 +62,14 @@ PRISE DE NOTE/
 
 Cette arborescence est une convention par défaut, pas une structure rigide :
 les sections d'un projet restent personnalisables.
+
+## Sources importées
+
+Les documents externes importés ne sont jamais modifiés en place.
+
+Pour un DOCX, Nodalis copie d'abord le fichier dans `Imports/Sources/`, puis
+ouvre et parse uniquement cette copie locale. Une erreur de parsing nettoie la
+copie de travail créée pour l'opération ; le fichier source reste inchangé.
 
 ## Manifest du workspace
 
