@@ -8,6 +8,22 @@
         MinHeight="520"
         WindowStartupLocation="CenterOwner"
         PreviewKeyDown="Window_PreviewKeyDown">
+    <Window.Resources>
+        <DataTemplate x:Key="SearchResultTemplate">
+            <StackPanel Margin="8,6">
+                <TextBlock FontWeight="SemiBold">
+                    <Run Text="{Binding DisplayName}" />
+                    <Run Text=" · ligne " />
+                    <Run Text="{Binding LineNumber}" />
+                </TextBlock>
+                <TextBlock Margin="0,3,0,0"
+                           Text="{Binding Excerpt}"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="58" />
@@ -86,20 +102,4 @@
                        Text="Saisissez un terme exact." />
         </Border>
     </Grid>
-
-    <Window.Resources>
-        <DataTemplate x:Key="SearchResultTemplate">
-            <StackPanel Margin="8,6">
-                <TextBlock FontWeight="SemiBold">
-                    <Run Text="{Binding DisplayName}" />
-                    <Run Text=" · ligne " />
-                    <Run Text="{Binding LineNumber}" />
-                </TextBlock>
-                <TextBlock Margin="0,3,0,0"
-                           Text="{Binding Excerpt}"
-                           TextWrapping="Wrap"
-                           Foreground="{StaticResource SecondaryTextBrush}" />
-            </StackPanel>
-        </DataTemplate>
-    </Window.Resources>
 </Window>
