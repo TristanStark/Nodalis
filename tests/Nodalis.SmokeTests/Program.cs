@@ -8,6 +8,7 @@ using Nodalis.Core.Templates;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Navigation;
+using Nodalis.Infrastructure.Notes;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
@@ -26,6 +27,7 @@ try
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
     await VerifyApplicationStructureAsync(root);
+    await VerifyQuickNotesAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -414,6 +416,108 @@ static async Task VerifyApplicationStructureAsync(string root)
     Assert(
         !Directory.Exists(renamedApplication),
         "An empty application must be deletable.");
+}
+
+static async Task VerifyQuickNotesAsync(string root)
+{
+    var structure = new ApplicationStructureService(root);
+    var applicationPath = await structure.CreateApplicationAsync(
+        "Application Notes");
+
+    var applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
+
+    var creator = new FileSystemProjectCreator(root);
+    var target = new ProjectCreationTarget
+    {
+        ApplicationId = application.Id,
+        ApplicationName = application.Name,
+        ParentDirectory = applicationPath,
+        DisplayName = application.Name
+    };
+
+    var project = await creator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Notes",
+            Complexity = ProjectComplexity.Simple,
+            Target = target
+        });
+
+    var notes = new QuickNotesService();
+    var scopes = await notes.ResolveScopesAsync(
+        root,
+        project.OverviewFilePath);
+
+    Assert(
+        scopes.Count == 3 &&
+        scopes[0].Kind == Nodalis.Core.Notes.QuickNoteScopeKind.Project &&
+        scopes[1].Kind == Nodalis.Core.Notes.QuickNoteScopeKind.Application &&
+        scopes[2].Kind == Nodalis.Core.Notes.QuickNoteScopeKind.Global,
+        "Quick note scopes must resolve in Project, Application, Global order.");
+
+    await notes.AppendAsync(
+        scopes[0],
+        "Tester [[Projet Notes]]",
+        new DateTimeOffset(
+            2026, 10, 4, 14, 0, 0,
+            TimeSpan.FromHours(2)));
+
+    var projectNotes = await File.ReadAllTextAsync(
+        scopes[0].FilePath);
+
+    Assert(
+        projectNotes.Contains(
+            "## 2026-10-04 14:00",
+            StringComparison.Ordinal) &&
+        projectNotes.Contains(
+            "[[Projet Notes]]",
+            StringComparison.Ordinal),
+        "Quick note capture must append a timestamped Markdown entry.");
+
+    var aggregate = await notes.ReadAggregateAsync(
+        root,
+        project.ProjectDirectory);
+
+    var aggregateMarkdown =
+        QuickNotesService.FormatAggregateMarkdown(
+            aggregate);
+
+    Assert(
+        aggregateMarkdown.Contains(
+            "# Projet · Projet Notes",
+            StringComparison.Ordinal) &&
+        aggregateMarkdown.Contains(
+            "# Application · Application Notes",
+            StringComparison.Ordinal) &&
+        aggregateMarkdown.Contains(
+            "# Global",
+            StringComparison.Ordinal),
+        "Aggregated quick notes must clearly distinguish every relevant scope.");
+
+    var modulePath = await structure.CreateModuleAsync(
+        applicationPath,
+        application.Id,
+        parentModuleId: null,
+        "Module Sans Scope");
+
+    Assert(
+        !File.Exists(Path.Combine(
+            modulePath,
+            WorkspaceLayout.GlobalQuickNotesFileName)) &&
+        !File.Exists(Path.Combine(
+            modulePath,
+            WorkspaceLayout.GlobalGlossaryFileName)),
+        "Modules must not create quick-note or glossary scopes.");
 }
 
 static void VerifyMarkdownParser()
