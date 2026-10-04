@@ -76,7 +76,7 @@ public partial class App : Application
         if (sender is not Window window ||
             window.ReadLocalValue(FrameworkElement.StyleProperty) !=
             DependencyProperty.UnsetValue ||
-            Resources["NodalisWindowStyle"] is not Style style)
+            TryFindResource("NodalisWindowStyle") is not Style style)
         {
             return;
         }
