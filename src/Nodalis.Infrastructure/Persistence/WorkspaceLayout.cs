@@ -6,6 +6,7 @@ public static class WorkspaceLayout
     public const string ApplicationManifestFileName = ".application.json";
     public const string ModuleManifestFileName = ".module.json";
     public const string ProjectManifestFileName = ".project.json";
+    public const string LinkIndexFileName = ".nodalis-links.json";
 
     public const string ApplicationsDirectoryName = "Applications";
     public const string ModulesDirectoryName = "Modules";
