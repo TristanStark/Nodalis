@@ -399,9 +399,7 @@ public sealed class GlossaryService
                 if (string.IsNullOrWhiteSpace(line))
                 {
                     if (current.Definition.Length > 0 &&
-                        !current.Definition.EndsWith(
-                            "\n",
-                            StringComparison.Ordinal))
+                        current.Definition[current.Definition.Length - 1] != '\n')
                     {
                         current.Definition.AppendLine();
                     }
