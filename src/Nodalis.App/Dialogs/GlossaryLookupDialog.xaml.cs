@@ -53,7 +53,7 @@ private async void SearchTextBox_TextChanged(
         _lookupCancellation?.Cancel();
         _lookupCancellation?.Dispose();
 
-        var query = SearchTextBox.Text.Trim();
+        string query = SearchTextBox.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -71,7 +71,7 @@ private async void SearchTextBox_TextChanged(
                 150,
                 cancellation.Token);
 
-            var resolution = await _glossary.ResolveAsync(
+            global::Nodalis.Core.Glossary.GlossaryResolution resolution = await _glossary.ResolveAsync(
                 _workspaceRoot,
                 _contextPath,
                 query,
@@ -100,7 +100,7 @@ private async void SearchTextBox_TextChanged(
             PrimaryDefinitionText.Text =
                 resolution.Primary.Definition;
 
-            var aliases = resolution.Primary.Synonyms
+            string[] aliases = resolution.Primary.Synonyms
                 .Select(value => $"synonyme: {value}")
                 .Concat(
                     resolution.Primary.Acronyms.Select(
