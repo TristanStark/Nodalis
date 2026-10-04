@@ -173,7 +173,7 @@ public async Task<DocxImportPreview> PreparePreviewAsync(
                     applications[0].Id;
             }
 
-            string suggestedNewProjectName =
+            string? suggestedNewProjectName =
                 suggestedProjectId is null
                     ? analysis.ProposedProjectName ??
                       Path.GetFileNameWithoutExtension(

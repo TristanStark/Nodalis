@@ -652,7 +652,7 @@ private static int? InferHeadingLevel(
         string? styleId,
         string? styleName)
     {
-        foreach (string candidate in new[]
+        foreach (string? candidate in new[]
                  {
                      styleName,
                      styleId

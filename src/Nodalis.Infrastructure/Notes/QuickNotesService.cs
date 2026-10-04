@@ -31,7 +31,7 @@ public async Task<IReadOnlyList<QuickNoteScope>> ResolveScopesAsync(
         string? applicationDirectory = null;
         ApplicationManifest? application = null;
 
-        for (string current = contextDirectory;
+        for (string? current = contextDirectory;
              current is not null && IsInsideOrEqual(current, root);
              current = Directory.GetParent(current)?.FullName)
         {

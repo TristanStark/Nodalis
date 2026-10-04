@@ -323,7 +323,7 @@ private static string? FindAncestorContaining(
         string root,
         string fileName)
     {
-        for (string current = startDirectory;
+        for (string? current = startDirectory;
              current is not null && IsInsideOrEqual(current, root);
              current = Directory.GetParent(current)?.FullName)
         {
