@@ -16,7 +16,7 @@ Le socle actuellement disponible comprend :
 - éditeur Markdown avec aperçu riche et autosave sûr ;
 - notes rapides aux scopes Global / Application / Projet ;
 - recherche exacte regroupée Projet / Application / Global ;
-- Command Palette ;
+- Command Palette avec ouverture rapide, actions métier et préférences locales ;
 - dashboard d'accueil avec favoris, récents, tâches ouvertes et jalons prochains ;
 - tâches Markdown consolidées avec filtres de contexte et navigation vers la source ;
 - jalons projet éditables avec vue liste et timeline chronologique ;
