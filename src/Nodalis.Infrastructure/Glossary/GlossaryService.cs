@@ -566,9 +566,7 @@ public sealed class GlossaryService
             return [];
         }
 
-        var separator = value.Contains(
-            ';',
-            StringComparison.Ordinal)
+        var separator = value.Contains(';')
             ? ';'
             : ',';
 
