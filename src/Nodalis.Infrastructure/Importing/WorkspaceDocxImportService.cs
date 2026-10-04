@@ -1,5 +1,12 @@
+using System.Text;
+using Nodalis.Core.Domain;
 using Nodalis.Core.Importing;
+using Nodalis.Core.Links;
+using Nodalis.Core.Projects;
+using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
+using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.Importing;
 
@@ -38,6 +45,375 @@ public sealed class WorkspaceDocxImportService
         {
             DiscardStagedCopy(
                 staged);
+            throw;
+        }
+    }
+
+    public async Task<DocxImportPreview> PreparePreviewAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        var staged = await StageAsync(
+            sourcePath,
+            cancellationToken);
+
+        try
+        {
+            var analyzer = new DocxImportAnalyzer(
+                _workspaceRoot);
+
+            var analysis = await analyzer.AnalyzeAsync(
+                staged.Document,
+                Path.GetFileName(sourcePath),
+                cancellationToken);
+
+            var indexService = new WorkspaceLinkIndexService(
+                _workspaceRoot);
+
+            var index = await indexService.RefreshAsync(
+                cancellationToken);
+
+            var applications = index.Targets
+                .Where(target =>
+                    target.Kind == LinkTargetKind.Application)
+                .Select(target =>
+                    new DocxImportTargetOption
+                    {
+                        Id = target.Id,
+                        DisplayName = target.DisplayName,
+                        QualifiedName = target.QualifiedName,
+                        RelativePath = target.RelativePath,
+                        ApplicationId = target.Id
+                    })
+                .OrderBy(target =>
+                    target.QualifiedName,
+                    StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            var projects = new List<DocxImportTargetOption>();
+
+            foreach (var target in index.Targets
+                         .Where(target =>
+                             target.Kind == LinkTargetKind.Project)
+                         .OrderBy(target =>
+                             target.QualifiedName,
+                             StringComparer.CurrentCultureIgnoreCase))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var projectDirectory = ResolveRelativePath(
+                    target.RelativePath);
+                var manifestPath = Path.Combine(
+                    projectDirectory,
+                    WorkspaceLayout.ProjectManifestFileName);
+
+                if (!File.Exists(manifestPath))
+                {
+                    continue;
+                }
+
+                var manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+                    manifestPath,
+                    cancellationToken);
+
+                projects.Add(
+                    new DocxImportTargetOption
+                    {
+                        Id = target.Id,
+                        DisplayName = target.DisplayName,
+                        QualifiedName = target.QualifiedName,
+                        RelativePath = target.RelativePath,
+                        ApplicationId = manifest.ApplicationId
+                    });
+            }
+
+            var sections = BuildSectionPreviews(
+                analysis);
+
+            var suggestedApplicationId =
+                analysis.ApplicationCandidates.Count == 1
+                    ? analysis.ApplicationCandidates[0].Id
+                    : null;
+
+            var suggestedProjectId =
+                analysis.ProjectCandidates.Count == 1
+                    ? analysis.ProjectCandidates[0].Id
+                    : null;
+
+            if (suggestedProjectId is Guid projectId)
+            {
+                suggestedApplicationId = projects
+                    .FirstOrDefault(project =>
+                        project.Id == projectId)
+                    ?.ApplicationId ??
+                    suggestedApplicationId;
+            }
+
+            if (suggestedApplicationId is null &&
+                applications.Count == 1)
+            {
+                suggestedApplicationId =
+                    applications[0].Id;
+            }
+
+            var suggestedNewProjectName =
+                suggestedProjectId is null
+                    ? analysis.ProposedProjectName ??
+                      Path.GetFileNameWithoutExtension(
+                          staged.OriginalSourcePath)
+                    : null;
+
+            return new DocxImportPreview
+            {
+                StagedImport = staged,
+                Analysis = analysis,
+                Applications = applications,
+                Projects = projects,
+                SuggestedApplicationId = suggestedApplicationId,
+                SuggestedProjectId = suggestedProjectId,
+                SuggestedNewProjectName = suggestedNewProjectName,
+                Sections = sections,
+                Conflicts = BuildPreviewWarnings(
+                    applications,
+                    analysis,
+                    sections)
+            };
+        }
+        catch
+        {
+            DiscardStagedCopy(
+                staged);
+            throw;
+        }
+    }
+
+    public async Task<DocxImportCommitResult> CommitAsync(
+        DocxImportPreview preview,
+        DocxImportCommitRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(preview);
+        ArgumentNullException.ThrowIfNull(request);
+
+        ValidateCommitRequest(
+            preview,
+            request);
+
+        var selected = request.Sections
+            .Where(section => section.Include)
+            .Select(section =>
+            {
+                var previewSection = preview.Sections
+                    .Single(candidate =>
+                        candidate.Index == section.SectionIndex);
+
+                return new SelectedSection(
+                    previewSection,
+                    section.TargetSection.Trim());
+            })
+            .ToArray();
+
+        var projectDirectory = string.Empty;
+        var projectId = Guid.Empty;
+        var createdProject = false;
+        string? manifestPath = null;
+        string? originalManifest = null;
+        var generatedFiles = new List<string>();
+        var createdDirectories = new List<string>();
+
+        try
+        {
+            ProjectManifest project;
+
+            if (request.ProjectId is Guid existingProjectId)
+            {
+                var target = preview.Projects.Single(project =>
+                    project.Id == existingProjectId);
+
+                if (target.ApplicationId != request.ApplicationId)
+                {
+                    throw new InvalidDataException(
+                        "Le projet sélectionné n'appartient pas à l'application choisie.");
+                }
+
+                projectDirectory = ResolveRelativePath(
+                    target.RelativePath);
+
+                manifestPath = Path.Combine(
+                    projectDirectory,
+                    WorkspaceLayout.ProjectManifestFileName);
+
+                originalManifest = await File.ReadAllTextAsync(
+                    manifestPath,
+                    cancellationToken);
+
+                project = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+                    manifestPath,
+                    cancellationToken);
+
+                projectId = project.Id;
+            }
+            else
+            {
+                var discovery = new ProjectCreationTargetDiscovery();
+                var targets = await discovery.DiscoverAsync(
+                    _workspaceRoot,
+                    cancellationToken);
+
+                var applicationTarget = targets
+                    .FirstOrDefault(target =>
+                        target.ApplicationId == request.ApplicationId &&
+                        target.ModuleId is null &&
+                        target.ParentProjectId is null)
+                    ?? throw new InvalidDataException(
+                        "L'application choisie n'est plus disponible.");
+
+                var creator = new FileSystemProjectCreator(
+                    _workspaceRoot);
+
+                var created = await creator.CreateAsync(
+                    new ProjectCreationRequest
+                    {
+                        Name = request.NewProjectName!.Trim(),
+                        Complexity = request.NewProjectComplexity,
+                        Target = applicationTarget
+                    },
+                    cancellationToken);
+
+                projectDirectory = created.ProjectDirectory;
+                projectId = created.Project.Id;
+                project = created.Project;
+                createdProject = true;
+                manifestPath = Path.Combine(
+                    projectDirectory,
+                    WorkspaceLayout.ProjectManifestFileName);
+            }
+
+            var updatedProject = EnsureSections(
+                project,
+                selected.Select(section =>
+                    section.TargetSection));
+
+            if (!Equals(
+                    updatedProject,
+                    project) ||
+                updatedProject.Sections.Count !=
+                project.Sections.Count)
+            {
+                await AtomicJsonFile.WriteAsync(
+                    manifestPath!,
+                    updatedProject,
+                    cancellationToken);
+            }
+
+            foreach (var group in selected
+                         .GroupBy(
+                             item => item.TargetSection,
+                             StringComparer.CurrentCultureIgnoreCase))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var sectionName = group.Key.Trim();
+                var sectionDirectory = Path.Combine(
+                    projectDirectory,
+                    WindowsPathRules.SanitizeSegment(
+                        sectionName));
+
+                if (!Directory.Exists(sectionDirectory))
+                {
+                    Directory.CreateDirectory(
+                        sectionDirectory);
+                    createdDirectories.Add(
+                        sectionDirectory);
+                }
+
+                var sourceStem =
+                    Path.GetFileNameWithoutExtension(
+                        preview.StagedImport.OriginalSourcePath);
+
+                var destination = WindowsPathRules.GetUniqueFilePath(
+                    sectionDirectory,
+                    $"Import - {sourceStem}.md");
+
+                var markdown = BuildImportedMarkdown(
+                    Path.GetFileName(
+                        preview.StagedImport.OriginalSourcePath),
+                    group);
+
+                await AtomicFileWriter.WriteAllTextAsync(
+                    destination,
+                    markdown,
+                    cancellationToken);
+
+                generatedFiles.Add(
+                    destination);
+            }
+
+            var sourceCopyPath = await CommitStagedCopyAsync(
+                preview.StagedImport,
+                cancellationToken);
+
+            return new DocxImportCommitResult
+            {
+                ProjectId = projectId,
+                ProjectDirectory = projectDirectory,
+                SourceCopyPath = sourceCopyPath,
+                GeneratedFiles = generatedFiles
+            };
+        }
+        catch
+        {
+            if (createdProject &&
+                !string.IsNullOrWhiteSpace(projectDirectory) &&
+                Directory.Exists(projectDirectory))
+            {
+                try
+                {
+                    Directory.Delete(
+                        projectDirectory,
+                        recursive: true);
+                }
+                catch
+                {
+                    // Preserve the original import exception.
+                }
+            }
+            else
+            {
+                foreach (var file in generatedFiles)
+                {
+                    TryDelete(
+                        file);
+                }
+
+                foreach (var directory in createdDirectories
+                             .OrderByDescending(path =>
+                                 path.Length))
+                {
+                    TryDeleteEmptyDirectory(
+                        directory);
+                }
+
+                if (!string.IsNullOrWhiteSpace(manifestPath) &&
+                    originalManifest is not null)
+                {
+                    try
+                    {
+                        await AtomicFileWriter.WriteAllTextAsync(
+                            manifestPath,
+                            originalManifest,
+                            CancellationToken.None);
+                    }
+                    catch
+                    {
+                        // Preserve the original import exception.
+                    }
+                }
+            }
+
+            DiscardStagedCopy(
+                preview.StagedImport);
+
             throw;
         }
     }
@@ -156,6 +532,227 @@ public sealed class WorkspaceDocxImportService
             stagedPath);
     }
 
+    private static List<DocxImportSectionPreview> BuildSectionPreviews(
+        DocxImportAnalysis analysis)
+    {
+        var result = new List<DocxImportSectionPreview>();
+        var index = 0;
+
+        foreach (var mapped in analysis.MappedSections)
+        {
+            result.Add(
+                new DocxImportSectionPreview
+                {
+                    Index = index++,
+                    SourceHeading = mapped.SourceHeading,
+                    SuggestedTargetSection = mapped.TargetSection,
+                    BlockCount = mapped.Blocks.Count,
+                    MarkdownPreview =
+                        DocxMarkdownConverter.ConvertBlocks(
+                            mapped.Blocks)
+                });
+        }
+
+        if (analysis.UnmappedBlocks.Count > 0)
+        {
+            result.Add(
+                new DocxImportSectionPreview
+                {
+                    Index = index,
+                    SourceHeading = "Contenu non mappé",
+                    SuggestedTargetSection = "Documentation",
+                    BlockCount = analysis.UnmappedBlocks.Count,
+                    MarkdownPreview =
+                        DocxMarkdownConverter.ConvertBlocks(
+                            analysis.UnmappedBlocks)
+                });
+        }
+
+        return result;
+    }
+
+    private static List<string> BuildPreviewWarnings(
+        IReadOnlyList<DocxImportTargetOption> applications,
+        DocxImportAnalysis analysis,
+        IReadOnlyList<DocxImportSectionPreview> sections)
+    {
+        var warnings = new List<string>();
+
+        if (applications.Count == 0)
+        {
+            warnings.Add(
+                "Aucune application Nodalis n'existe encore : créez-en une avant de valider l'import.");
+        }
+
+        if (analysis.HasAmbiguousApplication)
+        {
+            warnings.Add(
+                "Plusieurs applications correspondent au document : vérifiez la cible.");
+        }
+
+        if (analysis.HasAmbiguousProject)
+        {
+            warnings.Add(
+                "Plusieurs projets correspondent au document : vérifiez la cible.");
+        }
+
+        if (sections.Count == 0)
+        {
+            warnings.Add(
+                "Aucun contenu exploitable n'a été détecté dans le document.");
+        }
+
+        return warnings;
+    }
+
+    private static void ValidateCommitRequest(
+        DocxImportPreview preview,
+        DocxImportCommitRequest request)
+    {
+        if (!preview.Applications.Any(application =>
+                application.Id == request.ApplicationId))
+        {
+            throw new InvalidDataException(
+                "L'application sélectionnée n'est pas disponible.");
+        }
+
+        if (request.ProjectId is Guid projectId &&
+            !preview.Projects.Any(project =>
+                project.Id == projectId))
+        {
+            throw new InvalidDataException(
+                "Le projet sélectionné n'est pas disponible.");
+        }
+
+        if (request.ProjectId is null &&
+            string.IsNullOrWhiteSpace(
+                request.NewProjectName))
+        {
+            throw new InvalidDataException(
+                "Choisissez un projet existant ou indiquez le nom du nouveau projet.");
+        }
+
+        if (request.Sections.Count == 0 ||
+            request.Sections.All(section =>
+                !section.Include))
+        {
+            throw new InvalidDataException(
+                "Sélectionnez au moins une section à importer.");
+        }
+
+        var availableIndexes = preview.Sections
+            .Select(section => section.Index)
+            .ToHashSet();
+
+        foreach (var section in request.Sections)
+        {
+            if (!availableIndexes.Contains(
+                    section.SectionIndex))
+            {
+                throw new InvalidDataException(
+                    "La sélection de sections ne correspond plus à la prévisualisation.");
+            }
+
+            if (section.Include &&
+                string.IsNullOrWhiteSpace(
+                    section.TargetSection))
+            {
+                throw new InvalidDataException(
+                    "Chaque section incluse doit avoir une section Nodalis cible.");
+            }
+        }
+    }
+
+    private static ProjectManifest EnsureSections(
+        ProjectManifest project,
+        IEnumerable<string> targetSections)
+    {
+        var sections = project.Sections.ToList();
+        var nextOrder = sections.Count == 0
+            ? 10
+            : sections.Max(section =>
+                section.Order) + 10;
+
+        foreach (var targetSection in targetSections
+                     .Select(name => name.Trim())
+                     .Where(name =>
+                         !string.IsNullOrWhiteSpace(name))
+                     .Distinct(
+                         StringComparer.CurrentCultureIgnoreCase))
+        {
+            if (sections.Any(section =>
+                    string.Equals(
+                        section.Name,
+                        targetSection,
+                        StringComparison.CurrentCultureIgnoreCase)))
+            {
+                continue;
+            }
+
+            sections.Add(
+                new SectionManifest
+                {
+                    Id = Guid.NewGuid(),
+                    Name = targetSection,
+                    Order = nextOrder,
+                    IsSingleton = false
+                });
+
+            nextOrder += 10;
+        }
+
+        return project with
+        {
+            Sections = sections
+        };
+    }
+
+    private static string BuildImportedMarkdown(
+        string sourceFileName,
+        IEnumerable<SelectedSection> sections)
+    {
+        var sourceStem =
+            Path.GetFileNameWithoutExtension(
+                sourceFileName);
+
+        var builder = new StringBuilder();
+
+        builder.AppendLine(
+            $"# Import — {sourceStem}");
+        builder.AppendLine();
+        builder.AppendLine(
+            $"> Source : {sourceFileName}");
+        builder.AppendLine();
+
+        foreach (var section in sections)
+        {
+            builder.AppendLine(
+                $"## {section.Preview.SourceHeading}");
+            builder.AppendLine();
+
+            var markdown =
+                section.Preview.MarkdownPreview.Trim();
+
+            if (!string.IsNullOrWhiteSpace(markdown))
+            {
+                builder.AppendLine(
+                    markdown);
+                builder.AppendLine();
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private string ResolveRelativePath(
+        string relativePath) =>
+        Path.GetFullPath(
+            Path.Combine(
+                _workspaceRoot,
+                relativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
     private string GetStagingDirectory() =>
         Path.Combine(
             _workspaceRoot,
@@ -194,6 +791,23 @@ public sealed class WorkspaceDocxImportService
         }
     }
 
+    private static void TryDeleteEmptyDirectory(
+        string path)
+    {
+        try
+        {
+            if (Directory.Exists(path) &&
+                !Directory.EnumerateFileSystemEntries(path).Any())
+            {
+                Directory.Delete(path);
+            }
+        }
+        catch
+        {
+            // Cleanup is best-effort. Import operations keep their original error.
+        }
+    }
+
     private static async Task CopyAsync(
         string sourcePath,
         string destinationPath,
@@ -222,4 +836,8 @@ public sealed class WorkspaceDocxImportService
         await destination.FlushAsync(
             cancellationToken);
     }
+
+    private sealed record SelectedSection(
+        DocxImportSectionPreview Preview,
+        string TargetSection);
 }
