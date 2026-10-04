@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Nodalis.Infrastructure</RootNamespace>
+    <AssemblyName>Nodalis.Infrastructure</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nodalis.Core\Nodalis.Core.csproj" />
+  </ItemGroup>
+</Project>
