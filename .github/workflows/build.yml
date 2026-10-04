@@ -38,3 +38,11 @@ jobs:
       - name: Verify portable package
         shell: pwsh
         run: ./scripts/publish-portable.ps1 -Version "0.0.0-ci"
+
+      - name: Start published portable binary
+        shell: pwsh
+        run: |
+          $process = Start-Process "artifacts/Nodalis-win-x64/Nodalis.exe" -ArgumentList "--smoke-test" -PassThru -Wait
+          if ($process.ExitCode -ne 0) {
+            throw "Published Nodalis.exe failed startup smoke test with exit code $($process.ExitCode)."
+          }
