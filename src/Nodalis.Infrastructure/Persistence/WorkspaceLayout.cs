@@ -16,6 +16,7 @@ public static class WorkspaceLayout
     public const string TemplatesDirectoryName = "Templates";
     public const string ImportsDirectoryName = "Imports";
     public const string ImportSourcesDirectoryName = "Sources";
+    public const string ImportStagingDirectoryName = ".staging";
 
     public const string GlobalQuickNotesFileName = "Notes rapides.md";
     public const string GlobalGlossaryFileName = "Glossaire.md";
