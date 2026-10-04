@@ -67,11 +67,12 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
 
     private static UserPreferences Normalize(UserPreferences preferences)
     {
-        var editor = preferences.Editor with
+        var sourceEditor = preferences.Editor ?? new EditorPreferences();
+        var editor = sourceEditor with
         {
-            FontSize = Math.Clamp(preferences.Editor.FontSize, 8, 48),
+            FontSize = Math.Clamp(sourceEditor.FontSize, 8, 48),
             AutosaveDelayMilliseconds = Math.Clamp(
-                preferences.Editor.AutosaveDelayMilliseconds,
+                sourceEditor.AutosaveDelayMilliseconds,
                 100,
                 10_000)
         };
@@ -87,13 +88,18 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
                 180,
                 800),
             Editor = editor,
-            RecentItems = preferences.RecentItems
+            ExpandedNodeIds = preferences.ExpandedNodeIds ?? [],
+            RecentItems = (preferences.RecentItems ?? [])
+                .Where(item => item?.Item is not null)
                 .OrderByDescending(item => item.LastOpenedUtc)
                 .Take(50)
                 .ToList(),
-            Favorites = preferences.Favorites
+            Favorites = (preferences.Favorites ?? [])
+                .Where(item => item is not null)
                 .DistinctBy(item => $"{item.Kind}\0{item.Key}", StringComparer.OrdinalIgnoreCase)
-                .ToList()
+                .ToList(),
+            ShortcutOverrides = preferences.ShortcutOverrides ??
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         };
     }
 
