@@ -2,11 +2,13 @@ using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Settings;
+using Nodalis.Core.Templates;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Settings;
+using Nodalis.Infrastructure.Templates;
 
 var root = Path.Combine(
     Path.GetTempPath(),
@@ -17,6 +19,7 @@ try
 {
     await VerifyWorkspacePersistenceAsync(root);
     await VerifyWorkspaceNavigationAsync(root);
+    await VerifyTemplatesAsync(root);
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
     VerifyDomainCatalog();
@@ -130,6 +133,76 @@ static async Task VerifyWorkspaceNavigationAsync(string root)
     Assert(documentNames.Contains("Notes rapides") &&
            documentNames.Contains("Tests couteau"),
         "Navigation must discover Markdown files recursively.");
+}
+
+static async Task VerifyTemplatesAsync(string root)
+{
+    var store = new FileSystemTemplateStore(root);
+    await store.InitializeDefaultsAsync();
+
+    var catalog = await store.LoadTemplateCatalogAsync();
+    Assert(catalog.Templates.Any(template => template.Key == "note"),
+        "The default note template must exist.");
+    Assert(catalog.Templates.Any(template => template.Key == "meeting"),
+        "The default meeting template must exist.");
+
+    var profiles = await store.LoadProjectProfilesAsync();
+    Assert(profiles.Profiles.Count == 3,
+        "Simple, Medium and Complex project profiles must exist.");
+
+    foreach (var profile in profiles.Profiles)
+    {
+        var sectionNames = profile.Sections
+            .Select(section => section.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert(
+            sectionNames.Contains("Jalons") &&
+            sectionNames.Contains("Technique") &&
+            sectionNames.Contains("Glossaire") &&
+            sectionNames.Contains("Tests"),
+            "Every initial project profile must contain the four mandatory sections.");
+    }
+
+    var variables = MarkdownTemplateRenderer.CreateStandardVariables(
+        "Ma note",
+        Guid.NewGuid(),
+        new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.FromHours(2)));
+
+    var rendered = await store.RenderAsync("note", variables);
+
+    Assert(rendered.Contains("# Ma note", StringComparison.Ordinal) &&
+           rendered.Contains("2026-10-04", StringComparison.Ordinal),
+        "Template rendering must substitute standard variables.");
+
+    AssertThrows<TemplateRenderException>(
+        () => MarkdownTemplateRenderer.Render(
+            "{{unknown.variable}}",
+            variables),
+        "Unknown template variables must fail explicitly.");
+
+    var templatePath = Path.Combine(
+        root,
+        WorkspaceLayout.TemplatesDirectoryName,
+        "note.md");
+
+    const string customized = "# Template personnalisé\n";
+    await File.WriteAllTextAsync(templatePath, customized);
+    await store.InitializeDefaultsAsync();
+
+    Assert(await File.ReadAllTextAsync(templatePath) == customized,
+        "Default initialization must never overwrite a customized template.");
+
+    var duplicatePath = Path.Combine(root, "duplicate.md");
+    await File.WriteAllTextAsync(duplicatePath, "existing");
+
+    var uniquePath = WindowsPathRules.GetUniqueFilePath(
+        root,
+        "duplicate.md");
+
+    Assert(
+        Path.GetFileName(uniquePath) == "duplicate (2).md",
+        "New notes must avoid overwriting files with the same name.");
 }
 
 static async Task VerifyUserPreferencesAsync(string root)
