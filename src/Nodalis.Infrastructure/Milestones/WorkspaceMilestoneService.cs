@@ -662,12 +662,70 @@ public sealed class WorkspaceMilestoneService
 
     private static List<string> SplitTableRow(string line)
     {
-        var trimmed = line.Trim().Trim('|');
+        var trimmed = line.Trim();
 
-        return trimmed
-            .Split('|')
-            .Select(cell => cell.Trim())
-            .ToList();
+        if (trimmed.StartsWith(
+                "|",
+                StringComparison.Ordinal))
+        {
+            trimmed = trimmed[1..];
+        }
+
+        if (trimmed.EndsWith(
+                "|",
+                StringComparison.Ordinal))
+        {
+            trimmed = trimmed[..^1];
+        }
+
+        var cells = new List<string>();
+        var current = new StringBuilder();
+        var escaped = false;
+
+        foreach (var character in trimmed)
+        {
+            if (escaped)
+            {
+                if (character == '|')
+                {
+                    current.Append('|');
+                }
+                else
+                {
+                    current.Append('\\');
+                    current.Append(character);
+                }
+
+                escaped = false;
+                continue;
+            }
+
+            if (character == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (character == '|')
+            {
+                cells.Add(
+                    current.ToString().Trim());
+                current.Clear();
+                continue;
+            }
+
+            current.Append(character);
+        }
+
+        if (escaped)
+        {
+            current.Append('\\');
+        }
+
+        cells.Add(
+            current.ToString().Trim());
+
+        return cells;
     }
 
     private static bool IsSeparatorRow(
