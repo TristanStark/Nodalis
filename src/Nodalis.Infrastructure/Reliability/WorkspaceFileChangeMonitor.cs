@@ -74,7 +74,7 @@ public sealed class WorkspaceFileChangeMonitor : IDisposable
     {
         var fileName = Path.GetFileName(path);
 
-        return fileName.StartsWith('.', StringComparison.Ordinal) &&
+        return fileName.StartsWith(".", StringComparison.Ordinal) &&
                fileName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase);
     }
 }
