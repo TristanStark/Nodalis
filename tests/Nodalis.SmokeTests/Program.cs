@@ -410,8 +410,16 @@ static async Task VerifyApplicationStructureAsync(string root)
         () => service.DeleteApplicationAsync(renamedApplication),
         "An application containing a module must not be deleted.");
 
-    await service.DeleteModuleAsync(movedChild);
-    await service.DeleteApplicationAsync(renamedApplication);
+    var movedChildAfterApplicationRename = Path.Combine(
+        renamedApplication,
+        WorkspaceLayout.ModulesDirectoryName,
+        Path.GetFileName(movedChild));
+
+    await service.DeleteModuleAsync(
+        movedChildAfterApplicationRename);
+
+    await service.DeleteApplicationAsync(
+        renamedApplication);
 
     Assert(
         !Directory.Exists(renamedApplication),
