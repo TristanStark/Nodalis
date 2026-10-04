@@ -1,0 +1,110 @@
+<Window x:Class="Nodalis.App.Dialogs.NewProjectDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nouveau projet"
+        Width="620"
+        Height="560"
+        MinWidth="520"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Créer un projet"
+                       FontSize="22"
+                       FontWeight="SemiBold" />
+            <TextBlock Margin="0,6,0,18"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="La structure initiale vient du profil choisi et pourra être modifiée ensuite."
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="120" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock VerticalAlignment="Center"
+                       Text="Nom" />
+            <TextBox x:Name="ProjectNameTextBox"
+                     Grid.Column="1"
+                     MinHeight="30"
+                     Padding="6,4" />
+        </Grid>
+
+        <Grid Grid.Row="2" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="120" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock VerticalAlignment="Center"
+                       Text="Emplacement" />
+            <ComboBox x:Name="TargetComboBox"
+                      Grid.Column="1"
+                      MinHeight="30"
+                      DisplayMemberPath="DisplayName" />
+
+            <TextBlock Grid.Row="1"
+                       Margin="0,12,0,0"
+                       VerticalAlignment="Center"
+                       Text="Niveau" />
+            <ComboBox x:Name="ComplexityComboBox"
+                      Grid.Row="1"
+                      Grid.Column="1"
+                      Margin="0,12,0,0"
+                      MinHeight="30"
+                      DisplayMemberPath="DisplayName" />
+        </Grid>
+
+        <Grid Grid.Row="3">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="Liens métier"
+                       FontWeight="SemiBold" />
+            <TextBlock Margin="0,4,0,0"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Un lien par ligne. Ils seront ajoutés à Présentation.md."
+                       TextWrapping="Wrap" />
+
+            <TextBox x:Name="BusinessLinksTextBox"
+                     Grid.Row="1"
+                     Margin="0,34,0,0"
+                     Padding="8"
+                     AcceptsReturn="True"
+                     VerticalScrollBarVisibility="Auto"
+                     TextWrapping="Wrap"
+                     FontFamily="Consolas" />
+        </Grid>
+
+        <StackPanel Grid.Row="4"
+                    Margin="0,18,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button Width="90"
+                    Margin="0,0,8,0"
+                    IsCancel="True"
+                    Content="Annuler" />
+            <Button Width="110"
+                    IsDefault="True"
+                    Click="Create_Click"
+                    Content="Créer" />
+        </StackPanel>
+    </Grid>
+</Window>
