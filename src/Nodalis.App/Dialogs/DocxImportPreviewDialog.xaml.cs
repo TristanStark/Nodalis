@@ -68,17 +68,18 @@ public DocxImportPreviewDialog(
             preview.Applications;
 
         ComplexityComboBox.ItemsSource =
-        [
-            new ComplexityChoice(
+            new ComplexityChoice[]
+            {
+                new ComplexityChoice(
                 ProjectComplexity.Simple,
                 "Simple"),
-            new ComplexityChoice(
-                ProjectComplexity.Medium,
-                "Moyen"),
-            new ComplexityChoice(
-                ProjectComplexity.Complex,
-                "Complexe")
-        ];
+                new ComplexityChoice(
+                    ProjectComplexity.Medium,
+                    "Moyen"),
+                new ComplexityChoice(
+                    ProjectComplexity.Complex,
+                    "Complexe")
+            };
 
         ComplexityComboBox.SelectedIndex = 1;
 

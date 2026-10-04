@@ -3038,7 +3038,7 @@ private void MarkdownEditorTextBox_PreviewMouseMove(
         object sender,
         MouseEventArgs e)
     {
-        global::Nodalis.Core.Glossary.GlossaryTextMatch match = FindGlossaryMatchAtPoint(
+        global::Nodalis.Core.Glossary.GlossaryTextMatch? match = FindGlossaryMatchAtPoint(
             e.GetPosition(MarkdownEditorTextBox));
 
         MarkdownEditorTextBox.ToolTip =
@@ -3057,7 +3057,7 @@ private async void MarkdownEditorTextBox_MouseDoubleClick(
         object sender,
         MouseButtonEventArgs e)
     {
-        global::Nodalis.Core.Glossary.GlossaryTextMatch match = FindGlossaryMatchAtPoint(
+        global::Nodalis.Core.Glossary.GlossaryTextMatch? match = FindGlossaryMatchAtPoint(
             e.GetPosition(MarkdownEditorTextBox));
 
         if (match is null)
