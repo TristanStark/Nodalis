@@ -15,6 +15,19 @@ public sealed class ApplicationStructureService
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
     }
 
+    public Task<ModuleManifest> LoadModuleAsync(
+        string moduleDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleDirectory);
+
+        return AtomicJsonFile.ReadAsync<ModuleManifest>(
+            Path.Combine(
+                Path.GetFullPath(moduleDirectory),
+                WorkspaceLayout.ModuleManifestFileName),
+            cancellationToken);
+    }
+
     public async Task<string> CreateApplicationAsync(
         string name,
         CancellationToken cancellationToken = default)
