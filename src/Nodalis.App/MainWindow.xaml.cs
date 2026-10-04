@@ -16,6 +16,7 @@ using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Navigation;
+using Nodalis.Infrastructure.Notes;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
@@ -843,10 +844,40 @@ public partial class MainWindow : Window
         await CreateProjectAsync();
     }
 
+    private async void CaptureQuickNote_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await CaptureQuickNoteAsync();
+    }
+
+    private async void ShowQuickNotes_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await ShowQuickNotesAsync();
+    }
+
     private async void MainWindow_PreviewKeyDown(
         object sender,
         KeyEventArgs e)
     {
+        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Alt) &&
+            e.Key == Key.N)
+        {
+            e.Handled = true;
+            await CaptureQuickNoteAsync();
+            return;
+        }
+
+        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) &&
+            e.Key == Key.Q)
+        {
+            e.Handled = true;
+            await ShowQuickNotesAsync();
+            return;
+        }
+
         if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) &&
             e.Key == Key.N)
         {
@@ -1054,6 +1085,138 @@ public partial class MainWindow : Window
         catch
         {
             StatusText.Text = target;
+        }
+    }
+
+    private async Task CaptureQuickNoteAsync()
+    {
+        try
+        {
+            var service = new QuickNotesService();
+            var contextPath =
+                _selectedNode?.FullPath ??
+                _root.FullPath;
+
+            var scopes = await service.ResolveScopesAsync(
+                _root.FullPath,
+                contextPath);
+
+            var dialog = new QuickNoteDialog(scopes)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var targetPath = Path.GetFullPath(
+                dialog.SelectedScope.FilePath);
+
+            var currentPath = _documentSession?.Path;
+
+            if (currentPath is not null &&
+                string.Equals(
+                    Path.GetFullPath(currentPath),
+                    targetPath,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                if (_autosave is not null)
+                {
+                    await _autosave.FlushAsync();
+                }
+
+                if (_documentDirty)
+                {
+                    MessageBox.Show(
+                        this,
+                        "La note rapide actuellement ouverte contient des modifications " +
+                        "non enregistrées. Enregistrez ou résolvez le conflit avant " +
+                        "d'ajouter une nouvelle entrée.",
+                        "Note rapide",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            await service.AppendAsync(
+                dialog.SelectedScope,
+                dialog.NoteText,
+                DateTimeOffset.Now);
+
+            if (_documentSession is not null &&
+                string.Equals(
+                    Path.GetFullPath(_documentSession.Path),
+                    targetPath,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await _documentSession.ReloadAsync();
+
+                _suppressEditorChanges = true;
+                MarkdownEditorTextBox.Text =
+                    _documentSession.Content;
+                MarkdownEditorTextBox.CaretIndex =
+                    MarkdownEditorTextBox.Text.Length;
+                _suppressEditorChanges = false;
+
+                _documentDirty = false;
+                SaveStateText.Text = "Enregistré";
+                RenderPreview();
+            }
+
+            StatusText.Text =
+                $"Note rapide ajoutée · {dialog.SelectedScope.DisplayName}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            ExternalModificationException)
+        {
+            MessageBox.Show(
+                this,
+                $"La note rapide n'a pas pu être ajoutée.\n\n{exception.Message}",
+                "Note rapide",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async Task ShowQuickNotesAsync()
+    {
+        try
+        {
+            var service = new QuickNotesService();
+            var contextPath =
+                _selectedNode?.FullPath ??
+                _root.FullPath;
+
+            var snapshots = await service.ReadAggregateAsync(
+                _root.FullPath,
+                contextPath);
+
+            var dialog = new QuickNotesOverviewDialog(
+                snapshots,
+                _root.FullPath)
+            {
+                Owner = this
+            };
+
+            dialog.ShowDialog();
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"Les notes rapides n'ont pas pu être chargées.\n\n{exception.Message}",
+                "Notes rapides",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
