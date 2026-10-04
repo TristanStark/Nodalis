@@ -18,6 +18,7 @@ using Nodalis.App.Navigation;
 using Nodalis.Core.Abstractions;
 using Nodalis.Core.Glossary;
 using Nodalis.Core.Links;
+using Nodalis.Core.Meetings;
 using Nodalis.Core.Milestones;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Projects;
@@ -29,6 +30,7 @@ using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Links;
+using Nodalis.Infrastructure.Meetings;
 using Nodalis.Infrastructure.Milestones;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Notes;
@@ -48,6 +50,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceLinkIndexService _linkIndexService;
     private readonly WorkspaceTaskService _taskService;
     private readonly WorkspaceMilestoneService _milestoneService;
+    private readonly WorkspaceMeetingService _meetingService;
     private readonly DispatcherTimer _previewTimer;
 
     private NavigationNodeViewModel _root;
@@ -94,6 +97,8 @@ public partial class MainWindow : Window
         _taskService = new WorkspaceTaskService(
             root.FullPath);
         _milestoneService = new WorkspaceMilestoneService(
+            root.FullPath);
+        _meetingService = new WorkspaceMeetingService(
             root.FullPath);
         _contextPanelOpen = preferences.IsContextPanelOpen;
         _previewVisible = preferences.Editor.LivePreview;
@@ -2325,6 +2330,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "meeting.new",
+                Title = "Nouveau compte-rendu de réunion",
+                Subtitle = "Créer une réunion structurée dans le projet ou l'application",
+                Keywords = ["réunion", "meeting", "compte-rendu", "participants", "actions", "décisions"],
+                ExecuteAsync = CreateMeetingAsync
+            },
+            new()
+            {
                 Id = "application.new",
                 Title = "Nouvelle application",
                 Subtitle = "Créer une application dans le workspace",
@@ -3477,6 +3490,79 @@ public partial class MainWindow : Window
                 this,
                 $"Le projet n'a pas pu être créé.\n\n{exception.Message}",
                 "Nouveau projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async Task CreateMeetingAsync()
+    {
+        var contextPath =
+            _selectedNode?.FullPath ??
+            _root.FullPath;
+
+        try
+        {
+            var scope = await _meetingService.ResolveScopeAsync(
+                contextPath);
+
+            if (scope is null)
+            {
+                MessageBox.Show(
+                    this,
+                    "Sélectionnez une application, un projet, un sous-projet ou un document rattaché avant de créer un compte-rendu.",
+                    "Compte-rendu de réunion",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new MeetingDialog(
+                scope.Value.ScopeKind,
+                scope.Value.ScopeName)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true ||
+                dialog.Draft is null)
+            {
+                return;
+            }
+
+            var result = await _meetingService.CreateAsync(
+                contextPath,
+                dialog.Draft);
+
+            if (!await TryCloseCurrentDocumentAsync(
+                    "ouvrir le compte-rendu créé"))
+            {
+                await RefreshNavigationAsync();
+
+                StatusText.Text =
+                    $"Réunion créée · {Path.GetRelativePath(_root.FullPath, result.FilePath)}";
+                return;
+            }
+
+            await RefreshNavigationAsync(
+                result.FilePath);
+
+            await RefreshDashboardTasksAsync();
+
+            StatusText.Text =
+                $"Réunion créée · {result.ScopeKind} {result.ScopeName}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            TemplateRenderException)
+        {
+            MessageBox.Show(
+                this,
+                $"Le compte-rendu n'a pas pu être créé.\n\n{exception.Message}",
+                "Compte-rendu de réunion",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
