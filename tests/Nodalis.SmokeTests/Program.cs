@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Nodalis.Core.Domain;
+using Nodalis.Core.Glossary;
 using Nodalis.Core.Links;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Markdown;
@@ -9,6 +10,7 @@ using Nodalis.Core.Templates;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Documents;
+using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Notes;
@@ -34,6 +36,7 @@ try
     await VerifyQuickNotesAsync(root);
     await VerifySearchAsync(root);
     await VerifyLinksAndBacklinksAsync(root);
+    await VerifyGlossaryAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -780,6 +783,145 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
             afterParentRename,
             "Cible").Target?.Id == target.Id,
         "Historical aliases must survive parent folder renames.");
+}
+
+static async Task VerifyGlossaryAsync(string root)
+{
+    var structure = new ApplicationStructureService(root);
+    var applicationPath = await structure.CreateApplicationAsync(
+        "Application Glossaire");
+
+    var applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
+
+    var projectCreator = new FileSystemProjectCreator(root);
+    var project = await projectCreator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Glossaire",
+            Complexity = ProjectComplexity.Simple,
+            Target = new ProjectCreationTarget
+            {
+                ApplicationId = application.Id,
+                ApplicationName = application.Name,
+                ParentDirectory = applicationPath,
+                DisplayName = application.Name
+            }
+        });
+
+    var glossary = new GlossaryService();
+    var scopes = await glossary.ResolveScopesAsync(
+        root,
+        project.OverviewFilePath);
+
+    Assert(
+        scopes.Count == 3 &&
+        scopes[0].Kind == GlossaryScopeKind.Project &&
+        scopes[1].Kind == GlossaryScopeKind.Application &&
+        scopes[2].Kind == GlossaryScopeKind.Global,
+        "Glossary scopes must resolve in Project, Application, Global priority order.");
+
+    await glossary.AppendAsync(
+        scopes[2],
+        new GlossaryEntryDraft
+        {
+            Term = "Steak",
+            Definition = "Définition globale",
+            Synonyms = ["Bifteck"],
+            Acronyms = ["STK"],
+            Links = ["[[Présentation]]"]
+        });
+
+    await glossary.AppendAsync(
+        scopes[1],
+        new GlossaryEntryDraft
+        {
+            Term = "Steak",
+            Definition = "Définition application"
+        });
+
+    await glossary.AppendAsync(
+        scopes[0],
+        new GlossaryEntryDraft
+        {
+            Term = "Steak",
+            Definition = "Définition projet"
+        });
+
+    var projectResolution = await glossary.ResolveAsync(
+        root,
+        project.ProjectDirectory,
+        "Steak");
+
+    Assert(
+        projectResolution.Primary?.Scope.Kind == GlossaryScopeKind.Project &&
+        projectResolution.Primary.Definition == "Définition projet" &&
+        projectResolution.Alternatives.Count == 2 &&
+        projectResolution.Alternatives[0].Scope.Kind == GlossaryScopeKind.Application &&
+        projectResolution.Alternatives[1].Scope.Kind == GlossaryScopeKind.Global,
+        "Glossary resolution must prioritize Project over Application over Global.");
+
+    var synonymResolution = await glossary.ResolveAsync(
+        root,
+        project.ProjectDirectory,
+        "bifteck");
+
+    Assert(
+        synonymResolution.Primary?.Scope.Kind == GlossaryScopeKind.Global &&
+        synonymResolution.Primary.Term == "Steak",
+        "Glossary synonyms must resolve case-insensitively.");
+
+    var acronymResolution = await glossary.ResolveAsync(
+        root,
+        project.ProjectDirectory,
+        "stk");
+
+    Assert(
+        acronymResolution.Primary?.Scope.Kind == GlossaryScopeKind.Global &&
+        acronymResolution.Primary.Term == "Steak",
+        "Glossary acronyms must resolve case-insensitively.");
+
+    var applicationResolution = await glossary.ResolveAsync(
+        root,
+        applicationPath,
+        "Steak");
+
+    Assert(
+        applicationResolution.Primary?.Scope.Kind == GlossaryScopeKind.Application &&
+        applicationResolution.Alternatives.Count == 1 &&
+        applicationResolution.Alternatives[0].Scope.Kind == GlossaryScopeKind.Global,
+        "Application context must not include project-local glossary definitions.");
+
+    await AssertThrowsAsync<InvalidOperationException>(
+        () => glossary.AppendAsync(
+            scopes[0],
+            new GlossaryEntryDraft
+            {
+                Term = "Steak",
+                Definition = "Doublon interdit dans le même scope"
+            }),
+        "A glossary must reject duplicate terms inside the same scope.");
+
+    var parsed = GlossaryService.Parse(
+        "## API\n\n**Définition :** Interface\n\n**Synonymes :** service\n\n**Acronymes :** API\n\n**Liens :** [[Technique]]\n",
+        scopes[0]);
+
+    Assert(
+        parsed.Count == 1 &&
+        parsed[0].Term == "API" &&
+        parsed[0].Synonyms.Single() == "service" &&
+        parsed[0].Acronyms.Single() == "API" &&
+        parsed[0].Links.Single() == "[[Technique]]",
+        "Structured glossary Markdown must round-trip term metadata.");
 }
 
 static void VerifyMarkdownParser()
