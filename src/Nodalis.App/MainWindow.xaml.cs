@@ -303,10 +303,10 @@ public partial class MainWindow : Window
             }
             else
             {
-                var service = new ApplicationStructureService(
+                var manifestReader = new ApplicationStructureService(
                     _root.FullPath);
 
-                var manifest = await service.LoadModuleAsync(
+                var manifest = await manifestReader.LoadModuleAsync(
                     parent.FullPath);
 
                 applicationId = manifest.ApplicationId;
