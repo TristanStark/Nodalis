@@ -7,6 +7,7 @@ using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
+using Nodalis.Infrastructure.Templates;
 
 namespace Nodalis.Infrastructure.Importing;
 
@@ -187,6 +188,254 @@ public sealed class WorkspaceDocxImportService
         }
     }
 
+    public async Task<DocxImportPlan> BuildPlanAsync(
+        DocxImportPreview preview,
+        DocxImportCommitRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(preview);
+        ArgumentNullException.ThrowIfNull(request);
+
+        ValidateCommitRequest(
+            preview,
+            request);
+
+        var selected = request.Sections
+            .Where(section => section.Include)
+            .Select(section =>
+            {
+                var previewSection = preview.Sections
+                    .Single(candidate =>
+                        candidate.Index == section.SectionIndex);
+
+                return new SelectedSection(
+                    previewSection,
+                    section.TargetSection.Trim());
+            })
+            .ToArray();
+
+        var changes = new List<DocxImportPlannedChange>();
+        var warnings = preview.Conflicts.ToList();
+
+        string projectDirectory;
+        string projectDisplayName;
+        ProjectManifest? existingProject = null;
+        var createsProject = request.ProjectId is null;
+
+        if (request.ProjectId is Guid existingProjectId)
+        {
+            var target = preview.Projects.Single(project =>
+                project.Id == existingProjectId);
+
+            if (target.ApplicationId != request.ApplicationId)
+            {
+                throw new InvalidDataException(
+                    "Le projet sélectionné n'appartient pas à l'application choisie.");
+            }
+
+            projectDirectory = ResolveRelativePath(
+                target.RelativePath);
+            projectDisplayName = target.QualifiedName;
+
+            existingProject = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+                Path.Combine(
+                    projectDirectory,
+                    WorkspaceLayout.ProjectManifestFileName),
+                cancellationToken);
+
+            var requestedSections = selected
+                .Select(section => section.TargetSection)
+                .Distinct(
+                    StringComparer.CurrentCultureIgnoreCase)
+                .ToArray();
+
+            var missingSections = requestedSections
+                .Where(section =>
+                    !existingProject.Sections.Any(existing =>
+                        string.Equals(
+                            existing.Name,
+                            section,
+                            StringComparison.CurrentCultureIgnoreCase)))
+                .ToArray();
+
+            if (missingSections.Length > 0)
+            {
+                changes.Add(
+                    PlanChange(
+                        "Modifier",
+                        Path.Combine(
+                            projectDirectory,
+                            WorkspaceLayout.ProjectManifestFileName),
+                        $"Ajouter {missingSections.Length} section(s) au projet : {string.Join(", ", missingSections)}"));
+            }
+        }
+        else
+        {
+            var discovery = new ProjectCreationTargetDiscovery();
+            var targets = await discovery.DiscoverAsync(
+                _workspaceRoot,
+                cancellationToken);
+
+            var applicationTarget = targets
+                .FirstOrDefault(target =>
+                    target.ApplicationId == request.ApplicationId &&
+                    target.ModuleId is null &&
+                    target.ParentProjectId is null)
+                ?? throw new InvalidDataException(
+                    "L'application choisie n'est plus disponible.");
+
+            var projectsDirectory = Path.Combine(
+                applicationTarget.ParentDirectory,
+                WorkspaceLayout.ProjectsDirectoryName);
+
+            projectDirectory = WindowsPathRules.GetUniqueDirectoryPath(
+                projectsDirectory,
+                request.NewProjectName!.Trim());
+
+            projectDisplayName =
+                $"{applicationTarget.ApplicationName} / {Path.GetFileName(projectDirectory)}";
+
+            changes.Add(
+                PlanChange(
+                    "Créer",
+                    Path.Combine(
+                        projectDirectory,
+                        WorkspaceLayout.ProjectManifestFileName),
+                    "Métadonnées du nouveau projet"));
+
+            changes.Add(
+                PlanChange(
+                    "Créer",
+                    Path.Combine(
+                        projectDirectory,
+                        "Présentation.md"),
+                    "Présentation du nouveau projet"));
+
+            changes.Add(
+                PlanChange(
+                    "Créer",
+                    Path.Combine(
+                        projectDirectory,
+                        WorkspaceLayout.GlobalQuickNotesFileName),
+                    "Notes rapides du projet"));
+
+            var templateStore = new FileSystemTemplateStore(
+                _workspaceRoot);
+
+            var profileCatalog =
+                await templateStore.LoadProjectProfilesAsync(
+                    cancellationToken);
+
+            var profile = profileCatalog.Profiles.SingleOrDefault(candidate =>
+                    candidate.Complexity ==
+                    request.NewProjectComplexity)
+                ?? throw new InvalidDataException(
+                    $"Aucun profil de projet '{request.NewProjectComplexity}' n'est disponible.");
+
+            foreach (var section in profile.Sections
+                         .Where(section =>
+                             !string.IsNullOrWhiteSpace(
+                                 section.TemplateKey))
+                         .OrderBy(section =>
+                             section.Order))
+            {
+                changes.Add(
+                    PlanChange(
+                        "Créer",
+                        Path.Combine(
+                            projectDirectory,
+                            WindowsPathRules.SanitizeSegment(
+                                section.Name),
+                            WindowsPathRules.SanitizeSegment(
+                                section.Name) + ".md"),
+                        $"Document initial de la section {section.Name}"));
+            }
+        }
+
+        var sourceStem =
+            Path.GetFileNameWithoutExtension(
+                preview.StagedImport.OriginalSourcePath);
+
+        foreach (var group in selected
+                     .GroupBy(
+                         item => item.TargetSection,
+                         StringComparer.CurrentCultureIgnoreCase))
+        {
+            var sectionName = group.Key.Trim();
+            var sectionDirectory = Path.Combine(
+                projectDirectory,
+                WindowsPathRules.SanitizeSegment(
+                    sectionName));
+
+            var desiredFileName =
+                $"Import - {sourceStem}.md";
+
+            var destination =
+                WindowsPathRules.GetUniqueFilePath(
+                    sectionDirectory,
+                    desiredFileName);
+
+            if (!string.Equals(
+                    Path.GetFileName(destination),
+                    desiredFileName,
+                    StringComparison.CurrentCultureIgnoreCase))
+            {
+                warnings.Add(
+                    $"Un fichier d'import existe déjà dans la section « {sectionName} » ; " +
+                    $"le nouveau fichier sera nommé « {Path.GetFileName(destination)} ».");
+            }
+
+            changes.Add(
+                PlanChange(
+                    "Créer",
+                    destination,
+                    $"{group.Count()} section(s) Word → section Nodalis « {sectionName} »"));
+        }
+
+        var sourcesDirectory = Path.Combine(
+            _workspaceRoot,
+            WorkspaceLayout.ImportsDirectoryName,
+            WorkspaceLayout.ImportSourcesDirectoryName);
+
+        var sourceCopyPath =
+            WindowsPathRules.GetUniqueFilePath(
+                sourcesDirectory,
+                Path.GetFileName(
+                    preview.StagedImport.OriginalSourcePath));
+
+        if (!string.Equals(
+                Path.GetFileName(sourceCopyPath),
+                Path.GetFileName(
+                    preview.StagedImport.OriginalSourcePath),
+                StringComparison.CurrentCultureIgnoreCase))
+        {
+            warnings.Add(
+                $"Une copie source du même nom existe déjà ; la nouvelle copie sera nommée « {Path.GetFileName(sourceCopyPath)} ».");
+        }
+
+        changes.Add(
+            PlanChange(
+                "Copier",
+                sourceCopyPath,
+                "Copie locale du DOCX original ; le fichier source reste intact"));
+
+        return new DocxImportPlan
+        {
+            TargetProjectDisplayName =
+                projectDisplayName,
+            TargetProjectRelativePath =
+                ToWorkspaceRelativePath(
+                    projectDirectory),
+            CreatesProject =
+                createsProject,
+            Changes = changes,
+            Warnings = warnings
+                .Distinct(
+                    StringComparer.CurrentCultureIgnoreCase)
+                .ToList()
+        };
+    }
+
     public async Task<DocxImportCommitResult> CommitAsync(
         DocxImportPreview preview,
         DocxImportCommitRequest request,
@@ -294,11 +543,9 @@ public sealed class WorkspaceDocxImportService
                 selected.Select(section =>
                     section.TargetSection));
 
-            if (!Equals(
+            if (!ReferenceEquals(
                     updatedProject,
-                    project) ||
-                updatedProject.Sections.Count !=
-                project.Sections.Count)
+                    project))
             {
                 await AtomicJsonFile.WriteAsync(
                     manifestPath!,
@@ -672,6 +919,7 @@ public sealed class WorkspaceDocxImportService
             ? 10
             : sections.Max(section =>
                 section.Order) + 10;
+        var changed = false;
 
         foreach (var targetSection in targetSections
                      .Select(name => name.Trim())
@@ -699,12 +947,15 @@ public sealed class WorkspaceDocxImportService
                 });
 
             nextOrder += 10;
+            changed = true;
         }
 
-        return project with
-        {
-            Sections = sections
-        };
+        return changed
+            ? project with
+            {
+                Sections = sections
+            }
+            : project;
     }
 
     private static string BuildImportedMarkdown(
@@ -743,6 +994,28 @@ public sealed class WorkspaceDocxImportService
 
         return builder.ToString();
     }
+
+    private DocxImportPlannedChange PlanChange(
+        string action,
+        string fullPath,
+        string description) =>
+        new()
+        {
+            Action = action,
+            RelativePath =
+                ToWorkspaceRelativePath(
+                    fullPath),
+            Description = description
+        };
+
+    private string ToWorkspaceRelativePath(
+        string fullPath) =>
+        Path.GetRelativePath(
+                _workspaceRoot,
+                Path.GetFullPath(fullPath))
+            .Replace(
+                Path.DirectorySeparatorChar,
+                '/');
 
     private string ResolveRelativePath(
         string relativePath) =>
