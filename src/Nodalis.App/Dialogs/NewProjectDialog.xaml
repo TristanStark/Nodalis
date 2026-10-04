@@ -78,14 +78,15 @@
 
             <TextBlock Text="Liens métier"
                        FontWeight="SemiBold" />
-            <TextBlock Margin="0,4,0,0"
+            <TextBlock Grid.Row="0"
+                       Margin="0,24,0,0"
                        Foreground="{StaticResource SecondaryTextBrush}"
                        Text="Un lien par ligne. Ils seront ajoutés à Présentation.md."
                        TextWrapping="Wrap" />
 
             <TextBox x:Name="BusinessLinksTextBox"
                      Grid.Row="1"
-                     Margin="0,34,0,0"
+                     Margin="0,8,0,0"
                      Padding="8"
                      AcceptsReturn="True"
                      VerticalScrollBarVisibility="Auto"
