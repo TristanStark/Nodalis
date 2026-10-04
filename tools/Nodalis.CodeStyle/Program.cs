@@ -285,7 +285,7 @@ internal static partial class Program
     private static int FixExplicitTypes(IReadOnlyList<string> files, string repositoryRoot)
     {
         CSharpParseOptions parseOptions = new(languageVersion: LanguageVersion.Latest);
-        List<SyntaxTree> syntaxTrees = [];
+        List<SyntaxTree> syntaxTrees = [CreateImplicitUsingsTree(parseOptions)];
         Dictionary<string, SyntaxTree> treeByFile = new(StringComparer.OrdinalIgnoreCase);
 
         foreach (string file in files)
@@ -564,6 +564,29 @@ internal static partial class Program
         int line = lineSpan.StartLinePosition.Line + 1;
         Console.Error.WriteLine(
             $"Unable to resolve an explicit type safely at {file}:{line}; manual cleanup required.");
+    }
+
+    /// <summary>
+    /// Creates the global usings normally emitted by the .NET SDK when ImplicitUsings is enabled.
+    /// </summary>
+    /// <param name="parseOptions">Parse options shared with the analyzed source files.</param>
+    /// <returns>A synthetic syntax tree containing SDK-compatible global usings.</returns>
+    private static SyntaxTree CreateImplicitUsingsTree(CSharpParseOptions parseOptions)
+    {
+        const string implicitUsings = """
+            global using System;
+            global using System.Collections.Generic;
+            global using System.IO;
+            global using System.Linq;
+            global using System.Net.Http;
+            global using System.Threading;
+            global using System.Threading.Tasks;
+            """;
+
+        return CSharpSyntaxTree.ParseText(
+            implicitUsings,
+            parseOptions,
+            "__NodalisImplicitUsings.g.cs");
     }
 
     /// <summary>
