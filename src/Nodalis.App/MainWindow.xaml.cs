@@ -871,6 +871,14 @@ public partial class MainWindow : Window
         KeyEventArgs e)
     {
         if (Keyboard.Modifiers == ModifierKeys.Control &&
+            e.Key == Key.F)
+        {
+            e.Handled = true;
+            await SearchAsync();
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.Control &&
             e.Key == Key.P)
         {
             e.Handled = true;
@@ -1104,6 +1112,90 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task SearchAsync()
+    {
+        var dialog = new SearchDialog(
+            _root.FullPath,
+            _selectedNode?.FullPath)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true ||
+            dialog.SelectedResult is null)
+        {
+            return;
+        }
+
+        var target = _root
+            .DescendantsAndSelf()
+            .FirstOrDefault(node =>
+                node.Kind == WorkspaceNodeKind.Document &&
+                string.Equals(
+                    Path.GetFullPath(node.FullPath),
+                    Path.GetFullPath(dialog.SelectedResult.FilePath),
+                    StringComparison.OrdinalIgnoreCase));
+
+        if (target is null)
+        {
+            StatusText.Text =
+                "Le document trouvé n'est plus présent dans la navigation.";
+            return;
+        }
+
+        if (_selectedNode is not null &&
+            !ReferenceEquals(_selectedNode, target) &&
+            !await TryCloseCurrentDocumentAsync(
+                "ouvrir le résultat de recherche"))
+        {
+            return;
+        }
+
+        _restoringSelection = true;
+        target.IsSelected = true;
+        _restoringSelection = false;
+
+        _selectedNode = target;
+        await DisplayNodeAsync(target);
+
+        MoveCaretToLine(
+            dialog.SelectedResult.LineNumber);
+
+        StatusText.Text =
+            $"Résultat · {target.DisplayName} · ligne {dialog.SelectedResult.LineNumber}";
+    }
+
+    private void MoveCaretToLine(int lineNumber)
+    {
+        if (_documentSession is null ||
+            lineNumber <= 1)
+        {
+            MarkdownEditorTextBox.CaretIndex = 0;
+            return;
+        }
+
+        var text = MarkdownEditorTextBox.Text;
+        var currentLine = 1;
+        var index = 0;
+
+        while (index < text.Length &&
+               currentLine < lineNumber)
+        {
+            if (text[index] == '\n')
+            {
+                currentLine++;
+            }
+
+            index++;
+        }
+
+        MarkdownEditorTextBox.CaretIndex =
+            Math.Min(index, text.Length);
+        MarkdownEditorTextBox.Focus();
+        MarkdownEditorTextBox.ScrollToLine(
+            Math.Max(0, lineNumber - 1));
+    }
+
     private async Task ShowCommandPaletteAsync()
     {
         var commands = BuildPaletteCommands();
@@ -1149,6 +1241,14 @@ public partial class MainWindow : Window
                 Subtitle = "Créer une application dans le workspace",
                 Keywords = ["application", "créer"],
                 ExecuteAsync = CreateApplicationAsync
+            },
+            new()
+            {
+                Id = "search",
+                Title = "Rechercher",
+                Subtitle = "Résultats Projet / Application / Global",
+                Keywords = ["recherche", "chercher", "trouver", "ctrl+f"],
+                ExecuteAsync = SearchAsync
             },
             new()
             {
