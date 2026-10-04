@@ -467,7 +467,7 @@ public sealed class WorkspaceNavigationBuilder
             Path.GetFullPath(path));
 
         return CreateDeterministicId(
-            relativePath.Replace('\', '/').ToUpperInvariant());
+            relativePath.Replace('\\', '/').ToUpperInvariant());
     }
 
     private static Guid CreateDeterministicId(string value)
