@@ -1781,6 +1781,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "glossary.lookup",
+                Title = "Consulter le glossaire",
+                Subtitle = "Projet → Application → Global",
+                Keywords = ["glossaire", "définition", "terme", "acronyme", "synonyme"],
+                ExecuteAsync = ShowGlossaryAsync
+            },
+            new()
+            {
                 Id = "quick-note.capture",
                 Title = "Ajouter une note rapide",
                 Subtitle = "Projet / Application / Global",
@@ -1826,6 +1834,68 @@ public partial class MainWindow : Window
         }
 
         return commands;
+    }
+
+    private async Task ShowGlossaryAsync()
+    {
+        var dialog = new GlossaryLookupDialog(
+            _root.FullPath,
+            _selectedNode?.FullPath)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true ||
+            dialog.SelectedEntry is null)
+        {
+            return;
+        }
+
+        var entry = dialog.SelectedEntry;
+        var path = Path.GetFullPath(
+            entry.Scope.FilePath);
+
+        var node = FindAndExpand(
+            _root,
+            path);
+
+        if (node is null)
+        {
+            await RefreshNavigationAsync();
+            node = FindAndExpand(
+                _root,
+                path);
+        }
+
+        if (node is null)
+        {
+            StatusText.Text =
+                $"Entrée trouvée mais fichier introuvable dans la navigation : {entry.Term}";
+            return;
+        }
+
+        if (_selectedNode is not null &&
+            _selectedNode.Kind == WorkspaceNodeKind.Document &&
+            !ReferenceEquals(
+                _selectedNode,
+                node) &&
+            !await TryCloseCurrentDocumentAsync(
+                "ouvrir l'entrée de glossaire"))
+        {
+            return;
+        }
+
+        _restoringSelection = true;
+        node.IsSelected = true;
+        _restoringSelection = false;
+
+        _selectedNode = node;
+        await DisplayNodeAsync(node);
+        MoveCaretToLine(
+            entry.LineNumber);
+
+        StatusText.Text =
+            $"Glossaire · {entry.Term} · {entry.Scope.DisplayName}";
     }
 
     private async Task CaptureQuickNoteAsync()
