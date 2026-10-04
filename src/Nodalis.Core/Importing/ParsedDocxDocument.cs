@@ -6,5 +6,7 @@ public sealed record ParsedDocxDocument
 
     public List<DocxBlock> Blocks { get; init; } = [];
 
+    public List<string> Headers { get; init; } = [];
+
     public List<DocxRelationship> Relationships { get; init; } = [];
 }
