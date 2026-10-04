@@ -717,6 +717,12 @@ public partial class MainWindow : Window
             StatusText.Text =
                 $"Document · {Path.GetRelativePath(_root.FullPath, node.FullPath)}";
 
+            if (_linkIndex.Targets.Count == 0)
+            {
+                await RefreshLinkIndexAsync();
+            }
+
+            UpdateLinkContext(node.FullPath);
             RenderPreview();
             MarkdownEditorTextBox.Focus();
         }
@@ -754,6 +760,9 @@ public partial class MainWindow : Window
             $"{GetKindLabel(node.Kind)}\n\n" +
             $"{node.Children.Count} élément(s) enfant(s)\n\n" +
             $"{node.FullPath}";
+
+        BacklinksList.ItemsSource = null;
+        ContextBrokenLinksText.Text = "Liens internes : —";
 
         StatusText.Text =
             $"{GetKindLabel(node.Kind)} · {node.Children.Count} élément(s)";
@@ -814,6 +823,11 @@ public partial class MainWindow : Window
 
         _previewTimer.Stop();
         _previewTimer.Start();
+
+        if (!_suppressLinkAutocomplete)
+        {
+            _ = RefreshInternalLinkSuggestionsAsync();
+        }
     }
 
     private void PreviewTimer_Tick(
@@ -847,7 +861,7 @@ public partial class MainWindow : Window
         object? sender,
         EventArgs e)
     {
-        Dispatcher.BeginInvoke(() =>
+        Dispatcher.BeginInvoke(async () =>
         {
             if (_documentSession is null)
             {
@@ -868,6 +882,19 @@ public partial class MainWindow : Window
             if (!_documentDirty)
             {
                 StatusText.Text = "Enregistré localement";
+
+                try
+                {
+                    await RefreshLinkIndexAndContextAsync();
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException)
+                {
+                    StatusText.Text =
+                        $"Enregistré · index liens indisponible : {exception.Message}";
+                }
             }
         });
     }
@@ -953,6 +980,45 @@ public partial class MainWindow : Window
         object sender,
         KeyEventArgs e)
     {
+        if (InternalLinkPopup.IsOpen)
+        {
+            if (e.Key == Key.Down)
+            {
+                e.Handled = true;
+                MoveInternalLinkSelection(1);
+                return;
+            }
+
+            if (e.Key == Key.Up)
+            {
+                e.Handled = true;
+                MoveInternalLinkSelection(-1);
+                return;
+            }
+
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                CompleteInternalLinkSuggestion();
+                return;
+            }
+
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                InternalLinkPopup.IsOpen = false;
+                return;
+            }
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.Control &&
+            e.Key == Key.K)
+        {
+            e.Handled = true;
+            await OpenInternalLinkPickerAsync();
+            return;
+        }
+
         if (Keyboard.Modifiers == ModifierKeys.Control &&
             e.Key == Key.F)
         {
@@ -1131,27 +1197,407 @@ public partial class MainWindow : Window
         PreviewSplitter.Visibility = Visibility.Collapsed;
     }
 
-    private void OnInternalLinkClicked(string target)
+    private async void OnInternalLinkClicked(string target)
     {
-        var matches = _root
-            .DescendantsAndSelf()
-            .Where(node =>
-                string.Equals(
-                    node.DisplayName,
-                    target,
-                    StringComparison.CurrentCultureIgnoreCase))
-            .Take(2)
-            .ToArray();
-
-        if (matches.Length == 1)
+        if (_linkIndex.Targets.Count == 0)
         {
-            matches[0].IsSelected = true;
+            await RefreshLinkIndexAsync();
+        }
+
+        var resolution = WorkspaceLinkIndexService.Resolve(
+            _linkIndex,
+            target);
+
+        if (resolution.Status == LinkResolutionStatus.Resolved)
+        {
+            await NavigateToLinkTargetAsync(
+                resolution.Target!);
             return;
         }
 
-        StatusText.Text = matches.Length == 0
-            ? $"Lien interne introuvable : {target}"
-            : $"Lien interne ambigu : {target}";
+        StatusText.Text =
+            resolution.Status == LinkResolutionStatus.Missing
+                ? $"Lien interne introuvable : {target}"
+                : $"Lien interne ambigu : {target} ({resolution.Candidates.Count} cibles)";
+    }
+
+    private async Task RefreshLinkIndexAsync()
+    {
+        _linkIndex = await _linkIndexService.RefreshAsync();
+    }
+
+    private async Task RefreshLinkIndexAndContextAsync()
+    {
+        await RefreshLinkIndexAsync();
+
+        if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
+        {
+            UpdateLinkContext(
+                _selectedNode.FullPath);
+            RenderPreview();
+        }
+    }
+
+    private void UpdateLinkContext(string documentPath)
+    {
+        var relativePath = Path.GetRelativePath(
+                _root.FullPath,
+                Path.GetFullPath(documentPath))
+            .Replace(
+                Path.DirectorySeparatorChar,
+                '/');
+
+        var target = _linkIndex.Targets.FirstOrDefault(candidate =>
+            candidate.Kind == LinkTargetKind.Document &&
+            string.Equals(
+                candidate.RelativePath,
+                relativePath,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (target is null)
+        {
+            BacklinksList.ItemsSource = null;
+            ContextBrokenLinksText.Text =
+                "Liens internes : indexation en attente";
+            return;
+        }
+
+        var backlinks = _linkIndex.References
+            .Where(reference =>
+                reference.TargetId == target.Id)
+            .Select(reference =>
+            {
+                var source = _linkIndex.Targets.FirstOrDefault(candidate =>
+                    candidate.Id == reference.SourceId);
+
+                return source is null
+                    ? null
+                    : new BacklinkEntry
+                    {
+                        Source = source,
+                        LineNumber = reference.LineNumber,
+                        Excerpt = reference.Excerpt,
+                        RawTarget = reference.RawTarget
+                    };
+            })
+            .Where(backlink => backlink is not null)
+            .Cast<BacklinkEntry>()
+            .OrderBy(
+                backlink => backlink.Source.DisplayName,
+                StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(backlink => backlink.LineNumber)
+            .ToArray();
+
+        BacklinksList.ItemsSource = backlinks;
+
+        var unresolved = _linkIndex.References
+            .Where(reference =>
+                reference.SourceId == target.Id &&
+                reference.TargetId is null)
+            .ToArray();
+
+        var missing = unresolved.Count(reference =>
+            WorkspaceLinkIndexService.Resolve(
+                _linkIndex,
+                reference.RawTarget).Status ==
+            LinkResolutionStatus.Missing);
+
+        var ambiguous = unresolved.Length - missing;
+
+        ContextBrokenLinksText.Text =
+            $"Liens internes : {backlinks.Length} backlink(s) · " +
+            $"{missing} cassé(s) · {ambiguous} ambigu(s)";
+    }
+
+    private async Task NavigateToLinkTargetAsync(
+        LinkTargetEntry target,
+        int? lineNumber = null)
+    {
+        var fullPath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                target.RelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        var node = FindAndExpand(
+            _root,
+            fullPath);
+
+        if (node is null)
+        {
+            await RefreshNavigationAsync();
+            node = FindAndExpand(
+                _root,
+                fullPath);
+        }
+
+        if (node is null)
+        {
+            StatusText.Text =
+                $"Cible indexée mais introuvable : {target.DisplayName}";
+            return;
+        }
+
+        if (_selectedNode is not null &&
+            _selectedNode.Kind == WorkspaceNodeKind.Document &&
+            !ReferenceEquals(
+                _selectedNode,
+                node) &&
+            !await TryCloseCurrentDocumentAsync(
+                "ouvrir le lien interne"))
+        {
+            return;
+        }
+
+        _restoringSelection = true;
+        node.IsSelected = true;
+        _restoringSelection = false;
+
+        _selectedNode = node;
+        await DisplayNodeAsync(node);
+
+        if (lineNumber is int line &&
+            node.Kind == WorkspaceNodeKind.Document)
+        {
+            MoveCaretToLine(line);
+        }
+    }
+
+    private async Task OpenInternalLinkPickerAsync()
+    {
+        if (_documentSession is null)
+        {
+            return;
+        }
+
+        if (_linkIndex.Targets.Count == 0)
+        {
+            await RefreshLinkIndexAsync();
+        }
+
+        var alias = MarkdownEditorTextBox.SelectedText;
+        var start = MarkdownEditorTextBox.SelectionStart;
+        var length = MarkdownEditorTextBox.SelectionLength;
+
+        await OpenInternalLinkSuggestionsAsync(
+            alias,
+            start,
+            length,
+            string.IsNullOrWhiteSpace(alias)
+                ? null
+                : alias);
+    }
+
+    private async Task RefreshInternalLinkSuggestionsAsync()
+    {
+        if (_documentSession is null ||
+            !TryGetOpenInternalLinkToken(
+                out var start,
+                out var length,
+                out var query))
+        {
+            InternalLinkPopup.IsOpen = false;
+            return;
+        }
+
+        await OpenInternalLinkSuggestionsAsync(
+            query,
+            start,
+            length,
+            alias: null);
+    }
+
+    private async Task OpenInternalLinkSuggestionsAsync(
+        string query,
+        int start,
+        int length,
+        string? alias)
+    {
+        if (_linkIndex.Targets.Count == 0)
+        {
+            await RefreshLinkIndexAsync();
+        }
+
+        var normalized = query.Trim();
+
+        var suggestions = _linkIndex.Targets
+            .Where(target =>
+                string.IsNullOrWhiteSpace(normalized) ||
+                target.DisplayName.Contains(
+                    normalized,
+                    StringComparison.CurrentCultureIgnoreCase) ||
+                target.QualifiedName.Contains(
+                    normalized,
+                    StringComparison.CurrentCultureIgnoreCase))
+            .OrderBy(target =>
+                target.DisplayName.StartsWith(
+                    normalized,
+                    StringComparison.CurrentCultureIgnoreCase)
+                    ? 0
+                    : 1)
+            .ThenBy(
+                target => target.DisplayName,
+                StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(
+                target => target.QualifiedName,
+                StringComparer.CurrentCultureIgnoreCase)
+            .Take(40)
+            .ToArray();
+
+        if (suggestions.Length == 0)
+        {
+            InternalLinkPopup.IsOpen = false;
+            return;
+        }
+
+        _linkSuggestionStart = start;
+        _linkSuggestionLength = length;
+        _linkSuggestionAlias = alias;
+
+        InternalLinkSuggestions.ItemsSource = suggestions;
+        InternalLinkSuggestions.SelectedIndex = 0;
+
+        var caretRect = MarkdownEditorTextBox.GetRectFromCharacterIndex(
+            MarkdownEditorTextBox.CaretIndex,
+            trailingEdge: true);
+
+        InternalLinkPopup.HorizontalOffset =
+            Math.Max(8, caretRect.X);
+        InternalLinkPopup.VerticalOffset =
+            Math.Max(8, caretRect.Bottom + 4);
+        InternalLinkPopup.IsOpen = true;
+    }
+
+    private bool TryGetOpenInternalLinkToken(
+        out int start,
+        out int length,
+        out string query)
+    {
+        start = 0;
+        length = 0;
+        query = string.Empty;
+
+        var caret = MarkdownEditorTextBox.CaretIndex;
+        var text = MarkdownEditorTextBox.Text;
+
+        if (caret < 2 ||
+            caret > text.Length)
+        {
+            return false;
+        }
+
+        var beforeCaret = text[..caret];
+        var open = beforeCaret.LastIndexOf(
+            "[[",
+            StringComparison.Ordinal);
+
+        if (open < 0)
+        {
+            return false;
+        }
+
+        var close = beforeCaret.LastIndexOf(
+            "]]",
+            StringComparison.Ordinal);
+
+        if (close > open)
+        {
+            return false;
+        }
+
+        var rawQuery = beforeCaret[(open + 2)..];
+
+        if (rawQuery.Contains('\n') ||
+            rawQuery.Contains('\r') ||
+            rawQuery.Contains('|'))
+        {
+            return false;
+        }
+
+        start = open;
+        length = caret - open;
+        query = rawQuery;
+        return true;
+    }
+
+    private void MoveInternalLinkSelection(int delta)
+    {
+        if (InternalLinkSuggestions.Items.Count == 0)
+        {
+            return;
+        }
+
+        var current = InternalLinkSuggestions.SelectedIndex;
+        var next = Math.Clamp(
+            current + delta,
+            0,
+            InternalLinkSuggestions.Items.Count - 1);
+
+        InternalLinkSuggestions.SelectedIndex = next;
+        InternalLinkSuggestions.ScrollIntoView(
+            InternalLinkSuggestions.SelectedItem);
+    }
+
+    private void CompleteInternalLinkSuggestion()
+    {
+        if (InternalLinkSuggestions.SelectedItem is not LinkTargetEntry target)
+        {
+            return;
+        }
+
+        var duplicateDisplayNames = _linkIndex.Targets.Count(candidate =>
+            string.Equals(
+                candidate.DisplayName,
+                target.DisplayName,
+                StringComparison.CurrentCultureIgnoreCase));
+
+        var linkTarget = duplicateDisplayNames == 1
+            ? target.DisplayName
+            : target.QualifiedName;
+
+        var syntax = string.IsNullOrWhiteSpace(_linkSuggestionAlias)
+            ? $"[[{linkTarget}]]"
+            : $"[[{linkTarget}|{_linkSuggestionAlias.Trim()}]]";
+
+        _suppressLinkAutocomplete = true;
+
+        try
+        {
+            MarkdownEditorTextBox.Select(
+                _linkSuggestionStart,
+                _linkSuggestionLength);
+
+            MarkdownEditorTextBox.SelectedText = syntax;
+            MarkdownEditorTextBox.CaretIndex =
+                _linkSuggestionStart + syntax.Length;
+        }
+        finally
+        {
+            _suppressLinkAutocomplete = false;
+            InternalLinkPopup.IsOpen = false;
+        }
+
+        MarkdownEditorTextBox.Focus();
+    }
+
+    private void InternalLinkSuggestions_MouseDoubleClick(
+        object sender,
+        MouseButtonEventArgs e) =>
+        CompleteInternalLinkSuggestion();
+
+    private async void BacklinksList_MouseDoubleClick(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (BacklinksList.SelectedItem is not BacklinkEntry backlink)
+        {
+            return;
+        }
+
+        await NavigateToLinkTargetAsync(
+            backlink.Source,
+            backlink.LineNumber);
     }
 
     private void OnMarkdownLinkClicked(string target)
@@ -1741,6 +2187,8 @@ public partial class MainWindow : Window
 
         NavigationTree.ItemsSource =
             new[] { _root };
+
+        await RefreshLinkIndexAsync();
 
         if (openPath is null)
         {
