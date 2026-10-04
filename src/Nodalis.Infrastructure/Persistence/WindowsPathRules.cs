@@ -31,6 +31,49 @@ public static class WindowsPathRules
         return sanitized;
     }
 
+    public static string GetUniqueFilePath(
+        string parentDirectory,
+        string desiredFileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(parentDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(desiredFileName);
+
+        var extension = Path.GetExtension(desiredFileName);
+        var stem = Path.GetFileNameWithoutExtension(desiredFileName);
+
+        var safeStem = SanitizeSegment(stem);
+        var safeExtension = string.IsNullOrWhiteSpace(extension)
+            ? string.Empty
+            : new string(
+                extension
+                    .Select(character =>
+                        Path.GetInvalidFileNameChars().Contains(character)
+                            ? '_'
+                            : character)
+                    .ToArray());
+
+        var candidate = Path.Combine(
+            parentDirectory,
+            safeStem + safeExtension);
+
+        if (!File.Exists(candidate) && !Directory.Exists(candidate))
+        {
+            return candidate;
+        }
+
+        for (var index = 2; ; index++)
+        {
+            candidate = Path.Combine(
+                parentDirectory,
+                $"{safeStem} ({index}){safeExtension}");
+
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
     public static string GetUniqueDirectoryPath(string parentDirectory, string desiredName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(parentDirectory);
