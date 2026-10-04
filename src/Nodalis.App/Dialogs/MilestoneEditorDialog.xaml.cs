@@ -49,7 +49,7 @@ private void Save_Click(
         object sender,
         RoutedEventArgs e)
     {
-        var name = NameTextBox.Text.Trim();
+        string name = NameTextBox.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(name))
         {
