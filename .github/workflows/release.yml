@@ -38,7 +38,7 @@ jobs:
             $version = "${{ github.ref_name }}"
           }
 
-          $version = $version.Trim().TrimStart("v")
+          $version = $version.Trim().TrimStart([char]"v")
 
           if ([string]::IsNullOrWhiteSpace($version)) {
             throw "Release version is empty."
