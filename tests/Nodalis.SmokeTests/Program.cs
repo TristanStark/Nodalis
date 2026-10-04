@@ -2213,23 +2213,77 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
             section.SuggestedTargetSection ==
             "Technique");
 
+        var manifestPath = Path.Combine(
+            project.ProjectDirectory,
+            WorkspaceLayout.ProjectManifestFileName);
+
+        var manifestBeforePlan = await File.ReadAllTextAsync(
+            manifestPath);
+
+        var request = new DocxImportCommitRequest
+        {
+            ApplicationId = application.Id,
+            ProjectId = project.Project.Id,
+            Sections =
+            [
+                new DocxImportSectionSelection
+                {
+                    SectionIndex =
+                        technicalPreview.Index,
+                    Include = true,
+                    TargetSection = "Section DOCX"
+                }
+            ]
+        };
+
+        var plan = await previewService.BuildPlanAsync(
+            preview,
+            request);
+
+        Assert(
+            !plan.CreatesProject &&
+            plan.TargetProjectRelativePath.Replace(
+                '\\',
+                '/')
+                .EndsWith(
+                    project.Project.Name,
+                    StringComparison.CurrentCultureIgnoreCase) &&
+            plan.Changes.Any(change =>
+                change.Action == "Modifier" &&
+                change.RelativePath.EndsWith(
+                    WorkspaceLayout.ProjectManifestFileName,
+                    StringComparison.OrdinalIgnoreCase)) &&
+            plan.Changes.Any(change =>
+                change.RelativePath.Contains(
+                    "/Section DOCX/",
+                    StringComparison.OrdinalIgnoreCase) &&
+                change.RelativePath.EndsWith(
+                    ".md",
+                    StringComparison.OrdinalIgnoreCase)) &&
+            plan.Changes.Any(change =>
+                change.Action == "Copier" &&
+                change.RelativePath.Contains(
+                    "/" + WorkspaceLayout.ImportSourcesDirectoryName + "/",
+                    StringComparison.OrdinalIgnoreCase)),
+            "DOCX plan must expose the exact project metadata, Markdown and source-copy operations before validation.");
+
+        Assert(
+            File.Exists(
+                preview.StagedImport.StagedCopyPath) &&
+            string.Equals(
+                manifestBeforePlan,
+                await File.ReadAllTextAsync(
+                    manifestPath),
+                StringComparison.Ordinal) &&
+            !Directory.Exists(
+                Path.Combine(
+                    project.ProjectDirectory,
+                    "Section DOCX")),
+            "Building a DOCX plan must not perform any business write.");
+
         var committed = await previewService.CommitAsync(
             preview,
-            new DocxImportCommitRequest
-            {
-                ApplicationId = application.Id,
-                ProjectId = project.Project.Id,
-                Sections =
-                [
-                    new DocxImportSectionSelection
-                    {
-                        SectionIndex =
-                            technicalPreview.Index,
-                        Include = true,
-                        TargetSection = "Tests"
-                    }
-                ]
-            });
+            request);
 
         Assert(
             !File.Exists(
@@ -2240,7 +2294,7 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
             committed.GeneratedFiles[0].Contains(
                 Path.Combine(
                     project.ProjectDirectory,
-                    "Tests"),
+                    "Section DOCX"),
                 StringComparison.OrdinalIgnoreCase),
             "Validated DOCX imports must consume the staged copy and honor an explicit section remapping.");
 
