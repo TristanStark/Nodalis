@@ -1,0 +1,145 @@
+<Window x:Class="Nodalis.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nodalis"
+        Width="1440"
+        Height="900"
+        MinWidth="1024"
+        MinHeight="640"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="28" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="14,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="NODALIS"
+                               FontWeight="SemiBold"
+                               FontSize="16"
+                               Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock Text="  /  Workspace"
+                               Margin="8,0,0,0"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="1"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Text="Ctrl+P · Command Palette"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+
+                <Button Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Content="Nouvelle note  Ctrl+N" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="300" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,1,0"
+                    Padding="12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="NAVIGATION"
+                               Margin="4,4,0,10"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                    <TreeView>
+                        <TreeViewItem Header="Global" IsExpanded="True">
+                            <TreeViewItem Header="Notes rapides" />
+                            <TreeViewItem Header="Glossaire général" />
+                        </TreeViewItem>
+                        <TreeViewItem Header="Applications" IsExpanded="True" />
+                    </TreeView>
+                </DockPanel>
+            </Border>
+
+            <Grid Grid.Column="1" Background="{StaticResource WindowBackgroundBrush}">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Width="520">
+                    <TextBlock Text="Nodalis"
+                               FontSize="38"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="Le socle est prêt pour accueillir votre workspace."
+                               Margin="0,12,0,0"
+                               FontSize="16"
+                               TextAlignment="Center"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                    <Border Margin="0,28,0,0"
+                            Padding="18"
+                            CornerRadius="8"
+                            Background="{StaticResource PanelBackgroundBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="Raccourcis prévus"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,10" />
+                            <TextBlock Text="Ctrl+N        Nouvelle note depuis template" />
+                            <TextBlock Text="Ctrl+Shift+N  Nouveau projet" />
+                            <TextBlock Text="Ctrl+F        Recherche" />
+                            <TextBlock Text="Ctrl+K        Lien interne" />
+                            <TextBlock Text="Ctrl+P        Command Palette" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <Border Grid.Column="2"
+                    Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1,0,0,0"
+                    Padding="16">
+                <StackPanel>
+                    <TextBlock Text="CONTEXTE"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                    <TextBlock Text="Aucun document ouvert"
+                               Margin="0,14,0,0"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="Les backlinks, métadonnées et informations du document apparaîtront ici."
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid Margin="10,0">
+                <TextBlock VerticalAlignment="Center"
+                           Text="Local · Markdown + JSON · Aucun appel réseau"
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
