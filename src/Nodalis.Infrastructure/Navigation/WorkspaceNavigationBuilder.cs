@@ -45,17 +45,12 @@ public sealed class WorkspaceNavigationBuilder
 
     private static WorkspaceNavigationNode BuildGlobalNode(string workspaceRoot)
     {
-        var children = new List<WorkspaceNavigationNode>();
-
-        AddDocumentIfExists(
-            children,
-            workspaceRoot,
-            Path.Combine(workspaceRoot, WorkspaceLayout.GlobalQuickNotesFileName));
-
-        AddDocumentIfExists(
-            children,
-            workspaceRoot,
-            Path.Combine(workspaceRoot, WorkspaceLayout.GlobalGlossaryFileName));
+        var children = EnumerateMarkdownFiles(workspaceRoot)
+            .Select(file =>
+                BuildDocumentNode(
+                    workspaceRoot,
+                    file))
+            .ToList();
 
         return new WorkspaceNavigationNode
         {
@@ -63,7 +58,7 @@ public sealed class WorkspaceNavigationBuilder
             DisplayName = "Global",
             Kind = WorkspaceNodeKind.Global,
             FullPath = workspaceRoot,
-            Children = children
+            Children = Sort(children)
         };
     }
 
