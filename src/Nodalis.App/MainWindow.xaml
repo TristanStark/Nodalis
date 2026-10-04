@@ -176,11 +176,17 @@
                                     Content="I" />
                             <Button Width="42"
                                     Height="28"
+                                    Margin="0,0,5,0"
                                     Padding="0"
                                     FontFamily="Consolas"
                                     Click="InlineCode_Click"
                                     ToolTip="Code inline"
                                     Content="&lt;/&gt;" />
+                            <Button Height="28"
+                                    Padding="8,0"
+                                    Click="AttachFile_Click"
+                                    ToolTip="Ajouter une pièce jointe locale"
+                                    Content="Joindre" />
                         </StackPanel>
 
                         <TextBlock x:Name="SaveStateText"
