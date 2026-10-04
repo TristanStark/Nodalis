@@ -6,6 +6,7 @@ using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Core.Validation;
+using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
@@ -24,6 +25,7 @@ try
     await VerifyWorkspaceNavigationAsync(root);
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
+    await VerifyApplicationStructureAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -303,6 +305,115 @@ static async Task VerifyProjectCreationAsync(string root)
                 result.ProjectDirectory,
                 WorkspaceLayout.SubProjectsDirectoryName),
         "Sub-projects must be created under the selected parent project.");
+}
+
+static async Task VerifyApplicationStructureAsync(string root)
+{
+    var service = new ApplicationStructureService(root);
+
+    var applicationPath = await service.CreateApplicationAsync(
+        "Application Gestion");
+
+    Assert(
+        File.Exists(Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName)),
+        "Creating an application must persist its manifest.");
+
+    Assert(
+        File.Exists(Path.Combine(
+            applicationPath,
+            WorkspaceLayout.GlobalQuickNotesFileName)) &&
+        File.Exists(Path.Combine(
+            applicationPath,
+            WorkspaceLayout.GlobalGlossaryFileName)),
+        "Creating an application must initialize its singleton notes.");
+
+    var appJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        appJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
+
+    var modulePath = await service.CreateModuleAsync(
+        applicationPath,
+        application.Id,
+        parentModuleId: null,
+        "Module Racine");
+
+    var module = await service.LoadModuleAsync(modulePath);
+
+    var childPath = await service.CreateModuleAsync(
+        modulePath,
+        application.Id,
+        module.Id,
+        "Sous-module");
+
+    var child = await service.LoadModuleAsync(childPath);
+
+    Assert(
+        child.ParentModuleId == module.Id,
+        "Nested modules must persist their parent module id.");
+
+    var renamedChild = await service.RenameModuleAsync(
+        childPath,
+        "Sous-module renommé");
+
+    Assert(
+        Directory.Exists(renamedChild) &&
+        Path.GetFileName(renamedChild).Contains(
+            "Sous-module renommé",
+            StringComparison.Ordinal),
+        "Renaming a module must rename its directory.");
+
+    await AssertThrowsAsync<DomainValidationException>(
+        () => service.DeleteModuleAsync(modulePath),
+        "A module containing another module must not be deleted.");
+
+    var movedChild = await service.MoveModuleAsync(
+        renamedChild,
+        applicationPath,
+        newParentModuleId: null);
+
+    var movedManifest = await service.LoadModuleAsync(movedChild);
+
+    Assert(
+        movedManifest.ParentModuleId is null &&
+        Path.GetDirectoryName(movedChild) ==
+            Path.Combine(
+                applicationPath,
+                WorkspaceLayout.ModulesDirectoryName),
+        "Moving a module to the application root must update path and metadata.");
+
+    await service.DeleteModuleAsync(modulePath);
+    Assert(
+        !Directory.Exists(modulePath),
+        "An empty module must be deletable.");
+
+    var renamedApplication = await service.RenameApplicationAsync(
+        applicationPath,
+        "Application Gestion Renommée");
+
+    Assert(
+        Directory.Exists(renamedApplication),
+        "Renaming an application must rename its directory.");
+
+    await AssertThrowsAsync<DomainValidationException>(
+        () => service.DeleteApplicationAsync(renamedApplication),
+        "An application containing a module must not be deleted.");
+
+    await service.DeleteModuleAsync(movedChild);
+    await service.DeleteApplicationAsync(renamedApplication);
+
+    Assert(
+        !Directory.Exists(renamedApplication),
+        "An empty application must be deletable.");
 }
 
 static void VerifyMarkdownParser()
