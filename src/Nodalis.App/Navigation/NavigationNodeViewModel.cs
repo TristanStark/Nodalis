@@ -8,6 +8,7 @@ namespace Nodalis.App.Navigation;
 public sealed class NavigationNodeViewModel : INotifyPropertyChanged
 {
     private bool _isExpanded;
+    private bool _isSelected;
 
     public NavigationNodeViewModel(
         WorkspaceNavigationNode node,
@@ -46,6 +47,21 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
             }
 
             _isExpanded = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (_isSelected == value)
+            {
+                return;
+            }
+
+            _isSelected = value;
             OnPropertyChanged();
         }
     }
