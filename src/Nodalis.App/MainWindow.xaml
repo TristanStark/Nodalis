@@ -220,6 +220,40 @@
                              TextChanged="MarkdownEditorTextBox_TextChanged"
                              SpellCheck.IsEnabled="False" />
 
+                    <Popup x:Name="InternalLinkPopup"
+                           Grid.Column="0"
+                           PlacementTarget="{Binding ElementName=MarkdownEditorTextBox}"
+                           Placement="RelativePoint"
+                           AllowsTransparency="True"
+                           StaysOpen="False">
+                        <Border Width="430"
+                                MaxHeight="280"
+                                Padding="6"
+                                CornerRadius="6"
+                                Background="{StaticResource PanelElevatedBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1">
+                            <ListBox x:Name="InternalLinkSuggestions"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     MouseDoubleClick="InternalLinkSuggestions_MouseDoubleClick">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="6,4">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding QualifiedName}"
+                                                       Margin="0,2,0,0"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+                    </Popup>
+
                     <GridSplitter x:Name="PreviewSplitter"
                                   Grid.Column="1"
                                   Width="5"
@@ -267,28 +301,75 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0"
                     Padding="16">
-                <StackPanel>
-                    <TextBlock Text="CONTEXTE"
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="CONTEXTE"
                                FontSize="11"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource SecondaryTextBrush}" />
                     <TextBlock x:Name="ContextTitleText"
+                               Grid.Row="1"
                                Text="Aucun élément sélectionné"
                                Margin="0,14,0,0"
                                FontWeight="SemiBold"
                                TextWrapping="Wrap" />
                     <TextBlock x:Name="ContextKindText"
+                               Grid.Row="2"
                                Margin="0,8,0,0"
                                Foreground="{StaticResource AccentBrush}" />
                     <TextBlock x:Name="ContextPathText"
+                               Grid.Row="3"
                                Margin="0,8,0,0"
                                TextWrapping="Wrap"
                                Foreground="{StaticResource SecondaryTextBrush}" />
-                    <TextBlock Margin="0,20,0,0"
-                               Text="Les backlinks et métadonnées enrichies seront ajoutés ici dans les prochaines étapes."
+
+                    <TextBlock x:Name="ContextBrokenLinksText"
+                               Grid.Row="4"
+                               Margin="0,16,0,0"
+                               Text="Liens internes : —"
                                TextWrapping="Wrap"
                                Foreground="{StaticResource SecondaryTextBrush}" />
-                </StackPanel>
+
+                    <TextBlock Grid.Row="5"
+                               Margin="0,18,0,8"
+                               Text="BACKLINKS"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+
+                    <ListBox x:Name="BacklinksList"
+                             Grid.Row="6"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             MouseDoubleClick="BacklinksList_MouseDoubleClick">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="4,5">
+                                    <TextBlock FontWeight="SemiBold">
+                                        <Run Text="{Binding Source.DisplayName}" />
+                                        <Run Text=" · ligne " />
+                                        <Run Text="{Binding LineNumber}" />
+                                    </TextBlock>
+                                    <TextBlock Margin="0,2,0,0"
+                                               Text="{Binding Excerpt}"
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
             </Border>
         </Grid>
 
@@ -310,7 +391,7 @@
 
                 <TextBlock Grid.Column="1"
                            VerticalAlignment="Center"
-                           Text="Ctrl+S enregistrer · Ctrl+B gras · Ctrl+I italique"
+                           Text="Ctrl+K lien · Ctrl+S enregistrer · Ctrl+B gras · Ctrl+I italique"
                            FontSize="11"
                            Foreground="{StaticResource SecondaryTextBrush}" />
             </Grid>
