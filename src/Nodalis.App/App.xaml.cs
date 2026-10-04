@@ -5,6 +5,7 @@ using Nodalis.Core.Settings;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Settings;
+using Nodalis.Infrastructure.Templates;
 
 namespace Nodalis.App;
 
@@ -32,6 +33,10 @@ public partial class App : Application
             }
 
             preferences = resolved.Value.Preferences;
+
+            var templateStore = new FileSystemTemplateStore(
+                resolved.Value.WorkspacePath);
+            await templateStore.InitializeDefaultsAsync();
 
             var navigationBuilder = new WorkspaceNavigationBuilder();
             var root = await navigationBuilder.BuildAsync(
