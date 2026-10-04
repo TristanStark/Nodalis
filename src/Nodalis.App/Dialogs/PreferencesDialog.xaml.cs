@@ -5,11 +5,15 @@ namespace Nodalis.App.Dialogs;
 
 public partial class PreferencesDialog : Window
 {
+    private readonly EditorPreferences _initial;
+
     public PreferencesDialog(
         EditorPreferences editor,
         bool contextPanelOpen)
     {
         ArgumentNullException.ThrowIfNull(editor);
+
+        _initial = editor;
 
         InitializeComponent();
 
@@ -51,7 +55,7 @@ public partial class PreferencesDialog : Window
             return;
         }
 
-        Editor = new EditorPreferences
+        Editor = _initial with
         {
             FontSize = fontSize,
             AutosaveDelayMilliseconds = autosaveDelay,
