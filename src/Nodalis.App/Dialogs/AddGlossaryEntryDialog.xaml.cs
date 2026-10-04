@@ -48,8 +48,8 @@ private void Add_Click(
         object sender,
         RoutedEventArgs e)
     {
-        var term = TermTextBox.Text.Trim();
-        var definition = DefinitionTextBox.Text.Trim();
+        string term = TermTextBox.Text.Trim();
+        string definition = DefinitionTextBox.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(term) ||
             string.IsNullOrWhiteSpace(definition))
