@@ -110,20 +110,12 @@ public static partial class MarkdownInlineParser
     }
 
     [GeneratedRegex(
-        @"(?<internal>[[(?<internalTarget>[^]|
-]+)(?:|(?<internalAlias>[^]
-]+))?]])|" +
-        @"(?<image>![(?<imageAlt>[^]
-]*)]((?<imageTarget>[^)
-]+)))|" +
-        @"(?<link>[(?<linkText>[^]
-]+)]((?<linkTarget>[^)
-]+)))|" +
-        @"(?<bold>**(?<boldText>.+?)**)|" +
-        @"(?<code>`(?<codeText>[^`
-]+)`)|" +
-        @"(?<italic>*(?<italicText>[^*
-]+)*)",
+        @"(?<internal>\[\[(?<internalTarget>[^\]|\r\n]+)(?:\|(?<internalAlias>[^\]\r\n]+))?\]\])|" +
+        @"(?<image>!\[(?<imageAlt>[^\]\r\n]*)\]\((?<imageTarget>[^)\r\n]+)\))|" +
+        @"(?<link>\[(?<linkText>[^\]\r\n]+)\]\((?<linkTarget>[^)\r\n]+)\))|" +
+        @"(?<bold>\*\*(?<boldText>.+?)\*\*)|" +
+        @"(?<code>\x60(?<codeText>[^\x60\r\n]+)\x60)|" +
+        @"(?<italic>\*(?<italicText>[^*\r\n]+)\*)",
         RegexOptions.CultureInvariant)]
     private static partial Regex InlinePattern();
 }
