@@ -339,10 +339,13 @@ public sealed partial class WorkspaceTaskService
     private static (string Text, string? Owner, DateOnly? DueDate)
         ParseMetadata(string body)
     {
-        var matches = MetadataPattern()
-            .Matches(body);
+        var segments = body
+            .Split(
+                '|',
+                StringSplitOptions.TrimEntries)
+            .ToArray();
 
-        if (matches.Count == 0)
+        if (segments.Length <= 1)
         {
             return (
                 body.Trim(),
@@ -350,18 +353,34 @@ public sealed partial class WorkspaceTaskService
                 null);
         }
 
-        var text = body[..matches[0].Index]
-            .Trim();
-
+        var text = segments[0].Trim();
         string? owner = null;
         DateOnly? dueDate = null;
 
-        foreach (Match match in matches)
+        for (var index = 1;
+             index < segments.Length;
+             index++)
         {
-            var key = NormalizeMetadataKey(
-                match.Groups["key"].Value);
+            var segment = segments[index];
 
-            var value = match.Groups["value"].Value.Trim();
+            var separatorIndex = segment.IndexOf(
+                ':');
+
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = NormalizeMetadataKey(
+                segment[..separatorIndex]);
+
+            var value = segment[(separatorIndex + 1)..]
+                .Trim();
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
 
             if (key is "responsable" or "owner")
             {
@@ -462,8 +481,4 @@ public sealed partial class WorkspaceTaskService
         RegexOptions.CultureInvariant)]
     private static partial Regex CheckboxPattern();
 
-    [GeneratedRegex(
-        @"\s+\|\s+(?<key>Responsable|Owner|Échéance|Echeance|Due)\s*:\s*(?<value>[^|]+)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex MetadataPattern();
 }
