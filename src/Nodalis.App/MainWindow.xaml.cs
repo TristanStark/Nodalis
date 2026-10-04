@@ -1469,9 +1469,9 @@ private void WrapSelection(
             return;
         }
 
-        var start = MarkdownEditorTextBox.SelectionStart;
-        var length = MarkdownEditorTextBox.SelectionLength;
-        var selectedText = MarkdownEditorTextBox.SelectedText;
+        int start = MarkdownEditorTextBox.SelectionStart;
+        int length = MarkdownEditorTextBox.SelectionLength;
+        string selectedText = MarkdownEditorTextBox.SelectedText;
 
         MarkdownEditorTextBox.SelectedText =
             prefix + selectedText + suffix;
@@ -2192,9 +2192,9 @@ private async Task OpenInternalLinkPickerAsync()
             await RefreshLinkIndexAsync();
         }
 
-        var alias = MarkdownEditorTextBox.SelectedText;
-        var start = MarkdownEditorTextBox.SelectionStart;
-        var length = MarkdownEditorTextBox.SelectionLength;
+        string alias = MarkdownEditorTextBox.SelectedText;
+        int start = MarkdownEditorTextBox.SelectionStart;
+        int length = MarkdownEditorTextBox.SelectionLength;
 
         await OpenInternalLinkSuggestionsAsync(
             alias,
@@ -2286,7 +2286,7 @@ private async Task OpenInternalLinkSuggestionsAsync(
         InternalLinkSuggestions.ItemsSource = suggestions;
         InternalLinkSuggestions.SelectedIndex = 0;
 
-        var caretRect = MarkdownEditorTextBox.GetRectFromCharacterIndex(
+        Rect caretRect = MarkdownEditorTextBox.GetRectFromCharacterIndex(
             MarkdownEditorTextBox.CaretIndex,
             trailingEdge: true);
 
@@ -2313,8 +2313,8 @@ private bool TryGetOpenInternalLinkToken(
         length = 0;
         query = string.Empty;
 
-        var caret = MarkdownEditorTextBox.CaretIndex;
-        var text = MarkdownEditorTextBox.Text;
+        int caret = MarkdownEditorTextBox.CaretIndex;
+        string text = MarkdownEditorTextBox.Text;
 
         if (caret < 2 ||
             caret > text.Length)
@@ -2322,7 +2322,7 @@ private bool TryGetOpenInternalLinkToken(
             return false;
         }
 
-        var beforeCaret = text[..caret];
+        string beforeCaret = text[..caret];
         int open = beforeCaret.LastIndexOf(
             "[[",
             StringComparison.Ordinal);
@@ -2341,7 +2341,7 @@ private bool TryGetOpenInternalLinkToken(
             return false;
         }
 
-        var rawQuery = beforeCaret[(open + 2)..];
+        string rawQuery = beforeCaret[(open + 2)..];
 
         if (rawQuery.Contains('\n') ||
             rawQuery.Contains('\r') ||
@@ -2368,8 +2368,8 @@ private void MoveInternalLinkSelection(int delta)
             return;
         }
 
-        var current = InternalLinkSuggestions.SelectedIndex;
-        var next = Math.Clamp(
+        int current = InternalLinkSuggestions.SelectedIndex;
+        int next = Math.Clamp(
             current + delta,
             0,
             InternalLinkSuggestions.Items.Count - 1);
@@ -2663,7 +2663,7 @@ private void MoveCaretToLine(int lineNumber)
             return;
         }
 
-        var text = MarkdownEditorTextBox.Text;
+        string text = MarkdownEditorTextBox.Text;
         int currentLine = 1;
         int index = 0;
 
@@ -3169,7 +3169,7 @@ private GlossaryTextMatch? FindGlossaryMatchAtPoint(
             return null;
         }
 
-        var index = MarkdownEditorTextBox.GetCharacterIndexFromPoint(
+        int index = MarkdownEditorTextBox.GetCharacterIndexFromPoint(
             point,
             snapToText: false);
 
@@ -3668,7 +3668,7 @@ private async Task ToggleTaskFromViewAsync(
                 sourcePath,
                 StringComparison.OrdinalIgnoreCase);
 
-        var caret = MarkdownEditorTextBox.CaretIndex;
+        int caret = MarkdownEditorTextBox.CaretIndex;
 
         if (isCurrentDocument &&
             _autosave is not null)
@@ -3958,7 +3958,7 @@ private async Task AttachFileAsync()
                     picker.FileName,
                     _selectedNode.FullPath);
 
-            var label = string.IsNullOrWhiteSpace(
+            string label = string.IsNullOrWhiteSpace(
                     MarkdownEditorTextBox.SelectedText)
                 ? attachment.DisplayName
                 : MarkdownEditorTextBox.SelectedText.Trim();
@@ -3970,7 +3970,7 @@ private async Task AttachFileAsync()
                 ? $"![{label}]({attachment.MarkdownTarget})"
                 : $"[{label}]({attachment.MarkdownTarget})";
 
-            var start = MarkdownEditorTextBox.SelectionStart;
+            int start = MarkdownEditorTextBox.SelectionStart;
             MarkdownEditorTextBox.SelectedText = syntax;
             MarkdownEditorTextBox.CaretIndex =
                 start + syntax.Length;
