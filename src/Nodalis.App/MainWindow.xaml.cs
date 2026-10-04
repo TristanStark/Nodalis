@@ -2313,6 +2313,82 @@ public partial class MainWindow : Window
         await dialog.SelectedCommand.ExecuteAsync();
     }
 
+    private async Task ShowPreferencesAsync()
+    {
+        var dialog = new PreferencesDialog(
+            _preferences.Editor,
+            _contextPanelOpen)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true ||
+            dialog.Editor is null)
+        {
+            return;
+        }
+
+        var editor = dialog.Editor;
+        var autosaveDelayChanged =
+            editor.AutosaveDelayMilliseconds !=
+            _preferences.Editor.AutosaveDelayMilliseconds;
+
+        if (_contextPanelOpen &&
+            !dialog.ContextPanelOpen)
+        {
+            _lastContextWidth = Math.Max(
+                180,
+                ContextColumn.ActualWidth);
+        }
+
+        _contextPanelOpen = dialog.ContextPanelOpen;
+        _previewVisible = editor.LivePreview;
+
+        MarkdownEditorTextBox.FontSize =
+            editor.FontSize;
+        MarkdownEditorTextBox.TextWrapping =
+            editor.WordWrap
+                ? TextWrapping.Wrap
+                : TextWrapping.NoWrap;
+
+        ApplyContextPanelState();
+        ApplyPreviewState();
+
+        if (_previewVisible)
+        {
+            RenderPreview();
+        }
+
+        if (autosaveDelayChanged &&
+            _documentSession is not null &&
+            _autosave is not null)
+        {
+            await _autosave.FlushAsync();
+            await _autosave.DisposeAsync();
+
+            _autosave = new DocumentAutosaveController(
+                _documentSession,
+                TimeSpan.FromMilliseconds(
+                    editor.AutosaveDelayMilliseconds));
+
+            _autosave.Saved += Autosave_Saved;
+            _autosave.ConflictDetected += Autosave_ConflictDetected;
+            _autosave.SaveFailed += Autosave_SaveFailed;
+        }
+
+        _preferences = _preferences with
+        {
+            IsContextPanelOpen = _contextPanelOpen,
+            Editor = editor
+        };
+
+        await _preferencesStore.SaveAsync(
+            _preferences);
+
+        StatusText.Text =
+            "Préférences enregistrées localement";
+    }
+
     private IReadOnlyList<PaletteCommand> BuildPaletteCommands()
     {
         var commands = new List<PaletteCommand>
@@ -2428,6 +2504,14 @@ public partial class MainWindow : Window
                 Subtitle = "Projet → Application → Global",
                 Keywords = ["rapide", "notes", "agrégé"],
                 ExecuteAsync = ShowQuickNotesAsync
+            },
+            new()
+            {
+                Id = "preferences",
+                Title = "Préférences",
+                Subtitle = "Configurer l'éditeur et l'interface locale",
+                Keywords = ["préférences", "settings", "éditeur", "autosave", "police", "aperçu"],
+                ExecuteAsync = ShowPreferencesAsync
             }
         };
 
