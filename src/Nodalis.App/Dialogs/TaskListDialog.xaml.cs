@@ -117,7 +117,7 @@ private async Task RefreshAsync()
     {
         try
         {
-            var tasks = await _tasks.GetTasksAsync(
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> tasks = await _tasks.GetTasksAsync(
                 _contextPath,
                 IncludeCompletedCheckBox.IsChecked == true);
 
