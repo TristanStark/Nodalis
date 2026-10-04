@@ -111,7 +111,7 @@
                   Background="{StaticResource WindowBackgroundBrush}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="58" />
-                    <RowDefinition Height="42" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
