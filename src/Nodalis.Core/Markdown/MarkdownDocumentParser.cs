@@ -8,15 +8,17 @@ public static partial class MarkdownDocumentParser
     {
         ArgumentNullException.ThrowIfNull(markdown);
 
-        var normalized = markdown
-            .Replace("
-", "
-", StringComparison.Ordinal)
-            .Replace('', '
-');
+        var lineFeed = ((char)10).ToString();
+        var carriageReturnLineFeed = string.Concat((char)13, (char)10);
 
-        var lines = normalized.Split('
-');
+        var normalized = markdown
+            .Replace(
+                carriageReturnLineFeed,
+                lineFeed,
+                StringComparison.Ordinal)
+            .Replace((char)13, (char)10);
+
+        var lines = normalized.Split((char)10);
         var blocks = new List<MarkdownBlock>();
 
         for (var index = 0; index < lines.Length;)
@@ -51,8 +53,7 @@ public static partial class MarkdownDocumentParser
                 blocks.Add(new MarkdownBlock
                 {
                     Kind = MarkdownBlockKind.CodeBlock,
-                    Text = string.Join("
-", code),
+                    Text = string.Join(lineFeed, code),
                     Language = string.IsNullOrWhiteSpace(language)
                         ? null
                         : language
@@ -196,37 +197,37 @@ public static partial class MarkdownDocumentParser
     }
 
     [GeneratedRegex(
-        @"^(?<marks>#{1,6})s+(?<text>.+?)s*$",
+        @"^(?<marks>#{1,6})\s+(?<text>.+?)\s*$",
         RegexOptions.CultureInvariant)]
     private static partial Regex HeadingPattern();
 
     [GeneratedRegex(
-        @"^s*[-*+]s+[(?<state>[ xX])]s+(?<text>.*)$",
+        @"^\s*[-*+]\s+\[(?<state>[ xX])\]\s+(?<text>.*)$",
         RegexOptions.CultureInvariant)]
     private static partial Regex CheckboxPattern();
 
     [GeneratedRegex(
-        @"^s*[-*+]s+(?<text>.+)$",
+        @"^\s*[-*+]\s+(?<text>.+)$",
         RegexOptions.CultureInvariant)]
     private static partial Regex UnorderedListPattern();
 
     [GeneratedRegex(
-        @"^s*d+[.)]s+(?<text>.+)$",
+        @"^\s*\d+[.)]\s+(?<text>.+)$",
         RegexOptions.CultureInvariant)]
     private static partial Regex OrderedListPattern();
 
     [GeneratedRegex(
-        @"^s*>s?(?<text>.*)$",
+        @"^\s*>\s?(?<text>.*)$",
         RegexOptions.CultureInvariant)]
     private static partial Regex QuotePattern();
 
     [GeneratedRegex(
-        @"^s*`{3}(?<language>[A-Za-z0-9_.+-]*)s*$",
+        @"^\s*\x60{3}(?<language>[A-Za-z0-9_.+-]*)\s*$",
         RegexOptions.CultureInvariant)]
     private static partial Regex CodeFencePattern();
 
     [GeneratedRegex(
-        @"^s*|?s*:?-{3,}:?s*(?:|s*:?-{3,}:?s*)+|?s*$",
+        @"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$",
         RegexOptions.CultureInvariant)]
     private static partial Regex TableSeparatorPattern();
 }
