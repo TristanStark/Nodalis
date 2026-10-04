@@ -1850,9 +1850,12 @@ static async Task VerifyDocxImportAsync(string root)
                 StringComparison.OrdinalIgnoreCase),
             "DOCX import must parse a dedicated workspace copy.");
 
+        var sourceBytesAfterImport = await File.ReadAllBytesAsync(
+            sourcePath);
+
         Assert(
             originalBytes.SequenceEqual(
-                await File.ReadAllBytesAsync(sourcePath)) &&
+                sourceBytesAfterImport) &&
             File.GetLastWriteTimeUtc(sourcePath) ==
             originalWriteTime,
             "DOCX import must never modify the original source file.");
