@@ -210,7 +210,8 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                     Key = "meeting",
                     DisplayName = "Compte-rendu de réunion",
                     FileName = "meeting.md",
-                    Category = "Projet"
+                    Category = "Projet",
+                    DefaultFileName = "{{date}} - {{title}}.md"
                 },
                 new MarkdownTemplateDefinition
                 {
@@ -328,7 +329,8 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                 "## Décisions\n\n" +
                 "## Actions\n\n" +
                 "## Transcription IA\n\n" +
-                "## Résumé IA\n\n",
+                "## Résumé IA\n\n" +
+                "## Contenu Outlook\n\n",
             ["decision.md"] =
                 "# Décision — {{title}}\n\n" +
                 "**Date :** {{date}}\n\n" +
