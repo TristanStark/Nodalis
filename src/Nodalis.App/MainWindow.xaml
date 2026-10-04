@@ -67,6 +67,12 @@
                             Click="ToggleContextPanel_Click"
                             Content="Contexte" />
                     <Button Margin="0,0,8,0"
+                            Click="ShowQuickNotes_Click"
+                            Content="Notes rapides" />
+                    <Button Margin="0,0,8,0"
+                            Click="CaptureQuickNote_Click"
+                            Content="Note rapide  Ctrl+Alt+N" />
+                    <Button Margin="0,0,8,0"
                             Click="NewProject_Click"
                             Content="Nouveau projet  Ctrl+Shift+N" />
                     <Button Click="NewNote_Click"
