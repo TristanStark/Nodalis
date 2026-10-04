@@ -20,6 +20,8 @@
                BasedOn="{StaticResource {x:Type TreeViewItem}}">
             <Setter Property="IsExpanded"
                     Value="{Binding IsExpanded, Mode=TwoWay}" />
+            <Setter Property="IsSelected"
+                    Value="{Binding IsSelected, Mode=TwoWay}" />
         </Style>
     </Window.Resources>
 
@@ -109,6 +111,7 @@
                   Background="{StaticResource WindowBackgroundBrush}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="58" />
+                    <RowDefinition Height="42" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
@@ -129,17 +132,113 @@
                     </StackPanel>
                 </Border>
 
-                <TextBox x:Name="DocumentContentText"
-                         Grid.Row="1"
-                         Margin="20"
-                         Padding="16"
-                         IsReadOnly="True"
-                         AcceptsReturn="True"
-                         AcceptsTab="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Auto"
-                         Text="Sélectionnez un élément dans l'arborescence." />
+                <Border x:Name="EditorToolbar"
+                        Grid.Row="1"
+                        Visibility="Collapsed"
+                        Background="{StaticResource PanelBackgroundBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1">
+                    <Grid Margin="12,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <Button Width="34"
+                                    Height="28"
+                                    Margin="0,0,5,0"
+                                    Padding="0"
+                                    FontWeight="Bold"
+                                    Click="Bold_Click"
+                                    ToolTip="Gras · Ctrl+B"
+                                    Content="B" />
+                            <Button Width="34"
+                                    Height="28"
+                                    Margin="0,0,5,0"
+                                    Padding="0"
+                                    FontStyle="Italic"
+                                    Click="Italic_Click"
+                                    ToolTip="Italique · Ctrl+I"
+                                    Content="I" />
+                            <Button Width="42"
+                                    Height="28"
+                                    Padding="0"
+                                    FontFamily="Consolas"
+                                    Click="InlineCode_Click"
+                                    ToolTip="Code inline"
+                                    Content="&lt;/&gt;" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="SaveStateText"
+                                   Grid.Column="1"
+                                   Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   Text="Enregistré" />
+
+                        <Button Grid.Column="2"
+                                VerticalAlignment="Center"
+                                Click="TogglePreview_Click"
+                                Content="Aperçu" />
+                    </Grid>
+                </Border>
+
+                <Grid x:Name="DocumentEditorHost"
+                      Grid.Row="2"
+                      Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="PreviewSplitterColumn" Width="5" />
+                        <ColumnDefinition x:Name="PreviewColumn" Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox x:Name="MarkdownEditorTextBox"
+                             Grid.Column="0"
+                             Padding="18"
+                             BorderThickness="0"
+                             FontFamily="Consolas"
+                             FontSize="14"
+                             AcceptsReturn="True"
+                             AcceptsTab="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             TextChanged="MarkdownEditorTextBox_TextChanged"
+                             SpellCheck.IsEnabled="False" />
+
+                    <GridSplitter x:Name="PreviewSplitter"
+                                  Grid.Column="1"
+                                  Width="5"
+                                  HorizontalAlignment="Stretch"
+                                  Background="{StaticResource BorderBrush}"
+                                  ResizeDirection="Columns"
+                                  ResizeBehavior="PreviousAndNext"
+                                  ShowsPreview="True" />
+
+                    <FlowDocumentScrollViewer x:Name="MarkdownPreview"
+                                              Grid.Column="2"
+                                              Background="{StaticResource WindowBackgroundBrush}"
+                                              BorderThickness="0"
+                                              IsToolBarVisible="False"
+                                              VerticalScrollBarVisibility="Auto" />
+                </Grid>
+
+                <Border x:Name="NodeSummaryHost"
+                        Grid.Row="2"
+                        Margin="20"
+                        Padding="18"
+                        CornerRadius="6"
+                        Background="{StaticResource PanelBackgroundBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1">
+                    <TextBlock x:Name="NodeSummaryText"
+                               Text="Sélectionnez un élément dans l'arborescence."
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                </Border>
             </Grid>
 
             <GridSplitter x:Name="ContextSplitter"
@@ -200,7 +299,7 @@
 
                 <TextBlock Grid.Column="1"
                            VerticalAlignment="Center"
-                           Text="↑↓ naviguer · ←→ plier/déplier"
+                           Text="Ctrl+S enregistrer · Ctrl+B gras · Ctrl+I italique"
                            FontSize="11"
                            Foreground="{StaticResource SecondaryTextBrush}" />
             </Grid>
