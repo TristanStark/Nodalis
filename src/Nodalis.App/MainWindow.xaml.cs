@@ -11,11 +11,14 @@ using Nodalis.App.Dialogs;
 using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Abstractions;
+using Nodalis.Core.Links;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Infrastructure.Applications;
+using Nodalis.Infrastructure.Documents;
+using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Notes;
 using Nodalis.Infrastructure.Persistence;
@@ -29,6 +32,7 @@ public partial class MainWindow : Window
     private readonly IUserPreferencesStore _preferencesStore;
     private readonly ITemplateStore _templateStore;
     private readonly WorkspaceNavigationBuilder _navigationBuilder = new();
+    private readonly WorkspaceLinkIndexService _linkIndexService;
     private readonly DispatcherTimer _previewTimer;
 
     private NavigationNodeViewModel _root;
@@ -44,6 +48,11 @@ public partial class MainWindow : Window
     private bool _restoringSelection;
     private bool _conflictWarningShown;
     private double _lastContextWidth;
+    private LinkIndexCatalog _linkIndex = new();
+    private int _linkSuggestionStart;
+    private int _linkSuggestionLength;
+    private string? _linkSuggestionAlias;
+    private bool _suppressLinkAutocomplete;
 
     public MainWindow(
         WorkspaceNavigationNode root,
@@ -61,6 +70,8 @@ public partial class MainWindow : Window
         _preferences = preferences;
         _preferencesStore = preferencesStore;
         _templateStore = templateStore;
+        _linkIndexService = new WorkspaceLinkIndexService(
+            root.FullPath);
         _contextPanelOpen = preferences.IsContextPanelOpen;
         _previewVisible = preferences.Editor.LivePreview;
         _lastContextWidth = preferences.ContextPanelWidth;
@@ -95,6 +106,22 @@ public partial class MainWindow : Window
 
         ApplyContextPanelState();
         ApplyPreviewState();
+
+        Loaded += async (_, _) =>
+        {
+            try
+            {
+                await RefreshLinkIndexAndContextAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                StatusText.Text =
+                    $"Index de liens indisponible : {exception.Message}";
+            }
+        };
     }
 
     protected override async void OnClosing(CancelEventArgs e)
