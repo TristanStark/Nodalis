@@ -58,7 +58,7 @@ private void Create_Click(
         object sender,
         RoutedEventArgs e)
     {
-        var title = TitleTextBox.Text.Trim();
+        string title = TitleTextBox.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(title))
         {
