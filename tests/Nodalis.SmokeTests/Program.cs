@@ -2191,6 +2191,74 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                 block.Kind == DocxBlockKind.Table),
             "Configurable heading rules must map Word content while preserving block order.");
 
+        var previewService =
+            new WorkspaceDocxImportService(root);
+
+        var preview = await previewService.PreparePreviewAsync(
+            sourcePath);
+
+        Assert(
+            File.Exists(
+                preview.StagedImport.StagedCopyPath) &&
+            preview.SuggestedApplicationId ==
+                application.Id &&
+            preview.SuggestedProjectId ==
+                project.Project.Id &&
+            preview.Sections.Any(section =>
+                section.SuggestedTargetSection ==
+                "Technique"),
+            "DOCX preview must stage a disposable copy and expose detected targets and sections before validation.");
+
+        var technicalPreview = preview.Sections.Single(section =>
+            section.SuggestedTargetSection ==
+            "Technique");
+
+        var committed = await previewService.CommitAsync(
+            preview,
+            new DocxImportCommitRequest
+            {
+                ApplicationId = application.Id,
+                ProjectId = project.Project.Id,
+                Sections =
+                [
+                    new DocxImportSectionSelection
+                    {
+                        SectionIndex =
+                            technicalPreview.Index,
+                        Include = true,
+                        TargetSection = "Tests"
+                    }
+                ]
+            });
+
+        Assert(
+            !File.Exists(
+                preview.StagedImport.StagedCopyPath) &&
+            File.Exists(
+                committed.SourceCopyPath) &&
+            committed.GeneratedFiles.Count == 1 &&
+            committed.GeneratedFiles[0].Contains(
+                Path.Combine(
+                    project.ProjectDirectory,
+                    "Tests"),
+                StringComparison.OrdinalIgnoreCase),
+            "Validated DOCX imports must consume the staged copy and honor an explicit section remapping.");
+
+        var importedMarkdown = await File.ReadAllTextAsync(
+            committed.GeneratedFiles[0]);
+
+        Assert(
+            importedMarkdown.Contains(
+                "documentation externe",
+                StringComparison.OrdinalIgnoreCase) &&
+            importedMarkdown.Contains(
+                "https://example.test/documentation",
+                StringComparison.OrdinalIgnoreCase) &&
+            importedMarkdown.Contains(
+                "| Clé | Valeur |",
+                StringComparison.Ordinal),
+            "Validated DOCX imports must persist converted Markdown content without losing links or tables.");
+
         var proposedDocument = new ParsedDocxDocument
         {
             Headers =
