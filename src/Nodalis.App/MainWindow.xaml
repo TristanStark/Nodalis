@@ -98,7 +98,9 @@
                                Foreground="{StaticResource SecondaryTextBrush}" />
 
                     <TreeView x:Name="NavigationTree"
-                              SelectedItemChanged="NavigationTree_SelectedItemChanged" />
+                              SelectedItemChanged="NavigationTree_SelectedItemChanged"
+                              PreviewMouseRightButtonDown="NavigationTree_PreviewMouseRightButtonDown"
+                              ContextMenuOpening="NavigationTree_ContextMenuOpening" />
                 </DockPanel>
             </Border>
 
