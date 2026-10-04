@@ -2,6 +2,7 @@ using Nodalis.Core.Domain;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Settings;
 
 var root = Path.Combine(
@@ -13,6 +14,7 @@ try
 {
     await VerifyWorkspacePersistenceAsync(root);
     await VerifyUserPreferencesAsync(root);
+    await VerifyDocumentReliabilityAsync(root);
     VerifyDomainCatalog();
 
     Console.WriteLine("Nodalis smoke tests passed.");
@@ -103,8 +105,72 @@ static async Task VerifyUserPreferencesAsync(string root)
     await File.WriteAllTextAsync(preferencesPath, "{ definitely not valid json");
     var recovered = await store.LoadAsync();
 
-    Assert(recovered == UserPreferences.Default,
+    Assert(recovered.WorkspaceRootPath is null &&
+           recovered.Favorites.Count == 0 &&
+           recovered.RecentItems.Count == 0 &&
+           recovered.NavigationPanelWidth == 280 &&
+           recovered.ContextPanelWidth == 300,
         "Corrupted preferences must safely return defaults.");
+}
+
+static async Task VerifyDocumentReliabilityAsync(string root)
+{
+    var documentPath = Path.Combine(root, "Documents", "note.md");
+    await AtomicFileWriter.WriteAllTextAsync(documentPath, "# Version 1\n");
+
+    var session = await TextDocumentSession.OpenAsync(documentPath);
+    Assert(session.Content == "# Version 1\n",
+        "A text session must load the document content.");
+
+    await session.SaveAsync("# Version 2\n");
+    Assert(await File.ReadAllTextAsync(documentPath) == "# Version 2\n",
+        "A session save must update the file.");
+
+    await File.WriteAllTextAsync(documentPath, "# External change\n");
+
+    Assert(await session.HasExternalChangesAsync(),
+        "External modifications must be detected.");
+
+    await AssertThrowsAsync<ExternalModificationException>(
+        () => session.SaveAsync("# Must not overwrite\n"),
+        "Saving over an external modification must be rejected.");
+
+    Assert(await File.ReadAllTextAsync(documentPath) == "# External change\n",
+        "Conflict detection must preserve the external file.");
+
+    await session.ReloadAsync();
+
+    await using var autosave = new DocumentAutosaveController(
+        session,
+        TimeSpan.FromSeconds(30));
+
+    autosave.Schedule("# Autosaved\n");
+    await autosave.FlushAsync();
+
+    Assert(await File.ReadAllTextAsync(documentPath) == "# Autosaved\n",
+        "Flushing autosave must persist pending content.");
+
+    var conflictRaised = false;
+    autosave.ConflictDetected += (_, _) => conflictRaised = true;
+
+    await File.WriteAllTextAsync(documentPath, "# External again\n");
+    autosave.Schedule("# Pending local edit\n");
+    await autosave.FlushAsync();
+
+    Assert(conflictRaised,
+        "Autosave must surface an external modification conflict.");
+    Assert(await File.ReadAllTextAsync(documentPath) == "# External again\n",
+        "Autosave conflicts must never overwrite external changes.");
+
+    var temporaryFiles = Directory
+        .EnumerateFiles(
+            Path.GetDirectoryName(documentPath)!,
+            "*.tmp",
+            SearchOption.TopDirectoryOnly)
+        .ToArray();
+
+    Assert(temporaryFiles.Length == 0,
+        "Atomic writes must not leave temporary files behind.");
 }
 
 static void VerifyDomainCatalog()
@@ -171,6 +237,23 @@ static void AssertThrows<TException>(Action action, string message)
     try
     {
         action();
+    }
+    catch (TException)
+    {
+        return;
+    }
+
+    throw new InvalidOperationException(message);
+}
+
+static async Task AssertThrowsAsync<TException>(
+    Func<Task> action,
+    string message)
+    where TException : Exception
+{
+    try
+    {
+        await action();
     }
     catch (TException)
     {
