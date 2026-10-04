@@ -67,6 +67,7 @@ public sealed class ApplicationStructureService
             await InitializeContainerAsync(
                 stagingDirectory,
                 includeDocumentation: true,
+                includeScopeFiles: true,
                 cancellationToken);
 
             Directory.Move(stagingDirectory, finalDirectory);
@@ -127,6 +128,7 @@ public sealed class ApplicationStructureService
             await InitializeContainerAsync(
                 stagingDirectory,
                 includeDocumentation: false,
+                includeScopeFiles: false,
                 cancellationToken);
 
             Directory.Move(stagingDirectory, finalDirectory);
@@ -354,6 +356,7 @@ public sealed class ApplicationStructureService
     private static async Task InitializeContainerAsync(
         string directory,
         bool includeDocumentation,
+        bool includeScopeFiles,
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.Combine(
@@ -373,6 +376,11 @@ public sealed class ApplicationStructureService
                 directory,
                 "Documentation",
                 "Fonctionnelle"));
+        }
+
+        if (!includeScopeFiles)
+        {
+            return;
         }
 
         await AtomicFileWriter.WriteAllTextAsync(
