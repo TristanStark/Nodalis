@@ -26,7 +26,7 @@ public sealed class ProjectCreationTargetDiscovery
 
         foreach (var applicationDirectory in Directory
                      .EnumerateDirectories(applicationsRoot)
-                     .OrderBy(Path.GetFileName, StringComparer.CurrentCultureIgnoreCase))
+                     .OrderBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -95,7 +95,7 @@ public sealed class ProjectCreationTargetDiscovery
     {
         foreach (var moduleDirectory in Directory
                      .EnumerateDirectories(modulesRoot)
-                     .OrderBy(Path.GetFileName, StringComparer.CurrentCultureIgnoreCase))
+                     .OrderBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -160,7 +160,7 @@ public sealed class ProjectCreationTargetDiscovery
     {
         foreach (var projectDirectory in Directory
                      .EnumerateDirectories(projectsRoot)
-                     .OrderBy(Path.GetFileName, StringComparer.CurrentCultureIgnoreCase))
+                     .OrderBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
