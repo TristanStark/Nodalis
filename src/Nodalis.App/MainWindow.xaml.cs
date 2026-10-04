@@ -16,6 +16,7 @@ using Nodalis.App.Glossary;
 using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Abstractions;
+using Nodalis.Core.Decisions;
 using Nodalis.Core.Glossary;
 using Nodalis.Core.Links;
 using Nodalis.Core.Meetings;
@@ -27,6 +28,7 @@ using Nodalis.Core.Tasks;
 using Nodalis.Core.Templates;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
+using Nodalis.Infrastructure.Decisions;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Links;
@@ -51,6 +53,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceTaskService _taskService;
     private readonly WorkspaceMilestoneService _milestoneService;
     private readonly WorkspaceMeetingService _meetingService;
+    private readonly WorkspaceDecisionService _decisionService;
     private readonly DispatcherTimer _previewTimer;
 
     private NavigationNodeViewModel _root;
@@ -99,6 +102,8 @@ public partial class MainWindow : Window
         _milestoneService = new WorkspaceMilestoneService(
             root.FullPath);
         _meetingService = new WorkspaceMeetingService(
+            root.FullPath);
+        _decisionService = new WorkspaceDecisionService(
             root.FullPath);
         _contextPanelOpen = preferences.IsContextPanelOpen;
         _previewVisible = preferences.Editor.LivePreview;
@@ -2338,6 +2343,22 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "decision.new",
+                Title = "Nouvelle décision",
+                Subtitle = "Créer un Decision Record, éventuellement depuis le document courant",
+                Keywords = ["décision", "decision", "record", "adr", "réunion"],
+                ExecuteAsync = CreateDecisionAsync
+            },
+            new()
+            {
+                Id = "decisions.list",
+                Title = "Décisions du contexte",
+                Subtitle = "Lister et rechercher les Decision Records du projet ou de l'application",
+                Keywords = ["décisions", "decision", "recherche", "historique"],
+                ExecuteAsync = ShowDecisionsAsync
+            },
+            new()
+            {
                 Id = "application.new",
                 Title = "Nouvelle application",
                 Subtitle = "Créer une application dans le workspace",
@@ -3493,6 +3514,197 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
+    }
+
+    private async Task CreateDecisionAsync()
+    {
+        var contextPath =
+            _selectedNode?.FullPath ??
+            _root.FullPath;
+
+        try
+        {
+            var scope = await _decisionService.ResolveScopeAsync(
+                contextPath);
+
+            if (scope is null)
+            {
+                MessageBox.Show(
+                    this,
+                    "Sélectionnez une application, un projet, un sous-projet ou un document rattaché avant de créer une décision.",
+                    "Decision Record",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            string? sourcePath = null;
+            string? sourceDisplayName = null;
+            IReadOnlyList<string> candidates = [];
+
+            if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
+            {
+                sourcePath = _selectedNode.FullPath;
+                sourceDisplayName = _selectedNode.DisplayName;
+                candidates = await _decisionService.ExtractDecisionCandidatesAsync(
+                    sourcePath);
+            }
+
+            var dialog = new DecisionDialog(
+                scope.Value.ScopeKind,
+                scope.Value.ScopeName,
+                sourceDisplayName,
+                candidates)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true ||
+                dialog.Draft is null)
+            {
+                return;
+            }
+
+            var result = await _decisionService.CreateAsync(
+                contextPath,
+                dialog.Draft,
+                sourcePath);
+
+            if (!await TryCloseCurrentDocumentAsync(
+                    "ouvrir le Decision Record créé"))
+            {
+                await RefreshNavigationAsync();
+
+                StatusText.Text =
+                    $"Décision créée · {Path.GetRelativePath(_root.FullPath, result.FilePath)}";
+                return;
+            }
+
+            await RefreshNavigationAsync(
+                result.FilePath);
+
+            await RefreshLinkIndexAndContextAsync();
+
+            StatusText.Text =
+                $"Décision créée · {result.ScopeKind} {result.ScopeName}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            TemplateRenderException)
+        {
+            MessageBox.Show(
+                this,
+                $"La décision n'a pas pu être créée.\n\n{exception.Message}",
+                "Decision Record",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async Task ShowDecisionsAsync()
+    {
+        var contextPath =
+            _selectedNode?.FullPath ??
+            _root.FullPath;
+
+        try
+        {
+            var scope = await _decisionService.ResolveScopeAsync(
+                contextPath);
+
+            if (scope is null)
+            {
+                MessageBox.Show(
+                    this,
+                    "Sélectionnez une application ou un projet pour consulter ses décisions.",
+                    "Décisions",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new DecisionListDialog(
+                _root.FullPath,
+                contextPath,
+                $"{scope.Value.ScopeKind} · {scope.Value.ScopeName}")
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() == true &&
+                dialog.SelectedDecision is not null)
+            {
+                await NavigateToDecisionAsync(
+                    dialog.SelectedDecision);
+            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Décisions",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    private async Task NavigateToDecisionAsync(
+        DecisionRecord decision)
+    {
+        var fullPath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                decision.SourceRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        var node = FindAndExpand(
+            _root,
+            fullPath);
+
+        if (node is null)
+        {
+            await RefreshNavigationAsync();
+            node = FindAndExpand(
+                _root,
+                fullPath);
+        }
+
+        if (node is null)
+        {
+            StatusText.Text =
+                $"Decision Record introuvable : {decision.SourceRelativePath}";
+            return;
+        }
+
+        if (_selectedNode is not null &&
+            _selectedNode.Kind == WorkspaceNodeKind.Document &&
+            !ReferenceEquals(
+                _selectedNode,
+                node) &&
+            !await TryCloseCurrentDocumentAsync(
+                "ouvrir la décision"))
+        {
+            return;
+        }
+
+        _restoringSelection = true;
+        node.IsSelected = true;
+        _restoringSelection = false;
+
+        _selectedNode = node;
+        await DisplayNodeAsync(
+            node);
+
+        StatusText.Text =
+            $"Décision · {decision.Title}";
     }
 
     private async Task CreateMeetingAsync()
