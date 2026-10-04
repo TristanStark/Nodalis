@@ -19,8 +19,7 @@ internal static partial class Program
         miscellaneousOptions:
             SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers
             | SymbolDisplayMiscellaneousOptions.UseSpecialTypes
-            | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier
-            | SymbolDisplayMiscellaneousOptions.IncludeTupleElementNames);
+            | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
     /// <summary>
     /// Runs the Nodalis code-style checker or fixer.
@@ -450,7 +449,12 @@ internal static partial class Program
         }
 
         ILocalSymbol? local = semanticModel.GetDeclaredSymbol(designation) as ILocalSymbol;
-        return IsNameableType(local?.Type) ? local.Type : null;
+        if (local is null)
+        {
+            return null;
+        }
+
+        return IsNameableType(local.Type) ? local.Type : null;
     }
 
     /// <summary>
