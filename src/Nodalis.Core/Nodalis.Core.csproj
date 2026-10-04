@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Nodalis.Core</RootNamespace>
+    <AssemblyName>Nodalis.Core</AssemblyName>
+  </PropertyGroup>
+</Project>
