@@ -9,10 +9,12 @@ using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Abstractions;
 using Nodalis.Core.Navigation;
+using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.App;
@@ -444,10 +446,25 @@ public partial class MainWindow : Window
         await CreateNoteAsync();
     }
 
+    private async void NewProject_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await CreateProjectAsync();
+    }
+
     private async void MainWindow_PreviewKeyDown(
         object sender,
         KeyEventArgs e)
     {
+        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) &&
+            e.Key == Key.N)
+        {
+            e.Handled = true;
+            await CreateProjectAsync();
+            return;
+        }
+
         if (Keyboard.Modifiers == ModifierKeys.Control)
         {
             if (e.Key == Key.N)
@@ -647,6 +664,79 @@ public partial class MainWindow : Window
         catch
         {
             StatusText.Text = target;
+        }
+    }
+
+    private async Task CreateProjectAsync()
+    {
+        try
+        {
+            var targetDiscovery = new ProjectCreationTargetDiscovery();
+            var targets = await targetDiscovery.DiscoverAsync(
+                _root.FullPath);
+
+            if (targets.Count == 0)
+            {
+                MessageBox.Show(
+                    this,
+                    "Aucune application Nodalis n'existe encore dans le workspace. " +
+                    "Créez d'abord une application avant de créer un projet.",
+                    "Nouveau projet",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var profiles = await _templateStore.LoadProjectProfilesAsync();
+
+            var dialog = new NewProjectDialog(
+                targets,
+                profiles.Profiles)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            if (!await TryCloseCurrentDocumentAsync(
+                    "créer le nouveau projet"))
+            {
+                return;
+            }
+
+            var creator = new FileSystemProjectCreator(
+                _root.FullPath);
+
+            var result = await creator.CreateAsync(
+                new ProjectCreationRequest
+                {
+                    Name = dialog.ProjectName,
+                    Complexity = dialog.SelectedComplexity,
+                    Target = dialog.SelectedTarget,
+                    BusinessLinks = dialog.BusinessLinks.ToList()
+                });
+
+            await RefreshNavigationAsync(
+                result.OverviewFilePath);
+
+            StatusText.Text =
+                $"Projet créé · {Path.GetRelativePath(_root.FullPath, result.ProjectDirectory)}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            TemplateRenderException)
+        {
+            MessageBox.Show(
+                this,
+                $"Le projet n'a pas pu être créé.\n\n{exception.Message}",
+                "Nouveau projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
