@@ -3356,11 +3356,31 @@ public partial class MainWindow : Window
 
             preview = null;
 
-            await RefreshNavigationAsync(
-                result.ProjectDirectory);
-            await RefreshLinkIndexAndContextAsync();
-            await RefreshDashboardTasksAsync();
-            await RefreshDashboardMilestonesAsync();
+            try
+            {
+                await RefreshNavigationAsync(
+                    result.ProjectDirectory);
+                await RefreshLinkIndexAndContextAsync();
+                await RefreshDashboardTasksAsync();
+                await RefreshDashboardMilestonesAsync();
+            }
+            catch (Exception refreshException) when (
+                refreshException is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                MessageBox.Show(
+                    this,
+                    "L'import DOCX est terminé, mais l'interface n'a pas pu être " +
+                    $"rafraîchie complètement.\n\n{refreshException.Message}",
+                    "Import DOCX",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                StatusText.Text =
+                    $"Import DOCX terminé · rafraîchissement incomplet · {result.GeneratedFiles.Count} fichier(s) créé(s)";
+                return;
+            }
 
             StatusText.Text =
                 $"Import DOCX terminé · {result.GeneratedFiles.Count} fichier(s) Markdown créé(s)";
