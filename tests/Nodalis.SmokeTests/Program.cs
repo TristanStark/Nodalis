@@ -56,6 +56,7 @@ try
     await VerifyMeetingsAsync(root);
     await VerifyDecisionsAsync(root);
     await VerifyDocxImportAsync(root);
+    await VerifyDocxImportAnalysisAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -1869,6 +1870,16 @@ static async Task VerifyDocxImportAsync(string root)
             "DOCX parser must extract useful core metadata.");
 
         Assert(
+            document.Headers.Count == 1 &&
+            document.Headers[0].Contains(
+                "Application: Application Import DOCX",
+                StringComparison.Ordinal) &&
+            document.Headers[0].Contains(
+                "Projet: Projet Import DOCX",
+                StringComparison.Ordinal),
+            "DOCX parser must expose header text for target detection.");
+
+        Assert(
             document.Blocks.Count == 4 &&
             document.Blocks[0].Kind == DocxBlockKind.Paragraph &&
             document.Blocks[0].Paragraph?.Text == "Documentation technique" &&
@@ -1997,6 +2008,17 @@ static void CreateSyntheticDocx(string path)
 
     WriteZipEntry(
         archive,
+        "word/header1.xml",
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:p><w:r><w:t>Application: Application Import DOCX</w:t></w:r></w:p>
+          <w:p><w:r><w:t>Projet: Projet Import DOCX</w:t></w:r></w:p>
+        </w:hdr>
+        """);
+
+    WriteZipEntry(
+        archive,
         "word/_rels/document.xml.rels",
         """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -2084,6 +2106,203 @@ static void WriteZipEntry(
 
     writer.Write(
         content.Trim());
+}
+
+static async Task VerifyDocxImportAnalysisAsync(string root)
+{
+    var structure = new ApplicationStructureService(root);
+    var applicationPath = await structure.CreateApplicationAsync(
+        "Application Import DOCX");
+
+    var applicationManifestText = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationManifestText,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })
+        ?? throw new InvalidDataException(
+            "DOCX analysis application manifest is invalid.");
+
+    var creator = new FileSystemProjectCreator(root);
+    var project = await creator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Import DOCX",
+            Complexity = ProjectComplexity.Medium,
+            Target = new ProjectCreationTarget
+            {
+                ApplicationId = application.Id,
+                ApplicationName = application.Name,
+                ParentDirectory = applicationPath,
+                DisplayName = application.Name
+            }
+        });
+
+    var sourceDirectory = Path.Combine(
+        Path.GetTempPath(),
+        "Nodalis-Docx-Analysis",
+        Guid.NewGuid().ToString("N"));
+
+    Directory.CreateDirectory(
+        sourceDirectory);
+
+    try
+    {
+        var sourcePath = Path.Combine(
+            sourceDirectory,
+            "SPEC_Application_Import_DOCX.docx");
+
+        CreateSyntheticDocx(
+            sourcePath);
+
+        var imported = await new WorkspaceDocxImportService(root)
+            .ImportAsync(
+                sourcePath);
+
+        var analyzer = new DocxImportAnalyzer(root);
+        var analysis = await analyzer.AnalyzeAsync(
+            imported.Document,
+            Path.GetFileName(sourcePath));
+
+        Assert(
+            analysis.ApplicationCandidates.Count == 1 &&
+            analysis.ApplicationCandidates[0].Id == application.Id &&
+            analysis.ApplicationCandidates[0].Confidence >= 90,
+            "Explicit application labels in DOCX headers must resolve one strong application candidate.");
+
+        Assert(
+            analysis.ProjectCandidates.Count == 1 &&
+            analysis.ProjectCandidates[0].Id == project.Project.Id &&
+            analysis.ProjectCandidates[0].Confidence >= 90,
+            "Explicit project labels must resolve inside the detected application.");
+
+        var technical = analysis.MappedSections.Single(section =>
+            section.TargetSection == "Technique");
+
+        Assert(
+            technical.SourceHeading == "Documentation technique" &&
+            technical.Blocks.Count == 3 &&
+            technical.Blocks.Any(block =>
+                block.Kind == DocxBlockKind.Table),
+            "Configurable heading rules must map Word content while preserving block order.");
+
+        var proposedDocument = new ParsedDocxDocument
+        {
+            Headers =
+            [
+                "Application: Application Import DOCX\n" +
+                "Projet: Nouveau Projet DOCX"
+            ],
+            Blocks =
+            [
+                new DocxBlock
+                {
+                    Kind = DocxBlockKind.Paragraph,
+                    Paragraph = new DocxParagraph
+                    {
+                        Text = "Tests / Recette",
+                        HeadingLevel = 1
+                    }
+                },
+                new DocxBlock
+                {
+                    Kind = DocxBlockKind.Paragraph,
+                    Paragraph = new DocxParagraph
+                    {
+                        Text = "Cas nominal"
+                    }
+                }
+            ]
+        };
+
+        var proposed = await analyzer.AnalyzeAsync(
+            proposedDocument,
+            "nouveau-projet.docx");
+
+        Assert(
+            proposed.ApplicationCandidates.Count == 1 &&
+            proposed.ApplicationCandidates[0].Id == application.Id &&
+            proposed.ProjectCandidates.Count == 0 &&
+            proposed.ProposedProjectName == "Nouveau Projet DOCX" &&
+            proposed.RequiresProjectCreation &&
+            proposed.MappedSections.Single().TargetSection == "Tests",
+            "A missing explicitly named project must be proposed for creation, never created silently.");
+
+        var otherApplicationPath = await structure.CreateApplicationAsync(
+            "Application Import Ambiguë");
+
+        var otherManifestText = await File.ReadAllTextAsync(
+            Path.Combine(
+                otherApplicationPath,
+                WorkspaceLayout.ApplicationManifestFileName));
+
+        var otherApplication = JsonSerializer.Deserialize<ApplicationManifest>(
+            otherManifestText,
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            })
+            ?? throw new InvalidDataException(
+                "DOCX ambiguity application manifest is invalid.");
+
+        await creator.CreateAsync(
+            new ProjectCreationRequest
+            {
+                Name = "Projet Import Ambigu",
+                Complexity = ProjectComplexity.Simple,
+                Target = new ProjectCreationTarget
+                {
+                    ApplicationId = application.Id,
+                    ApplicationName = application.Name,
+                    ParentDirectory = applicationPath,
+                    DisplayName = application.Name
+                }
+            });
+
+        await creator.CreateAsync(
+            new ProjectCreationRequest
+            {
+                Name = "Projet Import Ambigu",
+                Complexity = ProjectComplexity.Simple,
+                Target = new ProjectCreationTarget
+                {
+                    ApplicationId = otherApplication.Id,
+                    ApplicationName = otherApplication.Name,
+                    ParentDirectory = otherApplicationPath,
+                    DisplayName = otherApplication.Name
+                }
+            });
+
+        var ambiguous = await analyzer.AnalyzeAsync(
+            new ParsedDocxDocument
+            {
+                Headers =
+                [
+                    "Projet: Projet Import Ambigu"
+                ]
+            },
+            "ambigu.docx");
+
+        Assert(
+            ambiguous.ApplicationCandidates.Count == 0 &&
+            ambiguous.ProjectCandidates.Count == 2 &&
+            ambiguous.HasAmbiguousProject,
+            "A project name shared by multiple applications must remain explicitly ambiguous.");
+    }
+    finally
+    {
+        if (Directory.Exists(sourceDirectory))
+        {
+            Directory.Delete(
+                sourceDirectory,
+                recursive: true);
+        }
+    }
 }
 
 static void VerifyMarkdownParser()
