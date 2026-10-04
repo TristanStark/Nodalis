@@ -28,9 +28,9 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
 
     public event EventHandler? Saved;
 
-    public event EventHandler<ExternalModificationException>? ConflictDetected;
+    public event EventHandler<AutosaveConflictEventArgs>? ConflictDetected;
 
-    public event EventHandler<Exception>? SaveFailed;
+    public event EventHandler<AutosaveFailureEventArgs>? SaveFailed;
 
     public void Schedule(string content)
     {
@@ -136,14 +136,14 @@ public sealed class DocumentAutosaveController : IAsyncDisposable
         catch (ExternalModificationException exception)
         {
             _pendingContent = content;
-            ConflictDetected?.Invoke(this, exception);
+            ConflictDetected?.Invoke(this, new AutosaveConflictEventArgs(exception, content));
         }
         catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException)
         {
             _pendingContent = content;
-            SaveFailed?.Invoke(this, exception);
+            SaveFailed?.Invoke(this, new AutosaveFailureEventArgs(exception, content));
         }
     }
 }
