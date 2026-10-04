@@ -46,7 +46,7 @@ private void Save_Click(
     {
         if (!int.TryParse(
                 FontSizeTextBox.Text.Trim(),
-                out var fontSize) ||
+                out int fontSize) ||
             fontSize is < 8 or > 48)
         {
             ShowValidation(
@@ -57,7 +57,7 @@ private void Save_Click(
 
         if (!int.TryParse(
                 AutosaveDelayTextBox.Text.Trim(),
-                out var autosaveDelay) ||
+                out int autosaveDelay) ||
             autosaveDelay is < 100 or > 10_000)
         {
             ShowValidation(
