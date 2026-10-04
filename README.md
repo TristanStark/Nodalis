@@ -7,16 +7,36 @@ de projet, conçu autour d'un workspace unique, de Markdown et de liens internes
 
 Développement initial en cours sur la branche `develop`.
 
-Le premier socle comprend :
-- WPF / C# ;
-- dark mode ;
+Le socle actuellement disponible comprend :
+- WPF / C# et dark mode ;
 - architecture App / Core / Infrastructure ;
-- modèles Application / Module / Projet / Sous-projet / Section ;
-- workspace Markdown + JSON ;
-- persistance JSON atomique ;
-- validation des hiérarchies ;
+- workspace unique Markdown + JSON ;
+- création et navigation Applications / Modules / Projets / Sous-projets ;
+- profils de projets pilotés par configuration et templates Markdown ;
+- éditeur Markdown avec aperçu riche et autosave sûr ;
+- notes rapides aux scopes Global / Application / Projet ;
+- recherche exacte regroupée Projet / Application / Global ;
+- Command Palette ;
+- persistance atomique et détection des modifications externes ;
 - zéro dépendance NuGet ;
 - zéro API réseau dans le produit.
+
+## Raccourcis
+
+| Raccourci | Action |
+| --- | --- |
+| `Ctrl+N` | Nouvelle note depuis template / Libre |
+| `Ctrl+Shift+N` | Nouveau projet / sous-projet |
+| `Ctrl+Alt+N` | Capturer une note rapide |
+| `Ctrl+F` | Recherche Projet / Application / Global |
+| `Ctrl+P` | Command Palette |
+| `Ctrl+S` | Forcer l'enregistrement |
+| `Ctrl+B` | Gras |
+| `Ctrl+I` | Italique |
+
+Les scopes métier de connaissance sont volontairement **Global, Application et Projet**.
+Les modules servent à structurer une application mais n'ont pas leur propre glossaire
+ou fichier de notes rapides.
 
 ## Contraintes
 
