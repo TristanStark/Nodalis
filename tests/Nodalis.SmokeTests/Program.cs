@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Nodalis.Core.Attachments;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Glossary;
 using Nodalis.Core.Links;
@@ -9,6 +10,7 @@ using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Applications;
+using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Links;
@@ -37,6 +39,7 @@ try
     await VerifySearchAsync(root);
     await VerifyLinksAndBacklinksAsync(root);
     await VerifyGlossaryAsync(root);
+    await VerifyAttachmentsAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -978,6 +981,166 @@ static async Task VerifyGlossaryAsync(string root)
         sourceText ==
         "Base de données, STEAK et bifteck. Steakhouse ne doit pas matcher.",
         "Glossary annotation matching must never mutate Markdown content.");
+}
+
+static async Task VerifyAttachmentsAsync(string root)
+{
+    var structure = new ApplicationStructureService(root);
+    var applicationPath = await structure.CreateApplicationAsync(
+        "Application Pièces Jointes");
+
+    var applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
+
+    var projectCreator = new FileSystemProjectCreator(root);
+    var project = await projectCreator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Pièces Jointes",
+            Complexity = ProjectComplexity.Simple,
+            Target = new ProjectCreationTarget
+            {
+                ApplicationId = application.Id,
+                ApplicationName = application.Name,
+                ParentDirectory = applicationPath,
+                DisplayName = application.Name
+            }
+        });
+
+    var notePath = Path.Combine(
+        project.ProjectDirectory,
+        "Note pièces jointes.md");
+
+    await File.WriteAllTextAsync(
+        notePath,
+        "# Note\n");
+
+    var linkIndex = new WorkspaceLinkIndexService(root);
+    await linkIndex.RefreshAsync();
+
+    var externalRoot = Path.Combine(
+        Path.GetTempPath(),
+        "Nodalis-Attachment-Source",
+        Guid.NewGuid().ToString("N"));
+
+    Directory.CreateDirectory(
+        externalRoot);
+
+    var sourcePath = Path.Combine(
+        externalRoot,
+        "specification.bin");
+
+    var sourceBytes = Enumerable
+        .Range(0, 256)
+        .Select(value => (byte)value)
+        .ToArray();
+
+    await File.WriteAllBytesAsync(
+        sourcePath,
+        sourceBytes);
+
+    try
+    {
+        var attachments = new AttachmentService(root);
+
+        var copied = await attachments.CopyIntoWorkspaceAsync(
+            sourcePath,
+            notePath);
+
+        Assert(
+            copied.StorageMode == AttachmentStorageMode.CopiedIntoWorkspace &&
+            copied.Exists &&
+            copied.FullPath.StartsWith(
+                Path.Combine(
+                    root,
+                    WorkspaceLayout.AttachmentsDirectoryName),
+                StringComparison.OrdinalIgnoreCase),
+            "Copied attachments must live under the workspace Attachments directory.");
+
+        Assert(
+            (await File.ReadAllBytesAsync(copied.FullPath))
+                .SequenceEqual(sourceBytes),
+            "Attachment copy must preserve binary content exactly.");
+
+        Assert(
+            !Path.IsPathRooted(copied.MarkdownTarget),
+            "Copied attachments must use a relative Markdown target.");
+
+        var resolvedCopy = attachments.Resolve(
+            copied.MarkdownTarget,
+            notePath);
+
+        Assert(
+            resolvedCopy.Exists &&
+            string.Equals(
+                resolvedCopy.FullPath,
+                copied.FullPath,
+                StringComparison.OrdinalIgnoreCase),
+            "Relative attachment targets must resolve from their owner document.");
+
+        var external = attachments.CreateExternalReference(
+            sourcePath,
+            notePath);
+
+        Assert(
+            external.StorageMode == AttachmentStorageMode.ExternalReference &&
+            Path.IsPathRooted(external.FullPath) &&
+            external.Exists,
+            "External attachments must keep an explicit absolute local reference.");
+
+        var resolvedExternal = attachments.Resolve(
+            external.MarkdownTarget,
+            notePath);
+
+        Assert(
+            resolvedExternal.Exists &&
+            resolvedExternal.StorageMode == AttachmentStorageMode.ExternalReference,
+            "External local references must resolve without copying the file.");
+
+        File.Delete(
+            copied.FullPath);
+
+        var missing = attachments.Resolve(
+            copied.MarkdownTarget,
+            notePath);
+
+        Assert(
+            !missing.Exists,
+            "Deleted attachment files must be detected as missing.");
+
+        var secondCopy = await attachments.CopyIntoWorkspaceAsync(
+            sourcePath,
+            notePath);
+
+        var thirdCopy = await attachments.CopyIntoWorkspaceAsync(
+            sourcePath,
+            notePath);
+
+        Assert(
+            !string.Equals(
+                secondCopy.FullPath,
+                thirdCopy.FullPath,
+                StringComparison.OrdinalIgnoreCase),
+            "Copying the same attachment twice must never overwrite an existing file.");
+    }
+    finally
+    {
+        if (Directory.Exists(externalRoot))
+        {
+            Directory.Delete(
+                externalRoot,
+                recursive: true);
+        }
+    }
 }
 
 static void VerifyMarkdownParser()
