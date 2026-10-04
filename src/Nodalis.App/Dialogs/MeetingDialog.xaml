@@ -1,0 +1,238 @@
+<Window x:Class="Nodalis.App.Dialogs.MeetingDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nouveau compte-rendu de réunion"
+        Width="860"
+        Height="760"
+        MinWidth="720"
+        MinHeight="620"
+        WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="64" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="54" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="18,0"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Compte-rendu de réunion"
+                           FontSize="18"
+                           FontWeight="SemiBold" />
+                <TextBlock x:Name="ScopeText"
+                           Margin="0,3,0,0"
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+            </StackPanel>
+        </Border>
+
+        <TabControl Grid.Row="1"
+                    Margin="14">
+            <TabItem Header="Réunion">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="14">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="220" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="Titre"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="2"
+                                   Text="Date"
+                                   FontWeight="SemiBold" />
+
+                        <TextBox x:Name="TitleTextBox"
+                                 Grid.Row="1"
+                                 Margin="0,6,0,12"
+                                 MinHeight="30"
+                                 Padding="6,4" />
+                        <DatePicker x:Name="DatePicker"
+                                    Grid.Row="1"
+                                    Grid.Column="2"
+                                    Margin="0,6,0,12" />
+
+                        <TextBlock Grid.Row="2"
+                                   Grid.ColumnSpan="3"
+                                   Text="Participants (un par ligne)"
+                                   FontWeight="SemiBold" />
+                        <TextBox x:Name="ParticipantsTextBox"
+                                 Grid.Row="3"
+                                 Grid.ColumnSpan="3"
+                                 Margin="0,6,0,12"
+                                 Height="74"
+                                 Padding="6"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" />
+
+                        <TextBlock Grid.Row="4"
+                                   Grid.ColumnSpan="3"
+                                   Text="Contexte"
+                                   FontWeight="SemiBold" />
+                        <TextBox x:Name="ContextTextBox"
+                                 Grid.Row="5"
+                                 Grid.ColumnSpan="3"
+                                 Margin="0,6,0,12"
+                                 Height="82"
+                                 Padding="6"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" />
+
+                        <Grid Grid.Row="6"
+                              Grid.ColumnSpan="3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Ordre du jour (un point par ligne)"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="2"
+                                       Text="Notes"
+                                       FontWeight="SemiBold" />
+                        </Grid>
+
+                        <Grid Grid.Row="7"
+                              Grid.ColumnSpan="3"
+                              Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="AgendaTextBox"
+                                     Height="190"
+                                     Padding="6"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto" />
+                            <TextBox x:Name="NotesTextBox"
+                                     Grid.Column="2"
+                                     Height="190"
+                                     Padding="6"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto" />
+                        </Grid>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Décisions &amp; actions">
+                <Grid Margin="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="16" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Décisions (une par ligne)"
+                               FontWeight="SemiBold" />
+                    <TextBox x:Name="DecisionsTextBox"
+                             Grid.Row="1"
+                             Margin="0,6,0,0"
+                             Padding="6"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+
+                    <TextBlock Grid.Row="3"
+                               Text="Actions (une par ligne — elles deviendront des checkboxes Markdown)"
+                               FontWeight="SemiBold" />
+                    <TextBox x:Name="ActionsTextBox"
+                             Grid.Row="4"
+                             Margin="0,6,0,0"
+                             Padding="6"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Contenu collé">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="14">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="150" />
+                            <RowDefinition Height="16" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="150" />
+                            <RowDefinition Height="16" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="180" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="Transcription IA"
+                                   FontWeight="SemiBold" />
+                        <TextBox x:Name="TranscriptTextBox"
+                                 Grid.Row="1"
+                                 Margin="0,6,0,0"
+                                 Padding="6"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" />
+
+                        <TextBlock Grid.Row="3"
+                                   Text="Résumé IA"
+                                   FontWeight="SemiBold" />
+                        <TextBox x:Name="SummaryTextBox"
+                                 Grid.Row="4"
+                                 Margin="0,6,0,0"
+                                 Padding="6"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" />
+
+                        <TextBlock Grid.Row="6"
+                                   Text="Contenu Outlook copié/collé"
+                                   FontWeight="SemiBold" />
+                        <TextBox x:Name="OutlookTextBox"
+                                 Grid.Row="7"
+                                 Margin="0,6,0,0"
+                                 Padding="6"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" />
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="2"
+                Padding="14,8"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <StackPanel HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                <Button Width="96"
+                        Margin="0,0,8,0"
+                        IsCancel="True"
+                        Content="Annuler" />
+                <Button Width="118"
+                        IsDefault="True"
+                        Click="Create_Click"
+                        Content="Créer la réunion" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>
