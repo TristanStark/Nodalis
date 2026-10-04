@@ -34,3 +34,7 @@ jobs:
 
       - name: Run zero-dependency smoke tests
         run: dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj --configuration Release
+
+      - name: Verify portable package
+        shell: pwsh
+        run: ./scripts/publish-portable.ps1 -Version "0.0.0-ci"
