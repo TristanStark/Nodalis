@@ -45,7 +45,8 @@ public partial class App : Application
             var window = new MainWindow(
                 root,
                 preferences,
-                preferencesStore);
+                preferencesStore,
+                templateStore);
 
             MainWindow = window;
             ShutdownMode = ShutdownMode.OnMainWindowClose;
