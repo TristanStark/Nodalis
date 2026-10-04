@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
@@ -10,6 +11,16 @@ namespace Nodalis.CodeStyle;
 internal static partial class Program
 {
     private static readonly string[] SourceRoots = ["src", "tests"];
+
+    private static readonly SymbolDisplayFormat ExplicitTypeFormat = new(
+        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters,
+        miscellaneousOptions:
+            SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers
+            | SymbolDisplayMiscellaneousOptions.UseSpecialTypes
+            | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier
+            | SymbolDisplayMiscellaneousOptions.IncludeTupleElementNames);
 
     /// <summary>
     /// Runs the Nodalis code-style checker or fixer.
@@ -142,7 +153,7 @@ internal static partial class Program
     }
 
     /// <summary>
-    /// Adds diagnostics for every use of the implicit <c>var</c> type.
+    /// Adds diagnostics for every implicit <c>var</c> construct.
     /// </summary>
     /// <param name="root">Parsed syntax root.</param>
     /// <param name="file">Absolute source file path.</param>
@@ -154,13 +165,11 @@ internal static partial class Program
         string repositoryRoot,
         ICollection<string> violations)
     {
-        IEnumerable<TypeSyntax> implicitTypes = root.DescendantNodes()
-            .SelectMany(GetImplicitVarTypes)
-            .Distinct();
+        IEnumerable<SyntaxNode> implicitNodes = GetImplicitVarNodes(root);
 
-        foreach (TypeSyntax type in implicitTypes)
+        foreach (SyntaxNode implicitNode in implicitNodes)
         {
-            FileLinePositionSpan lineSpan = type.GetLocation().GetLineSpan();
+            FileLinePositionSpan lineSpan = implicitNode.GetLocation().GetLineSpan();
             string relativePath = Path.GetRelativePath(repositoryRoot, file);
             int line = lineSpan.StartLinePosition.Line + 1;
             violations.Add($"{relativePath}:{line}: explicit type required; 'var' is forbidden.");
@@ -168,28 +177,39 @@ internal static partial class Program
     }
 
     /// <summary>
-    /// Returns implicit <c>var</c> type nodes owned by the supplied syntax node.
+    /// Returns every syntax node that represents an implicit <c>var</c> construct.
     /// </summary>
-    /// <param name="node">Syntax node to inspect.</param>
-    /// <returns>Zero or more implicit type nodes.</returns>
-    private static IEnumerable<TypeSyntax> GetImplicitVarTypes(SyntaxNode node)
+    /// <param name="root">Parsed syntax root.</param>
+    /// <returns>The implicit typing nodes found in the tree.</returns>
+    private static IEnumerable<SyntaxNode> GetImplicitVarNodes(SyntaxNode root)
     {
-        if (node is VariableDeclarationSyntax variableDeclaration
-            && variableDeclaration.Type.IsVar)
+        foreach (VariableDeclarationSyntax declaration in root.DescendantNodes().OfType<VariableDeclarationSyntax>())
         {
-            yield return variableDeclaration.Type;
+            if (declaration.Type.IsVar)
+            {
+                yield return declaration.Type;
+            }
         }
 
-        if (node is ForEachStatementSyntax forEachStatement
-            && forEachStatement.Type.IsVar)
+        foreach (ForEachStatementSyntax forEachStatement in root.DescendantNodes().OfType<ForEachStatementSyntax>())
         {
-            yield return forEachStatement.Type;
+            if (forEachStatement.Type.IsVar)
+            {
+                yield return forEachStatement.Type;
+            }
         }
 
-        if (node is DeclarationExpressionSyntax declarationExpression
-            && declarationExpression.Type.IsVar)
+        foreach (DeclarationExpressionSyntax declarationExpression in root.DescendantNodes().OfType<DeclarationExpressionSyntax>())
         {
-            yield return declarationExpression.Type;
+            if (declarationExpression.Type.IsVar)
+            {
+                yield return declarationExpression.Type;
+            }
+        }
+
+        foreach (VarPatternSyntax varPattern in root.DescendantNodes().OfType<VarPatternSyntax>())
+        {
+            yield return varPattern;
         }
     }
 
@@ -245,12 +265,381 @@ internal static partial class Program
     }
 
     /// <summary>
+    /// Applies explicit typing and XML documentation fixes without changing program behavior.
+    /// </summary>
+    /// <param name="files">C# files to update.</param>
+    /// <param name="repositoryRoot">Repository root used for progress output.</param>
+    /// <returns>Zero when every fixable construct was migrated; otherwise one.</returns>
+    private static int Fix(IReadOnlyList<string> files, string repositoryRoot)
+    {
+        int unresolvedTypes = FixExplicitTypes(files, repositoryRoot);
+        FixDocumentation(files, repositoryRoot);
+        return unresolvedTypes == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Replaces implicit <c>var</c> constructs with their Roslyn-resolved static types.
+    /// </summary>
+    /// <param name="files">C# files to update.</param>
+    /// <param name="repositoryRoot">Repository root used for progress output.</param>
+    /// <returns>The number of implicit types that could not be resolved safely.</returns>
+    private static int FixExplicitTypes(IReadOnlyList<string> files, string repositoryRoot)
+    {
+        CSharpParseOptions parseOptions = new(languageVersion: LanguageVersion.Latest);
+        List<SyntaxTree> syntaxTrees = [];
+        Dictionary<string, SyntaxTree> treeByFile = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string file in files)
+        {
+            string source = File.ReadAllText(file);
+            SyntaxTree tree = CSharpSyntaxTree.ParseText(source, parseOptions, file);
+            syntaxTrees.Add(tree);
+            treeByFile[file] = tree;
+        }
+
+        IReadOnlyList<MetadataReference> references = BuildMetadataReferences();
+        CSharpCompilation compilation = CSharpCompilation.Create(
+            "Nodalis.CodeStyle.Analysis",
+            syntaxTrees,
+            references,
+            new CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable));
+
+        int changedFiles = 0;
+        int replacedTypes = 0;
+        int unresolvedTypes = 0;
+
+        foreach (string file in files)
+        {
+            SyntaxTree tree = treeByFile[file];
+            SyntaxNode root = tree.GetRoot();
+            SemanticModel semanticModel = compilation.GetSemanticModel(tree, ignoreAccessibility: true);
+            List<TextReplacement> replacements = BuildExplicitTypeReplacements(root, semanticModel, file);
+
+            int fileUnresolved = replacements.Count(item => !item.IsResolved);
+            unresolvedTypes += fileUnresolved;
+
+            List<TextReplacement> resolved = replacements
+                .Where(item => item.IsResolved)
+                .OrderByDescending(item => item.Start)
+                .ToList();
+
+            if (resolved.Count == 0)
+            {
+                continue;
+            }
+
+            string source = File.ReadAllText(file);
+            StringBuilder builder = new(source);
+
+            foreach (TextReplacement replacement in resolved)
+            {
+                builder.Remove(replacement.Start, replacement.Length);
+                builder.Insert(replacement.Start, replacement.Content);
+            }
+
+            File.WriteAllText(
+                file,
+                builder.ToString(),
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+            changedFiles++;
+            replacedTypes += resolved.Count;
+            Console.WriteLine(
+                $"Replaced {resolved.Count} implicit type(s) in {Path.GetRelativePath(repositoryRoot, file)}.");
+        }
+
+        Console.WriteLine(
+            $"Explicit-type cleanup complete: {replacedTypes} replacement(s) across {changedFiles} file(s); "
+            + $"{unresolvedTypes} unresolved construct(s).");
+
+        return unresolvedTypes;
+    }
+
+    /// <summary>
+    /// Builds text replacements for implicit typing constructs in one syntax tree.
+    /// </summary>
+    /// <param name="root">Parsed syntax root.</param>
+    /// <param name="semanticModel">Semantic model used to resolve static types.</param>
+    /// <param name="file">Source file path used for diagnostics.</param>
+    /// <returns>Resolved and unresolved text replacements.</returns>
+    private static List<TextReplacement> BuildExplicitTypeReplacements(
+        SyntaxNode root,
+        SemanticModel semanticModel,
+        string file)
+    {
+        List<TextReplacement> replacements = [];
+
+        foreach (VariableDeclarationSyntax declaration in root.DescendantNodes().OfType<VariableDeclarationSyntax>())
+        {
+            if (!declaration.Type.IsVar)
+            {
+                continue;
+            }
+
+            ITypeSymbol? type = ResolveVariableDeclarationType(declaration, semanticModel);
+            replacements.Add(CreateTypeReplacement(declaration.Type, type, file));
+        }
+
+        foreach (ForEachStatementSyntax forEachStatement in root.DescendantNodes().OfType<ForEachStatementSyntax>())
+        {
+            if (!forEachStatement.Type.IsVar)
+            {
+                continue;
+            }
+
+            ForEachStatementInfo info = semanticModel.GetForEachStatementInfo(forEachStatement);
+            replacements.Add(CreateTypeReplacement(forEachStatement.Type, info.ElementType, file));
+        }
+
+        foreach (DeclarationExpressionSyntax declarationExpression in root.DescendantNodes().OfType<DeclarationExpressionSyntax>())
+        {
+            if (!declarationExpression.Type.IsVar)
+            {
+                continue;
+            }
+
+            ITypeSymbol? type = ResolveDeclarationExpressionType(declarationExpression, semanticModel);
+            replacements.Add(CreateTypeReplacement(declarationExpression.Type, type, file));
+        }
+
+        foreach (VarPatternSyntax varPattern in root.DescendantNodes().OfType<VarPatternSyntax>())
+        {
+            ITypeSymbol? type = ResolveVarPatternType(varPattern, semanticModel);
+            replacements.Add(CreatePatternReplacement(varPattern, type, file));
+        }
+
+        return replacements;
+    }
+
+    /// <summary>
+    /// Resolves the static type for a local variable declaration.
+    /// </summary>
+    /// <param name="declaration">Implicitly typed declaration.</param>
+    /// <param name="semanticModel">Semantic model used for type resolution.</param>
+    /// <returns>The resolved type, or <see langword="null"/> when it cannot be named safely.</returns>
+    private static ITypeSymbol? ResolveVariableDeclarationType(
+        VariableDeclarationSyntax declaration,
+        SemanticModel semanticModel)
+    {
+        VariableDeclaratorSyntax? declarator = declaration.Variables.FirstOrDefault();
+        if (declarator?.Initializer is null)
+        {
+            return null;
+        }
+
+        TypeInfo typeInfo = semanticModel.GetTypeInfo(declarator.Initializer.Value);
+        ITypeSymbol? type = typeInfo.ConvertedType ?? typeInfo.Type;
+        return IsNameableType(type) ? type : null;
+    }
+
+    /// <summary>
+    /// Resolves the static type for an <c>out var</c> or similar declaration expression.
+    /// </summary>
+    /// <param name="declaration">Implicit declaration expression.</param>
+    /// <param name="semanticModel">Semantic model used for type resolution.</param>
+    /// <returns>The resolved type, or <see langword="null"/> when it cannot be named safely.</returns>
+    private static ITypeSymbol? ResolveDeclarationExpressionType(
+        DeclarationExpressionSyntax declaration,
+        SemanticModel semanticModel)
+    {
+        if (declaration.Designation is not SingleVariableDesignationSyntax designation)
+        {
+            return null;
+        }
+
+        ILocalSymbol? local = semanticModel.GetDeclaredSymbol(designation) as ILocalSymbol;
+        return IsNameableType(local?.Type) ? local.Type : null;
+    }
+
+    /// <summary>
+    /// Resolves the static type captured by a <c>var</c> pattern.
+    /// </summary>
+    /// <param name="varPattern">Implicit pattern declaration.</param>
+    /// <param name="semanticModel">Semantic model used for type resolution.</param>
+    /// <returns>The resolved type, or <see langword="null"/> when it cannot be named safely.</returns>
+    private static ITypeSymbol? ResolveVarPatternType(
+        VarPatternSyntax varPattern,
+        SemanticModel semanticModel)
+    {
+        if (varPattern.Designation is not SingleVariableDesignationSyntax designation)
+        {
+            return null;
+        }
+
+        ILocalSymbol? local = semanticModel.GetDeclaredSymbol(designation) as ILocalSymbol;
+        return IsNameableType(local?.Type) ? local.Type : null;
+    }
+
+    /// <summary>
+    /// Creates a replacement for a syntax type currently written as <c>var</c>.
+    /// </summary>
+    /// <param name="syntax">Implicit type syntax to replace.</param>
+    /// <param name="type">Resolved static type.</param>
+    /// <param name="file">Source file path used for unresolved diagnostics.</param>
+    /// <returns>A resolved replacement when possible; otherwise an unresolved marker.</returns>
+    private static TextReplacement CreateTypeReplacement(
+        TypeSyntax syntax,
+        ITypeSymbol? type,
+        string file)
+    {
+        if (!IsNameableType(type))
+        {
+            PrintUnresolved(file, syntax.GetLocation());
+            return TextReplacement.Unresolved;
+        }
+
+        string typeName = type!.ToDisplayString(ExplicitTypeFormat);
+        return new TextReplacement(syntax.SpanStart, syntax.Span.Length, typeName, true);
+    }
+
+    /// <summary>
+    /// Creates a replacement for a <c>var</c> pattern.
+    /// </summary>
+    /// <param name="varPattern">Pattern syntax to replace.</param>
+    /// <param name="type">Resolved static type.</param>
+    /// <param name="file">Source file path used for unresolved diagnostics.</param>
+    /// <returns>A resolved replacement when possible; otherwise an unresolved marker.</returns>
+    private static TextReplacement CreatePatternReplacement(
+        VarPatternSyntax varPattern,
+        ITypeSymbol? type,
+        string file)
+    {
+        if (!IsNameableType(type))
+        {
+            PrintUnresolved(file, varPattern.GetLocation());
+            return TextReplacement.Unresolved;
+        }
+
+        string typeName = type!.ToDisplayString(ExplicitTypeFormat);
+        string designation = varPattern.Designation.ToString();
+        string replacement = $"{typeName} {designation}";
+        return new TextReplacement(varPattern.SpanStart, varPattern.Span.Length, replacement, true);
+    }
+
+    /// <summary>
+    /// Determines whether a Roslyn type symbol can be represented explicitly in C# source.
+    /// </summary>
+    /// <param name="type">Type symbol to inspect.</param>
+    /// <returns><see langword="true"/> when the type is safe to name explicitly.</returns>
+    private static bool IsNameableType(ITypeSymbol? type)
+    {
+        if (type is null || type is IErrorTypeSymbol)
+        {
+            return false;
+        }
+
+        return type switch
+        {
+            INamedTypeSymbol namedType =>
+                !namedType.IsAnonymousType
+                && namedType.TypeArguments.All(IsNameableType),
+            IArrayTypeSymbol arrayType => IsNameableType(arrayType.ElementType),
+            IPointerTypeSymbol pointerType => IsNameableType(pointerType.PointedAtType),
+            IFunctionPointerTypeSymbol => true,
+            IDynamicTypeSymbol => true,
+            ITypeParameterSymbol => true,
+            _ => true,
+        };
+    }
+
+    /// <summary>
+    /// Writes a diagnostic for an implicit type that cannot be converted automatically.
+    /// </summary>
+    /// <param name="file">Source file path.</param>
+    /// <param name="location">Location of the unresolved syntax.</param>
+    private static void PrintUnresolved(string file, Location location)
+    {
+        FileLinePositionSpan lineSpan = location.GetLineSpan();
+        int line = lineSpan.StartLinePosition.Line + 1;
+        Console.Error.WriteLine(
+            $"Unable to resolve an explicit type safely at {file}:{line}; manual cleanup required.");
+    }
+
+    /// <summary>
+    /// Builds metadata references from the active runtime and Windows Desktop shared framework.
+    /// </summary>
+    /// <returns>Metadata references used by the semantic cleanup compilation.</returns>
+    private static IReadOnlyList<MetadataReference> BuildMetadataReferences()
+    {
+        HashSet<string> paths = new(StringComparer.OrdinalIgnoreCase);
+        string? trustedPlatformAssemblies =
+            AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
+
+        if (!string.IsNullOrWhiteSpace(trustedPlatformAssemblies))
+        {
+            foreach (string path in trustedPlatformAssemblies.Split(Path.PathSeparator))
+            {
+                if (File.Exists(path))
+                {
+                    paths.Add(path);
+                }
+            }
+        }
+
+        AddWindowsDesktopReferences(paths);
+
+        List<MetadataReference> references = [];
+        foreach (string path in paths)
+        {
+            references.Add(MetadataReference.CreateFromFile(path));
+        }
+
+        return references;
+    }
+
+    /// <summary>
+    /// Adds WPF and Windows Desktop reference assemblies when the shared framework is installed.
+    /// </summary>
+    /// <param name="paths">Destination set for assembly paths.</param>
+    private static void AddWindowsDesktopReferences(ISet<string> paths)
+    {
+        string runtimeDirectory = RuntimeEnvironment.GetRuntimeDirectory();
+        string sharedRoot = Path.GetFullPath(Path.Combine(runtimeDirectory, "..", ".."));
+        string desktopRoot = Path.Combine(sharedRoot, "Microsoft.WindowsDesktop.App");
+
+        if (!Directory.Exists(desktopRoot))
+        {
+            return;
+        }
+
+        string? latestVersionDirectory = Directory.EnumerateDirectories(desktopRoot)
+            .OrderByDescending(path => ParseFrameworkVersion(Path.GetFileName(path)))
+            .FirstOrDefault();
+
+        if (latestVersionDirectory is null)
+        {
+            return;
+        }
+
+        foreach (string assemblyPath in Directory.EnumerateFiles(
+                     latestVersionDirectory,
+                     "*.dll",
+                     SearchOption.TopDirectoryOnly))
+        {
+            paths.Add(assemblyPath);
+        }
+    }
+
+    /// <summary>
+    /// Parses a shared-framework folder name into a sortable version.
+    /// </summary>
+    /// <param name="value">Folder name to parse.</param>
+    /// <returns>The parsed version, or <c>0.0</c> when parsing fails.</returns>
+    private static Version ParseFrameworkVersion(string value)
+    {
+        return Version.TryParse(value, out Version? version)
+            ? version
+            : new Version(0, 0);
+    }
+
+    /// <summary>
     /// Adds missing XML documentation comments without changing program behavior.
     /// </summary>
     /// <param name="files">C# files to update.</param>
     /// <param name="repositoryRoot">Repository root used for progress output.</param>
-    /// <returns>Zero when the operation succeeds.</returns>
-    private static int Fix(IReadOnlyList<string> files, string repositoryRoot)
+    private static void FixDocumentation(IReadOnlyList<string> files, string repositoryRoot)
     {
         int changedFiles = 0;
         int documentedMembers = 0;
@@ -283,7 +672,6 @@ internal static partial class Program
 
         Console.WriteLine(
             $"XML documentation cleanup complete: {documentedMembers} member(s) across {changedFiles} file(s).");
-        return 0;
     }
 
     /// <summary>
@@ -371,8 +759,11 @@ internal static partial class Program
 
         if (member is MethodDeclarationSyntax method)
         {
-            foreach (TypeParameterSyntax typeParameter in method.TypeParameterList?.Parameters
-                         ?? default(SeparatedSyntaxList<TypeParameterSyntax>))
+            SeparatedSyntaxList<TypeParameterSyntax> typeParameters =
+                method.TypeParameterList?.Parameters
+                ?? default;
+
+            foreach (TypeParameterSyntax typeParameter in typeParameters)
             {
                 string typeParameterName = typeParameter.Identifier.ValueText;
                 builder.Append(indentation)
@@ -476,4 +867,13 @@ internal static partial class Program
     private static partial Regex IndentationPattern();
 
     private sealed record DocumentationInsertion(int Position, string Content);
+
+    private sealed record TextReplacement(
+        int Start,
+        int Length,
+        string Content,
+        bool IsResolved)
+    {
+        public static TextReplacement Unresolved { get; } = new(0, 0, string.Empty, false);
+    }
 }
