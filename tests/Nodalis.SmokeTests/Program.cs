@@ -1,8 +1,10 @@
+using System.IO.Compression;
 using System.Text.Json;
 using Nodalis.Core.Attachments;
 using Nodalis.Core.Decisions;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Glossary;
+using Nodalis.Core.Importing;
 using Nodalis.Core.Links;
 using Nodalis.Core.Meetings;
 using Nodalis.Core.Milestones;
@@ -18,6 +20,7 @@ using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Decisions;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
+using Nodalis.Infrastructure.Importing;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Meetings;
 using Nodalis.Infrastructure.Milestones;
@@ -52,6 +55,7 @@ try
     await VerifyMilestonesAsync(root);
     await VerifyMeetingsAsync(root);
     await VerifyDecisionsAsync(root);
+    await VerifyDocxImportAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -1803,6 +1807,280 @@ static async Task VerifyDecisionsAsync(string root)
         oldReferenceResolution.Target?.Id == meetingTarget.Id &&
         File.Exists(renamedMeeting),
         "Decision source references must survive source document renames.");
+}
+
+static async Task VerifyDocxImportAsync(string root)
+{
+    var sourceDirectory = Path.Combine(
+        Path.GetTempPath(),
+        "Nodalis-Docx-Source",
+        Guid.NewGuid().ToString("N"));
+
+    Directory.CreateDirectory(
+        sourceDirectory);
+
+    try
+    {
+        var sourcePath = Path.Combine(
+            sourceDirectory,
+            "specification.docx");
+
+        CreateSyntheticDocx(
+            sourcePath);
+
+        var originalBytes = await File.ReadAllBytesAsync(
+            sourcePath);
+        var originalWriteTime = File.GetLastWriteTimeUtc(
+            sourcePath);
+
+        var service = new WorkspaceDocxImportService(root);
+        var result = await service.ImportAsync(
+            sourcePath);
+
+        Assert(
+            File.Exists(result.SourceCopyPath) &&
+            !string.Equals(
+                sourcePath,
+                result.SourceCopyPath,
+                StringComparison.OrdinalIgnoreCase) &&
+            result.SourceCopyPath.Contains(
+                Path.Combine(
+                    WorkspaceLayout.ImportsDirectoryName,
+                    WorkspaceLayout.ImportSourcesDirectoryName),
+                StringComparison.OrdinalIgnoreCase),
+            "DOCX import must parse a dedicated workspace copy.");
+
+        Assert(
+            originalBytes.SequenceEqual(
+                await File.ReadAllBytesAsync(sourcePath)) &&
+            File.GetLastWriteTimeUtc(sourcePath) ==
+            originalWriteTime,
+            "DOCX import must never modify the original source file.");
+
+        var document = result.Document;
+
+        Assert(
+            document.Metadata.Title == "Spécification synthétique" &&
+            document.Metadata.Creator == "Nodalis Smoke Tests" &&
+            document.Metadata.CreatedUtc is not null,
+            "DOCX parser must extract useful core metadata.");
+
+        Assert(
+            document.Blocks.Count == 4 &&
+            document.Blocks[0].Kind == DocxBlockKind.Paragraph &&
+            document.Blocks[0].Paragraph?.Text == "Documentation technique" &&
+            document.Blocks[0].Paragraph?.HeadingLevel == 1 &&
+            document.Blocks[0].Paragraph?.StyleName == "Titre 1",
+            "DOCX parser must preserve block order and resolve heading styles.");
+
+        var linkParagraph = document.Blocks[1].Paragraph;
+
+        Assert(
+            linkParagraph is not null &&
+            linkParagraph.Text.Contains(
+                "documentation externe",
+                StringComparison.OrdinalIgnoreCase) &&
+            linkParagraph.Hyperlinks.Count == 1 &&
+            linkParagraph.Hyperlinks[0].Target ==
+            "https://example.test/documentation",
+            "DOCX parser must extract hyperlink relationships.");
+
+        var listParagraph = document.Blocks[2].Paragraph;
+
+        Assert(
+            listParagraph is not null &&
+            listParagraph.IsListItem &&
+            listParagraph.NumberingId == 1 &&
+            listParagraph.ListLevel == 0,
+            "DOCX parser must expose list numbering metadata.");
+
+        var table = document.Blocks[3].Table;
+
+        Assert(
+            table is not null &&
+            table.Rows.Count == 2 &&
+            table.Rows[0].Cells.Count == 2 &&
+            table.Rows[0].Cells[0].Text == "Clé" &&
+            table.Rows[1].Cells[1].Text == "Valeur 1",
+            "DOCX parser must extract simple table rows and cells.");
+
+        Assert(
+            document.Relationships.Any(relationship =>
+                relationship.Id == "rId1" &&
+                relationship.IsExternal) &&
+            document.Relationships.Any(relationship =>
+                relationship.Type.EndsWith(
+                    "/image",
+                    StringComparison.OrdinalIgnoreCase)),
+            "DOCX parser must retain useful document relationships.");
+
+        var invalidPath = Path.Combine(
+            sourceDirectory,
+            "invalide.docx");
+
+        await File.WriteAllTextAsync(
+            invalidPath,
+            "ceci n'est pas une archive DOCX");
+
+        var copiesBeforeFailure = Directory.GetFiles(
+            Path.Combine(
+                root,
+                WorkspaceLayout.ImportsDirectoryName,
+                WorkspaceLayout.ImportSourcesDirectoryName))
+            .Length;
+
+        await AssertThrowsAsync<InvalidDataException>(
+            () => service.ImportAsync(
+                invalidPath),
+            "Invalid DOCX files must fail explicitly.");
+
+        var copiesAfterFailure = Directory.GetFiles(
+            Path.Combine(
+                root,
+                WorkspaceLayout.ImportsDirectoryName,
+                WorkspaceLayout.ImportSourcesDirectoryName))
+            .Length;
+
+        Assert(
+            copiesAfterFailure == copiesBeforeFailure,
+            "Failed DOCX imports must clean up their working copy.");
+    }
+    finally
+    {
+        if (Directory.Exists(sourceDirectory))
+        {
+            Directory.Delete(
+                sourceDirectory,
+                recursive: true);
+        }
+    }
+}
+
+static void CreateSyntheticDocx(string path)
+{
+    Directory.CreateDirectory(
+        Path.GetDirectoryName(path)!);
+
+    using var archive = ZipFile.Open(
+        path,
+        ZipArchiveMode.Create);
+
+    WriteZipEntry(
+        archive,
+        "[Content_Types].xml",
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+          <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+          <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+        </Types>
+        """);
+
+    WriteZipEntry(
+        archive,
+        "word/styles.xml",
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:style w:type="paragraph" w:styleId="Heading1">
+            <w:name w:val="Titre 1"/>
+            <w:pPr><w:outlineLvl w:val="0"/></w:pPr>
+          </w:style>
+        </w:styles>
+        """);
+
+    WriteZipEntry(
+        archive,
+        "word/_rels/document.xml.rels",
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/documentation" TargetMode="External"/>
+          <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+        </Relationships>
+        """);
+
+    WriteZipEntry(
+        archive,
+        "docProps/core.xml",
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <cp:coreProperties
+            xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+            xmlns:dc="http://purl.org/dc/elements/1.1/"
+            xmlns:dcterms="http://purl.org/dc/terms/">
+          <dc:title>Spécification synthétique</dc:title>
+          <dc:creator>Nodalis Smoke Tests</dc:creator>
+          <dcterms:created>2026-10-04T12:00:00Z</dcterms:created>
+          <dcterms:modified>2026-10-04T13:00:00Z</dcterms:modified>
+        </cp:coreProperties>
+        """);
+
+    WriteZipEntry(
+        archive,
+        "word/document.xml",
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:document
+            xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <w:body>
+            <w:p>
+              <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+              <w:r><w:t>Documentation technique</w:t></w:r>
+            </w:p>
+            <w:p>
+              <w:r><w:t>Voir la </w:t></w:r>
+              <w:hyperlink r:id="rId1">
+                <w:r><w:t>documentation externe</w:t></w:r>
+              </w:hyperlink>
+              <w:r><w:t>.</w:t></w:r>
+            </w:p>
+            <w:p>
+              <w:pPr>
+                <w:numPr>
+                  <w:ilvl w:val="0"/>
+                  <w:numId w:val="1"/>
+                </w:numPr>
+              </w:pPr>
+              <w:r><w:t>Premier point</w:t></w:r>
+            </w:p>
+            <w:tbl>
+              <w:tr>
+                <w:tc><w:p><w:r><w:t>Clé</w:t></w:r></w:p></w:tc>
+                <w:tc><w:p><w:r><w:t>Valeur</w:t></w:r></w:p></w:tc>
+              </w:tr>
+              <w:tr>
+                <w:tc><w:p><w:r><w:t>Champ 1</w:t></w:r></w:p></w:tc>
+                <w:tc><w:p><w:r><w:t>Valeur 1</w:t></w:r></w:p></w:tc>
+              </w:tr>
+            </w:tbl>
+            <w:sectPr/>
+          </w:body>
+        </w:document>
+        """);
+}
+
+static void WriteZipEntry(
+    ZipArchive archive,
+    string name,
+    string content)
+{
+    var entry = archive.CreateEntry(
+        name,
+        CompressionLevel.Fastest);
+
+    using var stream = entry.Open();
+    using var writer = new StreamWriter(
+        stream,
+        new System.Text.UTF8Encoding(
+            encoderShouldEmitUTF8Identifier: false));
+
+    writer.Write(
+        content.Trim());
 }
 
 static void VerifyMarkdownParser()
