@@ -1,8 +1,11 @@
 using System.ComponentModel;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Abstractions;
 using Nodalis.Core.Navigation;
@@ -19,12 +22,20 @@ public partial class MainWindow : Window
     private readonly IUserPreferencesStore _preferencesStore;
     private readonly ITemplateStore _templateStore;
     private readonly WorkspaceNavigationBuilder _navigationBuilder = new();
+    private readonly DispatcherTimer _previewTimer;
 
     private NavigationNodeViewModel _root;
     private NavigationNodeViewModel? _selectedNode;
+    private TextDocumentSession? _documentSession;
+    private DocumentAutosaveController? _autosave;
     private UserPreferences _preferences;
     private bool _allowClose;
     private bool _contextPanelOpen;
+    private bool _previewVisible;
+    private bool _suppressEditorChanges;
+    private bool _documentDirty;
+    private bool _restoringSelection;
+    private bool _conflictWarningShown;
     private double _lastContextWidth;
 
     public MainWindow(
@@ -44,7 +55,23 @@ public partial class MainWindow : Window
         _preferencesStore = preferencesStore;
         _templateStore = templateStore;
         _contextPanelOpen = preferences.IsContextPanelOpen;
+        _previewVisible = preferences.Editor.LivePreview;
         _lastContextWidth = preferences.ContextPanelWidth;
+
+        _previewTimer = new DispatcherTimer(
+            TimeSpan.FromMilliseconds(180),
+            DispatcherPriority.Background,
+            PreviewTimer_Tick,
+            Dispatcher)
+        {
+            IsEnabled = false
+        };
+
+        MarkdownEditorTextBox.FontSize = preferences.Editor.FontSize;
+        MarkdownEditorTextBox.TextWrapping =
+            preferences.Editor.WordWrap
+                ? TextWrapping.Wrap
+                : TextWrapping.NoWrap;
 
         _root = CreateRootViewModel(
             root,
@@ -60,6 +87,7 @@ public partial class MainWindow : Window
             preferences.NavigationPanelWidth);
 
         ApplyContextPanelState();
+        ApplyPreviewState();
     }
 
     protected override async void OnClosing(CancelEventArgs e)
@@ -71,6 +99,12 @@ public partial class MainWindow : Window
         }
 
         e.Cancel = true;
+
+        if (!await TryCloseCurrentDocumentAsync(
+                "fermer Nodalis"))
+        {
+            return;
+        }
 
         try
         {
@@ -85,7 +119,16 @@ public partial class MainWindow : Window
                     180,
                     _contextPanelOpen
                         ? ContextColumn.ActualWidth
-                        : _lastContextWidth)
+                        : _lastContextWidth),
+                Editor = _preferences.Editor with
+                {
+                    LivePreview = _previewVisible,
+                    WordWrap =
+                        MarkdownEditorTextBox.TextWrapping ==
+                        TextWrapping.Wrap,
+                    FontSize = (int)Math.Round(
+                        MarkdownEditorTextBox.FontSize)
+                }
             };
 
             await _preferencesStore.SaveAsync(_preferences);
@@ -100,6 +143,7 @@ public partial class MainWindow : Window
                 MessageBoxImage.Warning);
         }
 
+        _previewTimer.Stop();
         _allowClose = true;
         Close();
     }
@@ -108,9 +152,28 @@ public partial class MainWindow : Window
         object sender,
         RoutedPropertyChangedEventArgs<object> e)
     {
-        if (e.NewValue is not NavigationNodeViewModel node)
+        if (_restoringSelection ||
+            e.NewValue is not NavigationNodeViewModel node)
         {
             return;
+        }
+
+        var previous = _selectedNode;
+
+        if (previous is not null &&
+            previous.Kind == WorkspaceNodeKind.Document &&
+            !ReferenceEquals(previous, node))
+        {
+            var canLeave = await TryCloseCurrentDocumentAsync(
+                "changer de document");
+
+            if (!canLeave)
+            {
+                _restoringSelection = true;
+                previous.IsSelected = true;
+                _restoringSelection = false;
+                return;
+            }
         }
 
         _selectedNode = node;
@@ -136,34 +199,242 @@ public partial class MainWindow : Window
 
         if (node.Kind == WorkspaceNodeKind.Document)
         {
-            try
-            {
-                DocumentContentText.Text = await File.ReadAllTextAsync(
-                    node.FullPath);
-
-                StatusText.Text =
-                    $"Document · {relativePath} · lecture locale";
-            }
-            catch (Exception exception) when (
-                exception is IOException or
-                UnauthorizedAccessException)
-            {
-                DocumentContentText.Text =
-                    $"Impossible de lire le document.\n\n{exception.Message}";
-
-                StatusText.Text = "Erreur de lecture";
-            }
-
+            await OpenDocumentAsync(node);
             return;
         }
 
-        DocumentContentText.Text =
+        ShowNodeSummary(node);
+    }
+
+    private async Task OpenDocumentAsync(
+        NavigationNodeViewModel node)
+    {
+        try
+        {
+            var session = await TextDocumentSession.OpenAsync(
+                node.FullPath);
+
+            _documentSession = session;
+            _documentDirty = false;
+            _conflictWarningShown = false;
+
+            _autosave = new DocumentAutosaveController(
+                session,
+                TimeSpan.FromMilliseconds(
+                    _preferences.Editor.AutosaveDelayMilliseconds));
+
+            _autosave.Saved += Autosave_Saved;
+            _autosave.ConflictDetected += Autosave_ConflictDetected;
+            _autosave.SaveFailed += Autosave_SaveFailed;
+
+            _suppressEditorChanges = true;
+            MarkdownEditorTextBox.Text = session.Content;
+            MarkdownEditorTextBox.CaretIndex = 0;
+            _suppressEditorChanges = false;
+
+            NodeSummaryHost.Visibility = Visibility.Collapsed;
+            EditorToolbar.Visibility = Visibility.Visible;
+            DocumentEditorHost.Visibility = Visibility.Visible;
+
+            SaveStateText.Text = "Enregistré";
+            StatusText.Text =
+                $"Document · {Path.GetRelativePath(_root.FullPath, node.FullPath)}";
+
+            RenderPreview();
+            MarkdownEditorTextBox.Focus();
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            DecoderFallbackException)
+        {
+            _documentSession = null;
+            _autosave = null;
+
+            NodeSummaryHost.Visibility = Visibility.Visible;
+            EditorToolbar.Visibility = Visibility.Collapsed;
+            DocumentEditorHost.Visibility = Visibility.Collapsed;
+
+            NodeSummaryText.Text =
+                $"Impossible de lire le document.\n\n{exception.Message}";
+
+            StatusText.Text = "Erreur de lecture";
+        }
+    }
+
+    private void ShowNodeSummary(
+        NavigationNodeViewModel node)
+    {
+        _documentSession = null;
+        _autosave = null;
+        _documentDirty = false;
+
+        EditorToolbar.Visibility = Visibility.Collapsed;
+        DocumentEditorHost.Visibility = Visibility.Collapsed;
+        NodeSummaryHost.Visibility = Visibility.Visible;
+
+        NodeSummaryText.Text =
             $"{GetKindLabel(node.Kind)}\n\n" +
             $"{node.Children.Count} élément(s) enfant(s)\n\n" +
             $"{node.FullPath}";
 
         StatusText.Text =
             $"{GetKindLabel(node.Kind)} · {node.Children.Count} élément(s)";
+    }
+
+    private async Task<bool> TryCloseCurrentDocumentAsync(
+        string actionDescription)
+    {
+        if (_autosave is null)
+        {
+            return true;
+        }
+
+        await _autosave.FlushAsync();
+
+        if (_documentDirty)
+        {
+            var answer = MessageBox.Show(
+                this,
+                "Les dernières modifications n'ont pas pu être enregistrées " +
+                "(le fichier a peut-être été modifié ailleurs ou est verrouillé).\n\n" +
+                $"Voulez-vous quand même {actionDescription} et abandonner " +
+                "les modifications locales non enregistrées ?",
+                "Modifications non enregistrées",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (answer != MessageBoxResult.Yes)
+            {
+                return false;
+            }
+        }
+
+        await _autosave.DisposeAsync();
+        _autosave = null;
+        _documentSession = null;
+        _documentDirty = false;
+        _previewTimer.Stop();
+
+        return true;
+    }
+
+    private void MarkdownEditorTextBox_TextChanged(
+        object sender,
+        System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (_suppressEditorChanges ||
+            _autosave is null)
+        {
+            return;
+        }
+
+        _documentDirty = true;
+        SaveStateText.Text = "Modification…";
+
+        _autosave.Schedule(
+            MarkdownEditorTextBox.Text);
+
+        _previewTimer.Stop();
+        _previewTimer.Start();
+    }
+
+    private void PreviewTimer_Tick(
+        object? sender,
+        EventArgs e)
+    {
+        _previewTimer.Stop();
+        RenderPreview();
+    }
+
+    private void RenderPreview()
+    {
+        if (!_previewVisible ||
+            _selectedNode?.Kind != WorkspaceNodeKind.Document)
+        {
+            return;
+        }
+
+        var baseDirectory = Path.GetDirectoryName(
+            _selectedNode.FullPath);
+
+        MarkdownPreview.Document =
+            MarkdownFlowDocumentRenderer.Render(
+                MarkdownEditorTextBox.Text,
+                baseDirectory,
+                OnInternalLinkClicked,
+                OnMarkdownLinkClicked);
+    }
+
+    private void Autosave_Saved(
+        object? sender,
+        EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_documentSession is null)
+            {
+                return;
+            }
+
+            _documentDirty =
+                !string.Equals(
+                    MarkdownEditorTextBox.Text,
+                    _documentSession.Content,
+                    StringComparison.Ordinal);
+
+            SaveStateText.Text =
+                _documentDirty
+                    ? "Modification…"
+                    : "Enregistré";
+
+            if (!_documentDirty)
+            {
+                StatusText.Text = "Enregistré localement";
+            }
+        });
+    }
+
+    private void Autosave_ConflictDetected(
+        object? sender,
+        AutosaveConflictEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _documentDirty = true;
+            SaveStateText.Text = "Conflit externe";
+            StatusText.Text =
+                "Le fichier a été modifié en dehors de Nodalis.";
+
+            if (_conflictWarningShown)
+            {
+                return;
+            }
+
+            _conflictWarningShown = true;
+
+            MessageBox.Show(
+                this,
+                "Ce fichier a été modifié par un autre programme depuis son ouverture. " +
+                "Nodalis n'écrasera pas cette version automatiquement.\n\n" +
+                "Vos modifications restent visibles dans l'éditeur tant que vous " +
+                "ne changez pas de document.",
+                "Conflit de modification",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        });
+    }
+
+    private void Autosave_SaveFailed(
+        object? sender,
+        AutosaveFailureEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _documentDirty = true;
+            SaveStateText.Text = "Erreur d'enregistrement";
+            StatusText.Text = e.Exception.Message;
+        });
     }
 
     private async void NewNote_Click(
@@ -177,11 +448,205 @@ public partial class MainWindow : Window
         object sender,
         KeyEventArgs e)
     {
-        if (e.Key == Key.N &&
-            Keyboard.Modifiers == ModifierKeys.Control)
+        if (Keyboard.Modifiers == ModifierKeys.Control)
         {
-            e.Handled = true;
-            await CreateNoteAsync();
+            if (e.Key == Key.N)
+            {
+                e.Handled = true;
+                await CreateNoteAsync();
+                return;
+            }
+
+            if (e.Key == Key.S)
+            {
+                e.Handled = true;
+                await SaveCurrentDocumentAsync();
+                return;
+            }
+
+            if (e.Key == Key.B &&
+                _documentSession is not null)
+            {
+                e.Handled = true;
+                WrapSelection("**", "**");
+                return;
+            }
+
+            if (e.Key == Key.I &&
+                _documentSession is not null)
+            {
+                e.Handled = true;
+                WrapSelection("*", "*");
+                return;
+            }
+
+            if (e.Key == Key.Oem3 &&
+                _documentSession is not null)
+            {
+                e.Handled = true;
+                var marker = ((char)96).ToString();
+                WrapSelection(marker, marker);
+            }
+        }
+    }
+
+    private async Task SaveCurrentDocumentAsync()
+    {
+        if (_autosave is null)
+        {
+            return;
+        }
+
+        await _autosave.FlushAsync();
+
+        SaveStateText.Text =
+            _documentDirty
+                ? "Non enregistré"
+                : "Enregistré";
+    }
+
+    private void Bold_Click(
+        object sender,
+        RoutedEventArgs e) =>
+        WrapSelection("**", "**");
+
+    private void Italic_Click(
+        object sender,
+        RoutedEventArgs e) =>
+        WrapSelection("*", "*");
+
+    private void InlineCode_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var marker = ((char)96).ToString();
+        WrapSelection(marker, marker);
+    }
+
+    private void WrapSelection(
+        string prefix,
+        string suffix)
+    {
+        if (_documentSession is null)
+        {
+            return;
+        }
+
+        var start = MarkdownEditorTextBox.SelectionStart;
+        var length = MarkdownEditorTextBox.SelectionLength;
+        var selectedText = MarkdownEditorTextBox.SelectedText;
+
+        MarkdownEditorTextBox.SelectedText =
+            prefix + selectedText + suffix;
+
+        if (length == 0)
+        {
+            MarkdownEditorTextBox.CaretIndex =
+                start + prefix.Length;
+        }
+        else
+        {
+            MarkdownEditorTextBox.Select(
+                start + prefix.Length,
+                length);
+        }
+
+        MarkdownEditorTextBox.Focus();
+    }
+
+    private void TogglePreview_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        _previewVisible = !_previewVisible;
+        ApplyPreviewState();
+
+        if (_previewVisible)
+        {
+            RenderPreview();
+        }
+    }
+
+    private void ApplyPreviewState()
+    {
+        if (_previewVisible)
+        {
+            PreviewColumn.Width = new GridLength(
+                1,
+                GridUnitType.Star);
+            PreviewSplitterColumn.Width = new GridLength(5);
+            MarkdownPreview.Visibility = Visibility.Visible;
+            PreviewSplitter.Visibility = Visibility.Visible;
+            return;
+        }
+
+        PreviewColumn.Width = new GridLength(0);
+        PreviewSplitterColumn.Width = new GridLength(0);
+        MarkdownPreview.Visibility = Visibility.Collapsed;
+        PreviewSplitter.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnInternalLinkClicked(string target)
+    {
+        var matches = _root
+            .DescendantsAndSelf()
+            .Where(node =>
+                string.Equals(
+                    node.DisplayName,
+                    target,
+                    StringComparison.CurrentCultureIgnoreCase))
+            .Take(2)
+            .ToArray();
+
+        if (matches.Length == 1)
+        {
+            matches[0].IsSelected = true;
+            return;
+        }
+
+        StatusText.Text = matches.Length == 0
+            ? $"Lien interne introuvable : {target}"
+            : $"Lien interne ambigu : {target}";
+    }
+
+    private void OnMarkdownLinkClicked(string target)
+    {
+        if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
+        {
+            var baseDirectory = Path.GetDirectoryName(
+                _selectedNode.FullPath);
+
+            if (!string.IsNullOrWhiteSpace(baseDirectory) &&
+                !Uri.TryCreate(target, UriKind.Absolute, out _))
+            {
+                var localPath = Path.GetFullPath(
+                    Path.Combine(baseDirectory, target));
+
+                var match = _root
+                    .DescendantsAndSelf()
+                    .FirstOrDefault(node =>
+                        string.Equals(
+                            Path.GetFullPath(node.FullPath),
+                            localPath,
+                            StringComparison.OrdinalIgnoreCase));
+
+                if (match is not null)
+                {
+                    match.IsSelected = true;
+                    return;
+                }
+            }
+        }
+
+        try
+        {
+            Clipboard.SetText(target);
+            StatusText.Text =
+                "Lien copié dans le presse-papiers (aucun appel réseau effectué).";
+        }
+        catch
+        {
+            StatusText.Text = target;
         }
     }
 
@@ -272,6 +737,14 @@ public partial class MainWindow : Window
                 filePath,
                 content);
 
+            if (!await TryCloseCurrentDocumentAsync(
+                    "ouvrir la nouvelle note"))
+            {
+                StatusText.Text =
+                    "Nouvelle note créée, document actuel conservé.";
+                return;
+            }
+
             await RefreshNavigationAsync(filePath);
 
             StatusText.Text =
@@ -347,6 +820,7 @@ public partial class MainWindow : Window
         }
 
         _selectedNode = target;
+        target.IsSelected = true;
         await DisplayNodeAsync(target);
     }
 
