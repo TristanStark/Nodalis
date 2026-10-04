@@ -15,6 +15,11 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        EventManager.RegisterClassHandler(
+            typeof(Window),
+            FrameworkElement.LoadedEvent,
+            new RoutedEventHandler(ApplyNodalisWindowStyle));
+
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         try
@@ -62,6 +67,25 @@ public partial class App : Application
 
             Shutdown(-1);
         }
+    }
+
+    private void ApplyNodalisWindowStyle(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (sender is not Window window ||
+            window.ReadLocalValue(FrameworkElement.StyleProperty) !=
+            DependencyProperty.UnsetValue ||
+            Resources["NodalisWindowStyle"] is not Style style)
+        {
+            return;
+        }
+
+        // WPF resolves an implicit Window style against the concrete runtime
+        // type. Nodalis dialogs are derived Window classes, so without this
+        // explicit application their surface can fall back to the light
+        // system background while child controls still use the dark theme.
+        window.Style = style;
     }
 
     private static async Task<(string WorkspacePath, UserPreferences Preferences)?>
