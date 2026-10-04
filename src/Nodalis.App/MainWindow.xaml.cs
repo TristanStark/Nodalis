@@ -3,14 +3,17 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Nodalis.App.Commands;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Glossary;
 using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Abstractions;
+using Nodalis.Core.Glossary;
 using Nodalis.Core.Links;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Projects;
@@ -18,6 +21,7 @@ using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Documents;
+using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Notes;
@@ -32,6 +36,7 @@ public partial class MainWindow : Window
     private readonly IUserPreferencesStore _preferencesStore;
     private readonly ITemplateStore _templateStore;
     private readonly WorkspaceNavigationBuilder _navigationBuilder = new();
+    private readonly GlossaryService _glossaryService = new();
     private readonly WorkspaceLinkIndexService _linkIndexService;
     private readonly DispatcherTimer _previewTimer;
 
@@ -53,6 +58,10 @@ public partial class MainWindow : Window
     private int _linkSuggestionLength;
     private string? _linkSuggestionAlias;
     private bool _suppressLinkAutocomplete;
+    private GlossaryTextBoxAdorner? _glossaryAdorner;
+    private IReadOnlyList<GlossaryScope> _glossaryScopes = [];
+    private IReadOnlyList<GlossaryEntry> _glossaryEntries = [];
+    private IReadOnlyList<GlossaryTextMatch> _glossaryMatches = [];
 
     public MainWindow(
         WorkspaceNavigationNode root,
@@ -111,7 +120,11 @@ public partial class MainWindow : Window
         {
             try
             {
+                AttachGlossaryAdorner();
                 await RefreshLinkIndexAndContextAsync();
+                await RefreshGlossaryContextAsync(
+                    _selectedNode?.FullPath ?? _root.FullPath);
+                UpdateGlossaryAnnotations();
             }
             catch (Exception exception) when (
                 exception is IOException or
@@ -723,6 +736,9 @@ public partial class MainWindow : Window
             }
 
             UpdateLinkContext(node.FullPath);
+            await RefreshGlossaryContextAsync(
+                node.FullPath);
+            UpdateGlossaryAnnotations();
             RenderPreview();
             MarkdownEditorTextBox.Focus();
         }
@@ -763,6 +779,9 @@ public partial class MainWindow : Window
 
         BacklinksList.ItemsSource = null;
         ContextBrokenLinksText.Text = "Liens internes : —";
+        _glossaryMatches = [];
+        _glossaryAdorner?.SetMatches([]);
+        MarkdownEditorTextBox.ToolTip = null;
 
         StatusText.Text =
             $"{GetKindLabel(node.Kind)} · {node.Children.Count} élément(s)";
@@ -836,6 +855,7 @@ public partial class MainWindow : Window
     {
         _previewTimer.Stop();
         RenderPreview();
+        UpdateGlossaryAnnotations();
     }
 
     private void RenderPreview()
@@ -886,6 +906,9 @@ public partial class MainWindow : Window
                 try
                 {
                     await RefreshLinkIndexAndContextAsync();
+                    await RefreshGlossaryContextAsync(
+                        _selectedNode?.FullPath ?? _root.FullPath);
+                    UpdateGlossaryAnnotations();
                 }
                 catch (Exception exception) when (
                     exception is IOException or
@@ -1836,22 +1859,292 @@ public partial class MainWindow : Window
         return commands;
     }
 
-    private async Task ShowGlossaryAsync()
+    private void AttachGlossaryAdorner()
     {
-        var dialog = new GlossaryLookupDialog(
-            _root.FullPath,
-            _selectedNode?.FullPath)
-        {
-            Owner = this
-        };
-
-        if (dialog.ShowDialog() != true ||
-            dialog.SelectedEntry is null)
+        if (_glossaryAdorner is not null)
         {
             return;
         }
 
-        var entry = dialog.SelectedEntry;
+        var layer = AdornerLayer.GetAdornerLayer(
+            MarkdownEditorTextBox);
+
+        if (layer is null)
+        {
+            return;
+        }
+
+        _glossaryAdorner = new GlossaryTextBoxAdorner(
+            MarkdownEditorTextBox);
+
+        layer.Add(
+            _glossaryAdorner);
+    }
+
+    private async Task RefreshGlossaryContextAsync(
+        string? contextPath)
+    {
+        _glossaryScopes = await _glossaryService.ResolveScopesAsync(
+            _root.FullPath,
+            contextPath);
+
+        var entries = new List<GlossaryEntry>();
+
+        foreach (var scope in _glossaryScopes)
+        {
+            entries.AddRange(
+                await _glossaryService.LoadEntriesAsync(
+                    scope));
+        }
+
+        _glossaryEntries = entries;
+    }
+
+    private void UpdateGlossaryAnnotations()
+    {
+        if (_documentSession is null ||
+            _glossaryAdorner is null)
+        {
+            _glossaryMatches = [];
+            _glossaryAdorner?.SetMatches([]);
+            return;
+        }
+
+        _glossaryMatches = GlossaryTextMatcher.Match(
+            MarkdownEditorTextBox.Text,
+            _glossaryEntries);
+
+        _glossaryAdorner.SetMatches(
+            _glossaryMatches);
+    }
+
+    private void MarkdownEditorTextBox_PreviewMouseMove(
+        object sender,
+        MouseEventArgs e)
+    {
+        var match = FindGlossaryMatchAtPoint(
+            e.GetPosition(MarkdownEditorTextBox));
+
+        MarkdownEditorTextBox.ToolTip =
+            match is null
+                ? null
+                : $"{match.Entry.Term}\n{match.Entry.Definition}\n\n{match.Entry.Scope.DisplayName}\nDouble-cliquer pour ouvrir.";
+    }
+
+    private async void MarkdownEditorTextBox_MouseDoubleClick(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        var match = FindGlossaryMatchAtPoint(
+            e.GetPosition(MarkdownEditorTextBox));
+
+        if (match is null)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await OpenGlossaryEntryAsync(
+            match.Entry);
+    }
+
+    private void MarkdownEditorTextBox_ContextMenuOpening(
+        object sender,
+        ContextMenuEventArgs e)
+    {
+        var menu = new ContextMenu();
+
+        menu.Items.Add(new MenuItem
+        {
+            Header = "Couper",
+            Command = ApplicationCommands.Cut,
+            CommandTarget = MarkdownEditorTextBox
+        });
+
+        menu.Items.Add(new MenuItem
+        {
+            Header = "Copier",
+            Command = ApplicationCommands.Copy,
+            CommandTarget = MarkdownEditorTextBox
+        });
+
+        menu.Items.Add(new MenuItem
+        {
+            Header = "Coller",
+            Command = ApplicationCommands.Paste,
+            CommandTarget = MarkdownEditorTextBox
+        });
+
+        var selected = NormalizeGlossarySelection(
+            MarkdownEditorTextBox.SelectedText);
+
+        if (!string.IsNullOrWhiteSpace(selected) &&
+            _glossaryScopes.Count > 0)
+        {
+            menu.Items.Add(
+                new Separator());
+
+            var addToGlossary = new MenuItem
+            {
+                Header = "Ajouter au glossaire"
+            };
+
+            foreach (var scope in _glossaryScopes)
+            {
+                var capturedScope = scope;
+
+                var scopeItem = new MenuItem
+                {
+                    Header = scope.DisplayName,
+                    FontWeight =
+                        scope.Kind == GlossaryScopeKind.Project
+                            ? FontWeights.SemiBold
+                            : FontWeights.Normal
+                };
+
+                scopeItem.Click += async (_, _) =>
+                    await AddGlossaryEntryAsync(
+                        capturedScope,
+                        selected);
+
+                addToGlossary.Items.Add(
+                    scopeItem);
+            }
+
+            menu.Items.Add(
+                addToGlossary);
+        }
+
+        menu.Items.Add(
+            new Separator());
+
+        menu.Items.Add(new MenuItem
+        {
+            Header = "Tout sélectionner",
+            Command = ApplicationCommands.SelectAll,
+            CommandTarget = MarkdownEditorTextBox
+        });
+
+        MarkdownEditorTextBox.ContextMenu = menu;
+    }
+
+    private GlossaryTextMatch? FindGlossaryMatchAtPoint(
+        Point point)
+    {
+        if (_glossaryMatches.Count == 0)
+        {
+            return null;
+        }
+
+        var index = MarkdownEditorTextBox.GetCharacterIndexFromPoint(
+            point,
+            snapToText: false);
+
+        if (index < 0)
+        {
+            return null;
+        }
+
+        return _glossaryMatches.FirstOrDefault(match =>
+            index >= match.Start &&
+            index < match.Start + match.Length);
+    }
+
+    private async Task AddGlossaryEntryAsync(
+        GlossaryScope scope,
+        string term)
+    {
+        var dialog = new AddGlossaryEntryDialog(
+            scope,
+            term)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var currentPath = _documentSession?.Path;
+            var targetPath = Path.GetFullPath(
+                scope.FilePath);
+
+            var isCurrentDocument =
+                currentPath is not null &&
+                string.Equals(
+                    Path.GetFullPath(currentPath),
+                    targetPath,
+                    StringComparison.OrdinalIgnoreCase);
+
+            if (isCurrentDocument &&
+                _autosave is not null)
+            {
+                await _autosave.FlushAsync();
+
+                if (_documentDirty)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Le glossaire contient des modifications non enregistrées. " +
+                        "Enregistrez ou résolvez le conflit avant d'ajouter l'entrée.",
+                        "Ajouter au glossaire",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            await _glossaryService.AppendAsync(
+                scope,
+                dialog.Draft);
+
+            if (isCurrentDocument &&
+                _documentSession is not null)
+            {
+                await _documentSession.ReloadAsync();
+
+                _suppressEditorChanges = true;
+                MarkdownEditorTextBox.Text =
+                    _documentSession.Content;
+                MarkdownEditorTextBox.CaretIndex =
+                    MarkdownEditorTextBox.Text.Length;
+                _suppressEditorChanges = false;
+
+                _documentDirty = false;
+                SaveStateText.Text = "Enregistré";
+                RenderPreview();
+            }
+
+            await RefreshGlossaryContextAsync(
+                _selectedNode?.FullPath ?? _root.FullPath);
+
+            UpdateGlossaryAnnotations();
+
+            StatusText.Text =
+                $"Ajouté au glossaire · {dialog.Draft.Term} · {scope.DisplayName}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            ExternalModificationException)
+        {
+            MessageBox.Show(
+                this,
+                $"L'entrée n'a pas pu être ajoutée.\n\n{exception.Message}",
+                "Ajouter au glossaire",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async Task OpenGlossaryEntryAsync(
+        GlossaryEntry entry)
+    {
         var path = Path.GetFullPath(
             entry.Scope.FilePath);
 
@@ -1896,6 +2189,34 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"Glossaire · {entry.Term} · {entry.Scope.DisplayName}";
+    }
+
+    private static string NormalizeGlossarySelection(
+        string value) =>
+        string.Join(
+            " ",
+            value.Split(
+                [' ', '\t', '\r', '\n'],
+                StringSplitOptions.TrimEntries |
+                StringSplitOptions.RemoveEmptyEntries));
+
+    private async Task ShowGlossaryAsync()
+    {
+        var dialog = new GlossaryLookupDialog(
+            _root.FullPath,
+            _selectedNode?.FullPath)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true ||
+            dialog.SelectedEntry is null)
+        {
+            return;
+        }
+
+        await OpenGlossaryEntryAsync(
+            dialog.SelectedEntry);
     }
 
     private async Task CaptureQuickNoteAsync()
