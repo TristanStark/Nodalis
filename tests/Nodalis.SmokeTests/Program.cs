@@ -3,6 +3,7 @@ using Nodalis.Core.Attachments;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Glossary;
 using Nodalis.Core.Links;
+using Nodalis.Core.Meetings;
 using Nodalis.Core.Milestones;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Tasks;
@@ -16,6 +17,7 @@ using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Links;
+using Nodalis.Infrastructure.Meetings;
 using Nodalis.Infrastructure.Milestones;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Notes;
@@ -46,6 +48,7 @@ try
     await VerifyAttachmentsAsync(root);
     await VerifyTasksAsync(root);
     await VerifyMilestonesAsync(root);
+    await VerifyMeetingsAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -1460,6 +1463,117 @@ static async Task VerifyMilestonesAsync(string root)
                 Status = "En cours"
             }),
         "Milestone editing must refuse ambiguous moved source rows.");
+}
+
+static async Task VerifyMeetingsAsync(string root)
+{
+    var structure = new ApplicationStructureService(root);
+    var applicationPath = await structure.CreateApplicationAsync(
+        "Application Réunions");
+
+    var applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        JsonDefaults.Options)
+        ?? throw new InvalidDataException(
+            "Meeting smoke test application manifest is invalid.");
+
+    var creator = new FileSystemProjectCreator(root);
+    var project = await creator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Réunions",
+            Complexity = ProjectComplexity.Simple,
+            Target = new ProjectCreationTarget
+            {
+                ApplicationId = application.Id,
+                ApplicationName = application.Name,
+                ParentDirectory = applicationPath,
+                DisplayName = application.Name
+            }
+        });
+
+    var service = new WorkspaceMeetingService(root);
+    var result = await service.CreateAsync(
+        project.ProjectDirectory,
+        new MeetingDraft
+        {
+            Title = "Comité projet",
+            Date = new DateOnly(2026, 10, 4),
+            Participants = "Alice\nBob",
+            Context = "Préparer la recette.",
+            Agenda = "Planning\nRisques",
+            Notes = "Point de vigilance sur le lot 2.",
+            Decisions = "Valider l'architecture cible",
+            Actions =
+                "Préparer recette | Responsable: Alice | Échéance: 2026-10-10\n" +
+                "- [ ] Envoyer le compte-rendu",
+            AiTranscript = "Transcription locale collée.",
+            AiSummary = "Résumé local collé.",
+            OutlookContent = "Invitation Outlook copiée."
+        });
+
+    Assert(
+        Path.GetFileName(
+            Path.GetDirectoryName(result.FilePath)) ==
+        WorkspaceMeetingService.MeetingsDirectoryName,
+        "Meetings must be stored in a dedicated project meeting directory.");
+
+    Assert(
+        Path.GetFileName(result.FilePath).StartsWith(
+            "2026-10-04 - Comité projet",
+            StringComparison.Ordinal),
+        "Meeting filenames must use the meeting date and title.");
+
+    var content = await File.ReadAllTextAsync(
+        result.FilePath);
+
+    Assert(
+        content.Contains(
+            "**Projet :** Projet Réunions",
+            StringComparison.Ordinal) &&
+        content.Contains(
+            "- Alice",
+            StringComparison.Ordinal) &&
+        content.Contains(
+            "- Valider l'architecture cible",
+            StringComparison.Ordinal) &&
+        content.Contains(
+            "- [ ] Préparer recette | Responsable: Alice | Échéance: 2026-10-10",
+            StringComparison.Ordinal) &&
+        content.Contains(
+            "## Contenu Outlook",
+            StringComparison.Ordinal) &&
+        content.Contains(
+            "Invitation Outlook copiée.",
+            StringComparison.Ordinal),
+        "Meeting assistant must persist structured participants, decisions, actions and pasted Outlook content.");
+
+    var scope = await service.ResolveScopeAsync(
+        result.FilePath);
+
+    Assert(
+        scope is not null &&
+        scope.Value.ScopeKind == "Projet" &&
+        scope.Value.ScopeName == "Projet Réunions",
+        "Meeting context resolution must keep the meeting attached to its project.");
+
+    var tasks = await new WorkspaceTaskService(root)
+        .GetTasksAsync(
+            project.ProjectDirectory);
+
+    Assert(
+        tasks.Any(task =>
+            task.Text == "Préparer recette" &&
+            task.Owner == "Alice" &&
+            task.DueDate == new DateOnly(2026, 10, 10)) &&
+        tasks.Any(task =>
+            task.Text == "Envoyer le compte-rendu"),
+        "Meeting actions must immediately surface as project Markdown tasks.");
 }
 
 static void VerifyMarkdownParser()
