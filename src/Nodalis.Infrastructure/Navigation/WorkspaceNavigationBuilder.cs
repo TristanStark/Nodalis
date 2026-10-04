@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Navigation;
 using Nodalis.Infrastructure.Persistence;
@@ -448,7 +449,8 @@ public sealed class WorkspaceNavigationBuilder
                 cancellationToken);
         }
         catch (Exception exception) when (
-            exception is InvalidDataException or
+            exception is JsonException or
+            InvalidDataException or
             IOException or
             UnauthorizedAccessException)
         {
