@@ -10,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using Nodalis.App.Commands;
+using Nodalis.App.Dashboard;
 using Nodalis.App.Dialogs;
 using Nodalis.App.Glossary;
 using Nodalis.App.Markdown;
@@ -274,7 +275,21 @@ public partial class MainWindow : Window
                     async (_, _) => await DeleteApplicationOrModuleAsync(_selectedNode));
                 break;
 
+            case WorkspaceNodeKind.Project:
+                AddItem(
+                    IsFavorite(_selectedNode)
+                        ? "Retirer des favoris"
+                        : "Ajouter aux favoris",
+                    async (_, _) => await ToggleFavoriteAsync(_selectedNode));
+                break;
+
             case WorkspaceNodeKind.Document:
+                AddItem(
+                    IsFavorite(_selectedNode)
+                        ? "Retirer des favoris"
+                        : "Ajouter aux favoris",
+                    async (_, _) => await ToggleFavoriteAsync(_selectedNode));
+                menu.Items.Add(new Separator());
                 AddItem(
                     "Renommer le document",
                     async (_, _) => await RenameDocumentAsync(_selectedNode));
@@ -690,10 +705,21 @@ public partial class MainWindow : Window
         ContextKindText.Text = GetKindLabel(node.Kind);
         ContextPathText.Text = node.FullPath;
 
+        if (node.Kind == WorkspaceNodeKind.Workspace)
+        {
+            ShowDashboard();
+            return;
+        }
+
         if (node.Kind == WorkspaceNodeKind.Document)
         {
             await OpenDocumentAsync(node);
             return;
+        }
+
+        if (node.Kind == WorkspaceNodeKind.Project)
+        {
+            await TrackRecentContextAsync(node);
         }
 
         ShowNodeSummary(node);
@@ -725,6 +751,7 @@ public partial class MainWindow : Window
             MarkdownEditorTextBox.CaretIndex = 0;
             _suppressEditorChanges = false;
 
+            DashboardHost.Visibility = Visibility.Collapsed;
             NodeSummaryHost.Visibility = Visibility.Collapsed;
             EditorToolbar.Visibility = Visibility.Visible;
             DocumentEditorHost.Visibility = Visibility.Visible;
@@ -739,6 +766,7 @@ public partial class MainWindow : Window
             }
 
             UpdateLinkContext(node.FullPath);
+            await TrackRecentContextAsync(node);
             await RefreshGlossaryContextAsync(
                 node.FullPath);
             UpdateGlossaryAnnotations();
@@ -771,6 +799,7 @@ public partial class MainWindow : Window
         _autosave = null;
         _documentDirty = false;
 
+        DashboardHost.Visibility = Visibility.Collapsed;
         EditorToolbar.Visibility = Visibility.Collapsed;
         DocumentEditorHost.Visibility = Visibility.Collapsed;
         NodeSummaryHost.Visibility = Visibility.Visible;
@@ -1254,9 +1283,398 @@ public partial class MainWindow : Window
                 : $"Lien interne ambigu : {target} ({resolution.Candidates.Count} cibles)";
     }
 
+    private void ShowDashboard()
+    {
+        _documentSession = null;
+        _autosave = null;
+        _documentDirty = false;
+
+        EditorToolbar.Visibility = Visibility.Collapsed;
+        DocumentEditorHost.Visibility = Visibility.Collapsed;
+        NodeSummaryHost.Visibility = Visibility.Collapsed;
+        DashboardHost.Visibility = Visibility.Visible;
+
+        DocumentTitleText.Text = "Accueil";
+        DocumentPathText.Text = _root.FullPath;
+
+        BacklinksList.ItemsSource = null;
+        ContextBrokenLinksText.Text = "Liens internes : —";
+        _glossaryMatches = [];
+        _glossaryAdorner?.SetMatches([]);
+
+        RefreshDashboard();
+
+        StatusText.Text =
+            "Accueil · favoris et éléments récents locaux";
+    }
+
+    private void RefreshDashboard()
+    {
+        FavoritesList.ItemsSource = _preferences.Favorites
+            .Select(reference =>
+                CreateDashboardItem(
+                    reference,
+                    lastOpenedUtc: null))
+            .Where(item => item is not null)
+            .Cast<DashboardItemViewModel>()
+            .ToArray();
+
+        var recent = _preferences.RecentItems
+            .OrderByDescending(item => item.LastOpenedUtc)
+            .Select(item =>
+                CreateDashboardItem(
+                    item.Item,
+                    item.LastOpenedUtc))
+            .Where(item => item is not null)
+            .Cast<DashboardItemViewModel>()
+            .ToArray();
+
+        RecentProjectsList.ItemsSource = recent
+            .Where(item =>
+                string.Equals(
+                    item.KindLabel,
+                    "Projet",
+                    StringComparison.OrdinalIgnoreCase))
+            .Take(10)
+            .ToArray();
+
+        var recentDocuments = recent
+            .Where(item =>
+                string.Equals(
+                    item.KindLabel,
+                    "Document",
+                    StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        RecentDocumentsList.ItemsSource = recentDocuments
+            .Take(12)
+            .ToArray();
+
+        RecentMeetingsList.ItemsSource = recentDocuments
+            .Where(IsMeetingDashboardItem)
+            .Take(8)
+            .ToArray();
+    }
+
+    private DashboardItemViewModel? CreateDashboardItem(
+        UserItemReference reference,
+        DateTimeOffset? lastOpenedUtc)
+    {
+        if (!Guid.TryParse(
+                reference.Key,
+                out var targetId))
+        {
+            return null;
+        }
+
+        var target = _linkIndex.Targets.FirstOrDefault(candidate =>
+            candidate.Id == targetId);
+
+        if (target is null)
+        {
+            return new DashboardItemViewModel
+            {
+                TargetId = targetId,
+                DisplayName =
+                    reference.DisplayName ??
+                    "Élément introuvable",
+                KindLabel = ToDashboardKindLabel(
+                    reference.Kind),
+                Context = "Cible actuellement introuvable",
+                LastOpenedUtc = lastOpenedUtc
+            };
+        }
+
+        return new DashboardItemViewModel
+        {
+            TargetId = target.Id,
+            DisplayName = target.DisplayName,
+            KindLabel = ToDashboardKindLabel(
+                target.Kind.ToString()),
+            Context = target.QualifiedName,
+            LastOpenedUtc = lastOpenedUtc
+        };
+    }
+
+    private static string ToDashboardKindLabel(
+        string kind) =>
+        kind.Equals(
+            "project",
+            StringComparison.OrdinalIgnoreCase)
+        || kind.Equals(
+            "Project",
+            StringComparison.OrdinalIgnoreCase)
+            ? "Projet"
+            : kind.Equals(
+                "document",
+                StringComparison.OrdinalIgnoreCase)
+              || kind.Equals(
+                  "Document",
+                  StringComparison.OrdinalIgnoreCase)
+                ? "Document"
+                : kind;
+
+    private static bool IsMeetingDashboardItem(
+        DashboardItemViewModel item) =>
+        item.Context?.Contains(
+            "Réunions",
+            StringComparison.CurrentCultureIgnoreCase) == true ||
+        item.Context?.Contains(
+            "Reunions",
+            StringComparison.CurrentCultureIgnoreCase) == true ||
+        item.DisplayName.StartsWith(
+            "Réunion",
+            StringComparison.CurrentCultureIgnoreCase) ||
+        item.DisplayName.StartsWith(
+            "Reunion",
+            StringComparison.CurrentCultureIgnoreCase);
+
+    private async void DashboardList_MouseDoubleClick(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox list ||
+            list.SelectedItem is not DashboardItemViewModel item)
+        {
+            return;
+        }
+
+        var target = _linkIndex.Targets.FirstOrDefault(candidate =>
+            candidate.Id == item.TargetId);
+
+        if (target is null)
+        {
+            StatusText.Text =
+                $"Favori/récent introuvable : {item.DisplayName}";
+            return;
+        }
+
+        await NavigateToLinkTargetAsync(
+            target);
+    }
+
+    private bool IsFavorite(
+        NavigationNodeViewModel node)
+    {
+        var target = FindIndexedTarget(
+            node);
+
+        return target is not null &&
+               _preferences.Favorites.Any(reference =>
+                   string.Equals(
+                       reference.Key,
+                       target.Id.ToString("D"),
+                       StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task ToggleFavoriteAsync(
+        NavigationNodeViewModel node)
+    {
+        if (_linkIndex.Targets.Count == 0)
+        {
+            await RefreshLinkIndexAsync();
+        }
+
+        var target = FindIndexedTarget(
+            node);
+
+        if (target is null)
+        {
+            await RefreshLinkIndexAsync();
+            target = FindIndexedTarget(
+                node);
+        }
+
+        if (target is null)
+        {
+            StatusText.Text =
+                $"Impossible d'indexer le favori : {node.DisplayName}";
+            return;
+        }
+
+        var key = target.Id.ToString("D");
+
+        var favorites = _preferences.Favorites
+            .Where(reference =>
+                !string.Equals(
+                    reference.Key,
+                    key,
+                    StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var removed =
+            favorites.Count !=
+            _preferences.Favorites.Count;
+
+        if (!removed)
+        {
+            favorites.Add(
+                CreateUserItemReference(
+                    target));
+        }
+
+        _preferences = _preferences with
+        {
+            Favorites = favorites
+        };
+
+        await _preferencesStore.SaveAsync(
+            _preferences);
+
+        RefreshDashboard();
+
+        StatusText.Text = removed
+            ? $"Retiré des favoris · {target.DisplayName}"
+            : $"Ajouté aux favoris · {target.DisplayName}";
+    }
+
+    private async Task TrackRecentContextAsync(
+        NavigationNodeViewModel node)
+    {
+        if (_linkIndex.Targets.Count == 0)
+        {
+            await RefreshLinkIndexAsync();
+        }
+
+        var targets = new List<LinkTargetEntry>();
+
+        var primary = FindIndexedTarget(
+            node);
+
+        if (primary is not null &&
+            primary.Kind is
+                LinkTargetKind.Project or
+                LinkTargetKind.Document)
+        {
+            targets.Add(
+                primary);
+        }
+
+        if (primary?.Kind == LinkTargetKind.Document)
+        {
+            var parentProject = _linkIndex.Targets
+                .Where(candidate =>
+                    candidate.Kind == LinkTargetKind.Project &&
+                    IsRelativeAncestor(
+                        candidate.RelativePath,
+                        primary.RelativePath))
+                .OrderByDescending(candidate =>
+                    candidate.RelativePath.Length)
+                .FirstOrDefault();
+
+            if (parentProject is not null)
+            {
+                targets.Add(
+                    parentProject);
+            }
+        }
+
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        var recent = _preferences.RecentItems
+            .ToList();
+
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var target in targets
+                     .DistinctBy(target => target.Id))
+        {
+            var key = target.Id.ToString("D");
+
+            recent.RemoveAll(item =>
+                string.Equals(
+                    item.Item.Key,
+                    key,
+                    StringComparison.OrdinalIgnoreCase));
+
+            recent.Insert(
+                0,
+                new RecentItemReference
+                {
+                    Item = CreateUserItemReference(
+                        target),
+                    LastOpenedUtc = now
+                });
+        }
+
+        recent = recent
+            .OrderByDescending(item => item.LastOpenedUtc)
+            .Take(40)
+            .ToList();
+
+        _preferences = _preferences with
+        {
+            RecentItems = recent
+        };
+
+        await _preferencesStore.SaveAsync(
+            _preferences);
+
+        RefreshDashboard();
+    }
+
+    private LinkTargetEntry? FindIndexedTarget(
+        NavigationNodeViewModel node)
+    {
+        if (node.Kind is
+            WorkspaceNodeKind.Application or
+            WorkspaceNodeKind.Module or
+            WorkspaceNodeKind.Project)
+        {
+            return _linkIndex.Targets.FirstOrDefault(target =>
+                target.Id == node.Id);
+        }
+
+        if (node.Kind != WorkspaceNodeKind.Document)
+        {
+            return null;
+        }
+
+        var relativePath = Path.GetRelativePath(
+                _root.FullPath,
+                node.FullPath)
+            .Replace(
+                Path.DirectorySeparatorChar,
+                '/');
+
+        return _linkIndex.Targets.FirstOrDefault(target =>
+            target.Kind == LinkTargetKind.Document &&
+            string.Equals(
+                target.RelativePath,
+                relativePath,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static UserItemReference CreateUserItemReference(
+        LinkTargetEntry target) =>
+        new()
+        {
+            Kind = target.Kind == LinkTargetKind.Project
+                ? "project"
+                : "document",
+            Key = target.Id.ToString("D"),
+            DisplayName = target.DisplayName
+        };
+
+    private static bool IsRelativeAncestor(
+        string candidateParent,
+        string child)
+    {
+        var parent = candidateParent
+            .TrimEnd('/') + "/";
+
+        return child.StartsWith(
+            parent,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task RefreshLinkIndexAsync()
     {
         _linkIndex = await _linkIndexService.RefreshAsync();
+        RefreshDashboard();
     }
 
     private async Task RefreshLinkIndexAndContextAsync()
