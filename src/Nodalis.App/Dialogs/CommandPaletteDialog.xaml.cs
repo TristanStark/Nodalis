@@ -95,7 +95,7 @@ private void CommandsList_MouseDoubleClick(
     /// <returns>The result of the operation.</returns>
 private void ApplyFilter()
     {
-        var query = SearchTextBox.Text.Trim();
+        string query = SearchTextBox.Text.Trim();
 
         global::System.Collections.Generic.IReadOnlyList<global::Nodalis.App.Commands.PaletteCommand> filtered = string.IsNullOrWhiteSpace(query)
             ? _commands
@@ -124,8 +124,8 @@ private void MoveSelection(int delta)
             return;
         }
 
-        var current = CommandsList.SelectedIndex;
-        var next = Math.Clamp(
+        int current = CommandsList.SelectedIndex;
+        int next = Math.Clamp(
             current + delta,
             0,
             CommandsList.Items.Count - 1);
