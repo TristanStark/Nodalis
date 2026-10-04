@@ -105,7 +105,7 @@ try {
         foreach ($file in $files) {
             $relative = [System.IO.Path]::GetRelativePath(
                 $publishDirectory,
-                $file.FullName).Replace("\\", "/")
+                $file.FullName).Replace("\", "/")
 
             $entryName = "Nodalis-win-x64/$relative"
             $entry = $archive.CreateEntry(
