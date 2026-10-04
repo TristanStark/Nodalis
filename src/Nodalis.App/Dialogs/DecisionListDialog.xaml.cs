@@ -76,7 +76,7 @@ private async Task RefreshAsync()
     {
         try
         {
-            var decisions = await _decisions.SearchAsync(
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Decisions.DecisionRecord> decisions = await _decisions.SearchAsync(
                 _contextPath,
                 SearchTextBox.Text);
 
