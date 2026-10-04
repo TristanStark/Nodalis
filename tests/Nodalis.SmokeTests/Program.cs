@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Navigation;
+using Nodalis.Core.Markdown;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Core.Validation;
@@ -20,6 +21,7 @@ try
     await VerifyWorkspacePersistenceAsync(root);
     await VerifyWorkspaceNavigationAsync(root);
     await VerifyTemplatesAsync(root);
+    VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
     VerifyDomainCatalog();
@@ -203,6 +205,67 @@ static async Task VerifyTemplatesAsync(string root)
     Assert(
         Path.GetFileName(uniquePath) == "duplicate (2).md",
         "New notes must avoid overwriting files with the same name.");
+}
+
+static void VerifyMarkdownParser()
+{
+    var fence = new string((char)96, 3);
+    var markdown =
+        "# Titre\n\n" +
+        "Texte **gras** et *italique* avec [[Projet Patate|le projet]].\n\n" +
+        "- [x] Action terminée\n" +
+        "- Élément\n" +
+        "1. Premier\n\n" +
+        "> Citation\n\n" +
+        "| Col A | Col B |\n" +
+        "| --- | --- |\n" +
+        "| A | B |\n\n" +
+        fence + "csharp\n" +
+        "Console.WriteLine(1);\n" +
+        fence + "\n";
+
+    var blocks = MarkdownDocumentParser.Parse(markdown);
+
+    Assert(blocks.Any(block =>
+            block.Kind == MarkdownBlockKind.Heading &&
+            block.Level == 1 &&
+            block.Text == "Titre"),
+        "Markdown headings must be parsed.");
+
+    Assert(blocks.Any(block =>
+            block.Kind == MarkdownBlockKind.ChecklistItem &&
+            block.IsChecked == true),
+        "Markdown checkboxes must be parsed.");
+
+    Assert(blocks.Any(block =>
+            block.Kind == MarkdownBlockKind.Table &&
+            block.TableRows.Count == 2),
+        "Markdown tables must be parsed.");
+
+    Assert(blocks.Any(block =>
+            block.Kind == MarkdownBlockKind.CodeBlock &&
+            block.Language == "csharp" &&
+            block.Text.Contains("Console.WriteLine", StringComparison.Ordinal)),
+        "Fenced code blocks must be parsed.");
+
+    var inlines = MarkdownInlineParser.Parse(
+        "A **bold** *italic* [[Target|Alias]] [link](file.md)");
+
+    Assert(inlines.Any(inline =>
+            inline.Kind == MarkdownInlineKind.Bold &&
+            inline.Text == "bold"),
+        "Bold inline Markdown must be parsed.");
+
+    Assert(inlines.Any(inline =>
+            inline.Kind == MarkdownInlineKind.InternalLink &&
+            inline.Target == "Target" &&
+            inline.Text == "Alias"),
+        "Internal links with aliases must be parsed.");
+
+    Assert(inlines.Any(inline =>
+            inline.Kind == MarkdownInlineKind.Link &&
+            inline.Target == "file.md"),
+        "Standard Markdown links must be parsed.");
 }
 
 static async Task VerifyUserPreferencesAsync(string root)
