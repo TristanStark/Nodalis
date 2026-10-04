@@ -517,10 +517,31 @@
                                                FontSize="11"
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource SecondaryTextBrush}" />
-                                    <TextBlock Margin="0,10,0,0"
-                                               Text="Les jalons structurés apparaîtront ici."
-                                               TextWrapping="Wrap"
-                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                    <ListBox x:Name="UpcomingMilestonesList"
+                                             Margin="0,8,0,0"
+                                             MaxHeight="250"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             MouseDoubleClick="DashboardMilestoneList_MouseDoubleClick">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="4,5">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontWeight="SemiBold"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Margin="0,2,0,0"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource SecondaryTextBrush}">
+                                                        <Run Text="{Binding ProjectName}" />
+                                                        <Run Text="  " />
+                                                        <Run Text="{Binding TargetDate, StringFormat={}{0:dd/MM/yyyy}}" />
+                                                        <Run Text="  " />
+                                                        <Run Text="{Binding Status}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
                                 </StackPanel>
                             </Border>
                         </Grid>
