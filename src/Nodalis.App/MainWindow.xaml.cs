@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -7,6 +8,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using Nodalis.App.Commands;
 using Nodalis.App.Dialogs;
 using Nodalis.App.Glossary;
@@ -20,6 +22,7 @@ using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Infrastructure.Applications;
+using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Links;
@@ -999,6 +1002,13 @@ public partial class MainWindow : Window
         await ShowCommandPaletteAsync();
     }
 
+    private async void AttachFile_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await AttachFileAsync();
+    }
+
     private async void MainWindow_PreviewKeyDown(
         object sender,
         KeyEventArgs e)
@@ -1623,7 +1633,7 @@ public partial class MainWindow : Window
             backlink.LineNumber);
     }
 
-    private void OnMarkdownLinkClicked(string target)
+    private async void OnMarkdownLinkClicked(string target)
     {
         if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
         {
@@ -1631,10 +1641,17 @@ public partial class MainWindow : Window
                 _selectedNode.FullPath);
 
             if (!string.IsNullOrWhiteSpace(baseDirectory) &&
-                !Uri.TryCreate(target, UriKind.Absolute, out _))
+                !Uri.TryCreate(
+                    target,
+                    UriKind.Absolute,
+                    out var absoluteUri))
             {
                 var localPath = Path.GetFullPath(
-                    Path.Combine(baseDirectory, target));
+                    Path.Combine(
+                        baseDirectory,
+                        target.Replace(
+                            '/',
+                            Path.DirectorySeparatorChar)));
 
                 var match = _root
                     .DescendantsAndSelf()
@@ -1646,17 +1663,95 @@ public partial class MainWindow : Window
 
                 if (match is not null)
                 {
+                    if (_selectedNode is not null &&
+                        !ReferenceEquals(
+                            _selectedNode,
+                            match) &&
+                        !await TryCloseCurrentDocumentAsync(
+                            "ouvrir le document lié"))
+                    {
+                        return;
+                    }
+
+                    _restoringSelection = true;
                     match.IsSelected = true;
+                    _restoringSelection = false;
+                    _selectedNode = match;
+                    await DisplayNodeAsync(match);
                     return;
                 }
             }
+
+            if (Uri.TryCreate(
+                    target,
+                    UriKind.Absolute,
+                    out var uri) &&
+                !uri.IsFile)
+            {
+                CopyExternalTargetToClipboard(
+                    target);
+                return;
+            }
+
+            var attachmentService = new AttachmentService(
+                _root.FullPath);
+
+            var reference = attachmentService.Resolve(
+                target,
+                _selectedNode.FullPath);
+
+            if (reference.Exists)
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo(
+                        reference.FullPath)
+                    {
+                        UseShellExecute = true
+                    });
+
+                    StatusText.Text =
+                        $"Ouvert avec Windows · {reference.DisplayName}";
+                }
+                catch (Exception exception) when (
+                    exception is Win32Exception or
+                    InvalidOperationException)
+                {
+                    MessageBox.Show(
+                        this,
+                        $"Windows n'a pas pu ouvrir ce fichier.\n\n{exception.Message}",
+                        "Ouvrir le fichier",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+
+                return;
+            }
+
+            MessageBox.Show(
+                this,
+                $"Le fichier lié est introuvable.\n\n{reference.FullPath}",
+                "Fichier manquant",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+
+            StatusText.Text =
+                $"Fichier manquant · {reference.DisplayName}";
+            return;
         }
 
+        CopyExternalTargetToClipboard(
+            target);
+    }
+
+    private void CopyExternalTargetToClipboard(
+        string target)
+    {
         try
         {
             Clipboard.SetText(target);
             StatusText.Text =
-                "Lien copié dans le presse-papiers (aucun appel réseau effectué).";
+                "Lien externe copié dans le presse-papiers (aucun appel réseau effectué).";
         }
         catch
         {
@@ -1801,6 +1896,14 @@ public partial class MainWindow : Window
                 Subtitle = "Résultats Projet / Application / Global",
                 Keywords = ["recherche", "chercher", "trouver", "ctrl+f"],
                 ExecuteAsync = SearchAsync
+            },
+            new()
+            {
+                Id = "attachment.add",
+                Title = "Ajouter une pièce jointe",
+                Subtitle = "Copier dans le workspace ou référencer un fichier local",
+                Keywords = ["pièce jointe", "fichier", "word", "pdf", "excel", "image"],
+                ExecuteAsync = AttachFileAsync
             },
             new()
             {
@@ -2199,6 +2302,111 @@ public partial class MainWindow : Window
                 [' ', '\t', '\r', '\n'],
                 StringSplitOptions.TrimEntries |
                 StringSplitOptions.RemoveEmptyEntries));
+
+    private async Task AttachFileAsync()
+    {
+        if (_documentSession is null ||
+            _selectedNode?.Kind != WorkspaceNodeKind.Document)
+        {
+            MessageBox.Show(
+                this,
+                "Ouvrez d'abord une note Markdown pour y associer une pièce jointe.",
+                "Pièce jointe",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var picker = new OpenFileDialog
+        {
+            Title = "Choisir une pièce jointe",
+            Multiselect = false,
+            CheckFileExists = true
+        };
+
+        if (picker.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        var mode = MessageBox.Show(
+            this,
+            "Voulez-vous copier ce fichier dans le workspace Nodalis ?\n\n" +
+            "Oui : copie locale dans Attachments.\n" +
+            "Non : conserver une référence vers le fichier original.\n" +
+            "Annuler : ne rien faire.",
+            "Mode de pièce jointe",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+
+        if (mode == MessageBoxResult.Cancel)
+        {
+            return;
+        }
+
+        try
+        {
+            var service = new AttachmentService(
+                _root.FullPath);
+
+            var attachment = mode == MessageBoxResult.Yes
+                ? await service.CopyIntoWorkspaceAsync(
+                    picker.FileName,
+                    _selectedNode.FullPath)
+                : service.CreateExternalReference(
+                    picker.FileName,
+                    _selectedNode.FullPath);
+
+            var label = string.IsNullOrWhiteSpace(
+                    MarkdownEditorTextBox.SelectedText)
+                ? attachment.DisplayName
+                : MarkdownEditorTextBox.SelectedText.Trim();
+
+            var isImage = IsImageAttachment(
+                attachment.FullPath);
+
+            var syntax = isImage
+                ? $"![{label}]({attachment.MarkdownTarget})"
+                : $"[{label}]({attachment.MarkdownTarget})";
+
+            var start = MarkdownEditorTextBox.SelectionStart;
+            MarkdownEditorTextBox.SelectedText = syntax;
+            MarkdownEditorTextBox.CaretIndex =
+                start + syntax.Length;
+            MarkdownEditorTextBox.Focus();
+
+            StatusText.Text =
+                attachment.StorageMode ==
+                Nodalis.Core.Attachments.AttachmentStorageMode.CopiedIntoWorkspace
+                    ? $"Pièce jointe copiée · {attachment.DisplayName}"
+                    : $"Référence externe ajoutée · {attachment.DisplayName}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"La pièce jointe n'a pas pu être ajoutée.\n\n{exception.Message}",
+                "Pièce jointe",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private static bool IsImageAttachment(
+        string path)
+    {
+        var extension = Path.GetExtension(path);
+
+        return extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".gif", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".webp", StringComparison.OrdinalIgnoreCase);
+    }
 
     private async Task ShowGlossaryAsync()
     {
