@@ -2,7 +2,9 @@ using System.ComponentModel;
 using System.IO;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Nodalis.App.Dialogs;
 using Nodalis.App.Markdown;
@@ -12,6 +14,7 @@ using Nodalis.Core.Navigation;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
+using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
@@ -148,6 +151,394 @@ public partial class MainWindow : Window
         _previewTimer.Stop();
         _allowClose = true;
         Close();
+    }
+
+    private void NavigationTree_PreviewMouseRightButtonDown(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        var item = FindVisualParent<TreeViewItem>(
+            e.OriginalSource as DependencyObject);
+
+        if (item is not null)
+        {
+            item.IsSelected = true;
+            item.Focus();
+        }
+    }
+
+    private void NavigationTree_ContextMenuOpening(
+        object sender,
+        ContextMenuEventArgs e)
+    {
+        if (_selectedNode is null)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var menu = new ContextMenu();
+
+        void AddItem(
+            string header,
+            RoutedEventHandler handler)
+        {
+            var item = new MenuItem
+            {
+                Header = header
+            };
+
+            item.Click += handler;
+            menu.Items.Add(item);
+        }
+
+        switch (_selectedNode.Kind)
+        {
+            case WorkspaceNodeKind.ApplicationsRoot:
+                AddItem(
+                    "Nouvelle application",
+                    async (_, _) => await CreateApplicationAsync());
+                break;
+
+            case WorkspaceNodeKind.Application:
+                AddItem(
+                    "Nouveau module",
+                    async (_, _) => await CreateModuleAsync(_selectedNode));
+                menu.Items.Add(new Separator());
+                AddItem(
+                    "Renommer",
+                    async (_, _) => await RenameApplicationOrModuleAsync(_selectedNode));
+                AddItem(
+                    "Supprimer",
+                    async (_, _) => await DeleteApplicationOrModuleAsync(_selectedNode));
+                break;
+
+            case WorkspaceNodeKind.Module:
+                AddItem(
+                    "Nouveau sous-module",
+                    async (_, _) => await CreateModuleAsync(_selectedNode));
+                AddItem(
+                    "Déplacer le module",
+                    async (_, _) => await MoveModuleAsync(_selectedNode));
+                menu.Items.Add(new Separator());
+                AddItem(
+                    "Renommer",
+                    async (_, _) => await RenameApplicationOrModuleAsync(_selectedNode));
+                AddItem(
+                    "Supprimer",
+                    async (_, _) => await DeleteApplicationOrModuleAsync(_selectedNode));
+                break;
+
+            default:
+                e.Handled = true;
+                return;
+        }
+
+        NavigationTree.ContextMenu = menu;
+    }
+
+    private async Task CreateApplicationAsync()
+    {
+        var dialog = new TextPromptDialog(
+            "Nouvelle application",
+            "Nom de l'application :")
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var service = new ApplicationStructureService(
+                _root.FullPath);
+
+            var path = await service.CreateApplicationAsync(
+                dialog.Value);
+
+            await RefreshNavigationAsync(path);
+            StatusText.Text = $"Application créée · {dialog.Value}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            ShowStructureError(
+                "Nouvelle application",
+                exception);
+        }
+    }
+
+    private async Task CreateModuleAsync(
+        NavigationNodeViewModel parent)
+    {
+        var dialog = new TextPromptDialog(
+            "Nouveau module",
+            parent.Kind == WorkspaceNodeKind.Application
+                ? $"Nom du module dans {parent.DisplayName} :"
+                : $"Nom du sous-module dans {parent.DisplayName} :")
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            Guid applicationId;
+            Guid? parentModuleId;
+
+            if (parent.Kind == WorkspaceNodeKind.Application)
+            {
+                applicationId = parent.Id;
+                parentModuleId = null;
+            }
+            else
+            {
+                var manifest = await ReadModuleManifestAsync(
+                    parent.FullPath);
+
+                applicationId = manifest.ApplicationId;
+                parentModuleId = manifest.Id;
+            }
+
+            var service = new ApplicationStructureService(
+                _root.FullPath);
+
+            var path = await service.CreateModuleAsync(
+                parent.FullPath,
+                applicationId,
+                parentModuleId,
+                dialog.Value);
+
+            await RefreshNavigationAsync(path);
+            StatusText.Text = $"Module créé · {dialog.Value}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            ShowStructureError(
+                "Nouveau module",
+                exception);
+        }
+    }
+
+    private async Task RenameApplicationOrModuleAsync(
+        NavigationNodeViewModel node)
+    {
+        var dialog = new TextPromptDialog(
+            "Renommer",
+            $"Nouveau nom pour {node.DisplayName} :",
+            node.DisplayName)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true ||
+            string.Equals(
+                dialog.Value,
+                node.DisplayName,
+                StringComparison.CurrentCulture))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!await TryCloseCurrentDocumentAsync(
+                    "renommer cet élément"))
+            {
+                return;
+            }
+
+            var service = new ApplicationStructureService(
+                _root.FullPath);
+
+            var path = node.Kind == WorkspaceNodeKind.Application
+                ? await service.RenameApplicationAsync(
+                    node.FullPath,
+                    dialog.Value)
+                : await service.RenameModuleAsync(
+                    node.FullPath,
+                    dialog.Value);
+
+            await RefreshNavigationAsync(path);
+            StatusText.Text = $"Renommé · {dialog.Value}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            ShowStructureError(
+                "Renommer",
+                exception);
+        }
+    }
+
+    private async Task MoveModuleAsync(
+        NavigationNodeViewModel node)
+    {
+        try
+        {
+            var manifest = await ReadModuleManifestAsync(
+                node.FullPath);
+
+            var discovery = new ProjectCreationTargetDiscovery();
+            var targets = (await discovery.DiscoverAsync(
+                    _root.FullPath))
+                .Where(target =>
+                    target.ApplicationId == manifest.ApplicationId &&
+                    target.ParentProjectId is null &&
+                    target.ModuleId != manifest.Id)
+                .ToArray();
+
+            if (targets.Length == 0)
+            {
+                MessageBox.Show(
+                    this,
+                    "Aucune autre destination n'est disponible dans cette application.",
+                    "Déplacer le module",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new MoveModuleDialog(targets)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            if (!await TryCloseCurrentDocumentAsync(
+                    "déplacer ce module"))
+            {
+                return;
+            }
+
+            var service = new ApplicationStructureService(
+                _root.FullPath);
+
+            var path = await service.MoveModuleAsync(
+                node.FullPath,
+                dialog.SelectedTarget.ParentDirectory,
+                dialog.SelectedTarget.ModuleId);
+
+            await RefreshNavigationAsync(path);
+            StatusText.Text = $"Module déplacé · {node.DisplayName}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            Nodalis.Core.Validation.DomainValidationException)
+        {
+            ShowStructureError(
+                "Déplacer le module",
+                exception);
+        }
+    }
+
+    private async Task DeleteApplicationOrModuleAsync(
+        NavigationNodeViewModel node)
+    {
+        var answer = MessageBox.Show(
+            this,
+            $"Supprimer « {node.DisplayName} » ?\n\n" +
+            "La suppression sera refusée si l'élément contient des données.",
+            "Supprimer",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!await TryCloseCurrentDocumentAsync(
+                    "supprimer cet élément"))
+            {
+                return;
+            }
+
+            var service = new ApplicationStructureService(
+                _root.FullPath);
+
+            if (node.Kind == WorkspaceNodeKind.Application)
+            {
+                await service.DeleteApplicationAsync(
+                    node.FullPath);
+            }
+            else
+            {
+                await service.DeleteModuleAsync(
+                    node.FullPath);
+            }
+
+            await RefreshNavigationAsync();
+            StatusText.Text = $"Supprimé · {node.DisplayName}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            Nodalis.Core.Validation.DomainValidationException)
+        {
+            ShowStructureError(
+                "Supprimer",
+                exception);
+        }
+    }
+
+    private static async Task<Nodalis.Core.Domain.ModuleManifest>
+        ReadModuleManifestAsync(string moduleDirectory) =>
+        await AtomicJsonFile.ReadAsync<Nodalis.Core.Domain.ModuleManifest>(
+            Path.Combine(
+                moduleDirectory,
+                WorkspaceLayout.ModuleManifestFileName));
+
+    private void ShowStructureError(
+        string title,
+        Exception exception)
+    {
+        MessageBox.Show(
+            this,
+            $"L'opération n'a pas pu être effectuée.\n\n{exception.Message}",
+            title,
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+    }
+
+    private static T? FindVisualParent<T>(
+        DependencyObject? child)
+        where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T target)
+            {
+                return target;
+            }
+
+            child = VisualTreeHelper.GetParent(child);
+        }
+
+        return null;
     }
 
     private async void NavigationTree_SelectedItemChanged(
