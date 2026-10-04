@@ -2,11 +2,13 @@ using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Markdown;
+using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Settings;
 using Nodalis.Infrastructure.Templates;
@@ -21,6 +23,7 @@ try
     await VerifyWorkspacePersistenceAsync(root);
     await VerifyWorkspaceNavigationAsync(root);
     await VerifyTemplatesAsync(root);
+    await VerifyProjectCreationAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -205,6 +208,101 @@ static async Task VerifyTemplatesAsync(string root)
     Assert(
         Path.GetFileName(uniquePath) == "duplicate (2).md",
         "New notes must avoid overwriting files with the same name.");
+}
+
+static async Task VerifyProjectCreationAsync(string root)
+{
+    var applicationId = Guid.NewGuid();
+    var applicationPath = Path.Combine(
+        root,
+        WorkspaceLayout.ApplicationsDirectoryName,
+        "Application Project Creator");
+
+    Directory.CreateDirectory(applicationPath);
+
+    var jsonOptions = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
+    await File.WriteAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName),
+        JsonSerializer.Serialize(
+            new ApplicationManifest
+            {
+                Id = applicationId,
+                Name = "Application Project Creator"
+            },
+            jsonOptions));
+
+    var discovery = new ProjectCreationTargetDiscovery();
+    var targets = await discovery.DiscoverAsync(root);
+
+    var applicationTarget = targets.Single(
+        target => target.ApplicationId == applicationId &&
+                  target.ModuleId is null &&
+                  target.ParentProjectId is null);
+
+    var creator = new FileSystemProjectCreator(root);
+    var result = await creator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Généré",
+            Complexity = ProjectComplexity.Medium,
+            Target = applicationTarget,
+            BusinessLinks =
+            [
+                "https://outil-interne/projet/123",
+                "RTC: WI-456"
+            ]
+        });
+
+    Assert(Directory.Exists(result.ProjectDirectory),
+        "Project creation must materialize a directory.");
+    Assert(File.Exists(Path.Combine(
+            result.ProjectDirectory,
+            WorkspaceLayout.ProjectManifestFileName)),
+        "Project creation must persist its manifest.");
+    Assert(File.Exists(result.OverviewFilePath),
+        "Project creation must generate Présentation.md.");
+
+    var overview = await File.ReadAllTextAsync(
+        result.OverviewFilePath);
+
+    Assert(
+        overview.Contains("https://outil-interne/projet/123", StringComparison.Ordinal) &&
+        overview.Contains("RTC: WI-456", StringComparison.Ordinal),
+        "Business links must be copied into the project overview.");
+
+    foreach (var requiredSection in new[] { "Jalons", "Technique", "Glossaire", "Tests" })
+    {
+        Assert(
+            Directory.Exists(Path.Combine(result.ProjectDirectory, requiredSection)),
+            $"Project profile must create the '{requiredSection}' section.");
+    }
+
+    var refreshedTargets = await discovery.DiscoverAsync(root);
+    var parentTarget = refreshedTargets.Single(
+        target => target.ParentProjectId == result.Project.Id);
+
+    var child = await creator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Sous-projet Généré",
+            Complexity = ProjectComplexity.Simple,
+            Target = parentTarget
+        });
+
+    Assert(
+        child.Project.ParentProjectId == result.Project.Id &&
+        Path.GetDirectoryName(child.ProjectDirectory) ==
+            Path.Combine(
+                result.ProjectDirectory,
+                WorkspaceLayout.SubProjectsDirectoryName),
+        "Sub-projects must be created under the selected parent project.");
 }
 
 static void VerifyMarkdownParser()
