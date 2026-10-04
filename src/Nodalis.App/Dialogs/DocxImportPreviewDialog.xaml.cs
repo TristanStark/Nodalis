@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,14 +10,23 @@ namespace Nodalis.App.Dialogs;
 public partial class DocxImportPreviewDialog : Window
 {
     private readonly DocxImportPreview _preview;
+    private readonly Func<DocxImportCommitRequest, Task<DocxImportPlan>>
+        _planBuilder;
     private readonly List<SectionRow> _sections;
 
+    private DocxImportCommitRequest? _plannedRequest;
+    private DocxImportPlan? _lastPlan;
+    private bool _refreshingPlan;
+
     public DocxImportPreviewDialog(
-        DocxImportPreview preview)
+        DocxImportPreview preview,
+        Func<DocxImportCommitRequest, Task<DocxImportPlan>> planBuilder)
     {
         ArgumentNullException.ThrowIfNull(preview);
+        ArgumentNullException.ThrowIfNull(planBuilder);
 
         _preview = preview;
+        _planBuilder = planBuilder;
         _sections = preview.Sections
             .Select(section =>
                 new SectionRow
@@ -29,6 +39,11 @@ public partial class DocxImportPreviewDialog : Window
                 })
             .ToList();
 
+        foreach (var section in _sections)
+        {
+            section.PropertyChanged += Section_PropertyChanged;
+        }
+
         InitializeComponent();
 
         SourceText.Text =
@@ -36,7 +51,8 @@ public partial class DocxImportPreviewDialog : Window
                 preview.StagedImport.OriginalSourcePath);
 
         DetectionNotesItems.ItemsSource =
-            preview.Analysis.DetectionNotes;
+            BuildDetectionDetails(
+                preview);
 
         WarningsItems.ItemsSource =
             preview.Conflicts.Count == 0
@@ -103,6 +119,56 @@ public partial class DocxImportPreviewDialog : Window
 
     public DocxImportCommitRequest? CommitRequest { get; private set; }
 
+    private static IReadOnlyList<string> BuildDetectionDetails(
+        DocxImportPreview preview)
+    {
+        var details = preview.Analysis.DetectionNotes.ToList();
+
+        foreach (var candidate in preview.Analysis.ApplicationCandidates)
+        {
+            var evidence = candidate.Evidence.Count == 0
+                ? "aucune raison détaillée"
+                : string.Join(
+                    " ; ",
+                    candidate.Evidence);
+
+            details.Add(
+                $"Application candidate : {candidate.DisplayName} · " +
+                $"{candidate.Confidence} % · {evidence}");
+        }
+
+        foreach (var candidate in preview.Analysis.ProjectCandidates)
+        {
+            var evidence = candidate.Evidence.Count == 0
+                ? "aucune raison détaillée"
+                : string.Join(
+                    " ; ",
+                    candidate.Evidence);
+
+            details.Add(
+                $"Projet candidat : {candidate.DisplayName} · " +
+                $"{candidate.Confidence} % · {evidence}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                preview.Analysis.ProposedApplicationName))
+        {
+            details.Add(
+                $"Application mentionnée à créer ou corriger : " +
+                preview.Analysis.ProposedApplicationName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                preview.Analysis.ProposedProjectName))
+        {
+            details.Add(
+                $"Projet mentionné à créer : " +
+                preview.Analysis.ProposedProjectName);
+        }
+
+        return details;
+    }
+
     private void SelectSuggestedApplication()
     {
         var suggested = _preview.SuggestedApplicationId is Guid applicationId
@@ -121,6 +187,21 @@ public partial class DocxImportPreviewDialog : Window
     {
         RefreshProjectChoices(
             preserveSelection: false);
+        InvalidatePlan();
+    }
+
+    private void TargetSelection_Changed(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        InvalidatePlan();
+    }
+
+    private void TargetText_Changed(
+        object sender,
+        TextChangedEventArgs e)
+    {
+        InvalidatePlan();
     }
 
     private void CreateNewProjectCheckBox_Changed(
@@ -128,6 +209,19 @@ public partial class DocxImportPreviewDialog : Window
         RoutedEventArgs e)
     {
         ApplyProjectMode();
+        InvalidatePlan();
+    }
+
+    private void Section_PropertyChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is
+            nameof(SectionRow.Include) or
+            nameof(SectionRow.TargetSection))
+        {
+            InvalidatePlan();
+        }
     }
 
     private void RefreshProjectChoices(
@@ -190,20 +284,235 @@ public partial class DocxImportPreviewDialog : Window
             createNew;
     }
 
-    private void Import_Click(
+    private void InvalidatePlan()
+    {
+        _plannedRequest = null;
+        _lastPlan = null;
+
+        if (ImportButton is not null)
+        {
+            ImportButton.Content =
+                "Prévisualiser les fichiers";
+        }
+
+        if (PlannedChangesList is not null)
+        {
+            PlannedChangesList.ItemsSource = null;
+        }
+
+        if (PlanWarningsItems is not null)
+        {
+            PlanWarningsItems.ItemsSource = null;
+        }
+
+        if (PlanTargetText is not null)
+        {
+            PlanTargetText.Text =
+                "Le plan doit être recalculé après les modifications.";
+        }
+    }
+
+    private async void ImportTabs_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (!ReferenceEquals(
+                e.Source,
+                ImportTabs) ||
+            !IsLoaded ||
+            FilesTab.IsSelected != true)
+        {
+            return;
+        }
+
+        await RefreshPlanAsync(
+            showValidationMessages: false);
+    }
+
+    private async void Import_Click(
         object sender,
         RoutedEventArgs e)
     {
-        if (ApplicationComboBox.SelectedItem is not
-            DocxImportTargetOption application)
+        var request = BuildCurrentRequest(
+            showValidationMessages: true);
+
+        if (request is null)
         {
+            return;
+        }
+
+        if (_lastPlan is null ||
+            _plannedRequest is null ||
+            !RequestsEquivalent(
+                _plannedRequest,
+                request))
+        {
+            FilesTab.IsSelected = true;
+
+            if (!await RefreshPlanAsync(
+                    showValidationMessages: true))
+            {
+                return;
+            }
+
+            SummaryText.Text =
+                "Vérifiez le plan d'écriture puis cliquez de nouveau sur « Valider l'import ».";
+            return;
+        }
+
+        CommitRequest = request;
+        DialogResult = true;
+    }
+
+    private async Task<bool> RefreshPlanAsync(
+        bool showValidationMessages)
+    {
+        if (_refreshingPlan)
+        {
+            return false;
+        }
+
+        var request = BuildCurrentRequest(
+            showValidationMessages);
+
+        if (request is null)
+        {
+            PlanTargetText.Text =
+                "Complétez la cible et sélectionnez au moins une section pour calculer le plan.";
+            PlannedChangesList.ItemsSource = null;
+            PlanWarningsItems.ItemsSource = null;
+            return false;
+        }
+
+        if (_lastPlan is not null &&
+            _plannedRequest is not null &&
+            RequestsEquivalent(
+                _plannedRequest,
+                request))
+        {
+            DisplayPlan(
+                _lastPlan);
+            return true;
+        }
+
+        try
+        {
+            _refreshingPlan = true;
+            ImportButton.IsEnabled = false;
+            ImportButton.Content =
+                "Calcul du plan…";
+            PlanTargetText.Text =
+                "Calcul des fichiers qui seront créés ou modifiés…";
+
+            var plan = await _planBuilder(
+                request);
+
+            _plannedRequest = request;
+            _lastPlan = plan;
+
+            DisplayPlan(
+                plan);
+
+            ImportButton.Content =
+                "Valider l'import";
+
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException)
+        {
+            _plannedRequest = null;
+            _lastPlan = null;
+
+            PlannedChangesList.ItemsSource = null;
+            PlanWarningsItems.ItemsSource =
+                new[]
+                {
+                    "Le plan n'a pas pu être calculé : " +
+                    exception.Message
+                };
+
+            PlanTargetText.Text =
+                "Plan indisponible.";
+
+            if (showValidationMessages)
+            {
+                MessageBox.Show(
+                    this,
+                    $"Le plan d'import n'a pas pu être calculé.\n\n{exception.Message}",
+                    "Import DOCX",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+
+            return false;
+        }
+        finally
+        {
+            _refreshingPlan = false;
+            ImportButton.IsEnabled = true;
+
+            if (_lastPlan is null)
+            {
+                ImportButton.Content =
+                    "Prévisualiser les fichiers";
+            }
+        }
+    }
+
+    private void DisplayPlan(
+        DocxImportPlan plan)
+    {
+        PlanTargetText.Text =
+            $"{(plan.CreatesProject ? "Nouveau projet" : "Projet existant")} · " +
+            $"{plan.TargetProjectDisplayName}\n" +
+            plan.TargetProjectRelativePath;
+
+        PlannedChangesList.ItemsSource =
+            plan.Changes;
+
+        PlanWarningsItems.ItemsSource =
+            plan.Warnings.Count == 0
+                ? new[] { "Aucun conflit détecté pour ce plan." }
+                : plan.Warnings;
+
+        SummaryText.Text =
+            $"Plan prêt · {plan.Changes.Count} opération(s) fichier · " +
+            $"{plan.Warnings.Count} avertissement(s)";
+    }
+
+    private DocxImportCommitRequest? BuildCurrentRequest(
+        bool showValidationMessages)
+    {
+        void Show(
+            string message,
+            FrameworkElement? focus = null)
+        {
+            if (!showValidationMessages)
+            {
+                return;
+            }
+
             MessageBox.Show(
                 this,
-                "Sélectionnez une application cible.",
+                message,
                 "Import DOCX",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
-            return;
+
+            focus?.Focus();
+        }
+
+        if (ApplicationComboBox.SelectedItem is not
+            DocxImportTargetOption application)
+        {
+            Show(
+                "Sélectionnez une application cible.",
+                ApplicationComboBox);
+            return null;
         }
 
         var createNew =
@@ -216,15 +525,10 @@ public partial class DocxImportPreviewDialog : Window
             if (string.IsNullOrWhiteSpace(
                     NewProjectNameTextBox.Text))
             {
-                MessageBox.Show(
-                    this,
+                Show(
                     "Indiquez le nom du nouveau projet.",
-                    "Import DOCX",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-
-                NewProjectNameTextBox.Focus();
-                return;
+                    NewProjectNameTextBox);
+                return null;
             }
         }
         else
@@ -235,13 +539,10 @@ public partial class DocxImportPreviewDialog : Window
 
             if (project is null)
             {
-                MessageBox.Show(
-                    this,
+                Show(
                     "Sélectionnez un projet existant ou activez la création d'un nouveau projet.",
-                    "Import DOCX",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                return;
+                    ProjectComboBox);
+                return null;
             }
         }
 
@@ -252,26 +553,20 @@ public partial class DocxImportPreviewDialog : Window
 
         if (included.Length == 0)
         {
-            MessageBox.Show(
-                this,
+            Show(
                 "Sélectionnez au moins une section à importer.",
-                "Import DOCX",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
+                SectionsListBox);
+            return null;
         }
 
         if (included.Any(section =>
                 string.IsNullOrWhiteSpace(
                     section.TargetSection)))
         {
-            MessageBox.Show(
-                this,
+            Show(
                 "Chaque section incluse doit avoir une section Nodalis cible.",
-                "Import DOCX",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
+                SectionsListBox);
+            return null;
         }
 
         var complexity =
@@ -280,7 +575,7 @@ public partial class DocxImportPreviewDialog : Window
                 ? choice.Complexity
                 : ProjectComplexity.Medium;
 
-        CommitRequest = new DocxImportCommitRequest
+        return new DocxImportCommitRequest
         {
             ApplicationId = application.Id,
             ProjectId = createNew
@@ -301,12 +596,56 @@ public partial class DocxImportPreviewDialog : Window
                     })
                 .ToList()
         };
-
-        DialogResult = true;
     }
 
-    public sealed class SectionRow
+    private static bool RequestsEquivalent(
+        DocxImportCommitRequest left,
+        DocxImportCommitRequest right)
     {
+        if (left.ApplicationId != right.ApplicationId ||
+            left.ProjectId != right.ProjectId ||
+            !string.Equals(
+                left.NewProjectName,
+                right.NewProjectName,
+                StringComparison.CurrentCulture) ||
+            left.NewProjectComplexity !=
+            right.NewProjectComplexity ||
+            left.Sections.Count !=
+            right.Sections.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0;
+             index < left.Sections.Count;
+             index++)
+        {
+            var leftSection =
+                left.Sections[index];
+            var rightSection =
+                right.Sections[index];
+
+            if (leftSection.SectionIndex !=
+                    rightSection.SectionIndex ||
+                leftSection.Include !=
+                    rightSection.Include ||
+                !string.Equals(
+                    leftSection.TargetSection,
+                    rightSection.TargetSection,
+                    StringComparison.CurrentCultureIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public sealed class SectionRow : INotifyPropertyChanged
+    {
+        private bool _include = true;
+        private string _targetSection = string.Empty;
+
         public required int Index { get; init; }
 
         public required string SourceHeading { get; init; }
@@ -315,9 +654,46 @@ public partial class DocxImportPreviewDialog : Window
 
         public required string MarkdownPreview { get; init; }
 
-        public bool Include { get; set; } = true;
+        public bool Include
+        {
+            get => _include;
+            set
+            {
+                if (_include == value)
+                {
+                    return;
+                }
 
-        public required string TargetSection { get; set; }
+                _include = value;
+                PropertyChanged?.Invoke(
+                    this,
+                    new PropertyChangedEventArgs(
+                        nameof(Include)));
+            }
+        }
+
+        public required string TargetSection
+        {
+            get => _targetSection;
+            set
+            {
+                if (string.Equals(
+                        _targetSection,
+                        value,
+                        StringComparison.CurrentCulture))
+                {
+                    return;
+                }
+
+                _targetSection = value;
+                PropertyChanged?.Invoke(
+                    this,
+                    new PropertyChangedEventArgs(
+                        nameof(TargetSection)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
     }
 
     public sealed record ComplexityChoice(
