@@ -828,6 +828,7 @@ internal static partial class Program
                 .Append(newLine);
         }
 
+        builder.Append(indentation);
         return builder.ToString();
     }
 
