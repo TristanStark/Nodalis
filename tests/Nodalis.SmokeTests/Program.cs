@@ -4,6 +4,7 @@ using Nodalis.Core.Domain;
 using Nodalis.Core.Glossary;
 using Nodalis.Core.Links;
 using Nodalis.Core.Navigation;
+using Nodalis.Core.Tasks;
 using Nodalis.Core.Markdown;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
@@ -21,6 +22,7 @@ using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Search;
 using Nodalis.Infrastructure.Settings;
+using Nodalis.Infrastructure.Tasks;
 using Nodalis.Infrastructure.Templates;
 
 var root = Path.Combine(
@@ -40,6 +42,7 @@ try
     await VerifyLinksAndBacklinksAsync(root);
     await VerifyGlossaryAsync(root);
     await VerifyAttachmentsAsync(root);
+    await VerifyTasksAsync(root);
     VerifyMarkdownParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -1141,6 +1144,161 @@ static async Task VerifyAttachmentsAsync(string root)
                 recursive: true);
         }
     }
+}
+
+static async Task VerifyTasksAsync(string root)
+{
+    var structure = new ApplicationStructureService(root);
+    var applicationPath = await structure.CreateApplicationAsync(
+        "Application Tâches");
+
+    var applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+
+    var application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
+
+    var projectCreator = new FileSystemProjectCreator(root);
+    var project = await projectCreator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "Projet Tâches",
+            Complexity = ProjectComplexity.Simple,
+            Target = new ProjectCreationTarget
+            {
+                ApplicationId = application.Id,
+                ApplicationName = application.Name,
+                ParentDirectory = applicationPath,
+                DisplayName = application.Name
+            }
+        });
+
+    var meetingPath = Path.Combine(
+        project.ProjectDirectory,
+        "Réunion tâches.md");
+
+    await File.WriteAllTextAsync(
+        meetingPath,
+        "# Réunion\n\n" +
+        "- [ ] Préparer recette | Responsable: Alice | Échéance: 2026-10-10\n" +
+        "- [x] Action déjà terminée\n");
+
+    var applicationTaskPath = Path.Combine(
+        applicationPath,
+        "Action application.md");
+
+    await File.WriteAllTextAsync(
+        applicationTaskPath,
+        "- [ ] Vérifier application | Owner: Bob | Due: 2026-11-01\n");
+
+    var globalTaskPath = Path.Combine(
+        root,
+        "Action globale.md");
+
+    await File.WriteAllTextAsync(
+        globalTaskPath,
+        "- [ ] Action globale\n");
+
+    var service = new WorkspaceTaskService(root);
+
+    var projectTasks = await service.GetTasksAsync(
+        project.ProjectDirectory);
+
+    Assert(
+        projectTasks.Count == 1 &&
+        projectTasks[0].Text == "Préparer recette" &&
+        projectTasks[0].Owner == "Alice" &&
+        projectTasks[0].DueDate == new DateOnly(2026, 10, 10) &&
+        projectTasks[0].ProjectId == project.Project.Id,
+        "Project task view must extract open checkboxes, metadata and project context.");
+
+    var applicationTasks = await service.GetTasksAsync(
+        applicationPath);
+
+    Assert(
+        applicationTasks.Count == 2 &&
+        applicationTasks.Any(task =>
+            task.Text == "Préparer recette") &&
+        applicationTasks.Any(task =>
+            task.Text == "Vérifier application"),
+        "Application task view must include application-level and project tasks.");
+
+    var globalTasks = await service.GetTasksAsync(
+        root);
+
+    Assert(
+        globalTasks.Count >= 3 &&
+        globalTasks.Any(task =>
+            task.Text == "Action globale"),
+        "Global task view must include tasks from every scope.");
+
+    var allProjectTasks = await service.GetTasksAsync(
+        project.ProjectDirectory,
+        includeCompleted: true);
+
+    Assert(
+        allProjectTasks.Count == 2 &&
+        allProjectTasks.Any(task =>
+            task.IsCompleted &&
+            task.Text == "Action déjà terminée"),
+        "Completed tasks must be available when explicitly requested.");
+
+    var taskToMove = projectTasks.Single();
+
+    var originalContent = await File.ReadAllTextAsync(
+        meetingPath);
+
+    await File.WriteAllTextAsync(
+        meetingPath,
+        "Ligne ajoutée avant\n" + originalContent);
+
+    await service.SetCompletedAsync(
+        taskToMove,
+        completed: true);
+
+    var updatedContent = await File.ReadAllTextAsync(
+        meetingPath);
+
+    Assert(
+        updatedContent.Contains(
+            "- [x] Préparer recette | Responsable: Alice | Échéance: 2026-10-10",
+            StringComparison.Ordinal),
+        "Task toggle must relocate a uniquely moved source line safely.");
+
+    var ambiguousPath = Path.Combine(
+        project.ProjectDirectory,
+        "Tâches ambiguës.md");
+
+    const string duplicateTask =
+        "- [ ] Même tâche\n";
+
+    await File.WriteAllTextAsync(
+        ambiguousPath,
+        duplicateTask + duplicateTask);
+
+    var refreshed = await service.GetTasksAsync(
+        project.ProjectDirectory);
+
+    var ambiguous = refreshed.First(task =>
+        task.SourceRelativePath.EndsWith(
+            "Tâches ambiguës.md",
+            StringComparison.OrdinalIgnoreCase));
+
+    await File.WriteAllTextAsync(
+        ambiguousPath,
+        "Décalage\n" + duplicateTask + duplicateTask);
+
+    await AssertThrowsAsync<TaskSourceConflictException>(
+        () => service.SetCompletedAsync(
+            ambiguous,
+            completed: true),
+        "Task toggle must refuse ambiguous moved source lines.");
 }
 
 static void VerifyMarkdownParser()
