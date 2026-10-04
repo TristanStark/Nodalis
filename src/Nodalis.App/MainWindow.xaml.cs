@@ -258,6 +258,12 @@ public partial class MainWindow : Window
                     async (_, _) => await DeleteApplicationOrModuleAsync(_selectedNode));
                 break;
 
+            case WorkspaceNodeKind.Document:
+                AddItem(
+                    "Renommer le document",
+                    async (_, _) => await RenameDocumentAsync(_selectedNode));
+                break;
+
             default:
                 e.Handled = true;
                 return;
@@ -360,6 +366,56 @@ public partial class MainWindow : Window
         {
             ShowStructureError(
                 "Nouveau module",
+                exception);
+        }
+    }
+
+    private async Task RenameDocumentAsync(
+        NavigationNodeViewModel node)
+    {
+        var dialog = new TextPromptDialog(
+            "Renommer le document",
+            $"Nouveau nom pour {node.DisplayName} :",
+            node.DisplayName)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true ||
+            string.Equals(
+                dialog.Value,
+                node.DisplayName,
+                StringComparison.CurrentCulture))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!await TryCloseCurrentDocumentAsync(
+                    "renommer ce document"))
+            {
+                return;
+            }
+
+            var service = new DocumentStructureService(
+                _root.FullPath);
+
+            var path = await service.RenameAsync(
+                node.FullPath,
+                dialog.Value);
+
+            await RefreshNavigationAsync(path);
+            StatusText.Text = $"Document renommé · {dialog.Value}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException)
+        {
+            ShowStructureError(
+                "Renommer le document",
                 exception);
         }
     }
