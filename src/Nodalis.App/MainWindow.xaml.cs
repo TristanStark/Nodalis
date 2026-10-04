@@ -302,7 +302,10 @@ public partial class MainWindow : Window
             }
             else
             {
-                var manifest = await ReadModuleManifestAsync(
+                var service = new ApplicationStructureService(
+                    _root.FullPath);
+
+                var manifest = await service.LoadModuleAsync(
                     parent.FullPath);
 
                 applicationId = manifest.ApplicationId;
@@ -390,7 +393,10 @@ public partial class MainWindow : Window
     {
         try
         {
-            var manifest = await ReadModuleManifestAsync(
+            var service = new ApplicationStructureService(
+                _root.FullPath);
+
+            var manifest = await service.LoadModuleAsync(
                 node.FullPath);
 
             var discovery = new ProjectCreationTargetDiscovery();
@@ -399,7 +405,10 @@ public partial class MainWindow : Window
                 .Where(target =>
                     target.ApplicationId == manifest.ApplicationId &&
                     target.ParentProjectId is null &&
-                    target.ModuleId != manifest.Id)
+                    target.ModuleId != manifest.Id &&
+                    !(manifest.ParentModuleId is null && target.ModuleId is null) &&
+                    !(manifest.ParentModuleId is Guid currentParentId &&
+                      target.ModuleId == currentParentId))
                 .ToArray();
 
             if (targets.Length == 0)
@@ -428,9 +437,6 @@ public partial class MainWindow : Window
             {
                 return;
             }
-
-            var service = new ApplicationStructureService(
-                _root.FullPath);
 
             var path = await service.MoveModuleAsync(
                 node.FullPath,
@@ -504,13 +510,6 @@ public partial class MainWindow : Window
                 exception);
         }
     }
-
-    private static async Task<Nodalis.Core.Domain.ModuleManifest>
-        ReadModuleManifestAsync(string moduleDirectory) =>
-        await AtomicJsonFile.ReadAsync<Nodalis.Core.Domain.ModuleManifest>(
-            Path.Combine(
-                moduleDirectory,
-                WorkspaceLayout.ModuleManifestFileName));
 
     private void ShowStructureError(
         string title,
