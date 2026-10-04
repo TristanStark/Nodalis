@@ -2365,6 +2365,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "milestones.context",
+                Title = "Jalons du projet",
+                Subtitle = "Liste, timeline et édition locale des jalons",
+                Keywords = ["jalons", "timeline", "planning", "projet", "date"],
+                ExecuteAsync = ShowMilestonesAsync
+            },
+            new()
+            {
                 Id = "glossary.lookup",
                 Title = "Consulter le glossaire",
                 Subtitle = "Projet → Application → Global",
@@ -2886,6 +2894,59 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"Jalon · {milestone.Name} · {milestone.ProjectName} · ligne {milestone.LineNumber}";
+    }
+
+    private async Task ShowMilestonesAsync()
+    {
+        var contextPath =
+            _selectedNode?.FullPath ??
+            _root.FullPath;
+
+        try
+        {
+            var projectDirectory =
+                await _milestoneService.GetProjectDirectoryForContextAsync(
+                    contextPath);
+
+            if (projectDirectory is null)
+            {
+                MessageBox.Show(
+                    this,
+                    "Sélectionnez un projet, un sous-projet ou un document de projet pour ouvrir ses jalons.",
+                    "Jalons",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new MilestoneListDialog(
+                _root.FullPath,
+                projectDirectory)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() == true &&
+                dialog.SelectedMilestone is not null)
+            {
+                await NavigateToMilestoneAsync(
+                    dialog.SelectedMilestone);
+            }
+
+            await RefreshDashboardMilestonesAsync();
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Jalons",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private async Task ShowTasksAsync(bool global)
