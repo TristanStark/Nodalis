@@ -218,6 +218,9 @@
                              VerticalScrollBarVisibility="Auto"
                              HorizontalScrollBarVisibility="Auto"
                              TextChanged="MarkdownEditorTextBox_TextChanged"
+                             PreviewMouseMove="MarkdownEditorTextBox_PreviewMouseMove"
+                             MouseDoubleClick="MarkdownEditorTextBox_MouseDoubleClick"
+                             ContextMenuOpening="MarkdownEditorTextBox_ContextMenuOpening"
                              SpellCheck.IsEnabled="False" />
 
                     <Popup x:Name="InternalLinkPopup"
