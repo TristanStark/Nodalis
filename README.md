@@ -75,5 +75,26 @@ Smoke tests sans framework tiers :
 dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj -c Release
 ```
 
+## Publication portable
+
+Construire localement l'archive Windows x64 self-contained :
+
+```powershell
+./scripts/publish-portable.ps1 -Version "0.1.0"
+```
+
+Le script produit :
+- `artifacts/Nodalis-win-x64.zip` ;
+- `artifacts/SHA256SUMS.txt` ;
+- un exécutable `Nodalis.exe` self-contained et single-file ;
+- le guide utilisateur et les informations de version dans l'archive.
+
+Le workflow `Portable Windows Release` réalise le même build sur GitHub Actions.
+Un tag `vX.Y.Z` publie automatiquement l'archive et son SHA-256 dans une GitHub Release.
+
+Les données utilisateur sont séparées du dossier de l'application : remplacer une
+version portable de Nodalis ne modifie pas le workspace. Voir
+`docs/README-UTILISATEUR.md` pour les instructions d'installation et de mise à jour.
+
 Voir `docs/architecture.md`, `docs/workspace-format.md` et
 `docs/project-profiles.md` pour les décisions de conception actuelles.
