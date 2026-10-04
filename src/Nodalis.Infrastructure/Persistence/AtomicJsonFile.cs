@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.Persistence;
 
@@ -21,55 +22,24 @@ internal static class AtomicJsonFile
             JsonDefaults.Options,
             cancellationToken);
 
-        return value ?? throw new InvalidDataException($"JSON file '{path}' contained no value.");
+        return value ?? throw new InvalidDataException(
+            $"JSON file '{path}' contained no value.");
     }
 
-    public static async Task WriteAsync<T>(
+    public static Task WriteAsync<T>(
         string path,
         T value,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(value);
 
-        var directory = Path.GetDirectoryName(path);
-        if (string.IsNullOrWhiteSpace(directory))
-        {
-            throw new InvalidOperationException($"Cannot determine the directory for '{path}'.");
-        }
-
-        Directory.CreateDirectory(directory);
-
-        var temporaryPath = Path.Combine(
-            directory,
-            $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
-
-        try
-        {
-            await using (var stream = new FileStream(
-                temporaryPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None,
-                bufferSize: 4096,
-                useAsync: true))
-            {
-                await JsonSerializer.SerializeAsync(
-                    stream,
-                    value,
-                    JsonDefaults.Options,
-                    cancellationToken);
-
-                await stream.FlushAsync(cancellationToken);
-            }
-
-            File.Move(temporaryPath, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-        }
+        return AtomicFileWriter.WriteAsync(
+            path,
+            (stream, token) => JsonSerializer.SerializeAsync(
+                stream,
+                value,
+                JsonDefaults.Options,
+                token).AsTask(),
+            cancellationToken);
     }
 }
