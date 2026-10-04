@@ -922,6 +922,62 @@ static async Task VerifyGlossaryAsync(string root)
         parsed[0].Acronyms.Single() == "API" &&
         parsed[0].Links.Single() == "[[Technique]]",
         "Structured glossary Markdown must round-trip term metadata.");
+
+    var matcherScope = scopes[0];
+    var matcherEntries = new List<GlossaryEntry>
+    {
+        new()
+        {
+            Term = "Base de données",
+            Definition = "Terme long",
+            Scope = matcherScope
+        },
+        new()
+        {
+            Term = "Base",
+            Definition = "Terme court",
+            Scope = matcherScope
+        },
+        new()
+        {
+            Term = "Steak",
+            Definition = "Terme",
+            Synonyms = ["Bifteck"],
+            Scope = matcherScope
+        }
+    };
+
+    const string sourceText =
+        "Base de données, STEAK et bifteck. Steakhouse ne doit pas matcher.";
+
+    var textMatches = GlossaryTextMatcher.Match(
+        sourceText,
+        matcherEntries);
+
+    Assert(
+        textMatches.Count(match =>
+            match.Entry.Term == "Base de données") == 1 &&
+        textMatches.All(match =>
+            !(match.Entry.Term == "Base" &&
+              match.Start == 0)),
+        "Glossary matching must prefer the longest overlapping expression.");
+
+    Assert(
+        textMatches.Count(match =>
+            match.Entry.Term == "Steak") == 2,
+        "Glossary matching must resolve case and synonyms.");
+
+    Assert(
+        !textMatches.Any(match =>
+            match.MatchedText.Contains(
+                "Steakhouse",
+                StringComparison.CurrentCultureIgnoreCase)),
+        "Glossary matching must respect punctuation and word boundaries.");
+
+    Assert(
+        sourceText ==
+        "Base de données, STEAK et bifteck. Steakhouse ne doit pas matcher.",
+        "Glossary annotation matching must never mutate Markdown content.");
 }
 
 static void VerifyMarkdownParser()
