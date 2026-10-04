@@ -81,7 +81,8 @@
                                   Grid.Column="1"
                                   Margin="0,14,0,0"
                                   MinHeight="32"
-                                  DisplayMemberPath="QualifiedName" />
+                                  DisplayMemberPath="QualifiedName"
+                                  SelectionChanged="TargetSelection_Changed" />
 
                         <CheckBox x:Name="CreateNewProjectCheckBox"
                                   Grid.Row="3"
@@ -101,7 +102,8 @@
                                  Grid.Column="1"
                                  Margin="0,14,0,0"
                                  MinHeight="32"
-                                 Padding="7,4" />
+                                 Padding="7,4"
+                                 TextChanged="TargetText_Changed" />
 
                         <TextBlock Grid.Row="5"
                                    Margin="0,12,0,0"
@@ -113,7 +115,8 @@
                                   Grid.Column="1"
                                   Margin="0,12,0,0"
                                   MinHeight="32"
-                                  DisplayMemberPath="DisplayName" />
+                                  DisplayMemberPath="DisplayName"
+                                  SelectionChanged="TargetSelection_Changed" />
 
                         <Border Grid.Row="6"
                                 Grid.ColumnSpan="2"
