@@ -66,6 +66,9 @@
                     <Button Margin="0,0,8,0"
                             Click="ToggleContextPanel_Click"
                             Content="Contexte" />
+                    <Button Margin="0,0,8,0"
+                            Click="NewProject_Click"
+                            Content="Nouveau projet  Ctrl+Shift+N" />
                     <Button Click="NewNote_Click"
                             Content="Nouvelle note  Ctrl+N" />
                 </StackPanel>
