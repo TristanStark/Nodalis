@@ -122,8 +122,7 @@ static async Task VerifyWorkspaceNavigationAsync(string root)
     Assert(project.Id == projectId,
         "Navigation must use the project manifest identity.");
 
-    var documentNames = project
-        .DescendantsAndSelf()
+    var documentNames = DescendantsAndSelf(project)
         .Where(node => node.Kind == WorkspaceNodeKind.Document)
         .Select(node => node.DisplayName)
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -354,13 +353,13 @@ static async Task AssertThrowsAsync<TException>(
 }
 
 static IEnumerable<WorkspaceNavigationNode> DescendantsAndSelf(
-    this WorkspaceNavigationNode node)
+    WorkspaceNavigationNode node)
 {
     yield return node;
 
     foreach (var child in node.Children)
     {
-        foreach (var descendant in child.DescendantsAndSelf())
+        foreach (var descendant in DescendantsAndSelf(child))
         {
             yield return descendant;
         }
