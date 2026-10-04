@@ -33,7 +33,6 @@ PRISE DE NOTE/
         ├── Modules/
         │   └── Module A1/
         │       ├── .module.json
-        │       ├── Notes rapides.md
         │       └── Projets/
         │           └── Projet Sauce/
         │               └── .project.json
