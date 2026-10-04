@@ -53,7 +53,7 @@ private async void SearchTextBox_TextChanged(
         _searchCancellation?.Cancel();
         _searchCancellation?.Dispose();
 
-        var query = SearchTextBox.Text.Trim();
+        string query = SearchTextBox.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -70,7 +70,7 @@ private async void SearchTextBox_TextChanged(
                 180,
                 cancellation.Token);
 
-            var results = await _search.SearchAsync(
+            global::Nodalis.Core.Search.SearchResultSet results = await _search.SearchAsync(
                 _workspaceRoot,
                 _contextPath,
                 query,
@@ -137,7 +137,7 @@ private void Results_SelectionChanged(
             return;
         }
 
-        foreach (var list in new[]
+        foreach (ListBox list in new[]
                  {
                      ProjectResults,
                      ApplicationResults,
