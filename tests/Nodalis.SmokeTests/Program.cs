@@ -1,6 +1,9 @@
+using System.Text.Json;
 using Nodalis.Core.Domain;
+using Nodalis.Core.Navigation;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Validation;
+using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Settings;
@@ -13,6 +16,7 @@ var root = Path.Combine(
 try
 {
     await VerifyWorkspacePersistenceAsync(root);
+    await VerifyWorkspaceNavigationAsync(root);
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
     VerifyDomainCatalog();
@@ -41,6 +45,92 @@ static async Task VerifyWorkspacePersistenceAsync(string root)
         "Global glossary must be created.");
     Assert(WindowsPathRules.SanitizeSegment("CON") == "_CON",
         "Reserved Windows names must be escaped.");
+}
+
+static async Task VerifyWorkspaceNavigationAsync(string root)
+{
+    var applicationId = Guid.NewGuid();
+    var projectId = Guid.NewGuid();
+
+    var applicationPath = Path.Combine(
+        root,
+        WorkspaceLayout.ApplicationsDirectoryName,
+        "Application A");
+
+    var projectPath = Path.Combine(
+        applicationPath,
+        WorkspaceLayout.ProjectsDirectoryName,
+        "Projet Patate");
+
+    var testsPath = Path.Combine(
+        projectPath,
+        "Tests",
+        "Unitaires");
+
+    Directory.CreateDirectory(testsPath);
+
+    var jsonOptions = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
+    await File.WriteAllTextAsync(
+        Path.Combine(applicationPath, WorkspaceLayout.ApplicationManifestFileName),
+        JsonSerializer.Serialize(
+            new ApplicationManifest
+            {
+                Id = applicationId,
+                Name = "Application A"
+            },
+            jsonOptions));
+
+    await File.WriteAllTextAsync(
+        Path.Combine(projectPath, WorkspaceLayout.ProjectManifestFileName),
+        JsonSerializer.Serialize(
+            new ProjectManifest
+            {
+                Id = projectId,
+                Name = "Projet Patate",
+                ApplicationId = applicationId,
+                InitialComplexity = ProjectComplexity.Medium
+            },
+            jsonOptions));
+
+    await File.WriteAllTextAsync(
+        Path.Combine(projectPath, WorkspaceLayout.GlobalQuickNotesFileName),
+        "# Notes projet\n");
+
+    await File.WriteAllTextAsync(
+        Path.Combine(testsPath, "Tests couteau.md"),
+        "# Tests couteau\n");
+
+    var builder = new WorkspaceNavigationBuilder();
+    var navigation = await builder.BuildAsync(root);
+
+    var applications = navigation.Children.Single(
+        node => node.Kind == WorkspaceNodeKind.ApplicationsRoot);
+
+    var application = applications.Children.Single();
+    Assert(application.Id == applicationId,
+        "Navigation must use the application manifest identity.");
+
+    var projects = application.Children.Single(
+        node => node.Kind == WorkspaceNodeKind.ProjectsRoot);
+
+    var project = projects.Children.Single();
+    Assert(project.Id == projectId,
+        "Navigation must use the project manifest identity.");
+
+    var documentNames = project
+        .DescendantsAndSelf()
+        .Where(node => node.Kind == WorkspaceNodeKind.Document)
+        .Select(node => node.DisplayName)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    Assert(documentNames.Contains("Notes rapides") &&
+           documentNames.Contains("Tests couteau"),
+        "Navigation must discover Markdown files recursively.");
 }
 
 static async Task VerifyUserPreferencesAsync(string root)
@@ -261,4 +351,18 @@ static async Task AssertThrowsAsync<TException>(
     }
 
     throw new InvalidOperationException(message);
+}
+
+static IEnumerable<WorkspaceNavigationNode> DescendantsAndSelf(
+    this WorkspaceNavigationNode node)
+{
+    yield return node;
+
+    foreach (var child in node.Children)
+    {
+        foreach (var descendant in child.DescendantsAndSelf())
+        {
+            yield return descendant;
+        }
+    }
 }
