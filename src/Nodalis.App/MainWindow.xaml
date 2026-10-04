@@ -54,11 +54,11 @@
                                Foreground="{StaticResource SecondaryTextBrush}" />
                 </StackPanel>
 
-                <TextBlock Grid.Column="1"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Text="Ctrl+P · Command Palette"
-                           Foreground="{StaticResource SecondaryTextBrush}" />
+                <Button Grid.Column="1"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Click="CommandPalette_Click"
+                        Content="Ctrl+P · Command Palette" />
 
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
