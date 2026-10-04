@@ -1,6 +1,7 @@
 using System.Text;
 using Nodalis.Core.Abstractions;
 using Nodalis.Core.Domain;
+using Nodalis.Infrastructure.Templates;
 
 namespace Nodalis.Infrastructure.Persistence;
 
@@ -41,6 +42,9 @@ public sealed class FileSystemWorkspaceStore : IWorkspaceStore
         Directory.CreateDirectory(Path.Combine(
             RootPath,
             WorkspaceLayout.TemplatesDirectoryName));
+
+        var templateStore = new FileSystemTemplateStore(RootPath);
+        await templateStore.InitializeDefaultsAsync(cancellationToken);
 
         var manifest = new WorkspaceManifest
         {
