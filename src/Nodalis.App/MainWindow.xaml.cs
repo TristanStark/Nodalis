@@ -3330,7 +3330,10 @@ public partial class MainWindow : Window
                 picker.FileName);
 
             var dialog = new DocxImportPreviewDialog(
-                preview)
+                preview,
+                request => _docxImportService.BuildPlanAsync(
+                    preview,
+                    request))
             {
                 Owner = this
             };
