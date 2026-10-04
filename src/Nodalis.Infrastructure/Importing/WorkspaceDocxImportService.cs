@@ -18,6 +18,34 @@ public sealed class WorkspaceDocxImportService
         string sourcePath,
         CancellationToken cancellationToken = default)
     {
+        var staged = await StageAsync(
+            sourcePath,
+            cancellationToken);
+
+        try
+        {
+            var sourceCopyPath = await CommitStagedCopyAsync(
+                staged,
+                cancellationToken);
+
+            return new DocxImportResult
+            {
+                SourceCopyPath = sourceCopyPath,
+                Document = staged.Document
+            };
+        }
+        catch
+        {
+            DiscardStagedCopy(
+                staged);
+            throw;
+        }
+    }
+
+    public async Task<DocxStagedImport> StageAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
 
         var fullSourcePath = Path.GetFullPath(sourcePath);
@@ -38,6 +66,61 @@ public sealed class WorkspaceDocxImportService
                 "Seuls les fichiers .docx sont acceptés par l'import Word.");
         }
 
+        var stagingDirectory = GetStagingDirectory();
+
+        Directory.CreateDirectory(
+            stagingDirectory);
+
+        var stagedPath = Path.Combine(
+            stagingDirectory,
+            $"{Guid.NewGuid():N}-{WindowsPathRules.SanitizeSegment(Path.GetFileNameWithoutExtension(fullSourcePath))}.docx");
+
+        try
+        {
+            await CopyAsync(
+                fullSourcePath,
+                stagedPath,
+                cancellationToken);
+
+            var document = await _parser.ParseAsync(
+                stagedPath,
+                cancellationToken);
+
+            return new DocxStagedImport
+            {
+                OriginalSourcePath = fullSourcePath,
+                StagedCopyPath = stagedPath,
+                Document = document
+            };
+        }
+        catch
+        {
+            TryDelete(
+                stagedPath);
+            throw;
+        }
+    }
+
+    public Task<string> CommitStagedCopyAsync(
+        DocxStagedImport staged,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(staged);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var stagedPath = Path.GetFullPath(
+            staged.StagedCopyPath);
+
+        EnsureIsStagingPath(
+            stagedPath);
+
+        if (!File.Exists(stagedPath))
+        {
+            throw new FileNotFoundException(
+                "La copie temporaire DOCX est introuvable.",
+                stagedPath);
+        }
+
         var sourcesDirectory = Path.Combine(
             _workspaceRoot,
             WorkspaceLayout.ImportsDirectoryName,
@@ -46,43 +129,68 @@ public sealed class WorkspaceDocxImportService
         Directory.CreateDirectory(
             sourcesDirectory);
 
-        var copyPath = WindowsPathRules.GetUniqueFilePath(
+        var destination = WindowsPathRules.GetUniqueFilePath(
             sourcesDirectory,
-            Path.GetFileName(fullSourcePath));
+            Path.GetFileName(staged.OriginalSourcePath));
 
+        File.Move(
+            stagedPath,
+            destination);
+
+        return Task.FromResult(
+            destination);
+    }
+
+    public void DiscardStagedCopy(
+        DocxStagedImport staged)
+    {
+        ArgumentNullException.ThrowIfNull(staged);
+
+        var stagedPath = Path.GetFullPath(
+            staged.StagedCopyPath);
+
+        EnsureIsStagingPath(
+            stagedPath);
+
+        TryDelete(
+            stagedPath);
+    }
+
+    private string GetStagingDirectory() =>
+        Path.Combine(
+            _workspaceRoot,
+            WorkspaceLayout.ImportsDirectoryName,
+            WorkspaceLayout.ImportStagingDirectoryName);
+
+    private void EnsureIsStagingPath(string path)
+    {
+        var root = Path.GetFullPath(
+                GetStagingDirectory())
+            .TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
+
+        if (!path.StartsWith(
+                root + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "La copie DOCX indiquée ne se trouve pas dans la zone temporaire d'import.");
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
         try
         {
-            await CopyAsync(
-                fullSourcePath,
-                copyPath,
-                cancellationToken);
-
-            var document = await _parser.ParseAsync(
-                copyPath,
-                cancellationToken);
-
-            return new DocxImportResult
+            if (File.Exists(path))
             {
-                SourceCopyPath = copyPath,
-                Document = document
-            };
+                File.Delete(path);
+            }
         }
         catch
         {
-            try
-            {
-                if (File.Exists(copyPath))
-                {
-                    File.Delete(copyPath);
-                }
-            }
-            catch
-            {
-                // Preserve the original import error. A stale copy is harmless
-                // and remains ordinary local workspace data.
-            }
-
-            throw;
+            // Cleanup is best-effort. Import operations keep their original error.
         }
     }
 
