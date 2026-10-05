@@ -65,6 +65,12 @@
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
                     <Button Margin="0,0,8,0"
+                            Click="OpenUpdate_Click"
+                            Content="Mise à jour" />
+                    <Button Margin="0,0,8,0"
+                            Click="RollbackUpdate_Click"
+                            Content="Rollback" />
+                    <Button Margin="0,0,8,0"
                             Click="OpenBackups_Click"
                             Content="Sauvegardes" />
                     <Button Margin="0,0,8,0"
