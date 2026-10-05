@@ -25,4 +25,16 @@ public sealed record DecisionRecord
     public string SourceReference { get; init; } = string.Empty;
 
     public string Links { get; init; } = string.Empty;
+
+    public DecisionLifecycleState LifecycleState { get; init; } = DecisionLifecycleState.Other;
+
+    public string SupersedesReference { get; init; } = string.Empty;
+
+    public string SupersededByReference { get; init; } = string.Empty;
+
+    public string LifecycleWarning { get; init; } = string.Empty;
+
+    public bool HasLifecycleWarning =>
+        !string.IsNullOrWhiteSpace(
+            LifecycleWarning);
 }
