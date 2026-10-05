@@ -12,6 +12,9 @@ namespace Nodalis.Infrastructure.Decisions;
 public sealed class WorkspaceDecisionService
 {
     public const string DecisionsDirectoryName = "Décisions";
+    public const string ActiveStatus = "Active";
+    public const string SupersededStatus = "Superseded";
+    public const string DeprecatedStatus = "Deprecated";
 
     private readonly string _workspaceRoot;
     private readonly WorkspaceLinkIndexService _linkIndex;
@@ -188,7 +191,12 @@ public sealed class WorkspaceDecisionService
                     scope.Value.Target.DisplayName));
         }
 
-        return result
+        IReadOnlyList<DecisionRecord> validated =
+            ApplyLifecycleWarnings(
+                result,
+                links);
+
+        return validated
             .OrderByDescending(item => item.Date ?? DateOnly.MinValue)
             .ThenBy(
                 item => item.Title,
@@ -228,8 +236,215 @@ public sealed class WorkspaceDecisionService
                 Contains(item.Justification, needle) ||
                 Contains(item.Impacts, needle) ||
                 Contains(item.SourceReference, needle) ||
-                Contains(item.Links, needle))
+                Contains(item.Links, needle) ||
+                Contains(item.SupersedesReference, needle) ||
+                Contains(item.SupersededByReference, needle) ||
+                Contains(item.LifecycleWarning, needle))
             .ToArray();
+    }
+
+    /// <summary>
+    /// Updates the lifecycle status of one Decision Record without deleting or rewriting its history.
+    /// </summary>
+    /// <param name="decision">The Decision Record to update.</param>
+    /// <param name="status">The canonical lifecycle status.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the local Markdown update.</returns>
+    public async Task SetLifecycleStatusAsync(
+            DecisionRecord decision,
+            string status,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(
+            decision);
+
+        string canonicalStatus =
+            NormalizeLifecycleStatus(
+                status);
+
+        if (canonicalStatus == ActiveStatus &&
+            !string.IsNullOrWhiteSpace(
+                decision.SupersededByReference))
+        {
+            throw new InvalidOperationException(
+                "Cette décision pointe déjà vers une remplaçante. Corrigez d'abord la chaîne de remplacement avant de la réactiver.");
+        }
+
+        string path =
+            ResolveDecisionPath(
+                decision);
+
+        TextDocumentSession session =
+            await TextDocumentSession.OpenAsync(
+                path,
+                cancellationToken);
+
+        string updated =
+            UpsertMetadata(
+                session.Content,
+                "Statut",
+                canonicalStatus);
+
+        await session.SaveAsync(
+            EnsureTrailingNewline(
+                updated),
+            cancellationToken);
+
+        await _linkIndex.RefreshAsync(
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Links two Decision Records as an explicit replacement while preserving both Markdown documents.
+    /// </summary>
+    /// <param name="previous">The decision that becomes superseded.</param>
+    /// <param name="replacement">The decision that becomes active and replaces the previous decision.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the bidirectional lifecycle update.</returns>
+    public async Task SupersedeAsync(
+            DecisionRecord previous,
+            DecisionRecord replacement,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(
+            previous);
+        ArgumentNullException.ThrowIfNull(
+            replacement);
+
+        if (string.Equals(
+                previous.SourceRelativePath,
+                replacement.SourceRelativePath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Une décision ne peut pas se remplacer elle-même.");
+        }
+
+        if (!string.Equals(
+                previous.ScopeKind,
+                replacement.ScopeKind,
+                StringComparison.CurrentCultureIgnoreCase) ||
+            !string.Equals(
+                previous.ScopeName,
+                replacement.ScopeName,
+                StringComparison.CurrentCultureIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Les deux décisions doivent appartenir au même contexte.");
+        }
+
+        LinkIndexCatalog links =
+            await _linkIndex.RefreshAsync(
+                cancellationToken);
+
+        LinkTargetEntry previousTarget =
+            ResolveDecisionTarget(
+                previous,
+                links);
+        LinkTargetEntry replacementTarget =
+            ResolveDecisionTarget(
+                replacement,
+                links);
+
+        if (!string.IsNullOrWhiteSpace(
+                previous.SupersededByReference))
+        {
+            LinkTargetEntry? existingReplacement =
+                ResolveDecisionReferenceTarget(
+                    previous.SupersededByReference,
+                    links);
+
+            if (existingReplacement is null ||
+                existingReplacement.Id != replacementTarget.Id)
+            {
+                throw new InvalidOperationException(
+                    "La décision source est déjà remplacée par une autre décision.");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                replacement.SupersedesReference))
+        {
+            LinkTargetEntry? existingPrevious =
+                ResolveDecisionReferenceTarget(
+                    replacement.SupersedesReference,
+                    links);
+
+            if (existingPrevious is null ||
+                existingPrevious.Id != previousTarget.Id)
+            {
+                throw new InvalidOperationException(
+                    "La décision remplaçante remplace déjà une autre décision.");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                replacement.SupersededByReference))
+        {
+            throw new InvalidOperationException(
+                "Une décision déjà remplacée ne peut pas devenir la remplaçante active.");
+        }
+
+        string previousPath =
+            ResolveDecisionPath(
+                previous);
+        string replacementPath =
+            ResolveDecisionPath(
+                replacement);
+
+        TextDocumentSession previousSession =
+            await TextDocumentSession.OpenAsync(
+                previousPath,
+                cancellationToken);
+        TextDocumentSession replacementSession =
+            await TextDocumentSession.OpenAsync(
+                replacementPath,
+                cancellationToken);
+
+        string previousContent =
+            UpsertMetadata(
+                previousSession.Content,
+                "Statut",
+                SupersededStatus);
+        previousContent =
+            UpsertMetadata(
+                previousContent,
+                "Remplacée par",
+                $"[[{replacementTarget.QualifiedName}]]");
+
+        string replacementContent =
+            UpsertMetadata(
+                replacementSession.Content,
+                "Statut",
+                ActiveStatus);
+        replacementContent =
+            UpsertMetadata(
+                replacementContent,
+                "Remplace",
+                $"[[{previousTarget.QualifiedName}]]");
+
+        await previousSession.SaveAsync(
+            EnsureTrailingNewline(
+                previousContent),
+            cancellationToken);
+
+        try
+        {
+            await replacementSession.SaveAsync(
+                EnsureTrailingNewline(
+                    replacementContent),
+                cancellationToken);
+        }
+        catch
+        {
+            await previousSession.SaveAsync(
+                previousSession.Content,
+                cancellationToken);
+            throw;
+        }
+
+        await _linkIndex.RefreshAsync(
+            cancellationToken);
     }
 
     /// <summary>
@@ -461,8 +676,18 @@ public sealed class WorkspaceDecisionService
             Title = title,
             Date = date,
             Status = ReadMetadata(lines, "Statut"),
+            LifecycleState = ParseLifecycleState(
+                ReadMetadata(
+                    lines,
+                    "Statut")),
             ScopeName = scopeName,
             ScopeKind = scopeKind,
+            SupersedesReference = ReadMetadata(
+                lines,
+                "Remplace"),
+            SupersededByReference = ReadMetadata(
+                lines,
+                "Remplacée par"),
             Decision = ReadSection(content, "Décision"),
             Context = ReadSection(content, "Contexte"),
             Justification = ReadSection(content, "Justification"),
@@ -470,6 +695,463 @@ public sealed class WorkspaceDecisionService
             SourceReference = ReadMetadata(lines, "Source"),
             Links = ReadSection(content, "Sources et liens")
         };
+    }
+
+    /// <summary>
+    /// Applies relationship and chain consistency warnings to parsed Decision Records.
+    /// </summary>
+    /// <param name="decisions">The parsed decisions in one scope.</param>
+    /// <param name="links">The current workspace link index.</param>
+    /// <returns>Decision Records decorated with lifecycle warnings.</returns>
+    private static IReadOnlyList<DecisionRecord> ApplyLifecycleWarnings(
+            IReadOnlyList<DecisionRecord> decisions,
+            LinkIndexCatalog links)
+    {
+        Dictionary<string, DecisionRecord> decisionsByPath =
+            decisions.ToDictionary(
+                decision =>
+                    decision.SourceRelativePath,
+                StringComparer.OrdinalIgnoreCase);
+
+        global::System.Collections.Generic.List<DecisionRecord> result =
+            new List<DecisionRecord>(
+                decisions.Count);
+
+        foreach (DecisionRecord decision in decisions)
+        {
+            global::System.Collections.Generic.List<string> warnings =
+                new List<string>();
+
+            LinkTargetEntry? previousTarget =
+                ResolveDecisionReferenceTarget(
+                    decision.SupersedesReference,
+                    links);
+            LinkTargetEntry? nextTarget =
+                ResolveDecisionReferenceTarget(
+                    decision.SupersededByReference,
+                    links);
+
+            DecisionRecord? previousDecision =
+                ResolveDecisionRecord(
+                    previousTarget,
+                    decisionsByPath);
+            DecisionRecord? nextDecision =
+                ResolveDecisionRecord(
+                    nextTarget,
+                    decisionsByPath);
+
+            if (decision.LifecycleState == DecisionLifecycleState.Superseded &&
+                string.IsNullOrWhiteSpace(
+                    decision.SupersededByReference))
+            {
+                warnings.Add(
+                    "Statut Superseded sans « Remplacée par ».");
+            }
+
+            if (decision.LifecycleState != DecisionLifecycleState.Superseded &&
+                !string.IsNullOrWhiteSpace(
+                    decision.SupersededByReference))
+            {
+                warnings.Add(
+                    "Une relation « Remplacée par » existe alors que le statut n'est pas Superseded.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    decision.SupersedesReference) &&
+                previousDecision is null)
+            {
+                warnings.Add(
+                    "La décision référencée par « Remplace » est introuvable dans ce contexte.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    decision.SupersededByReference) &&
+                nextDecision is null)
+            {
+                warnings.Add(
+                    "La décision référencée par « Remplacée par » est introuvable dans ce contexte.");
+            }
+
+            if (previousDecision is not null)
+            {
+                LinkTargetEntry? reverseTarget =
+                    ResolveDecisionReferenceTarget(
+                        previousDecision.SupersededByReference,
+                        links);
+
+                LinkTargetEntry? currentTarget =
+                    FindDecisionTarget(
+                        decision,
+                        links);
+
+                if (currentTarget is null ||
+                    reverseTarget is null ||
+                    reverseTarget.Id != currentTarget.Id)
+                {
+                    warnings.Add(
+                        "La relation « Remplace » n'est pas réciproque.");
+                }
+
+                if (previousDecision.LifecycleState != DecisionLifecycleState.Superseded)
+                {
+                    warnings.Add(
+                        "La décision remplacée n'est pas au statut Superseded.");
+                }
+            }
+
+            if (nextDecision is not null)
+            {
+                LinkTargetEntry? reverseTarget =
+                    ResolveDecisionReferenceTarget(
+                        nextDecision.SupersedesReference,
+                        links);
+
+                LinkTargetEntry? currentTarget =
+                    FindDecisionTarget(
+                        decision,
+                        links);
+
+                if (currentTarget is null ||
+                    reverseTarget is null ||
+                    reverseTarget.Id != currentTarget.Id)
+                {
+                    warnings.Add(
+                        "La relation « Remplacée par » n'est pas réciproque.");
+                }
+            }
+
+            if (HasLifecycleCycle(
+                    decision,
+                    decisionsByPath,
+                    links))
+            {
+                warnings.Add(
+                    "Cycle de remplacement détecté.");
+            }
+
+            result.Add(
+                decision with
+                {
+                    LifecycleWarning =
+                        string.Join(
+                            " ",
+                            warnings.Distinct(
+                                StringComparer.CurrentCultureIgnoreCase))
+                });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Detects a cycle by following successive « Remplacée par » references.
+    /// </summary>
+    /// <param name="start">The decision from which traversal starts.</param>
+    /// <param name="decisionsByPath">Decision records indexed by source path.</param>
+    /// <param name="links">The current workspace link index.</param>
+    /// <returns><see langword="true"/> when the replacement chain loops.</returns>
+    private static bool HasLifecycleCycle(
+            DecisionRecord start,
+            IReadOnlyDictionary<string, DecisionRecord> decisionsByPath,
+            LinkIndexCatalog links)
+    {
+        global::System.Collections.Generic.HashSet<string> visited =
+            new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+        DecisionRecord? current =
+            start;
+
+        while (current is not null &&
+               !string.IsNullOrWhiteSpace(
+                   current.SupersededByReference))
+        {
+            if (!visited.Add(
+                    current.SourceRelativePath))
+            {
+                return true;
+            }
+
+            LinkTargetEntry? nextTarget =
+                ResolveDecisionReferenceTarget(
+                    current.SupersededByReference,
+                    links);
+
+            current =
+                ResolveDecisionRecord(
+                    nextTarget,
+                    decisionsByPath);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves one lifecycle link to a parsed decision in the current scope.
+    /// </summary>
+    /// <param name="target">The resolved link target.</param>
+    /// <param name="decisionsByPath">Decision records indexed by source path.</param>
+    /// <returns>The matching decision, or <see langword="null"/>.</returns>
+    private static DecisionRecord? ResolveDecisionRecord(
+            LinkTargetEntry? target,
+            IReadOnlyDictionary<string, DecisionRecord> decisionsByPath)
+    {
+        if (target is null)
+        {
+            return null;
+        }
+
+        return decisionsByPath.TryGetValue(
+            target.RelativePath,
+            out DecisionRecord? decision)
+            ? decision
+            : null;
+    }
+
+    /// <summary>
+    /// Resolves a Decision Record to its current indexed document target.
+    /// </summary>
+    /// <param name="decision">The Decision Record.</param>
+    /// <param name="links">The current workspace link index.</param>
+    /// <returns>The indexed document target.</returns>
+    private static LinkTargetEntry ResolveDecisionTarget(
+            DecisionRecord decision,
+            LinkIndexCatalog links) =>
+            FindDecisionTarget(
+                decision,
+                links)
+            ?? throw new InvalidDataException(
+                $"Le Decision Record n'est plus indexé : {decision.SourceRelativePath}");
+
+    /// <summary>
+    /// Finds a Decision Record in the current link index.
+    /// </summary>
+    /// <param name="decision">The Decision Record.</param>
+    /// <param name="links">The current workspace link index.</param>
+    /// <returns>The indexed document target, or <see langword="null"/>.</returns>
+    private static LinkTargetEntry? FindDecisionTarget(
+            DecisionRecord decision,
+            LinkIndexCatalog links) =>
+            links.Targets.FirstOrDefault(target =>
+                target.Kind == LinkTargetKind.Document &&
+                string.Equals(
+                    target.RelativePath,
+                    decision.SourceRelativePath,
+                    StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Resolves a readable lifecycle metadata reference through the workspace link index.
+    /// </summary>
+    /// <param name="reference">The raw metadata reference, with or without wiki-link delimiters.</param>
+    /// <param name="links">The current workspace link index.</param>
+    /// <returns>The resolved target, or <see langword="null"/> when missing or ambiguous.</returns>
+    private static LinkTargetEntry? ResolveDecisionReferenceTarget(
+            string reference,
+            LinkIndexCatalog links)
+    {
+        string target =
+            StripWikiLink(
+                reference);
+
+        if (string.IsNullOrWhiteSpace(
+                target))
+        {
+            return null;
+        }
+
+        LinkResolution resolution =
+            WorkspaceLinkIndexService.Resolve(
+                links,
+                target);
+
+        return resolution.Status == LinkResolutionStatus.Resolved &&
+               resolution.Target?.Kind == LinkTargetKind.Document
+            ? resolution.Target
+            : null;
+    }
+
+    /// <summary>
+    /// Removes wiki-link delimiters from one metadata reference.
+    /// </summary>
+    /// <param name="reference">The raw reference.</param>
+    /// <returns>The internal link target text.</returns>
+    private static string StripWikiLink(
+            string reference)
+    {
+        string value =
+            reference.Trim();
+
+        if (value.StartsWith(
+                "[[",
+                StringComparison.Ordinal) &&
+            value.EndsWith(
+                "]]",
+                StringComparison.Ordinal) &&
+            value.Length > 4)
+        {
+            return value[2..^2].Trim();
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// Converts legacy and canonical status labels to a lifecycle state.
+    /// </summary>
+    /// <param name="status">The status text stored in Markdown.</param>
+    /// <returns>The interpreted lifecycle state.</returns>
+    private static DecisionLifecycleState ParseLifecycleState(
+            string status)
+    {
+        string normalized =
+            status.Trim()
+                .ToLowerInvariant();
+
+        return normalized switch
+        {
+            "active" or
+            "actée" or
+            "actee" =>
+                DecisionLifecycleState.Active,
+            "superseded" or
+            "remplacée" or
+            "remplacee" =>
+                DecisionLifecycleState.Superseded,
+            "deprecated" or
+            "dépréciée" or
+            "depreciee" or
+            "déprécié" or
+            "deprecie" =>
+                DecisionLifecycleState.Deprecated,
+            _ =>
+                DecisionLifecycleState.Other
+        };
+    }
+
+    /// <summary>
+    /// Validates and canonicalizes a requested lifecycle status.
+    /// </summary>
+    /// <param name="status">The requested status.</param>
+    /// <returns>The canonical English lifecycle value.</returns>
+    private static string NormalizeLifecycleStatus(
+            string status)
+    {
+        DecisionLifecycleState state =
+            ParseLifecycleState(
+                status);
+
+        return state switch
+        {
+            DecisionLifecycleState.Active =>
+                ActiveStatus,
+            DecisionLifecycleState.Superseded =>
+                SupersededStatus,
+            DecisionLifecycleState.Deprecated =>
+                DeprecatedStatus,
+            _ =>
+                throw new ArgumentException(
+                    "Le statut doit être Active, Superseded ou Deprecated.",
+                    nameof(status))
+        };
+    }
+
+    /// <summary>
+    /// Updates or inserts one readable metadata line before the first level-two section.
+    /// </summary>
+    /// <param name="content">The Decision Record Markdown content.</param>
+    /// <param name="key">The metadata key.</param>
+    /// <param name="value">The metadata value.</param>
+    /// <returns>The updated Markdown content.</returns>
+    private static string UpsertMetadata(
+            string content,
+            string key,
+            string value)
+    {
+        global::System.Collections.Generic.List<string> lines =
+            NormalizeNewlines(
+                    content)
+                .Split(
+                    '\n')
+                .ToList();
+        string prefix =
+            $"**{key} :**";
+
+        int existingIndex =
+            lines.FindIndex(line =>
+                line.TrimStart().StartsWith(
+                    prefix,
+                    StringComparison.CurrentCultureIgnoreCase));
+
+        string metadata =
+            $"{prefix} {value.Trim()}";
+
+        if (existingIndex >= 0)
+        {
+            lines[existingIndex] =
+                metadata;
+            return string.Join(
+                "\n",
+                lines);
+        }
+
+        int headingIndex =
+            lines.FindIndex(line =>
+                line.TrimStart().StartsWith(
+                    "## ",
+                    StringComparison.Ordinal));
+
+        int insertIndex =
+            headingIndex >= 0
+                ? headingIndex
+                : lines.Count;
+
+        while (insertIndex > 0 &&
+               string.IsNullOrWhiteSpace(
+                   lines[insertIndex - 1]))
+        {
+            insertIndex--;
+        }
+
+        lines.Insert(
+            insertIndex,
+            metadata);
+
+        if (insertIndex + 1 < lines.Count &&
+            !string.IsNullOrWhiteSpace(
+                lines[insertIndex + 1]))
+        {
+            lines.Insert(
+                insertIndex + 1,
+                string.Empty);
+        }
+
+        return string.Join(
+            "\n",
+            lines);
+    }
+
+    /// <summary>
+    /// Resolves and validates the source file path for one Decision Record.
+    /// </summary>
+    /// <param name="decision">The Decision Record.</param>
+    /// <returns>The absolute Markdown file path.</returns>
+    private string ResolveDecisionPath(
+            DecisionRecord decision)
+    {
+        string path =
+            ResolveWorkspacePath(
+                decision.SourceRelativePath);
+
+        if (!IsWithinWorkspace(
+                path) ||
+            !File.Exists(
+                path))
+        {
+            throw new FileNotFoundException(
+                "Le Decision Record est introuvable.",
+                path);
+        }
+
+        return path;
     }
 
     /// <summary>
