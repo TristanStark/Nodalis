@@ -23,4 +23,20 @@ public sealed record MilestoneItem
     public string Description { get; init; } = string.Empty;
 
     public string? Link { get; init; }
+
+    public IReadOnlyList<Guid> DependencyIds { get; init; } = Array.Empty<Guid>();
+
+    public IReadOnlyList<string> DependencyNames { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> DependencyWarnings { get; init; } = Array.Empty<string>();
+
+    public string DependencySummary =>
+        DependencyNames.Count == 0
+            ? "Aucun prérequis"
+            : "Prérequis : " + string.Join(", ", DependencyNames);
+
+    public string DependencyWarningSummary =>
+        DependencyWarnings.Count == 0
+            ? string.Empty
+            : "⚠ " + string.Join(" · ", DependencyWarnings);
 }
