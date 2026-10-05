@@ -92,6 +92,24 @@ public sealed record TaskItem
             : string.Empty;
 
     /// <summary>
+    /// Gets a value indicating whether this task is an action stored in a project meeting and can be promoted to project tracking.
+    /// </summary>
+    public bool CanPromoteMeetingAction =>
+        ProjectId is not null &&
+        SourceRelativePath
+            .Replace(
+                '\\',
+                '/')
+            .Split(
+                '/',
+                StringSplitOptions.RemoveEmptyEntries)
+            .Any(segment =>
+                string.Equals(
+                    segment,
+                    "Réunions",
+                    StringComparison.CurrentCultureIgnoreCase));
+
+    /// <summary>
     /// Gets the containing application identifier when one exists.
     /// </summary>
     public Guid? ApplicationId { get; init; }
