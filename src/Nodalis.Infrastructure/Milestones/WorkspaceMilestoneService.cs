@@ -259,7 +259,7 @@ public sealed class WorkspaceMilestoneService
                 sourcePath);
         }
 
-        await EnsureStableSchemaAsync(
+        bool schemaMigrated = await EnsureStableSchemaAsync(
             sourcePath,
             item.ProjectId,
             cancellationToken);
@@ -269,11 +269,16 @@ public sealed class WorkspaceMilestoneService
                 projectDirectory,
                 cancellationToken);
 
-        global::Nodalis.Core.Milestones.MilestoneItem currentItem =
+        global::Nodalis.Core.Milestones.MilestoneItem refreshedItem =
             milestones.FirstOrDefault(candidate =>
                 candidate.Id == item.Id)
             ?? throw new MilestoneSourceConflictException(
                 sourcePath);
+
+        global::Nodalis.Core.Milestones.MilestoneItem currentItem =
+            schemaMigrated
+                ? refreshedItem
+                : item;
 
         ValidateDependencyDraft(
             currentItem.Id,
@@ -375,7 +380,7 @@ public sealed class WorkspaceMilestoneService
             projectDirectory,
             cancellationToken);
 
-        await EnsureStableSchemaAsync(
+        bool schemaMigrated = await EnsureStableSchemaAsync(
             sourcePath,
             item.ProjectId,
             cancellationToken);
@@ -385,11 +390,16 @@ public sealed class WorkspaceMilestoneService
                 projectDirectory,
                 cancellationToken);
 
-        global::Nodalis.Core.Milestones.MilestoneItem currentItem =
+        global::Nodalis.Core.Milestones.MilestoneItem refreshedItem =
             projectMilestones.FirstOrDefault(candidate =>
                 candidate.Id == item.Id)
             ?? throw new MilestoneSourceConflictException(
                 sourcePath);
+
+        global::Nodalis.Core.Milestones.MilestoneItem currentItem =
+            schemaMigrated
+                ? refreshedItem
+                : item;
 
         global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> workspaceMilestones =
             await GetMilestonesAsync(
@@ -742,14 +752,15 @@ public sealed class WorkspaceMilestoneService
     /// <param name="sourcePath">The milestone Markdown file.</param>
     /// <param name="projectId">The project identifier.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    private static async Task EnsureStableSchemaAsync(
+    /// <returns><see langword="true"/> when the table was migrated.</returns>
+    private static async Task<bool> EnsureStableSchemaAsync(
             string sourcePath,
             Guid projectId,
             CancellationToken cancellationToken)
     {
         if (!File.Exists(sourcePath))
         {
-            return;
+            return false;
         }
 
         global::Nodalis.Infrastructure.Reliability.TextDocumentSession session =
@@ -821,7 +832,7 @@ public sealed class WorkspaceMilestoneService
         if (headerIndex < 0 ||
             columns is null)
         {
-            return;
+            return false;
         }
 
         bool alreadyStable =
@@ -832,7 +843,7 @@ public sealed class WorkspaceMilestoneService
 
         if (alreadyStable)
         {
-            return;
+            return false;
         }
 
         lines[headerIndex] =
@@ -956,6 +967,8 @@ public sealed class WorkspaceMilestoneService
         await session.SaveAsync(
             content,
             cancellationToken);
+
+        return true;
     }
 
     /// <summary>
