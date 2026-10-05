@@ -7,6 +7,7 @@ public static class WorkspaceLayout
     public const string ModuleManifestFileName = ".module.json";
     public const string ProjectManifestFileName = ".project.json";
     public const string LinkIndexFileName = ".nodalis-links.json";
+    public const string TrashManifestFileName = ".trash.json";
 
     public const string ApplicationsDirectoryName = "Applications";
     public const string ModulesDirectoryName = "Modules";
@@ -17,6 +18,7 @@ public static class WorkspaceLayout
     public const string ImportsDirectoryName = "Imports";
     public const string ImportSourcesDirectoryName = "Sources";
     public const string ImportStagingDirectoryName = ".staging";
+    public const string TrashDirectoryName = "Corbeille";
 
     public const string GlobalQuickNotesFileName = "Notes rapides.md";
     public const string GlobalGlossaryFileName = "Glossaire.md";
