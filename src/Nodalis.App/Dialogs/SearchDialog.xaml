@@ -26,19 +26,25 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="58" />
+            <RowDefinition Height="82" />
             <RowDefinition Height="*" />
             <RowDefinition Height="30" />
         </Grid.RowDefinitions>
 
-        <Border Padding="14,10"
+        <Border Padding="14,8"
                 Background="{StaticResource PanelBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1">
-            <TextBox x:Name="SearchTextBox"
-                     Padding="10,6"
-                     FontSize="16"
-                     TextChanged="SearchTextBox_TextChanged" />
+            <StackPanel>
+                <TextBox x:Name="SearchTextBox"
+                         Padding="10,6"
+                         FontSize="16"
+                         TextChanged="SearchTextBox_TextChanged" />
+                <TextBlock Margin="2,5,0,0"
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="Filtres : status:actif · tag:api · owner:alice · @ma-propriete:valeur" />
+            </StackPanel>
         </Border>
 
         <ScrollViewer Grid.Row="1"
