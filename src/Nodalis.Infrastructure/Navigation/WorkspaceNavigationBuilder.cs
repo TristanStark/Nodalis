@@ -25,10 +25,40 @@ public sealed class WorkspaceNavigationBuilder
         global::Nodalis.Infrastructure.Persistence.FileSystemWorkspaceStore workspaceStore = new FileSystemWorkspaceStore(root);
         global::Nodalis.Core.Domain.WorkspaceManifest workspace = await workspaceStore.LoadAsync(cancellationToken);
 
-        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children = new List<WorkspaceNavigationNode>
+        global::Nodalis.Core.Navigation.WorkspaceNavigationNode globalNode =
+            BuildGlobalNode(
+                root);
+
+        string journalPath =
+            Path.Combine(
+                root,
+                WorkspaceLayout.JournalDirectoryName);
+
+        if (Directory.Exists(
+                journalPath))
         {
-            BuildGlobalNode(root)
-        };
+            global::Nodalis.Core.Navigation.WorkspaceNavigationNode journalNode =
+                await BuildGenericFolderAsync(
+                    root,
+                    journalPath,
+                    WorkspaceNodeKind.Folder,
+                    cancellationToken);
+
+            globalNode =
+                globalNode with
+                {
+                    Children =
+                        Sort(
+                            globalNode.Children.Append(
+                                journalNode))
+                };
+        }
+
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children =
+            new List<WorkspaceNavigationNode>
+            {
+                globalNode
+            };
 
         string applicationsPath = Path.Combine(
             root,
