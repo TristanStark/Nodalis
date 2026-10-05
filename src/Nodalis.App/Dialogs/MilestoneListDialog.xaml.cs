@@ -12,12 +12,13 @@ public partial class MilestoneListDialog : Window
     private readonly WorkspaceMilestoneService _milestones;
     private readonly string? _contextPath;
     private string? _projectDirectory;
+    private IReadOnlyList<MilestoneItem> _currentMilestones = Array.Empty<MilestoneItem>();
 
     /// <summary>
     /// Initializes a new instance of <see cref="MilestoneListDialog"/>.
     /// </summary>
-    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="workspaceRoot">The workspace root.</param>
+    /// <param name="contextPath">The current project context path.</param>
     public MilestoneListDialog(
             string workspaceRoot,
             string? contextPath)
@@ -37,10 +38,10 @@ public partial class MilestoneListDialog : Window
     public MilestoneItem? SelectedMilestone { get; private set; }
 
     /// <summary>
-    /// Performs the <c>Add_Click</c> operation.
+    /// Creates a milestone in the current project.
     /// </summary>
-    /// <param name="sender">The <c>sender</c> value.</param>
-    /// <param name="e">The <c>e</c> value.</param>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event.</param>
     private async void Add_Click(
             object sender,
             RoutedEventArgs e)
@@ -50,7 +51,8 @@ public partial class MilestoneListDialog : Window
             return;
         }
 
-        global::Nodalis.App.Dialogs.MilestoneEditorDialog dialog = new MilestoneEditorDialog
+        global::Nodalis.App.Dialogs.MilestoneEditorDialog dialog = new MilestoneEditorDialog(
+            availableMilestones: _currentMilestones)
         {
             Owner = this
         };
@@ -81,10 +83,10 @@ public partial class MilestoneListDialog : Window
     }
 
     /// <summary>
-    /// Performs the <c>Edit_Click</c> operation.
+    /// Edits the selected milestone.
     /// </summary>
-    /// <param name="sender">The <c>sender</c> value.</param>
-    /// <param name="e">The <c>e</c> value.</param>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event.</param>
     private async void Edit_Click(
             object sender,
             RoutedEventArgs e)
@@ -100,7 +102,8 @@ public partial class MilestoneListDialog : Window
         }
 
         global::Nodalis.App.Dialogs.MilestoneEditorDialog dialog = new MilestoneEditorDialog(
-            milestone)
+            milestone,
+            _currentMilestones)
         {
             Owner = this
         };
@@ -133,10 +136,69 @@ public partial class MilestoneListDialog : Window
     }
 
     /// <summary>
-    /// Performs the <c>Delete_Click</c> operation.
+    /// Navigates to the first prerequisite of the selected milestone.
     /// </summary>
-    /// <param name="sender">The <c>sender</c> value.</param>
-    /// <param name="e">The <c>e</c> value.</param>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event.</param>
+    private void NavigateDependency_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        global::Nodalis.Core.Milestones.MilestoneItem? milestone = GetSelectedMilestone();
+
+        if (milestone is null)
+        {
+            ShowError(
+                "Prérequis",
+                "Sélectionnez d'abord un jalon.");
+            return;
+        }
+
+        global::System.Guid? dependencyId =
+            milestone.DependencyIds
+                .Cast<Guid?>()
+                .FirstOrDefault();
+
+        if (dependencyId is not Guid id)
+        {
+            ShowError(
+                "Prérequis",
+                "Ce jalon n'a aucun prérequis.");
+            return;
+        }
+
+        global::Nodalis.Core.Milestones.MilestoneItem? dependency =
+            _currentMilestones.FirstOrDefault(candidate =>
+                candidate.Id == id);
+
+        if (dependency is null)
+        {
+            ShowError(
+                "Prérequis",
+                "Le jalon prérequis est introuvable. La référence est signalée comme incohérente.");
+            return;
+        }
+
+        MilestonesList.SelectedItem = dependency;
+        MilestonesList.ScrollIntoView(
+            dependency);
+
+        if (dependency.TargetDate is not null)
+        {
+            TimelineList.SelectedItem = dependency;
+            TimelineList.ScrollIntoView(
+                dependency);
+        }
+
+        StatusText.Text =
+            $"Prérequis ouvert : {dependency.Name}";
+    }
+
+    /// <summary>
+    /// Deletes the selected milestone when it is not referenced by another milestone.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event.</param>
     private async void Delete_Click(
             object sender,
             RoutedEventArgs e)
@@ -184,10 +246,10 @@ public partial class MilestoneListDialog : Window
     }
 
     /// <summary>
-    /// Performs the <c>MilestonesList_MouseDoubleClick</c> operation.
+    /// Opens the selected milestone from the list view.
     /// </summary>
-    /// <param name="sender">The <c>sender</c> value.</param>
-    /// <param name="e">The <c>e</c> value.</param>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The mouse event.</param>
     private void MilestonesList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e) =>
@@ -195,10 +257,10 @@ public partial class MilestoneListDialog : Window
                 MilestonesList);
 
     /// <summary>
-    /// Performs the <c>TimelineList_MouseDoubleClick</c> operation.
+    /// Opens the selected milestone from the timeline view.
     /// </summary>
-    /// <param name="sender">The <c>sender</c> value.</param>
-    /// <param name="e">The <c>e</c> value.</param>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The mouse event.</param>
     private void TimelineList_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e) =>
@@ -206,9 +268,9 @@ public partial class MilestoneListDialog : Window
                 TimelineList);
 
     /// <summary>
-    /// Performs the <c>OpenSelectedFrom</c> operation.
+    /// Opens the selected milestone from the supplied list.
     /// </summary>
-    /// <param name="list">The <c>list</c> value.</param>
+    /// <param name="list">The source list.</param>
     private void OpenSelectedFrom(ListBox list)
     {
         if (list.SelectedItem is not MilestoneItem milestone)
@@ -221,17 +283,17 @@ public partial class MilestoneListDialog : Window
     }
 
     /// <summary>
-    /// Performs the <c>GetSelectedMilestone</c> operation.
+    /// Gets the milestone selected in either list.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
+    /// <returns>The selected milestone.</returns>
     private MilestoneItem? GetSelectedMilestone() =>
             TimelineList.SelectedItem as MilestoneItem ??
             MilestonesList.SelectedItem as MilestoneItem;
 
     /// <summary>
-    /// Performs the <c>EnsureProjectDirectoryAsync</c> operation.
+    /// Resolves the project directory for the current context.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
+    /// <returns><see langword="true"/> when a project context is available.</returns>
     private async Task<bool> EnsureProjectDirectoryAsync()
     {
         if (_projectDirectory is not null)
@@ -254,23 +316,25 @@ public partial class MilestoneListDialog : Window
     }
 
     /// <summary>
-    /// Performs the <c>RefreshAsync</c> operation.
+    /// Refreshes the milestone list, timeline and dependency warnings.
     /// </summary>
-    /// <returns>The result of the operation.</returns>
     private async Task RefreshAsync()
     {
         try
         {
             if (!await EnsureProjectDirectoryAsync())
             {
+                _currentMilestones = Array.Empty<MilestoneItem>();
                 MilestonesList.ItemsSource = null;
                 TimelineList.ItemsSource = null;
                 return;
             }
 
-            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> milestones = await _milestones.GetMilestonesAsync(
-                _projectDirectory);
+            global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> milestones =
+                await _milestones.GetMilestonesAsync(
+                    _projectDirectory);
 
+            _currentMilestones = milestones;
             MilestonesList.ItemsSource = milestones;
             TimelineList.ItemsSource = milestones
                 .Where(item => item.TargetDate is not null)
@@ -283,15 +347,21 @@ public partial class MilestoneListDialog : Window
             ScopeText.Text =
                 Path.GetFileName(_projectDirectory);
 
+            int warningCount = milestones.Count(item =>
+                item.DependencyWarnings.Count > 0);
+
             StatusText.Text = milestones.Count == 0
                 ? "Aucun jalon pour ce projet."
-                : $"{milestones.Count} jalon(s).";
+                : warningCount == 0
+                    ? $"{milestones.Count} jalon(s)."
+                    : $"{milestones.Count} jalon(s), {warningCount} avec alerte de dépendance.";
         }
         catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException or
             InvalidDataException)
         {
+            _currentMilestones = Array.Empty<MilestoneItem>();
             MilestonesList.ItemsSource = null;
             TimelineList.ItemsSource = null;
             StatusText.Text = exception.Message;
@@ -299,10 +369,10 @@ public partial class MilestoneListDialog : Window
     }
 
     /// <summary>
-    /// Performs the <c>ShowError</c> operation.
+    /// Displays a warning message owned by the dialog.
     /// </summary>
-    /// <param name="title">The <c>title</c> value.</param>
-    /// <param name="message">The <c>message</c> value.</param>
+    /// <param name="title">The dialog title.</param>
+    /// <param name="message">The warning text.</param>
     private void ShowError(
             string title,
             string message)
