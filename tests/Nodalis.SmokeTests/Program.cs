@@ -2730,8 +2730,155 @@ static async Task VerifyDecisionsAsync(string root)
         searched.Count == 1,
         "Decision search must find text across Decision Record content.");
 
+    global::Nodalis.Core.Decisions.DecisionCreationResult replacementCreated = await decisionService.CreateAsync(
+        project.ProjectDirectory,
+        new DecisionDraft
+        {
+            Title = "Référentiel PostgreSQL v2",
+            Date = new DateOnly(2026, 10, 6),
+            Decision = "Conserver PostgreSQL et isoler le schéma de référentiel.",
+            Context = "Le premier choix doit être précisé.",
+            Justification = "Clarifier la frontière de responsabilité.",
+            Impacts = "Migration contrôlée du schéma.",
+            Status = WorkspaceDecisionService.ActiveStatus
+        });
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Decisions.DecisionRecord> beforeSupersede = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+
+    global::Nodalis.Core.Decisions.DecisionRecord previousDecision = beforeSupersede.Single(decision =>
+        decision.Title == "Référentiel PostgreSQL");
+    global::Nodalis.Core.Decisions.DecisionRecord replacementDecision = beforeSupersede.Single(decision =>
+        decision.Title == "Référentiel PostgreSQL v2");
+
+    await decisionService.SupersedeAsync(
+        previousDecision,
+        replacementDecision);
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Decisions.DecisionRecord> afterSupersede = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+
+    previousDecision = afterSupersede.Single(decision =>
+        decision.Title == "Référentiel PostgreSQL");
+    replacementDecision = afterSupersede.Single(decision =>
+        decision.Title == "Référentiel PostgreSQL v2");
+
+    Assert(
+        previousDecision.LifecycleState == DecisionLifecycleState.Superseded &&
+        replacementDecision.LifecycleState == DecisionLifecycleState.Active &&
+        !string.IsNullOrWhiteSpace(previousDecision.SupersededByReference) &&
+        !string.IsNullOrWhiteSpace(replacementDecision.SupersedesReference) &&
+        !previousDecision.HasLifecycleWarning &&
+        !replacementDecision.HasLifecycleWarning,
+        "Superseding a decision must preserve both records with reciprocal, consistent lifecycle metadata.");
+
+    string previousLifecycleContent = await File.ReadAllTextAsync(
+        created.FilePath);
+    string replacementLifecycleContent = await File.ReadAllTextAsync(
+        replacementCreated.FilePath);
+
+    Assert(
+        previousLifecycleContent.Contains(
+            "**Statut :** Superseded",
+            StringComparison.Ordinal) &&
+        previousLifecycleContent.Contains(
+            "**Remplacée par :** [[",
+            StringComparison.Ordinal) &&
+        replacementLifecycleContent.Contains(
+            "**Statut :** Active",
+            StringComparison.Ordinal) &&
+        replacementLifecycleContent.Contains(
+            "**Remplace :** [[",
+            StringComparison.Ordinal),
+        "Decision lifecycle transitions must remain human-readable Markdown metadata.");
+
+    global::Nodalis.Core.Decisions.DecisionCreationResult statusCreated = await decisionService.CreateAsync(
+        project.ProjectDirectory,
+        new DecisionDraft
+        {
+            Title = "Option de secours",
+            Date = new DateOnly(2026, 10, 7),
+            Decision = "Conserver une option indépendante.",
+            Status = WorkspaceDecisionService.ActiveStatus
+        });
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Decisions.DecisionRecord> statusRecords = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+    global::Nodalis.Core.Decisions.DecisionRecord statusDecision = statusRecords.Single(decision =>
+        decision.Title == "Option de secours");
+
+    await decisionService.SetLifecycleStatusAsync(
+        statusDecision,
+        WorkspaceDecisionService.DeprecatedStatus);
+
+    statusRecords = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+    statusDecision = statusRecords.Single(decision =>
+        decision.Title == "Option de secours");
+
+    Assert(
+        statusDecision.LifecycleState == DecisionLifecycleState.Deprecated,
+        "Decision lifecycle status updates must persist Deprecated.");
+
+    await decisionService.SetLifecycleStatusAsync(
+        statusDecision,
+        WorkspaceDecisionService.SupersededStatus);
+
+    statusRecords = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+    statusDecision = statusRecords.Single(decision =>
+        decision.Title == "Option de secours");
+
+    Assert(
+        statusDecision.LifecycleState == DecisionLifecycleState.Superseded &&
+        statusDecision.HasLifecycleWarning &&
+        statusDecision.LifecycleWarning.Contains(
+            "Remplacée par",
+            StringComparison.CurrentCultureIgnoreCase),
+        "A Superseded decision without an explicit successor must be reported as an inconsistent lifecycle chain.");
+
+    await decisionService.SetLifecycleStatusAsync(
+        statusDecision,
+        WorkspaceDecisionService.ActiveStatus);
+
     global::Nodalis.Infrastructure.Links.WorkspaceLinkIndexService linkService = new WorkspaceLinkIndexService(root);
     global::Nodalis.Core.Links.LinkIndexCatalog catalogWithDecision = await linkService.RefreshAsync();
+
+    string previousDecisionRelative = Path.GetRelativePath(
+            root,
+            created.FilePath)
+        .Replace(
+            Path.DirectorySeparatorChar,
+            '/');
+    string replacementDecisionRelative = Path.GetRelativePath(
+            root,
+            replacementCreated.FilePath)
+        .Replace(
+            Path.DirectorySeparatorChar,
+            '/');
+
+    global::Nodalis.Core.Links.LinkTargetEntry previousDecisionTarget = catalogWithDecision.Targets.Single(target =>
+        target.Kind == LinkTargetKind.Document &&
+        string.Equals(
+            target.RelativePath,
+            previousDecisionRelative,
+            StringComparison.OrdinalIgnoreCase));
+    global::Nodalis.Core.Links.LinkTargetEntry replacementDecisionTarget = catalogWithDecision.Targets.Single(target =>
+        target.Kind == LinkTargetKind.Document &&
+        string.Equals(
+            target.RelativePath,
+            replacementDecisionRelative,
+            StringComparison.OrdinalIgnoreCase));
+
+    Assert(
+        catalogWithDecision.References.Any(reference =>
+            reference.SourceId == previousDecisionTarget.Id &&
+            reference.TargetId == replacementDecisionTarget.Id) &&
+        catalogWithDecision.References.Any(reference =>
+            reference.SourceId == replacementDecisionTarget.Id &&
+            reference.TargetId == previousDecisionTarget.Id),
+        "Superseded and replacement Decision Records must be navigable in both directions through the link index.");
+
     global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Links.BacklinkEntry> backlinks = await linkService.GetBacklinksAsync(
         meetingTarget.Id);
 
