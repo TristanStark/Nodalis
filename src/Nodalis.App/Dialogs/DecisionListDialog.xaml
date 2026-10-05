@@ -93,7 +93,6 @@
                                            TextWrapping="Wrap"
                                            Foreground="{StaticResource SecondaryTextBrush}" />
                                 <TextBlock Margin="0,5,0,0"
-                                           Text="{Binding SupersedesReference, StringFormat=Remplace : {0}}"
                                            FontSize="10"
                                            TextTrimming="CharacterEllipsis"
                                            Foreground="{StaticResource SecondaryTextBrush}">
@@ -107,9 +106,10 @@
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
+                                    <Run Text="Remplace : " />
+                                    <Run Text="{Binding SupersedesReference}" />
                                 </TextBlock>
                                 <TextBlock Margin="0,3,0,0"
-                                           Text="{Binding SupersededByReference, StringFormat=Remplacée par : {0}}"
                                            FontSize="10"
                                            TextTrimming="CharacterEllipsis"
                                            Foreground="{StaticResource SecondaryTextBrush}">
@@ -123,6 +123,8 @@
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
+                                    <Run Text="Remplacée par : " />
+                                    <Run Text="{Binding SupersededByReference}" />
                                 </TextBlock>
                                 <TextBlock Margin="0,6,0,0"
                                            Text="{Binding LifecycleWarning}"
