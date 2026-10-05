@@ -108,6 +108,7 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(templateStore);
 
         InitializeComponent();
+        InitializeDocumentTabs();
 
         _preferences = preferences;
         _preferencesStore = preferencesStore;
@@ -183,6 +184,7 @@ public partial class MainWindow : Window
                 UpdateGlossaryAnnotations();
                 await RefreshDashboardTasksAsync();
                 await RefreshDashboardMilestonesAsync();
+                await RestoreDocumentTabsAsync();
                 _backupTimer.Start();
                 await TryRunAutomaticBackupAsync();
             }
@@ -211,11 +213,16 @@ public partial class MainWindow : Window
 
         e.Cancel = true;
 
-        if (!await TryCloseCurrentDocumentAsync(
-                "fermer Nodalis"))
+        if (!await TryFlushAllDocumentTabsForShutdownAsync())
         {
             return;
         }
+
+        global::System.Collections.Generic.List<global::Nodalis.Core.Settings.OpenDocumentTabReference> openDocumentTabs =
+            BuildOpenDocumentTabReferences();
+
+        Guid? activeDocumentTabId =
+            _activeDocumentTab?.DocumentId;
 
         try
         {
@@ -239,10 +246,13 @@ public partial class MainWindow : Window
                         TextWrapping.Wrap,
                     FontSize = (int)Math.Round(
                         MarkdownEditorTextBox.FontSize)
-                }
+                },
+                OpenDocumentTabs = openDocumentTabs,
+                ActiveDocumentTabId = activeDocumentTabId
             };
 
             await _preferencesStore.SaveAsync(_preferences);
+            await DisposeAllDocumentTabsAsync();
         }
         catch (Exception exception)
         {
@@ -397,10 +407,7 @@ public partial class MainWindow : Window
     /// <returns>A task representing the operation.</returns>
     private async Task ShowBackupsAsync()
     {
-        if (_autosave is not null)
-        {
-            await _autosave.FlushAsync();
-        }
+        await FlushAllDocumentTabsAsync();
 
         _backupTimer.Stop();
 
@@ -483,10 +490,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            if (_autosave is not null)
-            {
-                await _autosave.FlushAsync();
-            }
+            await FlushAllDocumentTabsAsync();
 
             global::Nodalis.Core.Backups.WorkspaceBackupInfo backup = await _backupService.CreateBackupAsync(
                 settings.DestinationDirectory,
@@ -961,24 +965,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        global::Nodalis.App.Navigation.NavigationNodeViewModel? previous = _selectedNode;
-
-        if (previous is not null &&
-            previous.Kind == WorkspaceNodeKind.Document &&
-            !ReferenceEquals(previous, node))
-        {
-            bool canLeave = await TryCloseCurrentDocumentAsync(
-                "changer de document");
-
-            if (!canLeave)
-            {
-                _restoringSelection = true;
-                previous.IsSelected = true;
-                _restoringSelection = false;
-                return;
-            }
-        }
-
         _selectedNode = node;
         await DisplayNodeAsync(node);
     }
@@ -1035,57 +1021,14 @@ public partial class MainWindow : Window
     {
         try
         {
-            global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
-                node.FullPath);
-
-            _documentSession = session;
-            _documentDirty = false;
-            _conflictWarningShown = false;
-
-            _autosave = new DocumentAutosaveController(
-                session,
-                TimeSpan.FromMilliseconds(
-                    _preferences.Editor.AutosaveDelayMilliseconds));
-
-            _autosave.Saved += Autosave_Saved;
-            _autosave.ConflictDetected += Autosave_ConflictDetected;
-            _autosave.SaveFailed += Autosave_SaveFailed;
-
-            _suppressEditorChanges = true;
-            MarkdownEditorTextBox.Text = session.Content;
-            MarkdownEditorTextBox.CaretIndex = 0;
-            _suppressEditorChanges = false;
-
-            DashboardHost.Visibility = Visibility.Collapsed;
-            NodeSummaryHost.Visibility = Visibility.Collapsed;
-            EditorToolbar.Visibility = Visibility.Visible;
-            DocumentEditorHost.Visibility = Visibility.Visible;
-
-            SaveStateText.Text = "Enregistré";
-            StatusText.Text =
-                $"Document · {Path.GetRelativePath(_root.FullPath, node.FullPath)}";
-
-            if (_linkIndex.Targets.Count == 0)
-            {
-                await RefreshLinkIndexAsync();
-            }
-
-            UpdateLinkContext(node.FullPath);
-            await TrackRecentContextAsync(node);
-            await RefreshGlossaryContextAsync(
-                node.FullPath);
-            UpdateGlossaryAnnotations();
-            RenderPreview();
-            MarkdownEditorTextBox.Focus();
+            await OpenOrActivateDocumentTabAsync(
+                node);
         }
         catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException or
             DecoderFallbackException)
         {
-            _documentSession = null;
-            _autosave = null;
-
             NodeSummaryHost.Visibility = Visibility.Visible;
             EditorToolbar.Visibility = Visibility.Collapsed;
             DocumentEditorHost.Visibility = Visibility.Collapsed;
@@ -1104,9 +1047,7 @@ public partial class MainWindow : Window
     private void ShowNodeSummary(
             NavigationNodeViewModel node)
     {
-        _documentSession = null;
-        _autosave = null;
-        _documentDirty = false;
+        DeactivateDocumentTabView();
 
         DashboardHost.Visibility = Visibility.Collapsed;
         EditorToolbar.Visibility = Visibility.Collapsed;
@@ -1133,42 +1074,10 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="actionDescription">The <c>actionDescription</c> value.</param>
     /// <returns>The result of the operation.</returns>
-    private async Task<bool> TryCloseCurrentDocumentAsync(
-            string actionDescription)
-    {
-        if (_autosave is null)
-        {
-            return true;
-        }
-
-        await _autosave.FlushAsync();
-
-        if (_documentDirty)
-        {
-            global::System.Windows.MessageBoxResult answer = MessageBox.Show(
-                this,
-                "Les dernières modifications n'ont pas pu être enregistrées " +
-                "(le fichier a peut-être été modifié ailleurs ou est verrouillé).\n\n" +
-                $"Voulez-vous quand même {actionDescription} et abandonner " +
-                "les modifications locales non enregistrées ?",
-                "Modifications non enregistrées",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (answer != MessageBoxResult.Yes)
-            {
-                return false;
-            }
-        }
-
-        await _autosave.DisposeAsync();
-        _autosave = null;
-        _documentSession = null;
-        _documentDirty = false;
-        _previewTimer.Stop();
-
-        return true;
-    }
+    private Task<bool> TryCloseCurrentDocumentAsync(
+            string actionDescription) =>
+            TryCloseActiveDocumentTabAsync(
+                actionDescription);
 
     /// <summary>
     /// Performs the <c>MarkdownEditorTextBox_TextChanged</c> operation.
@@ -1186,6 +1095,14 @@ public partial class MainWindow : Window
         }
 
         _documentDirty = true;
+
+        if (_activeDocumentTab is not null)
+        {
+            _activeDocumentTab.Content =
+                MarkdownEditorTextBox.Text;
+            _activeDocumentTab.IsDirty = true;
+        }
+
         SaveStateText.Text = "Modification…";
 
         _autosave.Schedule(
@@ -1233,13 +1150,13 @@ public partial class MainWindow : Window
     private void RenderPreview()
     {
         if (!_previewVisible ||
-            _selectedNode?.Kind != WorkspaceNodeKind.Document)
+            _activeDocumentTab is null)
         {
             return;
         }
 
         string? baseDirectory = Path.GetDirectoryName(
-            _selectedNode.FullPath);
+            _activeDocumentTab.FullPath);
 
         MarkdownPreview.Document =
             MarkdownFlowDocumentRenderer.Render(
@@ -1259,46 +1176,8 @@ public partial class MainWindow : Window
             EventArgs e)
     {
         Dispatcher.BeginInvoke(async () =>
-        {
-            if (_documentSession is null)
-            {
-                return;
-            }
-
-            _documentDirty =
-                !string.Equals(
-                    MarkdownEditorTextBox.Text,
-                    _documentSession.Content,
-                    StringComparison.Ordinal);
-
-            SaveStateText.Text =
-                _documentDirty
-                    ? "Modification…"
-                    : "Enregistré";
-
-            if (!_documentDirty)
-            {
-                StatusText.Text = "Enregistré localement";
-
-                try
-                {
-                    await RefreshLinkIndexAndContextAsync();
-                    await RefreshGlossaryContextAsync(
-                        _selectedNode?.FullPath ?? _root.FullPath);
-                    UpdateGlossaryAnnotations();
-                    await RefreshDashboardTasksAsync();
-                    await RefreshDashboardMilestonesAsync();
-                }
-                catch (Exception exception) when (
-                    exception is IOException or
-                    UnauthorizedAccessException or
-                    InvalidDataException)
-                {
-                    StatusText.Text =
-                        $"Enregistré · index liens indisponible : {exception.Message}";
-                }
-            }
-        });
+            await HandleDocumentTabAutosaveSavedAsync(
+                sender));
     }
 
     /// <summary>
@@ -1311,29 +1190,8 @@ public partial class MainWindow : Window
             AutosaveConflictEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
-        {
-            _documentDirty = true;
-            SaveStateText.Text = "Conflit externe";
-            StatusText.Text =
-                "Le fichier a été modifié en dehors de Nodalis.";
-
-            if (_conflictWarningShown)
-            {
-                return;
-            }
-
-            _conflictWarningShown = true;
-
-            MessageBox.Show(
-                this,
-                "Ce fichier a été modifié par un autre programme depuis son ouverture. " +
-                "Nodalis n'écrasera pas cette version automatiquement.\n\n" +
-                "Vos modifications restent visibles dans l'éditeur tant que vous " +
-                "ne changez pas de document.",
-                "Conflit de modification",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        });
+            HandleDocumentTabAutosaveConflict(
+                sender));
     }
 
     /// <summary>
@@ -1346,11 +1204,9 @@ public partial class MainWindow : Window
             AutosaveFailureEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
-        {
-            _documentDirty = true;
-            SaveStateText.Text = "Erreur d'enregistrement";
-            StatusText.Text = e.Exception.Message;
-        });
+            HandleDocumentTabAutosaveFailure(
+                sender,
+                e.Exception));
     }
 
     /// <summary>
@@ -1459,6 +1315,38 @@ public partial class MainWindow : Window
             object sender,
             KeyEventArgs e)
     {
+        bool controlPressed =
+            (Keyboard.Modifiers & ModifierKeys.Control) ==
+            ModifierKeys.Control;
+
+        if (controlPressed &&
+            e.Key == Key.Tab)
+        {
+            e.Handled = true;
+
+            int delta =
+                (Keyboard.Modifiers & ModifierKeys.Shift) ==
+                ModifierKeys.Shift
+                    ? -1
+                    : 1;
+
+            await CycleDocumentTabAsync(
+                delta);
+            return;
+        }
+
+        if (controlPressed &&
+            e.Key == Key.W &&
+            _activeDocumentTab is not null)
+        {
+            e.Handled = true;
+            await CloseDocumentTabAsync(
+                _activeDocumentTab,
+                "fermer cet onglet",
+                activateNeighbor: true);
+            return;
+        }
+
         if (InternalLinkPopup.IsOpen)
         {
             if (e.Key == Key.Down)
@@ -1604,7 +1492,9 @@ public partial class MainWindow : Window
             return;
         }
 
+        StoreActiveDocumentTabState();
         await _autosave.FlushAsync();
+        SyncActiveDocumentDirtyState();
 
         SaveStateText.Text =
             _documentDirty
@@ -1754,9 +1644,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowDashboard()
     {
-        _documentSession = null;
-        _autosave = null;
-        _documentDirty = false;
+        DeactivateDocumentTabView();
 
         EditorToolbar.Visibility = Visibility.Collapsed;
         DocumentEditorHost.Visibility = Visibility.Collapsed;
@@ -3021,20 +2909,10 @@ public partial class MainWindow : Window
         }
 
         if (autosaveDelayChanged &&
-            _documentSession is not null &&
-            _autosave is not null)
+            _documentTabs.Count > 0)
         {
-            await _autosave.FlushAsync();
-            await _autosave.DisposeAsync();
-
-            _autosave = new DocumentAutosaveController(
-                _documentSession,
-                TimeSpan.FromMilliseconds(
-                    editor.AutosaveDelayMilliseconds));
-
-            _autosave.Saved += Autosave_Saved;
-            _autosave.ConflictDetected += Autosave_ConflictDetected;
-            _autosave.SaveFailed += Autosave_SaveFailed;
+            await RecreateDocumentTabAutosavesAsync(
+                editor.AutosaveDelayMilliseconds);
         }
 
         _preferences = _preferences with
@@ -5110,6 +4988,7 @@ public partial class MainWindow : Window
         NavigationTree.ItemsSource =
             new[] { _root };
 
+        RefreshDocumentTabsFromNavigation();
         await RefreshLinkIndexAsync();
 
         if (openPath is null)
