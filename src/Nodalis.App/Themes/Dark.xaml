@@ -246,33 +246,135 @@
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
     </Style>
 
-    <Style TargetType="ContextMenu">
+    <Style TargetType="{x:Type ContextMenu}">
         <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="2" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ContextMenu}">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <StackPanel IsItemsHost="True"
+                                    KeyboardNavigation.DirectionalNavigation="Cycle" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
-    <Style TargetType="MenuItem">
-        <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
+    <!--
+        Do not rely on the stock WPF MenuItem template here: depending on the
+        Windows theme it paints a light icon gutter / submenu popup even when
+        Background is dark. The complete template keeps every layer of both
+        the root context menu and nested submenus inside the Nodalis palette.
+    -->
+    <Style TargetType="{x:Type MenuItem}">
+        <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="10,6" />
-        <Style.Triggers>
-            <Trigger Property="IsHighlighted" Value="True">
-                <Setter Property="Background" Value="{StaticResource AccentMutedBrush}" />
-                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-            </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}" />
-                <Setter Property="Opacity" Value="0.75" />
-            </Trigger>
-        </Style.Triggers>
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type MenuItem}">
+                    <Grid SnapsToDevicePixels="True">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="18" />
+                                </Grid.ColumnDefinitions>
+
+                                <ContentPresenter ContentSource="Header"
+                                                  RecognizesAccessKey="True"
+                                                  VerticalAlignment="Center" />
+
+                                <TextBlock x:Name="SubmenuArrow"
+                                           Grid.Column="1"
+                                           Margin="8,0,0,0"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Right"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           FontSize="16"
+                                           Text="›"
+                                           Visibility="Collapsed" />
+                            </Grid>
+                        </Border>
+
+                        <Popup x:Name="PART_Popup"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                               Placement="Right"
+                               PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                               PopupAnimation="Fade">
+                            <Border Background="{StaticResource PanelElevatedBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="2"
+                                    SnapsToDevicePixels="True">
+                                <StackPanel IsItemsHost="True"
+                                            KeyboardNavigation.DirectionalNavigation="Cycle" />
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Role" Value="SubmenuHeader">
+                            <Setter TargetName="SubmenuArrow"
+                                    Property="Visibility"
+                                    Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="Role" Value="TopLevelHeader">
+                            <Setter TargetName="PART_Popup"
+                                    Property="Placement"
+                                    Value="Bottom" />
+                        </Trigger>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="ItemBorder"
+                                    Property="Background"
+                                    Value="{StaticResource AccentMutedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource DisabledTextBrush}" />
+                            <Setter TargetName="ItemBorder"
+                                    Property="Opacity"
+                                    Value="0.75" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
-    <Style TargetType="Separator">
+    <Style TargetType="{x:Type Separator}">
         <Setter Property="Background" Value="{StaticResource BorderBrush}" />
         <Setter Property="Margin" Value="4,3" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Separator}">
+                    <Border Height="1"
+                            Background="{TemplateBinding Background}"
+                            SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style TargetType="ToolTip">
