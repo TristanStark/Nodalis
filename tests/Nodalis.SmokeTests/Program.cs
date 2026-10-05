@@ -2814,6 +2814,47 @@ static async Task VerifyUserPreferencesAsync(string root)
                 }
             }
         ],
+        RecentSearches =
+        [
+            new RecentSearchReference
+            {
+                Query = "  architecture  ",
+                ContextRelativePath = "Applications/Application A",
+                LastUsedUtc = new DateTimeOffset(
+                    2026,
+                    10,
+                    5,
+                    9,
+                    0,
+                    0,
+                    TimeSpan.Zero)
+            },
+            new RecentSearchReference
+            {
+                Query = "Architecture",
+                ContextRelativePath = "Applications/Application A",
+                LastUsedUtc = new DateTimeOffset(
+                    2026,
+                    10,
+                    5,
+                    10,
+                    0,
+                    0,
+                    TimeSpan.Zero)
+            },
+            new RecentSearchReference
+            {
+                Query = "   ",
+                LastUsedUtc = new DateTimeOffset(
+                    2026,
+                    10,
+                    5,
+                    11,
+                    0,
+                    0,
+                    TimeSpan.Zero)
+            }
+        ],
         OpenDocumentTabs =
         [
             new OpenDocumentTabReference
@@ -2870,6 +2911,11 @@ static async Task VerifyUserPreferencesAsync(string root)
     Assert(loaded.Favorites.Count == 1 && loaded.ExpandedNodeIds.Contains(projectId),
         "Favorites and expanded nodes must survive persistence.");
     Assert(
+        loaded.RecentSearches.Count == 1 &&
+        loaded.RecentSearches[0].Query == "Architecture" &&
+        loaded.RecentSearches[0].ContextRelativePath == "Applications/Application A",
+        "Recent searches must be trimmed, deduplicated and persisted locally.");
+    Assert(
         loaded.OpenDocumentTabs.Count == 1 &&
         loaded.OpenDocumentTabs[0].DocumentId == projectId &&
         loaded.OpenDocumentTabs[0].CaretIndex == 42 &&
@@ -2884,6 +2930,7 @@ static async Task VerifyUserPreferencesAsync(string root)
     Assert(recovered.WorkspaceRootPath is null &&
            recovered.Favorites.Count == 0 &&
            recovered.RecentItems.Count == 0 &&
+           recovered.RecentSearches.Count == 0 &&
            recovered.NavigationPanelWidth == 280 &&
            recovered.ContextPanelWidth == 300,
         "Corrupted preferences must safely return defaults.");
