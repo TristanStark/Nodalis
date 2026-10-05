@@ -131,6 +131,353 @@ public sealed class FileSystemTemplateStore : ITemplateStore
     }
 
     /// <summary>
+    /// Loads the Markdown source for one configured template.
+    /// </summary>
+    /// <param name="templateKey">The stable template key.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The Markdown template source.</returns>
+    public async Task<string> LoadTemplateContentAsync(
+            string templateKey,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(templateKey);
+
+        TemplateCatalog catalog = await LoadTemplateCatalogAsync(
+            cancellationToken);
+        MarkdownTemplateDefinition definition = FindTemplateDefinition(
+            catalog,
+            templateKey);
+
+        return await File.ReadAllTextAsync(
+            ResolveTemplatePath(definition.FileName),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Saves editable template metadata and Markdown content.
+    /// </summary>
+    /// <param name="definition">The updated template definition.</param>
+    /// <param name="content">The Markdown template content.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the save.</returns>
+    public async Task SaveTemplateAsync(
+            MarkdownTemplateDefinition definition,
+            string content,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(content);
+
+        TemplateCatalog catalog = await LoadTemplateCatalogAsync(
+            cancellationToken);
+        MarkdownTemplateDefinition current = FindTemplateDefinition(
+            catalog,
+            definition.Key);
+
+        if (!string.Equals(
+                current.FileName,
+                definition.FileName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "The template storage file cannot be renamed from the editor.");
+        }
+
+        ValidateDefinition(
+            definition);
+
+        List<MarkdownTemplateDefinition> templates =
+            catalog.Templates.ToList();
+        int index = templates.FindIndex(template =>
+            string.Equals(
+                template.Key,
+                definition.Key,
+                StringComparison.OrdinalIgnoreCase));
+
+        templates[index] =
+            definition;
+
+        TemplateCatalog updatedCatalog = catalog with
+        {
+            Templates =
+                templates
+        };
+
+        ValidateTemplateCatalog(
+            updatedCatalog);
+
+        await AtomicFileWriter.WriteAllTextAsync(
+            ResolveTemplatePath(
+                definition.FileName),
+            content,
+            cancellationToken);
+
+        await AtomicJsonFile.WriteAsync(
+            Path.Combine(
+                _templatesRoot,
+                TemplateCatalogFileName),
+            updatedCatalog,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Duplicates one configured template under a new display name.
+    /// </summary>
+    /// <param name="templateKey">The source template key.</param>
+    /// <param name="displayName">The display name for the duplicate.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The newly created template definition.</returns>
+    public async Task<MarkdownTemplateDefinition> DuplicateTemplateAsync(
+            string templateKey,
+            string displayName,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            templateKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            displayName);
+
+        TemplateCatalog catalog = await LoadTemplateCatalogAsync(
+            cancellationToken);
+        MarkdownTemplateDefinition source = FindTemplateDefinition(
+            catalog,
+            templateKey);
+
+        string keyBase = CreateTemplateKeyBase(
+            displayName);
+        string candidateKey =
+            keyBase;
+        string candidateFileName =
+            candidateKey + ".md";
+        int suffix =
+            2;
+
+        while (catalog.Templates.Any(template =>
+                   string.Equals(
+                       template.Key,
+                       candidateKey,
+                       StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(
+                       template.FileName,
+                       candidateFileName,
+                       StringComparison.OrdinalIgnoreCase)) ||
+               File.Exists(
+                   ResolveTemplatePath(
+                       candidateFileName)))
+        {
+            candidateKey =
+                $"{keyBase}-{suffix}";
+            candidateFileName =
+                candidateKey + ".md";
+            suffix++;
+        }
+
+        MarkdownTemplateDefinition duplicate =
+            new MarkdownTemplateDefinition
+            {
+                Key =
+                    candidateKey,
+                DisplayName =
+                    displayName.Trim(),
+                FileName =
+                    candidateFileName,
+                Category =
+                    source.Category,
+                DefaultFileName =
+                    source.DefaultFileName
+            };
+
+        List<MarkdownTemplateDefinition> templates =
+            catalog.Templates.ToList();
+        templates.Add(
+            duplicate);
+
+        TemplateCatalog updatedCatalog = catalog with
+        {
+            Templates =
+                templates
+        };
+
+        ValidateTemplateCatalog(
+            updatedCatalog);
+
+        string content = await File.ReadAllTextAsync(
+            ResolveTemplatePath(
+                source.FileName),
+            cancellationToken);
+
+        await AtomicFileWriter.WriteAllTextAsync(
+            ResolveTemplatePath(
+                duplicate.FileName),
+            content,
+            cancellationToken);
+
+        await AtomicJsonFile.WriteAsync(
+            Path.Combine(
+                _templatesRoot,
+                TemplateCatalogFileName),
+            updatedCatalog,
+            cancellationToken);
+
+        return duplicate;
+    }
+
+    /// <summary>
+    /// Restores one built-in template to its shipped metadata and Markdown.
+    /// </summary>
+    /// <param name="templateKey">The built-in template key.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the restore.</returns>
+    public async Task RestoreTemplateDefaultAsync(
+            string templateKey,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            templateKey);
+
+        TemplateCatalog defaults =
+            CreateDefaultTemplateCatalog();
+        MarkdownTemplateDefinition defaultDefinition =
+            defaults.Templates.SingleOrDefault(template =>
+                string.Equals(
+                    template.Key,
+                    templateKey,
+                    StringComparison.OrdinalIgnoreCase))
+            ?? throw new KeyNotFoundException(
+                $"Template '{templateKey}' has no built-in default.");
+
+        IReadOnlyDictionary<string, string> defaultFiles =
+            CreateDefaultTemplateFiles();
+
+        if (!defaultFiles.TryGetValue(
+                defaultDefinition.FileName,
+                out string? defaultContent))
+        {
+            throw new InvalidDataException(
+                $"Built-in template '{templateKey}' has no Markdown source.");
+        }
+
+        TemplateCatalog catalog = await LoadTemplateCatalogAsync(
+            cancellationToken);
+        List<MarkdownTemplateDefinition> templates =
+            catalog.Templates.ToList();
+        int index = templates.FindIndex(template =>
+            string.Equals(
+                template.Key,
+                templateKey,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (index >= 0)
+        {
+            templates[index] =
+                defaultDefinition;
+        }
+        else
+        {
+            templates.Add(
+                defaultDefinition);
+        }
+
+        TemplateCatalog updatedCatalog = catalog with
+        {
+            Templates =
+                templates
+        };
+
+        ValidateTemplateCatalog(
+            updatedCatalog);
+
+        await AtomicFileWriter.WriteAllTextAsync(
+            ResolveTemplatePath(
+                defaultDefinition.FileName),
+            defaultContent,
+            cancellationToken);
+
+        await AtomicJsonFile.WriteAsync(
+            Path.Combine(
+                _templatesRoot,
+                TemplateCatalogFileName),
+            updatedCatalog,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Persists the complete project-profile catalog after validation.
+    /// </summary>
+    /// <param name="catalog">The project-profile catalog.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the save.</returns>
+    public async Task SaveProjectProfilesAsync(
+            ProjectProfileCatalog catalog,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(
+            catalog);
+
+        TemplateCatalog templates = await LoadTemplateCatalogAsync(
+            cancellationToken);
+
+        ValidateProjectProfileCatalog(
+            catalog,
+            templates);
+
+        await AtomicJsonFile.WriteAsync(
+            Path.Combine(
+                _templatesRoot,
+                ProjectProfilesFileName),
+            catalog,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Restores one built-in project profile.
+    /// </summary>
+    /// <param name="complexity">The profile complexity to restore.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the restore.</returns>
+    public async Task RestoreProjectProfileDefaultAsync(
+            ProjectComplexity complexity,
+            CancellationToken cancellationToken = default)
+    {
+        ProjectProfileCatalog catalog =
+            await LoadProjectProfilesAsync(
+                cancellationToken);
+        ProjectProfileCatalog defaults =
+            CreateDefaultProjectProfiles();
+        ProjectProfileDefinition defaultProfile =
+            defaults.Profiles.Single(profile =>
+                profile.Complexity ==
+                complexity);
+
+        List<ProjectProfileDefinition> profiles =
+            catalog.Profiles.ToList();
+        int index = profiles.FindIndex(profile =>
+            profile.Complexity ==
+            complexity);
+
+        if (index >= 0)
+        {
+            profiles[index] =
+                defaultProfile;
+        }
+        else
+        {
+            profiles.Add(
+                defaultProfile);
+        }
+
+        ProjectProfileCatalog updatedCatalog = catalog with
+        {
+            Profiles =
+                profiles
+        };
+
+        await SaveProjectProfilesAsync(
+            updatedCatalog,
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Performs the <c>RenderAsync</c> operation.
     /// </summary>
     /// <param name="templateKey">The <c>templateKey</c> value.</param>
@@ -164,6 +511,218 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         return MarkdownTemplateRenderer.Render(
             template,
             variables);
+    }
+
+    /// <summary>
+    /// Finds one template definition by its stable key.
+    /// </summary>
+    /// <param name="catalog">The template catalog.</param>
+    /// <param name="templateKey">The stable template key.</param>
+    /// <returns>The matching template definition.</returns>
+    private static MarkdownTemplateDefinition FindTemplateDefinition(
+            TemplateCatalog catalog,
+            string templateKey) =>
+            catalog.Templates.SingleOrDefault(template =>
+                string.Equals(
+                    template.Key,
+                    templateKey,
+                    StringComparison.OrdinalIgnoreCase))
+            ?? throw new KeyNotFoundException(
+                $"Template '{templateKey}' was not found.");
+
+    /// <summary>
+    /// Validates template metadata before it is persisted.
+    /// </summary>
+    /// <param name="catalog">The template catalog.</param>
+    private static void ValidateTemplateCatalog(
+            TemplateCatalog catalog)
+    {
+        if (catalog.SchemaVersion !=
+            TemplateCatalog.CurrentSchemaVersion)
+        {
+            throw new InvalidDataException(
+                $"Unsupported template catalog schema {catalog.SchemaVersion}.");
+        }
+
+        global::System.Linq.IGrouping<string, MarkdownTemplateDefinition>? duplicateKey =
+            catalog.Templates
+                .GroupBy(
+                    template => template.Key,
+                    StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(group =>
+                    group.Count() > 1);
+
+        if (duplicateKey is not null)
+        {
+            throw new InvalidDataException(
+                $"Duplicate template key '{duplicateKey.Key}'.");
+        }
+
+        global::System.Linq.IGrouping<string, MarkdownTemplateDefinition>? duplicateFile =
+            catalog.Templates
+                .GroupBy(
+                    template => template.FileName,
+                    StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(group =>
+                    group.Count() > 1);
+
+        if (duplicateFile is not null)
+        {
+            throw new InvalidDataException(
+                $"Duplicate template file '{duplicateFile.Key}'.");
+        }
+
+        foreach (MarkdownTemplateDefinition template in
+                 catalog.Templates)
+        {
+            ValidateDefinition(
+                template);
+        }
+    }
+
+    /// <summary>
+    /// Validates the editable project-profile catalog and template references.
+    /// </summary>
+    /// <param name="catalog">The project-profile catalog.</param>
+    /// <param name="templates">The available templates.</param>
+    private static void ValidateProjectProfileCatalog(
+            ProjectProfileCatalog catalog,
+            TemplateCatalog templates)
+    {
+        if (catalog.SchemaVersion !=
+            ProjectProfileCatalog.CurrentSchemaVersion)
+        {
+            throw new InvalidDataException(
+                $"Unsupported project profile schema {catalog.SchemaVersion}.");
+        }
+
+        global::System.Linq.IGrouping<ProjectComplexity, ProjectProfileDefinition>? duplicateProfile =
+            catalog.Profiles
+                .GroupBy(profile =>
+                    profile.Complexity)
+                .FirstOrDefault(group =>
+                    group.Count() > 1);
+
+        if (duplicateProfile is not null)
+        {
+            throw new InvalidDataException(
+                $"Duplicate project profile '{duplicateProfile.Key}'.");
+        }
+
+        foreach (ProjectComplexity complexity in
+                 Enum.GetValues<ProjectComplexity>())
+        {
+            if (!catalog.Profiles.Any(profile =>
+                    profile.Complexity ==
+                    complexity))
+            {
+                throw new InvalidDataException(
+                    $"Project profile '{complexity}' is missing.");
+            }
+        }
+
+        global::System.Collections.Generic.HashSet<string> templateKeys =
+            templates.Templates
+                .Select(template =>
+                    template.Key)
+                .ToHashSet(
+                    StringComparer.OrdinalIgnoreCase);
+
+        foreach (ProjectProfileDefinition profile in
+                 catalog.Profiles)
+        {
+            if (string.IsNullOrWhiteSpace(
+                    profile.DisplayName))
+            {
+                throw new InvalidDataException(
+                    $"Project profile '{profile.Complexity}' requires a display name.");
+            }
+
+            global::System.Linq.IGrouping<string, ProjectSectionTemplateDefinition>? duplicateSection =
+                profile.Sections
+                    .Where(section =>
+                        !string.IsNullOrWhiteSpace(
+                            section.Name))
+                    .GroupBy(
+                        section => section.Name.Trim(),
+                        StringComparer.OrdinalIgnoreCase)
+                    .FirstOrDefault(group =>
+                        group.Count() > 1);
+
+            if (duplicateSection is not null)
+            {
+                throw new InvalidDataException(
+                    $"Project profile '{profile.DisplayName}' contains duplicate section '{duplicateSection.Key}'.");
+            }
+
+            foreach (ProjectSectionTemplateDefinition section in
+                     profile.Sections)
+            {
+                if (string.IsNullOrWhiteSpace(
+                        section.Name))
+                {
+                    throw new InvalidDataException(
+                        $"Project profile '{profile.DisplayName}' contains an unnamed section.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(
+                        section.TemplateKey) &&
+                    !templateKeys.Contains(
+                        section.TemplateKey))
+                {
+                    throw new InvalidDataException(
+                        $"Section '{section.Name}' references unknown template '{section.TemplateKey}'.");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds a portable template key from a display name.
+    /// </summary>
+    /// <param name="displayName">The display name.</param>
+    /// <returns>A lowercase key suitable for file names.</returns>
+    private static string CreateTemplateKeyBase(
+            string displayName)
+    {
+        global::System.Text.StringBuilder builder =
+            new global::System.Text.StringBuilder();
+        bool previousSeparator =
+            false;
+
+        foreach (char character in
+                 displayName.Trim())
+        {
+            if (char.IsLetterOrDigit(
+                    character))
+            {
+                builder.Append(
+                    char.ToLowerInvariant(
+                        character));
+                previousSeparator =
+                    false;
+                continue;
+            }
+
+            if (previousSeparator ||
+                builder.Length ==
+                0)
+            {
+                continue;
+            }
+
+            builder.Append('-');
+            previousSeparator =
+                true;
+        }
+
+        string key = builder
+            .ToString()
+            .Trim('-');
+
+        return key.Length == 0
+            ? "template"
+            : key;
     }
 
     /// <summary>
@@ -205,10 +764,12 @@ public sealed class FileSystemTemplateStore : ITemplateStore
     {
         if (string.IsNullOrWhiteSpace(template.Key) ||
             string.IsNullOrWhiteSpace(template.DisplayName) ||
-            string.IsNullOrWhiteSpace(template.FileName))
+            string.IsNullOrWhiteSpace(template.FileName) ||
+            string.IsNullOrWhiteSpace(template.Category) ||
+            string.IsNullOrWhiteSpace(template.DefaultFileName))
         {
             throw new InvalidDataException(
-                "Template definitions require key, displayName and fileName.");
+                "Template definitions require key, displayName, fileName, category and defaultFileName.");
         }
     }
 
