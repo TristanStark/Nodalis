@@ -209,7 +209,12 @@ public sealed class WorkspaceTrashService
                 "The trash entry has no valid restore parent.");
         }
 
-        Directory.CreateDirectory(parentDirectory);
+        if (!Directory.Exists(parentDirectory))
+        {
+            throw new DirectoryNotFoundException(
+                $"Restore parent '{parentDirectory}' does not exist. Restore its parent item first.");
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
 
         if (Directory.Exists(located.PayloadPath))

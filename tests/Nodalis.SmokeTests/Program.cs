@@ -592,17 +592,6 @@ static async Task VerifyTrashAsync(string root)
 
     File.Delete(documentPath);
 
-    string restoredDocument = await trash.RestoreAsync(
-        documentEntry.EntryId);
-
-    Assert(
-        restoredDocument == documentPath &&
-        File.Exists(restoredDocument) &&
-        (await File.ReadAllTextAsync(restoredDocument)).Contains(
-            "Contenu conservé.",
-            StringComparison.Ordinal),
-        "Restoring a document must put the unchanged payload back at its original path.");
-
     global::Nodalis.Core.Trash.TrashEntry applicationEntry = await trash.MoveToTrashAsync(
         applicationPath,
         TrashItemKind.Application,
@@ -610,7 +599,16 @@ static async Task VerifyTrashAsync(string root)
 
     Assert(
         !Directory.Exists(applicationPath),
-        "Moving a non-empty application to the trash must move its complete subtree.");
+        "Moving an application to the trash must move its complete subtree.");
+
+    await AssertThrowsAsync<DirectoryNotFoundException>(
+        () => trash.RestoreAsync(documentEntry.EntryId),
+        "A child item must not recreate a missing structured parent during restore.");
+
+    Assert(
+        (await trash.ListAsync()).Any(item =>
+            item.EntryId == documentEntry.EntryId),
+        "A missing restore parent must leave the child trash entry untouched.");
 
     string restoredApplication = await trash.RestoreAsync(
         applicationEntry.EntryId);
@@ -630,12 +628,19 @@ static async Task VerifyTrashAsync(string root)
         restoredManifest.Id == application.Id,
         "Restoring a structured item must preserve its stable manifest id.");
 
-    string restoredDocumentAfterApplicationRestore = Path.Combine(
-        restoredApplication,
-        "Note supprimable.md");
+    string restoredDocument = await trash.RestoreAsync(
+        documentEntry.EntryId);
+
+    Assert(
+        restoredDocument == documentPath &&
+        File.Exists(restoredDocument) &&
+        (await File.ReadAllTextAsync(restoredDocument)).Contains(
+            "Contenu conservé.",
+            StringComparison.Ordinal),
+        "Restoring a document after its parent must put the unchanged payload back at its original path.");
 
     global::Nodalis.Core.Trash.TrashEntry finalEntry = await trash.MoveToTrashAsync(
-        restoredDocumentAfterApplicationRestore,
+        restoredDocument,
         TrashItemKind.Document,
         documentId);
 
@@ -648,7 +653,7 @@ static async Task VerifyTrashAsync(string root)
 
     Assert(
         (await trash.ListAsync()).Count == 0 &&
-        !File.Exists(restoredDocumentAfterApplicationRestore),
+        !File.Exists(restoredDocument),
         "Emptying the trash must permanently remove all trash payloads.");
 }
 
