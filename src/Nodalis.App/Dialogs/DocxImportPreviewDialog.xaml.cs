@@ -13,6 +13,7 @@ public partial class DocxImportPreviewDialog : Window
     private readonly Func<DocxImportCommitRequest, Task<DocxImportPlan>>
         _planBuilder;
     private readonly List<SectionRow> _sections;
+    private readonly DocxImportSelectionNode _documentSelectionRoot;
 
     private DocxImportCommitRequest? _plannedRequest;
     private DocxImportPlan? _lastPlan;
@@ -33,23 +34,33 @@ public partial class DocxImportPreviewDialog : Window
         _preview = preview;
         _planBuilder = planBuilder;
         _sections = preview.Sections
-            .Select(section =>
-                new SectionRow
-                {
-                    Index = section.Index,
-                    SourceHeading = section.SourceHeading,
-                    TargetSection = section.SuggestedTargetSection,
-                    BlockCount = section.BlockCount,
-                    MarkdownPreview = section.MarkdownPreview
-                })
+            .Select(
+                CreateSectionRow)
             .ToList();
+
+        _documentSelectionRoot =
+            new DocxImportSelectionNode
+            {
+                KindLabel =
+                    "Document",
+                DisplayText =
+                    Path.GetFileName(
+                        preview.StagedImport.OriginalSourcePath)
+            };
 
         foreach (global::Nodalis.App.Dialogs.DocxImportPreviewDialog.SectionRow section in _sections)
         {
             section.PropertyChanged += Section_PropertyChanged;
+            _documentSelectionRoot.AddChild(
+                section.SelectionRoot);
         }
 
+        _documentSelectionRoot.SelectionChanged += DocumentSelectionRoot_SelectionChanged;
+
         InitializeComponent();
+
+        DocumentSelectionCheckBox.DataContext =
+            _documentSelectionRoot;
 
         SourceText.Text =
             Path.GetFileName(
@@ -665,7 +676,11 @@ public partial class DocxImportPreviewDialog : Window
                         SectionIndex = section.Index,
                         Include = section.Include,
                         TargetSection =
-                            section.TargetSection.Trim()
+                            section.TargetSection.Trim(),
+                        SelectedBlockIndexes =
+                            section.SelectionRoot
+                                .GetSelectedBlockIndexes()
+                                .ToList()
                     })
                 .ToList()
         };
@@ -711,7 +726,10 @@ public partial class DocxImportPreviewDialog : Window
                 !string.Equals(
                     leftSection.TargetSection,
                     rightSection.TargetSection,
-                    StringComparison.CurrentCultureIgnoreCase))
+                    StringComparison.CurrentCultureIgnoreCase) ||
+                !BlockSelectionsEquivalent(
+                    leftSection.SelectedBlockIndexes,
+                    rightSection.SelectedBlockIndexes))
             {
                 return false;
             }
@@ -720,10 +738,31 @@ public partial class DocxImportPreviewDialog : Window
         return true;
     }
 
+    /// <summary>
+    /// Determines whether two optional fine-grained block selections have identical semantics.
+    /// </summary>
+    /// <param name="left">The first optional block selection.</param>
+    /// <param name="right">The second optional block selection.</param>
+    /// <returns><see langword="true"/> when both are null or contain the same ordered indexes.</returns>
+    private static bool BlockSelectionsEquivalent(
+            IReadOnlyList<int>? left,
+            IReadOnlyList<int>? right)
+    {
+        if (left is null ||
+            right is null)
+        {
+            return left is null &&
+                   right is null;
+        }
+
+        return left.SequenceEqual(
+            right);
+    }
+
     public sealed class SectionRow : INotifyPropertyChanged
     {
-        private bool _include = true;
         private string _targetSection = string.Empty;
+        private string _markdownPreview = string.Empty;
 
         public required int Index { get; init; }
 
@@ -731,23 +770,31 @@ public partial class DocxImportPreviewDialog : Window
 
         public required int BlockCount { get; init; }
 
-        public required string MarkdownPreview { get; init; }
+        public required DocxImportSectionPreview Preview { get; init; }
 
-        public bool Include
+        public required DocxImportSelectionNode SelectionRoot { get; init; }
+
+        public bool Include =>
+            SelectionRoot.IsSelected != false;
+
+        public string MarkdownPreview
         {
-            get => _include;
-            set
+            get => _markdownPreview;
+            private set
             {
-                if (_include == value)
+                if (string.Equals(
+                        _markdownPreview,
+                        value,
+                        StringComparison.Ordinal))
                 {
                     return;
                 }
 
-                _include = value;
+                _markdownPreview = value;
                 PropertyChanged?.Invoke(
                     this,
                     new PropertyChangedEventArgs(
-                        nameof(Include)));
+                        nameof(MarkdownPreview)));
             }
         }
 
@@ -773,6 +820,33 @@ public partial class DocxImportPreviewDialog : Window
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
+
+        /// <summary>
+        /// Refreshes the live Markdown preview and notifies bindings that the section's tri-state inclusion changed.
+        /// </summary>
+        /// <param name="markdownPreview">The Markdown produced by the current block selection.</param>
+        public void RefreshSelection(
+                string markdownPreview)
+        {
+            MarkdownPreview =
+                markdownPreview;
+
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(
+                    nameof(Include)));
+        }
+
+        /// <summary>
+        /// Initializes the section's live Markdown preview without changing its selection state.
+        /// </summary>
+        /// <param name="markdownPreview">The initial all-selected preview.</param>
+        public void InitializeMarkdownPreview(
+                string markdownPreview)
+        {
+            _markdownPreview =
+                markdownPreview;
+        }
     }
 
     public sealed record ComplexityChoice(

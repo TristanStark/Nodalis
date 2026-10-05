@@ -72,6 +72,7 @@ try
     await VerifyDecisionsAsync(root);
     await VerifyDocxImportAsync(root);
     await VerifyDocxImportAnalysisAsync(root);
+    await DocxFineSelectionSmokeTests.RunAsync(root);
     VerifyMarkdownParser();
     VerifyFlowcharts();
     VerifyMarkdownFrontMatter();
@@ -3682,6 +3683,19 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
             section.SuggestedTargetSection ==
             "Technique");
 
+        global::Nodalis.Core.Importing.DocxImportBlockPreview linkBlock = technicalPreview.Blocks.Single(block =>
+            block.Block.Paragraph?.Hyperlinks.Count > 0);
+        global::Nodalis.Core.Importing.DocxImportBlockPreview listBlock = technicalPreview.Blocks.Single(block =>
+            block.Block.Paragraph?.IsListItem == true);
+        global::Nodalis.Core.Importing.DocxImportBlockPreview tableBlock = technicalPreview.Blocks.Single(block =>
+            block.Block.Kind == DocxBlockKind.Table);
+
+        Assert(
+            technicalPreview.Blocks.Count == 3 &&
+            linkBlock.BlockIndex < listBlock.BlockIndex &&
+            listBlock.BlockIndex < tableBlock.BlockIndex,
+            "DOCX preview must expose selectable source blocks in their original order.");
+
         string manifestPath = Path.Combine(
             project.ProjectDirectory,
             WorkspaceLayout.ProjectManifestFileName);
@@ -3700,7 +3714,12 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                     SectionIndex =
                         technicalPreview.Index,
                     Include = true,
-                    TargetSection = "Section DOCX"
+                    TargetSection = "Section DOCX",
+                    SelectedBlockIndexes =
+                    [
+                        linkBlock.BlockIndex,
+                        tableBlock.BlockIndex
+                    ]
                 }
             ]
         };
@@ -3779,8 +3798,11 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                 StringComparison.OrdinalIgnoreCase) &&
             importedMarkdown.Contains(
                 "| Clé | Valeur |",
+                StringComparison.Ordinal) &&
+            !importedMarkdown.Contains(
+                "Premier point",
                 StringComparison.Ordinal),
-            "Validated DOCX imports must persist converted Markdown content without losing links or tables.");
+            "Validated DOCX imports must write only selected blocks while preserving links and complete tables.");
 
         global::Nodalis.Core.Importing.ParsedDocxDocument proposedDocument = new ParsedDocxDocument
         {

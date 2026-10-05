@@ -10,5 +10,9 @@ public sealed record DocxImportSectionPreview
 
     public required int BlockCount { get; init; }
 
+    public int? HeadingBlockIndex { get; init; }
+
+    public List<DocxImportBlockPreview> Blocks { get; init; } = [];
+
     public required string MarkdownPreview { get; init; }
 }

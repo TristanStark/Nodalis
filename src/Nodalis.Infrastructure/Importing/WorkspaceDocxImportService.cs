@@ -145,7 +145,8 @@ public sealed class WorkspaceDocxImportService
             }
 
             global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportSectionPreview> sections = BuildSectionPreviews(
-                analysis);
+                analysis,
+                staged.Document);
 
             Guid? suggestedApplicationId =
                 analysis.ApplicationCandidates.Count == 1
@@ -233,7 +234,8 @@ public sealed class WorkspaceDocxImportService
 
                 return new SelectedSection(
                     previewSection,
-                    section.TargetSection.Trim());
+                    section.TargetSection.Trim(),
+                    section.SelectedBlockIndexes?.ToHashSet());
             })
             .ToArray();
 
@@ -488,7 +490,8 @@ public sealed class WorkspaceDocxImportService
 
                 return new SelectedSection(
                     previewSection,
-                    section.TargetSection.Trim());
+                    section.TargetSection.Trim(),
+                    section.SelectedBlockIndexes?.ToHashSet());
             })
             .ToArray();
 
@@ -831,42 +834,260 @@ public sealed class WorkspaceDocxImportService
     /// <param name="analysis">The <c>analysis</c> value.</param>
     /// <returns>The result of the operation.</returns>
     private static List<DocxImportSectionPreview> BuildSectionPreviews(
-            DocxImportAnalysis analysis)
+            DocxImportAnalysis analysis,
+            ParsedDocxDocument document)
     {
         global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportSectionPreview> result = new List<DocxImportSectionPreview>();
         int index = 0;
 
         foreach (global::Nodalis.Core.Importing.DocxMappedSection mapped in analysis.MappedSections)
         {
+            global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportBlockPreview> blocks = BuildBlockPreviews(
+                mapped.Blocks,
+                document.Blocks);
+
             result.Add(
-                new DocxImportSectionPreview
-                {
-                    Index = index++,
-                    SourceHeading = mapped.SourceHeading,
-                    SuggestedTargetSection = mapped.TargetSection,
-                    BlockCount = mapped.Blocks.Count,
-                    MarkdownPreview =
-                        DocxMarkdownConverter.ConvertBlocks(
-                            mapped.Blocks)
-                });
+                CreateSectionPreview(
+                    index++,
+                    mapped.SourceHeading,
+                    mapped.TargetSection,
+                    mapped.HeadingBlockIndex,
+                    blocks));
         }
 
         if (analysis.UnmappedBlocks.Count > 0)
         {
+            global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportBlockPreview> blocks = BuildBlockPreviews(
+                analysis.UnmappedBlocks,
+                document.Blocks);
+
             result.Add(
-                new DocxImportSectionPreview
-                {
-                    Index = index,
-                    SourceHeading = "Contenu non mappé",
-                    SuggestedTargetSection = "Documentation",
-                    BlockCount = analysis.UnmappedBlocks.Count,
-                    MarkdownPreview =
-                        DocxMarkdownConverter.ConvertBlocks(
-                            analysis.UnmappedBlocks)
-                });
+                CreateSectionPreview(
+                    index,
+                    "Contenu non mappé",
+                    "Documentation",
+                    null,
+                    blocks));
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Creates one DOCX section preview and its initial all-selected Markdown rendering.
+    /// </summary>
+    /// <param name="index">The section index.</param>
+    /// <param name="sourceHeading">The readable source heading.</param>
+    /// <param name="targetSection">The suggested Nodalis target section.</param>
+    /// <param name="headingBlockIndex">The original mapped heading index, when available.</param>
+    /// <param name="blocks">The selectable source blocks.</param>
+    /// <returns>The initialized section preview.</returns>
+    private static DocxImportSectionPreview CreateSectionPreview(
+            int index,
+            string sourceHeading,
+            string targetSection,
+            int? headingBlockIndex,
+            List<DocxImportBlockPreview> blocks)
+    {
+        global::Nodalis.Core.Importing.DocxImportSectionPreview preview =
+            new DocxImportSectionPreview
+            {
+                Index = index,
+                SourceHeading = sourceHeading,
+                SuggestedTargetSection = targetSection,
+                BlockCount = blocks.Count,
+                HeadingBlockIndex = headingBlockIndex,
+                Blocks = blocks,
+                MarkdownPreview = string.Empty
+            };
+
+        return preview with
+        {
+            MarkdownPreview =
+                DocxImportSelectionRenderer.RenderAll(
+                    preview)
+        };
+    }
+
+    /// <summary>
+    /// Builds selectable block metadata while preserving source order and nested heading relationships.
+    /// </summary>
+    /// <param name="sectionBlocks">The source blocks belonging to one preview section.</param>
+    /// <param name="documentBlocks">All source document blocks.</param>
+    /// <returns>The selectable block previews.</returns>
+    private static List<DocxImportBlockPreview> BuildBlockPreviews(
+            IReadOnlyList<DocxBlock> sectionBlocks,
+            IReadOnlyList<DocxBlock> documentBlocks)
+    {
+        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportBlockPreview> result = new List<DocxImportBlockPreview>();
+        global::System.Collections.Generic.List<(int BlockIndex, int HeadingLevel)> headings =
+            new List<(int BlockIndex, int HeadingLevel)>();
+        int? previousBlockIndex = null;
+
+        foreach (global::Nodalis.Core.Importing.DocxBlock block in sectionBlocks)
+        {
+            int blockIndex =
+                FindSourceBlockIndex(
+                    documentBlocks,
+                    block);
+
+            if (blockIndex < 0)
+            {
+                continue;
+            }
+
+            if (previousBlockIndex is int previous &&
+                blockIndex != previous + 1)
+            {
+                headings.Clear();
+            }
+
+            int? parentBlockIndex;
+
+            if (block.Kind == DocxBlockKind.Paragraph &&
+                block.Paragraph?.HeadingLevel is int headingLevel)
+            {
+                while (headings.Count > 0 &&
+                       headings[^1].HeadingLevel >= headingLevel)
+                {
+                    headings.RemoveAt(
+                        headings.Count - 1);
+                }
+
+                parentBlockIndex =
+                    headings.Count == 0
+                        ? null
+                        : headings[^1].BlockIndex;
+
+                headings.Add(
+                    (
+                        blockIndex,
+                        headingLevel));
+            }
+            else
+            {
+                parentBlockIndex =
+                    headings.Count == 0
+                        ? null
+                        : headings[^1].BlockIndex;
+            }
+
+            result.Add(
+                new DocxImportBlockPreview
+                {
+                    BlockIndex = blockIndex,
+                    Block = block,
+                    KindLabel = GetBlockKindLabel(
+                        block),
+                    DisplayText = GetBlockDisplayText(
+                        block),
+                    MarkdownPreview =
+                        DocxMarkdownConverter.ConvertBlocks(
+                            new[]
+                            {
+                                block
+                            }),
+                    ParentBlockIndex = parentBlockIndex
+                });
+
+            previousBlockIndex =
+                blockIndex;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Finds the original document index for a parsed block by object identity.
+    /// </summary>
+    /// <param name="documentBlocks">The original document blocks.</param>
+    /// <param name="block">The block to locate.</param>
+    /// <returns>The zero-based source index, or -1 when absent.</returns>
+    private static int FindSourceBlockIndex(
+            IReadOnlyList<DocxBlock> documentBlocks,
+            DocxBlock block)
+    {
+        for (int index = 0;
+             index < documentBlocks.Count;
+             index++)
+        {
+            if (ReferenceEquals(
+                    documentBlocks[index],
+                    block))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Returns a compact localized label for one selectable DOCX block.
+    /// </summary>
+    /// <param name="block">The parsed block.</param>
+    /// <returns>The block kind label.</returns>
+    private static string GetBlockKindLabel(
+            DocxBlock block)
+    {
+        if (block.Kind == DocxBlockKind.Table)
+        {
+            return "Tableau";
+        }
+
+        if (block.Paragraph?.HeadingLevel is int headingLevel)
+        {
+            return "Titre " +
+                   headingLevel;
+        }
+
+        if (block.Paragraph?.IsListItem == true)
+        {
+            return "Liste";
+        }
+
+        return "Paragraphe";
+    }
+
+    /// <summary>
+    /// Returns a readable one-line summary for one selectable DOCX block.
+    /// </summary>
+    /// <param name="block">The parsed block.</param>
+    /// <returns>The block display text.</returns>
+    private static string GetBlockDisplayText(
+            DocxBlock block)
+    {
+        if (block.Kind == DocxBlockKind.Table &&
+            block.Table is DocxTable table)
+        {
+            int columns =
+                table.Rows.Count == 0
+                    ? 0
+                    : table.Rows.Max(row =>
+                        row.Cells.Count);
+
+            return "Tableau · " +
+                   table.Rows.Count +
+                   " ligne(s) × " +
+                   columns +
+                   " colonne(s)";
+        }
+
+        string text =
+            block.Paragraph?.Text.Trim() ??
+            string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(
+                text))
+        {
+            return text;
+        }
+
+        return block.Paragraph?.IsListItem == true
+            ? "(élément de liste vide)"
+            : block.Paragraph?.HeadingLevel is not null
+                ? "(titre vide)"
+                : "(paragraphe vide)";
     }
 
     /// <summary>
@@ -970,6 +1191,25 @@ public sealed class WorkspaceDocxImportService
                 throw new InvalidDataException(
                     "Chaque section incluse doit avoir une section Nodalis cible.");
             }
+
+            global::Nodalis.Core.Importing.DocxImportSectionPreview previewSection = preview.Sections.Single(candidate =>
+                candidate.Index == section.SectionIndex);
+
+            if (section.SelectedBlockIndexes is { Count: > 0 } selectedBlockIndexes)
+            {
+                global::System.Collections.Generic.HashSet<int> availableBlockIndexes = previewSection.Blocks
+                    .Select(block =>
+                        block.BlockIndex)
+                    .ToHashSet();
+
+                if (selectedBlockIndexes.Any(blockIndex =>
+                        !availableBlockIndexes.Contains(
+                            blockIndex)))
+                {
+                    throw new InvalidDataException(
+                        "La sélection fine des paragraphes ne correspond plus à la prévisualisation DOCX.");
+                }
+            }
         }
     }
 
@@ -1052,14 +1292,22 @@ public sealed class WorkspaceDocxImportService
 
         foreach (global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection section in sections)
         {
-            builder.AppendLine(
-                $"## {section.Preview.SourceHeading}");
-            builder.AppendLine();
+            global::System.Collections.Generic.IReadOnlyCollection<int> selectedBlockIndexes =
+                section.SelectedBlockIndexes is null
+                    ? section.Preview.Blocks
+                        .Select(block =>
+                            block.BlockIndex)
+                        .ToArray()
+                    : section.SelectedBlockIndexes;
 
             string markdown =
-                section.Preview.MarkdownPreview.Trim();
+                DocxImportSelectionRenderer.Render(
+                        section.Preview,
+                        selectedBlockIndexes)
+                    .TrimEnd();
 
-            if (!string.IsNullOrWhiteSpace(markdown))
+            if (!string.IsNullOrWhiteSpace(
+                    markdown))
             {
                 builder.AppendLine(
                     markdown);
@@ -1227,5 +1475,6 @@ public sealed class WorkspaceDocxImportService
 
     private sealed record SelectedSection(
         DocxImportSectionPreview Preview,
-        string TargetSection);
+        string TargetSection,
+        IReadOnlySet<int>? SelectedBlockIndexes);
 }
