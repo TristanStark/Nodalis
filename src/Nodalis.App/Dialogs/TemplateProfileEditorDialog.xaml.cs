@@ -91,6 +91,9 @@ public partial class TemplateProfileEditorDialog : Window
                     StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
+        _loadingTemplate =
+            true;
+
         TemplatesList.ItemsSource =
             _templates;
 
@@ -124,8 +127,14 @@ public partial class TemplateProfileEditorDialog : Window
             selection ??
             _templates.FirstOrDefault();
 
-        if (TemplatesList.SelectedItem is
-            MarkdownTemplateDefinition selected)
+        MarkdownTemplateDefinition? selected =
+            TemplatesList.SelectedItem as
+            MarkdownTemplateDefinition;
+
+        _loadingTemplate =
+            false;
+
+        if (selected is not null)
         {
             TemplatesList.ScrollIntoView(
                 selected);
@@ -195,6 +204,9 @@ public partial class TemplateProfileEditorDialog : Window
                     profile.Complexity)
                 .ToList();
 
+        _loadingProfile =
+            true;
+
         ProfilesComboBox.ItemsSource =
             profiles;
 
@@ -208,6 +220,9 @@ public partial class TemplateProfileEditorDialog : Window
         ProfilesComboBox.SelectedItem =
             selection ??
             profiles.FirstOrDefault();
+
+        _loadingProfile =
+            false;
 
         LoadSelectedProfile();
     }
