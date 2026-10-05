@@ -2237,12 +2237,12 @@ static async Task VerifyMilestonesAsync(string root)
             Link = "outil://jalon/123"
         });
 
-    await service.AddAsync(
+    global::Nodalis.Core.Milestones.MilestoneItem prerequisite = await service.AddAsync(
         project.ProjectDirectory,
         new MilestoneDraft
         {
             Name = "Jalon terminé",
-            TargetDate = new DateOnly(2026, 10, 8),
+            TargetDate = new DateOnly(2026, 10, 15),
             Status = "Terminé",
             Description = "Déjà traité"
         });
@@ -2276,13 +2276,80 @@ static async Task VerifyMilestonesAsync(string root)
             TargetDate = new DateOnly(2026, 10, 12),
             Status = "En cours",
             Description = "Décalée après revue",
-            Link = "outil://jalon/123"
+            Link = "outil://jalon/123",
+            DependencyIds = new[] { prerequisite.Id }
         });
 
     Assert(
         updated.TargetDate == new DateOnly(2026, 10, 12) &&
-        updated.Status == "En cours",
-        "Editing a milestone must update local Markdown metadata.");
+        updated.Status == "En cours" &&
+        updated.DependencyIds.SequenceEqual(
+            new[] { prerequisite.Id }),
+        "Editing a milestone must update local Markdown metadata and dependency identifiers.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> dependencyView =
+        await service.GetMilestonesAsync(
+            project.ProjectDirectory);
+
+    global::Nodalis.Core.Milestones.MilestoneItem enrichedUpdated =
+        dependencyView.Single(item =>
+            item.Id == updated.Id);
+
+    Assert(
+        enrichedUpdated.DependencyNames.SequenceEqual(
+            new[] { "Jalon terminé" }) &&
+        enrichedUpdated.DependencyWarnings.Any(warning =>
+            warning.Contains(
+                "avant",
+                StringComparison.OrdinalIgnoreCase)),
+        "Milestone dependencies must resolve names and warn when a dependent milestone is dated before its prerequisite.");
+
+    await AssertThrowsAsync<InvalidDataException>(
+        () => service.UpdateAsync(
+            prerequisite,
+            new MilestoneDraft
+            {
+                Name = prerequisite.Name,
+                TargetDate = prerequisite.TargetDate,
+                Status = prerequisite.Status,
+                Description = prerequisite.Description,
+                Link = prerequisite.Link,
+                DependencyIds = new[] { updated.Id }
+            }),
+        "Milestone dependencies must reject cycles.");
+
+    global::Nodalis.Core.Milestones.MilestoneItem renamedPrerequisite =
+        await service.UpdateAsync(
+            prerequisite,
+            new MilestoneDraft
+            {
+                Name = "Jalon terminé renommé",
+                TargetDate = prerequisite.TargetDate,
+                Status = prerequisite.Status,
+                Description = prerequisite.Description,
+                Link = prerequisite.Link
+            });
+
+    Assert(
+        renamedPrerequisite.Id == prerequisite.Id,
+        "Renaming a milestone must preserve its stable identifier.");
+
+    dependencyView =
+        await service.GetMilestonesAsync(
+            project.ProjectDirectory);
+    enrichedUpdated =
+        dependencyView.Single(item =>
+            item.Id == updated.Id);
+
+    Assert(
+        enrichedUpdated.DependencyNames.SequenceEqual(
+            new[] { "Jalon terminé renommé" }),
+        "Dependencies must keep resolving after a prerequisite is renamed.");
+
+    await AssertThrowsAsync<MilestoneDependencyConflictException>(
+        () => service.DeleteAsync(
+            renamedPrerequisite),
+        "Deleting a milestone that is still referenced must be rejected.");
 
     global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> upcoming = await service.GetUpcomingAsync(
         new DateOnly(2026, 10, 4),
@@ -2306,6 +2373,15 @@ static async Task VerifyMilestonesAsync(string root)
 
     string current = await File.ReadAllTextAsync(
         sourcePath);
+
+    Assert(
+        current.Contains(
+            updated.Id.ToString("D"),
+            StringComparison.Ordinal) &&
+        current.Contains(
+            prerequisite.Id.ToString("D"),
+            StringComparison.Ordinal),
+        "Milestone Markdown must persist stable identifiers.");
 
     await File.WriteAllTextAsync(
         sourcePath,
