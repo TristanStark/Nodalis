@@ -17,6 +17,8 @@ $publishDirectory = Join-Path $OutputRoot "Nodalis-win-x64"
 $archivePath = Join-Path $OutputRoot "Nodalis-win-x64.zip"
 $checksumPath = Join-Path $OutputRoot "SHA256SUMS.txt"
 $projectPath = Join-Path $root "src\Nodalis.App\Nodalis.App.csproj"
+$updaterProjectPath = Join-Path $root "src\Nodalis.Updater\Nodalis.Updater.csproj"
+$updaterPublishDirectory = Join-Path $OutputRoot ".Nodalis.Updater-win-x64"
 $userGuidePath = Join-Path $root "docs\README-UTILISATEUR.md"
 
 if (Test-Path $publishDirectory) {
@@ -29,6 +31,10 @@ if (Test-Path $archivePath) {
 
 if (Test-Path $checksumPath) {
     Remove-Item $checksumPath -Force
+}
+
+if (Test-Path $updaterPublishDirectory) {
+    Remove-Item $updaterPublishDirectory -Recurse -Force
 }
 
 New-Item -ItemType Directory -Path $publishDirectory -Force | Out-Null
@@ -58,6 +64,32 @@ if (-not (Test-Path $executablePath)) {
     throw "Portable publish did not produce Nodalis.exe."
 }
 
+Write-Host "Publishing standalone updater..."
+
+$updaterPublishArguments = @(
+    "publish",
+    $updaterProjectPath,
+    "--configuration", "Release",
+    "--runtime", "win-x64",
+    "--self-contained", "true",
+    "-p:PublishSingleFile=true",
+    "-p:Version=$Version",
+    "--output", $updaterPublishDirectory
+)
+
+& dotnet @updaterPublishArguments
+
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish for Nodalis.Updater failed with exit code $LASTEXITCODE."
+}
+
+$updaterExecutablePath = Join-Path $updaterPublishDirectory "Nodalis.Updater.exe"
+
+if (-not (Test-Path $updaterExecutablePath)) {
+    throw "Updater publish did not produce Nodalis.Updater.exe."
+}
+
+Copy-Item -Path $updaterExecutablePath -Destination (Join-Path $publishDirectory "Nodalis.Updater.exe") -Force
 Copy-Item -Path $userGuidePath -Destination (Join-Path $publishDirectory "README.md") -Force
 
 $commit = "unknown"
@@ -79,6 +111,42 @@ catch {
     "Mode: self-contained, single-file"
     "Commit: $commit"
 ) | Set-Content -Path (Join-Path $publishDirectory "VERSION.txt") -Encoding UTF8
+
+$manifestFiles = @(
+    Get-ChildItem -Path $publishDirectory -File -Recurse |
+        Where-Object { $_.Name -ne "release-manifest.json" } |
+        Sort-Object FullName |
+        ForEach-Object {
+            $relativePath = [System.IO.Path]::GetRelativePath(
+                $publishDirectory,
+                $_.FullName).Replace("\", "/")
+
+            [ordered]@{
+                path = $relativePath
+                sha256 = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                length = $_.Length
+            }
+        }
+)
+
+$releaseManifest = [ordered]@{
+    manifestSchemaVersion = 1
+    product = "Nodalis"
+    version = $Version
+    targetRid = "win-x64"
+    minimumWorkspaceSchemaVersion = 1
+    maximumWorkspaceSchemaVersion = 1
+    payloadDirectory = "Nodalis-win-x64"
+    files = $manifestFiles
+}
+
+$releaseManifest |
+    ConvertTo-Json -Depth 6 |
+    Set-Content -Path (Join-Path $publishDirectory "release-manifest.json") -Encoding UTF8
+
+if (Test-Path $updaterPublishDirectory) {
+    Remove-Item $updaterPublishDirectory -Recurse -Force
+}
 
 # Build the ZIP with stable entry order and timestamps. This keeps archives
 # reproducible for the same published payload instead of inheriting machine
