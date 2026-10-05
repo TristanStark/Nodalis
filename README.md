@@ -24,6 +24,7 @@ Le socle actuellement disponible comprend :
 - Decision Records reliés à leur source, consultables et recherchables par contexte ;
 - import DOCX local avec détection Application/Projet, remapping des sections, aperçu Markdown et plan exact des fichiers avant validation ;
 - persistance atomique et détection des modifications externes ;
+- corbeille Nodalis récupérable pour documents, projets, modules et applications ;
 - zéro dépendance NuGet ;
 - zéro API réseau dans le produit.
 

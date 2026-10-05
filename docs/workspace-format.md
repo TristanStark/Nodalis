@@ -22,6 +22,10 @@ PRISE DE NOTE/
 ├── Imports/
 │   └── Sources/
 ├── Templates/
+├── Corbeille/
+│   └── 20261005-041500123-0123456789abcdef0123456789abcdef/
+│       ├── .trash.json
+│       └── Note supprimable.md
 └── Applications/
     └── Application A/
         ├── .application.json
@@ -160,6 +164,38 @@ Fichier : `.project.json`
 
 Un sous-projet renseigne `parentProjectId`. Il reste un projet complet avec
 ses propres jalons, tests, technique, glossaire et sections.
+
+## Corbeille Nodalis
+
+Une suppression standard ne détruit pas immédiatement son contenu. Nodalis
+déplace le document, projet, module ou application dans `Corbeille/` en
+conservant le fichier ou le sous-arbre original intact.
+
+Chaque entrée possède un manifest `.trash.json` lisible :
+
+```json
+{
+  "entryId": "01234567-89ab-cdef-0123-456789abcdef",
+  "kind": "document",
+  "displayName": "Note supprimable",
+  "originalRelativePath": "Applications/Application A/Note supprimable.md",
+  "payloadName": "Note supprimable.md",
+  "deletedUtc": "2026-10-05T04:15:00+00:00",
+  "itemId": "fedcba98-7654-3210-fedc-ba9876543210"
+}
+```
+
+`itemId` conserve l'identifiant stable de l'élément lorsqu'il en possède un.
+Pour les applications, modules et projets, le payload contient également leur
+manifest d'origine et donc leur GUID d'identité.
+
+La restauration vise toujours `originalRelativePath`. Si ce chemin est déjà
+occupé, Nodalis **refuse la restauration avant tout déplacement** : aucun
+fichier existant n'est écrasé et l'entrée reste dans la corbeille. Le vidage de
+la corbeille est une action explicite et définitive.
+
+`Corbeille/` est un espace de récupération, pas une source métier active :
+navigation, recherche et index dérivés doivent ignorer son contenu.
 
 ## Identité et liens
 

@@ -101,6 +101,9 @@ public sealed class WorkspaceSearchService
                                WorkspaceLayout.ApplicationsDirectoryName,
                                StringComparison.OrdinalIgnoreCase) ||
                            name.Equals(
+                               WorkspaceLayout.TrashDirectoryName,
+                               StringComparison.OrdinalIgnoreCase) ||
+                           name.Equals(
                                WorkspaceLayout.TemplatesDirectoryName,
                                StringComparison.OrdinalIgnoreCase) ||
                            name.Equals(

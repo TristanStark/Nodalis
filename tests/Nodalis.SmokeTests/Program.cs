@@ -556,6 +556,18 @@ static async Task VerifyTrashAsync(string root)
         !File.Exists(documentPath),
         "Moving a document to the trash must remove it from its original location.");
 
+    global::Nodalis.Infrastructure.Search.WorkspaceSearchService search = new WorkspaceSearchService();
+    global::Nodalis.Core.Search.SearchResultSet deletedSearch = await search.SearchAsync(
+        root,
+        root,
+        "Contenu conservé");
+
+    Assert(
+        deletedSearch.Project.Count == 0 &&
+        deletedSearch.Application.Count == 0 &&
+        deletedSearch.Global.Count == 0,
+        "Content moved to the trash must not remain visible in workspace search.");
+
     global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Trash.TrashEntry> entries = await trash.ListAsync();
 
     Assert(
