@@ -75,6 +75,45 @@ Pour un DOCX, Nodalis copie d'abord le fichier dans `Imports/Sources/`, puis
 ouvre et parse uniquement cette copie locale. Une erreur de parsing nettoie la
 copie de travail créée pour l'opération ; le fichier source reste inchangé.
 
+## Propriétés des documents Markdown
+
+Un document Markdown peut commencer par un **front matter optionnel**. Ces
+propriétés restent du texte lisible et portable : aucun fichier annexe ni index
+opaque n'est nécessaire pour les comprendre.
+
+Exemple :
+
+```markdown
+---
+status: active
+owner: Alice
+version: 1.2
+environment: production
+type: specification
+tags: api, backend
+reviewer: Bob
+---
+# Architecture API
+
+Contenu du document.
+```
+
+Les clés standard reconnues par l'interface sont `status`, `owner`, `version`,
+`environment`, `type` et `tags`. Des propriétés personnalisées peuvent être
+ajoutées librement avec une clé composée de lettres, chiffres, tirets,
+underscores ou points. Les clés inconnues sont tolérées par le parseur et
+restent accessibles à Nodalis.
+
+Le front matter n'est **jamais obligatoire** : une note contenant uniquement du
+Markdown reste parfaitement valide. La suppression de toutes les propriétés
+supprime simplement le bloc de front matter sans modifier le corps du document.
+
+Les propriétés sont recherchables localement avec la syntaxe suivante :
+
+- `status:active`, `owner:alice`, `type:specification` pour les propriétés standard ;
+- `tag:api` ou `tags:api` pour tester un tag individuel ;
+- `@reviewer:alice` pour une propriété personnalisée.
+
 ## Manifest du workspace
 
 Fichier : `.workspace.json`
