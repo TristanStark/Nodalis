@@ -528,8 +528,16 @@ static async Task VerifyTrashAsync(string root)
 
     string applicationPath = await structure.CreateApplicationAsync(
         "Application Corbeille");
-    global::Nodalis.Core.Domain.ApplicationManifest application = await structure.LoadApplicationAsync(
-        applicationPath);
+    string applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
 
     string documentPath = Path.Combine(
         applicationPath,
@@ -595,8 +603,16 @@ static async Task VerifyTrashAsync(string root)
     string restoredApplication = await trash.RestoreAsync(
         applicationEntry.EntryId);
 
-    global::Nodalis.Core.Domain.ApplicationManifest restoredManifest = await structure.LoadApplicationAsync(
-        restoredApplication);
+    string restoredApplicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            restoredApplication,
+            WorkspaceLayout.ApplicationManifestFileName));
+    global::Nodalis.Core.Domain.ApplicationManifest restoredManifest = JsonSerializer.Deserialize<ApplicationManifest>(
+        restoredApplicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
 
     Assert(
         restoredManifest.Id == application.Id,
