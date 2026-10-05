@@ -1582,7 +1582,7 @@ static async Task VerifyTasksAsync(string root)
     await File.WriteAllTextAsync(
         meetingPath,
         "# Réunion\n\n" +
-        "- [ ] Préparer recette | Responsable: Alice | Échéance: 2026-10-10\n" +
+        "- [ ] Préparer recette | Responsable: Alice | Échéance: 2026-10-10 | Priorité: Haute | Statut: En cours | Tags: api, recette\n" +
         "- [x] Action déjà terminée\n");
 
     string applicationTaskPath = Path.Combine(
@@ -1611,8 +1611,14 @@ static async Task VerifyTasksAsync(string root)
         projectTasks[0].Text == "Préparer recette" &&
         projectTasks[0].Owner == "Alice" &&
         projectTasks[0].DueDate == new DateOnly(2026, 10, 10) &&
+        projectTasks[0].Priority == "Haute" &&
+        projectTasks[0].Status == "En cours" &&
+        projectTasks[0].Tags.Count == 2 &&
+        projectTasks[0].Tags.Contains(
+            "api",
+            StringComparer.CurrentCultureIgnoreCase) &&
         projectTasks[0].ProjectId == project.Project.Id,
-        "Project task view must extract open checkboxes, metadata and project context.");
+        "Project task view must extract checkbox state, enriched metadata and project context.");
 
     global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> applicationTasks = await service.GetTasksAsync(
         applicationPath);
@@ -1645,7 +1651,66 @@ static async Task VerifyTasksAsync(string root)
             task.Text == "Action déjà terminée"),
         "Completed tasks must be available when explicitly requested.");
 
-    global::Nodalis.Core.Tasks.TaskItem taskToMove = projectTasks.Single();
+    global::Nodalis.Core.Tasks.TaskItem taskToEdit = projectTasks.Single();
+
+    await service.UpdateMetadataAsync(
+        taskToEdit,
+        new TaskMetadataUpdate
+        {
+            Owner = "Chloé",
+            DueDate = new DateOnly(2026, 10, 12),
+            Priority = "Critique",
+            Status = "Bloqué",
+            Tags =
+            [
+                "API",
+                "release",
+                "api"
+            ]
+        });
+
+    string metadataUpdatedContent = await File.ReadAllTextAsync(
+        meetingPath);
+
+    Assert(
+        metadataUpdatedContent.Contains(
+            "- [ ] Préparer recette | Responsable: Chloé | Échéance: 2026-10-12 | Priorité: Critique | Statut: Bloqué | Tags: API, release",
+            StringComparison.Ordinal),
+        "Task metadata editing must write a compact readable Markdown syntax and deduplicate tags.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> editedProjectTasks = await service.GetTasksAsync(
+        project.ProjectDirectory);
+
+    global::Nodalis.Core.Tasks.TaskItem editedTask = editedProjectTasks.Single(task =>
+        task.Text == "Préparer recette");
+
+    Assert(
+        editedTask.Owner == "Chloé" &&
+        editedTask.Priority == "Critique" &&
+        editedTask.Status == "Bloqué" &&
+        editedTask.Tags.Count == 2,
+        "Edited task metadata must round-trip through the parser.");
+
+    global::Nodalis.Core.Tasks.TaskItem overdueProbe = editedTask with
+    {
+        DueDate = new DateOnly(2020, 1, 1),
+        IsCompleted = false
+    };
+
+    Assert(
+        overdueProbe.IsOverdue,
+        "An open task past its due date must be exposed as overdue.");
+
+    global::Nodalis.Core.Tasks.TaskItem completedOverdueProbe = overdueProbe with
+    {
+        IsCompleted = true
+    };
+
+    Assert(
+        !completedOverdueProbe.IsOverdue,
+        "A completed task must never be reported as overdue.");
+
+    global::Nodalis.Core.Tasks.TaskItem taskToMove = editedTask;
 
     string originalContent = await File.ReadAllTextAsync(
         meetingPath);
@@ -1663,9 +1728,9 @@ static async Task VerifyTasksAsync(string root)
 
     Assert(
         updatedContent.Contains(
-            "- [x] Préparer recette | Responsable: Alice | Échéance: 2026-10-10",
+            "- [x] Préparer recette | Responsable: Chloé | Échéance: 2026-10-12 | Priorité: Critique | Statut: Bloqué | Tags: API, release",
             StringComparison.Ordinal),
-        "Task toggle must relocate a uniquely moved source line safely.");
+        "Task toggle must relocate a uniquely moved enriched source line safely.");
 
     string ambiguousPath = Path.Combine(
         project.ProjectDirectory,
