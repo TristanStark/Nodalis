@@ -299,6 +299,25 @@ reste visible comme relation cassée au lieu d'être redirigée silencieusement.
 L'index de relations est dérivé et reconstruisible. Il n'est jamais une source
 de vérité métier.
 
+## Renommage intelligent des liens
+
+Lorsqu'un élément indexé est renommé, son GUID reste stable et son ancien nom
+reste disponible comme alias. Les liens existants continuent donc de résoudre
+même si le Markdown n'est pas modifié.
+
+Nodalis peut en plus proposer une **réécriture explicite** des liens textuels
+`[[Ancien nom]]` vers `[[Nouveau nom]]` :
+
+- les fichiers et lignes concernés sont détectés avant le renommage ;
+- un diff avant/après est présenté à l'utilisateur ;
+- chaque fichier peut être inclus ou exclu ;
+- refuser la réécriture ne casse pas les liens grâce aux IDs et alias ;
+- les fichiers sélectionnés sont vérifiés par hash avant écriture ;
+- une erreur pendant une réécriture multi-fichier déclenche le rollback des
+  fichiers déjà modifiés.
+
+Aucune réécriture textuelle n'est effectuée silencieusement.
+
 ## Noms Windows et collisions
 
 Les segments de chemin sont normalisés avant création :

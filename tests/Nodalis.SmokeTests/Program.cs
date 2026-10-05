@@ -1736,6 +1736,28 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
             entry.RelationType == "dépend de"),
         "Reference exploration must combine backlinks and typed relations for the same target.");
 
+    global::Nodalis.Infrastructure.Links.SmartLinkRenameService smartRename =
+        new SmartLinkRenameService(
+            root);
+
+    global::Nodalis.Core.Links.RenameLinkRewritePlan rewritePlan =
+        await smartRename.AnalyzeAsync(
+            target.Id,
+            "Cible",
+            "Cible renommée");
+
+    Assert(
+        rewritePlan.Files.Count == 1 &&
+        rewritePlan.Files[0].SourceId == source.Id &&
+        rewritePlan.Files[0].Changes.Any(change =>
+            change.Before.Contains(
+                "[[Cible]]",
+                StringComparison.Ordinal) &&
+            change.After.Contains(
+                "[[Cible renommée]]",
+                StringComparison.Ordinal)),
+        "Smart rename must preview affected files and textual link diffs without changing Markdown.");
+
     global::Nodalis.Core.Links.LinkResolution resolved = WorkspaceLinkIndexService.Resolve(
         initial,
         "Cible");
@@ -1807,6 +1829,27 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         renamedBacklinks.Count == 1 &&
         renamedBacklinks[0].RawTarget == "Cible",
         "Existing Markdown links must remain valid without rewriting after rename.");
+
+    int rewrittenFiles = await smartRename.ApplyAsync(
+        rewritePlan,
+        new[]
+        {
+            source.Id
+        });
+
+    Assert(
+        rewrittenFiles == 1,
+        "Smart rename must apply only explicitly selected source files.");
+
+    renamedIndex = await indexService.LoadAsync();
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Links.BacklinkEntry> rewrittenBacklinks = await indexService.GetBacklinksAsync(
+        target.Id);
+
+    Assert(
+        rewrittenBacklinks.Count == 1 &&
+        rewrittenBacklinks[0].RawTarget == "Cible renommée",
+        "Selected smart-rename rewrites must update the textual target after preview.");
 
     string renamedApplicationPath = await structure.RenameApplicationAsync(
         applicationPath,

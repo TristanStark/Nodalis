@@ -1,0 +1,118 @@
+<Window x:Class="Nodalis.App.Dialogs.RenameLinksPreviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Renommage intelligent"
+        Width="940"
+        Height="680"
+        MinWidth="760"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="16,12"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel>
+                <TextBlock x:Name="TitleText"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,6,0,0"
+                           Text="Les liens continuent de fonctionner via l’ID stable et les alias même si vous refusez la réécriture."
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+            </StackPanel>
+        </Border>
+
+        <DockPanel Grid.Row="1"
+                   Margin="14,10"
+                   LastChildFill="False">
+            <Button DockPanel.Dock="Left"
+                    Margin="0,0,8,0"
+                    Padding="8,3"
+                    Click="SelectAll_Click"
+                    Content="Tout sélectionner" />
+            <Button DockPanel.Dock="Left"
+                    Padding="8,3"
+                    Click="SelectNone_Click"
+                    Content="Tout désélectionner" />
+        </DockPanel>
+
+        <ListBox x:Name="FilesList"
+                 Grid.Row="2"
+                 Margin="14,0,14,10"
+                 BorderBrush="{StaticResource BorderBrush}">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border Padding="10"
+                            Margin="0,4"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1">
+                        <StackPanel>
+                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      Content="{Binding Header}"
+                                      FontWeight="SemiBold" />
+                            <TextBlock Margin="22,3,0,7"
+                                       Text="{Binding Plan.SourceRelativePath}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource SecondaryTextBrush}" />
+                            <ItemsControl Margin="22,0,0,0"
+                                          ItemsSource="{Binding Plan.Changes}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,3">
+                                            <TextBlock Text="{Binding LineNumber, StringFormat='Ligne {0}'}"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource AccentBrush}" />
+                                            <TextBlock Text="{Binding Before, StringFormat='− {0}'}"
+                                                       TextWrapping="Wrap"
+                                                       FontFamily="Consolas"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource SecondaryTextBrush}" />
+                                            <TextBlock Text="{Binding After, StringFormat='+ {0}'}"
+                                                       TextWrapping="Wrap"
+                                                       FontFamily="Consolas"
+                                                       FontSize="10" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <DockPanel Grid.Row="3"
+                   Margin="14,0,14,14"
+                   LastChildFill="False">
+            <Button DockPanel.Dock="Left"
+                    MinWidth="170"
+                    Padding="10,5"
+                    Click="RenameWithoutRewrite_Click"
+                    Content="Renommer sans réécrire" />
+
+            <StackPanel DockPanel.Dock="Right"
+                        Orientation="Horizontal">
+                <Button Margin="0,0,8,0"
+                        MinWidth="90"
+                        IsCancel="True"
+                        Content="Annuler" />
+                <Button MinWidth="190"
+                        Padding="10,5"
+                        IsDefault="True"
+                        Click="ApplySelected_Click"
+                        Content="Réécrire les sélectionnés" />
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

@@ -707,10 +707,10 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the <c>RenameDocumentAsync</c> operation.
+    /// Renames a Markdown document and optionally rewrites selected textual internal links after preview.
     /// </summary>
-    /// <param name="node">The <c>node</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="node">The document navigation node.</param>
+    /// <returns>The result of the rename workflow.</returns>
     private async Task RenameDocumentAsync(
             NavigationNodeViewModel node)
     {
@@ -739,6 +739,32 @@ public partial class MainWindow : Window
                 return;
             }
 
+            string requestedName =
+                dialog.Value.Trim();
+
+            if (requestedName.EndsWith(
+                    ".md",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                requestedName =
+                    Path.GetFileNameWithoutExtension(
+                        requestedName);
+            }
+
+            string rewrittenDisplayName =
+                global::Nodalis.Infrastructure.Persistence.WindowsPathRules.SanitizeSegment(
+                    requestedName);
+
+            SmartRenameWorkflow? smartRename =
+                await PrepareSmartRenameAsync(
+                    node,
+                    rewrittenDisplayName);
+
+            if (smartRename is null)
+            {
+                return;
+            }
+
             global::Nodalis.Infrastructure.Documents.DocumentStructureService service = new DocumentStructureService(
                 _root.FullPath);
 
@@ -746,8 +772,13 @@ public partial class MainWindow : Window
                 node.FullPath,
                 dialog.Value);
 
+            string smartStatus =
+                await CompleteSmartRenameAsync(
+                    smartRename);
+
             await RefreshNavigationAsync(path);
-            StatusText.Text = $"Document renommé · {dialog.Value}";
+            StatusText.Text =
+                $"Document renommé · {rewrittenDisplayName} · {smartStatus}";
         }
         catch (Exception exception) when (
             exception is IOException or
@@ -762,10 +793,10 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the <c>RenameApplicationOrModuleAsync</c> operation.
+    /// Renames an application or module and optionally rewrites selected textual internal links after preview.
     /// </summary>
-    /// <param name="node">The <c>node</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="node">The application or module navigation node.</param>
+    /// <returns>The result of the rename workflow.</returns>
     private async Task RenameApplicationOrModuleAsync(
             NavigationNodeViewModel node)
     {
@@ -794,6 +825,19 @@ public partial class MainWindow : Window
                 return;
             }
 
+            string newDisplayName =
+                dialog.Value.Trim();
+
+            SmartRenameWorkflow? smartRename =
+                await PrepareSmartRenameAsync(
+                    node,
+                    newDisplayName);
+
+            if (smartRename is null)
+            {
+                return;
+            }
+
             global::Nodalis.Infrastructure.Applications.ApplicationStructureService service = new ApplicationStructureService(
                 _root.FullPath);
 
@@ -805,13 +849,19 @@ public partial class MainWindow : Window
                     node.FullPath,
                     dialog.Value);
 
+            string smartStatus =
+                await CompleteSmartRenameAsync(
+                    smartRename);
+
             await RefreshNavigationAsync(path);
-            StatusText.Text = $"Renommé · {dialog.Value}";
+            StatusText.Text =
+                $"Renommé · {newDisplayName} · {smartStatus}";
         }
         catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException or
-            InvalidDataException)
+            InvalidDataException or
+            InvalidOperationException)
         {
             ShowStructureError(
                 "Renommer",
