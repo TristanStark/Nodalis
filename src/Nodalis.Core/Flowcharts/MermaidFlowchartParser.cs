@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 
 namespace Nodalis.Core.Flowcharts;
@@ -137,7 +138,7 @@ public static partial class MermaidFlowchartParser
 
             if (TryParseNodeToken(
                     line,
-                    out ParsedNodeToken token))
+                    out ParsedNodeToken? token))
             {
                 UpsertNode(
                     token,
@@ -313,10 +314,10 @@ public static partial class MermaidFlowchartParser
 
         if (!TryParseNodeToken(
                 sourceText,
-                out ParsedNodeToken source) ||
+                out ParsedNodeToken? source) ||
             !TryParseNodeToken(
                 targetText,
-                out ParsedNodeToken target))
+                out ParsedNodeToken? target))
         {
             return false;
         }
@@ -357,7 +358,7 @@ public static partial class MermaidFlowchartParser
     /// <returns><see langword="true"/> when the token is supported.</returns>
     private static bool TryParseNodeToken(
             string text,
-            out ParsedNodeToken? token)
+            [NotNullWhen(true)] out ParsedNodeToken? token)
     {
         Match match =
             NodePattern().Match(
