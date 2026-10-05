@@ -2710,7 +2710,9 @@ static void VerifyMarkdownParser()
         "Texte **gras** et *italique* avec [[Projet Patate|le projet]].\n\n" +
         "- [x] Action terminée\n" +
         "- Élément\n" +
-        "1. Premier\n\n" +
+        "1. Premier\n" +
+        "2. Deuxième\n" +
+        "3. Troisième\n\n" +
         "> Citation\n\n" +
         "| Col A | Col B |\n" +
         "| --- | --- |\n" +
@@ -2736,6 +2738,18 @@ static void VerifyMarkdownParser()
             block.Kind == MarkdownBlockKind.Table &&
             block.TableRows.Count == 2),
         "Markdown tables must be parsed.");
+
+    global::Nodalis.Core.Markdown.MarkdownBlock[] orderedItems = blocks
+        .Where(block =>
+            block.Kind == MarkdownBlockKind.OrderedListItem)
+        .ToArray();
+
+    Assert(
+        orderedItems.Length == 3 &&
+        orderedItems[0].OrderedListNumber == 1 &&
+        orderedItems[1].OrderedListNumber == 2 &&
+        orderedItems[2].OrderedListNumber == 3,
+        "Markdown ordered-list markers must preserve their numeric values.");
 
     Assert(blocks.Any(block =>
             block.Kind == MarkdownBlockKind.CodeBlock &&
