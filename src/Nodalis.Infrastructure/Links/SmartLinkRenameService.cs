@@ -385,9 +385,7 @@ public sealed class SmartLinkRenameService
 
         return Regex.Replace(
             text,
-            @"[[(?<target>[^]|
-]+)(?<alias>|[^]
-]+)?]]",
+            @"\[\[(?<target>[^\]\|\r\n]+)(?<alias>\|[^\]\r\n]+)?\]\]",
             match =>
             {
                 string rawTarget =
