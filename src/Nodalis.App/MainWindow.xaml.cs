@@ -3105,6 +3105,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.structure",
+                Title = "Structure du projet",
+                Subtitle = "Ajouter, renommer, réordonner ou supprimer des sections et déplacer leurs documents",
+                Keywords = ["projet", "structure", "section", "réordonner", "template", "déplacer"],
+                ExecuteAsync = ShowProjectStructureAsync
+            },
+            new()
+            {
                 Id = "milestones.context",
                 Title = "Jalons du projet",
                 Subtitle = "Liste, timeline et édition locale des jalons",
@@ -3859,6 +3867,93 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"Jalon · {milestone.Name} · {milestone.ProjectName} · ligne {milestone.LineNumber}";
+    }
+
+    /// <summary>
+    /// Opens the project structure manager for the current project context.
+    /// </summary>
+    /// <returns>A task representing the UI workflow.</returns>
+    private async Task ShowProjectStructureAsync()
+    {
+        string contextPath =
+            _selectedNode?.FullPath ??
+            _root.FullPath;
+
+        global::Nodalis.Infrastructure.Projects.WorkspaceProjectStructureService structure =
+            new WorkspaceProjectStructureService(
+                _root.FullPath);
+
+        string? projectDirectory =
+            structure.GetProjectDirectoryForContext(
+                contextPath);
+
+        if (projectDirectory is null)
+        {
+            MessageBox.Show(
+                this,
+                "Sélectionnez un projet, une section ou un document de projet pour gérer sa structure.",
+                "Structure du projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            if (_autosave is not null)
+            {
+                await _autosave.FlushAsync();
+
+                if (_documentDirty)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Le document courant contient des modifications non enregistrées. " +
+                        "Résolvez d'abord le conflit avant de déplacer ou renommer des sections.",
+                        "Structure du projet",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            global::Nodalis.App.Dialogs.ProjectStructureDialog dialog =
+                new ProjectStructureDialog(
+                    _root.FullPath,
+                    projectDirectory)
+                {
+                    Owner =
+                        this
+                };
+
+            dialog.ShowDialog();
+
+            if (!dialog.Changed)
+            {
+                return;
+            }
+
+            await RefreshNavigationAsync(
+                projectDirectory);
+            await RefreshDashboardTasksAsync();
+            await RefreshDashboardMilestonesAsync();
+
+            StatusText.Text =
+                "Structure du projet mise à jour.";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException)
+        {
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Structure du projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     /// <summary>
