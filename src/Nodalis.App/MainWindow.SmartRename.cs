@@ -149,9 +149,7 @@ public partial class MainWindow
             MessageBox.Show(
                 this,
                 "Le renommage de l'élément est conservé, mais la réécriture des liens a été annulée et rollbackée. " +
-                "Les anciens liens continuent de fonctionner via les alias.
-
-" +
+                "Les anciens liens continuent de fonctionner via les alias.\n\n" +
                 exception.Message,
                 "Réécriture des liens annulée",
                 MessageBoxButton.OK,
