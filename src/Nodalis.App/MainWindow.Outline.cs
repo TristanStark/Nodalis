@@ -122,16 +122,22 @@ public partial class MainWindow
         _flatDocumentOutlineItems.Clear();
         _currentDocumentOutlineItem = null;
 
-        if (_activeDocumentTab is null ||
+        DocumentTabViewModel? focusedTab =
+            GetFocusedDocumentTab();
+
+        if (focusedTab is null ||
             !DocumentEditorHost.IsVisible)
         {
             UpdateDocumentOutlineEmptyState();
             return;
         }
 
+        TextBox editor =
+            GetFocusedEditorTextBox();
+
         IReadOnlyList<MarkdownOutlineEntry> entries =
             MarkdownOutlineParser.Parse(
-                MarkdownEditorTextBox.Text);
+                editor.Text);
 
         global::System.Collections.Generic.Stack<DocumentOutlineItemViewModel> ancestors =
             new Stack<DocumentOutlineItemViewModel>();
@@ -209,7 +215,10 @@ public partial class MainWindow
             return;
         }
 
-        int caretIndex = MarkdownEditorTextBox.CaretIndex;
+        TextBox editor =
+            GetFocusedEditorTextBox();
+
+        int caretIndex = editor.CaretIndex;
         DocumentOutlineItemViewModel? current = null;
 
         foreach (DocumentOutlineItemViewModel item in _flatDocumentOutlineItems)
@@ -257,15 +266,18 @@ public partial class MainWindow
             return;
         }
 
+        TextBox editor =
+            GetFocusedEditorTextBox();
+
         int caretIndex = Math.Clamp(
             item.Offset,
             0,
-            MarkdownEditorTextBox.Text.Length);
+            editor.Text.Length);
 
-        MarkdownEditorTextBox.Focus();
-        MarkdownEditorTextBox.CaretIndex = caretIndex;
-        MarkdownEditorTextBox.SelectionLength = 0;
-        MarkdownEditorTextBox.ScrollToLine(
+        editor.Focus();
+        editor.CaretIndex = caretIndex;
+        editor.SelectionLength = 0;
+        editor.ScrollToLine(
             Math.Max(
                 0,
                 item.LineNumber - 1));

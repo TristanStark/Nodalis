@@ -2829,7 +2829,10 @@ static async Task VerifyUserPreferencesAsync(string root)
         Editor = defaults.Editor with
         {
             FontSize = 100,
-            AutosaveDelayMilliseconds = 20
+            AutosaveDelayMilliseconds = 20,
+            SplitMode = EditorSplitMode.Horizontal,
+            SplitRatio = 0.95,
+            SecondaryDocumentTabId = projectId
         },
         Backup = defaults.Backup with
         {
@@ -2853,6 +2856,11 @@ static async Task VerifyUserPreferencesAsync(string root)
         "Editor font size must be normalized.");
     Assert(loaded.Editor.AutosaveDelayMilliseconds == 100,
         "Autosave delay must be normalized.");
+    Assert(
+        loaded.Editor.SplitMode == EditorSplitMode.Horizontal &&
+        loaded.Editor.SplitRatio == 0.8 &&
+        loaded.Editor.SecondaryDocumentTabId == projectId,
+        "Editor split layout must persist locally and normalize its ratio.");
     Assert(
         loaded.Backup.AutomaticEnabled &&
         loaded.Backup.IntervalMinutes == 15 &&

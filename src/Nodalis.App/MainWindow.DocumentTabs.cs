@@ -52,8 +52,9 @@ public partial class MainWindow
             tab = await CreateDocumentTabAsync(node);
         }
 
-        await ActivateDocumentTabAsync(
+        await ActivateDocumentTabForPaneAsync(
             tab,
+            _focusedEditorPane,
             synchronizeNavigation: true);
     }
 
@@ -65,6 +66,19 @@ public partial class MainWindow
     private async Task<DocumentTabViewModel> CreateDocumentTabAsync(
             NavigationNodeViewModel node)
     {
+        DocumentTabViewModel? existing =
+            _documentTabs.FirstOrDefault(candidate =>
+                candidate.DocumentId == node.Id ||
+                string.Equals(
+                    candidate.FullPath,
+                    node.FullPath,
+                    StringComparison.OrdinalIgnoreCase));
+
+        if (existing is not null)
+        {
+            return existing;
+        }
+
         TextDocumentSession session = await TextDocumentSession.OpenAsync(
             node.FullPath);
 
@@ -320,6 +334,7 @@ public partial class MainWindow
     private void DeactivateDocumentTabView()
     {
         StoreActiveDocumentTabState();
+        StoreSecondaryDocumentTabState();
 
         _activeDocumentTab = null;
         _documentSession = null;
@@ -368,8 +383,9 @@ public partial class MainWindow
             return;
         }
 
-        await ActivateDocumentTabAsync(
+        await ActivateDocumentTabForPaneAsync(
             tab,
+            EditorPaneSlot.Primary,
             synchronizeNavigation: true);
     }
 
@@ -458,6 +474,15 @@ public partial class MainWindow
         bool wasActive = ReferenceEquals(
             _activeDocumentTab,
             tab);
+        bool wasSecondary = ReferenceEquals(
+            _secondaryDocumentTab,
+            tab);
+
+        if (wasSecondary)
+        {
+            StoreSecondaryDocumentTabState();
+            DetachSecondaryDocumentTabView();
+        }
 
         UnregisterDocumentTabAutosave(
             tab.Autosave);
@@ -481,14 +506,28 @@ public partial class MainWindow
         if (activateNeighbor &&
             _documentTabs.Count > 0)
         {
-            int nextIndex = Math.Clamp(
-                oldIndex,
-                0,
-                _documentTabs.Count - 1);
+            DocumentTabViewModel? nextTab =
+                FindPrimaryReplacementAfterClose(
+                    oldIndex);
 
-            await ActivateDocumentTabAsync(
-                _documentTabs[nextIndex],
-                synchronizeNavigation: true);
+            if (nextTab is not null)
+            {
+                await ActivateDocumentTabAsync(
+                    nextTab,
+                    synchronizeNavigation: true);
+            }
+            else if (_secondaryDocumentTab is not null)
+            {
+                DocumentTabViewModel promoted =
+                    _secondaryDocumentTab;
+
+                StoreSecondaryDocumentTabState();
+                DetachSecondaryDocumentTabView();
+
+                await ActivateDocumentTabAsync(
+                    promoted,
+                    synchronizeNavigation: true);
+            }
         }
         else
         {
@@ -607,6 +646,9 @@ public partial class MainWindow
     /// <returns>A task representing disposal.</returns>
     private async Task DisposeAllDocumentTabsAsync()
     {
+        StoreSecondaryDocumentTabState();
+        DetachSecondaryDocumentTabView();
+
         foreach (DocumentTabViewModel tab in _documentTabs.ToArray())
         {
             UnregisterDocumentTabAutosave(
@@ -629,6 +671,7 @@ public partial class MainWindow
     private List<OpenDocumentTabReference> BuildOpenDocumentTabReferences()
     {
         StoreActiveDocumentTabState();
+        StoreSecondaryDocumentTabState();
 
         return _documentTabs
             .Select(tab =>
@@ -843,6 +886,14 @@ public partial class MainWindow
 
         tab.HasConflict = false;
 
+        if (ReferenceEquals(
+                tab,
+                _secondaryDocumentTab))
+        {
+            UpdateSecondarySaveState(
+                tab);
+        }
+
         if (!ReferenceEquals(
                 tab,
                 _activeDocumentTab))
@@ -908,6 +959,14 @@ public partial class MainWindow
         tab.IsDirty = true;
         tab.HasConflict = true;
 
+        if (ReferenceEquals(
+                tab,
+                _secondaryDocumentTab))
+        {
+            UpdateSecondarySaveState(
+                tab);
+        }
+
         if (!ReferenceEquals(
                 tab,
                 _activeDocumentTab))
@@ -961,6 +1020,17 @@ public partial class MainWindow
         tab.IsMissing = !File.Exists(
             tab.FullPath);
 
+        if (ReferenceEquals(
+                tab,
+                _secondaryDocumentTab))
+        {
+            SecondaryMarkdownEditorTextBox.IsReadOnly =
+                tab.IsMissing;
+
+            UpdateSecondarySaveState(
+                tab);
+        }
+
         if (!ReferenceEquals(
                 tab,
                 _activeDocumentTab))
@@ -1010,14 +1080,23 @@ public partial class MainWindow
     private async Task CycleDocumentTabAsync(
             int delta)
     {
-        if (_documentTabs.Count == 0)
+        DocumentTabViewModel[] candidates =
+            _documentTabs
+                .Where(tab =>
+                    !ReferenceEquals(
+                        tab,
+                        _secondaryDocumentTab))
+                .ToArray();
+
+        if (candidates.Length == 0)
         {
             return;
         }
 
         int currentIndex = _activeDocumentTab is null
             ? 0
-            : _documentTabs.IndexOf(
+            : Array.IndexOf(
+                candidates,
                 _activeDocumentTab);
 
         if (currentIndex < 0)
@@ -1027,16 +1106,16 @@ public partial class MainWindow
 
         int nextIndex =
             (currentIndex + delta) %
-            _documentTabs.Count;
+            candidates.Length;
 
         if (nextIndex < 0)
         {
             nextIndex +=
-                _documentTabs.Count;
+                candidates.Length;
         }
 
         await ActivateDocumentTabAsync(
-            _documentTabs[nextIndex],
+            candidates[nextIndex],
             synchronizeNavigation: true);
     }
 

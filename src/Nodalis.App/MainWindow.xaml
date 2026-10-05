@@ -263,89 +263,232 @@
                                    Foreground="{StaticResource SecondaryTextBrush}"
                                    Text="Enregistré" />
 
-                        <Button Grid.Column="2"
-                                VerticalAlignment="Center"
-                                Click="TogglePreview_Click"
-                                Content="Aperçu" />
+                        <StackPanel Grid.Column="2"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <Button Width="34"
+                                    Height="28"
+                                    Margin="0,0,5,0"
+                                    Padding="0"
+                                    Click="SplitVertical_Click"
+                                    ToolTip="Scinder verticalement · deux documents côte à côte"
+                                    Content="↔" />
+                            <Button Width="34"
+                                    Height="28"
+                                    Margin="0,0,5,0"
+                                    Padding="0"
+                                    Click="SplitHorizontal_Click"
+                                    ToolTip="Scinder horizontalement · deux documents superposés"
+                                    Content="↕" />
+                            <Button VerticalAlignment="Center"
+                                    Click="TogglePreview_Click"
+                                    Content="Aperçu" />
+                        </StackPanel>
                     </Grid>
                 </Border>
 
                 <Grid x:Name="DocumentEditorHost"
                       Grid.Row="3"
                       Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition x:Name="PrimaryEditorRow" Height="*" />
+                        <RowDefinition x:Name="SplitEditorHorizontalDividerRow" Height="0" />
+                        <RowDefinition x:Name="SecondaryEditorRow" Height="0" />
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition x:Name="PreviewSplitterColumn" Width="5" />
-                        <ColumnDefinition x:Name="PreviewColumn" Width="*" />
+                        <ColumnDefinition x:Name="PrimaryEditorColumn" Width="*" />
+                        <ColumnDefinition x:Name="SplitEditorVerticalDividerColumn" Width="0" />
+                        <ColumnDefinition x:Name="SecondaryEditorColumn" Width="0" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBox x:Name="MarkdownEditorTextBox"
-                             Grid.Column="0"
-                             Padding="18"
-                             BorderThickness="0"
-                             FontFamily="Consolas"
-                             FontSize="14"
-                             AcceptsReturn="True"
-                             AcceptsTab="True"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto"
-                             HorizontalScrollBarVisibility="Auto"
-                             TextChanged="MarkdownEditorTextBox_TextChanged"
-                             PreviewMouseMove="MarkdownEditorTextBox_PreviewMouseMove"
-                             MouseDoubleClick="MarkdownEditorTextBox_MouseDoubleClick"
-                             PreviewMouseRightButtonDown="MarkdownEditorTextBox_PreviewMouseRightButtonDown"
-                             ContextMenuOpening="MarkdownEditorTextBox_ContextMenuOpening"
-                             SpellCheck.IsEnabled="False" />
+                    <Grid x:Name="PrimaryEditorPane"
+                          Grid.Row="0"
+                          Grid.Column="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition x:Name="PreviewSplitterColumn" Width="5" />
+                            <ColumnDefinition x:Name="PreviewColumn" Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                    <Popup x:Name="InternalLinkPopup"
-                           Grid.Column="0"
-                           PlacementTarget="{Binding ElementName=MarkdownEditorTextBox}"
-                           Placement="RelativePoint"
-                           AllowsTransparency="True"
-                           StaysOpen="False">
-                        <Border Width="430"
-                                MaxHeight="280"
-                                Padding="6"
-                                CornerRadius="6"
-                                Background="{StaticResource PanelElevatedBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1">
-                            <ListBox x:Name="InternalLinkSuggestions"
-                                     BorderThickness="0"
-                                     Background="Transparent"
-                                     MouseDoubleClick="InternalLinkSuggestions_MouseDoubleClick">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="6,4">
-                                            <TextBlock Text="{Binding DisplayName}"
-                                                       FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding QualifiedName}"
-                                                       Margin="0,2,0,0"
-                                                       FontSize="11"
-                                                       Foreground="{StaticResource SecondaryTextBrush}"
-                                                       TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </Border>
-                    </Popup>
+                        <TextBox x:Name="MarkdownEditorTextBox"
+                                 Grid.Column="0"
+                                 Padding="18"
+                                 BorderThickness="0"
+                                 FontFamily="Consolas"
+                                 FontSize="14"
+                                 AcceptsReturn="True"
+                                 AcceptsTab="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 TextChanged="MarkdownEditorTextBox_TextChanged"
+                                 GotKeyboardFocus="PrimaryMarkdownEditorTextBox_GotKeyboardFocus"
+                                 PreviewMouseMove="MarkdownEditorTextBox_PreviewMouseMove"
+                                 MouseDoubleClick="MarkdownEditorTextBox_MouseDoubleClick"
+                                 PreviewMouseRightButtonDown="MarkdownEditorTextBox_PreviewMouseRightButtonDown"
+                                 ContextMenuOpening="MarkdownEditorTextBox_ContextMenuOpening"
+                                 SpellCheck.IsEnabled="False" />
 
-                    <GridSplitter x:Name="PreviewSplitter"
+                        <Popup x:Name="InternalLinkPopup"
+                               Grid.Column="0"
+                               PlacementTarget="{Binding ElementName=MarkdownEditorTextBox}"
+                               Placement="RelativePoint"
+                               AllowsTransparency="True"
+                               StaysOpen="False">
+                            <Border Width="430"
+                                    MaxHeight="280"
+                                    Padding="6"
+                                    CornerRadius="6"
+                                    Background="{StaticResource PanelElevatedBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1">
+                                <ListBox x:Name="InternalLinkSuggestions"
+                                         BorderThickness="0"
+                                         Background="Transparent"
+                                         MouseDoubleClick="InternalLinkSuggestions_MouseDoubleClick">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="6,4">
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding QualifiedName}"
+                                                           Margin="0,2,0,0"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
+                        </Popup>
+
+                        <GridSplitter x:Name="PreviewSplitter"
+                                      Grid.Column="1"
+                                      Width="5"
+                                      HorizontalAlignment="Stretch"
+                                      Background="{StaticResource BorderBrush}"
+                                      ResizeDirection="Columns"
+                                      ResizeBehavior="PreviousAndNext"
+                                      ShowsPreview="True" />
+
+                        <FlowDocumentScrollViewer x:Name="MarkdownPreview"
+                                                  Grid.Column="2"
+                                                  Background="{StaticResource WindowBackgroundBrush}"
+                                                  BorderThickness="0"
+                                                  IsToolBarVisible="False"
+                                                  VerticalScrollBarVisibility="Auto" />
+                    </Grid>
+
+                    <GridSplitter x:Name="SplitEditorDivider"
+                                  Grid.Row="0"
                                   Grid.Column="1"
                                   Width="5"
                                   HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch"
+                                  Visibility="Collapsed"
                                   Background="{StaticResource BorderBrush}"
-                                  ResizeDirection="Columns"
                                   ResizeBehavior="PreviousAndNext"
-                                  ShowsPreview="True" />
+                                  ResizeDirection="Columns"
+                                  ShowsPreview="True"
+                                  DragCompleted="SplitEditorDivider_DragCompleted" />
 
-                    <FlowDocumentScrollViewer x:Name="MarkdownPreview"
-                                              Grid.Column="2"
-                                              Background="{StaticResource WindowBackgroundBrush}"
-                                              BorderThickness="0"
-                                              IsToolBarVisible="False"
-                                              VerticalScrollBarVisibility="Auto" />
+                    <Border x:Name="SecondaryEditorPane"
+                            Grid.Row="0"
+                            Grid.Column="2"
+                            Visibility="Collapsed"
+                            Background="{StaticResource WindowBackgroundBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1,0,0,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="38" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0"
+                                  Margin="8,4"
+                                  Background="{StaticResource PanelBackgroundBrush}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock VerticalAlignment="Center"
+                                           Margin="4,0,8,0"
+                                           Text="PANE 2"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+
+                                <ComboBox x:Name="SecondaryDocumentPicker"
+                                          Grid.Column="1"
+                                          MinWidth="140"
+                                          Margin="0,0,8,0"
+                                          DisplayMemberPath="DisplayName"
+                                          SelectionChanged="SecondaryDocumentPicker_SelectionChanged" />
+
+                                <TextBlock x:Name="SecondarySaveStateText"
+                                           Grid.Column="2"
+                                           Margin="0,0,8,0"
+                                           VerticalAlignment="Center"
+                                           Text="—"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+
+                                <Button Grid.Column="3"
+                                        Width="28"
+                                        Height="26"
+                                        Padding="0"
+                                        Click="CloseSecondaryPane_Click"
+                                        ToolTip="Fermer la deuxième pane"
+                                        Content="×" />
+                            </Grid>
+
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition x:Name="SecondaryPreviewSplitterColumn" Width="0" />
+                                    <ColumnDefinition x:Name="SecondaryPreviewColumn" Width="0" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox x:Name="SecondaryMarkdownEditorTextBox"
+                                         Grid.Column="0"
+                                         Padding="18"
+                                         BorderThickness="0"
+                                         FontFamily="Consolas"
+                                         FontSize="14"
+                                         AcceptsReturn="True"
+                                         AcceptsTab="True"
+                                         TextWrapping="Wrap"
+                                         VerticalScrollBarVisibility="Auto"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         TextChanged="SecondaryMarkdownEditorTextBox_TextChanged"
+                                         SelectionChanged="SecondaryMarkdownEditorTextBox_SelectionChanged"
+                                         GotKeyboardFocus="SecondaryMarkdownEditorTextBox_GotKeyboardFocus"
+                                         SpellCheck.IsEnabled="False" />
+
+                                <GridSplitter x:Name="SecondaryPreviewSplitter"
+                                              Grid.Column="1"
+                                              Width="5"
+                                              HorizontalAlignment="Stretch"
+                                              Visibility="Collapsed"
+                                              Background="{StaticResource BorderBrush}"
+                                              ResizeDirection="Columns"
+                                              ResizeBehavior="PreviousAndNext"
+                                              ShowsPreview="True" />
+
+                                <FlowDocumentScrollViewer x:Name="SecondaryMarkdownPreview"
+                                                          Grid.Column="2"
+                                                          Visibility="Collapsed"
+                                                          Background="{StaticResource WindowBackgroundBrush}"
+                                                          BorderThickness="0"
+                                                          IsToolBarVisible="False"
+                                                          VerticalScrollBarVisibility="Auto" />
+                            </Grid>
+                        </Grid>
+                    </Border>
                 </Grid>
 
                 <ScrollViewer x:Name="DashboardHost"

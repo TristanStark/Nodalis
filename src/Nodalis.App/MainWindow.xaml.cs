@@ -152,6 +152,8 @@ public partial class MainWindow : Window
             IsEnabled = false
         };
 
+        InitializeEditorSplit();
+
         MarkdownEditorTextBox.FontSize = preferences.Editor.FontSize;
         MarkdownEditorTextBox.TextWrapping =
             preferences.Editor.WordWrap
@@ -186,6 +188,7 @@ public partial class MainWindow : Window
                 await RefreshDashboardTasksAsync();
                 await RefreshDashboardMilestonesAsync();
                 await RestoreDocumentTabsAsync();
+                await RestoreEditorSplitAsync();
                 _backupTimer.Start();
                 await TryRunAutomaticBackupAsync();
             }
@@ -246,7 +249,11 @@ public partial class MainWindow : Window
                         MarkdownEditorTextBox.TextWrapping ==
                         TextWrapping.Wrap,
                     FontSize = (int)Math.Round(
-                        MarkdownEditorTextBox.FontSize)
+                        MarkdownEditorTextBox.FontSize),
+                    SplitMode = _editorSplitMode,
+                    SplitRatio = CaptureEditorSplitRatio(),
+                    SecondaryDocumentTabId =
+                        _secondaryDocumentTab?.DocumentId
                 },
                 OpenDocumentTabs = openDocumentTabs,
                 ActiveDocumentTabId = activeDocumentTabId
@@ -1150,21 +1157,21 @@ public partial class MainWindow : Window
     /// </summary>
     private void RenderPreview()
     {
-        if (!_previewVisible ||
-            _activeDocumentTab is null)
+        if (_previewVisible &&
+            _activeDocumentTab is not null)
         {
-            return;
+            string? baseDirectory = Path.GetDirectoryName(
+                _activeDocumentTab.FullPath);
+
+            MarkdownPreview.Document =
+                MarkdownFlowDocumentRenderer.Render(
+                    MarkdownEditorTextBox.Text,
+                    baseDirectory,
+                    OnInternalLinkClicked,
+                    OnMarkdownLinkClicked);
         }
 
-        string? baseDirectory = Path.GetDirectoryName(
-            _activeDocumentTab.FullPath);
-
-        MarkdownPreview.Document =
-            MarkdownFlowDocumentRenderer.Render(
-                MarkdownEditorTextBox.Text,
-                baseDirectory,
-                OnInternalLinkClicked,
-                OnMarkdownLinkClicked);
+        RenderSecondaryPreview();
     }
 
     /// <summary>
@@ -1331,20 +1338,43 @@ public partial class MainWindow : Window
                     ? -1
                     : 1;
 
-            await CycleDocumentTabAsync(
+            await CycleFocusedDocumentTabAsync(
                 delta);
             return;
         }
 
+        DocumentTabViewModel? focusedTab =
+            GetFocusedDocumentTab();
+
         if (controlPressed &&
             e.Key == Key.W &&
-            _activeDocumentTab is not null)
+            focusedTab is not null)
         {
             e.Handled = true;
             await CloseDocumentTabAsync(
-                _activeDocumentTab,
+                focusedTab,
                 "fermer cet onglet",
                 activateNeighbor: true);
+            return;
+        }
+
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.MoveToPrimaryPane))
+        {
+            e.Handled = true;
+            await MoveFocusedTabToPaneAsync(
+                EditorPaneSlot.Primary);
+            return;
+        }
+
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.MoveToSecondaryPane))
+        {
+            e.Handled = true;
+            await MoveFocusedTabToPaneAsync(
+                EditorPaneSlot.Secondary);
             return;
         }
 
@@ -1463,7 +1493,7 @@ public partial class MainWindow : Window
         if (ShortcutCatalog.Matches(
                 e,
                 ShortcutCatalog.Bold) &&
-            _documentSession is not null)
+            GetFocusedDocumentTab() is not null)
         {
             e.Handled = true;
             WrapSelection("**", "**");
@@ -1473,7 +1503,7 @@ public partial class MainWindow : Window
         if (ShortcutCatalog.Matches(
                 e,
                 ShortcutCatalog.Italic) &&
-            _documentSession is not null)
+            GetFocusedDocumentTab() is not null)
         {
             e.Handled = true;
             WrapSelection("*", "*");
@@ -1483,7 +1513,7 @@ public partial class MainWindow : Window
         if (ShortcutCatalog.Matches(
                 e,
                 ShortcutCatalog.InlineCode) &&
-            _documentSession is not null)
+            GetFocusedDocumentTab() is not null)
         {
             e.Handled = true;
             string marker = ((char)96).ToString();
@@ -1497,19 +1527,7 @@ public partial class MainWindow : Window
     /// <returns>The result of the operation.</returns>
     private async Task SaveCurrentDocumentAsync()
     {
-        if (_autosave is null)
-        {
-            return;
-        }
-
-        StoreActiveDocumentTabState();
-        await _autosave.FlushAsync();
-        SyncActiveDocumentDirtyState();
-
-        SaveStateText.Text =
-            _documentDirty
-                ? "Non enregistré"
-                : "Enregistré";
+        await SaveFocusedDocumentAsync();
     }
 
     /// <summary>
@@ -1554,31 +1572,34 @@ public partial class MainWindow : Window
             string prefix,
             string suffix)
     {
-        if (_documentSession is null)
+        TextBox editor =
+            GetFocusedEditorTextBox();
+
+        if (GetFocusedDocumentTab() is null)
         {
             return;
         }
 
-        int start = MarkdownEditorTextBox.SelectionStart;
-        int length = MarkdownEditorTextBox.SelectionLength;
-        string selectedText = MarkdownEditorTextBox.SelectedText;
+        int start = editor.SelectionStart;
+        int length = editor.SelectionLength;
+        string selectedText = editor.SelectedText;
 
-        MarkdownEditorTextBox.SelectedText =
+        editor.SelectedText =
             prefix + selectedText + suffix;
 
         if (length == 0)
         {
-            MarkdownEditorTextBox.CaretIndex =
+            editor.CaretIndex =
                 start + prefix.Length;
         }
         else
         {
-            MarkdownEditorTextBox.Select(
+            editor.Select(
                 start + prefix.Length,
                 length);
         }
 
-        MarkdownEditorTextBox.Focus();
+        editor.Focus();
     }
 
     /// <summary>
@@ -1612,13 +1633,16 @@ public partial class MainWindow : Window
             PreviewSplitterColumn.Width = new GridLength(5);
             MarkdownPreview.Visibility = Visibility.Visible;
             PreviewSplitter.Visibility = Visibility.Visible;
-            return;
+        }
+        else
+        {
+            PreviewColumn.Width = new GridLength(0);
+            PreviewSplitterColumn.Width = new GridLength(0);
+            MarkdownPreview.Visibility = Visibility.Collapsed;
+            PreviewSplitter.Visibility = Visibility.Collapsed;
         }
 
-        PreviewColumn.Width = new GridLength(0);
-        PreviewSplitterColumn.Width = new GridLength(0);
-        MarkdownPreview.Visibility = Visibility.Collapsed;
-        PreviewSplitter.Visibility = Visibility.Collapsed;
+        ApplySecondaryPreviewState();
     }
 
     /// <summary>

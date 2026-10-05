@@ -58,6 +58,20 @@ public static class ShortcutCatalog
     public static readonly AppShortcut InlineCode =
         new("format.code", "Ctrl+`", ModifierKeys.Control, Key.Oem3);
 
+    public static readonly AppShortcut MoveToPrimaryPane =
+        new(
+            "editor.move-primary",
+            "Ctrl+Alt+←",
+            ModifierKeys.Control | ModifierKeys.Alt,
+            Key.Left);
+
+    public static readonly AppShortcut MoveToSecondaryPane =
+        new(
+            "editor.move-secondary",
+            "Ctrl+Alt+→",
+            ModifierKeys.Control | ModifierKeys.Alt,
+            Key.Right);
+
     public static IReadOnlyList<AppShortcut> All { get; } =
     [
         NewNote,
@@ -71,7 +85,9 @@ public static class ShortcutCatalog
         Save,
         Bold,
         Italic,
-        InlineCode
+        InlineCode,
+        MoveToPrimaryPane,
+        MoveToSecondaryPane
     ];
 
     /// <summary>

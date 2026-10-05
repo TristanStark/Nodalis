@@ -94,7 +94,16 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
             AutosaveDelayMilliseconds = Math.Clamp(
                 sourceEditor.AutosaveDelayMilliseconds,
                 100,
-                10_000)
+                10_000),
+            SplitMode = Enum.IsDefined(
+                    typeof(EditorSplitMode),
+                    sourceEditor.SplitMode)
+                ? sourceEditor.SplitMode
+                : EditorSplitMode.None,
+            SplitRatio = Math.Clamp(
+                sourceEditor.SplitRatio,
+                0.2,
+                0.8)
         };
 
         global::Nodalis.Core.Settings.BackupPreferences sourceBackup = preferences.Backup ?? new BackupPreferences();
