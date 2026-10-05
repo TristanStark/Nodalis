@@ -16,7 +16,11 @@ public static partial class MarkdownDocumentParser
         string lineFeed = ((char)10).ToString();
         string carriageReturnLineFeed = string.Concat((char)13, (char)10);
 
-        string normalized = markdown
+        string content = MarkdownFrontMatterParser.Parse(
+                markdown)
+            .Body;
+
+        string normalized = content
             .Replace(
                 carriageReturnLineFeed,
                 lineFeed,
