@@ -562,6 +562,25 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Opens the read-only workspace integrity report.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private void OpenWorkspaceIntegrity_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        global::Nodalis.App.Dialogs.WorkspaceIntegrityDialog dialog =
+            new WorkspaceIntegrityDialog(
+                _root.FullPath)
+            {
+                Owner = this
+            };
+
+        dialog.ShowDialog();
+    }
+
+    /// <summary>
     /// Opens the workspace trash and refreshes navigation when its contents change.
     /// </summary>
     /// <param name="sender">The event sender.</param>

@@ -81,6 +81,7 @@ try
     await VerifyUserPreferencesAsync(root);
     await VerifyLocalReleasePackageAsync(root);
     await VerifyDocumentReliabilityAsync(root);
+    await WorkspaceIntegritySmokeTests.RunAsync(root);
     VerifyDomainCatalog();
 
     Console.WriteLine("Nodalis smoke tests passed.");
