@@ -285,9 +285,14 @@ public static class DocxMarkdownConverter
                 StringComparison.Ordinal);
         }
 
-        return normalized.Trim() +
-               (string.IsNullOrWhiteSpace(normalized)
-                   ? string.Empty
-                   : "\n");
+        if (string.IsNullOrWhiteSpace(
+                normalized))
+        {
+            return string.Empty;
+        }
+
+        return normalized.Trim(
+                   '\n') +
+               "\n";
     }
 }
