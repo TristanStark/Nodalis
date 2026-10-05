@@ -960,6 +960,7 @@ static async Task VerifySearchAsync(string root)
         "---\n" +
         "status: active\n" +
         "owner: alice\n" +
+        "type: specification\n" +
         "tags: api, urgent\n" +
         "reviewer: Alice\n" +
         "---\n" +
@@ -1033,6 +1034,141 @@ static async Task VerifySearchAsync(string root)
         customPropertyResults.Project.Any(result =>
             result.FilePath == projectFile),
         "Custom front matter properties must be searchable with @key:value syntax.");
+
+    global::Nodalis.Core.Search.SearchResult projectBodyMatch = results.Project.First(result =>
+        result.FilePath == projectFile &&
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.Body);
+
+    global::Nodalis.Core.Search.SearchResult applicationBodyMatch = results.Application.First(result =>
+        result.FilePath == applicationFile &&
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.Body);
+
+    global::Nodalis.Core.Search.SearchResult globalBodyMatch = results.Global.First(result =>
+        result.FilePath == globalFile &&
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.Body);
+
+    Assert(
+        projectBodyMatch.Score > applicationBodyMatch.Score &&
+        applicationBodyMatch.Score > globalBodyMatch.Score,
+        "Equivalent matches must receive deterministic Project > Application > Global scope bonuses.");
+
+    string architectureFile = Path.Combine(
+        project.ProjectDirectory,
+        "Architecture centrale.md");
+
+    await File.WriteAllTextAsync(
+        architectureFile,
+        "---\n" +
+        "type: specification\n" +
+        "status: draft\n" +
+        "---\n" +
+        "# Architecture technique\n\n" +
+        "Le corps décrit l'architecture applicative et ses composants.\n");
+
+    File.SetLastWriteTimeUtc(
+        architectureFile,
+        new DateTime(
+            2024,
+            1,
+            2,
+            12,
+            0,
+            0,
+            DateTimeKind.Utc));
+
+    global::Nodalis.Core.Search.SearchResultSet weightedResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "architecture",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy);
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Search.SearchResult> architectureMatches =
+        weightedResults.Project
+            .Where(result =>
+                result.FilePath == architectureFile)
+            .ToArray();
+
+    global::Nodalis.Core.Search.SearchResult titleMatch = architectureMatches.First(result =>
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.FileName);
+
+    global::Nodalis.Core.Search.SearchResult headingMatch = architectureMatches.First(result =>
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.Heading);
+
+    global::Nodalis.Core.Search.SearchResult bodyMatch = architectureMatches.First(result =>
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.Body);
+
+    Assert(
+        titleMatch.Score > headingMatch.Score &&
+        headingMatch.Score > bodyMatch.Score,
+        "Search ranking must deterministically weight title above headings and headings above body.");
+
+    global::Nodalis.Core.Search.SearchResultSet fuzzyTypoResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "archtecture",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy);
+
+    Assert(
+        fuzzyTypoResults.Project.Any(result =>
+            result.FilePath == architectureFile),
+        "Fuzzy search must recover a common one-character typo.");
+
+    global::Nodalis.Core.Search.SearchResultSet fuzzyPartialResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "archit",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy);
+
+    Assert(
+        fuzzyPartialResults.Project.Any(result =>
+            result.FilePath == architectureFile),
+        "Fuzzy search must recover incomplete words.");
+
+    global::Nodalis.Core.Search.SearchResultSet exactTypoResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "archtecture",
+        global::Nodalis.Core.Search.SearchMatchMode.Exact);
+
+    Assert(
+        !exactTypoResults.Project.Any(result =>
+            result.FilePath == architectureFile),
+        "Exact mode must preserve literal substring semantics.");
+
+    global::Nodalis.Core.Search.SearchResultSet typeAndProjectResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "architecture type:specification project:\"Projet Recherche\"",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy);
+
+    Assert(
+        typeAndProjectResults.Project.Any(result =>
+            result.FilePath == architectureFile) &&
+        typeAndProjectResults.Application.Count == 0 &&
+        typeAndProjectResults.Global.Count == 0,
+        "Type and project filters must compose with fuzzy text search.");
+
+    global::Nodalis.Core.Search.SearchResultSet dateResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "architecture date:2024-01-02",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy);
+
+    Assert(
+        dateResults.Project.Any(result =>
+            result.FilePath == architectureFile),
+        "The date filter must use the local file's UTC modification date.");
+
+    bool scorerMatched = global::Nodalis.Core.Search.SearchTextScorer.TryScore(
+        "architecture",
+        "archtecture",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy,
+        out double typoQuality);
+
+    Assert(
+        scorerMatched &&
+        typoQuality > 0.8,
+        "The dependency-free fuzzy scorer must be deterministic and expose a strong score for a one-edit typo.");
 }
 
 static async Task VerifyLinksAndBacklinksAsync(string root)
