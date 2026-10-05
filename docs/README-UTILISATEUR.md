@@ -21,15 +21,24 @@ Pour simplifier les mises à jour, placez de préférence le workspace dans un d
 
 ## Mettre Nodalis à jour
 
-1. Fermez Nodalis.
-2. Sauvegardez votre workspace si vous souhaitez une copie de sécurité supplémentaire.
-3. Téléchargez la nouvelle archive.
-4. Extrayez-la dans un nouveau dossier ou remplacez l'ancien dossier de l'application.
-5. Relancez `Nodalis.exe`.
+Nodalis peut installer une release **depuis une archive locale**, sans téléchargement réseau depuis l'application.
 
-Le workspace et les préférences locales ne sont pas supprimés par le remplacement du dossier de l'application.
+1. Récupérez `Nodalis-win-x64.zip` par le canal de votre choix.
+2. Dans Nodalis, cliquez sur **Mise à jour**.
+3. Sélectionnez l'archive ZIP.
+4. Nodalis vérifie avant fermeture :
+   - le produit et la version ;
+   - la cible Windows x64 ;
+   - la compatibilité du schéma de workspace ;
+   - la présence de tous les fichiers ;
+   - la taille et le SHA-256 de chaque fichier déclaré dans `release-manifest.json`.
+5. Confirmez l'installation. Les documents ouverts sont enregistrés, Nodalis se ferme, `Nodalis.Updater.exe` remplace les binaires puis relance l'application.
 
-**Ne supprimez pas votre dossier de workspace pendant une mise à jour.**
+La version remplacée est conservée dans un dossier frère `.previous`. Le bouton **Rollback** permet de revenir à cette version. Après un rollback, la version quittée devient à son tour la version disponible pour un nouveau rollback.
+
+Le workspace n'est jamais utilisé comme zone de staging ou de sauvegarde de version. Si le dossier de l'application et le workspace se chevauchent, Nodalis refuse la mise à jour et le rollback.
+
+Vous pouvez toujours conserver une copie supplémentaire du workspace avec la fonction **Sauvegardes** avant une mise à jour importante.
 
 ## Sauvegarder Nodalis
 
