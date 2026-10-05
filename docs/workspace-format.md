@@ -114,6 +114,30 @@ Les propriétés sont recherchables localement avec la syntaxe suivante :
 - `tag:api` ou `tags:api` pour tester un tag individuel ;
 - `@reviewer:alice` pour une propriété personnalisée.
 
+## Métadonnées des tâches Markdown
+
+Une tâche reste avant tout une checkbox Markdown. La case `[ ]` ou `[x]` est
+la **source de vérité** de son état terminé/ouvert. Nodalis peut compléter la
+ligne avec des métadonnées lisibles séparées par `|` :
+
+```markdown
+- [ ] Préparer la recette | Responsable: Alice | Échéance: 2026-10-10 | Priorité: Haute | Statut: En cours | Tags: api, recette
+```
+
+Champs reconnus :
+
+- `Responsable` / `Owner` : texte libre ;
+- `Échéance` / `Due` : date ISO `AAAA-MM-JJ` ;
+- `Priorité` / `Priority` : libellé léger (`Critique`, `Haute`, `Normale`, `Basse` ou valeur personnalisée) ;
+- `Statut` / `Status` : libellé léger, sans workflow imposé ;
+- `Tags` / `Tag` : liste séparée par des virgules.
+
+Les métadonnées sont facultatives et peuvent être modifiées depuis la vue
+consolidée des tâches. Nodalis calcule le retard uniquement pour une tâche
+ouverte dont l'échéance est antérieure à la date du jour. Les filtres et tris
+de la vue consolidée ne créent aucune donnée parallèle : ils relisent toujours
+les checkboxes Markdown du workspace.
+
 ## Manifest du workspace
 
 Fichier : `.workspace.json`
