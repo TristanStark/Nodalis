@@ -1196,7 +1196,8 @@ public partial class MainWindow : Window
 
         if (!_suppressLinkAutocomplete)
         {
-            _ = RefreshInternalLinkSuggestionsAsync();
+            InternalLinkPopup.IsOpen = false;
+            _ = RefreshInternalLinkSuggestionsSafelyAsync();
         }
     }
 
@@ -1210,8 +1211,20 @@ public partial class MainWindow : Window
             EventArgs e)
     {
         _previewTimer.Stop();
-        RenderPreview();
-        UpdateGlossaryAnnotations();
+
+        try
+        {
+            RenderPreview();
+            UpdateGlossaryAnnotations();
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or
+            InvalidOperationException)
+        {
+            InternalLinkPopup.IsOpen = false;
+            StatusText.Text =
+                $"Aperçu Markdown temporairement indisponible : {exception.Message}";
+        }
     }
 
     /// <summary>
@@ -2376,6 +2389,25 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Refreshes internal-link suggestions without allowing a transient editor
+    /// index or visual-state error to terminate the application.
+    /// </summary>
+    /// <returns>A task representing the refresh operation.</returns>
+    private async Task RefreshInternalLinkSuggestionsSafelyAsync()
+    {
+        try
+        {
+            await RefreshInternalLinkSuggestionsAsync();
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or
+            InvalidOperationException)
+        {
+            InternalLinkPopup.IsOpen = false;
+        }
+    }
+
+    /// <summary>
     /// Performs the <c>RefreshInternalLinkSuggestionsAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
@@ -2443,7 +2475,10 @@ public partial class MainWindow : Window
             .Take(40)
             .ToArray();
 
-        if (suggestions.Length == 0)
+        if (suggestions.Length == 0 ||
+            !IsEditorRangeValid(
+                start,
+                length))
         {
             InternalLinkPopup.IsOpen = false;
             return;
@@ -2456,15 +2491,76 @@ public partial class MainWindow : Window
         InternalLinkSuggestions.ItemsSource = suggestions;
         InternalLinkSuggestions.SelectedIndex = 0;
 
-        Rect caretRect = MarkdownEditorTextBox.GetRectFromCharacterIndex(
-            MarkdownEditorTextBox.CaretIndex,
-            trailingEdge: true);
+        Rect caretRect =
+            GetSafeEditorCaretRect();
 
         InternalLinkPopup.HorizontalOffset =
-            Math.Max(8, caretRect.X);
+            caretRect.IsEmpty
+                ? 8
+                : Math.Max(
+                    8,
+                    caretRect.X);
+
         InternalLinkPopup.VerticalOffset =
-            Math.Max(8, caretRect.Bottom + 4);
+            caretRect.IsEmpty
+                ? 8
+                : Math.Max(
+                    8,
+                    caretRect.Bottom + 4);
+
         InternalLinkPopup.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Gets a caret rectangle only when the current editor content contains a
+    /// valid character index. This protects asynchronous popup refreshes after
+    /// deleting the last character in a document or line.
+    /// </summary>
+    /// <returns>The caret rectangle, or <see cref="Rect.Empty"/> for empty text.</returns>
+    private Rect GetSafeEditorCaretRect()
+    {
+        string text = MarkdownEditorTextBox.Text;
+
+        if (text.Length == 0)
+        {
+            return Rect.Empty;
+        }
+
+        int caret = Math.Clamp(
+            MarkdownEditorTextBox.CaretIndex,
+            0,
+            text.Length);
+
+        if (caret == text.Length)
+        {
+            return MarkdownEditorTextBox.GetRectFromCharacterIndex(
+                text.Length - 1,
+                trailingEdge: true);
+        }
+
+        return MarkdownEditorTextBox.GetRectFromCharacterIndex(
+            caret,
+            trailingEdge: false);
+    }
+
+    /// <summary>
+    /// Determines whether an editor range is still valid after an asynchronous
+    /// suggestion refresh.
+    /// </summary>
+    /// <param name="start">The range start.</param>
+    /// <param name="length">The range length.</param>
+    /// <returns><see langword="true"/> when the range fits the current text.</returns>
+    private bool IsEditorRangeValid(
+            int start,
+            int length)
+    {
+        int textLength =
+            MarkdownEditorTextBox.Text.Length;
+
+        return start >= 0 &&
+               length >= 0 &&
+               start <= textLength &&
+               length <= textLength - start;
     }
 
     /// <summary>
@@ -2553,8 +2649,12 @@ public partial class MainWindow : Window
     /// </summary>
     private void CompleteInternalLinkSuggestion()
     {
-        if (InternalLinkSuggestions.SelectedItem is not LinkTargetEntry target)
+        if (InternalLinkSuggestions.SelectedItem is not LinkTargetEntry target ||
+            !IsEditorRangeValid(
+                _linkSuggestionStart,
+                _linkSuggestionLength))
         {
+            InternalLinkPopup.IsOpen = false;
             return;
         }
 
