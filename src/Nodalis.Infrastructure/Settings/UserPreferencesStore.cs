@@ -97,6 +97,22 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
                 10_000)
         };
 
+        global::Nodalis.Core.Settings.BackupPreferences sourceBackup = preferences.Backup ?? new BackupPreferences();
+        global::Nodalis.Core.Settings.BackupPreferences backup = sourceBackup with
+        {
+            DestinationDirectory = string.IsNullOrWhiteSpace(sourceBackup.DestinationDirectory)
+                ? null
+                : Path.GetFullPath(sourceBackup.DestinationDirectory.Trim()),
+            IntervalMinutes = Math.Clamp(
+                sourceBackup.IntervalMinutes,
+                15,
+                10_080),
+            RetentionCount = Math.Clamp(
+                sourceBackup.RetentionCount,
+                1,
+                100)
+        };
+
         return preferences with
         {
             NavigationPanelWidth = Math.Clamp(
@@ -108,6 +124,7 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
                 180,
                 800),
             Editor = editor,
+            Backup = backup,
             ExpandedNodeIds = preferences.ExpandedNodeIds ?? [],
             RecentItems = (preferences.RecentItems ?? [])
                 .Where(item => item?.Item is not null)

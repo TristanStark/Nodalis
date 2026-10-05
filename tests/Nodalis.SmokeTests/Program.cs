@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text.Json;
 using Nodalis.Core.Attachments;
+using Nodalis.Core.Backups;
 using Nodalis.Core.Decisions;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Glossary;
@@ -18,6 +19,7 @@ using Nodalis.Core.Trash;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
+using Nodalis.Infrastructure.Backups;
 using Nodalis.Infrastructure.Decisions;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
@@ -49,6 +51,7 @@ try
     await VerifyProjectCreationAsync(root);
     await VerifyApplicationStructureAsync(root);
     await VerifyTrashAsync(root);
+    await VerifyWorkspaceBackupsAsync(root);
     await VerifyQuickNotesAsync(root);
     await VerifySearchAsync(root);
     await VerifyLinksAndBacklinksAsync(root);
@@ -655,6 +658,139 @@ static async Task VerifyTrashAsync(string root)
         (await trash.ListAsync()).Count == 0 &&
         !File.Exists(restoredDocument),
         "Emptying the trash must permanently remove all trash payloads.");
+}
+
+static async Task VerifyWorkspaceBackupsAsync(string root)
+{
+    string backupDirectory = root + "-Backups";
+    string restoreDirectory = root + "-Restored";
+    string occupiedRestoreDirectory = root + "-OccupiedRestore";
+
+    try
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(
+                root,
+                "Backup probe.md"),
+            "# Backup probe\n\nContenu sauvegardé.\n");
+
+        global::Nodalis.Infrastructure.Backups.WorkspaceBackupService service = new WorkspaceBackupService(root);
+
+        await AssertThrowsAsync<InvalidOperationException>(
+            () => service.CreateBackupAsync(
+                Path.Combine(
+                    root,
+                    "Backups"),
+                retentionCount: 2),
+            "Backup destinations inside the workspace must be rejected.");
+
+        global::Nodalis.Core.Backups.WorkspaceBackupInfo first = await service.CreateBackupAsync(
+            backupDirectory,
+            retentionCount: 2);
+
+        Assert(
+            first.Status == BackupValidationStatus.Valid &&
+            File.Exists(first.ArchivePath) &&
+            first.SizeBytes > 0,
+            "A manual workspace backup must produce a validated standard ZIP archive.");
+
+        using (global::System.IO.Compression.ZipArchive archive = ZipFile.OpenRead(first.ArchivePath))
+        {
+            Assert(
+                archive.Entries.Any(entry =>
+                    entry.FullName == ".workspace.json") &&
+                archive.Entries.Any(entry =>
+                    entry.FullName == "Backup probe.md"),
+                "The backup ZIP must remain readable with the standard ZIP API.");
+        }
+
+        global::Nodalis.Core.Backups.WorkspaceBackupInfo second = await service.CreateBackupAsync(
+            backupDirectory,
+            retentionCount: 2);
+        global::Nodalis.Core.Backups.WorkspaceBackupInfo third = await service.CreateBackupAsync(
+            backupDirectory,
+            retentionCount: 2);
+
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Backups.WorkspaceBackupInfo> retained = await service.ListBackupsAsync(
+            backupDirectory);
+
+        Assert(
+            retained.Count == 2 &&
+            retained.All(item =>
+                item.Status == BackupValidationStatus.Valid) &&
+            !File.Exists(first.ArchivePath),
+            "Retention must keep only the configured number of newest backups.");
+
+        bool dueImmediately = await service.IsBackupDueAsync(
+            backupDirectory,
+            intervalMinutes: 60,
+            nowUtc: DateTimeOffset.UtcNow);
+
+        Assert(
+            !dueImmediately,
+            "A recent backup must suppress an automatic backup until its cadence expires.");
+
+        string restored = await service.RestoreBackupAsync(
+            third.ArchivePath,
+            restoreDirectory);
+
+        Assert(
+            File.Exists(Path.Combine(
+                restored,
+                WorkspaceLayout.WorkspaceManifestFileName)) &&
+            (await File.ReadAllTextAsync(
+                Path.Combine(
+                    restored,
+                    "Backup probe.md"))).Contains(
+                "Contenu sauvegardé.",
+                StringComparison.Ordinal),
+            "A verified backup must restore into a separate directory.");
+
+        Directory.CreateDirectory(
+            occupiedRestoreDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(
+                occupiedRestoreDirectory,
+                "existing.txt"),
+            "do not overwrite");
+
+        await AssertThrowsAsync<BackupRestoreCollisionException>(
+            () => service.RestoreBackupAsync(
+                second.ArchivePath,
+                occupiedRestoreDirectory),
+            "Restore must refuse a non-empty destination without overwriting it.");
+
+        string corruptArchive = Path.Combine(
+            backupDirectory,
+            "corrupt.zip");
+        await File.WriteAllBytesAsync(
+            corruptArchive,
+            [0x50, 0x4B, 0x03, 0x04, 0x00]);
+
+        global::Nodalis.Core.Backups.WorkspaceBackupInfo corrupt = await service.ValidateBackupAsync(
+            corruptArchive);
+
+        Assert(
+            corrupt.Status == BackupValidationStatus.Invalid,
+            "A truncated ZIP must be reported as invalid before restoration.");
+    }
+    finally
+    {
+        foreach (string path in new[]
+                 {
+                     backupDirectory,
+                     restoreDirectory,
+                     occupiedRestoreDirectory
+                 })
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(
+                    path,
+                    recursive: true);
+            }
+        }
+    }
 }
 
 static async Task VerifyQuickNotesAsync(string root)
@@ -2667,6 +2803,13 @@ static async Task VerifyUserPreferencesAsync(string root)
         {
             FontSize = 100,
             AutosaveDelayMilliseconds = 20
+        },
+        Backup = defaults.Backup with
+        {
+            AutomaticEnabled = true,
+            DestinationDirectory = Path.Combine(root, "Backups"),
+            IntervalMinutes = 1,
+            RetentionCount = 500
         }
     };
 
@@ -2683,6 +2826,12 @@ static async Task VerifyUserPreferencesAsync(string root)
         "Editor font size must be normalized.");
     Assert(loaded.Editor.AutosaveDelayMilliseconds == 100,
         "Autosave delay must be normalized.");
+    Assert(
+        loaded.Backup.AutomaticEnabled &&
+        loaded.Backup.IntervalMinutes == 15 &&
+        loaded.Backup.RetentionCount == 100 &&
+        loaded.Backup.DestinationDirectory == Path.GetFullPath(Path.Combine(root, "Backups")),
+        "Backup preferences must persist and normalize their safe bounds.");
     Assert(loaded.Favorites.Count == 1 && loaded.ExpandedNodeIds.Contains(projectId),
         "Favorites and expanded nodes must survive persistence.");
 

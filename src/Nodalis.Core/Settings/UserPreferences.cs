@@ -18,6 +18,8 @@ public sealed record UserPreferences
 
     public EditorPreferences Editor { get; init; } = new();
 
+    public BackupPreferences Backup { get; init; } = new();
+
     public List<RecentItemReference> RecentItems { get; init; } = [];
 
     public List<UserItemReference> Favorites { get; init; } = [];
