@@ -4076,7 +4076,8 @@ public partial class MainWindow : Window
             contextPath,
             scopeLabel,
             ToggleTaskFromViewAsync,
-            UpdateTaskMetadataFromViewAsync)
+            UpdateTaskMetadataFromViewAsync,
+            PromoteMeetingActionFromViewAsync)
         {
             Owner = this
         };
@@ -4312,6 +4313,89 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"Métadonnées de tâche mises à jour · {task.Text}";
+    }
+
+    /// <summary>
+    /// Promotes a meeting action to project task tracking while keeping an open source meeting synchronized.
+    /// </summary>
+    /// <param name="task">The meeting action to promote.</param>
+    /// <param name="metadata">The reviewed metadata to apply.</param>
+    /// <returns>The promotion result.</returns>
+    private async Task<MeetingActionPromotionResult> PromoteMeetingActionFromViewAsync(
+            TaskItem task,
+            TaskMetadataUpdate metadata)
+    {
+        string sourcePath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                task.SourceRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        bool isCurrentDocument =
+            _documentSession is not null &&
+            string.Equals(
+                Path.GetFullPath(
+                    _documentSession.Path),
+                sourcePath,
+                StringComparison.OrdinalIgnoreCase);
+
+        int caret =
+            MarkdownEditorTextBox.CaretIndex;
+
+        if (isCurrentDocument &&
+            _autosave is not null)
+        {
+            await _autosave.FlushAsync();
+
+            if (_documentDirty)
+            {
+                throw new InvalidOperationException(
+                    "Le compte-rendu source contient des modifications non enregistrées. Résolvez d'abord le conflit avant de promouvoir cette action.");
+            }
+        }
+
+        MeetingActionPromotionResult result = await _taskService.PromoteMeetingActionAsync(
+            task,
+            metadata);
+
+        if (isCurrentDocument &&
+            _documentSession is not null)
+        {
+            await _documentSession.ReloadAsync();
+
+            _suppressEditorChanges =
+                true;
+            MarkdownEditorTextBox.Text =
+                _documentSession.Content;
+            MarkdownEditorTextBox.CaretIndex =
+                Math.Min(
+                    caret,
+                    MarkdownEditorTextBox.Text.Length);
+            _suppressEditorChanges =
+                false;
+
+            _documentDirty =
+                false;
+            SaveStateText.Text =
+                "Enregistré";
+
+            await RefreshGlossaryContextAsync(
+                sourcePath);
+            UpdateGlossaryAnnotations();
+            RefreshDocumentPropertiesContext(
+                MarkdownEditorTextBox.Text);
+            RenderPreview();
+        }
+
+        await RefreshLinkIndexAndContextAsync();
+        await RefreshDashboardTasksAsync();
+
+        StatusText.Text = result.Created
+            ? $"Action promue · {task.Text}"
+            : $"Action déjà promue · {task.Text}";
+
+        return result;
     }
 
     /// <summary>
