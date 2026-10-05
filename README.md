@@ -25,6 +25,7 @@ Le socle actuellement disponible comprend :
 - import DOCX local avec détection Application/Projet, remapping des sections, aperçu Markdown et plan exact des fichiers avant validation ;
 - persistance atomique et détection des modifications externes ;
 - corbeille Nodalis récupérable pour documents, projets, modules et applications ;
+- sauvegardes ZIP manuelles/automatiques avec rétention, validation et restauration assistée ;
 - zéro dépendance NuGet ;
 - zéro API réseau dans le produit.
 
