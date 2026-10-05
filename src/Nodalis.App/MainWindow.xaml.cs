@@ -1001,6 +1001,11 @@ public partial class MainWindow : Window
         ContextKindText.Text = GetKindLabel(node.Kind);
         ContextPathText.Text = node.FullPath;
 
+        if (node.Kind != WorkspaceNodeKind.Document)
+        {
+            ClearDocumentPropertiesContext();
+        }
+
         if (node.Kind == WorkspaceNodeKind.Workspace)
         {
             ShowDashboard();
@@ -1112,6 +1117,9 @@ public partial class MainWindow : Window
                 MarkdownEditorTextBox.Text;
             _activeDocumentTab.IsDirty = true;
         }
+
+        RefreshDocumentPropertiesContext(
+            MarkdownEditorTextBox.Text);
 
         SaveStateText.Text = "Modification…";
 
