@@ -182,6 +182,7 @@ public partial class MainWindow : Window
             {
                 AttachGlossaryAdorner();
                 await RefreshLinkIndexAndContextAsync();
+                await CleanupRecentHistoryAsync();
                 await RefreshGlossaryContextAsync(
                     _selectedNode?.FullPath ?? _root.FullPath);
                 UpdateGlossaryAnnotations();
@@ -1750,6 +1751,8 @@ public partial class MainWindow : Window
             .Where(IsMeetingDashboardItem)
             .Take(8)
             .ToArray();
+
+        RefreshRecentSearchesDashboard();
     }
 
     /// <summary>
@@ -2779,19 +2782,44 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the <c>SearchAsync</c> operation.
+    /// Opens search using the current navigation context.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    private async Task SearchAsync()
+    private Task SearchAsync() =>
+        SearchAsync(
+            initialQuery: null,
+            contextPath: _selectedNode?.FullPath);
+
+    /// <summary>
+    /// Opens search with an optional restored query and local context.
+    /// </summary>
+    /// <param name="initialQuery">The query to prefill, when any.</param>
+    /// <param name="contextPath">The local scope path, when any.</param>
+    /// <returns>The result of the operation.</returns>
+    private async Task SearchAsync(
+            string? initialQuery,
+            string? contextPath)
     {
         global::Nodalis.App.Dialogs.SearchDialog dialog = new SearchDialog(
             _root.FullPath,
-            _selectedNode?.FullPath)
+            contextPath,
+            initialQuery)
         {
             Owner = this
         };
 
-        if (dialog.ShowDialog() != true ||
+        bool? accepted =
+            dialog.ShowDialog();
+
+        if (!string.IsNullOrWhiteSpace(
+                dialog.Query))
+        {
+            await TrackRecentSearchAsync(
+                dialog.Query,
+                contextPath);
+        }
+
+        if (accepted != true ||
             dialog.SelectedResult is null)
         {
             return;
