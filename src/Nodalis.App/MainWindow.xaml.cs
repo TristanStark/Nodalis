@@ -12,6 +12,7 @@ using Microsoft.Win32;
 using Nodalis.App.Commands;
 using Nodalis.App.Dashboard;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Editor;
 using Nodalis.App.Glossary;
 using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
