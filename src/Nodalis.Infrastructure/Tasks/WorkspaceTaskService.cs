@@ -90,7 +90,14 @@ public sealed partial class WorkspaceTaskService
                 }
 
                 string body = match.Groups["body"].Value.Trim();
-                (string Text, string? Owner, global::System.DateOnly? DueDate) metadata = ParseMetadata(
+                (
+                    string Text,
+                    string? Owner,
+                    global::System.DateOnly? DueDate,
+                    string? Priority,
+                    string? Status,
+                    global::System.Collections.Generic.IReadOnlyList<string> Tags
+                ) metadata = ParseMetadata(
                     body);
 
                 tasks.Add(new TaskItem
@@ -109,6 +116,9 @@ public sealed partial class WorkspaceTaskService
                             match.Groups["checked"].Value),
                     Owner = metadata.Owner,
                     DueDate = metadata.DueDate,
+                    Priority = metadata.Priority,
+                    Status = metadata.Status,
+                    Tags = metadata.Tags,
                     ApplicationId = application?.Id,
                     ApplicationName = application?.DisplayName,
                     ProjectId = project?.Id,
@@ -123,6 +133,7 @@ public sealed partial class WorkspaceTaskService
             Tasks = tasks
                 .OrderBy(task => task.IsCompleted)
                 .ThenBy(task => task.DueDate ?? DateOnly.MaxValue)
+                .ThenBy(task => GetPriorityRank(task.Priority))
                 .ThenBy(task => task.Text, StringComparer.CurrentCultureIgnoreCase)
                 .ToList()
         };
@@ -168,6 +179,7 @@ public sealed partial class WorkspaceTaskService
 
         return filtered
             .OrderBy(task => task.DueDate ?? DateOnly.MaxValue)
+            .ThenBy(task => GetPriorityRank(task.Priority))
             .ThenBy(task => task.Text, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
     }
@@ -229,35 +241,10 @@ public sealed partial class WorkspaceTaskService
                 lines.Count - 1);
         }
 
-        int index = task.LineNumber - 1;
-
-        if (index < 0 ||
-            index >= lines.Count ||
-            !string.Equals(
-                lines[index],
-                task.RawLine,
-                StringComparison.Ordinal))
-        {
-            int[] candidates = lines
-                .Select((line, lineIndex) =>
-                    (line, lineIndex))
-                .Where(candidate =>
-                    string.Equals(
-                        candidate.line,
-                        task.RawLine,
-                        StringComparison.Ordinal))
-                .Select(candidate =>
-                    candidate.lineIndex)
-                .ToArray();
-
-            if (candidates.Length != 1)
-            {
-                throw new TaskSourceConflictException(
-                    fullPath);
-            }
-
-            index = candidates[0];
-        }
+        int index = ResolveTaskLineIndex(
+            lines,
+            task,
+            fullPath);
 
         string updatedLine = SetCheckboxState(
             lines[index],
@@ -280,6 +267,140 @@ public sealed partial class WorkspaceTaskService
         if (hadTrailingNewline)
         {
             content += newline;
+        }
+
+        await session.SaveAsync(
+            content,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Rewrites the readable metadata segments of one Markdown checkbox task.
+    /// </summary>
+    /// <param name="task">The source task to update.</param>
+    /// <param name="metadata">The complete metadata set to write.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the local Markdown update.</returns>
+    public async Task UpdateMetadataAsync(
+            TaskItem task,
+            TaskMetadataUpdate metadata,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(
+            task);
+        ArgumentNullException.ThrowIfNull(
+            metadata);
+
+        string fullPath = ResolveWorkspacePath(
+            task.SourceRelativePath);
+
+        if (!File.Exists(
+                fullPath))
+        {
+            throw new FileNotFoundException(
+                "Le document source de la tâche est introuvable.",
+                fullPath);
+        }
+
+        global::Nodalis.Infrastructure.Reliability.TextDocumentSession session =
+            await TextDocumentSession.OpenAsync(
+                fullPath,
+                cancellationToken);
+
+        string newline = session.Content.Contains(
+            "\r\n",
+            StringComparison.Ordinal)
+            ? "\r\n"
+            : "\n";
+
+        string normalized = session.Content
+            .Replace(
+                "\r\n",
+                "\n",
+                StringComparison.Ordinal)
+            .Replace(
+                '\r',
+                '\n');
+
+        bool hadTrailingNewline = normalized.EndsWith(
+            "\n",
+            StringComparison.Ordinal);
+
+        global::System.Collections.Generic.List<string> lines =
+            normalized.Split(
+                '\n')
+            .ToList();
+
+        if (hadTrailingNewline &&
+            lines.Count > 0 &&
+            lines[^1].Length == 0)
+        {
+            lines.RemoveAt(
+                lines.Count - 1);
+        }
+
+        int index = ResolveTaskLineIndex(
+            lines,
+            task,
+            fullPath);
+
+        string owner = NormalizeMetadataValue(
+            metadata.Owner,
+            "responsable");
+        string priority = NormalizeMetadataValue(
+            metadata.Priority,
+            "priorité");
+        string status = NormalizeMetadataValue(
+            metadata.Status,
+            "statut");
+
+        global::System.Collections.Generic.IReadOnlyList<string> tags =
+            NormalizeTags(
+                metadata.Tags);
+
+        string body = BuildTaskBody(
+            task.Text,
+            owner,
+            metadata.DueDate,
+            priority,
+            status,
+            tags);
+
+        global::System.Text.RegularExpressions.Match match =
+            CheckboxPattern().Match(
+                lines[index]);
+
+        if (!match.Success)
+        {
+            throw new InvalidDataException(
+                "La ligne source n'est plus une checkbox Markdown.");
+        }
+
+        string updatedLine =
+            match.Groups["prefix"].Value +
+            match.Groups["checked"].Value +
+            "] " +
+            body;
+
+        if (string.Equals(
+                updatedLine,
+                lines[index],
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        lines[index] =
+            updatedLine;
+
+        string content = string.Join(
+            newline,
+            lines);
+
+        if (hadTrailingNewline)
+        {
+            content +=
+                newline;
         }
 
         await session.SaveAsync(
@@ -371,12 +492,19 @@ public sealed partial class WorkspaceTaskService
                         Path.DirectorySeparatorChar)));
 
     /// <summary>
-    /// Performs the <c>ParseMetadata</c> operation.
+    /// Parses readable pipe-delimited task metadata while preserving unknown text segments.
     /// </summary>
-    /// <param name="body">The <c>body</c> value.</param>
-    /// <returns>The result of the operation.</returns>
-    private static (string Text, string? Owner, DateOnly? DueDate)
-            ParseMetadata(string body)
+    /// <param name="body">The checkbox body without its marker.</param>
+    /// <returns>The task text and recognized metadata.</returns>
+    private static (
+            string Text,
+            string? Owner,
+            DateOnly? DueDate,
+            string? Priority,
+            string? Status,
+            IReadOnlyList<string> Tags)
+            ParseMetadata(
+                string body)
     {
         string[] segments = body
             .Split(
@@ -384,29 +512,35 @@ public sealed partial class WorkspaceTaskService
                 StringSplitOptions.TrimEntries)
             .ToArray();
 
-        if (segments.Length <= 1)
+        global::System.Collections.Generic.List<string> textSegments =
+            new List<string>();
+
+        string? owner =
+            null;
+        DateOnly? dueDate =
+            null;
+        string? priority =
+            null;
+        string? status =
+            null;
+        global::System.Collections.Generic.List<string> tags =
+            new List<string>();
+
+        foreach (string segment in segments)
         {
-            return (
-                body.Trim(),
-                null,
-                null);
-        }
-
-        string text = segments[0].Trim();
-        string? owner = null;
-        DateOnly? dueDate = null;
-
-        for (int index = 1;
-             index < segments.Length;
-             index++)
-        {
-            string segment = segments[index];
-
-            int separatorIndex = segment.IndexOf(
-                ':');
+            int separatorIndex =
+                segment.IndexOf(
+                    ':');
 
             if (separatorIndex <= 0)
             {
+                if (!string.IsNullOrWhiteSpace(
+                        segment))
+                {
+                    textSegments.Add(
+                        segment.Trim());
+                }
+
                 continue;
             }
 
@@ -416,33 +550,89 @@ public sealed partial class WorkspaceTaskService
             string value = segment[(separatorIndex + 1)..]
                 .Trim();
 
-            if (string.IsNullOrWhiteSpace(value))
+            bool recognized =
+                key is
+                    "responsable" or
+                    "owner" or
+                    "echeance" or
+                    "due" or
+                    "priorite" or
+                    "priority" or
+                    "statut" or
+                    "status" or
+                    "tag" or
+                    "tags";
+
+            if (!recognized)
+            {
+                textSegments.Add(
+                    segment.Trim());
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                    value))
             {
                 continue;
             }
 
             if (key is "responsable" or "owner")
             {
-                owner = value;
+                owner =
+                    value;
                 continue;
             }
 
-            if (key is "echeance" or "due" &&
-                DateOnly.TryParseExact(
-                    value,
-                    "yyyy-MM-dd",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out global::System.DateOnly parsed))
+            if (key is "echeance" or "due")
             {
-                dueDate = parsed;
+                if (DateOnly.TryParseExact(
+                        value,
+                        "yyyy-MM-dd",
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out global::System.DateOnly parsed))
+                {
+                    dueDate =
+                        parsed;
+                }
+
+                continue;
             }
+
+            if (key is "priorite" or "priority")
+            {
+                priority =
+                    value;
+                continue;
+            }
+
+            if (key is "statut" or "status")
+            {
+                status =
+                    value;
+                continue;
+            }
+
+            tags.AddRange(
+                ParseTags(
+                    value));
         }
+
+        string text =
+            string.Join(
+                " | ",
+                textSegments);
 
         return (
             text,
             owner,
-            dueDate);
+            dueDate,
+            priority,
+            status,
+            tags
+                .Distinct(
+                    StringComparer.CurrentCultureIgnoreCase)
+                .ToArray());
     }
 
     /// <summary>
@@ -467,6 +657,235 @@ public sealed partial class WorkspaceTaskService
                     "ê",
                     "e",
                     StringComparison.Ordinal);
+
+    /// <summary>
+    /// Parses a comma-separated task tag list.
+    /// </summary>
+    /// <param name="value">The raw tag value.</param>
+    /// <returns>Normalized unique tags.</returns>
+    private static IReadOnlyList<string> ParseTags(
+            string value) =>
+            value
+                .Split(
+                    ',',
+                    StringSplitOptions.RemoveEmptyEntries |
+                    StringSplitOptions.TrimEntries)
+                .Select(tag =>
+                    tag.Trim()
+                        .TrimStart(
+                            '#'))
+                .Where(tag =>
+                    tag.Length > 0)
+                .Distinct(
+                    StringComparer.CurrentCultureIgnoreCase)
+                .ToArray();
+
+    /// <summary>
+    /// Normalizes tags before writing them back to Markdown.
+    /// </summary>
+    /// <param name="tags">The edited tags.</param>
+    /// <returns>Normalized unique tags.</returns>
+    private static IReadOnlyList<string> NormalizeTags(
+            IReadOnlyList<string> tags)
+    {
+        ArgumentNullException.ThrowIfNull(
+            tags);
+
+        global::System.Collections.Generic.List<string> normalized =
+            new List<string>();
+
+        foreach (string tag in tags)
+        {
+            string value =
+                tag.Trim()
+                    .TrimStart(
+                        '#');
+
+            if (value.Length == 0)
+            {
+                continue;
+            }
+
+            if (value.Contains(
+                    '|') ||
+                value.Contains(
+                    ',') ||
+                value.Contains(
+                    '\r') ||
+                value.Contains(
+                    '\n'))
+            {
+                throw new InvalidDataException(
+                    "Un tag de tâche ne peut pas contenir « | », une virgule ou un retour à la ligne.");
+            }
+
+            if (!normalized.Contains(
+                    value,
+                    StringComparer.CurrentCultureIgnoreCase))
+            {
+                normalized.Add(
+                    value);
+            }
+        }
+
+        return normalized;
+    }
+
+    /// <summary>
+    /// Normalizes one optional single-line metadata value.
+    /// </summary>
+    /// <param name="value">The raw value.</param>
+    /// <param name="displayName">The metadata field name for validation messages.</param>
+    /// <returns>The trimmed value or an empty string.</returns>
+    private static string NormalizeMetadataValue(
+            string? value,
+            string displayName)
+    {
+        string normalized =
+            value?.Trim() ??
+            string.Empty;
+
+        if (normalized.Contains(
+                '|') ||
+            normalized.Contains(
+                '\r') ||
+            normalized.Contains(
+                '\n'))
+        {
+            throw new InvalidDataException(
+                $"La valeur « {displayName} » doit tenir sur une ligne et ne peut pas contenir « | ».");
+        }
+
+        return normalized;
+    }
+
+    /// <summary>
+    /// Builds the canonical readable checkbox body from task text and metadata.
+    /// </summary>
+    /// <param name="text">The task text.</param>
+    /// <param name="owner">The owner.</param>
+    /// <param name="dueDate">The due date.</param>
+    /// <param name="priority">The priority.</param>
+    /// <param name="status">The status.</param>
+    /// <param name="tags">The tags.</param>
+    /// <returns>The Markdown checkbox body.</returns>
+    private static string BuildTaskBody(
+            string text,
+            string owner,
+            DateOnly? dueDate,
+            string priority,
+            string status,
+            IReadOnlyList<string> tags)
+    {
+        global::System.Collections.Generic.List<string> segments =
+            new List<string>
+            {
+                text.Trim()
+            };
+
+        if (owner.Length > 0)
+        {
+            segments.Add(
+                $"Responsable: {owner}");
+        }
+
+        if (dueDate is DateOnly date)
+        {
+            segments.Add(
+                $"Échéance: {date:yyyy-MM-dd}");
+        }
+
+        if (priority.Length > 0)
+        {
+            segments.Add(
+                $"Priorité: {priority}");
+        }
+
+        if (status.Length > 0)
+        {
+            segments.Add(
+                $"Statut: {status}");
+        }
+
+        if (tags.Count > 0)
+        {
+            segments.Add(
+                $"Tags: {string.Join(", ", tags)}");
+        }
+
+        return string.Join(
+            " | ",
+            segments);
+    }
+
+    /// <summary>
+    /// Resolves the current source line for a task, including safe relocation after inserted lines.
+    /// </summary>
+    /// <param name="lines">The current source lines.</param>
+    /// <param name="task">The indexed task.</param>
+    /// <param name="fullPath">The source path used in conflict diagnostics.</param>
+    /// <returns>The zero-based current source line index.</returns>
+    private static int ResolveTaskLineIndex(
+            IReadOnlyList<string> lines,
+            TaskItem task,
+            string fullPath)
+    {
+        int index =
+            task.LineNumber -
+            1;
+
+        if (index >= 0 &&
+            index < lines.Count &&
+            string.Equals(
+                lines[index],
+                task.RawLine,
+                StringComparison.Ordinal))
+        {
+            return index;
+        }
+
+        int[] candidates = lines
+            .Select((line, lineIndex) =>
+                (line, lineIndex))
+            .Where(candidate =>
+                string.Equals(
+                    candidate.line,
+                    task.RawLine,
+                    StringComparison.Ordinal))
+            .Select(candidate =>
+                candidate.lineIndex)
+            .ToArray();
+
+        if (candidates.Length != 1)
+        {
+            throw new TaskSourceConflictException(
+                fullPath);
+        }
+
+        return candidates[0];
+    }
+
+    /// <summary>
+    /// Returns the stable sort rank for common priority labels.
+    /// </summary>
+    /// <param name="priority">The optional priority label.</param>
+    /// <returns>A lower number for a more important priority.</returns>
+    public static int GetPriorityRank(
+            string? priority)
+    {
+        string normalized = NormalizeMetadataKey(
+            priority ??
+            string.Empty);
+
+        return normalized switch
+        {
+            "critique" or "critical" or "urgent" => 0,
+            "haute" or "high" => 1,
+            "normale" or "normal" or "moyenne" or "medium" => 2,
+            "basse" or "low" => 3,
+            _ => 4
+        };
+    }
 
     /// <summary>
     /// Performs the <c>SetCheckboxState</c> operation.
