@@ -49,6 +49,27 @@ Les données restent lisibles sans Nodalis :
 - métadonnées en JSON ;
 - pièces jointes et sources importées sous forme de fichiers ordinaires.
 
+## Modifier la structure d'un projet
+
+Depuis la palette de commandes, utilisez **Structure du projet** pour modifier
+un projet après sa création sans éditer manuellement `.project.json`.
+
+Le gestionnaire permet de :
+
+- ajouter une section vide ou l'initialiser depuis un template Markdown ;
+- renommer et réordonner les sections ;
+- déplacer un document Markdown d'une section vers une autre ;
+- supprimer une section vide ;
+- supprimer une section non vide uniquement après avoir choisi explicitement
+  une section de destination pour son contenu.
+
+Les quatre rôles minimaux **Jalons**, **Technique**, **Glossaire** et **Tests**
+restent obligatoires. Cette contrainte porte sur leur rôle/template : leur nom
+d'affichage et leur position restent personnalisables.
+
+Nodalis refuse les collisions de noms lors des déplacements et n'efface jamais
+silencieusement le contenu d'une section.
+
 ## Rechercher dans le workspace
 
 La recherche est **fuzzy par défaut** : elle accepte les fautes courantes et
