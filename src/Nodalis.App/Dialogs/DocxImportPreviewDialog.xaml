@@ -136,7 +136,7 @@
                                             <TextBlock Margin="0,2"
                                                        TextWrapping="Wrap">
                                                 <Run Text="• " />
-                                                <Run Text="{Binding}" />
+                                                <Run Text="{Binding Path=., Mode=OneWay}" />
                                             </TextBlock>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -310,7 +310,7 @@
                                 <TextBlock Margin="0,2"
                                            TextWrapping="Wrap">
                                     <Run Text="• " />
-                                    <Run Text="{Binding}" />
+                                    <Run Text="{Binding Path=., Mode=OneWay}" />
                                 </TextBlock>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -335,7 +335,7 @@
                                             BorderBrush="{StaticResource BorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="4">
-                                        <TextBlock Text="{Binding}"
+                                        <TextBlock Text="{Binding Path=., Mode=OneWay}"
                                                    TextWrapping="Wrap" />
                                     </Border>
                                 </DataTemplate>
