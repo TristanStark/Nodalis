@@ -2813,6 +2813,18 @@ static async Task VerifyUserPreferencesAsync(string root)
                 }
             }
         ],
+        OpenDocumentTabs =
+        [
+            new OpenDocumentTabReference
+            {
+                DocumentId = projectId,
+                RelativePath = "Applications/Application A/Notes rapides.md",
+                CaretIndex = 42,
+                SelectionStart = 40,
+                SelectionLength = 2
+            }
+        ],
+        ActiveDocumentTabId = projectId,
         Editor = defaults.Editor with
         {
             FontSize = 100,
@@ -2848,6 +2860,14 @@ static async Task VerifyUserPreferencesAsync(string root)
         "Backup preferences must persist and normalize their safe bounds.");
     Assert(loaded.Favorites.Count == 1 && loaded.ExpandedNodeIds.Contains(projectId),
         "Favorites and expanded nodes must survive persistence.");
+    Assert(
+        loaded.OpenDocumentTabs.Count == 1 &&
+        loaded.OpenDocumentTabs[0].DocumentId == projectId &&
+        loaded.OpenDocumentTabs[0].CaretIndex == 42 &&
+        loaded.OpenDocumentTabs[0].SelectionStart == 40 &&
+        loaded.OpenDocumentTabs[0].SelectionLength == 2 &&
+        loaded.ActiveDocumentTabId == projectId,
+        "Open document tabs and their editor positions must survive preference persistence.");
 
     await File.WriteAllTextAsync(preferencesPath, "{ definitely not valid json");
     global::Nodalis.Core.Settings.UserPreferences recovered = await store.LoadAsync();
