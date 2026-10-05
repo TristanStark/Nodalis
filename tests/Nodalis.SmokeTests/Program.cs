@@ -7,6 +7,7 @@ using Nodalis.Core.Backups;
 using Nodalis.Core.Decisions;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Glossary;
+using Nodalis.Core.Flowcharts;
 using Nodalis.Core.Importing;
 using Nodalis.Core.Links;
 using Nodalis.Core.Meetings;
@@ -69,6 +70,7 @@ try
     await VerifyDocxImportAsync(root);
     await VerifyDocxImportAnalysisAsync(root);
     VerifyMarkdownParser();
+    VerifyFlowcharts();
     VerifyMarkdownFrontMatter();
     VerifyMarkdownOutlineParser();
     await VerifyUserPreferencesAsync(root);
@@ -3311,6 +3313,172 @@ static void VerifyMarkdownParser()
             inline.Kind == MarkdownInlineKind.Link &&
             inline.Target == "file.md"),
         "Standard Markdown links must be parsed.");
+}
+
+static void VerifyFlowcharts()
+{
+    string fence = new string(
+        (char)96,
+        3);
+    string markdown =
+        fence + "mermaid\n" +
+        "flowchart TD\n" +
+        "    A[Début] --> B{Condition}\n" +
+        "    B -->|Oui| C[Action]\n" +
+        "    B -->|Non| D[Fin]\n" +
+        fence + "\n";
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Markdown.MarkdownBlock> markdownBlocks =
+        MarkdownDocumentParser.Parse(
+            markdown);
+    global::Nodalis.Core.Markdown.MarkdownBlock mermaidBlock =
+        markdownBlocks.Single(block =>
+            block.Kind ==
+                MarkdownBlockKind.CodeBlock &&
+            string.Equals(
+                block.Language,
+                "mermaid",
+                StringComparison.OrdinalIgnoreCase));
+
+    global::Nodalis.Core.Flowcharts.FlowchartParseResult parsed =
+        MermaidFlowchartParser.Parse(
+            mermaidBlock.Text);
+
+    Assert(
+        parsed.Success &&
+        parsed.Diagram is not null,
+        "A supported Mermaid flowchart fence must parse locally.");
+    Assert(
+        parsed.Diagram.Direction ==
+            FlowchartDirection.TopDown &&
+        parsed.Diagram.Nodes.Count ==
+            4 &&
+        parsed.Diagram.Edges.Count ==
+            3,
+        "The example flowchart must preserve direction, nodes and branches.");
+    Assert(
+        parsed.Diagram.Nodes.Single(node =>
+            node.Id ==
+            "B").Shape ==
+        FlowchartNodeShape.Decision,
+        "Curly-brace Mermaid nodes must become decision diamonds.");
+    Assert(
+        parsed.Diagram.Edges.Any(edge =>
+            edge.Label ==
+            "Oui") &&
+        parsed.Diagram.Edges.Any(edge =>
+            edge.Label ==
+            "Non"),
+        "Mermaid edge labels must be preserved.");
+
+    global::Nodalis.Core.Flowcharts.FlowchartLayout branchLayout =
+        FlowchartLayoutEngine.Layout(
+            parsed.Diagram);
+    global::Nodalis.Core.Flowcharts.FlowchartLayoutNode actionNode =
+        branchLayout.Nodes.Single(node =>
+            node.Node.Id ==
+            "C");
+    global::Nodalis.Core.Flowcharts.FlowchartLayoutNode endNode =
+        branchLayout.Nodes.Single(node =>
+            node.Node.Id ==
+            "D");
+
+    Assert(
+        Math.Abs(
+            actionNode.Y -
+            endNode.Y) <
+        0.01 &&
+        Math.Abs(
+            actionNode.X -
+            endNode.X) >
+        1,
+        "Branches at the same rank must be laid out as distinct sibling nodes.");
+
+    global::System.Collections.Generic.Dictionary<string, global::Nodalis.Core.Flowcharts.FlowchartDirection> directions =
+        new Dictionary<string, FlowchartDirection>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["TD"] =
+                FlowchartDirection.TopDown,
+            ["TB"] =
+                FlowchartDirection.TopDown,
+            ["LR"] =
+                FlowchartDirection.LeftRight,
+            ["RL"] =
+                FlowchartDirection.RightLeft,
+            ["BT"] =
+                FlowchartDirection.BottomTop
+        };
+
+    foreach (global::System.Collections.Generic.KeyValuePair<string, global::Nodalis.Core.Flowcharts.FlowchartDirection> pair in
+             directions)
+    {
+        global::Nodalis.Core.Flowcharts.FlowchartParseResult orientationResult =
+            MermaidFlowchartParser.Parse(
+                $"flowchart {pair.Key}\nA[Source] --> B[Cible]");
+
+        Assert(
+            orientationResult.Success &&
+            orientationResult.Diagram is not null &&
+            orientationResult.Diagram.Direction ==
+                pair.Value,
+            $"Flowchart orientation {pair.Key} must parse.");
+
+        global::Nodalis.Core.Flowcharts.FlowchartLayout orientationLayout =
+            FlowchartLayoutEngine.Layout(
+                orientationResult.Diagram);
+        global::Nodalis.Core.Flowcharts.FlowchartLayoutNode source =
+            orientationLayout.Nodes.Single(node =>
+                node.Node.Id ==
+                "A");
+        global::Nodalis.Core.Flowcharts.FlowchartLayoutNode target =
+            orientationLayout.Nodes.Single(node =>
+                node.Node.Id ==
+                "B");
+
+        bool directionIsCorrect =
+            pair.Key switch
+            {
+                "LR" =>
+                    source.CenterX <
+                    target.CenterX,
+                "RL" =>
+                    source.CenterX >
+                    target.CenterX,
+                "BT" =>
+                    source.CenterY >
+                    target.CenterY,
+                _ =>
+                    source.CenterY <
+                    target.CenterY
+            };
+
+        Assert(
+            directionIsCorrect,
+            $"Flowchart layout {pair.Key} must follow the requested orientation.");
+    }
+
+    global::Nodalis.Core.Flowcharts.FlowchartParseResult invalid =
+        MermaidFlowchartParser.Parse(
+            "flowchart TD\nA -->|Libellé incomplet B");
+
+    Assert(
+        !invalid.Success &&
+        invalid.Diagnostics.Any(diagnostic =>
+            diagnostic.Severity ==
+            FlowchartDiagnosticSeverity.Error),
+        "Malformed supported flowchart syntax must return a diagnostic instead of throwing.");
+
+    global::Nodalis.Core.Flowcharts.FlowchartParseResult withUnsupportedSyntax =
+        MermaidFlowchartParser.Parse(
+            "graph LR\nA[Début] --> B[Fin]\nclassDef important fill:red");
+
+    Assert(
+        withUnsupportedSyntax.Success &&
+        withUnsupportedSyntax.Diagnostics.Any(diagnostic =>
+            diagnostic.Severity ==
+            FlowchartDiagnosticSeverity.Warning),
+        "Unsupported Mermaid statements must be ignored with a warning, not corrupt the diagram.");
 }
 
 static async Task VerifyUserPreferencesAsync(string root)
