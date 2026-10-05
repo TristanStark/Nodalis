@@ -400,6 +400,8 @@ public sealed class WorkspaceDecisionService
             await TextDocumentSession.OpenAsync(
                 replacementPath,
                 cancellationToken);
+        string originalPreviousContent =
+            previousSession.Content;
 
         string previousContent =
             UpsertMetadata(
@@ -438,7 +440,7 @@ public sealed class WorkspaceDecisionService
         catch
         {
             await previousSession.SaveAsync(
-                previousSession.Content,
+                originalPreviousContent,
                 cancellationToken);
             throw;
         }
