@@ -32,6 +32,24 @@ public partial class MainWindow
         QuickOpenEntry selected =
             dialog.SelectedEntry;
 
+        if (selected.BookmarkId is Guid bookmarkId)
+        {
+            global::Nodalis.Core.Settings.DocumentBookmarkReference? bookmark =
+                _preferences.Bookmarks.FirstOrDefault(candidate =>
+                    candidate.Id == bookmarkId);
+
+            if (bookmark is null)
+            {
+                StatusText.Text =
+                    $"Quick Open · signet introuvable : {selected.DisplayName}";
+                return;
+            }
+
+            await NavigateToBookmarkAsync(
+                bookmark);
+            return;
+        }
+
         NavigationNodeViewModel? target =
             _root
                 .DescendantsAndSelf()
@@ -155,6 +173,16 @@ public partial class MainWindow
                         preferenceKey),
                     RecentRank = rank
                 });
+        }
+
+        foreach (global::Nodalis.Core.Settings.DocumentBookmarkReference bookmark in _preferences.Bookmarks)
+        {
+            QuickOpenEntry bookmarkEntry =
+                CreateBookmarkQuickOpenEntry(
+                    bookmark);
+
+            entries.Add(
+                bookmarkEntry);
         }
 
         return entries;

@@ -26,6 +26,8 @@ public sealed record UserPreferences
 
     public List<UserItemReference> Favorites { get; init; } = [];
 
+    public List<DocumentBookmarkReference> Bookmarks { get; init; } = [];
+
     public List<OpenDocumentTabReference> OpenDocumentTabs { get; init; } = [];
 
     public Guid? ActiveDocumentTabId { get; init; }

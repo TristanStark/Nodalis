@@ -1,0 +1,62 @@
+<Window x:Class="Nodalis.App.Dialogs.BookmarkDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Signet de section"
+        Width="500"
+        Height="255"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="18" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Section"
+                   FontWeight="SemiBold" />
+
+        <TextBlock x:Name="HeadingText"
+                   Grid.Row="1"
+                   Margin="0,6,0,0"
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource SecondaryTextBrush}" />
+
+        <TextBlock Grid.Row="3"
+                   Text="Nom du signet"
+                   FontWeight="SemiBold" />
+
+        <TextBox x:Name="NameTextBox"
+                 Grid.Row="4"
+                 Margin="0,7,0,0"
+                 Height="32"
+                 VerticalContentAlignment="Center" />
+
+        <DockPanel Grid.Row="6"
+                   LastChildFill="False">
+            <Button x:Name="DeleteButton"
+                    DockPanel.Dock="Left"
+                    MinWidth="100"
+                    Padding="10,4"
+                    Click="Delete_Click"
+                    Content="Supprimer" />
+
+            <StackPanel DockPanel.Dock="Right"
+                        Orientation="Horizontal">
+                <Button Margin="0,0,8,0"
+                        MinWidth="90"
+                        IsCancel="True"
+                        Content="Annuler" />
+                <Button MinWidth="100"
+                        IsDefault="True"
+                        Click="Save_Click"
+                        Content="Enregistrer" />
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

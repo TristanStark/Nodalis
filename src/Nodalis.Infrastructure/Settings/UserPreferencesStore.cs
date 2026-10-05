@@ -162,6 +162,29 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
                 .Where(item => item is not null)
                 .DistinctBy(item => $"{item.Kind}\0{item.Key}", StringComparer.OrdinalIgnoreCase)
                 .ToList(),
+            Bookmarks = (preferences.Bookmarks ?? [])
+                .Where(bookmark =>
+                    bookmark is not null &&
+                    bookmark.Id != Guid.Empty &&
+                    bookmark.DocumentId != Guid.Empty &&
+                    !string.IsNullOrWhiteSpace(bookmark.DocumentRelativePath) &&
+                    !string.IsNullOrWhiteSpace(bookmark.DisplayName) &&
+                    !string.IsNullOrWhiteSpace(bookmark.HeadingTitle) &&
+                    bookmark.HeadingLevel is >= 1 and <= 6)
+                .Select(bookmark => bookmark with
+                {
+                    DocumentRelativePath = bookmark.DocumentRelativePath
+                        .Trim()
+                        .Replace('\\', '/'),
+                    DisplayName = bookmark.DisplayName.Trim(),
+                    HeadingTitle = bookmark.HeadingTitle.Trim(),
+                    HeadingOccurrence = Math.Max(0, bookmark.HeadingOccurrence),
+                    OriginalOffset = Math.Max(0, bookmark.OriginalOffset),
+                    OriginalLineNumber = Math.Max(1, bookmark.OriginalLineNumber)
+                })
+                .DistinctBy(bookmark => bookmark.Id)
+                .Take(200)
+                .ToList(),
             OpenDocumentTabs = (preferences.OpenDocumentTabs ?? [])
                 .Where(tab =>
                     tab is not null &&

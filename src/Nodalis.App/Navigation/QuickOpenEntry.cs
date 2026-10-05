@@ -36,12 +36,24 @@ public sealed record QuickOpenEntry
     public bool IsFavorite { get; init; }
 
     /// <summary>
-    /// Gets the optional favorite marker displayed beside the name.
+    /// Gets the bookmark identifier when this entry represents a document section bookmark.
+    /// </summary>
+    public Guid? BookmarkId { get; init; }
+
+    /// <summary>
+    /// Gets whether the bookmark can no longer resolve its saved Markdown heading.
+    /// </summary>
+    public bool IsBroken { get; init; }
+
+    /// <summary>
+    /// Gets the optional favorite or warning marker displayed beside the name.
     /// </summary>
     public string FavoriteMarker =>
-        IsFavorite
-            ? "  ★"
-            : string.Empty;
+        IsBroken
+            ? "  ⚠"
+            : IsFavorite
+                ? "  ★"
+                : string.Empty;
 
     /// <summary>
     /// Gets the recent-item rank, or -1 when the target is not recent.

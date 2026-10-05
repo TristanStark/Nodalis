@@ -2618,6 +2618,22 @@ public partial class MainWindow : Window
             return null;
         }
 
+        if (string.Equals(
+                reference.Kind,
+                "Bookmark",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            DocumentBookmarkReference? bookmark =
+                _preferences.Bookmarks.FirstOrDefault(candidate =>
+                    candidate.Id == targetId);
+
+            return bookmark is null
+                ? null
+                : CreateBookmarkDashboardItem(
+                    bookmark,
+                    lastOpenedUtc);
+        }
+
         global::Nodalis.Core.Links.LinkTargetEntry? target = _linkIndex.Targets.FirstOrDefault(candidate =>
             candidate.Id == targetId);
 
@@ -2702,6 +2718,24 @@ public partial class MainWindow : Window
         if (sender is not ListBox list ||
             list.SelectedItem is not DashboardItemViewModel item)
         {
+            return;
+        }
+
+        if (item.BookmarkId is Guid bookmarkId)
+        {
+            DocumentBookmarkReference? bookmark =
+                _preferences.Bookmarks.FirstOrDefault(candidate =>
+                    candidate.Id == bookmarkId);
+
+            if (bookmark is null)
+            {
+                StatusText.Text =
+                    $"Signet introuvable : {item.DisplayName}";
+                return;
+            }
+
+            await NavigateToBookmarkAsync(
+                bookmark);
             return;
         }
 

@@ -75,6 +75,7 @@ try
     VerifyFlowcharts();
     VerifyMarkdownFrontMatter();
     VerifyMarkdownOutlineParser();
+    VerifyDocumentBookmarks();
     await VerifyUserPreferencesAsync(root);
     await VerifyLocalReleasePackageAsync(root);
     await VerifyDocumentReliabilityAsync(root);
@@ -4025,6 +4026,55 @@ static void VerifyFlowcharts()
         "Unsupported Mermaid statements must be ignored with a warning, not corrupt the diagram.");
 }
 
+static void VerifyDocumentBookmarks()
+{
+    global::System.Guid documentId =
+        Guid.NewGuid();
+
+    global::Nodalis.Core.Settings.DocumentBookmarkReference bookmark =
+        new DocumentBookmarkReference
+        {
+            Id = Guid.NewGuid(),
+            DocumentId = documentId,
+            DocumentRelativePath = "Applications/App/Projet/Technique.md",
+            DisplayName = "Architecture cible",
+            HeadingLevel = 2,
+            HeadingTitle = "Architecture",
+            HeadingOccurrence = 1,
+            OriginalOffset = 70,
+            OriginalLineNumber = 7
+        };
+
+    string shiftedMarkdown =
+        "# Document\n\n" +
+        "Texte ajouté avant les sections.\n\n" +
+        "## Architecture\n\n" +
+        "Première version.\n\n" +
+        "Texte intermédiaire beaucoup plus long.\n\n" +
+        "## Architecture\n\n" +
+        "Version cible.\n";
+
+    global::Nodalis.Core.Markdown.MarkdownOutlineEntry? resolved =
+        DocumentBookmarkResolver.Resolve(
+            bookmark,
+            shiftedMarkdown);
+
+    Assert(
+        resolved is not null &&
+        resolved.Title == "Architecture" &&
+        resolved.Level == 2,
+        "Document bookmarks must repair normal line/offset shifts by resolving the saved Markdown heading.");
+
+    global::Nodalis.Core.Markdown.MarkdownOutlineEntry? missing =
+        DocumentBookmarkResolver.Resolve(
+            bookmark,
+            "# Document\n\n## Autre section\n");
+
+    Assert(
+        missing is null,
+        "A removed bookmark heading must be reported as unresolved instead of redirecting silently.");
+}
+
 static async Task VerifyUserPreferencesAsync(string root)
 {
     string preferencesPath = Path.Combine(root, "User", "preferences.json");
@@ -4048,6 +4098,21 @@ static async Task VerifyUserPreferencesAsync(string root)
                 Kind = "project",
                 Key = projectId.ToString("D"),
                 DisplayName = "Projet Patate"
+            }
+        ],
+        Bookmarks =
+        [
+            new DocumentBookmarkReference
+            {
+                Id = Guid.NewGuid(),
+                DocumentId = projectId,
+                DocumentRelativePath = " Applications\\Application A\\Notes rapides.md ",
+                DisplayName = " Section importante ",
+                HeadingLevel = 2,
+                HeadingTitle = " Décision ",
+                HeadingOccurrence = -4,
+                OriginalOffset = -2,
+                OriginalLineNumber = 0
             }
         ],
         RecentItems =
@@ -4157,6 +4222,15 @@ static async Task VerifyUserPreferencesAsync(string root)
         "Backup preferences must persist and normalize their safe bounds.");
     Assert(loaded.Favorites.Count == 1 && loaded.ExpandedNodeIds.Contains(projectId),
         "Favorites and expanded nodes must survive persistence.");
+    Assert(
+        loaded.Bookmarks.Count == 1 &&
+        loaded.Bookmarks[0].DocumentRelativePath == "Applications/Application A/Notes rapides.md" &&
+        loaded.Bookmarks[0].DisplayName == "Section importante" &&
+        loaded.Bookmarks[0].HeadingTitle == "Décision" &&
+        loaded.Bookmarks[0].HeadingOccurrence == 0 &&
+        loaded.Bookmarks[0].OriginalOffset == 0 &&
+        loaded.Bookmarks[0].OriginalLineNumber == 1,
+        "Document bookmarks must persist locally and normalize safe bookmark metadata.");
     Assert(
         loaded.RecentSearches.Count == 1 &&
         loaded.RecentSearches[0].Query == "Architecture" &&

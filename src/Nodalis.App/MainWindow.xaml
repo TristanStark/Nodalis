@@ -1327,12 +1327,23 @@
                                    Foreground="{StaticResource SecondaryTextBrush}" />
                     </StackPanel>
 
-                    <TextBlock Grid.Row="6"
+                    <DockPanel Grid.Row="6"
                                Margin="0,18,0,8"
-                               Text="PLAN DU DOCUMENT"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource SecondaryTextBrush}" />
+                               LastChildFill="False">
+                        <TextBlock DockPanel.Dock="Left"
+                                   VerticalAlignment="Center"
+                                   Text="PLAN DU DOCUMENT"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                        <Button x:Name="BookmarkHeadingButton"
+                                DockPanel.Dock="Right"
+                                Margin="8,0,0,0"
+                                Padding="7,2"
+                                Click="BookmarkHeadingButton_Click"
+                                Content="☆ Signet…"
+                                ToolTip="Ajouter, renommer ou supprimer un signet sur la section sélectionnée" />
+                    </DockPanel>
 
                     <Grid Grid.Row="7">
                         <TreeView x:Name="DocumentOutlineTree"
