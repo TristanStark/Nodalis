@@ -7,9 +7,13 @@ using Nodalis.Infrastructure.Search;
 
 namespace Nodalis.App.Dialogs;
 
+/// <summary>
+/// Provides ranked local workspace search with fuzzy and exact modes.
+/// </summary>
 public partial class SearchDialog : Window
 {
-    private readonly WorkspaceSearchService _search = new();
+    private readonly WorkspaceSearchService _search =
+        new WorkspaceSearchService();
     private readonly string _workspaceRoot;
     private readonly string? _contextPath;
     private readonly string? _initialQuery;
@@ -18,19 +22,23 @@ public partial class SearchDialog : Window
     /// <summary>
     /// Initializes a new instance of <see cref="SearchDialog"/>.
     /// </summary>
-    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-    /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="workspaceRoot">The workspace root.</param>
+    /// <param name="contextPath">The current context path.</param>
     /// <param name="initialQuery">The optional query to restore.</param>
     public SearchDialog(
             string workspaceRoot,
             string? contextPath,
             string? initialQuery = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            workspaceRoot);
 
-        _workspaceRoot = workspaceRoot;
-        _contextPath = contextPath;
-        _initialQuery = initialQuery;
+        _workspaceRoot =
+            workspaceRoot;
+        _contextPath =
+            contextPath;
+        _initialQuery =
+            initialQuery;
 
         InitializeComponent();
 
@@ -46,6 +54,7 @@ public partial class SearchDialog : Window
 
             SearchTextBox.Focus();
         };
+
         Closed += (_, _) =>
         {
             _searchCancellation?.Cancel();
@@ -53,6 +62,9 @@ public partial class SearchDialog : Window
         };
     }
 
+    /// <summary>
+    /// Gets the result accepted by the user.
+    /// </summary>
     public SearchResult? SelectedResult { get; private set; }
 
     /// <summary>
@@ -62,27 +74,55 @@ public partial class SearchDialog : Window
         SearchTextBox.Text.Trim();
 
     /// <summary>
-    /// Performs the <c>SearchTextBox_TextChanged</c> operation.
+    /// Schedules a debounced search after the query changes.
     /// </summary>
-    /// <param name="sender">The <c>sender</c> value.</param>
-    /// <param name="e">The <c>e</c> value.</param>
+    /// <param name="sender">The search box.</param>
+    /// <param name="e">The text event.</param>
     private async void SearchTextBox_TextChanged(
             object sender,
-            TextChangedEventArgs e)
+            TextChangedEventArgs e) =>
+        await SearchAsync();
+
+    /// <summary>
+    /// Reruns the current query when exact mode changes.
+    /// </summary>
+    /// <param name="sender">The exact-mode checkbox.</param>
+    /// <param name="e">The routed event.</param>
+    private async void ExactModeCheckBox_Changed(
+            object sender,
+            RoutedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        await SearchAsync();
+    }
+
+    /// <summary>
+    /// Cancels the previous request, debounces input and refreshes all result scopes.
+    /// </summary>
+    /// <returns>A task representing the search refresh.</returns>
+    private async Task SearchAsync()
     {
         _searchCancellation?.Cancel();
         _searchCancellation?.Dispose();
 
-        string query = SearchTextBox.Text.Trim();
+        string query =
+            SearchTextBox.Text.Trim();
 
-        if (string.IsNullOrWhiteSpace(query))
+        if (string.IsNullOrWhiteSpace(
+                query))
         {
             ClearResults();
             return;
         }
 
-        global::System.Threading.CancellationTokenSource cancellation = new CancellationTokenSource();
-        _searchCancellation = cancellation;
+        CancellationTokenSource cancellation =
+            new CancellationTokenSource();
+        _searchCancellation =
+            cancellation;
 
         try
         {
@@ -90,20 +130,31 @@ public partial class SearchDialog : Window
                 180,
                 cancellation.Token);
 
-            global::Nodalis.Core.Search.SearchResultSet results = await _search.SearchAsync(
-                _workspaceRoot,
-                _contextPath,
-                query,
-                cancellation.Token);
+            SearchMatchMode mode =
+                ExactModeCheckBox.IsChecked ==
+                true
+                    ? SearchMatchMode.Exact
+                    : SearchMatchMode.Fuzzy;
+
+            SearchResultSet results =
+                await _search.SearchAsync(
+                    _workspaceRoot,
+                    _contextPath,
+                    query,
+                    mode,
+                    cancellation.Token);
 
             if (cancellation.IsCancellationRequested)
             {
                 return;
             }
 
-            ProjectResults.ItemsSource = results.Project;
-            ApplicationResults.ItemsSource = results.Application;
-            GlobalResults.ItemsSource = results.Global;
+            ProjectResults.ItemsSource =
+                results.Project;
+            ApplicationResults.ItemsSource =
+                results.Application;
+            GlobalResults.ItemsSource =
+                results.Global;
 
             ProjectHeader.Text =
                 $"PROJET · {FormatCount(results.Project.Count)}";
@@ -116,36 +167,41 @@ public partial class SearchDialog : Window
                 results.Project.Count > 0
                     ? Visibility.Visible
                     : Visibility.Collapsed;
-
             ApplicationExpander.Visibility =
                 results.Application.Count > 0
                     ? Visibility.Visible
                     : Visibility.Collapsed;
-
             GlobalExpander.Visibility =
                 results.Global.Count > 0
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
+            string modeLabel =
+                mode == SearchMatchMode.Exact
+                    ? "exact"
+                    : "fuzzy";
+
             StatusText.Text =
-                $"{results.TotalCount} résultat(s) pour « {query} »";
+                $"{results.TotalCount} résultat(s) · mode {modeLabel} · « {query} »";
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception exception) when (
             exception is IOException or
-            UnauthorizedAccessException)
+            UnauthorizedAccessException or
+            InvalidDataException)
         {
-            StatusText.Text = exception.Message;
+            StatusText.Text =
+                exception.Message;
         }
     }
 
     /// <summary>
-    /// Performs the <c>Results_SelectionChanged</c> operation.
+    /// Keeps a single selected result across the three scope lists.
     /// </summary>
-    /// <param name="sender">The <c>sender</c> value.</param>
-    /// <param name="e">The <c>e</c> value.</param>
+    /// <param name="sender">The selected list.</param>
+    /// <param name="e">The selection event.</param>
     private void Results_SelectionChanged(
             object sender,
             SelectionChangedEventArgs e)
@@ -167,46 +223,52 @@ public partial class SearchDialog : Window
                     list,
                     selected))
             {
-                list.SelectedItem = null;
+                list.SelectedItem =
+                    null;
             }
         }
     }
 
     /// <summary>
-    /// Performs the <c>Results_MouseDoubleClick</c> operation.
+    /// Accepts the selected result on double-click.
     /// </summary>
-    /// <param name="sender">The <c>sender</c> value.</param>
-    /// <param name="e">The <c>e</c> value.</param>
+    /// <param name="sender">The result list.</param>
+    /// <param name="e">The mouse event.</param>
     private void Results_MouseDoubleClick(
             object sender,
             MouseButtonEventArgs e) =>
-            AcceptSelectedResult();
+        AcceptSelectedResult();
 
     /// <summary>
-    /// Performs the <c>Window_PreviewKeyDown</c> operation.
+    /// Handles escape and enter navigation shortcuts.
     /// </summary>
-    /// <param name="sender">The <c>sender</c> value.</param>
-    /// <param name="e">The <c>e</c> value.</param>
+    /// <param name="sender">The window.</param>
+    /// <param name="e">The key event.</param>
     private void Window_PreviewKeyDown(
             object sender,
             KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
+        if (e.Key ==
+            Key.Escape)
         {
-            e.Handled = true;
-            DialogResult = false;
+            e.Handled =
+                true;
+            DialogResult =
+                false;
             return;
         }
 
-        if (e.Key == Key.Enter)
+        if (e.Key ==
+            Key.Enter)
         {
-            e.Handled = true;
+            e.Handled =
+                true;
             AcceptSelectedResult();
         }
     }
 
     /// <summary>
-    /// Performs the <c>AcceptSelectedResult</c> operation.
+    /// Accepts whichever scope currently owns the selected result.
     /// </summary>
     private void AcceptSelectedResult()
     {
@@ -217,37 +279,52 @@ public partial class SearchDialog : Window
 
         if (SelectedResult is not null)
         {
-            DialogResult = true;
+            DialogResult =
+                true;
         }
     }
 
     /// <summary>
-    /// Performs the <c>ClearResults</c> operation.
+    /// Clears all search result collections.
     /// </summary>
     private void ClearResults()
     {
-        ProjectResults.ItemsSource = null;
-        ApplicationResults.ItemsSource = null;
-        GlobalResults.ItemsSource = null;
+        ProjectResults.ItemsSource =
+            null;
+        ApplicationResults.ItemsSource =
+            null;
+        GlobalResults.ItemsSource =
+            null;
 
-        ProjectHeader.Text = "PROJET · 0 résultat";
-        ApplicationHeader.Text = "APPLICATION · 0 résultat";
-        GlobalHeader.Text = "GLOBAL · 0 résultat";
+        ProjectHeader.Text =
+            "PROJET · 0 résultat";
+        ApplicationHeader.Text =
+            "APPLICATION · 0 résultat";
+        GlobalHeader.Text =
+            "GLOBAL · 0 résultat";
 
-        ProjectExpander.Visibility = Visibility.Visible;
-        ApplicationExpander.Visibility = Visibility.Visible;
-        GlobalExpander.Visibility = Visibility.Visible;
+        ProjectExpander.Visibility =
+            Visibility.Visible;
+        ApplicationExpander.Visibility =
+            Visibility.Visible;
+        GlobalExpander.Visibility =
+            Visibility.Visible;
 
-        StatusText.Text = "Saisissez un terme exact.";
+        StatusText.Text =
+            ExactModeCheckBox.IsChecked ==
+            true
+                ? "Saisissez un terme. Mode exact activé."
+                : "Saisissez un terme. Recherche fuzzy activée.";
     }
 
     /// <summary>
-    /// Performs the <c>FormatCount</c> operation.
+    /// Formats a localized result count.
     /// </summary>
-    /// <param name="count">The <c>count</c> value.</param>
-    /// <returns>The result of the operation.</returns>
-    private static string FormatCount(int count) =>
-            count == 1
-                ? "1 résultat"
-                : $"{count} résultats";
+    /// <param name="count">The result count.</param>
+    /// <returns>The display label.</returns>
+    private static string FormatCount(
+            int count) =>
+        count == 1
+            ? "1 résultat"
+            : $"{count} résultats";
 }
