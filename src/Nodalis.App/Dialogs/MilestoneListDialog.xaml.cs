@@ -154,12 +154,10 @@ public partial class MilestoneListDialog : Window
             return;
         }
 
-        global::System.Guid? dependencyId =
-            milestone.DependencyIds
-                .Cast<Guid?>()
-                .FirstOrDefault();
+        global::System.Guid dependencyId =
+            milestone.DependencyIds.FirstOrDefault();
 
-        if (dependencyId is not Guid id)
+        if (dependencyId == Guid.Empty)
         {
             ShowError(
                 "Prérequis",
@@ -169,7 +167,7 @@ public partial class MilestoneListDialog : Window
 
         global::Nodalis.Core.Milestones.MilestoneItem? dependency =
             _currentMilestones.FirstOrDefault(candidate =>
-                candidate.Id == id);
+                candidate.Id == dependencyId);
 
         if (dependency is null)
         {
