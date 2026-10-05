@@ -132,12 +132,67 @@
             <Grid Grid.Column="2"
                   Background="{StaticResource WindowBackgroundBrush}">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="58" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0"
+                <Border x:Name="DocumentTabsHost"
+                        Grid.Row="0"
+                        Height="38"
+                        Visibility="Collapsed"
+                        Background="{StaticResource PanelBackgroundBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled">
+                        <ListBox x:Name="DocumentTabsList"
+                                 Margin="6,3"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 SelectionChanged="DocumentTabsList_SelectionChanged"
+                                 PreviewMouseLeftButtonDown="DocumentTabsList_PreviewMouseLeftButtonDown"
+                                 PreviewMouseMove="DocumentTabsList_PreviewMouseMove"
+                                 PreviewMouseRightButtonDown="DocumentTabsList_PreviewMouseRightButtonDown"
+                                 ContextMenuOpening="DocumentTabsList_ContextMenuOpening"
+                                 AllowDrop="True"
+                                 Drop="DocumentTabsList_Drop">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid MinWidth="120"
+                                          MaxWidth="260"
+                                          Margin="2,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="28" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Margin="8,0,6,0"
+                                                   VerticalAlignment="Center"
+                                                   Text="{Binding TabTitle}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding FullPath}" />
+                                        <Button Grid.Column="1"
+                                                Width="24"
+                                                Height="24"
+                                                Padding="0"
+                                                Tag="{Binding}"
+                                                Click="CloseDocumentTab_Click"
+                                                ToolTip="Fermer l'onglet · Ctrl+W"
+                                                Content="×" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </ScrollViewer>
+                </Border>
+
+                <Border Grid.Row="1"
                         Padding="22,10"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,0,0,1">
@@ -155,7 +210,7 @@
                 </Border>
 
                 <Border x:Name="EditorToolbar"
-                        Grid.Row="1"
+                        Grid.Row="2"
                         Visibility="Collapsed"
                         Background="{StaticResource PanelBackgroundBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
@@ -215,7 +270,7 @@
                 </Border>
 
                 <Grid x:Name="DocumentEditorHost"
-                      Grid.Row="2"
+                      Grid.Row="3"
                       Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -293,7 +348,7 @@
                 </Grid>
 
                 <ScrollViewer x:Name="DashboardHost"
-                              Grid.Row="2"
+                              Grid.Row="3"
                               VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="24">
                         <TextBlock Text="Reprendre le travail"
@@ -561,7 +616,7 @@
                 </ScrollViewer>
 
                 <Border x:Name="NodeSummaryHost"
-                        Grid.Row="2"
+                        Grid.Row="3"
                         Margin="20"
                         Visibility="Collapsed"
                         Padding="18"
