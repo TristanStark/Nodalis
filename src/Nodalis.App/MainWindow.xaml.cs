@@ -30,6 +30,7 @@ using Nodalis.Core.Templates;
 using Nodalis.Core.Trash;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
+using Nodalis.Infrastructure.Backups;
 using Nodalis.Infrastructure.Decisions;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
@@ -60,7 +61,9 @@ public partial class MainWindow : Window
     private readonly WorkspaceDecisionService _decisionService;
     private readonly WorkspaceDocxImportService _docxImportService;
     private readonly WorkspaceTrashService _trashService;
+    private readonly WorkspaceBackupService _backupService;
     private readonly DispatcherTimer _previewTimer;
+    private readonly DispatcherTimer _backupTimer;
 
     private NavigationNodeViewModel _root;
     private NavigationNodeViewModel? _selectedNode;
@@ -74,6 +77,7 @@ public partial class MainWindow : Window
     private bool _documentDirty;
     private bool _restoringSelection;
     private bool _conflictWarningShown;
+    private bool _backupInProgress;
     private double _lastContextWidth;
     private LinkIndexCatalog _linkIndex = new();
     private int _linkSuggestionStart;
@@ -122,6 +126,8 @@ public partial class MainWindow : Window
             root.FullPath);
         _trashService = new WorkspaceTrashService(
             root.FullPath);
+        _backupService = new WorkspaceBackupService(
+            root.FullPath);
         _contextPanelOpen = preferences.IsContextPanelOpen;
         _previewVisible = preferences.Editor.LivePreview;
         _lastContextWidth = preferences.ContextPanelWidth;
@@ -130,6 +136,15 @@ public partial class MainWindow : Window
             TimeSpan.FromMilliseconds(180),
             DispatcherPriority.Background,
             PreviewTimer_Tick,
+            Dispatcher)
+        {
+            IsEnabled = false
+        };
+
+        _backupTimer = new DispatcherTimer(
+            TimeSpan.FromMinutes(1),
+            DispatcherPriority.Background,
+            BackupTimer_Tick,
             Dispatcher)
         {
             IsEnabled = false
@@ -168,6 +183,8 @@ public partial class MainWindow : Window
                 UpdateGlossaryAnnotations();
                 await RefreshDashboardTasksAsync();
                 await RefreshDashboardMilestonesAsync();
+                _backupTimer.Start();
+                await TryRunAutomaticBackupAsync();
             }
             catch (Exception exception) when (
                 exception is IOException or
@@ -238,6 +255,7 @@ public partial class MainWindow : Window
         }
 
         _previewTimer.Stop();
+        _backupTimer.Stop();
         _allowClose = true;
         Close();
     }
@@ -361,6 +379,136 @@ public partial class MainWindow : Window
         }
 
         NavigationTree.ContextMenu = menu;
+    }
+
+    /// <summary>
+    /// Opens the backup manager.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void OpenBackups_Click(
+            object sender,
+            RoutedEventArgs e) =>
+            await ShowBackupsAsync();
+
+    /// <summary>
+    /// Opens the backup manager and persists its local scheduling preferences.
+    /// </summary>
+    /// <returns>A task representing the operation.</returns>
+    private async Task ShowBackupsAsync()
+    {
+        if (_autosave is not null)
+        {
+            await _autosave.FlushAsync();
+        }
+
+        _backupTimer.Stop();
+
+        try
+        {
+            global::Nodalis.App.Dialogs.BackupDialog dialog = new BackupDialog(
+                _backupService,
+                _preferences.Backup)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true ||
+                dialog.Preferences is null)
+            {
+                return;
+            }
+
+            _preferences = _preferences with
+            {
+                Backup = dialog.Preferences
+            };
+
+            await _preferencesStore.SaveAsync(
+                _preferences);
+
+            StatusText.Text =
+                "Préférences de sauvegarde enregistrées localement";
+        }
+        finally
+        {
+            _backupTimer.Start();
+        }
+
+        await TryRunAutomaticBackupAsync();
+    }
+
+    /// <summary>
+    /// Checks the configured cadence when the automatic backup timer ticks.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
+    private async void BackupTimer_Tick(
+            object? sender,
+            EventArgs e) =>
+            await TryRunAutomaticBackupAsync();
+
+    /// <summary>
+    /// Creates a due automatic backup without blocking the editor thread with ZIP I/O.
+    /// </summary>
+    /// <returns>A task representing the scheduling check.</returns>
+    private async Task TryRunAutomaticBackupAsync()
+    {
+        if (_backupInProgress)
+        {
+            return;
+        }
+
+        global::Nodalis.Core.Settings.BackupPreferences settings =
+            _preferences.Backup;
+
+        if (!settings.AutomaticEnabled ||
+            string.IsNullOrWhiteSpace(
+                settings.DestinationDirectory))
+        {
+            return;
+        }
+
+        _backupInProgress = true;
+
+        try
+        {
+            bool due = await _backupService.IsBackupDueAsync(
+                settings.DestinationDirectory,
+                settings.IntervalMinutes,
+                DateTimeOffset.UtcNow);
+
+            if (!due)
+            {
+                return;
+            }
+
+            if (_autosave is not null)
+            {
+                await _autosave.FlushAsync();
+            }
+
+            global::Nodalis.Core.Backups.WorkspaceBackupInfo backup = await _backupService.CreateBackupAsync(
+                settings.DestinationDirectory,
+                settings.RetentionCount);
+
+            StatusText.Text =
+                $"Sauvegarde auto · {backup.FileName} · {backup.DisplaySize}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            ArgumentException)
+        {
+            StatusText.Text =
+                $"Sauvegarde auto impossible · {exception.Message}";
+        }
+        finally
+        {
+            _backupInProgress = false;
+        }
     }
 
     /// <summary>
@@ -2929,6 +3077,14 @@ public partial class MainWindow : Window
                 Subtitle = "Projet → Application → Global",
                 Keywords = ["rapide", "notes", "agrégé"],
                 ExecuteAsync = ShowQuickNotesAsync
+            },
+            new()
+            {
+                Id = "backups",
+                Title = "Sauvegardes",
+                Subtitle = "Créer, vérifier ou restaurer un ZIP du workspace",
+                Keywords = ["sauvegarde", "backup", "zip", "restauration", "sécurité"],
+                ExecuteAsync = ShowBackupsAsync
             },
             new()
             {

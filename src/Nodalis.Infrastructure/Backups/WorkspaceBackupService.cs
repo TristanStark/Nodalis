@@ -27,6 +27,16 @@ public sealed class WorkspaceBackupService
     }
 
     /// <summary>
+    /// Normalizes and validates a backup destination outside the workspace.
+    /// </summary>
+    /// <param name="destinationDirectory">The requested backup directory.</param>
+    /// <returns>The normalized backup directory.</returns>
+    public string ValidateBackupDestinationPath(
+            string destinationDirectory) =>
+            ValidateBackupDestination(
+                destinationDirectory);
+
+    /// <summary>
     /// Creates a verified ZIP backup and applies retention for the current workspace.
     /// </summary>
     /// <param name="destinationDirectory">The backup directory, which must be outside the workspace.</param>
