@@ -137,7 +137,7 @@ public static partial class MermaidFlowchartParser
 
             if (TryParseNodeToken(
                     line,
-                    out ParsedNodeToken? token))
+                    out ParsedNodeToken token))
             {
                 UpsertNode(
                     token,
@@ -313,10 +313,10 @@ public static partial class MermaidFlowchartParser
 
         if (!TryParseNodeToken(
                 sourceText,
-                out ParsedNodeToken? source) ||
+                out ParsedNodeToken source) ||
             !TryParseNodeToken(
                 targetText,
-                out ParsedNodeToken? target))
+                out ParsedNodeToken target))
         {
             return false;
         }
@@ -366,7 +366,7 @@ public static partial class MermaidFlowchartParser
         if (!match.Success)
         {
             token =
-                null;
+                null!;
             return false;
         }
 
