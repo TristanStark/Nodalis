@@ -14,6 +14,7 @@ using Nodalis.Core.Markdown;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
+using Nodalis.Core.Trash;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
@@ -33,6 +34,7 @@ using Nodalis.Infrastructure.Search;
 using Nodalis.Infrastructure.Settings;
 using Nodalis.Infrastructure.Tasks;
 using Nodalis.Infrastructure.Templates;
+using Nodalis.Infrastructure.Trash;
 
 string root = Path.Combine(
     Path.GetTempPath(),
@@ -46,6 +48,7 @@ try
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
     await VerifyApplicationStructureAsync(root);
+    await VerifyTrashAsync(root);
     await VerifyQuickNotesAsync(root);
     await VerifySearchAsync(root);
     await VerifyLinksAndBacklinksAsync(root);
@@ -516,6 +519,109 @@ static async Task VerifyApplicationStructureAsync(string root)
     Assert(
         !Directory.Exists(renamedApplication),
         "An empty application must be deletable.");
+}
+
+static async Task VerifyTrashAsync(string root)
+{
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    global::Nodalis.Infrastructure.Trash.WorkspaceTrashService trash = new WorkspaceTrashService(root);
+
+    string applicationPath = await structure.CreateApplicationAsync(
+        "Application Corbeille");
+    global::Nodalis.Core.Domain.ApplicationManifest application = await structure.LoadApplicationAsync(
+        applicationPath);
+
+    string documentPath = Path.Combine(
+        applicationPath,
+        "Note supprimable.md");
+    await File.WriteAllTextAsync(
+        documentPath,
+        "# Note supprimable\n\nContenu conservé.\n");
+
+    Guid documentId = Guid.NewGuid();
+    global::Nodalis.Core.Trash.TrashEntry documentEntry = await trash.MoveToTrashAsync(
+        documentPath,
+        TrashItemKind.Document,
+        documentId);
+
+    Assert(
+        !File.Exists(documentPath),
+        "Moving a document to the trash must remove it from its original location.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Trash.TrashEntry> entries = await trash.ListAsync();
+
+    Assert(
+        entries.Any(item =>
+            item.EntryId == documentEntry.EntryId &&
+            item.ItemId == documentId &&
+            item.Kind == TrashItemKind.Document),
+        "The trash must persist type, deletion metadata and the supplied item id.");
+
+    await File.WriteAllTextAsync(
+        documentPath,
+        "collision");
+
+    await AssertThrowsAsync<TrashRestoreCollisionException>(
+        () => trash.RestoreAsync(documentEntry.EntryId),
+        "Restore must refuse an occupied original path before moving the trash payload.");
+
+    Assert(
+        (await trash.ListAsync()).Any(item =>
+            item.EntryId == documentEntry.EntryId),
+        "A collision must leave the trash entry untouched.");
+
+    File.Delete(documentPath);
+
+    string restoredDocument = await trash.RestoreAsync(
+        documentEntry.EntryId);
+
+    Assert(
+        restoredDocument == documentPath &&
+        File.Exists(restoredDocument) &&
+        (await File.ReadAllTextAsync(restoredDocument)).Contains(
+            "Contenu conservé.",
+            StringComparison.Ordinal),
+        "Restoring a document must put the unchanged payload back at its original path.");
+
+    global::Nodalis.Core.Trash.TrashEntry applicationEntry = await trash.MoveToTrashAsync(
+        applicationPath,
+        TrashItemKind.Application,
+        application.Id);
+
+    Assert(
+        !Directory.Exists(applicationPath),
+        "Moving a non-empty application to the trash must move its complete subtree.");
+
+    string restoredApplication = await trash.RestoreAsync(
+        applicationEntry.EntryId);
+
+    global::Nodalis.Core.Domain.ApplicationManifest restoredManifest = await structure.LoadApplicationAsync(
+        restoredApplication);
+
+    Assert(
+        restoredManifest.Id == application.Id,
+        "Restoring a structured item must preserve its stable manifest id.");
+
+    string restoredDocumentAfterApplicationRestore = Path.Combine(
+        restoredApplication,
+        "Note supprimable.md");
+
+    global::Nodalis.Core.Trash.TrashEntry finalEntry = await trash.MoveToTrashAsync(
+        restoredDocumentAfterApplicationRestore,
+        TrashItemKind.Document,
+        documentId);
+
+    Assert(
+        (await trash.ListAsync()).Any(item =>
+            item.EntryId == finalEntry.EntryId),
+        "The final trash test entry must be visible before emptying the trash.");
+
+    await trash.EmptyAsync();
+
+    Assert(
+        (await trash.ListAsync()).Count == 0 &&
+        !File.Exists(restoredDocumentAfterApplicationRestore),
+        "Emptying the trash must permanently remove all trash payloads.");
 }
 
 static async Task VerifyQuickNotesAsync(string root)
