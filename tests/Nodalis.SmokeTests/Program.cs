@@ -13,6 +13,7 @@ using Nodalis.Core.Links;
 using Nodalis.Core.Meetings;
 using Nodalis.Core.Milestones;
 using Nodalis.Core.Navigation;
+using Nodalis.Core.Notes;
 using Nodalis.Core.Tasks;
 using Nodalis.Core.Markdown;
 using Nodalis.Core.Projects;
@@ -59,6 +60,7 @@ try
     await VerifyTrashAsync(root);
     await VerifyWorkspaceBackupsAsync(root);
     await VerifyQuickNotesAsync(root);
+    await VerifyDailyNotesAsync(root);
     await VerifySearchAsync(root);
     await VerifyLinksAndBacklinksAsync(root);
     await VerifyGlossaryAsync(root);
@@ -199,6 +201,8 @@ static async Task VerifyTemplatesAsync(string root)
         "The default note template must exist.");
     Assert(catalog.Templates.Any(template => template.Key == "meeting"),
         "The default meeting template must exist.");
+    Assert(catalog.Templates.Any(template => template.Key == "daily-note"),
+        "The configurable daily-note template must exist.");
 
     global::Nodalis.Core.Templates.ProjectProfileCatalog profiles = await store.LoadProjectProfilesAsync();
     Assert(profiles.Profiles.Count == 3,
@@ -1193,6 +1197,176 @@ static async Task VerifyQuickNotesAsync(string root)
             modulePath,
             WorkspaceLayout.GlobalGlossaryFileName)),
         "Modules must not create quick-note or glossary scopes.");
+}
+
+static async Task VerifyDailyNotesAsync(string root)
+{
+    global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore templateStore =
+        new FileSystemTemplateStore(
+            root);
+    await templateStore.InitializeDefaultsAsync();
+
+    global::Nodalis.Infrastructure.Notes.WorkspaceDailyNoteService service =
+        new WorkspaceDailyNoteService(
+            root,
+            templateStore);
+
+    global::System.DateTimeOffset localNow =
+        new DateTimeOffset(
+            2026,
+            10,
+            5,
+            0,
+            30,
+            0,
+            TimeSpan.FromHours(2));
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.DailyNoteReference> opened =
+        new[]
+        {
+            new DailyNoteReference
+            {
+                QualifiedName = "Application Démo / Projet Démo / Spécification",
+                DisplayName = "Spécification",
+                RelativePath = "Applications/Application Démo/Projets/Projet Démo/Spécification.md",
+                Kind = "Document"
+            },
+            new DailyNoteReference
+            {
+                QualifiedName = "Application Démo / Projet Démo",
+                DisplayName = "Projet Démo",
+                RelativePath = "Applications/Application Démo/Projets/Projet Démo",
+                Kind = "Projet"
+            }
+        };
+
+    global::Nodalis.Core.Notes.DailyNoteItem today =
+        await service.GetOrCreateAsync(
+            localNow,
+            opened);
+    global::Nodalis.Core.Notes.DailyNoteItem duplicate =
+        await service.GetOrCreateAsync(
+            localNow.AddMinutes(15),
+            opened);
+
+    Assert(
+        string.Equals(
+            today.FullPath,
+            duplicate.FullPath,
+            StringComparison.OrdinalIgnoreCase) &&
+        Path.GetFileName(
+            today.FullPath) ==
+        "2026-10-05.md",
+        "A local calendar day must map to exactly one canonical daily-note path.");
+
+    string journalDirectory =
+        Path.Combine(
+            root,
+            WorkspaceLayout.JournalDirectoryName);
+
+    Assert(
+        Directory.GetFiles(
+            journalDirectory,
+            "2026-10-05.md",
+            SearchOption.TopDirectoryOnly).Length ==
+        1,
+        "Repeated daily-note creation must never duplicate the same day.");
+
+    string initial =
+        await File.ReadAllTextAsync(
+            today.FullPath);
+
+    Assert(
+        initial.Contains(
+            "# Journal — 2026-10-05",
+            StringComparison.Ordinal) &&
+        initial.Contains(
+            "[[Application Démo / Projet Démo / Spécification|Spécification]]",
+            StringComparison.Ordinal) &&
+        initial.Contains(
+            "[[Application Démo / Projet Démo|Projet Démo]]",
+            StringComparison.Ordinal),
+        "Daily-note creation must render the configurable template and opened-item links.");
+
+    await File.AppendAllTextAsync(
+        today.FullPath,
+        "\n\n## Manuel\n\nContenu utilisateur conservé.\n");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.DailyNoteReference> refreshedOpened =
+        new[]
+        {
+            new DailyNoteReference
+            {
+                QualifiedName = "Application Démo / Projet Démo / Architecture",
+                DisplayName = "Architecture",
+                RelativePath = "Applications/Application Démo/Projets/Projet Démo/Architecture.md",
+                Kind = "Document"
+            }
+        };
+
+    await service.SyncOpenedItemsAsync(
+        today.Date,
+        refreshedOpened);
+
+    string synchronized =
+        await File.ReadAllTextAsync(
+            today.FullPath);
+
+    Assert(
+        synchronized.Contains(
+            "Contenu utilisateur conservé.",
+            StringComparison.Ordinal) &&
+        synchronized.Contains(
+            "[[Application Démo / Projet Démo / Architecture|Architecture]]",
+            StringComparison.Ordinal) &&
+        !synchronized.Contains(
+            "[[Application Démo / Projet Démo / Spécification|Spécification]]",
+            StringComparison.Ordinal),
+        "Refreshing opened items must replace only the generated journal block.");
+
+    global::System.DateTimeOffset previousDay =
+        localNow.AddDays(-1);
+
+    await service.GetOrCreateAsync(
+        previousDay,
+        Array.Empty<DailyNoteReference>());
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.DailyNoteItem> recent =
+        await service.GetRecentAsync(
+            localNow,
+            maximumCount: 10);
+
+    Assert(
+        recent.Count >= 2 &&
+        recent[0].Date ==
+        new DateOnly(2026, 10, 5) &&
+        recent[0].IsToday &&
+        recent.Any(item =>
+            item.Date ==
+            new DateOnly(2026, 10, 4)),
+        "Recent daily notes must be ordered newest-first and identify the local current day.");
+
+    global::Nodalis.Infrastructure.Navigation.WorkspaceNavigationBuilder navigationBuilder =
+        new WorkspaceNavigationBuilder();
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode navigationRoot =
+        await navigationBuilder.BuildAsync(
+            root);
+
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode globalNode =
+        navigationRoot.Children.Single(node =>
+            node.Kind ==
+            WorkspaceNodeKind.Global);
+
+    Assert(
+        globalNode.Children.Any(node =>
+            node.DisplayName ==
+            WorkspaceLayout.JournalDirectoryName &&
+            node.Kind ==
+            WorkspaceNodeKind.Folder &&
+            node.Children.Any(child =>
+                child.DisplayName ==
+                "2026-10-05")),
+        "The Journal folder and its daily Markdown files must be visible under Global navigation.");
 }
 
 static async Task VerifySearchAsync(string root)
