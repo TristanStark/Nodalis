@@ -36,6 +36,15 @@ public sealed record ProjectSectionState
     public bool IsRequired { get; init; }
 
     /// <summary>
+    /// Gets a compact label for a protected required role.
+    /// </summary>
+    public string RequiredRoleDisplay =>
+        ProjectRequiredSectionPolicy.GetRequiredRole(
+            TemplateKey) is string role
+            ? $"Rôle minimal : {role}"
+            : "Section personnalisée";
+
+    /// <summary>
     /// Gets the section directory.
     /// </summary>
     public required string DirectoryPath { get; init; }
