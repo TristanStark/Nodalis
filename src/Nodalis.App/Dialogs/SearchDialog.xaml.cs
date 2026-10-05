@@ -12,6 +12,7 @@ public partial class SearchDialog : Window
     private readonly WorkspaceSearchService _search = new();
     private readonly string _workspaceRoot;
     private readonly string? _contextPath;
+    private readonly string? _initialQuery;
     private CancellationTokenSource? _searchCancellation;
 
     /// <summary>
@@ -19,18 +20,32 @@ public partial class SearchDialog : Window
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
+    /// <param name="initialQuery">The optional query to restore.</param>
     public SearchDialog(
             string workspaceRoot,
-            string? contextPath)
+            string? contextPath,
+            string? initialQuery = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
         _workspaceRoot = workspaceRoot;
         _contextPath = contextPath;
+        _initialQuery = initialQuery;
 
         InitializeComponent();
 
-        Loaded += (_, _) => SearchTextBox.Focus();
+        Loaded += (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(
+                    _initialQuery))
+            {
+                SearchTextBox.Text =
+                    _initialQuery;
+                SearchTextBox.SelectAll();
+            }
+
+            SearchTextBox.Focus();
+        };
         Closed += (_, _) =>
         {
             _searchCancellation?.Cancel();
@@ -39,6 +54,12 @@ public partial class SearchDialog : Window
     }
 
     public SearchResult? SelectedResult { get; private set; }
+
+    /// <summary>
+    /// Gets the query currently entered by the user.
+    /// </summary>
+    public string Query =>
+        SearchTextBox.Text.Trim();
 
     /// <summary>
     /// Performs the <c>SearchTextBox_TextChanged</c> operation.
