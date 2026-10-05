@@ -869,6 +869,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="180" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -902,14 +903,65 @@
                                TextWrapping="Wrap"
                                Foreground="{StaticResource SecondaryTextBrush}" />
 
-                    <TextBlock Grid.Row="5"
+                    <StackPanel x:Name="DocumentPropertiesHost"
+                                Grid.Row="5"
+                                Margin="0,18,0,0"
+                                Visibility="Collapsed">
+                        <DockPanel Margin="0,0,0,8">
+                            <TextBlock DockPanel.Dock="Left"
+                                       VerticalAlignment="Center"
+                                       Text="PROPRIÉTÉS"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource SecondaryTextBrush}" />
+                            <Button x:Name="EditDocumentPropertiesButton"
+                                    DockPanel.Dock="Right"
+                                    Padding="8,2"
+                                    IsEnabled="False"
+                                    Click="EditDocumentProperties_Click"
+                                    Content="Modifier" />
+                        </DockPanel>
+
+                        <ItemsControl x:Name="DocumentPropertiesList"
+                                      Visibility="Collapsed">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="88" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Key}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource AccentBrush}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1"
+                                                   Margin="8,0,0,0"
+                                                   Text="{Binding Value}"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource PrimaryTextBrush}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock x:Name="DocumentPropertiesEmptyText"
+                                   Text="Aucune propriété. Le document reste un Markdown libre."
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="6"
                                Margin="0,18,0,8"
                                Text="PLAN DU DOCUMENT"
                                FontSize="11"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource SecondaryTextBrush}" />
 
-                    <Grid Grid.Row="6">
+                    <Grid Grid.Row="7">
                         <TreeView x:Name="DocumentOutlineTree"
                                   BorderThickness="0"
                                   Background="Transparent"
@@ -948,7 +1000,7 @@
                                    Foreground="{StaticResource SecondaryTextBrush}" />
                     </Grid>
 
-                    <TextBlock Grid.Row="7"
+                    <TextBlock Grid.Row="8"
                                Margin="0,18,0,8"
                                Text="BACKLINKS"
                                FontSize="11"
@@ -956,7 +1008,7 @@
                                Foreground="{StaticResource SecondaryTextBrush}" />
 
                     <ListBox x:Name="BacklinksList"
-                             Grid.Row="8"
+                             Grid.Row="9"
                              BorderThickness="0"
                              Background="Transparent"
                              MouseDoubleClick="BacklinksList_MouseDoubleClick">
