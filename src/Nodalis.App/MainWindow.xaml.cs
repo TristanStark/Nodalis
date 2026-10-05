@@ -3238,6 +3238,45 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Moves the editor caret to the word that was right-clicked unless the
+    /// click happened inside the current selection.
+    /// </summary>
+    /// <param name="sender">The editor text box.</param>
+    /// <param name="e">The mouse event.</param>
+    private void MarkdownEditorTextBox_PreviewMouseRightButtonDown(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        int index = MarkdownEditorTextBox.GetCharacterIndexFromPoint(
+            e.GetPosition(MarkdownEditorTextBox),
+            snapToText: true);
+
+        if (index < 0)
+        {
+            return;
+        }
+
+        int selectionStart = MarkdownEditorTextBox.SelectionStart;
+        int selectionEnd =
+            selectionStart + MarkdownEditorTextBox.SelectionLength;
+
+        bool clickedInsideSelection =
+            MarkdownEditorTextBox.SelectionLength > 0 &&
+            index >= selectionStart &&
+            index < selectionEnd;
+
+        if (clickedInsideSelection)
+        {
+            return;
+        }
+
+        MarkdownEditorTextBox.CaretIndex = index;
+        MarkdownEditorTextBox.Select(
+            index,
+            0);
+    }
+
+    /// <summary>
     /// Performs the <c>MarkdownEditorTextBox_ContextMenuOpening</c> operation.
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
@@ -3269,18 +3308,22 @@ public partial class MainWindow : Window
             CommandTarget = MarkdownEditorTextBox
         });
 
-        string selected = NormalizeGlossarySelection(
-            MarkdownEditorTextBox.SelectedText);
+        string glossaryTerm =
+            GetGlossaryCandidateTerm();
 
-        if (!string.IsNullOrWhiteSpace(selected) &&
-            _glossaryScopes.Count > 0)
+        if (_glossaryScopes.Count > 0)
         {
             menu.Items.Add(
                 new Separator());
 
+            string glossaryHeader =
+                string.IsNullOrWhiteSpace(glossaryTerm)
+                    ? "Ajouter au glossaire…"
+                    : $"Ajouter « {FormatGlossaryMenuTerm(glossaryTerm)} » au glossaire";
+
             global::System.Windows.Controls.MenuItem addToGlossary = new MenuItem
             {
-                Header = "Ajouter au glossaire"
+                Header = glossaryHeader
             };
 
             foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in _glossaryScopes)
@@ -3299,7 +3342,7 @@ public partial class MainWindow : Window
                 scopeItem.Click += async (_, _) =>
                     await AddGlossaryEntryAsync(
                         capturedScope,
-                        selected);
+                        glossaryTerm);
 
                 addToGlossary.Items.Add(
                     scopeItem);
@@ -3320,6 +3363,107 @@ public partial class MainWindow : Window
         });
 
         MarkdownEditorTextBox.ContextMenu = menu;
+    }
+
+    /// <summary>
+    /// Gets the selected text or, when there is no selection, the word at the
+    /// current editor caret for use as a glossary term.
+    /// </summary>
+    /// <returns>The normalized glossary term, or an empty string.</returns>
+    private string GetGlossaryCandidateTerm()
+    {
+        string selected = NormalizeGlossarySelection(
+            MarkdownEditorTextBox.SelectedText);
+
+        if (!string.IsNullOrWhiteSpace(selected))
+        {
+            return selected;
+        }
+
+        return GetGlossaryWordAtPosition(
+            MarkdownEditorTextBox.Text,
+            MarkdownEditorTextBox.CaretIndex);
+    }
+
+    /// <summary>
+    /// Extracts a glossary-friendly word around a character position.
+    /// Letters, digits, apostrophes, underscores and hyphens are preserved.
+    /// </summary>
+    /// <param name="text">The source text.</param>
+    /// <param name="position">The caret position in the source text.</param>
+    /// <returns>The word around the position, or an empty string.</returns>
+    private static string GetGlossaryWordAtPosition(
+            string text,
+            int position)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        int index = Math.Clamp(
+            position,
+            0,
+            text.Length - 1);
+
+        if (!IsGlossaryWordCharacter(text[index]) &&
+            index > 0 &&
+            IsGlossaryWordCharacter(text[index - 1]))
+        {
+            index--;
+        }
+
+        if (!IsGlossaryWordCharacter(text[index]))
+        {
+            return string.Empty;
+        }
+
+        int start = index;
+        int end = index + 1;
+
+        while (start > 0 &&
+               IsGlossaryWordCharacter(text[start - 1]))
+        {
+            start--;
+        }
+
+        while (end < text.Length &&
+               IsGlossaryWordCharacter(text[end]))
+        {
+            end++;
+        }
+
+        return NormalizeGlossarySelection(
+            text[start..end]);
+    }
+
+    /// <summary>
+    /// Determines whether a character can belong to a glossary term detected
+    /// directly under the editor caret.
+    /// </summary>
+    /// <param name="value">The character to inspect.</param>
+    /// <returns><see langword="true"/> when the character belongs to a word.</returns>
+    private static bool IsGlossaryWordCharacter(
+            char value) =>
+            char.IsLetterOrDigit(value) ||
+            value == '-' ||
+            value == '_' ||
+            value == '\'' ||
+            value == '’';
+
+    /// <summary>
+    /// Produces a compact term label for the context-menu header.
+    /// </summary>
+    /// <param name="term">The glossary term.</param>
+    /// <returns>A term shortened for display when necessary.</returns>
+    private static string FormatGlossaryMenuTerm(
+            string term)
+    {
+        const int maximumLength = 48;
+
+        return term.Length <= maximumLength
+            ? term
+            : term[..(maximumLength - 1)] + "…";
     }
 
     /// <summary>
