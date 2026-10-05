@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Recherche"
-        Width="920"
-        Height="720"
-        MinWidth="720"
-        MinHeight="520"
+        Width="980"
+        Height="760"
+        MinWidth="760"
+        MinHeight="540"
         WindowStartupLocation="CenterOwner"
         PreviewKeyDown="Window_PreviewKeyDown">
     <Window.Resources>
@@ -15,6 +15,8 @@
                     <Run Text="{Binding DisplayName}" />
                     <Run Text=" · ligne " />
                     <Run Text="{Binding LineNumber}" />
+                    <Run Text=" · " />
+                    <Run Text="{Binding MatchKindDisplay}" />
                 </TextBlock>
                 <TextBlock Margin="0,3,0,0"
                            Text="{Binding Excerpt}"
@@ -26,7 +28,7 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="82" />
+            <RowDefinition Height="108" />
             <RowDefinition Height="*" />
             <RowDefinition Height="30" />
         </Grid.RowDefinitions>
@@ -36,14 +38,35 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1">
             <StackPanel>
-                <TextBox x:Name="SearchTextBox"
-                         Padding="10,6"
-                         FontSize="16"
-                         TextChanged="SearchTextBox_TextChanged" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox x:Name="SearchTextBox"
+                             Padding="10,6"
+                             FontSize="16"
+                             TextChanged="SearchTextBox_TextChanged" />
+
+                    <CheckBox x:Name="ExactModeCheckBox"
+                              Grid.Column="1"
+                              Margin="14,0,0,0"
+                              VerticalAlignment="Center"
+                              Checked="ExactModeCheckBox_Changed"
+                              Unchecked="ExactModeCheckBox_Changed"
+                              Content="Mode exact" />
+                </Grid>
+
                 <TextBlock Margin="2,5,0,0"
                            FontSize="11"
                            Foreground="{StaticResource SecondaryTextBrush}"
-                           Text="Filtres : status:actif · tag:api · owner:alice · @ma-propriete:valeur" />
+                           Text="Fuzzy local par défaut : fautes et mots incomplets. Le mode exact conserve la recherche littérale." />
+
+                <TextBlock Margin="2,3,0,0"
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="Filtres : type:spec · date:2026-10-05 · project:&quot;Projet Patate&quot; · status:actif · tag:api · @clé:valeur" />
             </StackPanel>
         </Border>
 
@@ -105,7 +128,7 @@
                        VerticalAlignment="Center"
                        FontSize="11"
                        Foreground="{StaticResource SecondaryTextBrush}"
-                       Text="Saisissez un terme exact." />
+                       Text="Saisissez un terme. Recherche fuzzy activée." />
         </Border>
     </Grid>
 </Window>
