@@ -412,6 +412,41 @@ public partial class MainWindow : Window
             await ShowBackupsAsync();
 
     /// <summary>
+    /// Opens the workspace template and project-profile editor.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void OpenTemplateEditor_Click(
+            object sender,
+            RoutedEventArgs e) =>
+        await ShowTemplateEditorAsync();
+
+    /// <summary>
+    /// Opens the template/profile editor backed by the canonical workspace files.
+    /// </summary>
+    /// <returns>A task representing the modal editor workflow.</returns>
+    private Task ShowTemplateEditorAsync()
+    {
+        global::Nodalis.App.Dialogs.TemplateProfileEditorDialog dialog =
+            new TemplateProfileEditorDialog(
+                _templateStore)
+            {
+                Owner =
+                    this
+            };
+
+        dialog.ShowDialog();
+
+        if (dialog.Changed)
+        {
+            StatusText.Text =
+                "Templates et profils de projet mis à jour.";
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Opens the backup manager and persists its local scheduling preferences.
     /// </summary>
     /// <returns>A task representing the operation.</returns>
@@ -3022,6 +3057,14 @@ public partial class MainWindow : Window
                 Subtitle = "Créer un projet ou sous-projet depuis un profil",
                 Keywords = ["projet", "simple", "moyen", "complexe"],
                 ExecuteAsync = CreateProjectAsync
+            },
+            new()
+            {
+                Id = "templates.manage",
+                Title = "Templates et profils de projet",
+                Subtitle = "Modifier les templates Markdown et profils Simple / Moyen / Complexe",
+                Keywords = ["template", "profil", "projet", "markdown", "structure"],
+                ExecuteAsync = ShowTemplateEditorAsync
             },
             new()
             {

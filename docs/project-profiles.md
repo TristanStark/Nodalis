@@ -104,5 +104,24 @@ Les contenus générés proviennent des templates Markdown du dossier
 `Templates/`. Le choix du profil n'introduit donc aucun comportement codé en
 dur dans l'interface WPF.
 
-Modifier ces fichiers change les structures **des futurs projets uniquement**.
+Nodalis fournit également l'écran **Templates et profils de projet**, accessible
+depuis le bouton **Templates** ou depuis la Command Palette. Cet écran permet :
+
+- d'éditer le nom, la catégorie, le nom de fichier généré et le Markdown d'un
+  template ;
+- de prévisualiser localement le rendu avec des valeurs pour les variables
+  `{{...}}` ;
+- de dupliquer un template sans écraser l'original ;
+- de restaurer individuellement un template intégré ;
+- de modifier le nom, l'ordre, le caractère singleton et le template initial
+  des sections des profils Simple, Moyen et Complexe ;
+- de restaurer individuellement un profil intégré.
+
+L'interface n'introduit **aucun format persistant supplémentaire** :
+`Templates/templates.json`, `Templates/project-profiles.json` et les fichiers
+Markdown restent les sources canoniques. La validation est effectuée avant
+sauvegarde ; une variable ou un nom de fichier invalide est signalé avant
+écriture.
+
+Modifier les profils change les structures **des futurs projets uniquement**.
 Nodalis ne remodèle jamais silencieusement un projet déjà créé.

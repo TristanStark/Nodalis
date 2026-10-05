@@ -301,6 +301,88 @@ static async Task VerifyTemplatesAsync(string root)
         WorkspaceLayout.TemplatesDirectoryName,
         "note.md");
 
+    global::Nodalis.Core.Templates.MarkdownTemplateDefinition noteDefinition =
+        catalog.Templates.Single(template =>
+            template.Key == "note");
+    string editableContent =
+        "# {{title}}\n\nWorkspace : {{workspace.name}}\n";
+
+    await store.SaveTemplateAsync(
+        noteDefinition with
+        {
+            DisplayName = "Note personnalisée",
+            Category = "Personnalisé"
+        },
+        editableContent);
+
+    global::Nodalis.Core.Templates.TemplateCatalog editedCatalog =
+        await store.LoadTemplateCatalogAsync();
+    Assert(
+        editedCatalog.Templates.Single(template =>
+            template.Key == "note").DisplayName ==
+        "Note personnalisée",
+        "Template metadata edited from the UI contract must persist.");
+    Assert(
+        await store.LoadTemplateContentAsync("note") ==
+        editableContent,
+        "Template Markdown edited from the UI contract must persist.");
+
+    global::Nodalis.Core.Templates.MarkdownTemplateDefinition duplicate =
+        await store.DuplicateTemplateAsync(
+            "note",
+            "Note de suivi");
+
+    Assert(
+        duplicate.Key != "note" &&
+        await store.LoadTemplateContentAsync(
+            duplicate.Key) ==
+        editableContent,
+        "Duplicating a template must create a distinct editable Markdown source.");
+
+    global::System.Collections.Generic.List<global::Nodalis.Core.Templates.ProjectProfileDefinition> editedProfiles =
+        profiles.Profiles
+            .Select(profile =>
+                profile.Complexity ==
+                ProjectComplexity.Simple
+                    ? profile with
+                    {
+                        DisplayName =
+                            "Simple personnalisé"
+                    }
+                    : profile)
+            .ToList();
+
+    await store.SaveProjectProfilesAsync(
+        profiles with
+        {
+            Profiles =
+                editedProfiles
+        });
+
+    global::Nodalis.Core.Templates.ProjectProfileCatalog persistedProfiles =
+        await store.LoadProjectProfilesAsync();
+    Assert(
+        persistedProfiles.Profiles.Single(profile =>
+            profile.Complexity ==
+            ProjectComplexity.Simple).DisplayName ==
+        "Simple personnalisé",
+        "Project profile edits must persist in project-profiles.json.");
+
+    await store.RestoreTemplateDefaultAsync(
+        "note");
+    await store.RestoreProjectProfileDefaultAsync(
+        ProjectComplexity.Simple);
+
+    Assert(
+        (await store.LoadTemplateCatalogAsync()).Templates.Single(template =>
+            template.Key == "note").DisplayName ==
+        "Note" &&
+        (await store.LoadProjectProfilesAsync()).Profiles.Single(profile =>
+            profile.Complexity ==
+            ProjectComplexity.Simple).DisplayName ==
+        "Simple",
+        "Built-in templates and profiles must be individually restorable.");
+
     const string customized = "# Template personnalisé\n";
     await File.WriteAllTextAsync(templatePath, customized);
     await store.InitializeDefaultsAsync();
