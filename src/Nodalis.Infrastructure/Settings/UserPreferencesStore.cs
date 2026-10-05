@@ -140,6 +140,24 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
                 .OrderByDescending(item => item.LastOpenedUtc)
                 .Take(50)
                 .ToList(),
+            RecentSearches = (preferences.RecentSearches ?? [])
+                .Where(item =>
+                    item is not null &&
+                    !string.IsNullOrWhiteSpace(item.Query))
+                .Select(item => item with
+                {
+                    Query = item.Query.Trim(),
+                    ContextRelativePath = string.IsNullOrWhiteSpace(
+                            item.ContextRelativePath)
+                        ? null
+                        : item.ContextRelativePath.Trim()
+                })
+                .OrderByDescending(item => item.LastUsedUtc)
+                .DistinctBy(
+                    item => $"{item.Query}\0{item.ContextRelativePath}",
+                    StringComparer.CurrentCultureIgnoreCase)
+                .Take(20)
+                .ToList(),
             Favorites = (preferences.Favorites ?? [])
                 .Where(item => item is not null)
                 .DistinctBy(item => $"{item.Kind}\0{item.Key}", StringComparer.OrdinalIgnoreCase)
