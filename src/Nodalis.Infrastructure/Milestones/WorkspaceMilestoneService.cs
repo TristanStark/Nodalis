@@ -94,7 +94,10 @@ public sealed class WorkspaceMilestoneService
                     relativeSource));
         }
 
-        return result
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> enriched =
+            EnrichDependencyMetadata(result);
+
+        return enriched
             .OrderBy(item => item.TargetDate ?? DateOnly.MaxValue)
             .ThenBy(item => item.ProjectName, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
@@ -164,12 +167,31 @@ public sealed class WorkspaceMilestoneService
             sourcePath,
             cancellationToken);
 
+        await EnsureStableSchemaAsync(
+            sourcePath,
+            manifest.Id,
+            cancellationToken);
+
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> existingMilestones =
+            await GetMilestonesAsync(
+                fullProjectDirectory,
+                cancellationToken);
+
+        global::System.Guid milestoneId = Guid.NewGuid();
+
+        ValidateDependencyDraft(
+            milestoneId,
+            draft.DependencyIds,
+            existingMilestones);
+
         global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
             sourcePath,
             cancellationToken);
 
         string existing = session.Content.TrimEnd();
-        string row = FormatRow(draft);
+        string row = FormatRow(
+            draft,
+            milestoneId);
         string updated = existing + Environment.NewLine + row + Environment.NewLine;
 
         await session.SaveAsync(
@@ -214,8 +236,21 @@ public sealed class WorkspaceMilestoneService
         ArgumentNullException.ThrowIfNull(item);
         ValidateDraft(draft);
 
-        string sourcePath = ResolveWorkspacePath(
-            item.SourceRelativePath);
+        global::Nodalis.Core.Links.LinkIndexCatalog links =
+            await _linkIndex.RefreshAsync(cancellationToken);
+
+        global::Nodalis.Core.Links.LinkTargetEntry project = links.Targets.FirstOrDefault(target =>
+                target.Kind == LinkTargetKind.Project &&
+                target.Id == item.ProjectId)
+            ?? throw new InvalidDataException(
+                "Le projet du jalon est introuvable.");
+
+        string projectDirectory = ResolveWorkspacePath(
+            project.RelativePath);
+
+        string sourcePath = await ResolveMilestoneFileAsync(
+            projectDirectory,
+            cancellationToken);
 
         if (!File.Exists(sourcePath))
         {
@@ -223,6 +258,27 @@ public sealed class WorkspaceMilestoneService
                 "Le fichier de jalons est introuvable.",
                 sourcePath);
         }
+
+        await EnsureStableSchemaAsync(
+            sourcePath,
+            item.ProjectId,
+            cancellationToken);
+
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> milestones =
+            await GetMilestonesAsync(
+                projectDirectory,
+                cancellationToken);
+
+        global::Nodalis.Core.Milestones.MilestoneItem currentItem =
+            milestones.FirstOrDefault(candidate =>
+                candidate.Id == item.Id)
+            ?? throw new MilestoneSourceConflictException(
+                sourcePath);
+
+        ValidateDependencyDraft(
+            currentItem.Id,
+            draft.DependencyIds,
+            milestones);
 
         global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
             sourcePath,
@@ -253,11 +309,13 @@ public sealed class WorkspaceMilestoneService
 
         int index = LocateSourceLine(
             lines,
-            item.LineNumber,
-            item.RawLine,
+            currentItem.LineNumber,
+            currentItem.RawLine,
             sourcePath);
 
-        string replacement = FormatRow(draft);
+        string replacement = FormatRow(
+            draft,
+            currentItem.Id);
         lines[index] = replacement;
 
         string content = string.Join(
@@ -273,19 +331,19 @@ public sealed class WorkspaceMilestoneService
             content,
             cancellationToken);
 
-        return item with
+        return currentItem with
         {
             Name = draft.Name.Trim(),
             TargetDate = draft.TargetDate,
             Status = draft.Status.Trim(),
             Description = draft.Description.Trim(),
             Link = NormalizeOptional(draft.Link),
+            DependencyIds = NormalizeDependencyIds(
+                draft.DependencyIds),
+            DependencyNames = Array.Empty<string>(),
+            DependencyWarnings = Array.Empty<string>(),
             LineNumber = index + 1,
-            RawLine = replacement,
-            Id = CreateMilestoneId(
-                item.ProjectId,
-                index + 1,
-                draft.Name)
+            RawLine = replacement
         };
     }
 
@@ -301,8 +359,60 @@ public sealed class WorkspaceMilestoneService
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        string sourcePath = ResolveWorkspacePath(
-            item.SourceRelativePath);
+        global::Nodalis.Core.Links.LinkIndexCatalog links =
+            await _linkIndex.RefreshAsync(cancellationToken);
+
+        global::Nodalis.Core.Links.LinkTargetEntry project = links.Targets.FirstOrDefault(target =>
+                target.Kind == LinkTargetKind.Project &&
+                target.Id == item.ProjectId)
+            ?? throw new InvalidDataException(
+                "Le projet du jalon est introuvable.");
+
+        string projectDirectory = ResolveWorkspacePath(
+            project.RelativePath);
+
+        string sourcePath = await ResolveMilestoneFileAsync(
+            projectDirectory,
+            cancellationToken);
+
+        await EnsureStableSchemaAsync(
+            sourcePath,
+            item.ProjectId,
+            cancellationToken);
+
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> projectMilestones =
+            await GetMilestonesAsync(
+                projectDirectory,
+                cancellationToken);
+
+        global::Nodalis.Core.Milestones.MilestoneItem currentItem =
+            projectMilestones.FirstOrDefault(candidate =>
+                candidate.Id == item.Id)
+            ?? throw new MilestoneSourceConflictException(
+                sourcePath);
+
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> workspaceMilestones =
+            await GetMilestonesAsync(
+                _workspaceRoot,
+                cancellationToken);
+
+        global::System.Collections.Generic.List<global::Nodalis.Core.Milestones.MilestoneItem> dependents =
+            workspaceMilestones
+                .Where(candidate =>
+                    candidate.DependencyIds.Contains(
+                        currentItem.Id))
+                .ToList();
+
+        if (dependents.Count > 0)
+        {
+            string dependentNames = string.Join(
+                ", ",
+                dependents.Select(candidate =>
+                    $"{candidate.ProjectName} / {candidate.Name}"));
+
+            throw new MilestoneDependencyConflictException(
+                $"Le jalon « {currentItem.Name} » est encore requis par : {dependentNames}. Retirez d'abord ces dépendances.");
+        }
 
         global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
             sourcePath,
@@ -333,8 +443,8 @@ public sealed class WorkspaceMilestoneService
 
         int index = LocateSourceLine(
             lines,
-            item.LineNumber,
-            item.RawLine,
+            currentItem.LineNumber,
+            currentItem.RawLine,
             sourcePath);
 
         lines.RemoveAt(index);
@@ -448,8 +558,8 @@ public sealed class WorkspaceMilestoneService
         await AtomicFileWriter.WriteAllTextAsync(
             sourcePath,
             "# Jalons\n\n" +
-            "| Jalon | Date cible | Statut | Description | Lien |\n" +
-            "| --- | --- | --- | --- | --- |\n",
+            "| Jalon | Date cible | Statut | Description | Lien | Id | Dépend de |\n" +
+            "| --- | --- | --- | --- | --- | --- | --- |\n",
             cancellationToken);
     }
 
@@ -572,7 +682,12 @@ public sealed class WorkspaceMilestoneService
 
             result.Add(new MilestoneItem
             {
-                Id = CreateMilestoneId(
+                Id = ParseMilestoneId(
+                    GetCell(
+                        cells,
+                        columns,
+                        "id",
+                        "identifiant"),
                     projectId,
                     index + 1,
                     name),
@@ -590,7 +705,14 @@ public sealed class WorkspaceMilestoneService
                         "statut")),
                 Description = UnescapeCell(description),
                 Link = NormalizeOptional(
-                    UnescapeCell(link))
+                    UnescapeCell(link)),
+                DependencyIds = ParseDependencyIds(
+                    GetCell(
+                        cells,
+                        columns,
+                        "depend de",
+                        "dependances",
+                        "prerequis"))
             });
         }
 
@@ -603,12 +725,539 @@ public sealed class WorkspaceMilestoneService
     /// <param name="draft">The <c>draft</c> value.</param>
     /// <returns>The result of the operation.</returns>
     private static string FormatRow(
-            MilestoneDraft draft) =>
+            MilestoneDraft draft,
+            Guid id) =>
             $"| {EscapeCell(draft.Name.Trim())} | " +
             $"{(draft.TargetDate is DateOnly date ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : string.Empty)} | " +
             $"{EscapeCell(draft.Status.Trim())} | " +
             $"{EscapeCell(draft.Description.Trim())} | " +
-            $"{EscapeCell(NormalizeOptional(draft.Link) ?? string.Empty)} |";
+            $"{EscapeCell(NormalizeOptional(draft.Link) ?? string.Empty)} | " +
+            $"{id:D} | " +
+            $"{FormatDependencyIds(draft.DependencyIds)} |";
+
+    /// <summary>
+    /// Ensures that an existing milestone table persists stable identifiers and dependency columns.
+    /// </summary>
+    /// <param name="sourcePath">The milestone Markdown file.</param>
+    /// <param name="projectId">The project identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private static async Task EnsureStableSchemaAsync(
+            string sourcePath,
+            Guid projectId,
+            CancellationToken cancellationToken)
+    {
+        if (!File.Exists(sourcePath))
+        {
+            return;
+        }
+
+        global::Nodalis.Infrastructure.Reliability.TextDocumentSession session =
+            await TextDocumentSession.OpenAsync(
+                sourcePath,
+                cancellationToken);
+
+        string newline = session.Content.Contains(
+            "\r\n",
+            StringComparison.Ordinal)
+            ? "\r\n"
+            : "\n";
+
+        string normalized = session.Content
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
+
+        bool hadTrailingNewline = normalized.EndsWith(
+            "\n",
+            StringComparison.Ordinal);
+
+        global::System.Collections.Generic.List<string> lines =
+            normalized.Split('\n').ToList();
+
+        if (hadTrailingNewline &&
+            lines.Count > 0 &&
+            lines[^1].Length == 0)
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
+
+        int headerIndex = -1;
+        global::System.Collections.Generic.Dictionary<string, int>? columns = null;
+
+        for (int index = 0; index < lines.Count; index++)
+        {
+            if (!lines[index].TrimStart().StartsWith(
+                    "|",
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            global::System.Collections.Generic.List<string> cells =
+                SplitTableRow(
+                    lines[index]);
+
+            if (!cells.Any(cell =>
+                    NormalizeHeader(cell) == "jalon"))
+            {
+                continue;
+            }
+
+            headerIndex = index;
+            columns = cells
+                .Select((cell, columnIndex) =>
+                    (Key: NormalizeHeader(cell), columnIndex))
+                .Where(pair =>
+                    !string.IsNullOrWhiteSpace(pair.Key))
+                .GroupBy(pair =>
+                    pair.Key)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First().columnIndex,
+                    StringComparer.OrdinalIgnoreCase);
+            break;
+        }
+
+        if (headerIndex < 0 ||
+            columns is null)
+        {
+            return;
+        }
+
+        bool alreadyStable =
+            columns.ContainsKey("id") &&
+            columns.ContainsKey("depend de") &&
+            columns.ContainsKey("description") &&
+            columns.ContainsKey("lien");
+
+        if (alreadyStable)
+        {
+            return;
+        }
+
+        lines[headerIndex] =
+            "| Jalon | Date cible | Statut | Description | Lien | Id | Dépend de |";
+
+        int separatorIndex = headerIndex + 1;
+
+        if (separatorIndex < lines.Count &&
+            lines[separatorIndex].TrimStart().StartsWith(
+                "|",
+                StringComparison.Ordinal))
+        {
+            lines[separatorIndex] =
+                "| --- | --- | --- | --- | --- | --- | --- |";
+        }
+
+        for (int index = headerIndex + 2; index < lines.Count; index++)
+        {
+            string line = lines[index];
+
+            if (!line.TrimStart().StartsWith(
+                    "|",
+                    StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            global::System.Collections.Generic.List<string> cells =
+                SplitTableRow(
+                    line);
+
+            if (IsSeparatorRow(cells))
+            {
+                continue;
+            }
+
+            string name = UnescapeCell(
+                GetCell(
+                    cells,
+                    columns,
+                    "jalon"));
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            DateOnly? targetDate = null;
+            string dateText = GetCell(
+                cells,
+                columns,
+                "date cible");
+
+            if (DateOnly.TryParseExact(
+                    dateText,
+                    "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out global::System.DateOnly parsedDate))
+            {
+                targetDate = parsedDate;
+            }
+
+            global::System.Guid stableId =
+                ParseMilestoneId(
+                    GetCell(
+                        cells,
+                        columns,
+                        "id",
+                        "identifiant"),
+                    projectId,
+                    index + 1,
+                    name);
+
+            global::Nodalis.Core.Milestones.MilestoneDraft draft =
+                new MilestoneDraft
+                {
+                    Name = name,
+                    TargetDate = targetDate,
+                    Status = UnescapeCell(
+                        GetCell(
+                            cells,
+                            columns,
+                            "statut")),
+                    Description = UnescapeCell(
+                        GetCell(
+                            cells,
+                            columns,
+                            "description",
+                            "commentaire")),
+                    Link = NormalizeOptional(
+                        UnescapeCell(
+                            GetCell(
+                                cells,
+                                columns,
+                                "lien"))),
+                    DependencyIds = ParseDependencyIds(
+                        GetCell(
+                            cells,
+                            columns,
+                            "depend de",
+                            "dependances",
+                            "prerequis"))
+                };
+
+            lines[index] = FormatRow(
+                draft,
+                stableId);
+        }
+
+        string content = string.Join(
+            newline,
+            lines);
+
+        if (hadTrailingNewline)
+        {
+            content += newline;
+        }
+
+        await session.SaveAsync(
+            content,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Parses a persisted milestone identifier, falling back to the deterministic legacy identifier.
+    /// </summary>
+    /// <param name="value">The persisted identifier.</param>
+    /// <param name="projectId">The project identifier.</param>
+    /// <param name="lineNumber">The source line number.</param>
+    /// <param name="name">The milestone name.</param>
+    /// <returns>The stable identifier.</returns>
+    private static Guid ParseMilestoneId(
+            string value,
+            Guid projectId,
+            int lineNumber,
+            string name) =>
+            Guid.TryParse(
+                value,
+                out global::System.Guid parsed)
+                ? parsed
+                : CreateMilestoneId(
+                    projectId,
+                    lineNumber,
+                    name);
+
+    /// <summary>
+    /// Parses a comma- or semicolon-separated list of milestone identifiers.
+    /// </summary>
+    /// <param name="value">The persisted dependency list.</param>
+    /// <returns>The normalized dependency identifiers.</returns>
+    private static IReadOnlyList<Guid> ParseDependencyIds(
+            string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Array.Empty<Guid>();
+        }
+
+        global::System.Collections.Generic.List<global::System.Guid> result =
+            new List<Guid>();
+
+        foreach (string token in value.Split(
+                     [',', ';'],
+                     StringSplitOptions.RemoveEmptyEntries |
+                     StringSplitOptions.TrimEntries))
+        {
+            if (Guid.TryParse(
+                    token,
+                    out global::System.Guid dependencyId) &&
+                dependencyId != Guid.Empty &&
+                !result.Contains(
+                    dependencyId))
+            {
+                result.Add(
+                    dependencyId);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Normalizes dependency identifiers before persistence.
+    /// </summary>
+    /// <param name="dependencyIds">The dependency identifiers.</param>
+    /// <returns>The normalized identifiers.</returns>
+    private static IReadOnlyList<Guid> NormalizeDependencyIds(
+            IEnumerable<Guid> dependencyIds) =>
+            dependencyIds
+                .Where(dependencyId =>
+                    dependencyId != Guid.Empty)
+                .Distinct()
+                .ToArray();
+
+    /// <summary>
+    /// Formats dependency identifiers for the Markdown table.
+    /// </summary>
+    /// <param name="dependencyIds">The dependency identifiers.</param>
+    /// <returns>The persisted list.</returns>
+    private static string FormatDependencyIds(
+            IEnumerable<Guid> dependencyIds) =>
+            string.Join(
+                ", ",
+                NormalizeDependencyIds(
+                    dependencyIds)
+                    .Select(dependencyId =>
+                        dependencyId.ToString("D")));
+
+    /// <summary>
+    /// Validates that a proposed dependency set references existing milestones and remains acyclic.
+    /// </summary>
+    /// <param name="milestoneId">The milestone being created or updated.</param>
+    /// <param name="dependencyIds">The proposed dependencies.</param>
+    /// <param name="milestones">The current project milestones.</param>
+    private static void ValidateDependencyDraft(
+            Guid milestoneId,
+            IReadOnlyList<Guid> dependencyIds,
+            IReadOnlyList<MilestoneItem> milestones)
+    {
+        global::System.Collections.Generic.IReadOnlyList<global::System.Guid> normalized =
+            NormalizeDependencyIds(
+                dependencyIds);
+
+        if (normalized.Contains(
+                milestoneId))
+        {
+            throw new InvalidDataException(
+                "Un jalon ne peut pas dépendre de lui-même.");
+        }
+
+        global::System.Collections.Generic.Dictionary<global::System.Guid, global::Nodalis.Core.Milestones.MilestoneItem> byId =
+            milestones
+                .GroupBy(item =>
+                    item.Id)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First());
+
+        foreach (Guid dependencyId in normalized)
+        {
+            if (!byId.ContainsKey(
+                    dependencyId))
+            {
+                throw new InvalidDataException(
+                    $"Le jalon prérequis {dependencyId:D} est introuvable.");
+            }
+        }
+
+        global::System.Collections.Generic.Dictionary<global::System.Guid, global::System.Collections.Generic.IReadOnlyList<global::System.Guid>> graph =
+            milestones
+                .GroupBy(item =>
+                    item.Id)
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                        (IReadOnlyList<Guid>)NormalizeDependencyIds(
+                            group.First().DependencyIds));
+
+        graph[milestoneId] = normalized;
+
+        if (HasDependencyCycle(
+                milestoneId,
+                graph))
+        {
+            throw new InvalidDataException(
+                "Cette modification créerait un cycle de dépendances entre jalons.");
+        }
+    }
+
+    /// <summary>
+    /// Resolves dependency names and warnings for display.
+    /// </summary>
+    /// <param name="milestones">The parsed milestones.</param>
+    /// <returns>The enriched milestone list.</returns>
+    private static IReadOnlyList<MilestoneItem> EnrichDependencyMetadata(
+            IReadOnlyList<MilestoneItem> milestones)
+    {
+        global::System.Collections.Generic.Dictionary<global::System.Guid, global::Nodalis.Core.Milestones.MilestoneItem> byId =
+            milestones
+                .GroupBy(item =>
+                    item.Id)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First());
+
+        global::System.Collections.Generic.Dictionary<global::System.Guid, global::System.Collections.Generic.IReadOnlyList<global::System.Guid>> graph =
+            byId.ToDictionary(
+                pair => pair.Key,
+                pair =>
+                    (IReadOnlyList<Guid>)NormalizeDependencyIds(
+                        pair.Value.DependencyIds));
+
+        global::System.Collections.Generic.List<global::Nodalis.Core.Milestones.MilestoneItem> result =
+            new List<MilestoneItem>();
+
+        foreach (MilestoneItem item in milestones)
+        {
+            global::System.Collections.Generic.List<string> names =
+                new List<string>();
+            global::System.Collections.Generic.List<string> warnings =
+                new List<string>();
+
+            foreach (Guid dependencyId in NormalizeDependencyIds(
+                         item.DependencyIds))
+            {
+                if (dependencyId == item.Id)
+                {
+                    warnings.Add(
+                        "Le jalon dépend de lui-même.");
+                    continue;
+                }
+
+                if (!byId.TryGetValue(
+                        dependencyId,
+                        out global::Nodalis.Core.Milestones.MilestoneItem? dependency))
+                {
+                    warnings.Add(
+                        $"Prérequis introuvable : {dependencyId:D}.");
+                    continue;
+                }
+
+                names.Add(
+                    dependency.Name);
+
+                if (item.TargetDate is DateOnly itemDate &&
+                    dependency.TargetDate is DateOnly dependencyDate &&
+                    itemDate < dependencyDate)
+                {
+                    warnings.Add(
+                        $"Prévu le {itemDate:dd/MM/yyyy} avant « {dependency.Name} » ({dependencyDate:dd/MM/yyyy}).");
+                }
+            }
+
+            if (HasDependencyCycle(
+                    item.Id,
+                    graph))
+            {
+                warnings.Add(
+                    "Cycle de dépendances détecté.");
+            }
+
+            result.Add(
+                item with
+                {
+                    DependencyIds = NormalizeDependencyIds(
+                        item.DependencyIds),
+                    DependencyNames = names,
+                    DependencyWarnings = warnings
+                });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Detects a dependency cycle reachable from a milestone.
+    /// </summary>
+    /// <param name="startId">The starting milestone.</param>
+    /// <param name="graph">The dependency graph.</param>
+    /// <returns><see langword="true"/> when a cycle is detected.</returns>
+    private static bool HasDependencyCycle(
+            Guid startId,
+            IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> graph)
+    {
+        global::System.Collections.Generic.HashSet<global::System.Guid> visiting =
+            new HashSet<Guid>();
+        global::System.Collections.Generic.HashSet<global::System.Guid> visited =
+            new HashSet<Guid>();
+
+        return VisitDependency(
+            startId,
+            graph,
+            visiting,
+            visited);
+    }
+
+    /// <summary>
+    /// Traverses the dependency graph for cycle detection.
+    /// </summary>
+    /// <param name="milestoneId">The current milestone.</param>
+    /// <param name="graph">The dependency graph.</param>
+    /// <param name="visiting">The active recursion path.</param>
+    /// <param name="visited">The completed nodes.</param>
+    /// <returns><see langword="true"/> when a cycle is detected.</returns>
+    private static bool VisitDependency(
+            Guid milestoneId,
+            IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> graph,
+            ISet<Guid> visiting,
+            ISet<Guid> visited)
+    {
+        if (visited.Contains(
+                milestoneId))
+        {
+            return false;
+        }
+
+        if (!visiting.Add(
+                milestoneId))
+        {
+            return true;
+        }
+
+        if (graph.TryGetValue(
+                milestoneId,
+                out global::System.Collections.Generic.IReadOnlyList<global::System.Guid>? dependencies))
+        {
+            foreach (Guid dependencyId in dependencies)
+            {
+                if (VisitDependency(
+                        dependencyId,
+                        graph,
+                        visiting,
+                        visited))
+                {
+                    return true;
+                }
+            }
+        }
+
+        visiting.Remove(
+            milestoneId);
+        visited.Add(
+            milestoneId);
+        return false;
+    }
 
     /// <summary>
     /// Performs the <c>LocateSourceLine</c> operation.
