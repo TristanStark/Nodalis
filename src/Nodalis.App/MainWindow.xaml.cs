@@ -109,6 +109,7 @@ public partial class MainWindow : Window
 
         InitializeComponent();
         InitializeDocumentTabs();
+        InitializeDocumentOutline();
 
         _preferences = preferences;
         _preferencesStore = preferencesStore;

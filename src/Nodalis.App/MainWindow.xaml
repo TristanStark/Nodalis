@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:navigation="clr-namespace:Nodalis.App.Navigation"
+        xmlns:editor="clr-namespace:Nodalis.App.Editor"
         Title="Nodalis"
         Width="1440"
         Height="900"
@@ -654,6 +655,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="180" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -687,13 +690,59 @@
 
                     <TextBlock Grid.Row="5"
                                Margin="0,18,0,8"
+                               Text="PLAN DU DOCUMENT"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+
+                    <Grid Grid.Row="6">
+                        <TreeView x:Name="DocumentOutlineTree"
+                                  BorderThickness="0"
+                                  Background="Transparent"
+                                  SelectedItemChanged="DocumentOutlineTree_SelectedItemChanged">
+                            <TreeView.Resources>
+                                <HierarchicalDataTemplate DataType="{x:Type editor:DocumentOutlineItemViewModel}"
+                                                          ItemsSource="{Binding Children}">
+                                    <TextBlock Text="{Binding Title}"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding LineNumber, StringFormat='Aller à la ligne {0}'}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground"
+                                                        Value="{StaticResource PrimaryTextBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCurrent}"
+                                                                 Value="True">
+                                                        <Setter Property="FontWeight"
+                                                                Value="SemiBold" />
+                                                        <Setter Property="Foreground"
+                                                                Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </HierarchicalDataTemplate>
+                            </TreeView.Resources>
+                        </TreeView>
+
+                        <TextBlock x:Name="DocumentOutlineEmptyText"
+                                   Margin="4,4,0,0"
+                                   Text="Aucun titre Markdown dans ce document."
+                                   TextWrapping="Wrap"
+                                   IsHitTestVisible="False"
+                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                    </Grid>
+
+                    <TextBlock Grid.Row="7"
+                               Margin="0,18,0,8"
                                Text="BACKLINKS"
                                FontSize="11"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource SecondaryTextBrush}" />
 
                     <ListBox x:Name="BacklinksList"
-                             Grid.Row="6"
+                             Grid.Row="8"
                              BorderThickness="0"
                              Background="Transparent"
                              MouseDoubleClick="BacklinksList_MouseDoubleClick">

@@ -64,6 +64,7 @@ try
     await VerifyDocxImportAsync(root);
     await VerifyDocxImportAnalysisAsync(root);
     VerifyMarkdownParser();
+    VerifyMarkdownOutlineParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyDocumentReliabilityAsync(root);
     VerifyDomainCatalog();
@@ -3042,4 +3043,47 @@ static IEnumerable<WorkspaceNavigationNode> DescendantsAndSelf(
             yield return descendant;
         }
     }
+}
+
+
+static void VerifyMarkdownOutlineParser()
+{
+    string markdown =
+        "# Introduction\r\n" +
+        "## Détails ##\r\n" +
+        "### Même titre\r\n" +
+        "## Même titre\r\n" +
+        "\u0060\u0060\u0060markdown\r\n" +
+        "# Ignoré dans le code\r\n" +
+        "\u0060\u0060\u0060\r\n" +
+        "###### Section profonde\r\n";
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Markdown.MarkdownOutlineEntry> outline =
+        MarkdownOutlineParser.Parse(markdown);
+
+    Assert(outline.Count == 5,
+        "Markdown outline must ignore headings inside fenced code blocks.");
+
+    Assert(
+        outline[0].Level == 1 &&
+        outline[0].Title == "Introduction" &&
+        outline[0].LineNumber == 1,
+        "Markdown outline must preserve heading level, title and line number.");
+
+    Assert(
+        outline[1].Title == "Détails" &&
+        outline[1].LineNumber == 2,
+        "Markdown outline must trim optional closing heading markers.");
+
+    Assert(
+        outline[2].Title == "Même titre" &&
+        outline[3].Title == "Même titre" &&
+        outline[2].Offset != outline[3].Offset,
+        "Duplicate heading titles must remain independently addressable by source offset.");
+
+    Assert(
+        markdown.AsSpan(outline[4].Offset).StartsWith(
+            "###### Section profonde",
+            StringComparison.Ordinal),
+        "Markdown outline offsets must point to the original source heading without rewriting it.");
 }
