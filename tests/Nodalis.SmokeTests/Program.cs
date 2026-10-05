@@ -3348,32 +3348,38 @@ static void VerifyFlowcharts()
         parsed.Success &&
         parsed.Diagram is not null,
         "A supported Mermaid flowchart fence must parse locally.");
+
+    global::Nodalis.Core.Flowcharts.FlowchartDefinition parsedDiagram =
+        parsed.Diagram ??
+        throw new InvalidOperationException(
+            "Supported Mermaid flowchart did not produce a diagram.");
+
     Assert(
-        parsed.Diagram.Direction ==
+        parsedDiagram.Direction ==
             FlowchartDirection.TopDown &&
-        parsed.Diagram.Nodes.Count ==
+        parsedDiagram.Nodes.Count ==
             4 &&
-        parsed.Diagram.Edges.Count ==
+        parsedDiagram.Edges.Count ==
             3,
         "The example flowchart must preserve direction, nodes and branches.");
     Assert(
-        parsed.Diagram.Nodes.Single(node =>
+        parsedDiagram.Nodes.Single(node =>
             node.Id ==
             "B").Shape ==
         FlowchartNodeShape.Decision,
         "Curly-brace Mermaid nodes must become decision diamonds.");
     Assert(
-        parsed.Diagram.Edges.Any(edge =>
+        parsedDiagram.Edges.Any(edge =>
             edge.Label ==
             "Oui") &&
-        parsed.Diagram.Edges.Any(edge =>
+        parsedDiagram.Edges.Any(edge =>
             edge.Label ==
             "Non"),
         "Mermaid edge labels must be preserved.");
 
     global::Nodalis.Core.Flowcharts.FlowchartLayout branchLayout =
         FlowchartLayoutEngine.Layout(
-            parsed.Diagram);
+            parsedDiagram);
     global::Nodalis.Core.Flowcharts.FlowchartLayoutNode actionNode =
         branchLayout.Nodes.Single(node =>
             node.Node.Id ==
@@ -3424,9 +3430,14 @@ static void VerifyFlowcharts()
                 pair.Value,
             $"Flowchart orientation {pair.Key} must parse.");
 
+        global::Nodalis.Core.Flowcharts.FlowchartDefinition orientationDiagram =
+            orientationResult.Diagram ??
+            throw new InvalidOperationException(
+                $"Flowchart orientation {pair.Key} did not produce a diagram.");
+
         global::Nodalis.Core.Flowcharts.FlowchartLayout orientationLayout =
             FlowchartLayoutEngine.Layout(
-                orientationResult.Diagram);
+                orientationDiagram);
         global::Nodalis.Core.Flowcharts.FlowchartLayoutNode source =
             orientationLayout.Nodes.Single(node =>
                 node.Node.Id ==
