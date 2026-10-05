@@ -118,10 +118,19 @@ public static partial class MarkdownDocumentParser
             global::System.Text.RegularExpressions.Match ordered = OrderedListPattern().Match(line);
             if (ordered.Success)
             {
+                int orderedListNumber = int.TryParse(
+                        ordered.Groups["number"].Value,
+                        out int parsedOrderedListNumber)
+                    ? Math.Max(
+                        1,
+                        parsedOrderedListNumber)
+                    : 1;
+
                 blocks.Add(new MarkdownBlock
                 {
                     Kind = MarkdownBlockKind.OrderedListItem,
-                    Text = ordered.Groups["text"].Value
+                    Text = ordered.Groups["text"].Value,
+                    OrderedListNumber = orderedListNumber
                 });
 
                 index++;
@@ -245,7 +254,7 @@ public static partial class MarkdownDocumentParser
     /// </summary>
     /// <returns>The result of the operation.</returns>
     [GeneratedRegex(
-            @"^\s*\d+[.)]\s+(?<text>.+)$",
+            @"^\s*(?<number>\d+)[.)]\s+(?<text>.+)$",
             RegexOptions.CultureInvariant)]
     private static partial Regex OrderedListPattern();
 
