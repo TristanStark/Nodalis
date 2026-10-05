@@ -19,6 +19,7 @@ public partial class TaskListDialog : Window
     private readonly string? _contextPath;
     private readonly Func<TaskItem, bool, Task> _toggleTaskAsync;
     private readonly Func<TaskItem, TaskMetadataUpdate, Task> _updateTaskMetadataAsync;
+    private readonly Func<TaskItem, TaskMetadataUpdate, Task<MeetingActionPromotionResult>> _promoteMeetingActionAsync;
 
     private IReadOnlyList<TaskItem> _loadedTasks = [];
     private bool _updatingFilters;
@@ -31,12 +32,14 @@ public partial class TaskListDialog : Window
     /// <param name="scopeLabel">The localized scope label.</param>
     /// <param name="toggleTaskAsync">The callback used to change checkbox completion.</param>
     /// <param name="updateTaskMetadataAsync">The callback used to rewrite task metadata.</param>
+    /// <param name="promoteMeetingActionAsync">The callback used to promote a meeting action into project task tracking.</param>
     public TaskListDialog(
             string workspaceRoot,
             string? contextPath,
             string scopeLabel,
             Func<TaskItem, bool, Task> toggleTaskAsync,
-            Func<TaskItem, TaskMetadataUpdate, Task> updateTaskMetadataAsync)
+            Func<TaskItem, TaskMetadataUpdate, Task> updateTaskMetadataAsync,
+            Func<TaskItem, TaskMetadataUpdate, Task<MeetingActionPromotionResult>> promoteMeetingActionAsync)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(
             workspaceRoot);
@@ -44,6 +47,8 @@ public partial class TaskListDialog : Window
             toggleTaskAsync);
         ArgumentNullException.ThrowIfNull(
             updateTaskMetadataAsync);
+        ArgumentNullException.ThrowIfNull(
+            promoteMeetingActionAsync);
 
         _tasks = new WorkspaceTaskService(
             workspaceRoot);
@@ -53,6 +58,8 @@ public partial class TaskListDialog : Window
             toggleTaskAsync;
         _updateTaskMetadataAsync =
             updateTaskMetadataAsync;
+        _promoteMeetingActionAsync =
+            promoteMeetingActionAsync;
 
         InitializeComponent();
 
@@ -126,6 +133,61 @@ public partial class TaskListDialog : Window
             exception is IOException or
             UnauthorizedAccessException or
             InvalidDataException or
+            TaskSourceConflictException)
+        {
+            StatusText.Text =
+                exception.Message;
+            await RefreshAsync();
+        }
+    }
+
+    /// <summary>
+    /// Promotes one meeting action to project task tracking after allowing its metadata to be reviewed.
+    /// </summary>
+    /// <param name="sender">The promote button.</param>
+    /// <param name="e">The routed event.</param>
+    private async void PromoteTask_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        if (sender is not Button button ||
+            button.Tag is not TaskItem task ||
+            !task.CanPromoteMeetingAction)
+        {
+            return;
+        }
+
+        TaskMetadataDialog dialog =
+            new TaskMetadataDialog(
+                task)
+            {
+                Owner =
+                    this
+            };
+
+        if (dialog.ShowDialog() != true ||
+            dialog.Metadata is null)
+        {
+            return;
+        }
+
+        try
+        {
+            MeetingActionPromotionResult result = await _promoteMeetingActionAsync(
+                task,
+                dialog.Metadata);
+
+            StatusText.Text = result.Created
+                ? $"Action promue dans {result.ProjectTaskRelativePath}."
+                : $"Action déjà promue ; liaison mise à jour dans {result.ProjectTaskRelativePath}.";
+
+            await RefreshAsync();
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
             TaskSourceConflictException)
         {
             StatusText.Text =
