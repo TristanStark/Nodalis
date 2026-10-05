@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Nodalis.Core.Attachments;
 using Nodalis.Core.Backups;
@@ -16,6 +18,7 @@ using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Core.Trash;
+using Nodalis.Core.Updates;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
@@ -37,6 +40,7 @@ using Nodalis.Infrastructure.Settings;
 using Nodalis.Infrastructure.Tasks;
 using Nodalis.Infrastructure.Templates;
 using Nodalis.Infrastructure.Trash;
+using Nodalis.Infrastructure.Updates;
 
 string root = Path.Combine(
     Path.GetTempPath(),
@@ -66,6 +70,7 @@ try
     VerifyMarkdownParser();
     VerifyMarkdownOutlineParser();
     await VerifyUserPreferencesAsync(root);
+    await VerifyLocalReleasePackageAsync(root);
     await VerifyDocumentReliabilityAsync(root);
     VerifyDomainCatalog();
 
@@ -2934,6 +2939,193 @@ static async Task VerifyUserPreferencesAsync(string root)
            recovered.NavigationPanelWidth == 280 &&
            recovered.ContextPanelWidth == 300,
         "Corrupted preferences must safely return defaults.");
+}
+
+static async Task VerifyLocalReleasePackageAsync(string root)
+{
+    string packageDirectory = Path.Combine(
+        root,
+        "LocalReleasePackage");
+    Directory.CreateDirectory(packageDirectory);
+
+    string archivePath = Path.Combine(
+        packageDirectory,
+        "Nodalis-win-x64.zip");
+    string installationDirectory = Path.Combine(
+        packageDirectory,
+        "Installed");
+
+    byte[] applicationBytes = Encoding.UTF8.GetBytes(
+        "fake nodalis executable");
+    byte[] updaterBytes = Encoding.UTF8.GetBytes(
+        "fake updater executable");
+
+    string applicationHash = Convert.ToHexString(
+            SHA256.HashData(applicationBytes))
+        .ToLowerInvariant();
+    string updaterHash = Convert.ToHexString(
+            SHA256.HashData(updaterBytes))
+        .ToLowerInvariant();
+
+    global::Nodalis.Core.Updates.ReleaseManifest manifest = new ReleaseManifest
+    {
+        Product = "Nodalis",
+        Version = "9.9.9",
+        TargetRid = "win-x64",
+        MinimumWorkspaceSchemaVersion = 1,
+        MaximumWorkspaceSchemaVersion = 1,
+        PayloadDirectory = "Nodalis-win-x64",
+        Files =
+        [
+            new ReleaseFileEntry
+            {
+                Path = "Nodalis.exe",
+                Sha256 = applicationHash,
+                Length = applicationBytes.LongLength
+            },
+            new ReleaseFileEntry
+            {
+                Path = "Nodalis.Updater.exe",
+                Sha256 = updaterHash,
+                Length = updaterBytes.LongLength
+            }
+        ]
+    };
+
+    using (FileStream stream = File.Create(archivePath))
+    using (ZipArchive archive = new ZipArchive(
+               stream,
+               ZipArchiveMode.Create,
+               leaveOpen: false))
+    {
+        ZipArchiveEntry appEntry = archive.CreateEntry(
+            "Nodalis-win-x64/Nodalis.exe");
+        await using (Stream entryStream = appEntry.Open())
+        {
+            await entryStream.WriteAsync(applicationBytes);
+        }
+
+        ZipArchiveEntry updaterEntry = archive.CreateEntry(
+            "Nodalis-win-x64/Nodalis.Updater.exe");
+        await using (Stream entryStream = updaterEntry.Open())
+        {
+            await entryStream.WriteAsync(updaterBytes);
+        }
+
+        ZipArchiveEntry manifestEntry = archive.CreateEntry(
+            "Nodalis-win-x64/release-manifest.json");
+        await using Stream manifestStream = manifestEntry.Open();
+        await JsonSerializer.SerializeAsync(
+            manifestStream,
+            manifest,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+    }
+
+    global::Nodalis.Infrastructure.Updates.LocalReleasePackageService service =
+        new LocalReleasePackageService();
+
+    global::Nodalis.Core.Updates.StagedReleasePackage staged =
+        await service.ValidateAndStageAsync(
+            archivePath,
+            installationDirectory,
+            "0.1.0",
+            WorkspaceManifest.CurrentSchemaVersion);
+
+    Assert(
+        staged.Manifest.Version == "9.9.9" &&
+        File.Exists(
+            Path.Combine(
+                staged.StagedApplicationDirectory,
+                "Nodalis.exe")) &&
+        File.Exists(
+            Path.Combine(
+                staged.StagedApplicationDirectory,
+                "Nodalis.Updater.exe")),
+        "A valid local release must be SHA-256 verified and staged.");
+
+    Directory.Delete(
+        staged.StagedApplicationDirectory,
+        recursive: true);
+
+    string invalidArchivePath = Path.Combine(
+        packageDirectory,
+        "Nodalis-invalid.zip");
+
+    global::Nodalis.Core.Updates.ReleaseManifest invalidManifest =
+        manifest with
+        {
+            Files =
+            [
+                manifest.Files[0] with
+                {
+                    Sha256 = new string(
+                        '0',
+                        64)
+                },
+                manifest.Files[1]
+            ]
+        };
+
+    using (FileStream stream = File.Create(invalidArchivePath))
+    using (ZipArchive archive = new ZipArchive(
+               stream,
+               ZipArchiveMode.Create,
+               leaveOpen: false))
+    {
+        ZipArchiveEntry appEntry = archive.CreateEntry(
+            "Nodalis-win-x64/Nodalis.exe");
+        await using (Stream entryStream = appEntry.Open())
+        {
+            await entryStream.WriteAsync(applicationBytes);
+        }
+
+        ZipArchiveEntry updaterEntry = archive.CreateEntry(
+            "Nodalis-win-x64/Nodalis.Updater.exe");
+        await using (Stream entryStream = updaterEntry.Open())
+        {
+            await entryStream.WriteAsync(updaterBytes);
+        }
+
+        ZipArchiveEntry manifestEntry = archive.CreateEntry(
+            "Nodalis-win-x64/release-manifest.json");
+        await using Stream manifestStream = manifestEntry.Open();
+        await JsonSerializer.SerializeAsync(
+            manifestStream,
+            invalidManifest,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+    }
+
+    bool rejectedInvalidHash = false;
+
+    try
+    {
+        await service.ValidateAndStageAsync(
+            invalidArchivePath,
+            installationDirectory,
+            "0.1.0",
+            WorkspaceManifest.CurrentSchemaVersion);
+    }
+    catch (InvalidDataException)
+    {
+        rejectedInvalidHash = true;
+    }
+
+    Assert(
+        rejectedInvalidHash,
+        "A local release with an invalid SHA-256 must be rejected before installation.");
+    Assert(
+        LocalReleasePackageService.PathsOverlap(
+            root,
+            Path.Combine(
+                root,
+                "Workspace")),
+        "Updater safety must detect application/workspace path overlap.");
 }
 
 static async Task VerifyDocumentReliabilityAsync(string root)
