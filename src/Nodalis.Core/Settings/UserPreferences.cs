@@ -22,6 +22,8 @@ public sealed record UserPreferences
 
     public List<RecentItemReference> RecentItems { get; init; } = [];
 
+    public List<RecentSearchReference> RecentSearches { get; init; } = [];
+
     public List<UserItemReference> Favorites { get; init; } = [];
 
     public List<OpenDocumentTabReference> OpenDocumentTabs { get; init; } = [];
