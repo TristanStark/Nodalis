@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -1056,6 +1057,9 @@ public partial class MainWindow : Window
         if (node.Kind == WorkspaceNodeKind.Project)
         {
             await TrackRecentContextAsync(node);
+            await ShowProjectDashboardAsync(
+                node);
+            return;
         }
 
         ShowNodeSummary(node);
@@ -1103,6 +1107,8 @@ public partial class MainWindow : Window
         EditorToolbar.Visibility = Visibility.Collapsed;
         DocumentEditorHost.Visibility = Visibility.Collapsed;
         NodeSummaryHost.Visibility = Visibility.Visible;
+        ProjectDashboardHost.Visibility = Visibility.Collapsed;
+        NodeSummaryText.Visibility = Visibility.Visible;
 
         NodeSummaryText.Text =
             $"{GetKindLabel(node.Kind)}\n\n" +
@@ -1117,6 +1123,800 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"{GetKindLabel(node.Kind)} · {node.Children.Count} élément(s)";
+    }
+
+    /// <summary>
+    /// Displays a live project dashboard assembled from the existing Markdown and local preference sources.
+    /// </summary>
+    /// <param name="node">The selected project navigation node.</param>
+    /// <returns>A task representing dashboard aggregation and rendering.</returns>
+    private async Task ShowProjectDashboardAsync(
+            NavigationNodeViewModel node)
+    {
+        DeactivateDocumentTabView();
+
+        DashboardHost.Visibility = Visibility.Collapsed;
+        EditorToolbar.Visibility = Visibility.Collapsed;
+        DocumentEditorHost.Visibility = Visibility.Collapsed;
+        NodeSummaryHost.Visibility = Visibility.Visible;
+        NodeSummaryText.Visibility = Visibility.Collapsed;
+        ProjectDashboardHost.Visibility = Visibility.Visible;
+
+        ProjectDashboardTitleText.Text =
+            node.DisplayName;
+        ProjectDashboardPathText.Text =
+            node.FullPath;
+        ProjectTaskSummaryText.Text =
+            "Chargement…";
+        ProjectMilestoneSummaryText.Text =
+            "Chargement…";
+        ProjectAlertSummaryText.Text =
+            "Chargement…";
+
+        ProjectOpenTasksList.ItemsSource = null;
+        ProjectUpcomingMilestonesList.ItemsSource = null;
+        ProjectRecentDecisionsList.ItemsSource = null;
+        ProjectMeetingsList.ItemsSource = null;
+        ProjectRecentDocumentsList.ItemsSource = null;
+        ProjectAlertsList.ItemsSource = null;
+        ProjectFavoritesList.ItemsSource = null;
+
+        BacklinksList.ItemsSource = null;
+        ContextBrokenLinksText.Text =
+            "Liens internes : —";
+        _glossaryMatches = [];
+        _glossaryAdorner?.SetMatches([]);
+        MarkdownEditorTextBox.ToolTip = null;
+
+        try
+        {
+            await RefreshLinkIndexAsync();
+
+            Task<IReadOnlyList<TaskItem>> tasksTask =
+                _taskService.GetTasksAsync(
+                    node.FullPath,
+                    includeCompleted: false);
+            Task<IReadOnlyList<MilestoneItem>> milestonesTask =
+                _milestoneService.GetMilestonesAsync(
+                    node.FullPath);
+            Task<IReadOnlyList<DecisionRecord>> decisionsTask =
+                _decisionService.GetDecisionsAsync(
+                    node.FullPath);
+
+            await Task.WhenAll(
+                tasksTask,
+                milestonesTask,
+                decisionsTask);
+
+            IReadOnlyList<TaskItem> tasks =
+                await tasksTask;
+            IReadOnlyList<MilestoneItem> milestones =
+                await milestonesTask;
+            IReadOnlyList<DecisionRecord> decisions =
+                await decisionsTask;
+
+            DateOnly today =
+                DateOnly.FromDateTime(
+                    DateTime.Today);
+            DateOnly maximumMilestoneDate =
+                today.AddDays(
+                    60);
+
+            TaskItem[] orderedTasks = tasks
+                .OrderByDescending(task =>
+                    task.IsOverdue)
+                .ThenBy(task =>
+                    task.DueDate ?? DateOnly.MaxValue)
+                .ThenBy(
+                    task => task.Text,
+                    StringComparer.CurrentCultureIgnoreCase)
+                .Take(10)
+                .ToArray();
+
+            int overdueTaskCount = tasks.Count(task =>
+                task.IsOverdue);
+
+            ProjectOpenTasksList.ItemsSource =
+                orderedTasks;
+            ProjectTaskSummaryText.Text =
+                overdueTaskCount == 0
+                    ? $"{tasks.Count} ouverte(s)"
+                    : $"{tasks.Count} ouverte(s) · {overdueTaskCount} en retard";
+
+            MilestoneItem[] nearbyMilestones = milestones
+                .Where(item =>
+                    item.TargetDate is DateOnly date &&
+                    date <= maximumMilestoneDate &&
+                    !IsDashboardMilestoneCompleted(
+                        item.Status))
+                .OrderBy(item =>
+                    item.TargetDate ?? DateOnly.MaxValue)
+                .ThenBy(
+                    item => item.Name,
+                    StringComparer.CurrentCultureIgnoreCase)
+                .Take(10)
+                .ToArray();
+
+            int overdueMilestoneCount = milestones.Count(item =>
+                item.TargetDate is DateOnly date &&
+                date < today &&
+                !IsDashboardMilestoneCompleted(
+                    item.Status));
+
+            ProjectUpcomingMilestonesList.ItemsSource =
+                nearbyMilestones;
+            ProjectMilestoneSummaryText.Text =
+                overdueMilestoneCount == 0
+                    ? $"{nearbyMilestones.Length} proche(s)"
+                    : $"{nearbyMilestones.Length} à suivre · {overdueMilestoneCount} en retard";
+
+            ProjectRecentDecisionsList.ItemsSource = decisions
+                .Take(8)
+                .ToArray();
+
+            string projectRelativePath =
+                NormalizeDashboardRelativePath(
+                    Path.GetRelativePath(
+                        _root.FullPath,
+                        node.FullPath));
+
+            LinkTargetEntry[] projectDocuments = _linkIndex.Targets
+                .Where(target =>
+                    target.Kind == LinkTargetKind.Document &&
+                    IsDashboardTargetWithinProject(
+                        target,
+                        projectRelativePath))
+                .ToArray();
+
+            ProjectRecentDocumentsList.ItemsSource =
+                BuildRecentProjectDocuments(
+                    projectDocuments);
+
+            ProjectMeetingsList.ItemsSource =
+                BuildProjectMeetingCards(
+                    projectDocuments,
+                    today);
+
+            ProjectDashboardAlertViewModel[] alerts =
+                BuildProjectDashboardAlerts(
+                    projectRelativePath,
+                    tasks,
+                    milestones,
+                    today);
+
+            ProjectAlertsList.ItemsSource =
+                alerts;
+            ProjectAlertSummaryText.Text =
+                alerts.Length == 0
+                    ? "Aucune"
+                    : $"{alerts.Length} à vérifier";
+
+            RefreshProjectDashboardFavorites(
+                node,
+                projectRelativePath);
+
+            StatusText.Text =
+                $"Dashboard projet · {node.DisplayName}";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException)
+        {
+            ProjectDashboardHost.Visibility =
+                Visibility.Collapsed;
+            NodeSummaryText.Visibility =
+                Visibility.Visible;
+            NodeSummaryText.Text =
+                $"Impossible de charger le dashboard du projet.\n\n{exception.Message}";
+            StatusText.Text =
+                "Dashboard projet indisponible";
+        }
+    }
+
+    /// <summary>
+    /// Builds recently modified document cards for the selected project.
+    /// </summary>
+    /// <param name="documents">The indexed project documents.</param>
+    /// <returns>Documents ordered by local filesystem modification time.</returns>
+    private ProjectDashboardDocumentViewModel[] BuildRecentProjectDocuments(
+            IReadOnlyList<LinkTargetEntry> documents)
+    {
+        global::System.Collections.Generic.List<ProjectDashboardDocumentViewModel> result =
+            new List<ProjectDashboardDocumentViewModel>();
+
+        foreach (LinkTargetEntry document in documents)
+        {
+            string fullPath = Path.GetFullPath(
+                Path.Combine(
+                    _root.FullPath,
+                    document.RelativePath.Replace(
+                        '/',
+                        Path.DirectorySeparatorChar)));
+
+            if (!File.Exists(
+                    fullPath))
+            {
+                continue;
+            }
+
+            DateTime modified =
+                File.GetLastWriteTime(
+                    fullPath);
+
+            result.Add(
+                new ProjectDashboardDocumentViewModel
+                {
+                    TargetId =
+                        document.Id,
+                    DisplayName =
+                        document.DisplayName,
+                    Detail =
+                        document.LocalRelativePath ??
+                        document.RelativePath,
+                    SourceRelativePath =
+                        document.RelativePath,
+                    Timestamp =
+                        new DateTimeOffset(
+                            modified)
+                });
+        }
+
+        return result
+            .OrderByDescending(item =>
+                item.Timestamp)
+            .Take(10)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Builds the last and next known meeting cards from dated meeting filenames.
+    /// </summary>
+    /// <param name="documents">The indexed project documents.</param>
+    /// <param name="today">The current local date.</param>
+    /// <returns>Up to two cards: the latest past/current meeting and the nearest future meeting.</returns>
+    private ProjectDashboardDocumentViewModel[] BuildProjectMeetingCards(
+            IReadOnlyList<LinkTargetEntry> documents,
+            DateOnly today)
+    {
+        LinkTargetEntry? lastMeeting = null;
+        DateOnly? lastMeetingDate = null;
+        LinkTargetEntry? nextMeeting = null;
+        DateOnly? nextMeetingDate = null;
+
+        foreach (LinkTargetEntry document in documents.Where(
+                     IsDashboardMeetingDocument))
+        {
+            if (!TryParseDashboardDocumentDate(
+                    document.DisplayName,
+                    out DateOnly meetingDate))
+            {
+                continue;
+            }
+
+            if (meetingDate <= today &&
+                (lastMeetingDate is null ||
+                 meetingDate > lastMeetingDate.Value))
+            {
+                lastMeeting =
+                    document;
+                lastMeetingDate =
+                    meetingDate;
+            }
+
+            if (meetingDate > today &&
+                (nextMeetingDate is null ||
+                 meetingDate < nextMeetingDate.Value))
+            {
+                nextMeeting =
+                    document;
+                nextMeetingDate =
+                    meetingDate;
+            }
+        }
+
+        global::System.Collections.Generic.List<ProjectDashboardDocumentViewModel> result =
+            new List<ProjectDashboardDocumentViewModel>();
+
+        if (lastMeeting is not null &&
+            lastMeetingDate is DateOnly previousDate)
+        {
+            result.Add(
+                CreateMeetingDashboardCard(
+                    lastMeeting,
+                    previousDate,
+                    "Dernière réunion"));
+        }
+
+        if (nextMeeting is not null &&
+            nextMeetingDate is DateOnly upcomingDate)
+        {
+            result.Add(
+                CreateMeetingDashboardCard(
+                    nextMeeting,
+                    upcomingDate,
+                    "Prochaine réunion"));
+        }
+
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Creates one project meeting dashboard card.
+    /// </summary>
+    /// <param name="target">The indexed meeting document.</param>
+    /// <param name="date">The parsed meeting date.</param>
+    /// <param name="label">The temporal relation label.</param>
+    /// <returns>The navigable meeting card.</returns>
+    private static ProjectDashboardDocumentViewModel CreateMeetingDashboardCard(
+            LinkTargetEntry target,
+            DateOnly date,
+            string label) =>
+            new ProjectDashboardDocumentViewModel
+            {
+                TargetId =
+                    target.Id,
+                DisplayName =
+                    target.DisplayName,
+                Detail =
+                    $"{label} · {date:dd/MM/yyyy}",
+                SourceRelativePath =
+                    target.RelativePath
+            };
+
+    /// <summary>
+    /// Builds lightweight project consistency alerts from the live link index, task list and milestone list.
+    /// </summary>
+    /// <param name="projectRelativePath">The project path relative to the workspace.</param>
+    /// <param name="tasks">Current open project tasks.</param>
+    /// <param name="milestones">Current project milestones.</param>
+    /// <param name="today">The current local date.</param>
+    /// <returns>The ordered alert cards.</returns>
+    private ProjectDashboardAlertViewModel[] BuildProjectDashboardAlerts(
+            string projectRelativePath,
+            IReadOnlyList<TaskItem> tasks,
+            IReadOnlyList<MilestoneItem> milestones,
+            DateOnly today)
+    {
+        global::System.Collections.Generic.List<ProjectDashboardAlertViewModel> alerts =
+            new List<ProjectDashboardAlertViewModel>();
+        Dictionary<Guid, LinkTargetEntry> targetsById =
+            _linkIndex.Targets.ToDictionary(target =>
+                target.Id);
+
+        foreach (LinkReferenceEntry reference in _linkIndex.References.Where(reference =>
+                     reference.TargetId is null))
+        {
+            if (!targetsById.TryGetValue(
+                    reference.SourceId,
+                    out LinkTargetEntry? source) ||
+                source.Kind != LinkTargetKind.Document ||
+                !IsDashboardTargetWithinProject(
+                    source,
+                    projectRelativePath))
+            {
+                continue;
+            }
+
+            alerts.Add(
+                new ProjectDashboardAlertViewModel
+                {
+                    Category =
+                        "Lien interne",
+                    Message =
+                        $"Cible introuvable : [[{reference.RawTarget}]]",
+                    SourceRelativePath =
+                        source.RelativePath,
+                    LineNumber =
+                        reference.LineNumber
+                });
+        }
+
+        foreach (IGrouping<string, TaskItem> duplicate in tasks
+                     .Where(task =>
+                         !string.IsNullOrWhiteSpace(
+                             task.Text))
+                     .GroupBy(
+                         task => task.Text.Trim(),
+                         StringComparer.CurrentCultureIgnoreCase)
+                     .Where(group =>
+                         group.Count() > 1))
+        {
+            TaskItem first =
+                duplicate.First();
+
+            alerts.Add(
+                new ProjectDashboardAlertViewModel
+                {
+                    Category =
+                        "Tâche dupliquée",
+                    Message =
+                        $"« {duplicate.Key} » apparaît {duplicate.Count()} fois parmi les tâches ouvertes.",
+                    SourceRelativePath =
+                        first.SourceRelativePath,
+                    LineNumber =
+                        first.LineNumber
+                });
+        }
+
+        foreach (MilestoneItem milestone in milestones.Where(item =>
+                     item.TargetDate is DateOnly date &&
+                     date < today &&
+                     !IsDashboardMilestoneCompleted(
+                         item.Status)))
+        {
+            alerts.Add(
+                new ProjectDashboardAlertViewModel
+                {
+                    Category =
+                        "Planning",
+                    Message =
+                        $"Jalon dépassé : {milestone.Name} ({milestone.TargetDate:dd/MM/yyyy}).",
+                    SourceRelativePath =
+                        milestone.SourceRelativePath,
+                    LineNumber =
+                        milestone.LineNumber
+                });
+        }
+
+        return alerts
+            .OrderBy(
+                alert => alert.Category,
+                StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(
+                alert => alert.Message,
+                StringComparer.CurrentCultureIgnoreCase)
+            .Take(12)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Refreshes the project-scoped favorite list and favorite toggle button.
+    /// </summary>
+    /// <param name="node">The selected project node.</param>
+    /// <param name="projectRelativePath">The project path relative to the workspace.</param>
+    private void RefreshProjectDashboardFavorites(
+            NavigationNodeViewModel node,
+            string projectRelativePath)
+    {
+        DashboardItemViewModel[] favorites = _preferences.Favorites
+            .Select(reference =>
+                CreateDashboardItem(
+                    reference,
+                    lastOpenedUtc: null))
+            .Where(item =>
+                item is not null)
+            .Cast<DashboardItemViewModel>()
+            .Where(item =>
+            {
+                LinkTargetEntry? target =
+                    _linkIndex.Targets.FirstOrDefault(candidate =>
+                        candidate.Id == item.TargetId);
+
+                return target is not null &&
+                       IsDashboardTargetWithinProject(
+                           target,
+                           projectRelativePath);
+            })
+            .ToArray();
+
+        ProjectFavoritesList.ItemsSource =
+            favorites;
+        ProjectFavoriteButton.Content =
+            IsFavorite(
+                node)
+                ? "★ Retirer des favoris"
+                : "☆ Ajouter aux favoris";
+    }
+
+    /// <summary>
+    /// Determines whether an indexed target belongs to the selected project.
+    /// </summary>
+    /// <param name="target">The indexed target.</param>
+    /// <param name="projectRelativePath">The normalized project path.</param>
+    /// <returns><see langword="true"/> when the target is the project itself or one of its descendants.</returns>
+    private static bool IsDashboardTargetWithinProject(
+            LinkTargetEntry target,
+            string projectRelativePath)
+    {
+        string project =
+            projectRelativePath.TrimEnd(
+                '/');
+        string candidate =
+            target.RelativePath.TrimEnd(
+                '/');
+
+        return string.Equals(
+                   project,
+                   candidate,
+                   StringComparison.OrdinalIgnoreCase) ||
+               candidate.StartsWith(
+                   project + "/",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Determines whether an indexed document is stored under a meeting directory.
+    /// </summary>
+    /// <param name="target">The indexed document target.</param>
+    /// <returns><see langword="true"/> for project meeting documents.</returns>
+    private static bool IsDashboardMeetingDocument(
+            LinkTargetEntry target)
+    {
+        string[] segments = target.RelativePath.Split(
+            '/',
+            StringSplitOptions.RemoveEmptyEntries);
+
+        return segments.Any(segment =>
+            string.Equals(
+                segment,
+                WorkspaceMeetingService.MeetingsDirectoryName,
+                StringComparison.CurrentCultureIgnoreCase));
+    }
+
+    /// <summary>
+    /// Parses the leading ISO date used by meeting and decision document names.
+    /// </summary>
+    /// <param name="displayName">The indexed document display name.</param>
+    /// <param name="date">Receives the parsed date.</param>
+    /// <returns><see langword="true"/> when the name begins with a valid ISO date.</returns>
+    private static bool TryParseDashboardDocumentDate(
+            string displayName,
+            out DateOnly date)
+    {
+        date =
+            default;
+
+        if (displayName.Length < 10)
+        {
+            return false;
+        }
+
+        return DateOnly.TryParseExact(
+            displayName[..10],
+            "yyyy-MM-dd",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out date);
+    }
+
+    /// <summary>
+    /// Determines whether a milestone status represents a completed item.
+    /// </summary>
+    /// <param name="status">The milestone status.</param>
+    /// <returns><see langword="true"/> when the status is a common completed-state label.</returns>
+    private static bool IsDashboardMilestoneCompleted(
+            string status)
+    {
+        string normalized =
+            status.Trim()
+                .ToLowerInvariant();
+
+        return normalized is
+            "terminé" or
+            "termine" or
+            "terminée" or
+            "terminee" or
+            "clos" or
+            "clôturé" or
+            "cloture" or
+            "done" or
+            "complete" or
+            "completed";
+    }
+
+    /// <summary>
+    /// Normalizes a workspace-relative path for link-index comparisons.
+    /// </summary>
+    /// <param name="relativePath">The path to normalize.</param>
+    /// <returns>The forward-slash path.</returns>
+    private static string NormalizeDashboardRelativePath(
+            string relativePath) =>
+            relativePath.Replace(
+                Path.DirectorySeparatorChar,
+                '/');
+
+    /// <summary>
+    /// Toggles the current project itself in the existing local favorites preference.
+    /// </summary>
+    /// <param name="sender">The favorite button.</param>
+    /// <param name="e">The routed event.</param>
+    private async void ToggleProjectFavorite_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        if (_selectedNode is not NavigationNodeViewModel node ||
+            node.Kind != WorkspaceNodeKind.Project)
+        {
+            return;
+        }
+
+        await ToggleFavoriteAsync(
+            node);
+
+        string projectRelativePath =
+            NormalizeDashboardRelativePath(
+                Path.GetRelativePath(
+                    _root.FullPath,
+                    node.FullPath));
+
+        RefreshProjectDashboardFavorites(
+            node,
+            projectRelativePath);
+    }
+
+    /// <summary>
+    /// Navigates from the project dashboard to one task source.
+    /// </summary>
+    /// <param name="sender">The task list.</param>
+    /// <param name="e">The mouse event.</param>
+    private async void ProjectTaskList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        if (ProjectOpenTasksList.SelectedItem is not TaskItem task)
+        {
+            return;
+        }
+
+        await NavigateToTaskAsync(
+            task);
+    }
+
+    /// <summary>
+    /// Navigates from the project dashboard to one milestone source.
+    /// </summary>
+    /// <param name="sender">The milestone list.</param>
+    /// <param name="e">The mouse event.</param>
+    private async void ProjectMilestoneList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        if (ProjectUpcomingMilestonesList.SelectedItem is not MilestoneItem milestone)
+        {
+            return;
+        }
+
+        await NavigateToMilestoneAsync(
+            milestone);
+    }
+
+    /// <summary>
+    /// Navigates from the project dashboard to one decision source.
+    /// </summary>
+    /// <param name="sender">The decision list.</param>
+    /// <param name="e">The mouse event.</param>
+    private async void ProjectDecisionList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        if (ProjectRecentDecisionsList.SelectedItem is not DecisionRecord decision)
+        {
+            return;
+        }
+
+        await NavigateToProjectDashboardSourceAsync(
+            decision.SourceRelativePath,
+            lineNumber: null);
+    }
+
+    /// <summary>
+    /// Navigates from a project dashboard document card to its indexed target.
+    /// </summary>
+    /// <param name="sender">The document list.</param>
+    /// <param name="e">The mouse event.</param>
+    private async void ProjectDocumentList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox list ||
+            list.SelectedItem is not ProjectDashboardDocumentViewModel document)
+        {
+            return;
+        }
+
+        LinkTargetEntry? target =
+            _linkIndex.Targets.FirstOrDefault(candidate =>
+                candidate.Id == document.TargetId);
+
+        if (target is null)
+        {
+            StatusText.Text =
+                $"Document introuvable : {document.SourceRelativePath}";
+            return;
+        }
+
+        await NavigateToLinkTargetAsync(
+            target);
+    }
+
+    /// <summary>
+    /// Navigates from a project consistency alert to its source document and line.
+    /// </summary>
+    /// <param name="sender">The alert list.</param>
+    /// <param name="e">The mouse event.</param>
+    private async void ProjectAlertList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        if (ProjectAlertsList.SelectedItem is not ProjectDashboardAlertViewModel alert)
+        {
+            return;
+        }
+
+        await NavigateToProjectDashboardSourceAsync(
+            alert.SourceRelativePath,
+            alert.LineNumber);
+    }
+
+    /// <summary>
+    /// Navigates to a workspace-relative dashboard source and optionally positions the editor on a line.
+    /// </summary>
+    /// <param name="sourceRelativePath">The workspace-relative Markdown source path.</param>
+    /// <param name="lineNumber">The optional one-based line number.</param>
+    /// <returns>A task representing navigation.</returns>
+    private async Task NavigateToProjectDashboardSourceAsync(
+            string sourceRelativePath,
+            int? lineNumber)
+    {
+        string fullPath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                sourceRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        NavigationNodeViewModel? node =
+            FindAndExpand(
+                _root,
+                fullPath);
+
+        if (node is null)
+        {
+            await RefreshNavigationAsync();
+            node =
+                FindAndExpand(
+                    _root,
+                    fullPath);
+        }
+
+        if (node is null)
+        {
+            StatusText.Text =
+                $"Source introuvable : {sourceRelativePath}";
+            return;
+        }
+
+        if (_selectedNode is not null &&
+            _selectedNode.Kind == WorkspaceNodeKind.Document &&
+            !ReferenceEquals(
+                _selectedNode,
+                node) &&
+            !await TryCloseCurrentDocumentAsync(
+                "ouvrir la source du dashboard"))
+        {
+            return;
+        }
+
+        _restoringSelection =
+            true;
+        node.IsSelected =
+            true;
+        _restoringSelection =
+            false;
+        _selectedNode =
+            node;
+
+        await DisplayNodeAsync(
+            node);
+
+        if (lineNumber is int line &&
+            node.Kind == WorkspaceNodeKind.Document)
+        {
+            MoveCaretToLine(
+                line);
+        }
     }
 
     /// <summary>
