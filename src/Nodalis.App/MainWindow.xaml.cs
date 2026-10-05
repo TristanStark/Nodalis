@@ -1380,6 +1380,15 @@ public partial class MainWindow : Window
 
         if (ShortcutCatalog.Matches(
                 e,
+                ShortcutCatalog.QuickOpen))
+        {
+            e.Handled = true;
+            await ShowQuickOpenAsync();
+            return;
+        }
+
+        if (ShortcutCatalog.Matches(
+                e,
                 ShortcutCatalog.InternalLink))
         {
             e.Handled = true;
@@ -2983,6 +2992,14 @@ public partial class MainWindow : Window
                 Subtitle = "Créer une application dans le workspace",
                 Keywords = ["application", "créer"],
                 ExecuteAsync = CreateApplicationAsync
+            },
+            new()
+            {
+                Id = "quick-open",
+                Title = "Quick Open",
+                Subtitle = "Ouvrir document, projet, module ou application · Ctrl+T",
+                Keywords = ["ouvrir", "navigation", "document", "projet", "module", "application", "ctrl+t"],
+                ExecuteAsync = ShowQuickOpenAsync
             },
             new()
             {
