@@ -1,169 +1,712 @@
-using Nodalis.Core.Domain;
+using System.Globalization;
+using System.Text.Json;
 using Nodalis.Core.Markdown;
 using Nodalis.Core.Search;
 using Nodalis.Infrastructure.Persistence;
 
 namespace Nodalis.Infrastructure.Search;
 
+/// <summary>
+/// Performs dependency-free ranked Markdown search across the local workspace.
+/// </summary>
 public sealed class WorkspaceSearchService
 {
+    private const int MaximumMatchesPerFile = 8;
+
+    private static readonly string[] StandardPropertyKeys =
+    [
+        "status",
+        "owner",
+        "version",
+        "environment",
+        "type",
+        "tag",
+        "tags"
+    ];
+
     /// <summary>
-    /// Performs the <c>SearchAsync</c> operation.
+    /// Searches using the historical exact-substring behavior.
     /// </summary>
-    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-    /// <param name="contextPath">The <c>contextPath</c> value.</param>
-    /// <param name="query">The <c>query</c> value.</param>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="workspaceRoot">The workspace root.</param>
+    /// <param name="contextPath">The current context.</param>
+    /// <param name="query">The search query.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>Results grouped by contextual scope.</returns>
+    public Task<SearchResultSet> SearchAsync(
+            string workspaceRoot,
+            string? contextPath,
+            string query,
+            CancellationToken cancellationToken = default) =>
+        SearchAsync(
+            workspaceRoot,
+            contextPath,
+            query,
+            SearchMatchMode.Exact,
+            cancellationToken);
+
+    /// <summary>
+    /// Searches all searchable Markdown files using exact or fuzzy matching.
+    /// </summary>
+    /// <param name="workspaceRoot">The workspace root.</param>
+    /// <param name="contextPath">The current context.</param>
+    /// <param name="query">Free text and optional filters.</param>
+    /// <param name="mode">The text matching mode.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>Ranked results grouped by contextual scope.</returns>
     public async Task<SearchResultSet> SearchAsync(
             string workspaceRoot,
             string? contextPath,
             string query,
+            SearchMatchMode mode,
             CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
-        ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            workspaceRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            query);
 
-        string root = Path.GetFullPath(workspaceRoot);
-        string contextDirectory = ResolveContextDirectory(
-            root,
-            contextPath);
+        string root =
+            Path.GetFullPath(
+                workspaceRoot);
 
-        string? projectDirectory = FindAncestorContaining(
-            contextDirectory,
-            root,
-            WorkspaceLayout.ProjectManifestFileName);
-
-        string? applicationDirectory = FindAncestorContaining(
-            contextDirectory,
-            root,
-            WorkspaceLayout.ApplicationManifestFileName);
-
-        global::Nodalis.Core.Search.SearchResultSet results = new SearchResultSet();
-
-        if (projectDirectory is not null)
-        {
-            results.Project.AddRange(
-                await SearchDirectoryAsync(
-                    projectDirectory,
-                    query,
-                    SearchScopeKind.Project,
-                    shouldSkipDirectory: directory =>
-                        !string.Equals(
-                            directory,
-                            projectDirectory,
-                            StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals(
-                            Path.GetFileName(directory),
-                            WorkspaceLayout.SubProjectsDirectoryName,
-                            StringComparison.OrdinalIgnoreCase),
-                    cancellationToken));
-        }
-
-        if (applicationDirectory is not null)
-        {
-            results.Application.AddRange(
-                await SearchDirectoryAsync(
-                    applicationDirectory,
-                    query,
-                    SearchScopeKind.Application,
-                    shouldSkipDirectory: directory =>
-                    {
-                        string name = Path.GetFileName(directory);
-
-                        return name.Equals(
-                                   WorkspaceLayout.ProjectsDirectoryName,
-                                   StringComparison.OrdinalIgnoreCase) ||
-                               name.Equals(
-                                   WorkspaceLayout.SubProjectsDirectoryName,
-                                   StringComparison.OrdinalIgnoreCase);
-                    },
-                    cancellationToken));
-        }
-
-        results.Global.AddRange(
-            await SearchDirectoryAsync(
+        string contextDirectory =
+            ResolveContextDirectory(
                 root,
-                query,
-                SearchScopeKind.Global,
-                shouldSkipDirectory: directory =>
+                contextPath);
+
+        string? currentProjectDirectory =
+            FindAncestorContaining(
+                contextDirectory,
+                root,
+                WorkspaceLayout.ProjectManifestFileName);
+
+        string? currentApplicationDirectory =
+            FindAncestorContaining(
+                contextDirectory,
+                root,
+                WorkspaceLayout.ApplicationManifestFileName);
+
+        SearchQueryPlan plan =
+            ParseQuery(
+                query);
+
+        SearchResultSet results =
+            new SearchResultSet();
+
+        Dictionary<string, string?> projectNameCache =
+            new Dictionary<string, string?>(
+                StringComparer.OrdinalIgnoreCase);
+
+        foreach (string file in EnumerateMarkdownFiles(
+                     root))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            string directory =
+                Path.GetDirectoryName(
+                    file) ??
+                root;
+
+            string? fileProjectDirectory =
+                FindAncestorContaining(
+                    directory,
+                    root,
+                    WorkspaceLayout.ProjectManifestFileName);
+
+            string? fileApplicationDirectory =
+                FindAncestorContaining(
+                    directory,
+                    root,
+                    WorkspaceLayout.ApplicationManifestFileName);
+
+            SearchScopeKind scope =
+                ClassifyScope(
+                    currentProjectDirectory,
+                    currentApplicationDirectory,
+                    fileProjectDirectory,
+                    fileApplicationDirectory);
+
+            string? projectName =
+                GetProjectName(
+                    fileProjectDirectory,
+                    projectNameCache);
+
+            if (!MatchesProjectFilter(
+                    projectName,
+                    plan.ProjectFilter) ||
+                !MatchesDateFilter(
+                    file,
+                    plan.ModifiedDateFilter))
+            {
+                continue;
+            }
+
+            IReadOnlyList<SearchResult> fileResults =
+                await SearchFileAsync(
+                    file,
+                    scope,
+                    projectName,
+                    plan,
+                    mode,
+                    cancellationToken);
+
+            List<SearchResult> target =
+                scope switch
                 {
-                    if (string.Equals(
-                            directory,
-                            root,
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        return false;
-                    }
+                    SearchScopeKind.Project => results.Project,
+                    SearchScopeKind.Application => results.Application,
+                    _ => results.Global
+                };
 
-                    string name = Path.GetFileName(directory);
+            target.AddRange(
+                fileResults);
+        }
 
-                    return name.Equals(
-                               WorkspaceLayout.ApplicationsDirectoryName,
-                               StringComparison.OrdinalIgnoreCase) ||
-                           name.Equals(
-                               WorkspaceLayout.TrashDirectoryName,
-                               StringComparison.OrdinalIgnoreCase) ||
-                           name.Equals(
-                               WorkspaceLayout.TemplatesDirectoryName,
-                               StringComparison.OrdinalIgnoreCase) ||
-                           name.Equals(
-                               WorkspaceLayout.AttachmentsDirectoryName,
-                               StringComparison.OrdinalIgnoreCase) ||
-                           name.StartsWith(
-                               ".",
-                               StringComparison.Ordinal);
-                },
-                cancellationToken));
-
-        Sort(results.Project);
-        Sort(results.Application);
-        Sort(results.Global);
+        Sort(
+            results.Project);
+        Sort(
+            results.Application);
+        Sort(
+            results.Global);
 
         return results;
     }
 
     /// <summary>
-    /// Performs the <c>SearchDirectoryAsync</c> operation.
+    /// Searches one Markdown file after path-level filters have matched.
     /// </summary>
-    /// <param name="root">The <c>root</c> value.</param>
-    /// <param name="query">The <c>query</c> value.</param>
-    /// <param name="scope">The <c>scope</c> value.</param>
-    /// <param name="shouldSkipDirectory">The <c>shouldSkipDirectory</c> value.</param>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
-    /// <returns>The result of the operation.</returns>
-    private static async Task<List<SearchResult>> SearchDirectoryAsync(
-            string root,
-            string query,
+    /// <param name="file">The source file.</param>
+    /// <param name="scope">The contextual scope.</param>
+    /// <param name="projectName">The containing project name.</param>
+    /// <param name="plan">The parsed query.</param>
+    /// <param name="mode">The text matching mode.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The best occurrences from this file.</returns>
+    private static async Task<IReadOnlyList<SearchResult>> SearchFileAsync(
+            string file,
             SearchScopeKind scope,
-            Func<string, bool> shouldSkipDirectory,
+            string? projectName,
+            SearchQueryPlan plan,
+            SearchMatchMode mode,
             CancellationToken cancellationToken)
     {
-        global::System.Collections.Generic.List<global::Nodalis.Core.Search.SearchResult> results = new List<SearchResult>();
-        global::System.Collections.Generic.Stack<string> pending = new Stack<string>();
-        pending.Push(root);
+        string markdown =
+            await File.ReadAllTextAsync(
+                file,
+                cancellationToken);
 
-        while (pending.Count > 0)
+        MarkdownFrontMatterDocument metadata =
+            MarkdownFrontMatterParser.Parse(
+                markdown);
+
+        if (!MatchesPropertyFilters(
+                metadata.Properties,
+                plan.PropertyFilters))
+        {
+            return [];
+        }
+
+        string[] lines =
+            markdown
+                .Replace(
+                    "\r\n",
+                    "\n",
+                    StringComparison.Ordinal)
+                .Replace(
+                    '\r',
+                    '\n')
+                .Split(
+                    '\n');
+
+        if (plan.TextQuery.Length == 0)
+        {
+            int lineNumber =
+                plan.PropertyFilters.Count > 0
+                    ? FindPropertyLine(
+                        lines,
+                        plan.PropertyFilters[0].Key)
+                    : 1;
+
+            return
+            [
+                new SearchResult
+                {
+                    Scope = scope,
+                    FilePath = file,
+                    DisplayName = Path.GetFileNameWithoutExtension(file),
+                    LineNumber = lineNumber,
+                    Excerpt = BuildFilterExcerpt(
+                        plan,
+                        projectName),
+                    Score = 150 + GetScopeBonus(scope),
+                    MatchKind = SearchMatchKind.Metadata
+                }
+            ];
+        }
+
+        List<SearchResult> candidates =
+            new List<SearchResult>();
+
+        string displayName =
+            Path.GetFileNameWithoutExtension(
+                file);
+
+        if (SearchTextScorer.TryScore(
+                plan.TextQuery,
+                displayName,
+                mode,
+                out double titleQuality))
+        {
+            candidates.Add(
+                CreateResult(
+                    scope,
+                    file,
+                    displayName,
+                    1,
+                    $"Titre du document · {displayName}",
+                    SearchMatchKind.FileName,
+                    titleQuality));
+        }
+
+        int bodyStart =
+            FindBodyStartLineIndex(
+                lines);
+
+        bool inFence =
+            false;
+
+        for (int index = bodyStart;
+             index < lines.Length;
+             index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            string directory = pending.Pop();
+            string line =
+                lines[index];
+            string trimmed =
+                line.TrimStart();
 
-            if (shouldSkipDirectory(directory))
+            bool fenceMarker =
+                trimmed.StartsWith(
+                    new string(
+                        (char)96,
+                        3),
+                    StringComparison.Ordinal) ||
+                trimmed.StartsWith(
+                    "~~~",
+                    StringComparison.Ordinal);
+
+            bool heading =
+                !inFence &&
+                IsMarkdownHeading(
+                    trimmed);
+
+            if (SearchTextScorer.TryScore(
+                    plan.TextQuery,
+                    line,
+                    mode,
+                    out double quality))
             {
+                SearchMatchKind kind =
+                    heading
+                        ? SearchMatchKind.Heading
+                        : SearchMatchKind.Body;
+
+                candidates.Add(
+                    CreateResult(
+                        scope,
+                        file,
+                        displayName,
+                        index + 1,
+                        BuildExcerpt(
+                            line,
+                            plan.TextQuery),
+                        kind,
+                        quality));
+            }
+
+            if (fenceMarker)
+            {
+                inFence =
+                    !inFence;
+            }
+        }
+
+        return candidates
+            .OrderByDescending(result =>
+                result.Score)
+            .ThenBy(result =>
+                result.LineNumber)
+            .Take(
+                MaximumMatchesPerFile)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Creates a ranked result with fixed title, heading and body weights.
+    /// </summary>
+    /// <param name="scope">The result scope.</param>
+    /// <param name="file">The source file.</param>
+    /// <param name="displayName">The document name.</param>
+    /// <param name="lineNumber">The source line.</param>
+    /// <param name="excerpt">The excerpt.</param>
+    /// <param name="kind">The match location.</param>
+    /// <param name="quality">The normalized textual quality.</param>
+    /// <returns>The ranked result.</returns>
+    private static SearchResult CreateResult(
+            SearchScopeKind scope,
+            string file,
+            string displayName,
+            int lineNumber,
+            string excerpt,
+            SearchMatchKind kind,
+            double quality)
+    {
+        double locationWeight =
+            kind switch
+            {
+                SearchMatchKind.FileName => 300,
+                SearchMatchKind.Heading => 200,
+                SearchMatchKind.Metadata => 150,
+                _ => 100
+            };
+
+        return new SearchResult
+        {
+            Scope = scope,
+            FilePath = file,
+            DisplayName = displayName,
+            LineNumber = lineNumber,
+            Excerpt = excerpt,
+            MatchKind = kind,
+            Score =
+                locationWeight +
+                (quality * 100) +
+                GetScopeBonus(
+                    scope)
+        };
+    }
+
+    /// <summary>
+    /// Parses free text plus metadata, date and project filters.
+    /// </summary>
+    /// <param name="query">The raw query.</param>
+    /// <returns>The query plan.</returns>
+    private static SearchQueryPlan ParseQuery(
+            string query)
+    {
+        List<string> textTerms =
+            new List<string>();
+        List<SearchPropertyFilter> propertyFilters =
+            new List<SearchPropertyFilter>();
+
+        DateOnly? modifiedDate =
+            null;
+        string? projectFilter =
+            null;
+
+        foreach (string token in TokenizeQuery(
+                     query))
+        {
+            int separator =
+                token.IndexOf(
+                    ':');
+
+            if (separator <= 0 ||
+                separator >= token.Length - 1)
+            {
+                textTerms.Add(
+                    token);
                 continue;
             }
 
-            foreach (string child in Directory
-                         .EnumerateDirectories(directory)
-                         .OrderBy(
-                             path => Path.GetFileName(path),
-                             StringComparer.CurrentCultureIgnoreCase))
+            string rawKey =
+                token[..separator]
+                    .Trim();
+            string value =
+                token[(separator + 1)..]
+                    .Trim();
+
+            if (value.Length == 0)
             {
-                if (!shouldSkipDirectory(child))
+                textTerms.Add(
+                    token);
+                continue;
+            }
+
+            if (string.Equals(
+                    rawKey,
+                    "date",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                if (DateOnly.TryParseExact(
+                        value,
+                        "yyyy-MM-dd",
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out DateOnly parsedDate))
                 {
-                    pending.Push(child);
+                    modifiedDate =
+                        parsedDate;
+                    continue;
                 }
+
+                textTerms.Add(
+                    token);
+                continue;
+            }
+
+            if (string.Equals(
+                    rawKey,
+                    "project",
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    rawKey,
+                    "projet",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                projectFilter =
+                    value;
+                continue;
+            }
+
+            bool custom =
+                rawKey.StartsWith(
+                    '@');
+
+            string propertyKey =
+                custom
+                    ? rawKey[1..]
+                        .Trim()
+                    : rawKey;
+
+            bool validKey =
+                propertyKey.Length > 0 &&
+                propertyKey.All(character =>
+                    char.IsLetterOrDigit(
+                        character) ||
+                    character is
+                        '-' or
+                        '_' or
+                        '.');
+
+            bool standard =
+                StandardPropertyKeys.Contains(
+                    propertyKey,
+                    StringComparer.OrdinalIgnoreCase);
+
+            if (validKey &&
+                (custom ||
+                 standard))
+            {
+                propertyFilters.Add(
+                    new SearchPropertyFilter(
+                        propertyKey,
+                        value));
+                continue;
+            }
+
+            textTerms.Add(
+                token);
+        }
+
+        return new SearchQueryPlan
+        {
+            TextQuery =
+                string.Join(
+                    " ",
+                    textTerms)
+                    .Trim(),
+            PropertyFilters =
+                propertyFilters,
+            ModifiedDateFilter =
+                modifiedDate,
+            ProjectFilter =
+                projectFilter
+        };
+    }
+
+    /// <summary>
+    /// Tokenizes a query while keeping spaces inside double quotes.
+    /// </summary>
+    /// <param name="query">The raw query.</param>
+    /// <returns>Tokens without quote characters.</returns>
+    private static IReadOnlyList<string> TokenizeQuery(
+            string query)
+    {
+        List<string> tokens =
+            new List<string>();
+        global::System.Text.StringBuilder current =
+            new global::System.Text.StringBuilder();
+
+        bool quoted =
+            false;
+
+        foreach (char character in query)
+        {
+            if (character == '"')
+            {
+                quoted =
+                    !quoted;
+                continue;
+            }
+
+            if (char.IsWhiteSpace(
+                    character) &&
+                !quoted)
+            {
+                if (current.Length > 0)
+                {
+                    tokens.Add(
+                        current.ToString());
+                    current.Clear();
+                }
+
+                continue;
+            }
+
+            current.Append(
+                character);
+        }
+
+        if (current.Length > 0)
+        {
+            tokens.Add(
+                current.ToString());
+        }
+
+        return tokens;
+    }
+
+    /// <summary>
+    /// Applies all front matter filters.
+    /// </summary>
+    /// <param name="properties">The document properties.</param>
+    /// <param name="filters">The requested filters.</param>
+    /// <returns><see langword="true"/> when every filter matches.</returns>
+    private static bool MatchesPropertyFilters(
+            IReadOnlyDictionary<string, string> properties,
+            IReadOnlyList<SearchPropertyFilter> filters)
+    {
+        foreach (SearchPropertyFilter filter in filters)
+        {
+            bool tagFilter =
+                string.Equals(
+                    filter.Key,
+                    "tag",
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    filter.Key,
+                    "tags",
+                    StringComparison.OrdinalIgnoreCase);
+
+            if (tagFilter)
+            {
+                if (!properties.TryGetValue(
+                        "tags",
+                        out string? rawTags) ||
+                    !MarkdownFrontMatterParser.ParseTags(
+                            rawTags)
+                        .Any(tag =>
+                            string.Equals(
+                                tag,
+                                filter.Value,
+                                StringComparison.CurrentCultureIgnoreCase)))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (!properties.TryGetValue(
+                    filter.Key,
+                    out string? rawValue) ||
+                !rawValue.Contains(
+                    filter.Value,
+                    StringComparison.CurrentCultureIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Applies the optional containing-project filter.
+    /// </summary>
+    /// <param name="projectName">The file project.</param>
+    /// <param name="filter">The requested project value.</param>
+    /// <returns><see langword="true"/> when the filter matches or is absent.</returns>
+    private static bool MatchesProjectFilter(
+            string? projectName,
+            string? filter) =>
+        string.IsNullOrWhiteSpace(
+            filter) ||
+        (!string.IsNullOrWhiteSpace(
+             projectName) &&
+         projectName.Contains(
+             filter,
+             StringComparison.CurrentCultureIgnoreCase));
+
+    /// <summary>
+    /// Applies the optional UTC filesystem modification-date filter.
+    /// </summary>
+    /// <param name="file">The source file.</param>
+    /// <param name="filter">The requested date.</param>
+    /// <returns><see langword="true"/> when the filter matches or is absent.</returns>
+    private static bool MatchesDateFilter(
+            string file,
+            DateOnly? filter)
+    {
+        if (filter is not DateOnly requestedDate)
+        {
+            return true;
+        }
+
+        DateOnly modifiedDate =
+            DateOnly.FromDateTime(
+                File.GetLastWriteTimeUtc(
+                    file));
+
+        return modifiedDate == requestedDate;
+    }
+
+    /// <summary>
+    /// Enumerates all searchable Markdown files without entering internal storage directories.
+    /// </summary>
+    /// <param name="root">The workspace root.</param>
+    /// <returns>The Markdown files.</returns>
+    private static IEnumerable<string> EnumerateMarkdownFiles(
+            string root)
+    {
+        Stack<string> pending =
+            new Stack<string>();
+        pending.Push(
+            root);
+
+        while (pending.Count > 0)
+        {
+            string directory =
+                pending.Pop();
+
+            string[] children =
+                Directory
+                    .EnumerateDirectories(
+                        directory)
+                    .Where(child =>
+                        !ShouldSkipDirectory(
+                            child))
+                    .OrderByDescending(
+                        child => child,
+                        StringComparer.CurrentCultureIgnoreCase)
+                    .ToArray();
+
+            foreach (string child in children)
+            {
+                pending.Push(
+                    child);
             }
 
             foreach (string file in Directory
@@ -172,266 +715,258 @@ public sealed class WorkspaceSearchService
                              "*.md",
                              SearchOption.TopDirectoryOnly)
                          .OrderBy(
-                             path => Path.GetFileName(path),
+                             file => file,
                              StringComparer.CurrentCultureIgnoreCase))
             {
-                await SearchFileAsync(
-                    file,
-                    query,
-                    scope,
-                    results,
-                    cancellationToken);
+                yield return file;
             }
         }
-
-        return results;
     }
 
     /// <summary>
-    /// Performs the <c>SearchFileAsync</c> operation.
+    /// Identifies internal subtrees excluded from search.
     /// </summary>
-    /// <param name="file">The <c>file</c> value.</param>
-    /// <param name="query">The <c>query</c> value.</param>
-    /// <param name="scope">The <c>scope</c> value.</param>
-    /// <param name="results">The <c>results</c> value.</param>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
-    /// <returns>The result of the operation.</returns>
-    private static async Task SearchFileAsync(
-            string file,
-            string query,
-            SearchScopeKind scope,
-            ICollection<SearchResult> results,
-            CancellationToken cancellationToken)
+    /// <param name="directory">The directory.</param>
+    /// <returns><see langword="true"/> when the subtree must be skipped.</returns>
+    private static bool ShouldSkipDirectory(
+            string directory)
     {
-        string[] lines = await File.ReadAllLinesAsync(
-            file,
-            cancellationToken);
+        string name =
+            Path.GetFileName(
+                directory);
 
-        if (TryParsePropertyQuery(
-                query,
-                out string propertyKey,
-                out string propertyValue))
-        {
-            string markdown = string.Join(
-                Environment.NewLine,
-                lines);
-
-            MarkdownFrontMatterDocument metadata =
-                MarkdownFrontMatterParser.Parse(
-                    markdown);
-
-            bool matches = string.Equals(
-                    propertyKey,
-                    "tag",
-                    StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(
-                    propertyKey,
-                    "tags",
-                    StringComparison.OrdinalIgnoreCase)
-                    ? metadata.Properties.TryGetValue(
-                            "tags",
-                            out string? rawTags) &&
-                      MarkdownFrontMatterParser.ParseTags(
-                              rawTags)
-                          .Any(tag =>
-                              string.Equals(
-                                  tag,
-                                  propertyValue,
-                                  StringComparison.CurrentCultureIgnoreCase))
-                    : metadata.Properties.TryGetValue(
-                            propertyKey,
-                            out string? rawValue) &&
-                      rawValue.Contains(
-                          propertyValue,
-                          StringComparison.CurrentCultureIgnoreCase);
-
-            if (matches)
-            {
-                int metadataLine = FindPropertyLine(
-                    lines,
-                    string.Equals(
-                            propertyKey,
-                            "tag",
-                            StringComparison.OrdinalIgnoreCase)
-                        ? "tags"
-                        : propertyKey);
-
-                results.Add(
-                    new SearchResult
-                    {
-                        Scope =
-                            scope,
-                        FilePath =
-                            file,
-                        DisplayName =
-                            Path.GetFileNameWithoutExtension(
-                                file),
-                        LineNumber =
-                            metadataLine,
-                        Excerpt =
-                            $"Propriété {propertyKey}: {propertyValue}"
-                    });
-            }
-
-            return;
-        }
-
-        bool fileNameMatches = Path
-            .GetFileNameWithoutExtension(file)
-            .Contains(
-                query,
-                StringComparison.CurrentCultureIgnoreCase);
-
-        if (fileNameMatches)
-        {
-            results.Add(new SearchResult
-            {
-                Scope = scope,
-                FilePath = file,
-                DisplayName = Path.GetFileNameWithoutExtension(file),
-                LineNumber = 1,
-                Excerpt = "Correspondance dans le nom du fichier"
-            });
-        }
-
-        for (int index = 0; index < lines.Length; index++)
-        {
-            if (!lines[index].Contains(
-                    query,
-                    StringComparison.CurrentCultureIgnoreCase))
-            {
-                continue;
-            }
-
-            results.Add(new SearchResult
-            {
-                Scope = scope,
-                FilePath = file,
-                DisplayName = Path.GetFileNameWithoutExtension(file),
-                LineNumber = index + 1,
-                Excerpt = BuildExcerpt(
-                    lines[index],
-                    query)
-            });
-        }
+        return name.StartsWith(
+                   ".",
+                   StringComparison.Ordinal) ||
+               string.Equals(
+                   name,
+                   WorkspaceLayout.TrashDirectoryName,
+                   StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(
+                   name,
+                   WorkspaceLayout.TemplatesDirectoryName,
+                   StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(
+                   name,
+                   WorkspaceLayout.AttachmentsDirectoryName,
+                   StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(
+                   name,
+                   "Imports",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
-    /// Parses a metadata filter query. Standard properties support <c>key:value</c>;
-    /// custom properties use <c>@key:value</c>.
+    /// Classifies a file relative to the active project and application.
     /// </summary>
-    /// <param name="query">The search query.</param>
-    /// <param name="key">The normalized property key.</param>
-    /// <param name="value">The requested property value.</param>
-    /// <returns><see langword="true"/> when the query is a metadata filter.</returns>
-    private static bool TryParsePropertyQuery(
-            string query,
-            out string key,
-            out string value)
+    /// <param name="currentProjectDirectory">The active project.</param>
+    /// <param name="currentApplicationDirectory">The active application.</param>
+    /// <param name="fileProjectDirectory">The file project.</param>
+    /// <param name="fileApplicationDirectory">The file application.</param>
+    /// <returns>The contextual scope.</returns>
+    private static SearchScopeKind ClassifyScope(
+            string? currentProjectDirectory,
+            string? currentApplicationDirectory,
+            string? fileProjectDirectory,
+            string? fileApplicationDirectory)
     {
-        key =
-            string.Empty;
-        value =
-            string.Empty;
-
-        int separator =
-            query.IndexOf(
-                ':');
-
-        if (separator <= 0 ||
-            separator >=
-            query.Length - 1)
+        if (SamePath(
+                currentProjectDirectory,
+                fileProjectDirectory))
         {
-            return false;
+            return SearchScopeKind.Project;
         }
 
-        string candidateKey =
-            query[..separator]
-                .Trim();
-        string candidateValue =
-            query[(separator + 1)..]
-                .Trim();
-
-        if (candidateValue.Length == 0)
+        if (SamePath(
+                currentApplicationDirectory,
+                fileApplicationDirectory))
         {
-            return false;
+            return SearchScopeKind.Application;
         }
 
-        bool customSyntax =
-            candidateKey.StartsWith(
-                '@');
-
-        if (customSyntax)
-        {
-            candidateKey =
-                candidateKey[1..]
-                    .Trim();
-        }
-
-        if (candidateKey.Length == 0 ||
-            candidateKey.Any(character =>
-                !char.IsLetterOrDigit(
-                    character) &&
-                character is not
-                    '-' and not
-                    '_' and not
-                    '.'))
-        {
-            return false;
-        }
-
-        string[] standardKeys =
-        [
-            "status",
-            "owner",
-            "version",
-            "environment",
-            "type",
-            "tag",
-            "tags"
-        ];
-
-        if (!customSyntax &&
-            !standardKeys.Contains(
-                candidateKey,
-                StringComparer.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        key =
-            candidateKey;
-        value =
-            candidateValue;
-
-        return true;
+        return SearchScopeKind.Global;
     }
 
     /// <summary>
-    /// Locates the source line of a property for search-result navigation.
+    /// Compares two optional paths.
     /// </summary>
-    /// <param name="lines">The Markdown lines.</param>
+    /// <param name="left">The first path.</param>
+    /// <param name="right">The second path.</param>
+    /// <returns><see langword="true"/> when both paths identify the same directory.</returns>
+    private static bool SamePath(
+            string? left,
+            string? right) =>
+        left is not null &&
+        right is not null &&
+        string.Equals(
+            Path.GetFullPath(
+                left)
+                .TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(
+                right)
+                .TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Reads and caches the project display name from its manifest.
+    /// </summary>
+    /// <param name="projectDirectory">The project directory.</param>
+    /// <param name="cache">The search-local cache.</param>
+    /// <returns>The project name or <see langword="null"/>.</returns>
+    private static string? GetProjectName(
+            string? projectDirectory,
+            IDictionary<string, string?> cache)
+    {
+        if (projectDirectory is null)
+        {
+            return null;
+        }
+
+        if (cache.TryGetValue(
+                projectDirectory,
+                out string? cached))
+        {
+            return cached;
+        }
+
+        string fallback =
+            Path.GetFileName(
+                projectDirectory);
+
+        string manifestPath =
+            Path.Combine(
+                projectDirectory,
+                WorkspaceLayout.ProjectManifestFileName);
+
+        string? name =
+            fallback;
+
+        try
+        {
+            using JsonDocument document =
+                JsonDocument.Parse(
+                    File.ReadAllText(
+                        manifestPath));
+
+            if (document.RootElement.TryGetProperty(
+                    "name",
+                    out JsonElement nameElement))
+            {
+                string? manifestName =
+                    nameElement.GetString();
+
+                if (!string.IsNullOrWhiteSpace(
+                        manifestName))
+                {
+                    name =
+                        manifestName;
+                }
+            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            JsonException)
+        {
+            name =
+                fallback;
+        }
+
+        cache[projectDirectory] =
+            name;
+        return name;
+    }
+
+    /// <summary>
+    /// Finds the first body line after optional front matter.
+    /// </summary>
+    /// <param name="lines">The source lines.</param>
+    /// <returns>The zero-based body start line.</returns>
+    private static int FindBodyStartLineIndex(
+            IReadOnlyList<string> lines)
+    {
+        if (lines.Count == 0 ||
+            !string.Equals(
+                lines[0].Trim(),
+                "---",
+                StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        for (int index = 1;
+             index < lines.Count;
+             index++)
+        {
+            if (string.Equals(
+                    lines[index].Trim(),
+                    "---",
+                    StringComparison.Ordinal))
+            {
+                return index + 1;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Detects an ATX H1-H6 Markdown heading.
+    /// </summary>
+    /// <param name="trimmedLine">The source line without leading whitespace.</param>
+    /// <returns><see langword="true"/> when the line is a heading.</returns>
+    private static bool IsMarkdownHeading(
+            string trimmedLine)
+    {
+        int hashes =
+            0;
+
+        while (hashes < trimmedLine.Length &&
+               hashes < 6 &&
+               trimmedLine[hashes] == '#')
+        {
+            hashes++;
+        }
+
+        return hashes > 0 &&
+               hashes < trimmedLine.Length &&
+               char.IsWhiteSpace(
+                   trimmedLine[hashes]);
+    }
+
+    /// <summary>
+    /// Locates a front matter property for navigation.
+    /// </summary>
+    /// <param name="lines">The source lines.</param>
     /// <param name="propertyKey">The property key.</param>
-    /// <returns>The one-based source line, or one when the property line cannot be located.</returns>
+    /// <returns>The one-based source line.</returns>
     private static int FindPropertyLine(
             IReadOnlyList<string> lines,
             string propertyKey)
     {
+        string key =
+            string.Equals(
+                    propertyKey,
+                    "tag",
+                    StringComparison.OrdinalIgnoreCase)
+                ? "tags"
+                : propertyKey;
+
         for (int index = 0;
              index < lines.Count;
              index++)
         {
-            string line =
-                lines[index]
-                    .TrimStart();
-
-            if (line.StartsWith(
-                    propertyKey +
-                    ":",
+            if (lines[index]
+                .TrimStart()
+                .StartsWith(
+                    key + ":",
                     StringComparison.OrdinalIgnoreCase))
             {
-                return index +
-                    1;
+                return index + 1;
             }
         }
 
@@ -439,92 +974,175 @@ public sealed class WorkspaceSearchService
     }
 
     /// <summary>
-    /// Performs the <c>BuildExcerpt</c> operation.
+    /// Builds the description for a filter-only result.
     /// </summary>
-    /// <param name="line">The <c>line</c> value.</param>
-    /// <param name="query">The <c>query</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="plan">The query plan.</param>
+    /// <param name="projectName">The containing project.</param>
+    /// <returns>The filter description.</returns>
+    private static string BuildFilterExcerpt(
+            SearchQueryPlan plan,
+            string? projectName)
+    {
+        List<string> parts =
+            new List<string>();
+
+        parts.AddRange(
+            plan.PropertyFilters.Select(filter =>
+                $"{filter.Key}: {filter.Value}"));
+
+        if (plan.ModifiedDateFilter is DateOnly date)
+        {
+            parts.Add(
+                $"date: {date:yyyy-MM-dd}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                plan.ProjectFilter))
+        {
+            parts.Add(
+                $"projet: {projectName}");
+        }
+
+        return parts.Count > 0
+            ? "Filtres · " +
+              string.Join(
+                  " · ",
+                  parts)
+            : "Document correspondant";
+    }
+
+    /// <summary>
+    /// Builds a compact source excerpt around a literal occurrence when available.
+    /// </summary>
+    /// <param name="line">The source line.</param>
+    /// <param name="query">The free-text query.</param>
+    /// <returns>The excerpt.</returns>
     private static string BuildExcerpt(
             string line,
             string query)
     {
-        string trimmed = line.Trim();
+        string trimmed =
+            line.Trim();
 
         if (trimmed.Length <= 180)
         {
             return trimmed;
         }
 
-        int index = trimmed.IndexOf(
-            query,
-            StringComparison.CurrentCultureIgnoreCase);
+        int index =
+            trimmed.IndexOf(
+                query,
+                StringComparison.CurrentCultureIgnoreCase);
 
-        int start = Math.Max(
-            0,
-            index - 70);
+        if (index < 0)
+        {
+            string firstTerm =
+                query.Split(
+                        ' ',
+                        StringSplitOptions.RemoveEmptyEntries |
+                        StringSplitOptions.TrimEntries)
+                    .FirstOrDefault() ??
+                string.Empty;
 
-        int length = Math.Min(
-            180,
-            trimmed.Length - start);
+            index =
+                firstTerm.Length > 0
+                    ? trimmed.IndexOf(
+                        firstTerm,
+                        StringComparison.CurrentCultureIgnoreCase)
+                    : 0;
+        }
 
-        string excerpt = trimmed.Substring(
-            start,
-            length);
+        if (index < 0)
+        {
+            index =
+                0;
+        }
+
+        int start =
+            Math.Max(
+                0,
+                index - 70);
+
+        int length =
+            Math.Min(
+                180,
+                trimmed.Length - start);
+
+        string excerpt =
+            trimmed.Substring(
+                start,
+                length);
 
         return
-            (start > 0 ? "…" : string.Empty) +
+            (start > 0
+                ? "…"
+                : string.Empty) +
             excerpt +
-            (start + length < trimmed.Length ? "…" : string.Empty);
+            (start + length < trimmed.Length
+                ? "…"
+                : string.Empty);
     }
 
     /// <summary>
-    /// Performs the <c>ResolveContextDirectory</c> operation.
+    /// Resolves a file or navigation context to a directory.
     /// </summary>
-    /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-    /// <param name="contextPath">The <c>contextPath</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="workspaceRoot">The workspace root.</param>
+    /// <param name="contextPath">The context path.</param>
+    /// <returns>The context directory.</returns>
     private static string ResolveContextDirectory(
             string workspaceRoot,
             string? contextPath)
     {
-        if (string.IsNullOrWhiteSpace(contextPath))
+        if (string.IsNullOrWhiteSpace(
+                contextPath))
         {
             return workspaceRoot;
         }
 
-        string fullPath = Path.GetFullPath(contextPath);
+        string fullPath =
+            Path.GetFullPath(
+                contextPath);
 
-        if (File.Exists(fullPath) ||
-            Path.HasExtension(fullPath))
+        if (File.Exists(
+                fullPath) ||
+            Path.HasExtension(
+                fullPath))
         {
-            return Path.GetDirectoryName(fullPath)
-                ?? workspaceRoot;
+            return Path.GetDirectoryName(
+                       fullPath) ??
+                   workspaceRoot;
         }
 
-        return Directory.Exists(fullPath)
+        return Directory.Exists(
+                fullPath)
             ? fullPath
             : workspaceRoot;
     }
 
     /// <summary>
-    /// Performs the <c>FindAncestorContaining</c> operation.
+    /// Finds the nearest ancestor containing the specified manifest.
     /// </summary>
-    /// <param name="startDirectory">The <c>startDirectory</c> value.</param>
-    /// <param name="root">The <c>root</c> value.</param>
-    /// <param name="fileName">The <c>fileName</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="startDirectory">The starting directory.</param>
+    /// <param name="root">The workspace boundary.</param>
+    /// <param name="fileName">The manifest filename.</param>
+    /// <returns>The matching ancestor or <see langword="null"/>.</returns>
     private static string? FindAncestorContaining(
             string startDirectory,
             string root,
             string fileName)
     {
         for (string? current = startDirectory;
-             current is not null && IsInsideOrEqual(current, root);
-             current = Directory.GetParent(current)?.FullName)
+             current is not null &&
+             IsInsideOrEqual(
+                 current,
+                 root);
+             current = Directory.GetParent(
+                 current)?.FullName)
         {
-            if (File.Exists(Path.Combine(
-                    current,
-                    fileName)))
+            if (File.Exists(
+                    Path.Combine(
+                        current,
+                        fileName)))
             {
                 return current;
             }
@@ -542,21 +1160,25 @@ public sealed class WorkspaceSearchService
     }
 
     /// <summary>
-    /// Performs the <c>IsInsideOrEqual</c> operation.
+    /// Tests whether a path is the workspace root or one of its descendants.
     /// </summary>
-    /// <param name="candidate">The <c>candidate</c> value.</param>
-    /// <param name="root">The <c>root</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="candidate">The candidate path.</param>
+    /// <param name="root">The root boundary.</param>
+    /// <returns><see langword="true"/> when the path is inside the workspace.</returns>
     private static bool IsInsideOrEqual(
             string candidate,
             string root)
     {
-        string fullCandidate = Path.GetFullPath(candidate)
+        string fullCandidate =
+            Path.GetFullPath(
+                candidate)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);
 
-        string fullRoot = Path.GetFullPath(root)
+        string fullRoot =
+            Path.GetFullPath(
+                root)
             .TrimEnd(
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar);
@@ -571,22 +1193,82 @@ public sealed class WorkspaceSearchService
     }
 
     /// <summary>
-    /// Performs the <c>Sort</c> operation.
+    /// Returns the fixed project, application or global scope bonus.
     /// </summary>
-    /// <param name="results">The <c>results</c> value.</param>
+    /// <param name="scope">The result scope.</param>
+    /// <returns>The relevance bonus.</returns>
+    private static double GetScopeBonus(
+            SearchScopeKind scope) =>
+        scope switch
+        {
+            SearchScopeKind.Project => 30,
+            SearchScopeKind.Application => 15,
+            _ => 0
+        };
+
+    /// <summary>
+    /// Sorts results by score, document name and line number.
+    /// </summary>
+    /// <param name="results">The result list.</param>
     private static void Sort(
             List<SearchResult> results)
     {
         results.Sort(
             (left, right) =>
             {
-                int byFile = StringComparer.CurrentCultureIgnoreCase.Compare(
-                    left.DisplayName,
-                    right.DisplayName);
+                int byScore =
+                    right.Score.CompareTo(
+                        left.Score);
+
+                if (byScore != 0)
+                {
+                    return byScore;
+                }
+
+                int byFile =
+                    StringComparer.CurrentCultureIgnoreCase.Compare(
+                        left.DisplayName,
+                        right.DisplayName);
 
                 return byFile != 0
                     ? byFile
-                    : left.LineNumber.CompareTo(right.LineNumber);
+                    : left.LineNumber.CompareTo(
+                        right.LineNumber);
             });
+    }
+
+    /// <summary>
+    /// Represents one front matter filter.
+    /// </summary>
+    /// <param name="Key">The property key.</param>
+    /// <param name="Value">The requested value.</param>
+    private sealed record SearchPropertyFilter(
+        string Key,
+        string Value);
+
+    /// <summary>
+    /// Represents a parsed search query.
+    /// </summary>
+    private sealed record SearchQueryPlan
+    {
+        /// <summary>
+        /// Gets free text remaining after filters are extracted.
+        /// </summary>
+        public required string TextQuery { get; init; }
+
+        /// <summary>
+        /// Gets front matter filters.
+        /// </summary>
+        public IReadOnlyList<SearchPropertyFilter> PropertyFilters { get; init; } = [];
+
+        /// <summary>
+        /// Gets the optional UTC modification date.
+        /// </summary>
+        public DateOnly? ModifiedDateFilter { get; init; }
+
+        /// <summary>
+        /// Gets the optional project name filter.
+        /// </summary>
+        public string? ProjectFilter { get; init; }
     }
 }
