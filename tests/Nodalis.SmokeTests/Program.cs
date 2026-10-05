@@ -1724,6 +1724,18 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         typedRelation.TargetLabel == "Cible",
         "Typed relations must be indexed from readable Markdown using stable target ids.");
 
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Links.ReferenceSearchEntry> incomingReferences =
+        ReferenceIndexQuery.GetIncoming(
+            initial,
+            target.Id);
+
+    Assert(
+        incomingReferences.Count == 2 &&
+        incomingReferences.Any(entry => entry.TypeLabel == "Lien interne") &&
+        incomingReferences.Any(entry =>
+            entry.RelationType == "dépend de"),
+        "Reference exploration must combine backlinks and typed relations for the same target.");
+
     global::Nodalis.Core.Links.LinkResolution resolved = WorkspaceLinkIndexService.Resolve(
         initial,
         "Cible");
@@ -1819,6 +1831,41 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
             afterParentRename,
             "Cible").Target?.Id == target.Id,
         "Historical aliases must survive parent folder renames.");
+
+    global::Nodalis.Core.Links.LinkTargetEntry sourceAfterParentRename = afterParentRename.Targets.Single(candidate =>
+        candidate.Id == source.Id);
+
+    string sourceAfterRenamePath = Path.Combine(
+        root,
+        sourceAfterParentRename.RelativePath.Replace(
+            '/',
+            Path.DirectorySeparatorChar));
+
+    string sourceContentBeforeDelete = await File.ReadAllTextAsync(
+        sourceAfterRenamePath);
+
+    File.Delete(
+        sourceAfterRenamePath);
+
+    global::Nodalis.Core.Links.LinkIndexCatalog afterSourceDelete = await indexService.RefreshAsync();
+
+    Assert(
+        ReferenceIndexQuery.GetIncoming(
+            afterSourceDelete,
+            target.Id).Count == 0,
+        "Reference exploration must not retain phantom backlinks or relations after source deletion.");
+
+    await File.WriteAllTextAsync(
+        sourceAfterRenamePath,
+        sourceContentBeforeDelete);
+
+    global::Nodalis.Core.Links.LinkIndexCatalog afterSourceRestore = await indexService.RefreshAsync();
+
+    Assert(
+        ReferenceIndexQuery.GetIncoming(
+            afterSourceRestore,
+            target.Id).Count == 2,
+        "Reference exploration must rediscover links and relations after the source is restored.");
 }
 
 static async Task VerifyGlossaryAsync(string root)

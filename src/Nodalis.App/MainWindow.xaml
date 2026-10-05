@@ -1441,12 +1441,23 @@
                                    Foreground="{StaticResource SecondaryTextBrush}" />
                     </Grid>
 
-                    <TextBlock Grid.Row="10"
+                    <DockPanel Grid.Row="10"
                                Margin="0,18,0,8"
-                               Text="BACKLINKS"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource SecondaryTextBrush}" />
+                               LastChildFill="False">
+                        <TextBlock DockPanel.Dock="Left"
+                                   VerticalAlignment="Center"
+                                   Text="BACKLINKS"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                        <Button x:Name="ExploreReferencesButton"
+                                DockPanel.Dock="Right"
+                                Padding="7,2"
+                                IsEnabled="False"
+                                Click="ExploreReferencesButton_Click"
+                                Content="Explorer…"
+                                ToolTip="Filtrer les liens et relations qui référencent cet élément" />
+                    </DockPanel>
 
                     <ListBox x:Name="BacklinksList"
                              Grid.Row="11"

@@ -139,6 +139,8 @@ public partial class MainWindow
     {
         AddRelationButton.IsEnabled =
             current?.Kind == LinkTargetKind.Document;
+        ExploreReferencesButton.IsEnabled =
+            current is not null;
 
         if (current is null)
         {
