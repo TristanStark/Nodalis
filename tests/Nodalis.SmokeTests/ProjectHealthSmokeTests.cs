@@ -7,6 +7,11 @@ using Nodalis.Infrastructure.Quality;
 
 internal static class ProjectHealthSmokeTests
 {
+    /// <summary>
+    /// Verifies deterministic project health rules and their read-only behavior.
+    /// </summary>
+    /// <param name="root">The smoke-test workspace root.</param>
+    /// <returns>A task representing the verification.</returns>
     public static async Task RunAsync(
             string root)
     {
@@ -309,6 +314,11 @@ internal static class ProjectHealthSmokeTests
             "Project Health Check must never rebuild a missing derived link index.");
     }
 
+    /// <summary>
+    /// Verifies that a project health report contains a rule code.
+    /// </summary>
+    /// <param name="report">The report to inspect.</param>
+    /// <param name="code">The expected rule code.</param>
     private static void AssertHasCode(
             ProjectHealthReport report,
             string code)
@@ -324,6 +334,11 @@ internal static class ProjectHealthSmokeTests
             ".");
     }
 
+    /// <summary>
+    /// Throws when a project health smoke-test condition is not satisfied.
+    /// </summary>
+    /// <param name="condition">The condition to verify.</param>
+    /// <param name="message">The failure message.</param>
     private static void Assert(
             bool condition,
             string message)

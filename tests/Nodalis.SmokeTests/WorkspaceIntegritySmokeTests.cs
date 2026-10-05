@@ -7,6 +7,11 @@ using Nodalis.Infrastructure.Reliability;
 
 internal static class WorkspaceIntegritySmokeTests
 {
+    /// <summary>
+    /// Verifies deterministic workspace integrity diagnostics and explicit index rebuilding.
+    /// </summary>
+    /// <param name="root">The smoke-test workspace root.</param>
+    /// <returns>A task representing the verification.</returns>
     public static async Task RunAsync(string root)
     {
         string integrityRoot = Path.Combine(
@@ -205,6 +210,11 @@ internal static class WorkspaceIntegritySmokeTests
             "Missing declared section directories must be reported as errors.");
     }
 
+    /// <summary>
+    /// Throws when a workspace integrity smoke-test condition is not satisfied.
+    /// </summary>
+    /// <param name="condition">The condition to verify.</param>
+    /// <param name="message">The failure message.</param>
     private static void Assert(
             bool condition,
             string message)
