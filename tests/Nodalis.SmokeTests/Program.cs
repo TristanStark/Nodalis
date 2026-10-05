@@ -2449,9 +2449,9 @@ static async Task VerifyMeetingsAsync(string root)
         scope.Value.ScopeName == "Projet Réunions",
         "Meeting context resolution must keep the meeting attached to its project.");
 
-    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> tasks = await new WorkspaceTaskService(root)
-        .GetTasksAsync(
-            project.ProjectDirectory);
+    global::Nodalis.Infrastructure.Tasks.WorkspaceTaskService taskService = new WorkspaceTaskService(root);
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> tasks = await taskService.GetTasksAsync(
+        project.ProjectDirectory);
 
     Assert(
         tasks.Any(task =>
@@ -2461,6 +2461,142 @@ static async Task VerifyMeetingsAsync(string root)
         tasks.Any(task =>
             task.Text == "Envoyer le compte-rendu"),
         "Meeting actions must immediately surface as project Markdown tasks.");
+
+    global::Nodalis.Core.Tasks.TaskItem meetingAction = tasks.Single(task =>
+        task.Text == "Préparer recette");
+
+    Assert(
+        meetingAction.CanPromoteMeetingAction,
+        "Tasks physically stored in the project meeting directory must be promotable.");
+
+    global::Nodalis.Core.Tasks.TaskMetadataUpdate promotionMetadata = new TaskMetadataUpdate
+    {
+        Owner = "Chloé",
+        DueDate = new DateOnly(2026, 10, 12),
+        Priority = "Critique",
+        Status = "En cours",
+        Tags =
+        [
+            "recette",
+            "lot-2"
+        ]
+    };
+
+    global::Nodalis.Core.Tasks.MeetingActionPromotionResult promotion = await taskService.PromoteMeetingActionAsync(
+        meetingAction,
+        promotionMetadata);
+
+    string projectTaskPath = Path.Combine(
+        root,
+        promotion.ProjectTaskRelativePath.Replace(
+            '/',
+            Path.DirectorySeparatorChar));
+
+    Assert(
+        promotion.Created &&
+        Path.GetFileName(projectTaskPath) == "Tâches.md" &&
+        File.Exists(projectTaskPath),
+        "Promoting a meeting action must create the project task document on first use.");
+
+    string promotedMeetingContent = await File.ReadAllTextAsync(
+        result.FilePath);
+    string promotedTaskContent = await File.ReadAllTextAsync(
+        projectTaskPath);
+    string sourceMarker =
+        $"nodalis:meeting-action-source:{promotion.PromotionId:D}";
+    string taskMarker =
+        $"nodalis:meeting-action-task:{promotion.PromotionId:D}";
+
+    Assert(
+        promotedMeetingContent.Contains(
+            sourceMarker,
+            StringComparison.Ordinal) &&
+        promotedMeetingContent.Contains(
+            "Tâche projet : [[",
+            StringComparison.Ordinal) &&
+        promotedTaskContent.Contains(
+            taskMarker,
+            StringComparison.Ordinal) &&
+        promotedTaskContent.Contains(
+            "Source : [[",
+            StringComparison.Ordinal) &&
+        promotedTaskContent.Contains(
+            "- [ ] Préparer recette | Responsable: Chloé | Échéance: 2026-10-12 | Priorité: Critique | Statut: En cours | Tags: recette, lot-2",
+            StringComparison.Ordinal),
+        "Promoted meeting actions must keep readable metadata and bidirectional Markdown links.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> promotedTasks = await taskService.GetTasksAsync(
+        project.ProjectDirectory);
+
+    global::Nodalis.Core.Tasks.TaskItem promotedTask = promotedTasks.Single(task =>
+        task.Text == "Préparer recette");
+
+    Assert(
+        promotedTask.SourceRelativePath.EndsWith(
+            "Tâches.md",
+            StringComparison.OrdinalIgnoreCase) &&
+        promotedTask.Owner == "Chloé" &&
+        promotedTask.Priority == "Critique" &&
+        promotedTask.Status == "En cours" &&
+        promotedTasks.Count(task =>
+            task.Text == "Préparer recette") == 1,
+        "A promoted action must appear once from project tracking rather than being duplicated from the meeting.");
+
+    global::Nodalis.Core.Tasks.MeetingActionPromotionResult repeatedPromotion = await taskService.PromoteMeetingActionAsync(
+        meetingAction,
+        promotionMetadata);
+
+    Assert(
+        !repeatedPromotion.Created &&
+        repeatedPromotion.PromotionId == promotion.PromotionId,
+        "Repeating the same meeting action promotion must be idempotent.");
+
+    promotedMeetingContent = await File.ReadAllTextAsync(
+        result.FilePath);
+    promotedTaskContent = await File.ReadAllTextAsync(
+        projectTaskPath);
+
+    Assert(
+        promotedMeetingContent.Split(
+            sourceMarker,
+            StringSplitOptions.None).Length == 2 &&
+        promotedTaskContent.Split(
+            taskMarker,
+            StringSplitOptions.None).Length == 2,
+        "Idempotent promotion must not duplicate hidden linkage markers.");
+
+    global::Nodalis.Core.Links.LinkIndexCatalog links = await new WorkspaceLinkIndexService(root)
+        .RefreshAsync();
+
+    string meetingRelativePath = Path.GetRelativePath(
+            root,
+            result.FilePath)
+        .Replace(
+            Path.DirectorySeparatorChar,
+            '/');
+
+    global::Nodalis.Core.Links.LinkTargetEntry meetingTarget = links.Targets.Single(target =>
+        target.Kind == LinkTargetKind.Document &&
+        string.Equals(
+            target.RelativePath,
+            meetingRelativePath,
+            StringComparison.OrdinalIgnoreCase));
+
+    global::Nodalis.Core.Links.LinkTargetEntry taskTarget = links.Targets.Single(target =>
+        target.Kind == LinkTargetKind.Document &&
+        string.Equals(
+            target.RelativePath,
+            promotion.ProjectTaskRelativePath,
+            StringComparison.OrdinalIgnoreCase));
+
+    Assert(
+        links.References.Any(reference =>
+            reference.SourceId == meetingTarget.Id &&
+            reference.TargetId == taskTarget.Id) &&
+        links.References.Any(reference =>
+            reference.SourceId == taskTarget.Id &&
+            reference.TargetId == meetingTarget.Id),
+        "Meeting and promoted task documents must expose navigable links in both directions.");
 }
 
 static async Task VerifyDecisionsAsync(string root)
