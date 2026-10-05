@@ -1,4 +1,5 @@
 using Nodalis.Core.Domain;
+using Nodalis.Core.Markdown;
 using Nodalis.Core.Search;
 using Nodalis.Infrastructure.Persistence;
 
@@ -206,6 +207,75 @@ public sealed class WorkspaceSearchService
             file,
             cancellationToken);
 
+        if (TryParsePropertyQuery(
+                query,
+                out string propertyKey,
+                out string propertyValue))
+        {
+            string markdown = string.Join(
+                Environment.NewLine,
+                lines);
+
+            MarkdownFrontMatterDocument metadata =
+                MarkdownFrontMatterParser.Parse(
+                    markdown);
+
+            bool matches = string.Equals(
+                    propertyKey,
+                    "tag",
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    propertyKey,
+                    "tags",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? metadata.Properties.TryGetValue(
+                            "tags",
+                            out string? rawTags) &&
+                      MarkdownFrontMatterParser.ParseTags(
+                              rawTags)
+                          .Any(tag =>
+                              string.Equals(
+                                  tag,
+                                  propertyValue,
+                                  StringComparison.CurrentCultureIgnoreCase))
+                    : metadata.Properties.TryGetValue(
+                            propertyKey,
+                            out string? rawValue) &&
+                      rawValue.Contains(
+                          propertyValue,
+                          StringComparison.CurrentCultureIgnoreCase);
+
+            if (matches)
+            {
+                int metadataLine = FindPropertyLine(
+                    lines,
+                    string.Equals(
+                            propertyKey,
+                            "tag",
+                            StringComparison.OrdinalIgnoreCase)
+                        ? "tags"
+                        : propertyKey);
+
+                results.Add(
+                    new SearchResult
+                    {
+                        Scope =
+                            scope,
+                        FilePath =
+                            file,
+                        DisplayName =
+                            Path.GetFileNameWithoutExtension(
+                                file),
+                        LineNumber =
+                            metadataLine,
+                        Excerpt =
+                            $"Propriété {propertyKey}: {propertyValue}"
+                    });
+            }
+
+            return;
+        }
+
         bool fileNameMatches = Path
             .GetFileNameWithoutExtension(file)
             .Contains(
@@ -244,6 +314,128 @@ public sealed class WorkspaceSearchService
                     query)
             });
         }
+    }
+
+    /// <summary>
+    /// Parses a metadata filter query. Standard properties support <c>key:value</c>;
+    /// custom properties use <c>@key:value</c>.
+    /// </summary>
+    /// <param name="query">The search query.</param>
+    /// <param name="key">The normalized property key.</param>
+    /// <param name="value">The requested property value.</param>
+    /// <returns><see langword="true"/> when the query is a metadata filter.</returns>
+    private static bool TryParsePropertyQuery(
+            string query,
+            out string key,
+            out string value)
+    {
+        key =
+            string.Empty;
+        value =
+            string.Empty;
+
+        int separator =
+            query.IndexOf(
+                ':');
+
+        if (separator <= 0 ||
+            separator >=
+            query.Length - 1)
+        {
+            return false;
+        }
+
+        string candidateKey =
+            query[..separator]
+                .Trim();
+        string candidateValue =
+            query[(separator + 1)..]
+                .Trim();
+
+        if (candidateValue.Length == 0)
+        {
+            return false;
+        }
+
+        bool customSyntax =
+            candidateKey.StartsWith(
+                '@');
+
+        if (customSyntax)
+        {
+            candidateKey =
+                candidateKey[1..]
+                    .Trim();
+        }
+
+        if (candidateKey.Length == 0 ||
+            candidateKey.Any(character =>
+                !char.IsLetterOrDigit(
+                    character) &&
+                character is not
+                    '-' and not
+                    '_' and not
+                    '.'))
+        {
+            return false;
+        }
+
+        string[] standardKeys =
+        [
+            "status",
+            "owner",
+            "version",
+            "environment",
+            "type",
+            "tag",
+            "tags"
+        ];
+
+        if (!customSyntax &&
+            !standardKeys.Contains(
+                candidateKey,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        key =
+            candidateKey;
+        value =
+            candidateValue;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Locates the source line of a property for search-result navigation.
+    /// </summary>
+    /// <param name="lines">The Markdown lines.</param>
+    /// <param name="propertyKey">The property key.</param>
+    /// <returns>The one-based source line, or one when the property line cannot be located.</returns>
+    private static int FindPropertyLine(
+            IReadOnlyList<string> lines,
+            string propertyKey)
+    {
+        for (int index = 0;
+             index < lines.Count;
+             index++)
+        {
+            string line =
+                lines[index]
+                    .TrimStart();
+
+            if (line.StartsWith(
+                    propertyKey +
+                    ":",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return index +
+                    1;
+            }
+        }
+
+        return 1;
     }
 
     /// <summary>
