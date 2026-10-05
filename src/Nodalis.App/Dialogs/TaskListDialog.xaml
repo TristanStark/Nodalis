@@ -166,13 +166,30 @@
                                            TextTrimming="CharacterEllipsis" />
                             </StackPanel>
 
-                            <Button Grid.Column="2"
-                                    Margin="12,0,0,0"
-                                    Padding="10,5"
-                                    VerticalAlignment="Top"
-                                    Tag="{Binding}"
-                                    Click="EditTask_Click"
-                                    Content="Modifier" />
+                            <StackPanel Grid.Column="2"
+                                        Margin="12,0,0,0"
+                                        VerticalAlignment="Top">
+                                <Button Padding="10,5"
+                                        Tag="{Binding}"
+                                        Click="PromoteTask_Click"
+                                        Content="Promouvoir">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CanPromoteMeetingAction}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Margin="0,6,0,0"
+                                        Padding="10,5"
+                                        Tag="{Binding}"
+                                        Click="EditTask_Click"
+                                        Content="Modifier" />
+                            </StackPanel>
                         </Grid>
                     </Border>
                 </DataTemplate>
