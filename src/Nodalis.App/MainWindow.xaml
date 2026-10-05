@@ -1,0 +1,681 @@
+<Window x:Class="Nodalis.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:navigation="clr-namespace:Nodalis.App.Navigation"
+        Title="Nodalis"
+        Width="1440"
+        Height="900"
+        MinWidth="1024"
+        MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
+    <Window.Resources>
+        <HierarchicalDataTemplate DataType="{x:Type navigation:NavigationNodeViewModel}"
+                                  ItemsSource="{Binding Children}">
+            <TextBlock Text="{Binding DisplayName}"
+                       TextTrimming="CharacterEllipsis" />
+        </HierarchicalDataTemplate>
+
+        <Style TargetType="TreeViewItem"
+               BasedOn="{StaticResource {x:Type TreeViewItem}}">
+            <Setter Property="IsExpanded"
+                    Value="{Binding IsExpanded, Mode=TwoWay}" />
+            <Setter Property="IsSelected"
+                    Value="{Binding IsSelected, Mode=TwoWay}" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="28" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="14,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="NODALIS"
+                               FontWeight="SemiBold"
+                               FontSize="16"
+                               Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock x:Name="WorkspaceNameText"
+                               Margin="10,0,0,0"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Click="CommandPalette_Click"
+                        Content="Ctrl+P · Command Palette" />
+
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button Margin="0,0,8,0"
+                            Click="ToggleContextPanel_Click"
+                            Content="Contexte" />
+                    <Button Margin="0,0,8,0"
+                            Click="ShowQuickNotes_Click"
+                            Content="Notes rapides" />
+                    <Button Margin="0,0,8,0"
+                            Click="CaptureQuickNote_Click"
+                            Content="Note rapide  Ctrl+Alt+N" />
+                    <Button Margin="0,0,8,0"
+                            Click="ImportDocx_Click"
+                            Content="Importer DOCX" />
+                    <Button Margin="0,0,8,0"
+                            Click="NewProject_Click"
+                            Content="Nouveau projet  Ctrl+Shift+N" />
+                    <Button Click="NewNote_Click"
+                            Content="Nouvelle note  Ctrl+N" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="NavigationColumn" Width="280" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="ContextSplitterColumn" Width="5" />
+                <ColumnDefinition x:Name="ContextColumn" Width="300" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,1,0"
+                    Padding="10">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="NAVIGATION"
+                               Margin="4,4,0,10"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+
+                    <TreeView x:Name="NavigationTree"
+                              SelectedItemChanged="NavigationTree_SelectedItemChanged"
+                              PreviewMouseRightButtonDown="NavigationTree_PreviewMouseRightButtonDown"
+                              ContextMenuOpening="NavigationTree_ContextMenuOpening" />
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1"
+                          Width="5"
+                          HorizontalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}"
+                          ResizeDirection="Columns"
+                          ResizeBehavior="PreviousAndNext"
+                          ShowsPreview="True" />
+
+            <Grid Grid.Column="2"
+                  Background="{StaticResource WindowBackgroundBrush}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="58" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Padding="22,10"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1">
+                    <StackPanel>
+                        <TextBlock x:Name="DocumentTitleText"
+                                   Text="Accueil"
+                                   FontSize="18"
+                                   FontWeight="SemiBold" />
+                        <TextBlock x:Name="DocumentPathText"
+                                   Margin="0,3,0,0"
+                                   FontSize="11"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="EditorToolbar"
+                        Grid.Row="1"
+                        Visibility="Collapsed"
+                        Background="{StaticResource PanelBackgroundBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1">
+                    <Grid Margin="12,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <Button Width="34"
+                                    Height="28"
+                                    Margin="0,0,5,0"
+                                    Padding="0"
+                                    FontWeight="Bold"
+                                    Click="Bold_Click"
+                                    ToolTip="Gras · Ctrl+B"
+                                    Content="B" />
+                            <Button Width="34"
+                                    Height="28"
+                                    Margin="0,0,5,0"
+                                    Padding="0"
+                                    FontStyle="Italic"
+                                    Click="Italic_Click"
+                                    ToolTip="Italique · Ctrl+I"
+                                    Content="I" />
+                            <Button Width="42"
+                                    Height="28"
+                                    Margin="0,0,5,0"
+                                    Padding="0"
+                                    FontFamily="Consolas"
+                                    Click="InlineCode_Click"
+                                    ToolTip="Code inline"
+                                    Content="&lt;/&gt;" />
+                            <Button Height="28"
+                                    Padding="8,0"
+                                    Click="AttachFile_Click"
+                                    ToolTip="Ajouter une pièce jointe locale"
+                                    Content="Joindre" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="SaveStateText"
+                                   Grid.Column="1"
+                                   Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   Text="Enregistré" />
+
+                        <Button Grid.Column="2"
+                                VerticalAlignment="Center"
+                                Click="TogglePreview_Click"
+                                Content="Aperçu" />
+                    </Grid>
+                </Border>
+
+                <Grid x:Name="DocumentEditorHost"
+                      Grid.Row="2"
+                      Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="PreviewSplitterColumn" Width="5" />
+                        <ColumnDefinition x:Name="PreviewColumn" Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox x:Name="MarkdownEditorTextBox"
+                             Grid.Column="0"
+                             Padding="18"
+                             BorderThickness="0"
+                             FontFamily="Consolas"
+                             FontSize="14"
+                             AcceptsReturn="True"
+                             AcceptsTab="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             TextChanged="MarkdownEditorTextBox_TextChanged"
+                             PreviewMouseMove="MarkdownEditorTextBox_PreviewMouseMove"
+                             MouseDoubleClick="MarkdownEditorTextBox_MouseDoubleClick"
+                             ContextMenuOpening="MarkdownEditorTextBox_ContextMenuOpening"
+                             SpellCheck.IsEnabled="False" />
+
+                    <Popup x:Name="InternalLinkPopup"
+                           Grid.Column="0"
+                           PlacementTarget="{Binding ElementName=MarkdownEditorTextBox}"
+                           Placement="RelativePoint"
+                           AllowsTransparency="True"
+                           StaysOpen="False">
+                        <Border Width="430"
+                                MaxHeight="280"
+                                Padding="6"
+                                CornerRadius="6"
+                                Background="{StaticResource PanelElevatedBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1">
+                            <ListBox x:Name="InternalLinkSuggestions"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     MouseDoubleClick="InternalLinkSuggestions_MouseDoubleClick">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="6,4">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding QualifiedName}"
+                                                       Margin="0,2,0,0"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+                    </Popup>
+
+                    <GridSplitter x:Name="PreviewSplitter"
+                                  Grid.Column="1"
+                                  Width="5"
+                                  HorizontalAlignment="Stretch"
+                                  Background="{StaticResource BorderBrush}"
+                                  ResizeDirection="Columns"
+                                  ResizeBehavior="PreviousAndNext"
+                                  ShowsPreview="True" />
+
+                    <FlowDocumentScrollViewer x:Name="MarkdownPreview"
+                                              Grid.Column="2"
+                                              Background="{StaticResource WindowBackgroundBrush}"
+                                              BorderThickness="0"
+                                              IsToolBarVisible="False"
+                                              VerticalScrollBarVisibility="Auto" />
+                </Grid>
+
+                <ScrollViewer x:Name="DashboardHost"
+                              Grid.Row="2"
+                              VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="24">
+                        <TextBlock Text="Reprendre le travail"
+                                   FontSize="28"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Margin="0,6,0,22"
+                                   Text="Favoris et éléments récemment ouverts sur ce poste."
+                                   Foreground="{StaticResource SecondaryTextBrush}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0"
+                                    Padding="14"
+                                    CornerRadius="6"
+                                    Background="{StaticResource PanelBackgroundBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="FAVORIS"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                    <ListBox x:Name="FavoritesList"
+                                             Margin="0,8,0,0"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             MouseDoubleClick="DashboardList_MouseDoubleClick">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="4,5">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Margin="0,2,0,0"
+                                                               Text="{Binding Context}"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource SecondaryTextBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2"
+                                    Padding="14"
+                                    CornerRadius="6"
+                                    Background="{StaticResource PanelBackgroundBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="PROJETS RÉCENTS"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                    <ListBox x:Name="RecentProjectsList"
+                                             Margin="0,8,0,0"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             MouseDoubleClick="DashboardList_MouseDoubleClick">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="4,5">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Margin="0,2,0,0"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource SecondaryTextBrush}">
+                                                        <Run Text="{Binding LastOpenedUtc, StringFormat={}{0:dd/MM/yyyy HH:mm}}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Grid Margin="0,20,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0"
+                                    Padding="14"
+                                    CornerRadius="6"
+                                    Background="{StaticResource PanelBackgroundBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="DOCUMENTS RÉCENTS"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                    <ListBox x:Name="RecentDocumentsList"
+                                             Margin="0,8,0,0"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             MouseDoubleClick="DashboardList_MouseDoubleClick">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="4,5">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Margin="0,2,0,0"
+                                                               Text="{Binding Context}"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource SecondaryTextBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2"
+                                    Padding="14"
+                                    CornerRadius="6"
+                                    Background="{StaticResource PanelBackgroundBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="RÉUNIONS RÉCENTES"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                    <ListBox x:Name="RecentMeetingsList"
+                                             Margin="0,8,0,0"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             MouseDoubleClick="DashboardList_MouseDoubleClick">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="4,5">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontWeight="SemiBold" />
+                                                    <TextBlock Margin="0,2,0,0"
+                                                               Text="{Binding Context}"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Grid Margin="0,20,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0"
+                                    Padding="14"
+                                    CornerRadius="6"
+                                    Background="{StaticResource PanelBackgroundBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Left"
+                                                   Text="TÂCHES OUVERTES"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                                        <Button DockPanel.Dock="Right"
+                                                Padding="7,2"
+                                                Click="ShowAllTasks_Click"
+                                                Content="Tout voir" />
+                                    </DockPanel>
+
+                                    <ListBox x:Name="OpenTasksList"
+                                             Margin="0,8,0,0"
+                                             MaxHeight="250"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             MouseDoubleClick="DashboardTaskList_MouseDoubleClick">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="4,5">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <CheckBox Grid.Column="0"
+                                                              Margin="0,2,9,0"
+                                                              VerticalAlignment="Top"
+                                                              IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                                                              Click="DashboardTaskCheckBox_Click" />
+
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Text="{Binding Text}"
+                                                                   FontWeight="SemiBold"
+                                                                   TextWrapping="Wrap" />
+                                                        <TextBlock Margin="0,2,0,0"
+                                                                   FontSize="10"
+                                                                   Foreground="{StaticResource SecondaryTextBrush}">
+                                                            <Run Text="{Binding ProjectName}" />
+                                                            <Run Text="  " />
+                                                            <Run Text="{Binding DueDate, StringFormat={}{0:dd/MM/yyyy}}" />
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2"
+                                    Padding="14"
+                                    CornerRadius="6"
+                                    Background="{StaticResource PanelBackgroundBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="JALONS PROCHAINS"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                    <ListBox x:Name="UpcomingMilestonesList"
+                                             Margin="0,8,0,0"
+                                             MaxHeight="250"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             MouseDoubleClick="DashboardMilestoneList_MouseDoubleClick">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="4,5">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontWeight="SemiBold"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Margin="0,2,0,0"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource SecondaryTextBrush}">
+                                                        <Run Text="{Binding ProjectName}" />
+                                                        <Run Text="  " />
+                                                        <Run Text="{Binding TargetDate, StringFormat={}{0:dd/MM/yyyy}}" />
+                                                        <Run Text="  " />
+                                                        <Run Text="{Binding Status}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Border x:Name="NodeSummaryHost"
+                        Grid.Row="2"
+                        Margin="20"
+                        Visibility="Collapsed"
+                        Padding="18"
+                        CornerRadius="6"
+                        Background="{StaticResource PanelBackgroundBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1">
+                    <TextBlock x:Name="NodeSummaryText"
+                               Text="Sélectionnez un élément dans l'arborescence."
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                </Border>
+            </Grid>
+
+            <GridSplitter x:Name="ContextSplitter"
+                          Grid.Column="3"
+                          Width="5"
+                          HorizontalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}"
+                          ResizeDirection="Columns"
+                          ResizeBehavior="PreviousAndNext"
+                          ShowsPreview="True" />
+
+            <Border x:Name="ContextPanel"
+                    Grid.Column="4"
+                    Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1,0,0,0"
+                    Padding="16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="CONTEXTE"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                    <TextBlock x:Name="ContextTitleText"
+                               Grid.Row="1"
+                               Text="Aucun élément sélectionné"
+                               Margin="0,14,0,0"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <TextBlock x:Name="ContextKindText"
+                               Grid.Row="2"
+                               Margin="0,8,0,0"
+                               Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock x:Name="ContextPathText"
+                               Grid.Row="3"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+
+                    <TextBlock x:Name="ContextBrokenLinksText"
+                               Grid.Row="4"
+                               Margin="0,16,0,0"
+                               Text="Liens internes : —"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+
+                    <TextBlock Grid.Row="5"
+                               Margin="0,18,0,8"
+                               Text="BACKLINKS"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+
+                    <ListBox x:Name="BacklinksList"
+                             Grid.Row="6"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             MouseDoubleClick="BacklinksList_MouseDoubleClick">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="4,5">
+                                    <TextBlock FontWeight="SemiBold">
+                                        <Run Text="{Binding Source.DisplayName}" />
+                                        <Run Text=" · ligne " />
+                                        <Run Text="{Binding LineNumber}" />
+                                    </TextBlock>
+                                    <TextBlock Margin="0,2,0,0"
+                                               Text="{Binding Excerpt}"
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid Margin="10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="StatusText"
+                           VerticalAlignment="Center"
+                           Text="Local · Markdown + JSON · Aucun appel réseau"
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+
+                <TextBlock Grid.Column="1"
+                           VerticalAlignment="Center"
+                           Text="Ctrl+K lien · Ctrl+S enregistrer · Ctrl+B gras · Ctrl+I italique"
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

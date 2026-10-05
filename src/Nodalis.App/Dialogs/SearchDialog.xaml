@@ -1,0 +1,105 @@
+<Window x:Class="Nodalis.App.Dialogs.SearchDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Recherche"
+        Width="920"
+        Height="720"
+        MinWidth="720"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Window.Resources>
+        <DataTemplate x:Key="SearchResultTemplate">
+            <StackPanel Margin="8,6">
+                <TextBlock FontWeight="SemiBold">
+                    <Run Text="{Binding DisplayName}" />
+                    <Run Text=" · ligne " />
+                    <Run Text="{Binding LineNumber}" />
+                </TextBlock>
+                <TextBlock Margin="0,3,0,0"
+                           Text="{Binding Excerpt}"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="58" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="30" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="14,10"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <TextBox x:Name="SearchTextBox"
+                     Padding="10,6"
+                     FontSize="16"
+                     TextChanged="SearchTextBox_TextChanged" />
+        </Border>
+
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="14">
+                <Expander x:Name="ProjectExpander"
+                          IsExpanded="True"
+                          Margin="0,0,0,12">
+                    <Expander.Header>
+                        <TextBlock x:Name="ProjectHeader"
+                                   Text="PROJET · 0 résultat" />
+                    </Expander.Header>
+                    <ListBox x:Name="ProjectResults"
+                             MinHeight="80"
+                             MaxHeight="220"
+                             MouseDoubleClick="Results_MouseDoubleClick"
+                             SelectionChanged="Results_SelectionChanged"
+                             ItemTemplate="{StaticResource SearchResultTemplate}" />
+                </Expander>
+
+                <Expander x:Name="ApplicationExpander"
+                          IsExpanded="True"
+                          Margin="0,0,0,12">
+                    <Expander.Header>
+                        <TextBlock x:Name="ApplicationHeader"
+                                   Text="APPLICATION · 0 résultat" />
+                    </Expander.Header>
+                    <ListBox x:Name="ApplicationResults"
+                             MinHeight="80"
+                             MaxHeight="220"
+                             MouseDoubleClick="Results_MouseDoubleClick"
+                             SelectionChanged="Results_SelectionChanged"
+                             ItemTemplate="{StaticResource SearchResultTemplate}" />
+                </Expander>
+
+                <Expander x:Name="GlobalExpander"
+                          IsExpanded="True">
+                    <Expander.Header>
+                        <TextBlock x:Name="GlobalHeader"
+                                   Text="GLOBAL · 0 résultat" />
+                    </Expander.Header>
+                    <ListBox x:Name="GlobalResults"
+                             MinHeight="80"
+                             MaxHeight="220"
+                             MouseDoubleClick="Results_MouseDoubleClick"
+                             SelectionChanged="Results_SelectionChanged"
+                             ItemTemplate="{StaticResource SearchResultTemplate}" />
+                </Expander>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2"
+                Padding="12,0"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <TextBlock x:Name="StatusText"
+                       VerticalAlignment="Center"
+                       FontSize="11"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Saisissez un terme exact." />
+        </Border>
+    </Grid>
+</Window>

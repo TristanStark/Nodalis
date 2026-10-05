@@ -1,0 +1,54 @@
+<Window x:Class="Nodalis.App.Dialogs.NewNoteDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nouvelle note"
+        Width="480"
+        Height="270"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Titre"
+                   FontWeight="SemiBold" />
+
+        <TextBox x:Name="TitleTextBox"
+                 Grid.Row="1"
+                 Margin="0,7,0,0"
+                 Height="32"
+                 VerticalContentAlignment="Center" />
+
+        <TextBlock Grid.Row="3"
+                   Text="Template"
+                   FontWeight="SemiBold" />
+
+        <ComboBox x:Name="TemplateComboBox"
+                  Grid.Row="4"
+                  Margin="0,7,0,0"
+                  Height="32"
+                  DisplayMemberPath="DisplayName"
+                  VerticalContentAlignment="Center" />
+
+        <StackPanel Grid.Row="6"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Margin="0,0,8,0"
+                    MinWidth="90"
+                    IsCancel="True"
+                    Content="Annuler" />
+            <Button MinWidth="90"
+                    IsDefault="True"
+                    Click="Create_Click"
+                    Content="Créer" />
+        </StackPanel>
+    </Grid>
+</Window>

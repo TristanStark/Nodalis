@@ -1,0 +1,69 @@
+name: One-time C# whitespace cleanup
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Nodalis.sln
+
+      - name: Remove invalid void return documentation
+        shell: pwsh
+        run: |
+          $pattern = '(?m)^[ \t]*/// <returns>The result of the operation\.</returns>\r?\n(?=[ \t]*(?:(?:public|private|protected|internal|static|async|virtual|override|sealed|new|unsafe|partial|extern)\s+)*void\b)'
+          Get-ChildItem -Path src -Recurse -Filter *.cs | ForEach-Object {
+            $content = [System.IO.File]::ReadAllText($_.FullName)
+            $updated = [System.Text.RegularExpressions.Regex]::Replace($content, $pattern, '')
+            if ($updated -ne $content) {
+              [System.IO.File]::WriteAllText(
+                $_.FullName,
+                $updated,
+                [System.Text.UTF8Encoding]::new($false))
+            }
+          }
+
+      - name: Normalize C# whitespace
+        run: dotnet format whitespace Nodalis.sln --no-restore
+
+      - name: Verify C# code style
+        run: dotnet run --project tools/Nodalis.CodeStyle/Nodalis.CodeStyle.csproj --configuration Release -- --check
+
+      - name: Build
+        run: dotnet build Nodalis.sln --configuration Release --no-restore
+
+      - name: Run smoke tests
+        run: dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj --configuration Release
+
+      - name: Commit formatting
+        shell: pwsh
+        run: |
+          if (-not (git status --porcelain)) {
+            Write-Host "No whitespace changes were required."
+            exit 0
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- '*.cs'
+          git commit -m "chore(style): normalize C# formatting after documentation cleanup"
+          git push origin HEAD:develop

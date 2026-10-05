@@ -1,0 +1,60 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Verify local-only constraints
+        shell: pwsh
+        run: ./scripts/verify-constraints.ps1
+
+      - name: Verify C# code style
+        run: dotnet run --project tools/Nodalis.CodeStyle/Nodalis.CodeStyle.csproj --configuration Release -- --check
+
+      - name: Restore
+        run: dotnet restore Nodalis.sln
+
+      - name: Build
+        run: dotnet build Nodalis.sln --configuration Release --no-restore
+
+      - name: Run zero-dependency smoke tests
+        run: dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj --configuration Release
+
+      - name: Verify portable package
+        shell: pwsh
+        run: ./scripts/publish-portable.ps1 -Version "0.0.0-ci"
+
+      - name: Start published portable binary
+        shell: pwsh
+        run: |
+          $process = Start-Process "artifacts/Nodalis-win-x64/Nodalis.exe" -ArgumentList "--smoke-test" -PassThru -Wait
+          if ($process.ExitCode -ne 0) {
+            throw "Published Nodalis.exe failed startup smoke test with exit code $($process.ExitCode)."
+          }
+
+      - name: Upload portable CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nodalis-win-x64-${{ github.sha }}
+          path: |
+            artifacts/Nodalis-win-x64.zip
+            artifacts/SHA256SUMS.txt
+          if-no-files-found: error

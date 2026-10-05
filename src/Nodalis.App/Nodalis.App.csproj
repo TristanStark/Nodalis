@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Nodalis.App</RootNamespace>
+    <AssemblyName>Nodalis</AssemblyName>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nodalis.Core\Nodalis.Core.csproj" />
+    <ProjectReference Include="..\Nodalis.Infrastructure\Nodalis.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

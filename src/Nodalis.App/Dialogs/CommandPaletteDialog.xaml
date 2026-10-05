@@ -1,0 +1,67 @@
+<Window x:Class="Nodalis.App.Dialogs.CommandPaletteDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Command Palette"
+        Width="760"
+        Height="520"
+        MinWidth="620"
+        MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False">
+    <Grid Background="{StaticResource WindowBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="58" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="32" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="14,10"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <TextBox x:Name="SearchTextBox"
+                     Padding="10,6"
+                     FontSize="16"
+                     TextChanged="SearchTextBox_TextChanged"
+                     PreviewKeyDown="SearchTextBox_PreviewKeyDown" />
+        </Border>
+
+        <ListBox x:Name="CommandsList"
+                 Grid.Row="1"
+                 BorderThickness="0"
+                 Background="{StaticResource WindowBackgroundBrush}"
+                 SelectionMode="Single"
+                 MouseDoubleClick="CommandsList_MouseDoubleClick">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="10,7">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Title}"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Subtitle}"
+                                       Margin="0,3,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Border Grid.Row="2"
+                Padding="12,0"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <TextBlock VerticalAlignment="Center"
+                       FontSize="11"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="↑ ↓ naviguer · Entrée exécuter · Échap fermer" />
+        </Border>
+    </Grid>
+</Window>
