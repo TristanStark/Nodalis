@@ -3937,7 +3937,8 @@ public partial class MainWindow : Window
             _root.FullPath,
             contextPath,
             scopeLabel,
-            ToggleTaskFromViewAsync)
+            ToggleTaskFromViewAsync,
+            UpdateTaskMetadataFromViewAsync)
         {
             Owner = this
         };
@@ -4086,6 +4087,93 @@ public partial class MainWindow : Window
         StatusText.Text = completed
             ? $"Tâche terminée · {task.Text}"
             : $"Tâche rouverte · {task.Text}";
+    }
+
+    /// <summary>
+    /// Updates readable task metadata from a consolidated view while keeping an open editor synchronized.
+    /// </summary>
+    /// <param name="task">The task to update.</param>
+    /// <param name="metadata">The complete metadata set to write.</param>
+    /// <returns>A task representing the local Markdown update.</returns>
+    private async Task UpdateTaskMetadataFromViewAsync(
+            TaskItem task,
+            TaskMetadataUpdate metadata)
+    {
+        string sourcePath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                task.SourceRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        bool isCurrentDocument =
+            _documentSession is not null &&
+            string.Equals(
+                Path.GetFullPath(
+                    _documentSession.Path),
+                sourcePath,
+                StringComparison.OrdinalIgnoreCase);
+
+        int caret =
+            MarkdownEditorTextBox.CaretIndex;
+
+        if (isCurrentDocument &&
+            _autosave is not null)
+        {
+            await _autosave.FlushAsync();
+
+            if (_documentDirty)
+            {
+                MessageBox.Show(
+                    this,
+                    "Le document source contient des modifications non enregistrées. " +
+                    "Résolvez d'abord le conflit avant de modifier les métadonnées depuis la vue consolidée.",
+                    "Tâche",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                return;
+            }
+        }
+
+        await _taskService.UpdateMetadataAsync(
+            task,
+            metadata);
+
+        if (isCurrentDocument &&
+            _documentSession is not null)
+        {
+            await _documentSession.ReloadAsync();
+
+            _suppressEditorChanges =
+                true;
+            MarkdownEditorTextBox.Text =
+                _documentSession.Content;
+            MarkdownEditorTextBox.CaretIndex =
+                Math.Min(
+                    caret,
+                    MarkdownEditorTextBox.Text.Length);
+            _suppressEditorChanges =
+                false;
+
+            _documentDirty =
+                false;
+            SaveStateText.Text =
+                "Enregistré";
+
+            await RefreshLinkIndexAndContextAsync();
+            await RefreshGlossaryContextAsync(
+                sourcePath);
+            UpdateGlossaryAnnotations();
+            RefreshDocumentPropertiesContext(
+                MarkdownEditorTextBox.Text);
+            RenderPreview();
+        }
+
+        await RefreshDashboardTasksAsync();
+
+        StatusText.Text =
+            $"Métadonnées de tâche mises à jour · {task.Text}";
     }
 
     /// <summary>
