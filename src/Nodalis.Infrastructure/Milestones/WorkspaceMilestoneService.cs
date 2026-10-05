@@ -722,8 +722,9 @@ public sealed class WorkspaceMilestoneService
     /// <summary>
     /// Performs the <c>FormatRow</c> operation.
     /// </summary>
-    /// <param name="draft">The <c>draft</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="draft">The milestone values.</param>
+    /// <param name="id">The stable milestone identifier.</param>
+    /// <returns>The Markdown table row.</returns>
     private static string FormatRow(
             MilestoneDraft draft,
             Guid id) =>
@@ -868,11 +869,12 @@ public sealed class WorkspaceMilestoneService
                 continue;
             }
 
+            string rawName = GetCell(
+                cells,
+                columns,
+                "jalon");
             string name = UnescapeCell(
-                GetCell(
-                    cells,
-                    columns,
-                    "jalon"));
+                rawName);
 
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -904,7 +906,7 @@ public sealed class WorkspaceMilestoneService
                         "identifiant"),
                     projectId,
                     index + 1,
-                    name);
+                    rawName);
 
             global::Nodalis.Core.Milestones.MilestoneDraft draft =
                 new MilestoneDraft
@@ -995,7 +997,7 @@ public sealed class WorkspaceMilestoneService
             new List<Guid>();
 
         foreach (string token in value.Split(
-                     [',', ';'],
+                     new[] { ',', ';' },
                      StringSplitOptions.RemoveEmptyEntries |
                      StringSplitOptions.TrimEntries))
         {
