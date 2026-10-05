@@ -89,6 +89,15 @@ public sealed partial class WorkspaceTaskService
                     continue;
                 }
 
+                if (index + 1 < lines.Length &&
+                    TryParsePromotionMarker(
+                        lines[index + 1],
+                        MeetingActionSourceMarkerPrefix,
+                        out global::System.Guid _))
+                {
+                    continue;
+                }
+
                 string body = match.Groups["body"].Value.Trim();
                 (
                     string Text,
@@ -182,6 +191,308 @@ public sealed partial class WorkspaceTaskService
             .ThenBy(task => GetPriorityRank(task.Priority))
             .ThenBy(task => task.Text, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
+    }
+
+    /// <summary>
+    /// Promotes one project meeting action into the project's dedicated task document while retaining bidirectional links.
+    /// </summary>
+    /// <param name="task">The meeting checkbox action to promote.</param>
+    /// <param name="metadata">The metadata to apply to both the meeting action and promoted task.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The deterministic promotion result.</returns>
+    public async Task<MeetingActionPromotionResult> PromoteMeetingActionAsync(
+            TaskItem task,
+            TaskMetadataUpdate metadata,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(
+            task);
+        ArgumentNullException.ThrowIfNull(
+            metadata);
+
+        if (!task.CanPromoteMeetingAction ||
+            task.ProjectId is not Guid projectId)
+        {
+            throw new InvalidOperationException(
+                "Seules les actions d'une réunion rattachée à un projet peuvent être promues.");
+        }
+
+        Guid promotionId = CreateMeetingActionPromotionId(
+            task);
+
+        LinkIndexCatalog links = await _linkIndex.RefreshAsync(
+            cancellationToken);
+
+        LinkTargetEntry sourceTarget = links.Targets.FirstOrDefault(target =>
+                target.Kind == LinkTargetKind.Document &&
+                target.Id == task.SourceDocumentId)
+            ?? links.Targets.FirstOrDefault(target =>
+                target.Kind == LinkTargetKind.Document &&
+                string.Equals(
+                    target.RelativePath,
+                    task.SourceRelativePath,
+                    StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidDataException(
+                "Le compte-rendu source n'est plus indexé dans le workspace.");
+
+        LinkTargetEntry projectTarget = links.Targets.FirstOrDefault(target =>
+                target.Kind == LinkTargetKind.Project &&
+                target.Id == projectId)
+            ?? throw new InvalidDataException(
+                "Le projet de l'action de réunion n'est plus indexé dans le workspace.");
+
+        string sourcePath = ResolveWorkspacePath(
+            sourceTarget.RelativePath);
+        string projectDirectory = ResolveWorkspacePath(
+            projectTarget.RelativePath);
+
+        if (!File.Exists(
+                sourcePath))
+        {
+            throw new FileNotFoundException(
+                "Le compte-rendu source de l'action est introuvable.",
+                sourcePath);
+        }
+
+        if (!Directory.Exists(
+                projectDirectory))
+        {
+            throw new DirectoryNotFoundException(
+                $"Le dossier projet est introuvable : {projectDirectory}");
+        }
+
+        TextDocumentSession sourceSession = await TextDocumentSession.OpenAsync(
+            sourcePath,
+            cancellationToken);
+
+        List<string> sourceLines = SplitDocumentLines(
+            sourceSession.Content,
+            out string sourceNewline,
+            out bool sourceHadTrailingNewline);
+
+        int sourceMarkerIndex = FindPromotionMarkerIndex(
+            sourceLines,
+            MeetingActionSourceMarkerPrefix,
+            promotionId);
+
+        int sourceLineIndex;
+
+        if (sourceMarkerIndex > 0)
+        {
+            sourceLineIndex = sourceMarkerIndex - 1;
+
+            if (!CheckboxPattern().IsMatch(
+                    sourceLines[sourceLineIndex]))
+            {
+                throw new InvalidDataException(
+                    "Le marqueur de promotion du compte-rendu n'est plus associé à une checkbox Markdown.");
+            }
+        }
+        else
+        {
+            sourceLineIndex = ResolveTaskLineIndex(
+                sourceLines,
+                task,
+                sourcePath);
+        }
+
+        string owner = NormalizeMetadataValue(
+            metadata.Owner,
+            "responsable");
+        string priority = NormalizeMetadataValue(
+            metadata.Priority,
+            "priorité");
+        string status = NormalizeMetadataValue(
+            metadata.Status,
+            "statut");
+        IReadOnlyList<string> tags = NormalizeTags(
+            metadata.Tags);
+
+        string body = BuildTaskBody(
+            task.Text,
+            owner,
+            metadata.DueDate,
+            priority,
+            status,
+            tags);
+
+        Match sourceMatch = CheckboxPattern().Match(
+            sourceLines[sourceLineIndex]);
+
+        if (!sourceMatch.Success)
+        {
+            throw new InvalidDataException(
+                "La ligne source n'est plus une checkbox Markdown.");
+        }
+
+        sourceLines[sourceLineIndex] =
+            sourceMatch.Groups["prefix"].Value +
+            sourceMatch.Groups["checked"].Value +
+            "] " +
+            body;
+
+        string taskDocumentPath = Path.Combine(
+            projectDirectory,
+            "Tâches.md");
+
+        if (!File.Exists(
+                taskDocumentPath))
+        {
+            await AtomicFileWriter.WriteAllTextAsync(
+                taskDocumentPath,
+                "# Tâches\n\n## Actions de réunion\n\n",
+                cancellationToken);
+        }
+
+        links = await _linkIndex.RefreshAsync(
+            cancellationToken);
+
+        sourceTarget = links.Targets.FirstOrDefault(target =>
+                target.Kind == LinkTargetKind.Document &&
+                target.Id == sourceTarget.Id)
+            ?? links.Targets.First(target =>
+                target.Kind == LinkTargetKind.Document &&
+                string.Equals(
+                    target.RelativePath,
+                    task.SourceRelativePath,
+                    StringComparison.OrdinalIgnoreCase));
+
+        string taskRelativePath = NormalizeRelativePath(
+            Path.GetRelativePath(
+                _workspaceRoot,
+                taskDocumentPath));
+
+        LinkTargetEntry taskTarget = links.Targets.FirstOrDefault(target =>
+                target.Kind == LinkTargetKind.Document &&
+                string.Equals(
+                    target.RelativePath,
+                    taskRelativePath,
+                    StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidDataException(
+                "Le document Tâches.md n'a pas pu être indexé après sa création.");
+
+        TextDocumentSession taskSession = await TextDocumentSession.OpenAsync(
+            taskDocumentPath,
+            cancellationToken);
+
+        List<string> taskLines = SplitDocumentLines(
+            taskSession.Content,
+            out string taskNewline,
+            out bool taskHadTrailingNewline);
+
+        int taskMarkerIndex = FindPromotionMarkerIndex(
+            taskLines,
+            MeetingActionTaskMarkerPrefix,
+            promotionId);
+
+        int promotedTaskLineIndex;
+        bool created;
+
+        if (taskMarkerIndex > 0)
+        {
+            promotedTaskLineIndex = taskMarkerIndex - 1;
+            Match existingTaskMatch = CheckboxPattern().Match(
+                taskLines[promotedTaskLineIndex]);
+
+            if (!existingTaskMatch.Success)
+            {
+                throw new InvalidDataException(
+                    "Le marqueur de tâche promue n'est plus associé à une checkbox Markdown.");
+            }
+
+            taskLines[promotedTaskLineIndex] =
+                existingTaskMatch.Groups["prefix"].Value +
+                existingTaskMatch.Groups["checked"].Value +
+                "] " +
+                body;
+
+            taskLines[taskMarkerIndex] =
+                "  " + BuildPromotionMarker(
+                    MeetingActionTaskMarkerPrefix,
+                    promotionId);
+
+            UpsertLinkLine(
+                taskLines,
+                taskMarkerIndex + 1,
+                "Source",
+                sourceTarget.QualifiedName);
+
+            created = false;
+        }
+        else
+        {
+            EnsureMeetingActionSection(
+                taskLines);
+
+            if (taskLines.Count > 0 &&
+                taskLines[^1].Length > 0)
+            {
+                taskLines.Add(
+                    string.Empty);
+            }
+
+            promotedTaskLineIndex = taskLines.Count;
+            taskLines.Add(
+                $"- [{(task.IsCompleted ? "x" : " ")}] {body}");
+            taskLines.Add(
+                "  " + BuildPromotionMarker(
+                    MeetingActionTaskMarkerPrefix,
+                    promotionId));
+            taskLines.Add(
+                $"  - Source : [[{sourceTarget.QualifiedName}]]");
+
+            created = true;
+        }
+
+        await taskSession.SaveAsync(
+            JoinDocumentLines(
+                taskLines,
+                taskNewline,
+                taskHadTrailingNewline),
+            cancellationToken);
+
+        if (sourceMarkerIndex > 0)
+        {
+            sourceLines[sourceMarkerIndex] =
+                "  " + BuildPromotionMarker(
+                    MeetingActionSourceMarkerPrefix,
+                    promotionId);
+
+            UpsertLinkLine(
+                sourceLines,
+                sourceMarkerIndex + 1,
+                "Tâche projet",
+                taskTarget.QualifiedName);
+        }
+        else
+        {
+            sourceLines.Insert(
+                sourceLineIndex + 1,
+                "  " + BuildPromotionMarker(
+                    MeetingActionSourceMarkerPrefix,
+                    promotionId));
+            sourceLines.Insert(
+                sourceLineIndex + 2,
+                $"  - Tâche projet : [[{taskTarget.QualifiedName}]]");
+        }
+
+        await sourceSession.SaveAsync(
+            JoinDocumentLines(
+                sourceLines,
+                sourceNewline,
+                sourceHadTrailingNewline),
+            cancellationToken);
+
+        await _linkIndex.RefreshAsync(
+            cancellationToken);
+
+        return new MeetingActionPromotionResult
+        {
+            PromotionId = promotionId,
+            ProjectTaskRelativePath = taskRelativePath,
+            ProjectTaskLineNumber = promotedTaskLineIndex + 1,
+            Created = created
+        };
     }
 
     /// <summary>
@@ -407,6 +718,255 @@ public sealed partial class WorkspaceTaskService
             content,
             cancellationToken);
     }
+
+    private const string MeetingActionSourceMarkerPrefix = "<!-- nodalis:meeting-action-source:";
+    private const string MeetingActionTaskMarkerPrefix = "<!-- nodalis:meeting-action-task:";
+    private const string PromotionMarkerSuffix = " -->";
+
+    /// <summary>
+    /// Creates a stable promotion identifier from the source meeting action identity.
+    /// </summary>
+    /// <param name="task">The source meeting action.</param>
+    /// <returns>A deterministic identifier for repeated promotion attempts.</returns>
+    private static Guid CreateMeetingActionPromotionId(
+            TaskItem task)
+    {
+        byte[] bytes = SHA256.HashData(
+            Encoding.UTF8.GetBytes(
+                $"{task.SourceDocumentId:D}|{task.LineNumber}|{task.Text.Trim()}"));
+
+        return new Guid(
+            bytes.AsSpan(
+                0,
+                16));
+    }
+
+    /// <summary>
+    /// Splits a text document into editable lines while remembering its newline convention and trailing newline state.
+    /// </summary>
+    /// <param name="content">The complete document content.</param>
+    /// <param name="newline">Receives the original newline convention.</param>
+    /// <param name="hadTrailingNewline">Receives whether the original document ended with a newline.</param>
+    /// <returns>The normalized document lines without the synthetic trailing empty line.</returns>
+    private static List<string> SplitDocumentLines(
+            string content,
+            out string newline,
+            out bool hadTrailingNewline)
+    {
+        newline = content.Contains(
+            "\r\n",
+            StringComparison.Ordinal)
+            ? "\r\n"
+            : "\n";
+
+        string normalized = content
+            .Replace(
+                "\r\n",
+                "\n",
+                StringComparison.Ordinal)
+            .Replace(
+                '\r',
+                '\n');
+
+        hadTrailingNewline = normalized.EndsWith(
+            "\n",
+            StringComparison.Ordinal);
+
+        List<string> lines = normalized.Split(
+                '\n')
+            .ToList();
+
+        if (hadTrailingNewline &&
+            lines.Count > 0 &&
+            lines[^1].Length == 0)
+        {
+            lines.RemoveAt(
+                lines.Count - 1);
+        }
+
+        return lines;
+    }
+
+    /// <summary>
+    /// Rebuilds a text document using its original newline convention and trailing newline state.
+    /// </summary>
+    /// <param name="lines">The document lines.</param>
+    /// <param name="newline">The newline convention to use.</param>
+    /// <param name="hadTrailingNewline">Whether to restore a trailing newline.</param>
+    /// <returns>The rebuilt document content.</returns>
+    private static string JoinDocumentLines(
+            IReadOnlyList<string> lines,
+            string newline,
+            bool hadTrailingNewline)
+    {
+        string content = string.Join(
+            newline,
+            lines);
+
+        if (hadTrailingNewline)
+        {
+            content += newline;
+        }
+
+        return content;
+    }
+
+    /// <summary>
+    /// Finds one exact promotion marker in a document.
+    /// </summary>
+    /// <param name="lines">The document lines.</param>
+    /// <param name="prefix">The marker prefix.</param>
+    /// <param name="promotionId">The promotion identifier to locate.</param>
+    /// <returns>The zero-based marker line index, or -1 when absent.</returns>
+    private static int FindPromotionMarkerIndex(
+            IReadOnlyList<string> lines,
+            string prefix,
+            Guid promotionId)
+    {
+        for (int index = 0;
+             index < lines.Count;
+             index++)
+        {
+            if (TryParsePromotionMarker(
+                    lines[index],
+                    prefix,
+                    out Guid candidateId) &&
+                candidateId == promotionId)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Parses a hidden Nodalis promotion marker.
+    /// </summary>
+    /// <param name="line">The Markdown line to inspect.</param>
+    /// <param name="prefix">The expected marker prefix.</param>
+    /// <param name="promotionId">Receives the marker identifier when parsing succeeds.</param>
+    /// <returns><see langword="true"/> when the line contains a valid marker.</returns>
+    private static bool TryParsePromotionMarker(
+            string line,
+            string prefix,
+            out Guid promotionId)
+    {
+        promotionId = Guid.Empty;
+        string trimmed = line.Trim();
+
+        if (!trimmed.StartsWith(
+                prefix,
+                StringComparison.Ordinal) ||
+            !trimmed.EndsWith(
+                PromotionMarkerSuffix,
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        int valueLength =
+            trimmed.Length -
+            prefix.Length -
+            PromotionMarkerSuffix.Length;
+
+        if (valueLength <= 0)
+        {
+            return false;
+        }
+
+        string value = trimmed.Substring(
+            prefix.Length,
+            valueLength);
+
+        return Guid.TryParse(
+            value,
+            out promotionId);
+    }
+
+    /// <summary>
+    /// Builds the canonical hidden Markdown marker for a promoted meeting action.
+    /// </summary>
+    /// <param name="prefix">The marker prefix.</param>
+    /// <param name="promotionId">The promotion identifier.</param>
+    /// <returns>The marker line without indentation.</returns>
+    private static string BuildPromotionMarker(
+            string prefix,
+            Guid promotionId) =>
+            $"{prefix}{promotionId:D}{PromotionMarkerSuffix}";
+
+    /// <summary>
+    /// Adds the dedicated meeting-action section to a project task document when it is missing.
+    /// </summary>
+    /// <param name="lines">The editable task document lines.</param>
+    private static void EnsureMeetingActionSection(
+            List<string> lines)
+    {
+        if (lines.Any(line =>
+                string.Equals(
+                    line.Trim(),
+                    "## Actions de réunion",
+                    StringComparison.CurrentCultureIgnoreCase)))
+        {
+            return;
+        }
+
+        if (lines.Count > 0 &&
+            lines[^1].Length > 0)
+        {
+            lines.Add(
+                string.Empty);
+        }
+
+        lines.Add(
+            "## Actions de réunion");
+        lines.Add(
+            string.Empty);
+    }
+
+    /// <summary>
+    /// Updates or inserts the readable internal-link line following a promotion marker.
+    /// </summary>
+    /// <param name="lines">The editable document lines.</param>
+    /// <param name="lineIndex">The expected zero-based link line position.</param>
+    /// <param name="label">The localized link label.</param>
+    /// <param name="qualifiedTarget">The indexed target qualified name.</param>
+    private static void UpsertLinkLine(
+            List<string> lines,
+            int lineIndex,
+            string label,
+            string qualifiedTarget)
+    {
+        string linkLine =
+            $"  - {label} : [[{qualifiedTarget}]]";
+
+        if (lineIndex < lines.Count &&
+            lines[lineIndex].TrimStart().StartsWith(
+                "- " + label + " :",
+                StringComparison.CurrentCultureIgnoreCase))
+        {
+            lines[lineIndex] =
+                linkLine;
+            return;
+        }
+
+        lines.Insert(
+            Math.Min(
+                lineIndex,
+                lines.Count),
+            linkLine);
+    }
+
+    /// <summary>
+    /// Normalizes one workspace-relative path to forward slashes.
+    /// </summary>
+    /// <param name="relativePath">The relative path to normalize.</param>
+    /// <returns>The portable workspace-relative path.</returns>
+    private static string NormalizeRelativePath(
+            string relativePath) =>
+            relativePath.Replace(
+                Path.DirectorySeparatorChar,
+                '/');
 
     /// <summary>
     /// Performs the <c>ResolveContext</c> operation.
