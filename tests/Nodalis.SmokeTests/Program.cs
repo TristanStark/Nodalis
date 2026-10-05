@@ -53,6 +53,7 @@ try
     await VerifyWorkspaceNavigationAsync(root);
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
+    await VerifyProjectStructureAsync(root);
     await VerifyApplicationStructureAsync(root);
     await VerifyTrashAsync(root);
     await VerifyWorkspaceBackupsAsync(root);
@@ -412,6 +413,214 @@ static async Task VerifyProjectCreationAsync(string root)
                 result.ProjectDirectory,
                 WorkspaceLayout.SubProjectsDirectoryName),
         "Sub-projects must be created under the selected parent project.");
+}
+
+static async Task VerifyProjectStructureAsync(string root)
+{
+    string projectDirectory = Path.Combine(
+        root,
+        WorkspaceLayout.ApplicationsDirectoryName,
+        "Application Project Creator",
+        WorkspaceLayout.ProjectsDirectoryName,
+        "Projet Généré");
+
+    global::Nodalis.Infrastructure.Projects.WorkspaceProjectStructureService service =
+        new WorkspaceProjectStructureService(
+            root);
+
+    global::Nodalis.Core.Projects.ProjectStructureState initial =
+        await service.GetStructureAsync(
+            projectDirectory);
+
+    Assert(
+        initial.Sections.Count(section =>
+            section.IsRequired) >= 4 &&
+        global::Nodalis.Core.Projects.ProjectRequiredSectionPolicy.RequiredRoles.All(role =>
+            initial.Sections.Any(section =>
+                string.Equals(
+                    global::Nodalis.Core.Projects.ProjectRequiredSectionPolicy.GetRequiredRole(
+                        section.TemplateKey),
+                    role,
+                    StringComparison.OrdinalIgnoreCase))),
+        "Project structure management must recognize the four protected logical roles.");
+
+    global::Nodalis.Core.Projects.ProjectSectionState custom =
+        await service.AddSectionAsync(
+            projectDirectory,
+            "Support");
+
+    global::Nodalis.Core.Projects.ProjectSectionState fromTemplate =
+        await service.AddSectionAsync(
+            projectDirectory,
+            "Risques personnalisés",
+            "risks",
+            isSingleton: true);
+
+    Assert(
+        Directory.Exists(
+            custom.DirectoryPath) &&
+        File.Exists(
+            Path.Combine(
+                fromTemplate.DirectoryPath,
+                "Risques personnalisés.md")),
+        "Adding a section must materialize its directory and optional initial template document.");
+
+    global::Nodalis.Core.Projects.ProjectSectionState renamed =
+        await service.RenameSectionAsync(
+            projectDirectory,
+            custom.Id,
+            "Support interne");
+
+    Assert(
+        renamed.Id == custom.Id &&
+        Directory.Exists(
+            renamed.DirectoryPath) &&
+        !Directory.Exists(
+            custom.DirectoryPath),
+        "Renaming a section must preserve its stable ID and move its directory.");
+
+    global::Nodalis.Core.Projects.ProjectStructureState beforeReorder =
+        await service.GetStructureAsync(
+            projectDirectory);
+
+    global::System.Collections.Generic.List<Guid> reorderedIds =
+        beforeReorder.Sections
+            .Select(section =>
+                section.Id)
+            .ToList();
+
+    reorderedIds.Remove(
+        renamed.Id);
+    reorderedIds.Insert(
+        0,
+        renamed.Id);
+
+    await service.ReorderSectionsAsync(
+        projectDirectory,
+        reorderedIds);
+
+    global::Nodalis.Core.Projects.ProjectStructureState reordered =
+        await service.GetStructureAsync(
+            projectDirectory);
+
+    Assert(
+        reordered.Sections[0].Id == renamed.Id,
+        "Reordering project sections must persist deterministic manifest order.");
+
+    global::Nodalis.Infrastructure.Navigation.WorkspaceNavigationBuilder navigationBuilder =
+        new WorkspaceNavigationBuilder();
+
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode navigation =
+        await navigationBuilder.BuildAsync(
+            root);
+
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode? projectNode =
+        FindNavigationNodeByPath(
+            navigation,
+            projectDirectory);
+
+    Assert(
+        projectNode is not null &&
+        projectNode.Children.First(child =>
+            child.Kind == WorkspaceNodeKind.Section).Id == renamed.Id &&
+        projectNode.Children.First(child =>
+            child.Kind == WorkspaceNodeKind.Section).DisplayName == "Support interne",
+        "Workspace navigation must honor manifest section order and logical display names.");
+
+    string documentToMove =
+        Path.Combine(
+            renamed.DirectoryPath,
+            "À déplacer.md");
+
+    await File.WriteAllTextAsync(
+        documentToMove,
+        "# Document à déplacer\n");
+
+    string movedDocument =
+        await service.MoveDocumentAsync(
+            projectDirectory,
+            documentToMove,
+            fromTemplate.Id);
+
+    Assert(
+        !File.Exists(
+            documentToMove) &&
+        File.Exists(
+            movedDocument) &&
+        string.Equals(
+            service.GetProjectDirectoryForContext(
+                movedDocument),
+            projectDirectory,
+            StringComparison.OrdinalIgnoreCase),
+        "Moving a document between sections must preserve the file and project context.");
+
+    global::Nodalis.Core.Projects.ProjectSectionState temporary =
+        await service.AddSectionAsync(
+            projectDirectory,
+            "Temporaire");
+
+    string temporaryDocument =
+        Path.Combine(
+            temporary.DirectoryPath,
+            "Conserver.md");
+
+    await File.WriteAllTextAsync(
+        temporaryDocument,
+        "# À conserver\n");
+
+    await AssertThrowsAsync<global::Nodalis.Core.Projects.ProjectSectionNotEmptyException>(
+        () => service.RemoveSectionAsync(
+            projectDirectory,
+            temporary.Id),
+        "Deleting a non-empty section without an explicit destination must be rejected.");
+
+    await service.RemoveSectionAsync(
+        projectDirectory,
+        temporary.Id,
+        fromTemplate.Id);
+
+    Assert(
+        !Directory.Exists(
+            temporary.DirectoryPath) &&
+        File.Exists(
+            Path.Combine(
+                fromTemplate.DirectoryPath,
+                "Conserver.md")),
+        "Deleting a non-empty optional section with an explicit target must move content without loss.");
+
+    global::Nodalis.Core.Projects.ProjectStructureState beforeRequiredDelete =
+        await service.GetStructureAsync(
+            projectDirectory);
+
+    global::Nodalis.Core.Projects.ProjectSectionState requiredMilestones =
+        beforeRequiredDelete.Sections.First(section =>
+            string.Equals(
+                global::Nodalis.Core.Projects.ProjectRequiredSectionPolicy.GetRequiredRole(
+                    section.TemplateKey),
+                "Jalons",
+                StringComparison.OrdinalIgnoreCase));
+
+    await AssertThrowsAsync<InvalidOperationException>(
+        () => service.RemoveSectionAsync(
+            projectDirectory,
+            requiredMilestones.Id,
+            fromTemplate.Id),
+        "Removing the only section fulfilling a required logical role must be rejected.");
+
+    await service.RemoveSectionAsync(
+        projectDirectory,
+        renamed.Id);
+
+    global::Nodalis.Core.Projects.ProjectStructureState finalState =
+        await service.GetStructureAsync(
+            projectDirectory);
+
+    Assert(
+        finalState.Sections.All(section =>
+            section.Id != renamed.Id) &&
+        finalState.Sections.Any(section =>
+            section.Id == fromTemplate.Id),
+        "Removing an empty optional section must update the project manifest coherently.");
 }
 
 static async Task VerifyApplicationStructureAsync(string root)
@@ -3498,6 +3707,36 @@ static void AssertThrows<TException>(Action action, string message)
     }
 
     throw new InvalidOperationException(message);
+}
+
+static WorkspaceNavigationNode? FindNavigationNodeByPath(
+        WorkspaceNavigationNode node,
+        string path)
+{
+    if (string.Equals(
+            Path.GetFullPath(
+                node.FullPath),
+            Path.GetFullPath(
+                path),
+            StringComparison.OrdinalIgnoreCase))
+    {
+        return node;
+    }
+
+    foreach (WorkspaceNavigationNode child in node.Children)
+    {
+        WorkspaceNavigationNode? found =
+            FindNavigationNodeByPath(
+                child,
+                path);
+
+        if (found is not null)
+        {
+            return found;
+        }
+    }
+
+    return null;
 }
 
 static async Task AssertThrowsAsync<TException>(
