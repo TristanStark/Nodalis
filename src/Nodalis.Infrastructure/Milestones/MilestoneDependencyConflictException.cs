@@ -1,6 +1,6 @@
 namespace Nodalis.Infrastructure.Milestones;
 
-public sealed class MilestoneDependencyConflictException : InvalidDataException
+public sealed class MilestoneDependencyConflictException : IOException
 {
     /// <summary>
     /// Initializes a new instance of <see cref="MilestoneDependencyConflictException"/>.
