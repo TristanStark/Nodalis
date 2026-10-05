@@ -48,7 +48,7 @@ public static class DocxImportSelectionRenderer
         string markdown =
             DocxMarkdownConverter.ConvertBlocks(
                     blocks)
-                .Trim();
+                .TrimEnd();
 
         if (!string.IsNullOrWhiteSpace(
                 markdown))
