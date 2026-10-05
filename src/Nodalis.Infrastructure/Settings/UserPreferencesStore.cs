@@ -135,6 +135,18 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
                 .Where(item => item is not null)
                 .DistinctBy(item => $"{item.Kind}\0{item.Key}", StringComparer.OrdinalIgnoreCase)
                 .ToList(),
+            OpenDocumentTabs = (preferences.OpenDocumentTabs ?? [])
+                .Where(tab =>
+                    tab is not null &&
+                    !string.IsNullOrWhiteSpace(
+                        tab.RelativePath))
+                .DistinctBy(
+                    tab => tab.DocumentId != Guid.Empty
+                        ? tab.DocumentId.ToString("D")
+                        : tab.RelativePath,
+                    StringComparer.OrdinalIgnoreCase)
+                .Take(30)
+                .ToList(),
             ShortcutOverrides = preferences.ShortcutOverrides ??
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         };
