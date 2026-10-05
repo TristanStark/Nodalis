@@ -237,6 +237,7 @@
                              TextChanged="MarkdownEditorTextBox_TextChanged"
                              PreviewMouseMove="MarkdownEditorTextBox_PreviewMouseMove"
                              MouseDoubleClick="MarkdownEditorTextBox_MouseDoubleClick"
+                             PreviewMouseRightButtonDown="MarkdownEditorTextBox_PreviewMouseRightButtonDown"
                              ContextMenuOpening="MarkdownEditorTextBox_ContextMenuOpening"
                              SpellCheck.IsEnabled="False" />
 
