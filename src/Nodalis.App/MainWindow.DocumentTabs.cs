@@ -242,6 +242,9 @@ public partial class MainWindow
                 ? $"Document introuvable ou déplacé hors Nodalis · {DocumentPathText.Text}"
                 : $"Document · {DocumentPathText.Text}";
 
+        RefreshDocumentPropertiesContext(
+            tab.Content);
+
         if (tab.IsMissing)
         {
             InternalLinkPopup.IsOpen = false;
