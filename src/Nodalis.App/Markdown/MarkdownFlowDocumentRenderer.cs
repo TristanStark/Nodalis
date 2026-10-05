@@ -33,14 +33,44 @@ public static class MarkdownFlowDocumentRenderer
             Background = GetBrush("WindowBackgroundBrush", Brushes.Transparent)
         };
 
-        foreach (global::Nodalis.Core.Markdown.MarkdownBlock block in MarkdownDocumentParser.Parse(markdown))
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Markdown.MarkdownBlock> blocks =
+            MarkdownDocumentParser.Parse(markdown);
+
+        for (int index = 0;
+             index < blocks.Count;)
         {
+            global::Nodalis.Core.Markdown.MarkdownBlock block = blocks[index];
+
+            if (block.Kind == MarkdownBlockKind.OrderedListItem)
+            {
+                int listStart = index;
+
+                while (index < blocks.Count &&
+                       blocks[index].Kind == MarkdownBlockKind.OrderedListItem)
+                {
+                    index++;
+                }
+
+                document.Blocks.Add(
+                    CreateOrderedList(
+                        blocks,
+                        listStart,
+                        index - listStart,
+                        baseDirectory,
+                        internalLinkClicked,
+                        linkClicked));
+
+                continue;
+            }
+
             document.Blocks.Add(
                 CreateBlock(
                     block,
                     baseDirectory,
                     internalLinkClicked,
                     linkClicked));
+
+            index++;
         }
 
         return document;
@@ -79,7 +109,7 @@ public static class MarkdownFlowDocumentRenderer
 
             MarkdownBlockKind.OrderedListItem =>
                 CreatePrefixedParagraph(
-                    "1. ",
+                    $"{block.OrderedListNumber ?? 1}. ",
                     block.Text,
                     baseDirectory,
                     internalLinkClicked,
@@ -117,6 +147,72 @@ public static class MarkdownFlowDocumentRenderer
                     internalLinkClicked,
                     linkClicked)
         };
+    }
+
+    /// <summary>
+    /// Creates one WPF ordered list from a contiguous sequence of Markdown
+    /// ordered-list items so numbering advances naturally across items.
+    /// </summary>
+    /// <param name="blocks">The parsed Markdown blocks.</param>
+    /// <param name="startIndex">The first ordered-list block index.</param>
+    /// <param name="count">The number of contiguous ordered-list blocks.</param>
+    /// <param name="baseDirectory">The directory used to resolve relative links.</param>
+    /// <param name="internalLinkClicked">The internal-link callback.</param>
+    /// <param name="linkClicked">The regular-link callback.</param>
+    /// <returns>The rendered ordered list.</returns>
+    private static global::System.Windows.Documents.List CreateOrderedList(
+            IReadOnlyList<MarkdownBlock> blocks,
+            int startIndex,
+            int count,
+            string? baseDirectory,
+            Action<string>? internalLinkClicked,
+            Action<string>? linkClicked)
+    {
+        int firstNumber = blocks[startIndex].OrderedListNumber ?? 1;
+
+        global::System.Windows.Documents.List list =
+            new global::System.Windows.Documents.List
+            {
+                MarkerStyle = TextMarkerStyle.Decimal,
+                StartIndex = Math.Max(
+                    1,
+                    firstNumber),
+                Margin = new Thickness(
+                    16,
+                    2,
+                    0,
+                    6),
+                Padding = new Thickness(
+                    18,
+                    0,
+                    0,
+                    0)
+            };
+
+        for (int offset = 0;
+             offset < count;
+             offset++)
+        {
+            MarkdownBlock itemBlock =
+                blocks[startIndex + offset];
+
+            Paragraph paragraph = CreateParagraph(
+                itemBlock.Text,
+                baseDirectory,
+                internalLinkClicked,
+                linkClicked);
+
+            paragraph.Margin = new Thickness(
+                0,
+                2,
+                0,
+                4);
+
+            list.ListItems.Add(
+                new ListItem(paragraph));
+        }
+
+        return list;
     }
 
     /// <summary>
