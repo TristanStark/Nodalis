@@ -1,0 +1,117 @@
+<Window x:Class="Nodalis.App.Dialogs.TrashDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Corbeille"
+        Width="860"
+        Height="600"
+        MinWidth="700"
+        MinHeight="460"
+        WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="78" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="56" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="18,0"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Corbeille Nodalis"
+                           FontSize="19"
+                           FontWeight="SemiBold" />
+                <TextBlock Margin="0,4,0,0"
+                           Text="Les éléments restent dans le workspace jusqu'au vidage explicite de la corbeille."
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1"
+              Margin="14">
+            <ListBox x:Name="EntriesList"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     SelectionChanged="EntriesList_SelectionChanged">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,0,0,8"
+                                Padding="12"
+                                CornerRadius="5"
+                                Background="{StaticResource PanelBackgroundBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="165" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="{Binding Kind}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}" />
+
+                                <StackPanel Grid.Column="1"
+                                            Margin="12,0">
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               Text="{Binding OriginalRelativePath}"
+                                               FontSize="11"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Column="2"
+                                           HorizontalAlignment="Right"
+                                           Text="{Binding DeletedUtc, StringFormat={}{0:dd/MM/yyyy HH:mm:ss}}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Padding="12,8"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="StatusText"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal">
+                    <Button x:Name="RestoreButton"
+                            Width="105"
+                            Margin="0,0,8,0"
+                            IsEnabled="False"
+                            Click="Restore_Click"
+                            Content="Restaurer" />
+                    <Button x:Name="EmptyButton"
+                            Width="145"
+                            Margin="0,0,8,0"
+                            Click="Empty_Click"
+                            Content="Vider la corbeille" />
+                    <Button Width="90"
+                            IsCancel="True"
+                            Content="Fermer" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

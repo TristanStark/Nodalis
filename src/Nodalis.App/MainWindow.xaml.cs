@@ -27,6 +27,7 @@ using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Tasks;
 using Nodalis.Core.Templates;
+using Nodalis.Core.Trash;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Decisions;
@@ -42,6 +43,7 @@ using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Tasks;
+using Nodalis.Infrastructure.Trash;
 
 namespace Nodalis.App;
 
@@ -57,6 +59,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceMeetingService _meetingService;
     private readonly WorkspaceDecisionService _decisionService;
     private readonly WorkspaceDocxImportService _docxImportService;
+    private readonly WorkspaceTrashService _trashService;
     private readonly DispatcherTimer _previewTimer;
 
     private NavigationNodeViewModel _root;
@@ -116,6 +119,8 @@ public partial class MainWindow : Window
         _decisionService = new WorkspaceDecisionService(
             root.FullPath);
         _docxImportService = new WorkspaceDocxImportService(
+            root.FullPath);
+        _trashService = new WorkspaceTrashService(
             root.FullPath);
         _contextPanelOpen = preferences.IsContextPanelOpen;
         _previewVisible = preferences.Editor.LivePreview;
@@ -303,8 +308,8 @@ public partial class MainWindow : Window
                     "Renommer",
                     async (_, _) => await RenameApplicationOrModuleAsync(_selectedNode));
                 AddItem(
-                    "Supprimer",
-                    async (_, _) => await DeleteApplicationOrModuleAsync(_selectedNode));
+                    "Mettre à la corbeille",
+                    async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
                 break;
 
             case WorkspaceNodeKind.Module:
@@ -319,8 +324,8 @@ public partial class MainWindow : Window
                     "Renommer",
                     async (_, _) => await RenameApplicationOrModuleAsync(_selectedNode));
                 AddItem(
-                    "Supprimer",
-                    async (_, _) => await DeleteApplicationOrModuleAsync(_selectedNode));
+                    "Mettre à la corbeille",
+                    async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
                 break;
 
             case WorkspaceNodeKind.Project:
@@ -329,6 +334,10 @@ public partial class MainWindow : Window
                         ? "Retirer des favoris"
                         : "Ajouter aux favoris",
                     async (_, _) => await ToggleFavoriteAsync(_selectedNode));
+                menu.Items.Add(new Separator());
+                AddItem(
+                    "Mettre à la corbeille",
+                    async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
                 break;
 
             case WorkspaceNodeKind.Document:
@@ -341,6 +350,9 @@ public partial class MainWindow : Window
                 AddItem(
                     "Renommer le document",
                     async (_, _) => await RenameDocumentAsync(_selectedNode));
+                AddItem(
+                    "Mettre à la corbeille",
+                    async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
                 break;
 
             default:
@@ -349,6 +361,44 @@ public partial class MainWindow : Window
         }
 
         NavigationTree.ContextMenu = menu;
+    }
+
+    /// <summary>
+    /// Opens the workspace trash and refreshes navigation when its contents change.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void OpenTrash_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        global::Nodalis.App.Dialogs.TrashDialog dialog = new TrashDialog(
+            _trashService)
+        {
+            Owner = this
+        };
+
+        dialog.ShowDialog();
+
+        if (!dialog.WorkspaceChanged)
+        {
+            return;
+        }
+
+        try
+        {
+            await RefreshNavigationAsync();
+            StatusText.Text = "Corbeille mise à jour";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            ShowStructureError(
+                "Corbeille",
+                exception);
+        }
     }
 
     /// <summary>
@@ -647,18 +697,31 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the <c>DeleteApplicationOrModuleAsync</c> operation.
+    /// Moves a supported navigation item to the recoverable workspace trash.
     /// </summary>
-    /// <param name="node">The <c>node</c> value.</param>
-    /// <returns>The result of the operation.</returns>
-    private async Task DeleteApplicationOrModuleAsync(
+    /// <param name="node">The navigation item to move.</param>
+    /// <returns>A task representing the operation.</returns>
+    private async Task MoveNodeToTrashAsync(
             NavigationNodeViewModel node)
     {
+        TrashItemKind kind = node.Kind switch
+        {
+            WorkspaceNodeKind.Document => TrashItemKind.Document,
+            WorkspaceNodeKind.Project => TrashItemKind.Project,
+            WorkspaceNodeKind.Module => TrashItemKind.Module,
+            WorkspaceNodeKind.Application => TrashItemKind.Application,
+            _ => throw new InvalidOperationException(
+                "This navigation item cannot be moved to the trash.")
+        };
+
+        string scopeWarning = kind == TrashItemKind.Document
+            ? "Le document sera déplacé dans la corbeille Nodalis et pourra être restauré."
+            : "L'élément et tout son contenu seront déplacés dans la corbeille Nodalis et pourront être restaurés.";
+
         global::System.Windows.MessageBoxResult answer = MessageBox.Show(
             this,
-            $"Supprimer « {node.DisplayName} » ?\n\n" +
-            "La suppression sera refusée si l'élément contient des données.",
-            "Supprimer",
+            $"Mettre « {node.DisplayName} » à la corbeille ?\n\n{scopeWarning}",
+            "Corbeille",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
 
@@ -670,36 +733,27 @@ public partial class MainWindow : Window
         try
         {
             if (!await TryCloseCurrentDocumentAsync(
-                    "supprimer cet élément"))
+                    "mettre cet élément à la corbeille"))
             {
                 return;
             }
 
-            global::Nodalis.Infrastructure.Applications.ApplicationStructureService service = new ApplicationStructureService(
-                _root.FullPath);
-
-            if (node.Kind == WorkspaceNodeKind.Application)
-            {
-                await service.DeleteApplicationAsync(
-                    node.FullPath);
-            }
-            else
-            {
-                await service.DeleteModuleAsync(
-                    node.FullPath);
-            }
+            await _trashService.MoveToTrashAsync(
+                node.FullPath,
+                kind,
+                node.Id);
 
             await RefreshNavigationAsync();
-            StatusText.Text = $"Supprimé · {node.DisplayName}";
+            StatusText.Text = $"Corbeille · {node.DisplayName}";
         }
         catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException or
             InvalidDataException or
-            Nodalis.Core.Validation.DomainValidationException)
+            InvalidOperationException)
         {
             ShowStructureError(
-                "Supprimer",
+                "Corbeille",
                 exception);
         }
     }
