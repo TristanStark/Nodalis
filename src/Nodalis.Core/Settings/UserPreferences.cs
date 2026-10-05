@@ -24,6 +24,10 @@ public sealed record UserPreferences
 
     public List<UserItemReference> Favorites { get; init; } = [];
 
+    public List<OpenDocumentTabReference> OpenDocumentTabs { get; init; } = [];
+
+    public Guid? ActiveDocumentTabId { get; init; }
+
     public Dictionary<string, string> ShortcutOverrides { get; init; } =
         new(StringComparer.OrdinalIgnoreCase);
 
