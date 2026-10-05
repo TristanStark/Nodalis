@@ -29,6 +29,9 @@ public static class ShortcutCatalog
     public static readonly AppShortcut CommandPalette =
         new("palette.open", "Ctrl+P", ModifierKeys.Control, Key.P);
 
+    public static readonly AppShortcut QuickOpen =
+        new("quick-open", "Ctrl+T", ModifierKeys.Control, Key.T);
+
     public static readonly AppShortcut QuickNote =
         new(
             "quick-note.capture",
@@ -62,6 +65,7 @@ public static class ShortcutCatalog
         Search,
         InternalLink,
         CommandPalette,
+        QuickOpen,
         QuickNote,
         QuickNotesOverview,
         Save,
