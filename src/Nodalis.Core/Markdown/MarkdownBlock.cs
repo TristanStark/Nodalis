@@ -10,6 +10,8 @@ public sealed record MarkdownBlock
 
     public bool? IsChecked { get; init; }
 
+    public int? OrderedListNumber { get; init; }
+
     public string? Language { get; init; }
 
     public List<List<string>> TableRows { get; init; } = [];
