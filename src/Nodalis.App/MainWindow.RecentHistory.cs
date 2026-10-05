@@ -46,12 +46,13 @@ public partial class MainWindow
                 continue;
             }
 
-            string contextPath = ResolveWorkspaceRelativePath(
+            string? contextPath = ResolveWorkspaceRelativePath(
                 search.ContextRelativePath);
 
             recentSearches.Add(
-                File.Exists(contextPath) ||
-                Directory.Exists(contextPath)
+                contextPath is not null &&
+                (File.Exists(contextPath) ||
+                Directory.Exists(contextPath))
                     ? search
                     : search with
                     {
@@ -63,10 +64,11 @@ public partial class MainWindow
             _preferences.OpenDocumentTabs
                 .Where(tab =>
                 {
-                    string fullPath = ResolveWorkspaceRelativePath(
+                    string? fullPath = ResolveWorkspaceRelativePath(
                         tab.RelativePath);
 
-                    return File.Exists(fullPath);
+                    return fullPath is not null &&
+                        File.Exists(fullPath);
                 })
                 .ToList();
 
@@ -451,21 +453,51 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Resolves a workspace-relative local path without accessing the network.
+    /// Resolves a workspace-relative local path without accessing the network or allowing traversal outside the workspace.
     /// </summary>
     /// <param name="relativePath">The stored workspace-relative path.</param>
-    /// <returns>The normalized absolute path.</returns>
-    private string ResolveWorkspaceRelativePath(
+    /// <returns>The normalized absolute path, or <see langword="null"/> when the stored path is invalid.</returns>
+    private string? ResolveWorkspaceRelativePath(
             string relativePath)
     {
-        string normalizedRelativePath =
-            relativePath.Replace(
-                '/',
-                Path.DirectorySeparatorChar);
+        try
+        {
+            string rootPath = Path.GetFullPath(
+                _root.FullPath);
 
-        return Path.GetFullPath(
-            Path.Combine(
-                _root.FullPath,
-                normalizedRelativePath));
+            string normalizedRelativePath =
+                relativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar);
+
+            string fullPath = Path.GetFullPath(
+                Path.Combine(
+                    rootPath,
+                    normalizedRelativePath));
+
+            string relativeToRoot = Path.GetRelativePath(
+                    rootPath,
+                    fullPath)
+                .Replace(
+                    Path.DirectorySeparatorChar,
+                    '/');
+
+            if (relativeToRoot == ".." ||
+                relativeToRoot.StartsWith(
+                    "../",
+                    StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return fullPath;
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or
+            NotSupportedException or
+            PathTooLongException)
+        {
+            return null;
+        }
     }
 }
