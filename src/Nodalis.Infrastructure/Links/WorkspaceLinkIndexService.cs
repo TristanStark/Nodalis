@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Nodalis.Core.Links;
 using Nodalis.Core.Markdown;
 using Nodalis.Core.Navigation;
+using Nodalis.Core.Relations;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
 
@@ -94,13 +95,18 @@ public sealed class WorkspaceLinkIndexService
             targets,
             cancellationToken);
 
+        global::System.Collections.Generic.List<global::Nodalis.Core.Relations.TypedRelationEntry> relations = await BuildRelationsAsync(
+            targets,
+            cancellationToken);
+
         global::Nodalis.Core.Links.LinkIndexCatalog catalog = new LinkIndexCatalog
         {
             UpdatedUtc = DateTimeOffset.UtcNow,
             Targets = targets
                 .OrderBy(target => target.QualifiedName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList(),
-            References = references
+            References = references,
+            Relations = relations
         };
 
         await AtomicJsonFile.WriteAsync(
@@ -605,6 +611,61 @@ public sealed class WorkspaceLinkIndexService
         }
 
         return references;
+    }
+
+    /// <summary>
+    /// Builds typed relation entries from readable relation lines in Markdown documents.
+    /// </summary>
+    /// <param name="targets">The indexed workspace targets.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The typed relations in source order.</returns>
+    private async Task<List<TypedRelationEntry>> BuildRelationsAsync(
+            IReadOnlyList<LinkTargetEntry> targets,
+            CancellationToken cancellationToken)
+    {
+        global::System.Collections.Generic.List<global::Nodalis.Core.Relations.TypedRelationEntry> relations =
+            new List<TypedRelationEntry>();
+
+        foreach (LinkTargetEntry source in targets.Where(target =>
+                     target.Kind == LinkTargetKind.Document))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            string fullPath = Path.Combine(
+                _workspaceRoot,
+                source.RelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar));
+
+            if (!File.Exists(
+                    fullPath))
+            {
+                continue;
+            }
+
+            string markdown = await File.ReadAllTextAsync(
+                fullPath,
+                cancellationToken);
+
+            foreach (MarkdownRelationEntry relation in MarkdownRelationParser.Parse(
+                         markdown))
+            {
+                relations.Add(
+                    new TypedRelationEntry
+                    {
+                        SourceId = source.Id,
+                        TargetId = relation.TargetId,
+                        RawTargetId = relation.RawTargetId,
+                        RelationType = relation.RelationType,
+                        TargetLabel = relation.TargetLabel,
+                        LineNumber = relation.LineNumber,
+                        Excerpt = BuildExcerpt(
+                            relation.RawLine)
+                    });
+            }
+        }
+
+        return relations;
     }
 
     /// <summary>

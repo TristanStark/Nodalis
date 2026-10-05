@@ -269,6 +269,36 @@ liens lorsque l'utilisateur renomme ou déplace un élément.
 La syntaxe lisible `[[Nom du document]]` sera résolue par l'index Nodalis vers
 l'identité stable correspondante.
 
+## Relations typées
+
+Une relation métier est stockée **dans le Markdown source**, sur une ligne de
+blockquote lisible. L'ID est la source d'identité ; le libellé humain permet de
+comprendre le fichier sans Nodalis.
+
+Exemple :
+
+```markdown
+> Relation: dépend de | Cible: Architecture API | ID: 42e15594-93d4-4318-9d71-5ebccb65c55c
+```
+
+Types proposés initialement par l'interface :
+
+- `dépend de` ;
+- `remplace` ;
+- `implémente` ;
+- `teste` ;
+- `documente` ;
+- `bloque` ;
+- `est lié à`.
+
+Le vocabulaire n'est pas fermé : un type inconnu reste indexé et affiché. La
+cible est résolue par GUID, donc un renommage ou déplacement ne casse pas la
+relation. Si l'ID est invalide ou ne correspond plus à une cible, la relation
+reste visible comme relation cassée au lieu d'être redirigée silencieusement.
+
+L'index de relations est dérivé et reconstruisible. Il n'est jamais une source
+de vérité métier.
+
 ## Noms Windows et collisions
 
 Les segments de chemin sont normalisés avant création :

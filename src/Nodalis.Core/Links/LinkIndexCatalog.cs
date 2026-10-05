@@ -2,7 +2,7 @@ namespace Nodalis.Core.Links;
 
 public sealed record LinkIndexCatalog
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -11,4 +11,6 @@ public sealed record LinkIndexCatalog
     public List<LinkTargetEntry> Targets { get; init; } = [];
 
     public List<LinkReferenceEntry> References { get; init; } = [];
+
+    public List<global::Nodalis.Core.Relations.TypedRelationEntry> Relations { get; init; } = [];
 }

@@ -1118,6 +1118,9 @@ public partial class MainWindow : Window
             $"{node.FullPath}";
 
         BacklinksList.ItemsSource = null;
+        RefreshRelationsContext(
+            FindIndexedTarget(
+                node));
         ContextBrokenLinksText.Text = "Liens internes : —";
         _glossaryMatches = [];
         _glossaryAdorner?.SetMatches([]);
@@ -1173,6 +1176,9 @@ public partial class MainWindow : Window
         try
         {
             await RefreshLinkIndexAsync();
+            RefreshRelationsContext(
+                FindIndexedTarget(
+                    node));
 
             Task<IReadOnlyList<TaskItem>> tasksTask =
                 _taskService.GetTasksAsync(
@@ -2536,6 +2542,8 @@ public partial class MainWindow : Window
         DocumentPathText.Text = _root.FullPath;
 
         BacklinksList.ItemsSource = null;
+        RefreshRelationsContext(
+            null);
         ContextBrokenLinksText.Text = "Liens internes : —";
         _glossaryMatches = [];
         _glossaryAdorner?.SetMatches([]);
@@ -3051,10 +3059,15 @@ public partial class MainWindow : Window
         if (target is null)
         {
             BacklinksList.ItemsSource = null;
+            RefreshRelationsContext(
+                null);
             ContextBrokenLinksText.Text =
                 "Liens internes : indexation en attente";
             return;
         }
+
+        RefreshRelationsContext(
+            target);
 
         global::Nodalis.Core.Links.BacklinkEntry[] backlinks = _linkIndex.References
             .Where(reference =>

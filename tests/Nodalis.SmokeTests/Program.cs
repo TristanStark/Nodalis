@@ -17,6 +17,7 @@ using Nodalis.Core.Notes;
 using Nodalis.Core.Tasks;
 using Nodalis.Core.Markdown;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Relations;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
 using Nodalis.Core.Trash;
@@ -75,6 +76,7 @@ try
     VerifyFlowcharts();
     VerifyMarkdownFrontMatter();
     VerifyMarkdownOutlineParser();
+    VerifyTypedRelations();
     VerifyDocumentBookmarks();
     await VerifyUserPreferencesAsync(root);
     await VerifyLocalReleasePackageAsync(root);
@@ -1702,6 +1704,26 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         candidate.Kind == LinkTargetKind.Document &&
         candidate.DisplayName == "Source");
 
+    await File.AppendAllTextAsync(
+        sourcePath,
+        "\n" +
+        MarkdownRelationParser.Format(
+            "dépend de",
+            target.Id,
+            target.DisplayName) +
+        "\n");
+
+    initial = await indexService.RefreshAsync();
+
+    global::Nodalis.Core.Relations.TypedRelationEntry typedRelation = initial.Relations.Single(relation =>
+        relation.SourceId == source.Id &&
+        relation.TargetId == target.Id);
+
+    Assert(
+        typedRelation.RelationType == "dépend de" &&
+        typedRelation.TargetLabel == "Cible",
+        "Typed relations must be indexed from readable Markdown using stable target ids.");
+
     global::Nodalis.Core.Links.LinkResolution resolved = WorkspaceLinkIndexService.Resolve(
         initial,
         "Cible");
@@ -1747,6 +1769,14 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
     Assert(
         renamed.Id == target.Id,
         "Renaming a document must preserve its immutable link target id.");
+
+    global::Nodalis.Core.Relations.TypedRelationEntry relationAfterRename = renamedIndex.Relations.Single(relation =>
+        relation.SourceId == source.Id &&
+        relation.TargetId == target.Id);
+
+    Assert(
+        relationAfterRename.TargetId == renamed.Id,
+        "Typed relations must survive target rename and move because the Markdown stores the stable id.");
 
     global::Nodalis.Core.Links.LinkResolution oldNameResolution = WorkspaceLinkIndexService.Resolve(
         renamedIndex,
@@ -4024,6 +4054,42 @@ static void VerifyFlowcharts()
             diagnostic.Severity ==
             FlowchartDiagnosticSeverity.Warning),
         "Unsupported Mermaid statements must be ignored with a warning, not corrupt the diagram.");
+}
+
+static void VerifyTypedRelations()
+{
+    global::System.Guid targetId =
+        Guid.NewGuid();
+
+    string relationLine =
+        MarkdownRelationParser.Format(
+            "dépend de",
+            targetId,
+            "Architecture cible");
+
+    string markdown =
+        relationLine + "\n" +
+        "> Relation: relation expérimentale | Cible: Élément futur | ID: pas-un-guid\n" +
+        "```markdown\n" +
+        relationLine + "\n" +
+        "```\n";
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Relations.MarkdownRelationEntry> relations =
+        MarkdownRelationParser.Parse(
+            markdown);
+
+    Assert(
+        relations.Count == 2 &&
+        relations[0].RelationType == "dépend de" &&
+        relations[0].TargetId == targetId &&
+        relations[0].TargetLabel == "Architecture cible",
+        "Typed relation syntax must round-trip a readable label and stable target id.");
+
+    Assert(
+        relations[1].RelationType == "relation expérimentale" &&
+        relations[1].TargetId is null &&
+        relations[1].RawTargetId == "pas-un-guid",
+        "Unknown relation types and malformed target ids must remain inspectable instead of crashing the parser.");
 }
 
 static void VerifyDocumentBookmarks()
