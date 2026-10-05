@@ -49,6 +49,29 @@ Les données restent lisibles sans Nodalis :
 - métadonnées en JSON ;
 - pièces jointes et sources importées sous forme de fichiers ordinaires.
 
+## Rechercher dans le workspace
+
+La recherche est **fuzzy par défaut** : elle accepte les fautes courantes et
+les mots incomplets. Activez **Mode exact** pour revenir à une recherche
+littérale insensible à la casse.
+
+Les résultats sont classés de façon déterministe : le titre du fichier est
+prioritaire sur les headings Markdown, eux-mêmes prioritaires sur le corps du
+texte. À qualité égale, le projet courant est favorisé devant l'application
+courante, puis le reste du workspace.
+
+Des filtres peuvent être combinés au texte recherché :
+
+- `type:specification` pour le type défini dans le front matter ;
+- `date:2026-10-05` pour la date de modification UTC du fichier ;
+- `project:"Projet Patate"` pour limiter à un projet ;
+- `status:active`, `owner:alice`, `tag:api` pour les propriétés standard ;
+- `@reviewer:alice` pour une propriété personnalisée.
+
+Les valeurs contenant des espaces peuvent être placées entre guillemets.
+La recherche reste entièrement locale et ne nécessite ni serveur d'index ni
+base de données opaque.
+
 ## Import Word
 
 L'import DOCX travaille sur une copie temporaire et affiche son plan d'écriture avant validation. Le fichier Word original n'est jamais modifié.
