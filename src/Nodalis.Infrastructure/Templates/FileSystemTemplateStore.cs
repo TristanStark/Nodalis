@@ -46,6 +46,9 @@ public sealed class FileSystemTemplateStore : ITemplateStore
             CreateDefaultProjectProfiles(),
             cancellationToken);
 
+        await EnsureMissingBuiltInTemplatesAsync(
+            cancellationToken);
+
         foreach (global::System.Collections.Generic.KeyValuePair<string, string> template in CreateDefaultTemplateFiles())
         {
             string path = ResolveTemplatePath(template.Key);
@@ -798,6 +801,84 @@ public sealed class FileSystemTemplateStore : ITemplateStore
     }
 
     /// <summary>
+    /// Adds newly shipped built-in templates to an existing workspace catalog without overwriting user edits.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private async Task EnsureMissingBuiltInTemplatesAsync(
+            CancellationToken cancellationToken)
+    {
+        string catalogPath =
+            Path.Combine(
+                _templatesRoot,
+                TemplateCatalogFileName);
+
+        global::Nodalis.Core.Templates.TemplateCatalog current =
+            await AtomicJsonFile.ReadAsync<TemplateCatalog>(
+                catalogPath,
+                cancellationToken);
+        global::Nodalis.Core.Templates.TemplateCatalog defaults =
+            CreateDefaultTemplateCatalog();
+
+        global::System.Collections.Generic.List<global::Nodalis.Core.Templates.MarkdownTemplateDefinition> templates =
+            current.Templates.ToList();
+        bool changed =
+            false;
+
+        foreach (MarkdownTemplateDefinition builtIn in
+                 defaults.Templates)
+        {
+            bool keyExists =
+                templates.Any(template =>
+                    string.Equals(
+                        template.Key,
+                        builtIn.Key,
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (keyExists)
+            {
+                continue;
+            }
+
+            bool fileExists =
+                templates.Any(template =>
+                    string.Equals(
+                        template.FileName,
+                        builtIn.FileName,
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (fileExists)
+            {
+                continue;
+            }
+
+            templates.Add(
+                builtIn);
+            changed =
+                true;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        TemplateCatalog updated =
+            current with
+            {
+                Templates =
+                    templates
+            };
+
+        ValidateTemplateCatalog(
+            updated);
+
+        await AtomicJsonFile.WriteAsync(
+            catalogPath,
+            updated,
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Performs the <c>CreateDefaultTemplateCatalog</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
@@ -812,6 +893,14 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                     DisplayName = "Note",
                     FileName = "note.md",
                     Category = "Général"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "daily-note",
+                    DisplayName = "Journal quotidien",
+                    FileName = "daily-note.md",
+                    Category = "Général",
+                    DefaultFileName = "{{date}}.md"
                 },
                 new MarkdownTemplateDefinition
                 {
@@ -1031,6 +1120,10 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                 ["note.md"] =
                     "# {{title}}\n\n" +
                     "_Créé le {{date}}_\n\n",
+                ["daily-note.md"] =
+                    "# Journal — {{date}}\n\n" +
+                    "## Notes\n\n" +
+                    "{{opened_today}}\n",
                 ["meeting.md"] =
                     "# Réunion — {{title}}\n\n" +
                     "**Date :** {{date}}\n\n" +
