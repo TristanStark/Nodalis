@@ -68,6 +68,7 @@ try
     await VerifyDocxImportAsync(root);
     await VerifyDocxImportAnalysisAsync(root);
     VerifyMarkdownParser();
+    VerifyMarkdownFrontMatter();
     VerifyMarkdownOutlineParser();
     await VerifyUserPreferencesAsync(root);
     await VerifyLocalReleasePackageAsync(root);
@@ -956,7 +957,14 @@ static async Task VerifySearchAsync(string root)
 
     await File.WriteAllTextAsync(
         projectFile,
-        "# Projet\n\nsteak projet\n");
+        "---\n" +
+        "status: active\n" +
+        "owner: alice\n" +
+        "tags: api, urgent\n" +
+        "reviewer: Alice\n" +
+        "---\n" +
+        "# Projet\n\n" +
+        "steak projet\n");
 
     global::Nodalis.Infrastructure.Search.WorkspaceSearchService search = new WorkspaceSearchService();
     global::Nodalis.Core.Search.SearchResultSet results = await search.SearchAsync(
@@ -995,6 +1003,36 @@ static async Task VerifySearchAsync(string root)
                 result.LineNumber > 0 &&
                 !string.IsNullOrWhiteSpace(result.Excerpt)),
         "Search results must expose navigable line numbers and excerpts.");
+
+    global::Nodalis.Core.Search.SearchResultSet statusResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "status:active");
+
+    Assert(
+        statusResults.Project.Any(result =>
+            result.FilePath == projectFile),
+        "Standard front matter properties must be searchable.");
+
+    global::Nodalis.Core.Search.SearchResultSet tagResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "tag:api");
+
+    Assert(
+        tagResults.Project.Any(result =>
+            result.FilePath == projectFile),
+        "Front matter tags must be searchable individually.");
+
+    global::Nodalis.Core.Search.SearchResultSet customPropertyResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "@reviewer:alice");
+
+    Assert(
+        customPropertyResults.Project.Any(result =>
+            result.FilePath == projectFile),
+        "Custom front matter properties must be searchable with @key:value syntax.");
 }
 
 static async Task VerifyLinksAndBacklinksAsync(string root)
@@ -3292,6 +3330,93 @@ static IEnumerable<WorkspaceNavigationNode> DescendantsAndSelf(
     }
 }
 
+
+static void VerifyMarkdownFrontMatter()
+{
+    string source =
+        "---\r\n" +
+        "status: draft\r\n" +
+        "tags: [api, urgent, API]\r\n" +
+        "reviewer: Alice\r\n" +
+        "---\r\n" +
+        "# Titre\r\n\r\n" +
+        "Contenu.\r\n";
+
+    global::Nodalis.Core.Markdown.MarkdownFrontMatterDocument parsed =
+        MarkdownFrontMatterParser.Parse(
+            source);
+
+    Assert(
+        parsed.HasFrontMatter &&
+        parsed.Properties["status"] == "draft" &&
+        parsed.Properties["reviewer"] == "Alice" &&
+        parsed.Body.StartsWith(
+            "# Titre",
+            StringComparison.Ordinal),
+        "Front matter parsing must preserve standard, custom and body content.");
+
+    global::System.Collections.Generic.IReadOnlyList<string> tags =
+        MarkdownFrontMatterParser.ParseTags(
+            parsed.Properties["tags"]);
+
+    Assert(
+        tags.Count == 2 &&
+        tags.Contains(
+            "api",
+            StringComparer.CurrentCultureIgnoreCase) &&
+        tags.Contains(
+            "urgent",
+            StringComparer.CurrentCultureIgnoreCase),
+        "Front matter tags must be normalized and deduplicated.");
+
+    global::System.Collections.Generic.Dictionary<string, string> rewrittenProperties =
+        new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["owner"] = "Bob",
+            ["status"] = "active",
+            ["custom.flag"] = "yes",
+            ["tags"] = "backend, release"
+        };
+
+    string rewritten =
+        MarkdownFrontMatterParser.Apply(
+            source,
+            rewrittenProperties);
+
+    global::Nodalis.Core.Markdown.MarkdownFrontMatterDocument rewrittenParsed =
+        MarkdownFrontMatterParser.Parse(
+            rewritten);
+
+    Assert(
+        rewrittenParsed.Body == parsed.Body &&
+        rewrittenParsed.Properties["status"] == "active" &&
+        rewrittenParsed.Properties["owner"] == "Bob" &&
+        rewrittenParsed.Properties["custom.flag"] == "yes",
+        "Applying front matter must preserve the Markdown body and custom properties.");
+
+    string removed =
+        MarkdownFrontMatterParser.Apply(
+            rewritten,
+            new Dictionary<string, string>(
+                StringComparer.OrdinalIgnoreCase));
+
+    Assert(
+        removed == parsed.Body,
+        "Applying an empty property set must remove existing front matter without altering the body.");
+
+    global::Nodalis.Core.Markdown.MarkdownFrontMatterDocument plain =
+        MarkdownFrontMatterParser.Parse(
+            "# Libre\n\nSans métadonnées.\n");
+
+    Assert(
+        !plain.HasFrontMatter &&
+        plain.Properties.Count == 0 &&
+        plain.Body.StartsWith(
+            "# Libre",
+            StringComparison.Ordinal),
+        "Free-form notes must remain valid without any front matter.");
+}
 
 static void VerifyMarkdownOutlineParser()
 {
