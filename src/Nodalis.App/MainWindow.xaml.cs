@@ -1084,6 +1084,8 @@ public partial class MainWindow : Window
             DecoderFallbackException)
         {
             NodeSummaryHost.Visibility = Visibility.Visible;
+            ProjectDashboardHost.Visibility = Visibility.Collapsed;
+            NodeSummaryText.Visibility = Visibility.Visible;
             EditorToolbar.Visibility = Visibility.Collapsed;
             DocumentEditorHost.Visibility = Visibility.Collapsed;
 
