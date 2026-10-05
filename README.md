@@ -14,6 +14,7 @@ Le socle actuellement disponible comprend :
 - création et navigation Applications / Modules / Projets / Sous-projets ;
 - profils de projets pilotés par configuration et templates Markdown ;
 - éditeur Markdown avec aperçu riche et autosave sûr ;
+- flowcharts Mermaid portables rendus localement avec WPF (sans Mermaid.js) ;
 - notes rapides aux scopes Global / Application / Projet ;
 - recherche exacte regroupée Projet / Application / Global ;
 - Command Palette avec ouverture rapide, actions métier et préférences locales ;
