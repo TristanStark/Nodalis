@@ -95,6 +95,9 @@
                             Click="ImportMarkdown_Click"
                             Content="Importer Markdown" />
                     <Button Margin="0,0,8,0"
+                            Click="ExportProject_Click"
+                            Content="Exporter projet" />
+                    <Button Margin="0,0,8,0"
                             Click="NewProject_Click"
                             Content="Nouveau projet  Ctrl+Shift+N" />
                     <Button Click="NewNote_Click"
