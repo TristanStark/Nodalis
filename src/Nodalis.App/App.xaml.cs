@@ -90,8 +90,12 @@ public partial class App : Application
 
             if (!access.Value.IsReadOnly)
             {
-                _diagnosticsService.RecoverOrphanedAtomicWriteFiles(
-                    access.Value.EffectiveWorkspacePath);
+                if (_diagnosticsService.PreviousSessionEndedUnexpectedly)
+                {
+                    _diagnosticsService.RecoverOrphanedAtomicWriteFiles(
+                        access.Value.EffectiveWorkspacePath);
+                }
+
                 await templateStore.InitializeDefaultsAsync();
             }
 
