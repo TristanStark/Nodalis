@@ -357,3 +357,7 @@ workspace dont le schéma est plus récent que celui qu'elle comprend.
 Le préflight, les sauvegardes obligatoires, le staging transactionnel, les
 rapports et la chaîne de migrations supportée sont documentés dans
 [workspace-migrations.md](workspace-migrations.md).
+
+La politique lecture/écriture, la matrice de versions et le fallback de
+consultation des workspaces plus récents sont documentés dans
+[workspace-compatibility.md](workspace-compatibility.md).

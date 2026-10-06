@@ -74,6 +74,8 @@ public partial class MainWindow : Window
     private readonly WorkspaceBackupService _backupService;
     private readonly DispatcherTimer _previewTimer;
     private readonly DispatcherTimer _backupTimer;
+    private readonly bool _workspaceReadOnly;
+    private readonly string? _workspaceAccessMessage;
 
     private NavigationNodeViewModel _root;
     private NavigationNodeViewModel? _selectedNode;
@@ -106,11 +108,15 @@ public partial class MainWindow : Window
     /// <param name="preferences">The <c>preferences</c> value.</param>
     /// <param name="preferencesStore">The <c>preferencesStore</c> value.</param>
     /// <param name="templateStore">The <c>templateStore</c> value.</param>
+    /// <param name="workspaceReadOnly">Whether this window is displaying an isolated fallback snapshot.</param>
+    /// <param name="workspaceAccessMessage">The compatibility message shown for fallback access.</param>
     public MainWindow(
             WorkspaceNavigationNode root,
             UserPreferences preferences,
             IUserPreferencesStore preferencesStore,
-            ITemplateStore templateStore)
+            ITemplateStore templateStore,
+            bool workspaceReadOnly = false,
+            string? workspaceAccessMessage = null)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(preferences);
@@ -124,6 +130,8 @@ public partial class MainWindow : Window
         _preferences = preferences;
         _preferencesStore = preferencesStore;
         _templateStore = templateStore;
+        _workspaceReadOnly = workspaceReadOnly;
+        _workspaceAccessMessage = workspaceAccessMessage;
         _linkIndexService = new WorkspaceLinkIndexService(
             root.FullPath);
         _taskService = new WorkspaceTaskService(
@@ -173,6 +181,8 @@ public partial class MainWindow : Window
         InitializeEditorSplit();
 
         MarkdownEditorTextBox.FontSize = preferences.Editor.FontSize;
+        MarkdownEditorTextBox.IsReadOnly =
+            _workspaceReadOnly;
         MarkdownEditorTextBox.TextWrapping =
             preferences.Editor.WordWrap
                 ? TextWrapping.Wrap
@@ -185,8 +195,14 @@ public partial class MainWindow : Window
         NavigationTree.ItemsSource =
             new[] { _root };
 
-        WorkspaceNameText.Text = $" / {root.DisplayName}";
-        Title = $"{root.DisplayName} — Nodalis";
+        WorkspaceNameText.Text =
+            _workspaceReadOnly
+                ? $" / {root.DisplayName} / LECTURE SEULE"
+                : $" / {root.DisplayName}";
+        Title =
+            _workspaceReadOnly
+                ? $"{root.DisplayName} — Nodalis — Lecture seule"
+                : $"{root.DisplayName} — Nodalis";
 
         NavigationColumn.Width = new GridLength(
             preferences.NavigationPanelWidth);
@@ -198,6 +214,14 @@ public partial class MainWindow : Window
         {
             try
             {
+                if (_workspaceReadOnly)
+                {
+                    StatusText.Text =
+                        _workspaceAccessMessage ??
+                        "Lecture seule de compatibilité : consultation Markdown uniquement.";
+                    return;
+                }
+
                 AttachGlossaryAdorner();
                 await RefreshLinkIndexAndContextAsync();
                 await CleanupRecentHistoryAsync();
@@ -235,6 +259,16 @@ public partial class MainWindow : Window
         }
 
         e.Cancel = true;
+
+        if (_workspaceReadOnly)
+        {
+            await DisposeAllDocumentTabsAsync();
+            _previewTimer.Stop();
+            _backupTimer.Stop();
+            _allowClose = true;
+            Close();
+            return;
+        }
 
         if (!await TryFlushAllDocumentTabsForShutdownAsync())
         {
@@ -325,9 +359,11 @@ public partial class MainWindow : Window
             object sender,
             ContextMenuEventArgs e)
     {
-        if (_selectedNode is null)
+        if (_selectedNode is null ||
+            _workspaceReadOnly)
         {
             e.Handled = true;
+            NavigationTree.ContextMenu = null;
             return;
         }
 
@@ -2031,7 +2067,8 @@ public partial class MainWindow : Window
             object sender,
             System.Windows.Controls.TextChangedEventArgs e)
     {
-        if (_suppressEditorChanges ||
+        if (_workspaceReadOnly ||
+            _suppressEditorChanges ||
             _autosave is null)
         {
             return;

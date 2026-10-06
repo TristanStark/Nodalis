@@ -61,6 +61,7 @@ try
     await VerifyTrashAsync(root);
     await VerifyWorkspaceBackupsAsync(root);
     await WorkspaceMigrationSmokeTests.RunAsync(root);
+    await WorkspaceCompatibilitySmokeTests.RunAsync(root);
     await VerifyQuickNotesAsync(root);
     await VerifyDailyNotesAsync(root);
     await VerifySearchAsync(root);
