@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using Nodalis.Core.Links;
 using Nodalis.Core.Markdown;
@@ -71,6 +72,22 @@ public sealed class WorkspaceLinkIndexService
     public async Task<LinkIndexCatalog> RefreshAsync(
             CancellationToken cancellationToken = default)
     {
+        global::Nodalis.Core.Links.LinkIndexRefreshResult result =
+            await RefreshWithMetricsAsync(
+                cancellationToken);
+
+        return result.Catalog;
+    }
+
+    /// <summary>
+    /// Refreshes the derived link index while reusing unchanged document fingerprints and parsed entries.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The refreshed catalog and deterministic work counters.</returns>
+    public async Task<LinkIndexRefreshResult> RefreshWithMetricsAsync(
+            CancellationToken cancellationToken = default)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
         global::Nodalis.Core.Links.LinkIndexCatalog previous = await LoadExistingUnsafeAsync(
             cancellationToken);
 
@@ -80,6 +97,7 @@ public sealed class WorkspaceLinkIndexService
 
         global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkTargetEntry> targets = new List<LinkTargetEntry>();
         global::System.Collections.Generic.HashSet<global::System.Guid> matchedPreviousIds = new HashSet<Guid>();
+        RefreshCounters counters = new RefreshCounters();
 
         await CollectTargetsAsync(
             navigation,
@@ -89,14 +107,33 @@ public sealed class WorkspaceLinkIndexService
             previous.Targets,
             matchedPreviousIds,
             targets,
+            counters,
             cancellationToken);
 
-        global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkReferenceEntry> references = await BuildReferencesAsync(
-            targets,
-            cancellationToken);
+        global::System.Collections.Generic.Dictionary<global::System.Guid, global::Nodalis.Core.Links.LinkTargetEntry> previousDocuments =
+            previous.Targets
+                .Where(target => target.Kind == LinkTargetKind.Document)
+                .ToDictionary(target => target.Id);
 
-        global::System.Collections.Generic.List<global::Nodalis.Core.Relations.TypedRelationEntry> relations = await BuildRelationsAsync(
+        global::System.Collections.Generic.HashSet<global::System.Guid> changedSourceIds =
+            targets
+                .Where(target => target.Kind == LinkTargetKind.Document)
+                .Where(target =>
+                    !previousDocuments.TryGetValue(
+                        target.Id,
+                        out global::Nodalis.Core.Links.LinkTargetEntry? previousTarget) ||
+                    !string.Equals(
+                        previousTarget.ContentHash,
+                        target.ContentHash,
+                        StringComparison.Ordinal))
+                .Select(target => target.Id)
+                .ToHashSet();
+
+        DocumentIndexBuildResult documentIndexes = await BuildDocumentIndexesAsync(
             targets,
+            previous,
+            changedSourceIds,
+            counters,
             cancellationToken);
 
         global::Nodalis.Core.Links.LinkIndexCatalog catalog = new LinkIndexCatalog
@@ -105,8 +142,8 @@ public sealed class WorkspaceLinkIndexService
             Targets = targets
                 .OrderBy(target => target.QualifiedName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList(),
-            References = references,
-            Relations = relations
+            References = documentIndexes.References,
+            Relations = documentIndexes.Relations
         };
 
         await AtomicJsonFile.WriteAsync(
@@ -114,7 +151,65 @@ public sealed class WorkspaceLinkIndexService
             catalog,
             cancellationToken);
 
-        return catalog;
+        stopwatch.Stop();
+
+        int documentCount = targets.Count(target =>
+            target.Kind == LinkTargetKind.Document);
+
+        return new LinkIndexRefreshResult
+        {
+            Catalog = catalog,
+            Metrics = new LinkIndexRefreshMetrics
+            {
+                DocumentCount = documentCount,
+                ChangedDocuments = changedSourceIds.Count,
+                HashedDocuments = counters.HashedDocuments,
+                ParsedDocuments = counters.ParsedDocuments,
+                ReusedDocuments = Math.Max(
+                    0,
+                    documentCount - counters.ParsedDocuments),
+                ElapsedMilliseconds = stopwatch.ElapsedMilliseconds
+            }
+        };
+    }
+
+    /// <summary>
+    /// Refreshes after one document change. Fingerprints ensure only documents whose content changed are rehashed and reparsed.
+    /// </summary>
+    /// <param name="fullPath">The changed Markdown document.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The refreshed catalog and deterministic work counters.</returns>
+    public Task<LinkIndexRefreshResult> RefreshDocumentAsync(
+            string fullPath,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            fullPath);
+
+        string candidate = Path.GetFullPath(
+            fullPath);
+        string relative = Path.GetRelativePath(
+            _workspaceRoot,
+            candidate);
+
+        if (relative.StartsWith(
+                ".." + Path.DirectorySeparatorChar,
+                StringComparison.Ordinal) ||
+            string.Equals(
+                relative,
+                "..",
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                Path.GetExtension(candidate),
+                ".md",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "L'invalidation ciblée doit viser un document Markdown du workspace.");
+        }
+
+        return RefreshWithMetricsAsync(
+            cancellationToken);
     }
 
     /// <summary>
@@ -395,6 +490,7 @@ public sealed class WorkspaceLinkIndexService
             IReadOnlyList<LinkTargetEntry> previousTargets,
             ISet<Guid> matchedPreviousIds,
             ICollection<LinkTargetEntry> targets,
+            RefreshCounters counters,
             CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -483,17 +579,39 @@ public sealed class WorkspaceLinkIndexService
                     currentScopeRootPath,
                     node.FullPath));
 
-            string contentHash = await ComputeHashAsync(
-                node.FullPath,
-                cancellationToken);
+            FileInfo fileInfo = new FileInfo(
+                node.FullPath);
 
-            global::Nodalis.Core.Links.LinkTargetEntry? existing = MatchDocument(
+            global::Nodalis.Core.Links.LinkTargetEntry? existing = MatchDocumentByLocation(
                 previousTargets,
                 matchedPreviousIds,
                 relativePath,
                 currentScopeIdentity,
-                localRelativePath,
-                contentHash);
+                localRelativePath);
+
+            string contentHash;
+
+            if (existing is not null &&
+                existing.ContentLength == fileInfo.Length &&
+                existing.LastWriteUtcTicks == fileInfo.LastWriteTimeUtc.Ticks &&
+                !string.IsNullOrWhiteSpace(
+                    existing.ContentHash))
+            {
+                contentHash = existing.ContentHash;
+            }
+            else
+            {
+                contentHash = await ComputeHashAsync(
+                    node.FullPath,
+                    cancellationToken);
+                counters.HashedDocuments++;
+
+                existing ??= MatchDocumentByHash(
+                    previousTargets,
+                    matchedPreviousIds,
+                    currentScopeIdentity,
+                    contentHash);
+            }
 
             string displayName = node.DisplayName;
             string qualifiedName = string.Join(
@@ -519,6 +637,8 @@ public sealed class WorkspaceLinkIndexService
                 ScopeIdentity = currentScopeIdentity,
                 LocalRelativePath = localRelativePath,
                 ContentHash = contentHash,
+                ContentLength = fileInfo.Length,
+                LastWriteUtcTicks = fileInfo.LastWriteTimeUtc.Ticks,
                 Aliases = aliases
             });
 
@@ -538,91 +658,48 @@ public sealed class WorkspaceLinkIndexService
                 previousTargets,
                 matchedPreviousIds,
                 targets,
+                counters,
                 cancellationToken);
         }
     }
 
     /// <summary>
-    /// Performs the <c>BuildReferencesAsync</c> operation.
+    /// Rebuilds parsed entries only for changed documents and reuses the transparent JSON entries for all others.
     /// </summary>
-    /// <param name="targets">The <c>targets</c> value.</param>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
-    /// <returns>The result of the operation.</returns>
-    private async Task<List<LinkReferenceEntry>> BuildReferencesAsync(
+    /// <param name="targets">The current indexed targets.</param>
+    /// <param name="previous">The previous transparent index.</param>
+    /// <param name="changedSourceIds">Documents whose content hash changed.</param>
+    /// <param name="counters">Refresh work counters.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>References and typed relations for the refreshed catalog.</returns>
+    private async Task<DocumentIndexBuildResult> BuildDocumentIndexesAsync(
             IReadOnlyList<LinkTargetEntry> targets,
+            LinkIndexCatalog previous,
+            ISet<Guid> changedSourceIds,
+            RefreshCounters counters,
             CancellationToken cancellationToken)
     {
-        global::Nodalis.Core.Links.LinkIndexCatalog catalog = new LinkIndexCatalog
+        LinkIndexCatalog resolutionCatalog = new LinkIndexCatalog
         {
             Targets = targets.ToList()
         };
 
-        global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkReferenceEntry> references = new List<LinkReferenceEntry>();
+        global::System.Collections.Generic.Dictionary<global::System.Guid, global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkReferenceEntry>> previousReferences =
+            previous.References
+                .GroupBy(reference => reference.SourceId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.ToList());
 
-        foreach (global::Nodalis.Core.Links.LinkTargetEntry source in targets.Where(target =>
-                     target.Kind == LinkTargetKind.Document))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
+        global::System.Collections.Generic.Dictionary<global::System.Guid, global::System.Collections.Generic.List<global::Nodalis.Core.Relations.TypedRelationEntry>> previousRelations =
+            previous.Relations
+                .GroupBy(relation => relation.SourceId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.ToList());
 
-            string fullPath = Path.Combine(
-                _workspaceRoot,
-                source.RelativePath.Replace(
-                    '/',
-                    Path.DirectorySeparatorChar));
-
-            if (!File.Exists(fullPath))
-            {
-                continue;
-            }
-
-            string[] lines = await File.ReadAllLinesAsync(
-                fullPath,
-                cancellationToken);
-
-            for (int lineIndex = 0;
-                 lineIndex < lines.Length;
-                 lineIndex++)
-            {
-                foreach (global::Nodalis.Core.Markdown.MarkdownInline inline in MarkdownInlineParser.Parse(
-                             lines[lineIndex]))
-                {
-                    if (inline.Kind != MarkdownInlineKind.InternalLink ||
-                        string.IsNullOrWhiteSpace(inline.Target))
-                    {
-                        continue;
-                    }
-
-                    global::Nodalis.Core.Links.LinkResolution resolution = Resolve(
-                        catalog,
-                        inline.Target);
-
-                    references.Add(new LinkReferenceEntry
-                    {
-                        SourceId = source.Id,
-                        TargetId = resolution.Status == LinkResolutionStatus.Resolved
-                            ? resolution.Target!.Id
-                            : null,
-                        RawTarget = inline.Target.Trim(),
-                        LineNumber = lineIndex + 1,
-                        Excerpt = BuildExcerpt(lines[lineIndex])
-                    });
-                }
-            }
-        }
-
-        return references;
-    }
-
-    /// <summary>
-    /// Builds typed relation entries from readable relation lines in Markdown documents.
-    /// </summary>
-    /// <param name="targets">The indexed workspace targets.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The typed relations in source order.</returns>
-    private async Task<List<TypedRelationEntry>> BuildRelationsAsync(
-            IReadOnlyList<LinkTargetEntry> targets,
-            CancellationToken cancellationToken)
-    {
+        global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkReferenceEntry> references =
+            new List<LinkReferenceEntry>();
         global::System.Collections.Generic.List<global::Nodalis.Core.Relations.TypedRelationEntry> relations =
             new List<TypedRelationEntry>();
 
@@ -630,6 +707,41 @@ public sealed class WorkspaceLinkIndexService
                      target.Kind == LinkTargetKind.Document))
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            if (!changedSourceIds.Contains(
+                    source.Id))
+            {
+                if (previousReferences.TryGetValue(
+                        source.Id,
+                        out global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkReferenceEntry>? cachedReferences))
+                {
+                    foreach (LinkReferenceEntry cached in cachedReferences)
+                    {
+                        LinkResolution resolution = Resolve(
+                            resolutionCatalog,
+                            cached.RawTarget);
+
+                        references.Add(
+                            cached with
+                            {
+                                TargetId =
+                                    resolution.Status == LinkResolutionStatus.Resolved
+                                        ? resolution.Target!.Id
+                                        : null
+                            });
+                    }
+                }
+
+                if (previousRelations.TryGetValue(
+                        source.Id,
+                        out global::System.Collections.Generic.List<global::Nodalis.Core.Relations.TypedRelationEntry>? cachedRelations))
+                {
+                    relations.AddRange(
+                        cachedRelations);
+                }
+
+                continue;
+            }
 
             string fullPath = Path.Combine(
                 _workspaceRoot,
@@ -646,6 +758,52 @@ public sealed class WorkspaceLinkIndexService
             string markdown = await File.ReadAllTextAsync(
                 fullPath,
                 cancellationToken);
+            counters.ParsedDocuments++;
+
+            string[] lines = markdown
+                .Replace(
+                    "\r\n",
+                    "\n",
+                    StringComparison.Ordinal)
+                .Replace(
+                    '\r',
+                    '\n')
+                .Split(
+                    '\n');
+
+            for (int lineIndex = 0;
+                 lineIndex < lines.Length;
+                 lineIndex++)
+            {
+                foreach (MarkdownInline inline in MarkdownInlineParser.Parse(
+                             lines[lineIndex]))
+                {
+                    if (inline.Kind != MarkdownInlineKind.InternalLink ||
+                        string.IsNullOrWhiteSpace(
+                            inline.Target))
+                    {
+                        continue;
+                    }
+
+                    LinkResolution resolution = Resolve(
+                        resolutionCatalog,
+                        inline.Target);
+
+                    references.Add(
+                        new LinkReferenceEntry
+                        {
+                            SourceId = source.Id,
+                            TargetId =
+                                resolution.Status == LinkResolutionStatus.Resolved
+                                    ? resolution.Target!.Id
+                                    : null,
+                            RawTarget = inline.Target.Trim(),
+                            LineNumber = lineIndex + 1,
+                            Excerpt = BuildExcerpt(
+                                lines[lineIndex])
+                        });
+                }
+            }
 
             foreach (MarkdownRelationEntry relation in MarkdownRelationParser.Parse(
                          markdown))
@@ -665,34 +823,29 @@ public sealed class WorkspaceLinkIndexService
             }
         }
 
-        return relations;
+        return new DocumentIndexBuildResult(
+            references,
+            relations);
     }
 
     /// <summary>
-    /// Performs the <c>MatchDocument</c> operation.
+    /// Matches a document by its stable filesystem location without opening the file.
     /// </summary>
-    /// <param name="previousTargets">The <c>previousTargets</c> value.</param>
-    /// <param name="matchedPreviousIds">The <c>matchedPreviousIds</c> value.</param>
-    /// <param name="relativePath">The <c>relativePath</c> value.</param>
-    /// <param name="scopeIdentity">The <c>scopeIdentity</c> value.</param>
-    /// <param name="localRelativePath">The <c>localRelativePath</c> value.</param>
-    /// <param name="contentHash">The <c>contentHash</c> value.</param>
-    /// <returns>The result of the operation.</returns>
-    private static LinkTargetEntry? MatchDocument(
+    private static LinkTargetEntry? MatchDocumentByLocation(
             IReadOnlyList<LinkTargetEntry> previousTargets,
             ISet<Guid> matchedPreviousIds,
             string relativePath,
             string scopeIdentity,
-            string localRelativePath,
-            string contentHash)
+            string localRelativePath)
     {
-        global::Nodalis.Core.Links.LinkTargetEntry[] documents = previousTargets
+        LinkTargetEntry[] documents = previousTargets
             .Where(target =>
                 target.Kind == LinkTargetKind.Document &&
-                !matchedPreviousIds.Contains(target.Id))
+                !matchedPreviousIds.Contains(
+                    target.Id))
             .ToArray();
 
-        global::Nodalis.Core.Links.LinkTargetEntry? byPath = documents.FirstOrDefault(target =>
+        LinkTargetEntry? byPath = documents.FirstOrDefault(target =>
             string.Equals(
                 target.RelativePath,
                 relativePath,
@@ -703,7 +856,7 @@ public sealed class WorkspaceLinkIndexService
             return byPath;
         }
 
-        global::Nodalis.Core.Links.LinkTargetEntry? byStableScope = documents.FirstOrDefault(target =>
+        return documents.FirstOrDefault(target =>
             string.Equals(
                 target.ScopeIdentity,
                 scopeIdentity,
@@ -712,13 +865,25 @@ public sealed class WorkspaceLinkIndexService
                 target.LocalRelativePath,
                 localRelativePath,
                 StringComparison.OrdinalIgnoreCase));
+    }
 
-        if (byStableScope is not null)
-        {
-            return byStableScope;
-        }
+    /// <summary>
+    /// Matches a moved document by content hash after a location match was impossible.
+    /// </summary>
+    private static LinkTargetEntry? MatchDocumentByHash(
+            IReadOnlyList<LinkTargetEntry> previousTargets,
+            ISet<Guid> matchedPreviousIds,
+            string scopeIdentity,
+            string contentHash)
+    {
+        LinkTargetEntry[] documents = previousTargets
+            .Where(target =>
+                target.Kind == LinkTargetKind.Document &&
+                !matchedPreviousIds.Contains(
+                    target.Id))
+            .ToArray();
 
-        global::Nodalis.Core.Links.LinkTargetEntry[] sameScopeHash = documents
+        LinkTargetEntry[] sameScopeHash = documents
             .Where(target =>
                 string.Equals(
                     target.ScopeIdentity,
@@ -735,11 +900,12 @@ public sealed class WorkspaceLinkIndexService
             return sameScopeHash[0];
         }
 
-        global::Nodalis.Core.Links.LinkTargetEntry[] globalHash = documents
-            .Where(target => string.Equals(
-                target.ContentHash,
-                contentHash,
-                StringComparison.Ordinal))
+        LinkTargetEntry[] globalHash = documents
+            .Where(target =>
+                string.Equals(
+                    target.ContentHash,
+                    contentHash,
+                    StringComparison.Ordinal))
             .ToArray();
 
         return globalHash.Length == 1
@@ -867,4 +1033,15 @@ public sealed class WorkspaceLinkIndexService
             ? trimmed
             : trimmed[..217] + "…";
     }
+    private sealed class RefreshCounters
+    {
+        public int HashedDocuments { get; set; }
+
+        public int ParsedDocuments { get; set; }
+    }
+
+    private sealed record DocumentIndexBuildResult(
+        List<LinkReferenceEntry> References,
+        List<TypedRelationEntry> Relations);
+
 }

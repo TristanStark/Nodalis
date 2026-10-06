@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Nodalis.Benchmarks</RootNamespace>
+    <AssemblyName>Nodalis.Benchmarks</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nodalis.Core\Nodalis.Core.csproj" />
+    <ProjectReference Include="..\..\src\Nodalis.Infrastructure\Nodalis.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

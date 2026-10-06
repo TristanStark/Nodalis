@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nodalis.Infrastructure", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nodalis.Updater", "src\Nodalis.Updater\Nodalis.Updater.csproj", "{A93F76C8-2B51-4B58-9AF0-85F0A8239104}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nodalis.Benchmarks", "benchmarks\Nodalis.Benchmarks\Nodalis.Benchmarks.csproj", "{B76118C5-7C44-4F0E-90D0-B5246D115301}"
+EndProject
 Global
   GlobalSection(SolutionConfigurationPlatforms) = preSolution
     Debug|Any CPU = Debug|Any CPU
@@ -33,5 +35,9 @@ Global
     {A93F76C8-2B51-4B58-9AF0-85F0A8239104}.Debug|Any CPU.Build.0 = Debug|Any CPU
     {A93F76C8-2B51-4B58-9AF0-85F0A8239104}.Release|Any CPU.ActiveCfg = Release|Any CPU
     {A93F76C8-2B51-4B58-9AF0-85F0A8239104}.Release|Any CPU.Build.0 = Release|Any CPU
+    {B76118C5-7C44-4F0E-90D0-B5246D115301}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {B76118C5-7C44-4F0E-90D0-B5246D115301}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {B76118C5-7C44-4F0E-90D0-B5246D115301}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {B76118C5-7C44-4F0E-90D0-B5246D115301}.Release|Any CPU.Build.0 = Release|Any CPU
   EndGlobalSection
 EndGlobal

@@ -66,6 +66,7 @@ try
     await VerifyDailyNotesAsync(root);
     await VerifySearchAsync(root);
     await VerifyLinksAndBacklinksAsync(root);
+    await WorkspacePerformanceSmokeTests.RunAsync(root);
     await VerifyGlossaryAsync(root);
     await VerifyAttachmentsAsync(root);
     await VerifyTasksAsync(root);

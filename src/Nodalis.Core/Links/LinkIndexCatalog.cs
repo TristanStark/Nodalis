@@ -2,7 +2,7 @@ namespace Nodalis.Core.Links;
 
 public sealed record LinkIndexCatalog
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 

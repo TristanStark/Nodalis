@@ -162,6 +162,9 @@
                     </StackPanel>
 
                     <TreeView x:Name="NavigationTree"
+                              ScrollViewer.CanContentScroll="True"
+                              VirtualizingStackPanel.IsVirtualizing="True"
+                              VirtualizingStackPanel.VirtualizationMode="Recycling"
                               SelectedItemChanged="NavigationTree_SelectedItemChanged"
                               PreviewMouseRightButtonDown="NavigationTree_PreviewMouseRightButtonDown"
                               ContextMenuOpening="NavigationTree_ContextMenuOpening" />
