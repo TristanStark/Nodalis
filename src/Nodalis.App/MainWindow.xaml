@@ -137,6 +137,9 @@
                                 Click="OpenProjectHealth_Click"
                                 Content="Health check projet" />
                         <Button Margin="0,0,0,6"
+                                Click="OpenProjectCoverage_Click"
+                                Content="Couverture & cohérence" />
+                        <Button Margin="0,0,0,6"
                                 Click="OpenWorkspaceIntegrity_Click"
                                 Content="Diagnostic workspace" />
                         <Button Click="OpenTrash_Click"
