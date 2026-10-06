@@ -62,6 +62,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceMeetingService _meetingService;
     private readonly WorkspaceDecisionService _decisionService;
     private readonly WorkspaceDocxImportService _docxImportService;
+    private readonly WorkspaceMarkdownBulkImportService _markdownBulkImportService;
     private readonly WorkspaceTrashService _trashService;
     private readonly WorkspaceBackupService _backupService;
     private readonly DispatcherTimer _previewTimer;
@@ -127,6 +128,8 @@ public partial class MainWindow : Window
         _decisionService = new WorkspaceDecisionService(
             root.FullPath);
         _docxImportService = new WorkspaceDocxImportService(
+            root.FullPath);
+        _markdownBulkImportService = new WorkspaceMarkdownBulkImportService(
             root.FullPath);
         _trashService = new WorkspaceTrashService(
             root.FullPath);
@@ -2224,6 +2227,18 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Opens the bulk Markdown import workflow.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void ImportMarkdown_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await ImportMarkdownAsync();
+    }
+
+    /// <summary>
     /// Performs the <c>ShowAllTasks_Click</c> operation.
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
@@ -4050,6 +4065,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "markdown.import",
+                Title = "Importer du Markdown en masse",
+                Subtitle = "Analyser un dossier ou plusieurs fichiers avant toute écriture",
+                Keywords = ["markdown", "md", "import", "dossier", "masse", "prévisualisation"],
+                ExecuteAsync = ImportMarkdownAsync
+            },
+            new()
+            {
                 Id = "tasks.context",
                 Title = "Tâches du contexte",
                 Subtitle = "Projet / Application / Global selon la sélection",
@@ -5489,6 +5512,172 @@ public partial class MainWindow : Window
                 _docxImportService.DiscardStagedCopy(
                     preview.StagedImport);
             }
+        }
+    }
+
+    /// <summary>
+    /// Imports a Markdown folder or an explicit Markdown file selection after a read-only preview and write-plan validation.
+    /// </summary>
+    /// <returns>A task representing the import workflow.</returns>
+    private async Task ImportMarkdownAsync()
+    {
+        MessageBoxResult sourceMode =
+            MessageBox.Show(
+                this,
+                "Choisissez la source à analyser.\n\n" +
+                "Oui : un dossier complet, récursivement.\n" +
+                "Non : une sélection de fichiers Markdown.\n" +
+                "Annuler : fermer sans rien modifier.",
+                "Import Markdown massif",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+        if (sourceMode ==
+            MessageBoxResult.Cancel)
+        {
+            return;
+        }
+
+        try
+        {
+            MarkdownBulkImportPreview preview;
+
+            if (sourceMode ==
+                MessageBoxResult.Yes)
+            {
+                global::Microsoft.Win32.OpenFolderDialog picker =
+                    new OpenFolderDialog
+                    {
+                        Title =
+                            "Sélectionner le dossier Markdown à importer",
+                        Multiselect =
+                            false
+                    };
+
+                if (picker.ShowDialog(
+                        this) !=
+                    true)
+                {
+                    return;
+                }
+
+                StatusText.Text =
+                    "Import Markdown · analyse récursive du dossier…";
+
+                preview =
+                    await _markdownBulkImportService.PrepareFolderPreviewAsync(
+                        picker.FolderName);
+            }
+            else
+            {
+                global::Microsoft.Win32.OpenFileDialog picker =
+                    new OpenFileDialog
+                    {
+                        Title =
+                            "Sélectionner les fichiers Markdown à importer",
+                        Filter =
+                            "Markdown (*.md)|*.md|Tous les fichiers (*.*)|*.*",
+                        Multiselect =
+                            true,
+                        CheckFileExists =
+                            true
+                    };
+
+                if (picker.ShowDialog(
+                        this) !=
+                    true)
+                {
+                    return;
+                }
+
+                StatusText.Text =
+                    "Import Markdown · analyse des fichiers sélectionnés…";
+
+                preview =
+                    await _markdownBulkImportService.PrepareFilesPreviewAsync(
+                        picker.FileNames);
+            }
+
+            global::Nodalis.App.Dialogs.MarkdownBulkImportDialog dialog =
+                new MarkdownBulkImportDialog(
+                    preview,
+                    request =>
+                        _markdownBulkImportService.BuildPlanAsync(
+                            preview,
+                            request))
+                {
+                    Owner =
+                        this
+                };
+
+            if (dialog.ShowDialog() !=
+                    true ||
+                dialog.CommitRequest is null)
+            {
+                StatusText.Text =
+                    "Import Markdown annulé";
+                return;
+            }
+
+            StatusText.Text =
+                "Import Markdown · copie validée dans le workspace…";
+
+            MarkdownBulkImportCommitResult result =
+                await _markdownBulkImportService.CommitAsync(
+                    preview,
+                    dialog.CommitRequest);
+
+            try
+            {
+                await RefreshNavigationAsync(
+                    result.ProjectDirectory);
+                await RefreshLinkIndexAndContextAsync();
+                await RefreshDashboardTasksAsync();
+                await RefreshDashboardMilestonesAsync();
+            }
+            catch (Exception refreshException) when (
+                refreshException is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                MessageBox.Show(
+                    this,
+                    "L'import Markdown est terminé, mais l'interface n'a pas pu être " +
+                    "rafraîchie complètement.\n\n" +
+                    refreshException.Message,
+                    "Import Markdown",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                StatusText.Text =
+                    "Import Markdown terminé · rafraîchissement incomplet · " +
+                    result.ImportedFiles.Count +
+                    " fichier(s) importé(s)";
+                return;
+            }
+
+            StatusText.Text =
+                "Import Markdown terminé · " +
+                result.ImportedFiles.Count +
+                " fichier(s) importé(s)";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            ArgumentException)
+        {
+            MessageBox.Show(
+                this,
+                "Le corpus Markdown n'a pas pu être importé.\n\n" +
+                exception.Message,
+                "Import Markdown",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            StatusText.Text =
+                "Import Markdown en échec";
         }
     }
 
