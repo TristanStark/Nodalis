@@ -95,6 +95,9 @@
                             Click="SummarizeMeetingAi_Click"
                             Content="Résumé réunion IA" />
                     <Button Margin="0,0,8,0"
+                            Click="ChallengeWithAi_Click"
+                            Content="Challenger IA" />
+                    <Button Margin="0,0,8,0"
                             Click="ImportDocx_Click"
                             Content="Importer DOCX" />
                     <Button Margin="0,0,8,0"
