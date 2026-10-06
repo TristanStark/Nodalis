@@ -92,6 +92,7 @@ try
     await WorkspaceKanbanSmokeTests.RunAsync(root);
     await LocalAiSmokeTests.RunAsync(root);
     await MeetingAiSummarySmokeTests.RunAsync(root);
+    await ProjectAiChallengeSmokeTests.RunAsync(root);
     VerifyDomainCatalog();
 
     Console.WriteLine("Nodalis smoke tests passed.");
