@@ -104,10 +104,27 @@ public sealed class GlossaryTextBoxAdorner : Adorner
         int lastLine = _textBox.GetLineIndexFromCharacterIndex(
             lastCharacter);
 
+        int lineCount = _textBox.LineCount;
+
+        if (lineCount <= 0 ||
+            firstLine < 0 ||
+            lastLine < 0 ||
+            firstLine >= lineCount ||
+            lastLine >= lineCount)
+        {
+            return;
+        }
+
         for (int line = firstLine;
              line <= lastLine;
              line++)
         {
+            if (line < 0 ||
+                line >= _textBox.LineCount)
+            {
+                continue;
+            }
+
             int lineStart = _textBox.GetCharacterIndexFromLineIndex(
                 line);
 
