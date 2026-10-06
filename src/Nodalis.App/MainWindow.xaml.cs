@@ -62,6 +62,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceTaskService _taskService;
     private readonly WorkspaceMilestoneService _milestoneService;
     private readonly WorkspaceMeetingService _meetingService;
+    private readonly WorkspaceMeetingExtractionService _meetingExtractionService;
     private readonly WorkspaceDecisionService _decisionService;
     private readonly WorkspaceDocxImportService _docxImportService;
     private readonly WorkspaceMarkdownBulkImportService _markdownBulkImportService;
@@ -127,6 +128,8 @@ public partial class MainWindow : Window
         _milestoneService = new WorkspaceMilestoneService(
             root.FullPath);
         _meetingService = new WorkspaceMeetingService(
+            root.FullPath);
+        _meetingExtractionService = new WorkspaceMeetingExtractionService(
             root.FullPath);
         _decisionService = new WorkspaceDecisionService(
             root.FullPath);
@@ -6428,6 +6431,135 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"Décision · {decision.Title}";
+    }
+
+    /// <summary>
+    /// Opens a deterministic preview for actions and decisions detected in the selected meeting report.
+    /// </summary>
+    /// <returns>A task representing the extraction workflow.</returns>
+    private async Task ExtractMeetingItemsAsync()
+    {
+        if (_selectedNode?.Kind !=
+                WorkspaceNodeKind.Document ||
+            !string.Equals(
+                Path.GetExtension(
+                    _selectedNode.FullPath),
+                ".md",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(
+                this,
+                "Sélectionnez d'abord un compte-rendu Markdown dans une section Réunions.",
+                "Extraire la réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            if (_autosave is not null &&
+                _documentSession is not null &&
+                string.Equals(
+                    Path.GetFullPath(
+                        _documentSession.Path),
+                    Path.GetFullPath(
+                        _selectedNode.FullPath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await _autosave.FlushAsync();
+
+                if (_documentDirty)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Le compte-rendu contient encore des modifications non enregistrées. Enregistrez-les avant l'extraction.",
+                        "Extraire la réunion",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            MeetingExtractionPreview preview =
+                await _meetingExtractionService.PreparePreviewAsync(
+                    _selectedNode.FullPath);
+
+            MeetingExtractionDialog dialog =
+                new MeetingExtractionDialog(
+                    preview)
+                {
+                    Owner =
+                        this
+                };
+
+            if (dialog.ShowDialog() !=
+                    true ||
+                dialog.Request is null)
+            {
+                StatusText.Text =
+                    "Extraction réunion annulée";
+                return;
+            }
+
+            MeetingExtractionResult result =
+                await _meetingExtractionService.ApplyAsync(
+                    preview,
+                    dialog.Request);
+
+            await RefreshNavigationAsync(
+                _selectedNode.FullPath);
+            await RefreshDashboardTasksAsync();
+            await RefreshLinkIndexAndContextAsync();
+
+            StatusText.Text =
+                "Extraction réunion terminée · " +
+                result.PromotedActionCount +
+                " action(s) · " +
+                result.CreatedDecisionCount +
+                " décision(s)";
+
+            MessageBox.Show(
+                this,
+                "Extraction terminée.\n\n" +
+                result.PromotedActionCount +
+                " action(s) promue(s)\n" +
+                result.CreatedDecisionCount +
+                " décision(s) créée(s)\n" +
+                result.SkippedDuplicateCount +
+                " doublon(s) ignoré(s)",
+                "Extraire la réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            TaskSourceConflictException)
+        {
+            MessageBox.Show(
+                this,
+                "L'extraction de la réunion a échoué.\n\n" +
+                exception.Message,
+                "Extraire la réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            StatusText.Text =
+                "Extraction réunion en échec";
+        }
+    }
+
+    /// <summary>
+    /// Handles the meeting extraction toolbar action.
+    /// </summary>
+    private async void ExtractMeeting_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await ExtractMeetingItemsAsync();
     }
 
     /// <summary>
