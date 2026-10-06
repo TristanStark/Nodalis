@@ -6,6 +6,7 @@ using Nodalis.Core.Links;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Quality;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.Infrastructure.Quality;
 
@@ -106,6 +107,11 @@ public sealed class ProjectHealthCheckService
             new List<ProjectHealthIssue>();
 
         CheckRequiredSections(
+            project,
+            fullProjectDirectory,
+            issues);
+
+        CheckSingletonDocumentLayout(
             project,
             fullProjectDirectory,
             issues);
@@ -300,6 +306,50 @@ public sealed class ProjectHealthCheckService
     /// <param name="project">The project manifest.</param>
     /// <param name="projectDirectory">The project root.</param>
     /// <param name="issues">The findings collection.</param>
+    /// <summary>
+    /// Reports legacy Jalons/Glossaire folders that cannot be flattened without user intervention.
+    /// </summary>
+    /// <param name="project">The project manifest.</param>
+    /// <param name="projectDirectory">The project root.</param>
+    /// <param name="issues">The destination findings.</param>
+    private void CheckSingletonDocumentLayout(
+            ProjectManifest project,
+            string projectDirectory,
+            ICollection<ProjectHealthIssue> issues)
+    {
+        foreach (SectionManifest section in project.Sections.Where(section =>
+                     ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                         section.TemplateKey) is not null))
+        {
+            ProjectSingletonDocumentResolution resolution =
+                ProjectSingletonDocumentLayout.Resolve(
+                    projectDirectory,
+                    section,
+                    migrateIfSafe: false);
+
+            if (!resolution.RequiresManualMigration)
+            {
+                continue;
+            }
+
+            string blockingNames =
+                string.Join(
+                    ", ",
+                    resolution.BlockingEntries.Select(
+                        Path.GetFileName));
+
+            issues.Add(
+                CreateIssue(
+                    ProjectHealthSeverity.Warning,
+                    "ROOT_DOCUMENT_MIGRATION_BLOCKED",
+                    $"Le rôle « {section.Name} » utilise encore son ancien dossier car il contient d'autres éléments ({blockingNames}). Déplacez-les explicitement avant de convertir ce rôle en fichier racine.",
+                    NormalizeRelativePath(
+                        Path.GetRelativePath(
+                            _workspaceRoot,
+                            resolution.LegacyDirectoryPath))));
+        }
+    }
+
     private void CheckRequiredSections(
             ProjectManifest project,
             string projectDirectory,
@@ -1402,13 +1452,34 @@ public sealed class ProjectHealthCheckService
             DocumentSnapshot document,
             SectionManifest section)
     {
-        string prefix =
+        string normalized =
+            NormalizeRelativePath(
+                document.ProjectRelativePath);
+        string safeSectionName =
             WindowsPathRules.SanitizeSegment(
-                section.Name) +
-            "/";
+                section.Name);
+        string? rootDocumentFileName =
+            ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                section.TemplateKey);
 
-        return document.ProjectRelativePath.StartsWith(
-            prefix,
+        if (rootDocumentFileName is not null)
+        {
+            return string.Equals(
+                       normalized,
+                       rootDocumentFileName,
+                       StringComparison.CurrentCultureIgnoreCase) ||
+                   string.Equals(
+                       normalized,
+                       safeSectionName +
+                       "/" +
+                       safeSectionName +
+                       ".md",
+                       StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        return normalized.StartsWith(
+            safeSectionName +
+            "/",
             StringComparison.CurrentCultureIgnoreCase);
     }
 

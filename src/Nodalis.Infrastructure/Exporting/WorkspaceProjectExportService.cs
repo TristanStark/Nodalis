@@ -7,6 +7,7 @@ using Nodalis.Core.Domain;
 using Nodalis.Core.Exporting;
 using Nodalis.Core.Markdown;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.Exporting;
@@ -74,28 +75,55 @@ public sealed class WorkspaceProjectExportService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            string sectionDirectory =
-                Path.Combine(
-                    projectRoot,
-                    WindowsPathRules.SanitizeSegment(
-                        section.Name));
+            string? rootDocumentFileName =
+                ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                    section.TemplateKey);
+            string sectionStoragePath;
+            string[] documents;
 
-            string[] documents =
-                Directory.Exists(
-                        sectionDirectory)
-                    ? await Task.Run(
-                        () =>
-                            Directory
-                                .EnumerateFiles(
-                                    sectionDirectory,
-                                    "*.md",
-                                    SearchOption.AllDirectories)
-                                .OrderBy(
-                                    path => path,
-                                    StringComparer.CurrentCultureIgnoreCase)
-                                .ToArray(),
-                        cancellationToken)
-                    : [];
+            if (rootDocumentFileName is not null)
+            {
+                ProjectSingletonDocumentResolution resolution =
+                    ProjectSingletonDocumentLayout.Resolve(
+                        projectRoot,
+                        section,
+                        migrateIfSafe: false);
+
+                sectionStoragePath =
+                    resolution.ActivePath;
+                documents =
+                    File.Exists(
+                        resolution.ActivePath)
+                        ? [resolution.ActivePath]
+                        : [];
+            }
+            else
+            {
+                string sectionDirectory =
+                    Path.Combine(
+                        projectRoot,
+                        WindowsPathRules.SanitizeSegment(
+                            section.Name));
+
+                sectionStoragePath =
+                    sectionDirectory;
+                documents =
+                    Directory.Exists(
+                            sectionDirectory)
+                        ? await Task.Run(
+                            () =>
+                                Directory
+                                    .EnumerateFiles(
+                                        sectionDirectory,
+                                        "*.md",
+                                        SearchOption.AllDirectories)
+                                    .OrderBy(
+                                        path => path,
+                                        StringComparer.CurrentCultureIgnoreCase)
+                                    .ToArray(),
+                            cancellationToken)
+                        : [];
+            }
 
             allDocuments.AddRange(
                 documents);
@@ -115,7 +143,7 @@ public sealed class WorkspaceProjectExportService
                         NormalizeRelativePath(
                             Path.GetRelativePath(
                                 projectRoot,
-                                sectionDirectory))
+                                sectionStoragePath))
                 });
         }
 
@@ -397,11 +425,55 @@ public sealed class WorkspaceProjectExportService
                 ?? throw new InvalidDataException(
                     "Une section sélectionnée n'existe plus.");
 
-            string sectionDirectory =
-                Path.Combine(
-                    projectRoot,
-                    WindowsPathRules.SanitizeSegment(
-                        section.Name));
+            string? rootDocumentFileName =
+                ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                    section.TemplateKey);
+            string sectionDirectory;
+            string[] markdownFiles;
+
+            if (rootDocumentFileName is not null)
+            {
+                ProjectSingletonDocumentResolution resolution =
+                    ProjectSingletonDocumentLayout.Resolve(
+                        projectRoot,
+                        section,
+                        migrateIfSafe: false);
+
+                sectionDirectory =
+                    Path.GetDirectoryName(
+                        resolution.ActivePath) ??
+                    projectRoot;
+                markdownFiles =
+                    File.Exists(
+                        resolution.ActivePath)
+                        ? [resolution.ActivePath]
+                        : [];
+            }
+            else
+            {
+                sectionDirectory =
+                    Path.Combine(
+                        projectRoot,
+                        WindowsPathRules.SanitizeSegment(
+                            section.Name));
+
+                markdownFiles =
+                    Directory.Exists(
+                            sectionDirectory)
+                        ? await Task.Run(
+                            () =>
+                                Directory
+                                    .EnumerateFiles(
+                                        sectionDirectory,
+                                        "*.md",
+                                        SearchOption.AllDirectories)
+                                    .OrderBy(
+                                        path => path,
+                                        StringComparer.CurrentCultureIgnoreCase)
+                                    .ToArray(),
+                            cancellationToken)
+                        : [];
+            }
 
             ExportSectionSnapshot sectionSnapshot =
                 new ExportSectionSnapshot(
@@ -413,26 +485,6 @@ public sealed class WorkspaceProjectExportService
             sections.Add(
                 sectionSnapshot);
 
-            if (!Directory.Exists(
-                    sectionDirectory))
-            {
-                continue;
-            }
-
-            string[] markdownFiles =
-                await Task.Run(
-                    () =>
-                        Directory
-                            .EnumerateFiles(
-                                sectionDirectory,
-                                "*.md",
-                                SearchOption.AllDirectories)
-                            .OrderBy(
-                                path => path,
-                                StringComparer.CurrentCultureIgnoreCase)
-                            .ToArray(),
-                    cancellationToken);
-
             foreach (string markdownPath in markdownFiles)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -443,10 +495,13 @@ public sealed class WorkspaceProjectExportService
                         cancellationToken);
 
                 string relativeWithinSection =
-                    NormalizeRelativePath(
-                        Path.GetRelativePath(
-                            sectionDirectory,
-                            markdownPath));
+                    rootDocumentFileName is not null
+                        ? Path.GetFileName(
+                            markdownPath)
+                        : NormalizeRelativePath(
+                            Path.GetRelativePath(
+                                sectionDirectory,
+                                markdownPath));
 
                 string exportRelativePath =
                     NormalizeRelativePath(

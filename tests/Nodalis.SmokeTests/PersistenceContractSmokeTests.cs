@@ -1,3 +1,4 @@
+using Nodalis.Core.Backups;
 using Nodalis.Core.Contracts;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Links;
@@ -48,6 +49,14 @@ internal static class PersistenceContractSmokeTests
                 "Every 1.0 persistence authority category must be represented.");
         }
 
+        PersistenceContractDefinition projectGlossary =
+            contracts.Single(contract =>
+                contract.Key ==
+                "project-glossary");
+        PersistenceContractDefinition milestones =
+            contracts.Single(contract =>
+                contract.Key ==
+                "markdown-milestones");
         PersistenceContractDefinition targetRegistry =
             contracts.Single(contract =>
                 contract.Key ==
@@ -64,6 +73,22 @@ internal static class PersistenceContractSmokeTests
             contracts.Single(contract =>
                 contract.Key ==
                 "user-preferences");
+
+        Assert(
+            projectGlossary.Location ==
+                "**/Glossaire.md" &&
+            milestones.Location ==
+                "**/Jalons.md#milestone-table",
+            "Jalons and project glossary contracts must remain root Markdown documents, not section directories.");
+
+        Assert(
+            LinkIndexCatalog.CurrentSchemaVersion ==
+                3 &&
+            WorkspaceBackupManifest.CurrentSchemaVersion ==
+                1 &&
+            UserPreferences.CurrentSchemaVersion ==
+                1,
+            "Frozen 1.0 independent persistence schema versions must change only with an explicit contract update.");
 
         Assert(
             targetRegistry.Category ==

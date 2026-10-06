@@ -132,6 +132,16 @@ public static class PersistenceContractCatalog
         },
         new PersistenceContractDefinition
         {
+            Key = "project-glossary",
+            Location = "**/Glossaire.md",
+            Category = PersistenceContractCategory.CanonicalBusinessData,
+            GovernedByWorkspaceSchema = true,
+            Rebuildable = false,
+            IdentityAndRenameInvariant =
+                "The project glossary is the canonical root Glossaire.md document. Legacy Glossaire/Glossaire.md storage may only be flattened automatically when the folder contains no additional useful content."
+        },
+        new PersistenceContractDefinition
+        {
             Key = "markdown-front-matter",
             Location = "**/*.md#front-matter",
             Category = PersistenceContractCategory.CanonicalBusinessData,
@@ -153,7 +163,7 @@ public static class PersistenceContractCatalog
         new PersistenceContractDefinition
         {
             Key = "markdown-milestones",
-            Location = "**/Jalons/*.md#milestone-table",
+            Location = "**/Jalons.md#milestone-table",
             Category = PersistenceContractCategory.CanonicalBusinessData,
             GovernedByWorkspaceSchema = true,
             Rebuildable = false,

@@ -125,11 +125,23 @@ public sealed class FileSystemProjectCreator : IProjectCreator
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                string sectionDirectory = Path.Combine(
-                    stagingDirectory,
-                    WindowsPathRules.SanitizeSegment(section.Name));
+                string? rootDocumentFileName =
+                    ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                        section.TemplateKey);
 
-                Directory.CreateDirectory(sectionDirectory);
+                string sectionDirectory =
+                    rootDocumentFileName is null
+                        ? Path.Combine(
+                            stagingDirectory,
+                            WindowsPathRules.SanitizeSegment(
+                                section.Name))
+                        : stagingDirectory;
+
+                if (rootDocumentFileName is null)
+                {
+                    Directory.CreateDirectory(
+                        sectionDirectory);
+                }
 
                 if (section.TemplateKey is null)
                 {
@@ -153,10 +165,16 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                     variables,
                     cancellationToken);
 
+                string documentFileName =
+                    rootDocumentFileName ??
+                    WindowsPathRules.SanitizeSegment(
+                        section.Name) +
+                    ".md";
+
                 await AtomicFileWriter.WriteAllTextAsync(
                     Path.Combine(
                         sectionDirectory,
-                        WindowsPathRules.SanitizeSegment(section.Name) + ".md"),
+                        documentFileName),
                     content,
                     cancellationToken);
             }

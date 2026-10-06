@@ -217,6 +217,28 @@ public sealed class WorkspaceProjectStructureService
             }
         }
 
+        string? rootDocumentFileName =
+            ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                normalizedTemplateKey);
+
+        if (rootDocumentFileName is not null)
+        {
+            string? requiredRole =
+                ProjectRequiredSectionPolicy.GetRequiredRole(
+                    normalizedTemplateKey);
+
+            if (manifest.Sections.Any(candidate =>
+                    string.Equals(
+                        ProjectRequiredSectionPolicy.GetRequiredRole(
+                            candidate.TemplateKey),
+                        requiredRole,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException(
+                    $"Le rôle projet « {requiredRole} » existe déjà et son document racine est unique.");
+            }
+        }
+
         Guid sectionId =
             Guid.NewGuid();
 
@@ -237,21 +259,43 @@ public sealed class WorkspaceProjectStructureService
             };
 
         string sectionDirectory =
-            ResolveSectionDirectory(
-                directory,
-                section);
+            rootDocumentFileName is null
+                ? ResolveSectionDirectory(
+                    directory,
+                    section)
+                : directory;
+        string? rootDocumentPath =
+            rootDocumentFileName is null
+                ? null
+                : Path.Combine(
+                    directory,
+                    rootDocumentFileName);
 
-        if (Directory.Exists(
-                sectionDirectory) ||
-            File.Exists(
-                sectionDirectory))
+        if (rootDocumentPath is not null)
         {
-            throw new IOException(
-                $"Le chemin de section « {sectionDirectory} » existe déjà.");
+            if (File.Exists(
+                    rootDocumentPath) ||
+                Directory.Exists(
+                    rootDocumentPath))
+            {
+                throw new IOException(
+                    $"Le document racine « {rootDocumentPath} » existe déjà.");
+            }
         }
+        else
+        {
+            if (Directory.Exists(
+                    sectionDirectory) ||
+                File.Exists(
+                    sectionDirectory))
+            {
+                throw new IOException(
+                    $"Le chemin de section « {sectionDirectory} » existe déjà.");
+            }
 
-        Directory.CreateDirectory(
-            sectionDirectory);
+            Directory.CreateDirectory(
+                sectionDirectory);
+        }
 
         try
         {
@@ -270,32 +314,33 @@ public sealed class WorkspaceProjectStructureService
                         variables,
                         cancellationToken);
 
-                await AtomicFileWriter.WriteAllTextAsync(
+                string documentPath =
+                    rootDocumentPath ??
                     Path.Combine(
                         sectionDirectory,
                         WindowsPathRules.SanitizeSegment(
                             normalizedName) +
-                        ".md"),
+                        ".md");
+
+                await AtomicFileWriter.WriteAllTextAsync(
+                    documentPath,
                     rendered,
                     cancellationToken);
             }
-
-            List<SectionManifest> sections =
-                manifest.Sections
-                    .Concat(
-                        new[]
-                        {
-                            section
-                        })
-                    .OrderBy(item =>
-                        item.Order)
-                    .ToList();
 
             ProjectManifest updated =
                 manifest with
                 {
                     Sections =
-                        sections
+                        manifest.Sections
+                            .Concat(
+                                new[]
+                                {
+                                    section
+                                })
+                            .OrderBy(item =>
+                                item.Order)
+                            .ToList()
                 };
 
             ValidateRequiredRoles(
@@ -308,8 +353,17 @@ public sealed class WorkspaceProjectStructureService
         }
         catch
         {
-            if (Directory.Exists(
-                    sectionDirectory))
+            if (rootDocumentPath is not null)
+            {
+                if (File.Exists(
+                        rootDocumentPath))
+                {
+                    File.Delete(
+                        rootDocumentPath);
+                }
+            }
+            else if (Directory.Exists(
+                         sectionDirectory))
             {
                 Directory.Delete(
                     sectionDirectory,
@@ -366,10 +420,16 @@ public sealed class WorkspaceProjectStructureService
             normalizedName,
             sectionId);
 
+        bool isRootDocumentSection =
+            ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                section.TemplateKey) is not null;
+
         string sourceDirectory =
-            ResolveSectionDirectory(
-                directory,
-                section);
+            isRootDocumentSection
+                ? directory
+                : ResolveSectionDirectory(
+                    directory,
+                    section);
 
         SectionManifest renamed =
             section with
@@ -379,11 +439,14 @@ public sealed class WorkspaceProjectStructureService
             };
 
         string destinationDirectory =
-            ResolveSectionDirectory(
-                directory,
-                renamed);
+            isRootDocumentSection
+                ? directory
+                : ResolveSectionDirectory(
+                    directory,
+                    renamed);
 
         bool directoryMoved =
+            !isRootDocumentSection &&
             !string.Equals(
                 sourceDirectory,
                 destinationDirectory,
@@ -635,11 +698,10 @@ public sealed class WorkspaceProjectStructureService
 
         SectionManifest? sourceSection =
             manifest.Sections.FirstOrDefault(section =>
-                IsInsideOrEqual(
-                    source,
-                    ResolveSectionDirectory(
-                        directory,
-                        section)));
+                IsDocumentInSection(
+                    directory,
+                    section,
+                    source));
 
         if (sourceSection is null)
         {
@@ -656,6 +718,15 @@ public sealed class WorkspaceProjectStructureService
             targetSection.Id)
         {
             return source;
+        }
+
+        if (ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                sourceSection.TemplateKey) is not null ||
+            ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                targetSection.TemplateKey) is not null)
+        {
+            throw new InvalidOperationException(
+                "Jalons.md et Glossaire.md sont des documents racine canoniques et ne peuvent pas être déplacés entre sections.");
         }
 
         string targetDirectory =
@@ -756,6 +827,13 @@ public sealed class WorkspaceProjectStructureService
                 throw new InvalidOperationException(
                     $"La section « {section.Name} » assure le rôle minimal « {requiredRole} » et ne peut pas être supprimée.");
             }
+        }
+
+        if (ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                section.TemplateKey) is not null)
+        {
+            throw new InvalidOperationException(
+                "Les rôles Jalons et Glossaire sont des documents racine protégés et ne peuvent pas être supprimés comme des dossiers de section.");
         }
 
         string sourceDirectory =
@@ -968,29 +1046,59 @@ public sealed class WorkspaceProjectStructureService
             string projectDirectory,
             SectionManifest section)
     {
-        string sectionDirectory =
-            ResolveSectionDirectory(
-                projectDirectory,
-                section);
+        string? rootDocumentFileName =
+            ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                section.TemplateKey);
 
-        string[] documents =
-            Directory.Exists(
-                    sectionDirectory)
-                ? Directory
-                    .EnumerateFiles(
-                        sectionDirectory,
-                        "*.md",
-                        SearchOption.AllDirectories)
-                    .Select(path =>
-                        NormalizeRelativePath(
-                            Path.GetRelativePath(
-                                sectionDirectory,
-                                path)))
-                    .OrderBy(
-                        path => path,
-                        StringComparer.CurrentCultureIgnoreCase)
-                    .ToArray()
-                : [];
+        string sectionDirectory;
+        string[] documents;
+
+        if (rootDocumentFileName is not null)
+        {
+            ProjectSingletonDocumentResolution resolution =
+                ProjectSingletonDocumentLayout.Resolve(
+                    projectDirectory,
+                    section,
+                    migrateIfSafe: true);
+
+            sectionDirectory =
+                Path.GetDirectoryName(
+                    resolution.ActivePath) ??
+                projectDirectory;
+
+            documents =
+                File.Exists(
+                    resolution.ActivePath)
+                    ? [Path.GetFileName(
+                        resolution.ActivePath)]
+                    : [];
+        }
+        else
+        {
+            sectionDirectory =
+                ResolveSectionDirectory(
+                    projectDirectory,
+                    section);
+
+            documents =
+                Directory.Exists(
+                        sectionDirectory)
+                    ? Directory
+                        .EnumerateFiles(
+                            sectionDirectory,
+                            "*.md",
+                            SearchOption.AllDirectories)
+                        .Select(path =>
+                            NormalizeRelativePath(
+                                Path.GetRelativePath(
+                                    sectionDirectory,
+                                    path)))
+                        .OrderBy(
+                            path => path,
+                            StringComparer.CurrentCultureIgnoreCase)
+                        .ToArray()
+                    : [];
+        }
 
         return new ProjectSectionState
         {
@@ -1123,6 +1231,45 @@ public sealed class WorkspaceProjectStructureService
     /// <param name="projectDirectory">The project directory.</param>
     /// <param name="section">The section manifest.</param>
     /// <returns>The absolute directory path.</returns>
+    /// <summary>
+    /// Determines whether a Markdown document belongs to one logical project section.
+    /// </summary>
+    /// <param name="projectDirectory">The project root.</param>
+    /// <param name="section">The logical section.</param>
+    /// <param name="documentPath">The absolute document path.</param>
+    /// <returns>Whether the document is stored by the section.</returns>
+    private static bool IsDocumentInSection(
+            string projectDirectory,
+            SectionManifest section,
+            string documentPath)
+    {
+        string? rootDocumentFileName =
+            ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                section.TemplateKey);
+
+        if (rootDocumentFileName is not null)
+        {
+            ProjectSingletonDocumentResolution resolution =
+                ProjectSingletonDocumentLayout.Resolve(
+                    projectDirectory,
+                    section,
+                    migrateIfSafe: true);
+
+            return string.Equals(
+                Path.GetFullPath(
+                    documentPath),
+                Path.GetFullPath(
+                    resolution.ActivePath),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        return IsInsideOrEqual(
+            documentPath,
+            ResolveSectionDirectory(
+                projectDirectory,
+                section));
+    }
+
     private static string ResolveSectionDirectory(
             string projectDirectory,
             SectionManifest section) =>

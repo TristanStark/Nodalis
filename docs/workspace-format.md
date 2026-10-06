@@ -52,8 +52,7 @@ PRISE DE NOTE/
                 ├── .project.json
                 ├── Notes rapides.md
                 ├── Glossaire.md
-                ├── Jalons/
-                │   └── Jalons.md
+                ├── Jalons.md
                 ├── Technique/
                 │   ├── recette.md
                 │   ├── cuisson.md

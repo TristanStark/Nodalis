@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Quality;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.Infrastructure.Quality;
 
@@ -233,16 +234,12 @@ public sealed partial class ProjectCoverageAnalysisService
     {
         foreach (SectionManifest section in project.Sections)
         {
-            string safeName =
-                WindowsPathRules.SanitizeSegment(
-                    section.Name);
-
             List<DocumentSnapshot> sectionDocuments =
                 documents
                     .Where(document =>
-                        IsInTopLevelDirectory(
+                        IsDocumentInSection(
                             document.ProjectRelativePath,
-                            safeName))
+                            section))
                     .ToList();
 
             int meaningfulCharacters =
@@ -333,10 +330,9 @@ public sealed partial class ProjectCoverageAnalysisService
             documents
                 .Where(document =>
                     testSections.Any(section =>
-                        IsInTopLevelDirectory(
+                        IsDocumentInSection(
                             document.ProjectRelativePath,
-                            WindowsPathRules.SanitizeSegment(
-                                section.Name))))
+                            section)))
                 .ToList();
 
         string testCorpus =
@@ -654,13 +650,9 @@ public sealed partial class ProjectCoverageAnalysisService
             documents
                 .Where(document =>
                     glossarySections.Any(section =>
-                        IsInTopLevelDirectory(
+                        IsDocumentInSection(
                             document.ProjectRelativePath,
-                            WindowsPathRules.SanitizeSegment(
-                                section.Name))) ||
-                    document.ProjectRelativePath.Contains(
-                        "Glossaire",
-                        StringComparison.CurrentCultureIgnoreCase))
+                            section)))
                 .ToList();
 
         HashSet<string> glossaryTokens =
@@ -1318,6 +1310,46 @@ public sealed partial class ProjectCoverageAnalysisService
     /// <param name="relativePath">Project-relative path.</param>
     /// <param name="directoryName">Section directory name.</param>
     /// <returns>Whether the path is in that section.</returns>
+    /// <summary>
+    /// Determines whether one project-relative document belongs to a logical section.
+    /// </summary>
+    /// <param name="relativePath">Project-relative document path.</param>
+    /// <param name="section">The section manifest.</param>
+    /// <returns>Whether the document belongs to the section.</returns>
+    private static bool IsDocumentInSection(
+            string relativePath,
+            SectionManifest section)
+    {
+        string normalized =
+            NormalizeRelativePath(
+                relativePath);
+        string safeSectionName =
+            WindowsPathRules.SanitizeSegment(
+                section.Name);
+        string? rootDocumentFileName =
+            ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                section.TemplateKey);
+
+        if (rootDocumentFileName is not null)
+        {
+            return string.Equals(
+                       normalized,
+                       rootDocumentFileName,
+                       StringComparison.CurrentCultureIgnoreCase) ||
+                   string.Equals(
+                       normalized,
+                       safeSectionName +
+                       "/" +
+                       safeSectionName +
+                       ".md",
+                       StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        return IsInTopLevelDirectory(
+            normalized,
+            safeSectionName);
+    }
+
     private static bool IsInTopLevelDirectory(
             string relativePath,
             string directoryName)

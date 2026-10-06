@@ -2,6 +2,7 @@ using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Reliability;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.Infrastructure.Reliability;
 
@@ -366,27 +367,92 @@ public sealed partial class WorkspaceIntegrityDiagnosticService
 
             foreach (SectionManifest section in manifest.Sections)
             {
-                string expectedDirectory = Path.Combine(
-                    projectDirectory,
-                    WindowsPathRules.SanitizeSegment(section.Name));
+                string? rootDocumentFileName =
+                    ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                        section.TemplateKey);
 
-                declaredSectionDirectories.Add(Path.GetFullPath(expectedDirectory));
+                if (rootDocumentFileName is not null)
+                {
+                    ProjectSingletonDocumentResolution resolution =
+                        ProjectSingletonDocumentLayout.Resolve(
+                            projectDirectory,
+                            section,
+                            migrateIfSafe: false);
+
+                    if (!string.Equals(
+                            Path.GetDirectoryName(
+                                resolution.ActivePath),
+                            projectDirectory,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        declaredSectionDirectories.Add(
+                            Path.GetFullPath(
+                                resolution.LegacyDirectoryPath));
+                    }
+
+                    AddIdentity(
+                        identities,
+                        section.Id,
+                        "section",
+                        section.Name,
+                        NormalizeRelativePath(
+                            resolution.ActivePath),
+                        $"section:{manifest.Id:D}");
+
+                    if (!File.Exists(
+                            resolution.ActivePath))
+                    {
+                        issues.Add(CreateIssue(
+                            WorkspaceIntegritySeverity.Error,
+                            "SECTION_DOCUMENT_MISSING",
+                            $"Le rôle « {section.Name} » est déclaré dans le projet mais son document racine est absent.",
+                            NormalizeRelativePath(
+                                resolution.PreferredPath),
+                            section.Id));
+                    }
+
+                    if (resolution.RequiresManualMigration)
+                    {
+                        issues.Add(CreateIssue(
+                            WorkspaceIntegritySeverity.Warning,
+                            "ROOT_DOCUMENT_MIGRATION_BLOCKED",
+                            $"L'ancien dossier « {section.Name} » contient d'autres éléments et ne peut pas être aplati automatiquement sans décision utilisateur.",
+                            NormalizeRelativePath(
+                                resolution.LegacyDirectoryPath),
+                            section.Id));
+                    }
+
+                    continue;
+                }
+
+                string expectedDirectory =
+                    Path.Combine(
+                        projectDirectory,
+                        WindowsPathRules.SanitizeSegment(
+                            section.Name));
+
+                declaredSectionDirectories.Add(
+                    Path.GetFullPath(
+                        expectedDirectory));
 
                 AddIdentity(
                     identities,
                     section.Id,
                     "section",
                     section.Name,
-                    NormalizeRelativePath(expectedDirectory),
+                    NormalizeRelativePath(
+                        expectedDirectory),
                     $"section:{manifest.Id:D}");
 
-                if (!Directory.Exists(expectedDirectory))
+                if (!Directory.Exists(
+                        expectedDirectory))
                 {
                     issues.Add(CreateIssue(
                         WorkspaceIntegritySeverity.Error,
                         "SECTION_DIRECTORY_MISSING",
                         $"La section « {section.Name} » est déclarée dans le projet mais son dossier est absent.",
-                        NormalizeRelativePath(expectedDirectory),
+                        NormalizeRelativePath(
+                            expectedDirectory),
                         section.Id));
                 }
             }

@@ -496,11 +496,33 @@ static async Task VerifyProjectCreationAsync(string root)
         overview.Contains("RTC: WI-456", StringComparison.Ordinal),
         "Business links must be copied into the project overview.");
 
-    foreach (string requiredSection in new[] { "Jalons", "Technique", "Glossaire", "Tests" })
+    Assert(
+        File.Exists(
+            Path.Combine(
+                result.ProjectDirectory,
+                "Jalons.md")) &&
+        File.Exists(
+            Path.Combine(
+                result.ProjectDirectory,
+                WorkspaceLayout.GlobalGlossaryFileName)) &&
+        !Directory.Exists(
+            Path.Combine(
+                result.ProjectDirectory,
+                "Jalons")) &&
+        !Directory.Exists(
+            Path.Combine(
+                result.ProjectDirectory,
+                "Glossaire")),
+        "Jalons and project glossary must be root Markdown documents, never default section directories.");
+
+    foreach (string requiredDirectory in new[] { "Technique", "Tests" })
     {
         Assert(
-            Directory.Exists(Path.Combine(result.ProjectDirectory, requiredSection)),
-            $"Project profile must create the '{requiredSection}' section.");
+            Directory.Exists(
+                Path.Combine(
+                    result.ProjectDirectory,
+                    requiredDirectory)),
+            $"Project profile must create the '{requiredDirectory}' directory-backed section.");
     }
 
     global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Projects.ProjectCreationTarget> refreshedTargets = await discovery.DiscoverAsync(root);
@@ -522,6 +544,96 @@ static async Task VerifyProjectCreationAsync(string root)
                 result.ProjectDirectory,
                 WorkspaceLayout.SubProjectsDirectoryName),
         "Sub-projects must be created under the selected parent project.");
+
+    string childMilestonesRoot =
+        Path.Combine(
+            child.ProjectDirectory,
+            "Jalons.md");
+    string childMilestonesDirectory =
+        Path.Combine(
+            child.ProjectDirectory,
+            "Jalons");
+    string childMilestonesLegacy =
+        Path.Combine(
+            childMilestonesDirectory,
+            "Jalons.md");
+
+    Directory.CreateDirectory(
+        childMilestonesDirectory);
+    File.Move(
+        childMilestonesRoot,
+        childMilestonesLegacy);
+
+    global::Nodalis.Infrastructure.Projects.ProjectSingletonDocumentResolution migratedMilestones =
+        global::Nodalis.Infrastructure.Projects.ProjectSingletonDocumentLayout.Resolve(
+            child.ProjectDirectory,
+            "Jalons",
+            "milestones",
+            migrateIfSafe: true);
+
+    Assert(
+        migratedMilestones.Migrated &&
+        File.Exists(
+            childMilestonesRoot) &&
+        !Directory.Exists(
+            childMilestonesDirectory),
+        "A legacy singleton folder containing only its canonical document must migrate losslessly to the project root.");
+
+    string childGlossaryRoot =
+        Path.Combine(
+            child.ProjectDirectory,
+            WorkspaceLayout.GlobalGlossaryFileName);
+    string childGlossaryDirectory =
+        Path.Combine(
+            child.ProjectDirectory,
+            "Glossaire");
+    string childGlossaryLegacy =
+        Path.Combine(
+            childGlossaryDirectory,
+            WorkspaceLayout.GlobalGlossaryFileName);
+    string childGlossaryExtra =
+        Path.Combine(
+            childGlossaryDirectory,
+            "Conserver.md");
+
+    Directory.CreateDirectory(
+        childGlossaryDirectory);
+    File.Move(
+        childGlossaryRoot,
+        childGlossaryLegacy);
+    await File.WriteAllTextAsync(
+        childGlossaryExtra,
+        "# À conserver\n");
+
+    global::Nodalis.Infrastructure.Projects.ProjectSingletonDocumentResolution blockedGlossary =
+        global::Nodalis.Infrastructure.Projects.ProjectSingletonDocumentLayout.Resolve(
+            child.ProjectDirectory,
+            "Glossaire",
+            "glossary",
+            migrateIfSafe: true);
+
+    Assert(
+        blockedGlossary.RequiresManualMigration &&
+        File.Exists(
+            childGlossaryLegacy) &&
+        File.Exists(
+            childGlossaryExtra) &&
+        !File.Exists(
+            childGlossaryRoot),
+        "A legacy singleton folder with additional useful content must never be deleted or flattened silently.");
+
+    global::Nodalis.Infrastructure.Quality.ProjectHealthCheckService healthService =
+        new global::Nodalis.Infrastructure.Quality.ProjectHealthCheckService(
+            root);
+    global::Nodalis.Core.Quality.ProjectHealthReport healthReport =
+        await healthService.ScanAsync(
+            child.ProjectDirectory);
+
+    Assert(
+        healthReport.Issues.Any(issue =>
+            issue.Code ==
+            "ROOT_DOCUMENT_MIGRATION_BLOCKED"),
+        "Blocked legacy singleton migration must be surfaced as a project health warning.");
 }
 
 static async Task VerifyProjectStructureAsync(string root)
@@ -552,6 +664,40 @@ static async Task VerifyProjectStructureAsync(string root)
                     role,
                     StringComparison.OrdinalIgnoreCase))),
         "Project structure management must recognize the four protected logical roles.");
+
+    global::Nodalis.Core.Projects.ProjectSectionState milestonesSection =
+        initial.Sections.Single(section =>
+            string.Equals(
+                section.TemplateKey,
+                "milestones",
+                StringComparison.OrdinalIgnoreCase));
+    global::Nodalis.Core.Projects.ProjectSectionState glossarySection =
+        initial.Sections.Single(section =>
+            string.Equals(
+                section.TemplateKey,
+                "glossary",
+                StringComparison.OrdinalIgnoreCase));
+
+    Assert(
+        string.Equals(
+            milestonesSection.DirectoryPath,
+            projectDirectory,
+            StringComparison.OrdinalIgnoreCase) &&
+        milestonesSection.Documents.SequenceEqual(
+            new[]
+            {
+                "Jalons.md"
+            }) &&
+        string.Equals(
+            glossarySection.DirectoryPath,
+            projectDirectory,
+            StringComparison.OrdinalIgnoreCase) &&
+        glossarySection.Documents.SequenceEqual(
+            new[]
+            {
+                WorkspaceLayout.GlobalGlossaryFileName
+            }),
+        "Project structure state must represent Jalons and Glossaire as root documents.");
 
     global::Nodalis.Core.Projects.ProjectSectionState custom =
         await service.AddSectionAsync(
@@ -635,6 +781,38 @@ static async Task VerifyProjectStructureAsync(string root)
         projectNode.Children.First(child =>
             child.Kind == WorkspaceNodeKind.Section).DisplayName == "Support interne",
         "Workspace navigation must honor manifest section order and logical display names.");
+
+    Assert(
+        projectNode.Children.Any(child =>
+            child.Kind ==
+                WorkspaceNodeKind.Document &&
+            string.Equals(
+                child.FullPath,
+                Path.Combine(
+                    projectDirectory,
+                    "Jalons.md"),
+                StringComparison.OrdinalIgnoreCase)) &&
+        projectNode.Children.Any(child =>
+            child.Kind ==
+                WorkspaceNodeKind.Document &&
+            string.Equals(
+                child.FullPath,
+                Path.Combine(
+                    projectDirectory,
+                    WorkspaceLayout.GlobalGlossaryFileName),
+                StringComparison.OrdinalIgnoreCase)) &&
+        !projectNode.Children.Any(child =>
+            child.Kind ==
+                WorkspaceNodeKind.Section &&
+            (string.Equals(
+                 child.DisplayName,
+                 "Jalons",
+                 StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(
+                 child.DisplayName,
+                 "Glossaire",
+                 StringComparison.OrdinalIgnoreCase))),
+        "Workspace navigation must expose Jalons.md and Glossaire.md as root documents rather than folders.");
 
     string documentToMove =
         Path.Combine(

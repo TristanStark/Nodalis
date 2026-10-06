@@ -6,6 +6,7 @@ using Nodalis.Core.Links;
 using Nodalis.Core.Milestones;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.Milestones;
@@ -510,38 +511,46 @@ public sealed class WorkspaceMilestoneService
             string projectDirectory,
             CancellationToken cancellationToken)
     {
-        string manifestPath = Path.Combine(
-            projectDirectory,
-            WorkspaceLayout.ProjectManifestFileName);
+        string manifestPath =
+            Path.Combine(
+                projectDirectory,
+                WorkspaceLayout.ProjectManifestFileName);
 
-        if (File.Exists(manifestPath))
+        if (File.Exists(
+                manifestPath))
         {
-            global::Nodalis.Core.Domain.ProjectManifest manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
-                manifestPath,
-                cancellationToken);
+            ProjectManifest manifest =
+                await AtomicJsonFile.ReadAsync<ProjectManifest>(
+                    manifestPath,
+                    cancellationToken);
 
-            global::Nodalis.Core.Domain.SectionManifest? section = manifest.Sections.FirstOrDefault(candidate =>
-                string.Equals(
-                    candidate.TemplateKey,
-                    "milestones",
-                    StringComparison.OrdinalIgnoreCase));
+            SectionManifest? section =
+                manifest.Sections.FirstOrDefault(candidate =>
+                    string.Equals(
+                        candidate.TemplateKey,
+                        "milestones",
+                        StringComparison.OrdinalIgnoreCase));
 
             if (section is not null)
             {
-                string safeName = WindowsPathRules.SanitizeSegment(
-                    section.Name);
+                ProjectSingletonDocumentResolution resolution =
+                    ProjectSingletonDocumentLayout.Resolve(
+                        projectDirectory,
+                        section,
+                        migrateIfSafe: true);
 
-                return Path.Combine(
-                    projectDirectory,
-                    safeName,
-                    safeName + ".md");
+                return resolution.ActivePath;
             }
         }
 
-        return Path.Combine(
-            projectDirectory,
-            "Jalons",
-            "Jalons.md");
+        ProjectSingletonDocumentResolution fallback =
+            ProjectSingletonDocumentLayout.Resolve(
+                projectDirectory,
+                "Jalons",
+                "milestones",
+                migrateIfSafe: true);
+
+        return fallback.ActivePath;
     }
 
     /// <summary>

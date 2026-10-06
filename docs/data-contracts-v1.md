@@ -23,7 +23,7 @@ Certains formats techniques ont leur version indépendante :
 | Contrat | Version 1.0 |
 | --- | ---: |
 | Workspace métier | 1 |
-| Index de liens .nodalis-links.json | 2 |
+| Index de liens .nodalis-links.json | 3 |
 | Manifest de backup .nodalis-backup.json | 1 |
 | Préférences utilisateur | 1 |
 
@@ -146,6 +146,11 @@ Les rôles minimaux Jalons, Technique, Glossaire et Tests sont identifiés par l
 politique de section du projet. Un renommage d'une section ne doit pas créer un
 nouvel id.
 
+Dans le format 1.0, **Jalons et Glossaire sont des rôles logiques mais pas des
+dossiers physiques** : leur contenu canonique est stocké directement à la racine
+du projet dans `Jalons.md` et `Glossaire.md`. Technique, Tests et les autres
+sections restent des dossiers sauf évolution explicite de leur contrat.
+
 ## 4. Documents Markdown
 
 Le texte Markdown est la donnée canonique. Un document sans front matter est
@@ -195,7 +200,7 @@ tâches, calendrier ou kanban ne devient jamais une seconde source de vérité.
 
 ### Jalons
 
-Les jalons restent dans le document Markdown de la section Jalons. Les objets
+Les jalons restent dans le document racine `Jalons.md` du projet. Les objets
 MilestoneItem sont des projections de lecture. Le nom, la date cible, le statut,
 la description, le lien et les dépendances doivent pouvoir être retrouvés depuis
 le Markdown source.
@@ -303,6 +308,15 @@ preferences.json possède son propre schemaVersion 1 et peut contenir notamment 
 
 Ces valeurs peuvent être normalisées ou bornées au chargement. Leur absence ou
 leur perte ne doit pas rendre le workspace invalide.
+
+### Compatibilité avec l'ancien layout Jalons/Glossaire
+
+Les anciens chemins `Jalons/Jalons.md` et `Glossaire/Glossaire.md` sont
+reconnus pour permettre une migration sans perte. Nodalis peut déplacer
+automatiquement le document à la racine et supprimer l'ancien dossier uniquement
+si ce dossier ne contient aucun autre élément utile. Si du contenu supplémentaire
+est présent, il est conservé, le document historique reste utilisé et un
+diagnostic doit signaler qu'une décision utilisateur est nécessaire.
 
 ## 9. Invariants de renommage et déplacement
 
