@@ -101,6 +101,15 @@ public partial class MainWindow : Window
     private IReadOnlyList<GlossaryScope> _glossaryScopes = [];
     private IReadOnlyList<GlossaryEntry> _glossaryEntries = [];
     private IReadOnlyList<GlossaryTextMatch> _glossaryMatches = [];
+    private readonly ToolTip _glossaryToolTip = new ToolTip
+    {
+        StaysOpen = true,
+        Placement =
+            global::System.Windows.Controls.Primitives.PlacementMode.Mouse,
+        HorizontalOffset = 12,
+        VerticalOffset = 16
+    };
+    private GlossaryEntry? _hoveredGlossaryEntry;
 
     /// <summary>
     /// Initializes a new instance of <see cref="MainWindow"/>.
@@ -1391,10 +1400,29 @@ public partial class MainWindow : Window
     private async Task OpenDocumentAsync(
             NavigationNodeViewModel node)
     {
+        NavigationNodeViewModel targetNode =
+            ResolveMigratedSingletonDocumentNode(
+                node.FullPath) ??
+            node;
+
+        if (!ReferenceEquals(
+                targetNode,
+                node))
+        {
+            _selectedNode =
+                targetNode;
+            _restoringSelection =
+                true;
+            targetNode.IsSelected =
+                true;
+            _restoringSelection =
+                false;
+        }
+
         try
         {
             await OpenOrActivateDocumentTabAsync(
-                node);
+                targetNode);
         }
         catch (Exception exception) when (
             exception is IOException or
@@ -1442,7 +1470,7 @@ public partial class MainWindow : Window
         ContextBrokenLinksText.Text = "Liens internes : —";
         _glossaryMatches = [];
         _glossaryAdorner?.SetMatches([]);
-        MarkdownEditorTextBox.ToolTip = null;
+        CloseGlossaryToolTip();
 
         StatusText.Text =
             $"{GetKindLabel(node.Kind)} · {node.Children.Count} élément(s)";
@@ -1489,7 +1517,7 @@ public partial class MainWindow : Window
             "Liens internes : —";
         _glossaryMatches = [];
         _glossaryAdorner?.SetMatches([]);
-        MarkdownEditorTextBox.ToolTip = null;
+        CloseGlossaryToolTip();
 
         try
         {
@@ -4343,6 +4371,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "task.new",
+                Title = "Nouvelle tâche",
+                Subtitle = "Créer une tâche Markdown dans le projet courant",
+                Keywords = ["nouvelle", "tâche", "task", "action", "créer", "projet"],
+                ExecuteAsync = CreateTaskFromPaletteAsync
+            },
+            new()
+            {
                 Id = "tasks.context",
                 Title = "Tâches du contexte",
                 Subtitle = "Projet / Application / Global selon la sélection",
@@ -4525,13 +4561,54 @@ public partial class MainWindow : Window
             object sender,
             MouseEventArgs e)
     {
-        global::Nodalis.Core.Glossary.GlossaryTextMatch? match = FindGlossaryMatchAtPoint(
-            e.GetPosition(MarkdownEditorTextBox));
+        global::Nodalis.Core.Glossary.GlossaryTextMatch? match =
+            FindGlossaryMatchAtPoint(
+                e.GetPosition(
+                    MarkdownEditorTextBox));
 
-        MarkdownEditorTextBox.ToolTip =
-            match is null
-                ? null
-                : $"{match.Entry.Term}\n{match.Entry.Definition}\n\n{match.Entry.Scope.DisplayName}\nDouble-cliquer pour ouvrir.";
+        if (match is null)
+        {
+            CloseGlossaryToolTip();
+            return;
+        }
+
+        if (!ReferenceEquals(
+                _hoveredGlossaryEntry,
+                match.Entry))
+        {
+            _glossaryToolTip.IsOpen =
+                false;
+            _hoveredGlossaryEntry =
+                match.Entry;
+            _glossaryToolTip.Content =
+                $"{match.Entry.Term}\n{match.Entry.Definition}\n\n{match.Entry.Scope.DisplayName}\nDouble-cliquer pour ouvrir.";
+        }
+
+        _glossaryToolTip.PlacementTarget =
+            MarkdownEditorTextBox;
+        _glossaryToolTip.IsOpen =
+            true;
+    }
+
+    /// <summary>
+    /// Closes the glossary definition tooltip when the pointer leaves the editor.
+    /// </summary>
+    /// <param name="sender">The editor text box.</param>
+    /// <param name="e">The mouse event.</param>
+    private void MarkdownEditorTextBox_MouseLeave(
+            object sender,
+            MouseEventArgs e) =>
+        CloseGlossaryToolTip();
+
+    /// <summary>
+    /// Closes the manually controlled glossary tooltip and clears hover state.
+    /// </summary>
+    private void CloseGlossaryToolTip()
+    {
+        _glossaryToolTip.IsOpen =
+            false;
+        _hoveredGlossaryEntry =
+            null;
     }
 
     /// <summary>
@@ -5323,6 +5400,87 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
+    }
+
+    /// <summary>
+    /// Opens the task creation dialog for the project containing the current selection.
+    /// </summary>
+    /// <returns>A task representing task creation.</returns>
+    private async Task CreateTaskFromPaletteAsync()
+    {
+        NavigationNodeViewModel? project =
+            ResolveSelectedProjectForHealthCheck();
+
+        if (project is null)
+        {
+            MessageBox.Show(
+                this,
+                "Sélectionnez d'abord un projet ou un document appartenant à un projet.",
+                "Nouvelle tâche",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        global::Nodalis.App.Dialogs.TaskCreationDialog dialog =
+            new TaskCreationDialog
+            {
+                Owner =
+                    this
+            };
+
+        if (dialog.ShowDialog() !=
+                true ||
+            dialog.Metadata is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await CreateTaskFromViewAsync(
+                project.FullPath,
+                dialog.TaskText,
+                dialog.Metadata);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            TaskSourceConflictException)
+        {
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Nouvelle tâche",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Creates a task from the grouped main-toolbar action.
+    /// </summary>
+    /// <param name="sender">The menu item.</param>
+    /// <param name="e">The routed event.</param>
+    private async void NewTask_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await CreateTaskFromPaletteAsync();
+    }
+
+    /// <summary>
+    /// Opens project milestones from the grouped main-toolbar action.
+    /// </summary>
+    /// <param name="sender">The menu item.</param>
+    /// <param name="e">The routed event.</param>
+    private async void ShowMilestones_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await ShowMilestonesAsync();
     }
 
     /// <summary>

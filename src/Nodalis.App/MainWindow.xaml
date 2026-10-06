@@ -61,63 +61,85 @@
                         Click="CommandPalette_Click"
                         Content="Ctrl+P · Command Palette" />
 
-                <StackPanel Grid.Column="2"
-                            Orientation="Horizontal"
-                            VerticalAlignment="Center">
-                    <Button Margin="0,0,8,0"
-                            Click="OpenUpdate_Click"
-                            Content="Mise à jour" />
-                    <Button Margin="0,0,8,0"
-                            Click="RollbackUpdate_Click"
-                            Content="Rollback" />
-                    <Button Margin="0,0,8,0"
-                            Click="OpenBackups_Click"
-                            Content="Sauvegardes" />
-                    <Button Margin="0,0,8,0"
-                            Click="OpenDiagnostics_Click"
-                            Content="Diagnostics" />
-                    <Button Margin="0,0,8,0"
-                            Click="OpenTemplateEditor_Click"
-                            Content="Templates" />
-                    <Button Margin="0,0,8,0"
-                            Click="ToggleContextPanel_Click"
-                            Content="Contexte" />
-                    <Button Margin="0,0,8,0"
-                            Click="ShowQuickNotes_Click"
-                            Content="Notes rapides" />
-                    <Button Margin="0,0,8,0"
-                            Click="ShowDailyNotes_Click"
-                            Content="Journal" />
-                    <Button Margin="0,0,8,0"
-                            Click="CaptureQuickNote_Click"
-                            Content="Note rapide  Ctrl+Alt+N" />
-                    <Button Margin="0,0,8,0"
-                            Click="ExtractMeeting_Click"
-                            Content="Extraire réunion" />
-                    <Button Margin="0,0,8,0"
-                            Click="SummarizeMeetingAi_Click"
-                            Content="Résumé réunion IA" />
-                    <Button Margin="0,0,8,0"
-                            Click="ChallengeWithAi_Click"
-                            Content="Challenger IA" />
-                    <Button Margin="0,0,8,0"
-                            Click="GenerateTestsWithAi_Click"
-                            Content="Générer tests IA" />
-                    <Button Margin="0,0,8,0"
-                            Click="ImportDocx_Click"
-                            Content="Importer DOCX" />
-                    <Button Margin="0,0,8,0"
-                            Click="ImportMarkdown_Click"
-                            Content="Importer Markdown" />
-                    <Button Margin="0,0,8,0"
-                            Click="ExportProject_Click"
-                            Content="Exporter projet" />
-                    <Button Margin="0,0,8,0"
-                            Click="NewProject_Click"
-                            Content="Nouveau projet  Ctrl+Shift+N" />
-                    <Button Click="NewNote_Click"
-                            Content="Nouvelle note  Ctrl+N" />
-                </StackPanel>
+                <Menu Grid.Column="2"
+                      VerticalAlignment="Center"
+                      Background="Transparent">
+                    <MenuItem Header="Créer">
+                        <MenuItem Header="Nouvelle note"
+                                  Click="NewNote_Click" />
+                        <MenuItem Header="Nouveau projet"
+                                  Click="NewProject_Click" />
+                        <MenuItem Header="Nouvelle tâche"
+                                  Click="NewTask_Click" />
+                        <Separator />
+                        <MenuItem Header="Note rapide"
+                                  Click="CaptureQuickNote_Click" />
+                        <MenuItem Header="Extraire une réunion"
+                                  Click="ExtractMeeting_Click" />
+                    </MenuItem>
+
+                    <MenuItem Header="Pilotage">
+                        <MenuItem Header="Tâches"
+                                  Click="ShowAllTasks_Click" />
+                        <MenuItem Header="Jalons"
+                                  Click="ShowMilestones_Click" />
+                        <MenuItem Header="Calendrier"
+                                  Click="OpenWorkspaceCalendar_Click" />
+                        <MenuItem Header="Kanban"
+                                  Click="OpenWorkspaceKanban_Click" />
+                        <Separator />
+                        <MenuItem Header="Health check projet"
+                                  Click="OpenProjectHealth_Click" />
+                        <MenuItem Header="Couverture &amp; cohérence"
+                                  Click="OpenProjectCoverage_Click" />
+                    </MenuItem>
+
+                    <MenuItem Header="Connaissance">
+                        <MenuItem Header="Notes rapides"
+                                  Click="ShowQuickNotes_Click" />
+                        <MenuItem Header="Journal"
+                                  Click="ShowDailyNotes_Click" />
+                        <MenuItem Header="Panneau Contexte"
+                                  Click="ToggleContextPanel_Click" />
+                        <Separator />
+                        <MenuItem Header="Templates"
+                                  Click="OpenTemplateEditor_Click" />
+                    </MenuItem>
+
+                    <MenuItem Header="Données">
+                        <MenuItem Header="Importer DOCX"
+                                  Click="ImportDocx_Click" />
+                        <MenuItem Header="Importer Markdown"
+                                  Click="ImportMarkdown_Click" />
+                        <MenuItem Header="Exporter le projet"
+                                  Click="ExportProject_Click" />
+                    </MenuItem>
+
+                    <MenuItem Header="IA locale">
+                        <MenuItem Header="Résumé réunion IA"
+                                  Click="SummarizeMeetingAi_Click" />
+                        <MenuItem Header="Challenger IA"
+                                  Click="ChallengeWithAi_Click" />
+                        <MenuItem Header="Générer tests IA"
+                                  Click="GenerateTestsWithAi_Click" />
+                    </MenuItem>
+
+                    <MenuItem Header="Système">
+                        <MenuItem Header="Mise à jour"
+                                  Click="OpenUpdate_Click" />
+                        <MenuItem Header="Rollback"
+                                  Click="RollbackUpdate_Click" />
+                        <Separator />
+                        <MenuItem Header="Sauvegardes"
+                                  Click="OpenBackups_Click" />
+                        <MenuItem Header="Diagnostics"
+                                  Click="OpenDiagnostics_Click" />
+                        <MenuItem Header="Diagnostic workspace"
+                                  Click="OpenWorkspaceIntegrity_Click" />
+                        <MenuItem Header="Corbeille"
+                                  Click="OpenTrash_Click" />
+                    </MenuItem>
+                </Menu>
             </Grid>
         </Border>
 
@@ -166,6 +188,9 @@
 
                     <TreeView x:Name="NavigationTree"
                               ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              HorizontalContentAlignment="Stretch"
                               VirtualizingStackPanel.IsVirtualizing="True"
                               VirtualizingStackPanel.VirtualizationMode="Recycling"
                               SelectedItemChanged="NavigationTree_SelectedItemChanged"
@@ -376,6 +401,7 @@
                                  TextChanged="MarkdownEditorTextBox_TextChanged"
                                  GotKeyboardFocus="PrimaryMarkdownEditorTextBox_GotKeyboardFocus"
                                  PreviewMouseMove="MarkdownEditorTextBox_PreviewMouseMove"
+                                 MouseLeave="MarkdownEditorTextBox_MouseLeave"
                                  MouseDoubleClick="MarkdownEditorTextBox_MouseDoubleClick"
                                  PreviewMouseRightButtonDown="MarkdownEditorTextBox_PreviewMouseRightButtonDown"
                                  ContextMenuOpening="MarkdownEditorTextBox_ContextMenuOpening"

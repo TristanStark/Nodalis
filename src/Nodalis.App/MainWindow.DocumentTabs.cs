@@ -812,15 +812,130 @@ public partial class MainWindow
             return null;
         }
 
+        NavigationNodeViewModel? byPath =
+            _root
+                .DescendantsAndSelf()
+                .FirstOrDefault(node =>
+                    node.Kind == WorkspaceNodeKind.Document &&
+                    string.Equals(
+                        Path.GetFullPath(
+                            node.FullPath),
+                        fullPath,
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (byPath is not null)
+        {
+            return byPath;
+        }
+
+        return ResolveMigratedSingletonDocumentNode(
+            fullPath);
+    }
+
+    /// <summary>
+    /// Resolves an obsolete project singleton path such as Jalons/Jalons.md or
+    /// Glossaire/Glossaire.md to its canonical project-root document.
+    /// </summary>
+    /// <param name="legacyPath">The possibly obsolete document path.</param>
+    /// <returns>The canonical navigation node, or <see langword="null"/> when no migration applies.</returns>
+    private NavigationNodeViewModel? ResolveMigratedSingletonDocumentNode(
+            string legacyPath)
+    {
+        string? migratedPath =
+            TryResolveMigratedSingletonDocumentPath(
+                legacyPath);
+
+        if (migratedPath is null)
+        {
+            return null;
+        }
+
         return _root
             .DescendantsAndSelf()
             .FirstOrDefault(node =>
-                node.Kind == WorkspaceNodeKind.Document &&
+                node.Kind ==
+                    WorkspaceNodeKind.Document &&
                 string.Equals(
                     Path.GetFullPath(
                         node.FullPath),
-                    fullPath,
+                    migratedPath,
                     StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Maps the legacy folder-backed singleton roles to the 1.0 project-root files.
+    /// </summary>
+    /// <param name="legacyPath">The legacy file path.</param>
+    /// <returns>The canonical existing path, or <see langword="null"/>.</returns>
+    private static string? TryResolveMigratedSingletonDocumentPath(
+            string legacyPath)
+    {
+        string fullPath =
+            Path.GetFullPath(
+                legacyPath);
+
+        if (File.Exists(
+                fullPath))
+        {
+            return null;
+        }
+
+        string? legacyDirectory =
+            Path.GetDirectoryName(
+                fullPath);
+
+        if (string.IsNullOrWhiteSpace(
+                legacyDirectory))
+        {
+            return null;
+        }
+
+        string roleName =
+            Path.GetFileName(
+                legacyDirectory);
+        string fileNameWithoutExtension =
+            Path.GetFileNameWithoutExtension(
+                fullPath);
+
+        bool singletonRole =
+            string.Equals(
+                roleName,
+                "Jalons",
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                roleName,
+                "Glossaire",
+                StringComparison.OrdinalIgnoreCase);
+
+        if (!singletonRole ||
+            !string.Equals(
+                roleName,
+                fileNameWithoutExtension,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        string? projectDirectory =
+            Directory.GetParent(
+                legacyDirectory)?.FullName;
+
+        if (string.IsNullOrWhiteSpace(
+                projectDirectory))
+        {
+            return null;
+        }
+
+        string canonicalPath =
+            Path.GetFullPath(
+                Path.Combine(
+                    projectDirectory,
+                    roleName + ".md"));
+
+        return File.Exists(
+                canonicalPath)
+            ? canonicalPath
+            : null;
     }
 
     /// <summary>
