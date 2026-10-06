@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using Nodalis.Core.Compatibility;
 using Nodalis.Core.Migrations;
@@ -8,6 +9,7 @@ using Nodalis.Infrastructure.Compatibility;
 using Nodalis.Infrastructure.Migrations;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Settings;
 using Nodalis.Infrastructure.Templates;
 
@@ -15,7 +17,9 @@ namespace Nodalis.App;
 
 public partial class App : Application
 {
+    private readonly LocalDiagnosticsService _diagnosticsService = new();
     private ReadOnlyWorkspaceSnapshot? _readOnlyWorkspaceSnapshot;
+    private bool _fatalExceptionObserved;
 
     /// <summary>
     /// Performs the <c>OnStartup</c> operation.
@@ -24,6 +28,11 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        _diagnosticsService.StartSession();
+        DispatcherUnhandledException += App_DispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+        TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
 
         EventManager.RegisterClassHandler(
             typeof(Window),
@@ -81,6 +90,8 @@ public partial class App : Application
 
             if (!access.Value.IsReadOnly)
             {
+                _diagnosticsService.RecoverOrphanedAtomicWriteFiles(
+                    access.Value.EffectiveWorkspacePath);
                 await templateStore.InitializeDefaultsAsync();
             }
 
@@ -107,6 +118,7 @@ public partial class App : Application
                 preferences,
                 preferencesStore,
                 templateStore,
+                _diagnosticsService,
                 access.Value.IsReadOnly,
                 access.Value.AccessMessage);
 
@@ -125,6 +137,11 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
+            _fatalExceptionObserved = true;
+            _diagnosticsService.LogException(
+                "Démarrage de Nodalis",
+                exception);
+
             MessageBox.Show(
                 $"Nodalis n'a pas pu démarrer.\n\n{exception.Message}",
                 "Erreur Nodalis",
@@ -133,6 +150,78 @@ public partial class App : Application
 
             Shutdown(-1);
         }
+    }
+
+    /// <summary>
+    /// Marks a clean application exit when no fatal exception was observed.
+    /// </summary>
+    /// <param name="e">The exit event arguments.</param>
+    protected override void OnExit(
+            ExitEventArgs e)
+    {
+        DispatcherUnhandledException -= App_DispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException -= CurrentDomain_UnhandledException;
+        TaskScheduler.UnobservedTaskException -= TaskScheduler_UnobservedTaskException;
+
+        if (!_fatalExceptionObserved)
+        {
+            _diagnosticsService.MarkCleanShutdown();
+        }
+
+        base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Journals an unhandled WPF dispatcher exception without masking the fatal error.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The unhandled exception arguments.</param>
+    private void App_DispatcherUnhandledException(
+            object sender,
+            DispatcherUnhandledExceptionEventArgs e)
+    {
+        _fatalExceptionObserved = true;
+        _diagnosticsService.LogException(
+            "Exception WPF non gérée",
+            e.Exception);
+    }
+
+    /// <summary>
+    /// Journals an unhandled .NET domain exception.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The unhandled exception arguments.</param>
+    private void CurrentDomain_UnhandledException(
+            object sender,
+            UnhandledExceptionEventArgs e)
+    {
+        _fatalExceptionObserved = true;
+
+        if (e.ExceptionObject is Exception exception)
+        {
+            _diagnosticsService.LogException(
+                "Exception .NET non gérée",
+                exception);
+            return;
+        }
+
+        _diagnosticsService.LogInformation(
+            $"Exception .NET non gérée non typée : {e.ExceptionObject}");
+    }
+
+    /// <summary>
+    /// Journals an unobserved task exception and marks it observed after capture.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The task exception arguments.</param>
+    private void TaskScheduler_UnobservedTaskException(
+            object? sender,
+            UnobservedTaskExceptionEventArgs e)
+    {
+        _diagnosticsService.LogException(
+            "Exception de tâche non observée",
+            e.Exception);
+        e.SetObserved();
     }
 
     /// <summary>
