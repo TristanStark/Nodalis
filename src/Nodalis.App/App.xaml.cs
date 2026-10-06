@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using Nodalis.App.Commands;
 using Nodalis.Core.Compatibility;
 using Nodalis.Core.Migrations;
 using Nodalis.Core.Settings;
@@ -43,6 +44,8 @@ public partial class App : Application
 
         try
         {
+            ShortcutCatalog.ValidateUniqueBindings();
+
             if (e.Args.Any(argument =>
                     string.Equals(
                         argument,
@@ -50,10 +53,12 @@ public partial class App : Application
                         StringComparison.OrdinalIgnoreCase)))
             {
                 if (TryFindResource(
-                        "NodalisWindowStyle") is not Style)
+                        "NodalisWindowStyle") is not Style ||
+                    TryFindResource(
+                        "NodalisKeyboardFocusVisual") is not Style)
                 {
                     throw new InvalidOperationException(
-                        "Le thème WPF Nodalis n'a pas pu être chargé.");
+                        "Le thème WPF Nodalis ou ses styles d'accessibilité n'ont pas pu être chargés.");
                 }
 
                 Shutdown(0);

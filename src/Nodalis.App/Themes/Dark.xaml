@@ -25,6 +25,28 @@
     <SolidColorBrush x:Key="AccentMutedBrush" Color="{StaticResource AccentMutedColor}" />
 
     <!--
+        Keyboard focus must remain obvious independently from the Windows theme.
+        Focus visuals are drawn outside control templates so custom menus and
+        stock WPF controls share the same high-contrast keyboard affordance.
+    -->
+    <Style x:Key="NodalisKeyboardFocusVisual"
+           TargetType="{x:Type Control}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border BorderBrush="{StaticResource AccentBrush}"
+                            BorderThickness="2"
+                            CornerRadius="3"
+                            Margin="1"
+                            SnapsToDevicePixels="True">
+                        <AdornedElementPlaceholder />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
         Several stock WPF templates still resolve SystemColors instead of the
         control's Background/Foreground properties. Override the application
         resources so detached popup trees (menus, combo boxes, calendars) keep
@@ -60,6 +82,14 @@
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="FontFamily" Value="Segoe UI" />
         <Setter Property="FontSize" Value="14" />
+        <Setter Property="MinWidth" Value="360" />
+        <Setter Property="MinHeight" Value="240" />
+        <Setter Property="UseLayoutRounding" Value="True" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="KeyboardNavigation.TabNavigation" Value="Cycle" />
+        <Setter Property="KeyboardNavigation.ControlTabNavigation" Value="Cycle" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
     </Style>
 
     <Style TargetType="{x:Type Window}"
@@ -74,6 +104,8 @@
     </Style>
 
     <Style TargetType="Button">
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
@@ -94,6 +126,8 @@
     </Style>
 
     <Style TargetType="TextBox">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="CaretBrush" Value="{StaticResource PrimaryTextBrush}" />
@@ -111,6 +145,8 @@
     </Style>
 
     <Style TargetType="ComboBox">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
@@ -127,6 +163,7 @@
     </Style>
 
     <Style TargetType="ComboBoxItem">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="Padding" Value="8,5" />
@@ -147,6 +184,7 @@
     </Style>
 
     <Style TargetType="TabItem">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
@@ -163,6 +201,8 @@
     </Style>
 
     <Style TargetType="DatePicker">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
@@ -182,6 +222,7 @@
     </Style>
 
     <Style TargetType="{x:Type primitives:CalendarDayButton}">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
@@ -200,6 +241,7 @@
     </Style>
 
     <Style TargetType="{x:Type primitives:CalendarButton}">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
@@ -220,7 +262,24 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Padding" Value="3" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource AccentMutedBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="Background" Value="{StaticResource AccentMutedBrush}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
+
+    <Style TargetType="ListView"
+           BasedOn="{StaticResource {x:Type ListBox}}" />
+
+    <Style TargetType="ListViewItem"
+           BasedOn="{StaticResource {x:Type ListBoxItem}}" />
 
     <Style TargetType="TreeView">
         <Setter Property="Background" Value="Transparent" />
@@ -229,15 +288,30 @@
     </Style>
 
     <Style TargetType="TreeViewItem">
+        <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-        <Setter Property="Padding" Value="2" />
+        <Setter Property="Padding" Value="3" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource AccentMutedBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="Background" Value="{StaticResource AccentMutedBrush}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="CheckBox">
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
     </Style>
 
     <Style TargetType="RadioButton">
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
     </Style>
 
@@ -277,6 +351,7 @@
         the root context menu and nested submenus inside the Nodalis palette.
     -->
     <Style TargetType="{x:Type MenuItem}">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="Transparent" />
@@ -381,5 +456,6 @@
         <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="MaxWidth" Value="520" />
     </Style>
 </ResourceDictionary>

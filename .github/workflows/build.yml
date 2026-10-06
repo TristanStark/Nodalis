@@ -26,6 +26,10 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-constraints.ps1
 
+      - name: Verify WPF accessibility baseline
+        shell: pwsh
+        run: ./scripts/verify-accessibility.ps1
+
       - name: Verify C# code style
         run: dotnet run --project tools/Nodalis.CodeStyle/Nodalis.CodeStyle.csproj --configuration Release -- --check
 
