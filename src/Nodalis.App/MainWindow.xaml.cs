@@ -19,6 +19,7 @@ using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Abstractions;
 using Nodalis.Core.Decisions;
+using Nodalis.Core.Exporting;
 using Nodalis.Core.Glossary;
 using Nodalis.Core.Importing;
 using Nodalis.Core.Links;
@@ -35,6 +36,7 @@ using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Backups;
 using Nodalis.Infrastructure.Decisions;
 using Nodalis.Infrastructure.Documents;
+using Nodalis.Infrastructure.Exporting;
 using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Importing;
 using Nodalis.Infrastructure.Links;
@@ -63,6 +65,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceDecisionService _decisionService;
     private readonly WorkspaceDocxImportService _docxImportService;
     private readonly WorkspaceMarkdownBulkImportService _markdownBulkImportService;
+    private readonly WorkspaceProjectExportService _projectExportService;
     private readonly WorkspaceTrashService _trashService;
     private readonly WorkspaceBackupService _backupService;
     private readonly DispatcherTimer _previewTimer;
@@ -130,6 +133,8 @@ public partial class MainWindow : Window
         _docxImportService = new WorkspaceDocxImportService(
             root.FullPath);
         _markdownBulkImportService = new WorkspaceMarkdownBulkImportService(
+            root.FullPath);
+        _projectExportService = new WorkspaceProjectExportService(
             root.FullPath);
         _trashService = new WorkspaceTrashService(
             root.FullPath);
@@ -2239,6 +2244,18 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Opens the consolidated project export workflow.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void ExportProject_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await ExportProjectAsync();
+    }
+
+    /// <summary>
     /// Performs the <c>ShowAllTasks_Click</c> operation.
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
@@ -4073,6 +4090,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.export",
+                Title = "Exporter le projet",
+                Subtitle = "Markdown portable, HTML autonome ou DOCX consolidé",
+                Keywords = ["export", "markdown", "html", "docx", "portable", "archive"],
+                ExecuteAsync = ExportProjectAsync
+            },
+            new()
+            {
                 Id = "tasks.context",
                 Title = "Tâches du contexte",
                 Subtitle = "Projet / Application / Global selon la sélection",
@@ -5679,6 +5704,172 @@ public partial class MainWindow : Window
             StatusText.Text =
                 "Import Markdown en échec";
         }
+    }
+
+    /// <summary>
+    /// Exports the currently selected project to one or more external portable formats.
+    /// </summary>
+    /// <returns>A task representing the export workflow.</returns>
+    private async Task ExportProjectAsync()
+    {
+        string? projectDirectory =
+            FindSelectedProjectDirectory();
+
+        if (string.IsNullOrWhiteSpace(
+                projectDirectory))
+        {
+            MessageBox.Show(
+                this,
+                "Sélectionnez un projet, une section ou un document appartenant au projet à exporter.",
+                "Export projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            StatusText.Text =
+                "Export projet · analyse en lecture seule…";
+
+            ProjectExportPreview preview =
+                await _projectExportService.PreparePreviewAsync(
+                    projectDirectory);
+
+            ProjectExportDialog dialog =
+                new ProjectExportDialog(
+                    preview)
+                {
+                    Owner =
+                        this
+                };
+
+            if (dialog.ShowDialog() !=
+                    true ||
+                dialog.ExportRequest is null)
+            {
+                StatusText.Text =
+                    "Export projet annulé";
+                return;
+            }
+
+            StatusText.Text =
+                "Export projet · génération des formats…";
+
+            ProjectExportResult result =
+                await _projectExportService.ExportAsync(
+                    preview,
+                    dialog.ExportRequest);
+
+            StatusText.Text =
+                "Export projet terminé · " +
+                result.ExportedDocumentCount +
+                " document(s) · " +
+                result.OutputPaths.Count +
+                " sortie(s) créée(s)";
+
+            MessageBox.Show(
+                this,
+                "Export terminé.\n\n" +
+                string.Join(
+                    Environment.NewLine,
+                    result.OutputPaths),
+                "Export projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            ArgumentException)
+        {
+            MessageBox.Show(
+                this,
+                "Le projet n'a pas pu être exporté.\n\n" +
+                exception.Message,
+                "Export projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            StatusText.Text =
+                "Export projet en échec";
+        }
+    }
+
+    /// <summary>
+    /// Finds the closest project directory that owns the current navigation selection.
+    /// </summary>
+    /// <returns>The project directory, or <see langword="null"/> when the selection is outside a project.</returns>
+    private string? FindSelectedProjectDirectory()
+    {
+        if (_selectedNode is null)
+        {
+            return null;
+        }
+
+        string candidate =
+            File.Exists(
+                    _selectedNode.FullPath)
+                ? Path.GetDirectoryName(
+                      _selectedNode.FullPath) ??
+                  _selectedNode.FullPath
+                : _selectedNode.FullPath;
+
+        string workspaceRoot =
+            Path.GetFullPath(
+                _root.FullPath);
+
+        while (!string.IsNullOrWhiteSpace(
+                   candidate))
+        {
+            string fullCandidate =
+                Path.GetFullPath(
+                    candidate);
+
+            if (!fullCandidate.StartsWith(
+                    workspaceRoot,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (File.Exists(
+                    Path.Combine(
+                        fullCandidate,
+                        WorkspaceLayout.ProjectManifestFileName)))
+            {
+                return fullCandidate;
+            }
+
+            if (string.Equals(
+                    fullCandidate,
+                    workspaceRoot,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            string? parent =
+                Path.GetDirectoryName(
+                    fullCandidate);
+
+            if (string.IsNullOrWhiteSpace(
+                    parent) ||
+                string.Equals(
+                    parent,
+                    fullCandidate,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            candidate =
+                parent;
+        }
+
+        return null;
     }
 
     /// <summary>
