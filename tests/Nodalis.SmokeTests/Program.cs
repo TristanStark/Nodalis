@@ -88,6 +88,7 @@ try
     await VerifyUserPreferencesAsync(root);
     await VerifyLocalReleasePackageAsync(root);
     await UpdaterRecoverySmokeTests.RunAsync(root);
+    CrashDiagnosticsSmokeTests.Run(root);
     await VerifyDocumentReliabilityAsync(root);
     await WorkspaceIntegritySmokeTests.RunAsync(root);
     await ProjectHealthSmokeTests.RunAsync(root);
