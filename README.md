@@ -72,7 +72,7 @@ Vérifier les contraintes :
 ./scripts/verify-constraints.ps1
 ```
 
-Smoke tests sans framework tiers :
+Suite de régression sans framework tiers (incluant les fixtures Small / Medium / Large) :
 
 ```powershell
 dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj -c Release
@@ -99,5 +99,5 @@ Les données utilisateur sont séparées du dossier de l'application : remplacer
 version portable de Nodalis ne modifie pas le workspace. Voir
 `docs/README-UTILISATEUR.md` pour les instructions d'installation et de mise à jour.
 
-Voir `docs/architecture.md`, `docs/workspace-format.md` et
-`docs/project-profiles.md` pour les décisions de conception actuelles.
+Voir `docs/architecture.md`, `docs/workspace-format.md`, `docs/project-profiles.md` et
+`docs/regression-testing.md` pour les décisions de conception et la couverture de régression actuelles.

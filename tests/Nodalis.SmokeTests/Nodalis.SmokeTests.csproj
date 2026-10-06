@@ -10,4 +10,7 @@
     <ProjectReference Include="..\..\src\Nodalis.Infrastructure\Nodalis.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Nodalis.Updater\Nodalis.Updater.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Fixtures\workspace-fixtures.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

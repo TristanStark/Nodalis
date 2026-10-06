@@ -50,13 +50,17 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-constraints.ps1
 
+      - name: Verify WPF accessibility baseline
+        shell: pwsh
+        run: ./scripts/verify-accessibility.ps1
+
       - name: Restore
         run: dotnet restore Nodalis.sln
 
       - name: Build
         run: dotnet build Nodalis.sln --configuration Release --no-restore
 
-      - name: Run zero-dependency smoke tests
+      - name: Run zero-dependency regression suite
         run: dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj --configuration Release --no-build
 
       - name: Build portable package

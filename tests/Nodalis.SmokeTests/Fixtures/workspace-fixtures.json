@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Small",
+    "documentCount": 8,
+    "bodyCharacters": 256
+  },
+  {
+    "name": "Medium",
+    "documentCount": 64,
+    "bodyCharacters": 1024
+  },
+  {
+    "name": "Large",
+    "documentCount": 256,
+    "bodyCharacters": 4096
+  }
+]

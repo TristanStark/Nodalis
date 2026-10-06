@@ -62,6 +62,7 @@ try
     await VerifyWorkspaceBackupsAsync(root);
     await WorkspaceMigrationSmokeTests.RunAsync(root);
     await WorkspaceCompatibilitySmokeTests.RunAsync(root);
+    await WorkspaceRegressionFixtureSmokeTests.RunAsync(root);
     await VerifyQuickNotesAsync(root);
     await VerifyDailyNotesAsync(root);
     await VerifySearchAsync(root);
@@ -102,7 +103,7 @@ try
     PersistenceContractSmokeTests.Run();
     VerifyDomainCatalog();
 
-    Console.WriteLine("Nodalis smoke tests passed.");
+    Console.WriteLine("Nodalis regression suite passed.");
     return;
 }
 finally
