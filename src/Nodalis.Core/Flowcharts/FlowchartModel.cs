@@ -12,7 +12,12 @@ public enum FlowchartNodeShape
 {
     Rectangle,
     Rounded,
-    Decision
+    Decision,
+    Circle,
+    Database,
+    Subroutine,
+    Stadium,
+    Hexagon
 }
 
 public enum FlowchartDiagnosticSeverity

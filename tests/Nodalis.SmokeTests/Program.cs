@@ -4388,6 +4388,64 @@ static void VerifyFlowcharts()
             $"Flowchart layout {pair.Key} must follow the requested orientation.");
     }
 
+    global::Nodalis.Core.Flowcharts.FlowchartParseResult extended =
+        MermaidFlowchartParser.Parse(
+            "FLOWCHART LR\n" +
+            "Start@{ shape: stadium, label: \"Début\" }; Process[[Traitement]]\n" +
+            "Store[(Données)]\n" +
+            "Choice{{Choix}}\n" +
+            "Done((Fin))\n" +
+            "Start --> Process --> Store\n" +
+            "Store -.->|valide| Choice\n" +
+            "Choice --- Done");
+
+    Assert(
+        extended.Success &&
+        extended.Diagram is not null,
+        "Expanded Mermaid node definitions and chained links must parse locally.");
+
+    global::Nodalis.Core.Flowcharts.FlowchartDefinition extendedDiagram =
+        extended.Diagram ??
+        throw new InvalidOperationException(
+            "Expanded Mermaid syntax did not produce a diagram.");
+
+    Assert(
+        extendedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "Start").Shape ==
+            FlowchartNodeShape.Stadium &&
+        extendedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "Process").Shape ==
+            FlowchartNodeShape.Subroutine &&
+        extendedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "Store").Shape ==
+            FlowchartNodeShape.Database &&
+        extendedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "Choice").Shape ==
+            FlowchartNodeShape.Hexagon &&
+        extendedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "Done").Shape ==
+            FlowchartNodeShape.Circle,
+        "Common Mermaid node definitions must retain their native shape.");
+
+    Assert(
+        extendedDiagram.Edges.Count ==
+            4 &&
+        extendedDiagram.Edges.Any(edge =>
+            edge.Label ==
+            "valide") &&
+        extendedDiagram.Edges.Any(edge =>
+            edge.SourceId ==
+                "Choice" &&
+            edge.TargetId ==
+                "Done" &&
+            !edge.HasArrow),
+        "Chained, dotted, labelled and undirected Mermaid links must remain connected.");
+
     global::Nodalis.Core.Flowcharts.FlowchartParseResult invalid =
         MermaidFlowchartParser.Parse(
             "flowchart TD\nA -->|Libellé incomplet B");

@@ -11,6 +11,12 @@ public static class FlowchartLayoutEngine
     private const double RectangleHeight = 72;
     private const double DecisionWidth = 170;
     private const double DecisionHeight = 100;
+    private const double CircleSize = 110;
+    private const double DatabaseHeight = 88;
+    private const double SubroutineWidth = 190;
+    private const double HexagonHeight = 82;
+    private const double MaximumNodeWidth = 190;
+    private const double MaximumNodeHeight = 110;
     private const double LayerGap = 110;
     private const double SiblingGap = 46;
 
@@ -280,7 +286,7 @@ public static class FlowchartLayoutEngine
             double y =
                 Margin +
                 visualRank *
-                (DecisionHeight + LayerGap);
+                (MaximumNodeHeight + LayerGap);
 
             foreach (FlowchartNodeDefinition node in
                      layer)
@@ -298,7 +304,7 @@ public static class FlowchartLayoutEngine
                             x,
                         Y =
                             y +
-                            (DecisionHeight - size.Height) /
+                            (MaximumNodeHeight - size.Height) /
                             2,
                         Width =
                             size.Width,
@@ -353,7 +359,7 @@ public static class FlowchartLayoutEngine
             double x =
                 Margin +
                 visualRank *
-                (RectangleWidth + LayerGap);
+                (MaximumNodeWidth + LayerGap);
             double y =
                 Margin +
                 (tallestLayer - layerHeight) /
@@ -373,7 +379,7 @@ public static class FlowchartLayoutEngine
                             node,
                         X =
                             x +
-                            (RectangleWidth - size.Width) /
+                            (MaximumNodeWidth - size.Width) /
                             2,
                         Y =
                             y,
@@ -612,8 +618,19 @@ public static class FlowchartLayoutEngine
     /// <returns>The node width and height.</returns>
     private static (double Width, double Height) GetNodeSize(
             FlowchartNodeDefinition node) =>
-        node.Shape ==
-        FlowchartNodeShape.Decision
-            ? (DecisionWidth, DecisionHeight)
-            : (RectangleWidth, RectangleHeight);
+        node.Shape switch
+        {
+            FlowchartNodeShape.Decision =>
+                (DecisionWidth, DecisionHeight),
+            FlowchartNodeShape.Circle =>
+                (CircleSize, CircleSize),
+            FlowchartNodeShape.Database =>
+                (RectangleWidth, DatabaseHeight),
+            FlowchartNodeShape.Subroutine =>
+                (SubroutineWidth, RectangleHeight),
+            FlowchartNodeShape.Hexagon =>
+                (RectangleWidth, HexagonHeight),
+            _ =>
+                (RectangleWidth, RectangleHeight)
+        };
 }

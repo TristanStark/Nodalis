@@ -39,9 +39,9 @@ public sealed class FlowchartPreviewSurface : Grid
             diagnostics);
 
         MinHeight =
-            260;
+            320;
         MaxHeight =
-            560;
+            720;
         Margin =
             new Thickness(
                 0,
@@ -470,78 +470,225 @@ public sealed class FlowchartPreviewSurface : Grid
                 "PrimaryTextBrush",
                 Brushes.White);
 
-        if (layoutNode.Node.Shape ==
-            FlowchartNodeShape.Decision)
+        switch (layoutNode.Node.Shape)
         {
-            Polygon diamond =
-                new Polygon
-                {
-                    Fill =
-                        background,
-                    Stroke =
-                        border,
-                    StrokeThickness =
-                        1.7,
-                    Points =
-                    [
-                        new Point(
-                            layoutNode.Width / 2,
-                            0),
-                        new Point(
+            case FlowchartNodeShape.Decision:
+                Polygon diamond =
+                    new Polygon
+                    {
+                        Fill =
+                            background,
+                        Stroke =
+                            border,
+                        StrokeThickness =
+                            1.7,
+                        Points =
+                        [
+                            new Point(
+                                layoutNode.Width / 2,
+                                0),
+                            new Point(
+                                layoutNode.Width,
+                                layoutNode.Height / 2),
+                            new Point(
+                                layoutNode.Width / 2,
+                                layoutNode.Height),
+                            new Point(
+                                0,
+                                layoutNode.Height / 2)
+                        ]
+                    };
+
+                canvas.Children.Add(
+                    diamond);
+                Canvas.SetLeft(
+                    diamond,
+                    layoutNode.X);
+                Canvas.SetTop(
+                    diamond,
+                    layoutNode.Y);
+                break;
+
+            case FlowchartNodeShape.Circle:
+                Ellipse circle =
+                    new Ellipse
+                    {
+                        Width =
                             layoutNode.Width,
-                            layoutNode.Height / 2),
-                        new Point(
-                            layoutNode.Width / 2,
-                            layoutNode.Height),
-                        new Point(
-                            0,
-                            layoutNode.Height / 2)
-                    ]
-                };
+                        Height =
+                            layoutNode.Height,
+                        Fill =
+                            background,
+                        Stroke =
+                            border,
+                        StrokeThickness =
+                            1.7
+                    };
 
-            canvas.Children.Add(
-                diamond);
-            Canvas.SetLeft(
-                diamond,
-                layoutNode.X);
-            Canvas.SetTop(
-                diamond,
-                layoutNode.Y);
-        }
-        else
-        {
-            Border rectangle =
-                new Border
-                {
-                    Width =
-                        layoutNode.Width,
-                    Height =
-                        layoutNode.Height,
-                    Background =
-                        background,
-                    BorderBrush =
-                        border,
-                    BorderThickness =
-                        new Thickness(
-                            1.7),
-                    CornerRadius =
-                        layoutNode.Node.Shape ==
-                        FlowchartNodeShape.Rounded
-                            ? new CornerRadius(
-                                18)
-                            : new CornerRadius(
+                canvas.Children.Add(
+                    circle);
+                Canvas.SetLeft(
+                    circle,
+                    layoutNode.X);
+                Canvas.SetTop(
+                    circle,
+                    layoutNode.Y);
+                break;
+
+            case FlowchartNodeShape.Hexagon:
+                Polygon hexagon =
+                    new Polygon
+                    {
+                        Fill =
+                            background,
+                        Stroke =
+                            border,
+                        StrokeThickness =
+                            1.7,
+                        Points =
+                        [
+                            new Point(
+                                layoutNode.Width * 0.18,
+                                0),
+                            new Point(
+                                layoutNode.Width * 0.82,
+                                0),
+                            new Point(
+                                layoutNode.Width,
+                                layoutNode.Height / 2),
+                            new Point(
+                                layoutNode.Width * 0.82,
+                                layoutNode.Height),
+                            new Point(
+                                layoutNode.Width * 0.18,
+                                layoutNode.Height),
+                            new Point(
+                                0,
+                                layoutNode.Height / 2)
+                        ]
+                    };
+
+                canvas.Children.Add(
+                    hexagon);
+                Canvas.SetLeft(
+                    hexagon,
+                    layoutNode.X);
+                Canvas.SetTop(
+                    hexagon,
+                    layoutNode.Y);
+                break;
+
+            default:
+                CornerRadius radius =
+                    layoutNode.Node.Shape switch
+                    {
+                        FlowchartNodeShape.Rounded =>
+                            new CornerRadius(
+                                18),
+                        FlowchartNodeShape.Stadium =>
+                            new CornerRadius(
+                                layoutNode.Height / 2),
+                        FlowchartNodeShape.Database =>
+                            new CornerRadius(
+                                18),
+                        _ =>
+                            new CornerRadius(
                                 4)
-                };
+                    };
 
-            canvas.Children.Add(
-                rectangle);
-            Canvas.SetLeft(
-                rectangle,
-                layoutNode.X);
-            Canvas.SetTop(
-                rectangle,
-                layoutNode.Y);
+                Border rectangle =
+                    new Border
+                    {
+                        Width =
+                            layoutNode.Width,
+                        Height =
+                            layoutNode.Height,
+                        Background =
+                            background,
+                        BorderBrush =
+                            border,
+                        BorderThickness =
+                            new Thickness(
+                                1.7),
+                        CornerRadius =
+                            radius
+                    };
+
+                canvas.Children.Add(
+                    rectangle);
+                Canvas.SetLeft(
+                    rectangle,
+                    layoutNode.X);
+                Canvas.SetTop(
+                    rectangle,
+                    layoutNode.Y);
+
+                if (layoutNode.Node.Shape ==
+                    FlowchartNodeShape.Subroutine)
+                {
+                    double[] offsets =
+                    [
+                        14,
+                        layoutNode.Width - 14
+                    ];
+
+                    foreach (double offset in
+                             offsets)
+                    {
+                        Line separator =
+                            new Line
+                            {
+                                X1 =
+                                    layoutNode.X + offset,
+                                X2 =
+                                    layoutNode.X + offset,
+                                Y1 =
+                                    layoutNode.Y,
+                                Y2 =
+                                    layoutNode.Y + layoutNode.Height,
+                                Stroke =
+                                    border,
+                                StrokeThickness =
+                                    1.2
+                            };
+
+                        canvas.Children.Add(
+                            separator);
+                    }
+                }
+                else if (layoutNode.Node.Shape ==
+                         FlowchartNodeShape.Database)
+                {
+                    Line cylinderLine =
+                        new Line
+                        {
+                            X1 =
+                                layoutNode.X + 10,
+                            X2 =
+                                layoutNode.X + layoutNode.Width - 10,
+                            Y1 =
+                                layoutNode.Y + 18,
+                            Y2 =
+                                layoutNode.Y + 18,
+                            Stroke =
+                                border,
+                            StrokeThickness =
+                                1.2
+                        };
+
+                    canvas.Children.Add(
+                        cylinderLine);
+                }
+
+                break;
         }
+
+        double horizontalInset =
+            layoutNode.Node.Shape is
+                FlowchartNodeShape.Decision or
+                FlowchartNodeShape.Hexagon
+                ? 30
+                : 14;
 
         TextBlock label =
             new TextBlock
@@ -550,7 +697,7 @@ public sealed class FlowchartPreviewSurface : Grid
                     Math.Max(
                         40,
                         layoutNode.Width -
-                        28),
+                        horizontalInset * 2),
                 Height =
                     Math.Max(
                         30,
@@ -573,7 +720,7 @@ public sealed class FlowchartPreviewSurface : Grid
         Canvas.SetLeft(
             label,
             layoutNode.X +
-            14);
+            horizontalInset);
         Canvas.SetTop(
             label,
             layoutNode.Y +

@@ -40,9 +40,20 @@ Les commentaires Mermaid commençant par `%%` sont ignorés.
 | `A[Étape]` | rectangle |
 | `A(Étape)` | rectangle arrondi |
 | `A{Question ?}` | décision en losange |
+| `A((Fin))` | cercle |
+| `A[(Données)]` | base / cylindre |
+| `A[[Sous-processus]]` | sous-processus |
+| `A([Début])` | terminal / stadium |
+| `A{{Choix}}` | hexagone |
 | `A` | référence à un nœud déjà défini, ou nœud portant le libellé `A` |
 
-Un nœud peut être défini directement dans un lien :
+Les définitions modernes Mermaid sont également reconnues pour les formes
+principales, par exemple `A@{ shape: stadium, label: "Début" }`,
+`B@{ shape: cylinder, label: "Données" }` et
+`C@{ shape: diamond, label: "Valide ?" }`.
+
+Un nœud peut être défini séparément, plusieurs définitions peuvent être séparées
+par `;`, et un nœud peut aussi être défini directement dans un lien :
 
 ```mermaid
 flowchart LR
@@ -52,11 +63,17 @@ flowchart LR
 
 ### Liens
 
-La première version prend en charge les flèches dirigées :
+Nodalis prend en charge les liens dirigés, les chaînes de liens, les variantes
+pointillées/épaisses rendues comme liens dirigés, ainsi que les liens non dirigés :
 
 ```text
 A --> B
 A -->|Libellé| B
+A -- Libellé --> B
+A --> B --> C
+A -.-> B
+A ==> B
+A --- B
 ```
 
 Le libellé reste du texte local et n'est jamais interprété comme du HTML actif.
@@ -64,10 +81,9 @@ Le libellé reste du texte local et n'est jamais interprété comme du HTML acti
 ## Constructions non supportées
 
 Nodalis privilégie un sous-ensemble explicite plutôt qu'une émulation partielle de
-Mermaid.js. Les constructions telles que `subgraph`, `classDef`, `style`,
-les liens pointillés `-.->`, les liens épais `==>`, les liens non dirigés
-`---` ou plusieurs flèches chaînées sur une seule ligne sont actuellement
-ignorées avec un avertissement.
+Mermaid.js. Les classes/styles Mermaid, les interactions `click` et la mise en
+page `subgraph` sont actuellement ignorées avec un avertissement. Les nœuds
+contenus restent analysés quand leur syntaxe est supportée.
 
 Une construction non supportée ne modifie pas le Markdown et ne doit pas faire
 planter l'aperçu.

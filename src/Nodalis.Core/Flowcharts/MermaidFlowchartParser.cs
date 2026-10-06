@@ -1,11 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Nodalis.Core.Flowcharts;
 
 /// <summary>
-/// Parses the intentionally small, portable Mermaid flowchart subset supported
-/// by Nodalis without executing JavaScript or contacting a remote service.
+/// Parses the portable Mermaid flowchart subset supported by Nodalis without
+/// executing JavaScript or contacting a remote service.
 /// </summary>
 public static partial class MermaidFlowchartParser
 {
@@ -20,14 +21,15 @@ public static partial class MermaidFlowchartParser
         ArgumentNullException.ThrowIfNull(
             source);
 
-        string normalized = source
-            .Replace(
-                "\r\n",
-                "\n",
-                StringComparison.Ordinal)
-            .Replace(
-                '\r',
-                '\n');
+        string normalized =
+            source
+                .Replace(
+                    "\r\n",
+                    "\n",
+                    StringComparison.Ordinal)
+                .Replace(
+                    '\r',
+                    '\n');
 
         string[] lines =
             normalized.Split(
@@ -71,7 +73,7 @@ public static partial class MermaidFlowchartParser
             diagnostics.Add(
                 CreateError(
                     headerIndex + 1,
-                    "Le diagramme doit commencer par « flowchart TD », « graph LR » ou une orientation supportée."));
+                    "Le diagramme doit commencer par « flowchart » ou « graph », avec une orientation optionnelle TD/TB/LR/RL/BT."));
 
             return new FlowchartParseResult
             {
@@ -88,69 +90,75 @@ public static partial class MermaidFlowchartParser
              index < lines.Length;
              index++)
         {
-            string line =
-                TrimStatement(
+            IReadOnlyList<string> statements =
+                SplitStatements(
                     lines[index]);
 
-            if (line.Length ==
-                    0 ||
-                line.StartsWith(
-                    "%%",
-                    StringComparison.Ordinal))
+            foreach (string sourceStatement in
+                     statements)
             {
-                continue;
-            }
+                string statement =
+                    sourceStatement.Trim();
 
-            if (ContainsUnsupportedArrow(
-                    line))
-            {
+                if (statement.Length ==
+                        0 ||
+                    statement.StartsWith(
+                        "%%",
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (IsMetadataStatement(
+                        statement))
+                {
+                    diagnostics.Add(
+                        CreateWarning(
+                            index + 1,
+                            "Directive Mermaid de style, interaction ou sous-graphe ignorée par le rendu local."));
+                    continue;
+                }
+
+                statement =
+                    NormalizeTextEdgeLabel(
+                        statement);
+
+                if (FindNextEdgeOperator(
+                        statement,
+                        0) is EdgeOperatorMatch)
+                {
+                    if (!TryParseEdgeChain(
+                            statement,
+                            index + 1,
+                            nodes,
+                            nodeOrder,
+                            edges))
+                    {
+                        diagnostics.Add(
+                            CreateError(
+                                index + 1,
+                                "Lien flowchart invalide. Vérifiez les identifiants, définitions de nœuds et libellés."));
+                    }
+
+                    continue;
+                }
+
+                if (TryParseNodeToken(
+                        statement,
+                        out ParsedNodeToken? token))
+                {
+                    UpsertNode(
+                        token,
+                        nodes,
+                        nodeOrder);
+                    continue;
+                }
+
                 diagnostics.Add(
                     CreateWarning(
                         index + 1,
-                        "Cette forme de lien Mermaid n'est pas encore supportée et a été ignorée."));
-                continue;
+                        "Construction Mermaid non supportée ignorée."));
             }
-
-            int arrowIndex =
-                line.IndexOf(
-                    "-->",
-                    StringComparison.Ordinal);
-
-            if (arrowIndex >=
-                0)
-            {
-                if (!TryParseEdge(
-                        line,
-                        index + 1,
-                        nodes,
-                        nodeOrder,
-                        edges,
-                        diagnostics))
-                {
-                    diagnostics.Add(
-                        CreateError(
-                            index + 1,
-                            "Lien flowchart invalide. Format attendu : A --> B ou A -->|Libellé| B."));
-                }
-
-                continue;
-            }
-
-            if (TryParseNodeToken(
-                    line,
-                    out ParsedNodeToken? token))
-            {
-                UpsertNode(
-                    token,
-                    nodes,
-                    nodeOrder);
-                continue;
-            }
-
-            diagnostics.Add(
-                CreateWarning(
-                    index + 1,
-                    "Construction Mermaid non supportée ignorée."));
         }
 
         if (nodes.Count ==
@@ -244,80 +252,223 @@ public static partial class MermaidFlowchartParser
         };
 
     /// <summary>
-    /// Parses one supported directional edge and updates referenced nodes.
+    /// Splits semicolon-separated Mermaid statements while preserving separators
+    /// embedded in labels, node definitions and quoted strings.
     /// </summary>
     /// <param name="line">The source line.</param>
+    /// <returns>The independent statements on the line.</returns>
+    private static IReadOnlyList<string> SplitStatements(
+            string line)
+    {
+        List<string> statements =
+            [];
+        StringBuilder current =
+            new StringBuilder();
+        int squareDepth =
+            0;
+        int roundDepth =
+            0;
+        int curlyDepth =
+            0;
+        char quote =
+            '\0';
+
+        for (int index = 0;
+             index < line.Length;
+             index++)
+        {
+            char character =
+                line[index];
+
+            if (quote !=
+                '\0')
+            {
+                current.Append(
+                    character);
+
+                if (character ==
+                        quote &&
+                    (index ==
+                         0 ||
+                     line[index - 1] !=
+                         '\\'))
+                {
+                    quote =
+                        '\0';
+                }
+
+                continue;
+            }
+
+            if (character ==
+                    '"' ||
+                character ==
+                    '\'')
+            {
+                quote =
+                    character;
+                current.Append(
+                    character);
+                continue;
+            }
+
+            switch (character)
+            {
+                case '[':
+                    squareDepth++;
+                    break;
+                case ']':
+                    squareDepth =
+                        Math.Max(
+                            0,
+                            squareDepth - 1);
+                    break;
+                case '(':
+                    roundDepth++;
+                    break;
+                case ')':
+                    roundDepth =
+                        Math.Max(
+                            0,
+                            roundDepth - 1);
+                    break;
+                case '{':
+                    curlyDepth++;
+                    break;
+                case '}':
+                    curlyDepth =
+                        Math.Max(
+                            0,
+                            curlyDepth - 1);
+                    break;
+            }
+
+            if (character ==
+                    ';' &&
+                squareDepth ==
+                    0 &&
+                roundDepth ==
+                    0 &&
+                curlyDepth ==
+                    0)
+            {
+                statements.Add(
+                    current.ToString());
+                current.Clear();
+                continue;
+            }
+
+            current.Append(
+                character);
+        }
+
+        if (current.Length >
+            0)
+        {
+            statements.Add(
+                current.ToString());
+        }
+
+        return statements;
+    }
+
+    /// <summary>
+    /// Determines whether a statement is valid Mermaid metadata that Nodalis can
+    /// safely ignore without losing graph connectivity.
+    /// </summary>
+    /// <param name="statement">The trimmed statement.</param>
+    /// <returns><see langword="true"/> for non-structural metadata.</returns>
+    private static bool IsMetadataStatement(
+            string statement)
+    {
+        if (string.Equals(
+                statement,
+                "end",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        string[] prefixes =
+        [
+            "classDef ",
+            "class ",
+            "style ",
+            "linkStyle ",
+            "click ",
+            "subgraph ",
+            "direction "
+        ];
+
+        return prefixes.Any(prefix =>
+            statement.StartsWith(
+                prefix,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Normalizes Mermaid's readable edge-label form
+    /// <c>A -- label --&gt; B</c> to the pipe-label form used internally.
+    /// </summary>
+    /// <param name="statement">The source statement.</param>
+    /// <returns>The normalized statement.</returns>
+    private static string NormalizeTextEdgeLabel(
+            string statement)
+    {
+        Match match =
+            TextLabelEdgePattern().Match(
+                statement);
+
+        if (!match.Success)
+        {
+            return statement;
+        }
+
+        string label =
+            match.Groups["label"].Value.Trim();
+
+        return
+            statement[..match.Index] +
+            "-->|" +
+            label +
+            "|" +
+            statement[(match.Index + match.Length)..];
+    }
+
+    /// <summary>
+    /// Parses a chain containing one or more supported Mermaid edge operators.
+    /// </summary>
+    /// <param name="line">The normalized edge statement.</param>
     /// <param name="lineNumber">The one-based line number.</param>
     /// <param name="nodes">The node registry.</param>
     /// <param name="nodeOrder">The stable node order.</param>
     /// <param name="edges">The destination edge list.</param>
-    /// <param name="diagnostics">The destination diagnostic list.</param>
-    /// <returns><see langword="true"/> when the edge is valid.</returns>
-    private static bool TryParseEdge(
+    /// <returns><see langword="true"/> when the complete chain is valid.</returns>
+    private static bool TryParseEdgeChain(
             string line,
             int lineNumber,
             IDictionary<string, MutableNode> nodes,
             ICollection<string> nodeOrder,
-            ICollection<FlowchartEdgeDefinition> edges,
-            ICollection<FlowchartDiagnostic> diagnostics)
+            ICollection<FlowchartEdgeDefinition> edges)
     {
-        int arrowIndex =
-            line.IndexOf(
-                "-->",
-                StringComparison.Ordinal);
+        EdgeOperatorMatch? firstOperator =
+            FindNextEdgeOperator(
+                line,
+                0);
 
-        if (arrowIndex <=
-            0)
+        if (firstOperator is null ||
+            firstOperator.Value.Index <=
+                0)
         {
             return false;
         }
 
         string sourceText =
-            line[..arrowIndex].Trim();
-        string targetText =
-            line[(arrowIndex + 3)..].Trim();
-
-        if (targetText.Contains(
-                "-->",
-                StringComparison.Ordinal))
-        {
-            diagnostics.Add(
-                CreateWarning(
-                    lineNumber,
-                    "Les chaînes de plusieurs flèches sur une ligne ne sont pas encore supportées ; la ligne a été ignorée."));
-            return true;
-        }
-
-        string? label =
-            null;
-
-        if (targetText.StartsWith(
-                '|'))
-        {
-            int labelEnd =
-                targetText.IndexOf(
-                    '|',
-                    1);
-
-            if (labelEnd <=
-                1)
-            {
-                return false;
-            }
-
-            label =
-                NormalizeLabel(
-                    targetText[1..labelEnd]);
-            targetText =
-                targetText[(labelEnd + 1)..].Trim();
-        }
+            line[..firstOperator.Value.Index].Trim();
 
         if (!TryParseNodeToken(
                 sourceText,
-                out ParsedNodeToken? source) ||
-            !TryParseNodeToken(
-                targetText,
-                out ParsedNodeToken? target))
+                out ParsedNodeToken? source))
         {
             return false;
         }
@@ -326,32 +477,317 @@ public static partial class MermaidFlowchartParser
             source,
             nodes,
             nodeOrder);
-        UpsertNode(
-            target,
-            nodes,
-            nodeOrder);
 
-        edges.Add(
-            new FlowchartEdgeDefinition
+        int operatorIndex =
+            firstOperator.Value.Index;
+
+        while (operatorIndex <
+               line.Length)
+        {
+            EdgeOperatorMatch? edgeOperator =
+                FindNextEdgeOperator(
+                    line,
+                    operatorIndex);
+
+            if (edgeOperator is null ||
+                edgeOperator.Value.Index !=
+                    operatorIndex)
             {
-                SourceId =
-                    source.Id,
-                TargetId =
-                    target.Id,
-                Label =
-                    string.IsNullOrWhiteSpace(
-                        label)
-                        ? null
-                        : label,
-                HasArrow =
-                    true
-            });
+                return false;
+            }
+
+            int targetStart =
+                edgeOperator.Value.Index +
+                edgeOperator.Value.Token.Length;
+
+            while (targetStart <
+                       line.Length &&
+                   char.IsWhiteSpace(
+                       line[targetStart]))
+            {
+                targetStart++;
+            }
+
+            string? label =
+                null;
+
+            if (targetStart <
+                    line.Length &&
+                line[targetStart] ==
+                    '|')
+            {
+                int labelEnd =
+                    line.IndexOf(
+                        '|',
+                        targetStart + 1);
+
+                if (labelEnd <
+                    0)
+                {
+                    return false;
+                }
+
+                label =
+                    NormalizeLabel(
+                        line[(targetStart + 1)..labelEnd]);
+
+                targetStart =
+                    labelEnd + 1;
+
+                while (targetStart <
+                           line.Length &&
+                       char.IsWhiteSpace(
+                           line[targetStart]))
+                {
+                    targetStart++;
+                }
+            }
+
+            EdgeOperatorMatch? nextOperator =
+                FindNextEdgeOperator(
+                    line,
+                    targetStart);
+
+            int targetEnd =
+                nextOperator?.Index ??
+                line.Length;
+
+            string targetText =
+                line[targetStart..targetEnd].Trim();
+
+            if (!TryParseNodeToken(
+                    targetText,
+                    out ParsedNodeToken? target))
+            {
+                return false;
+            }
+
+            UpsertNode(
+                target,
+                nodes,
+                nodeOrder);
+
+            edges.Add(
+                new FlowchartEdgeDefinition
+                {
+                    SourceId =
+                        source.Id,
+                    TargetId =
+                        target.Id,
+                    Label =
+                        string.IsNullOrWhiteSpace(
+                            label)
+                            ? null
+                            : label,
+                    HasArrow =
+                        edgeOperator.Value.HasArrow
+                });
+
+            source =
+                target;
+
+            if (nextOperator is null)
+            {
+                break;
+            }
+
+            operatorIndex =
+                nextOperator.Value.Index;
+        }
+
+        _ =
+            lineNumber;
 
         return true;
     }
 
     /// <summary>
-    /// Parses a Mermaid node token with rectangle, rounded or decision syntax.
+    /// Finds the next edge operator outside node definitions and quoted labels.
+    /// </summary>
+    /// <param name="text">The source statement.</param>
+    /// <param name="startIndex">The first index to inspect.</param>
+    /// <returns>The operator location, or <see langword="null"/>.</returns>
+    private static EdgeOperatorMatch? FindNextEdgeOperator(
+            string text,
+            int startIndex)
+    {
+        int squareDepth =
+            0;
+        int roundDepth =
+            0;
+        int curlyDepth =
+            0;
+        char quote =
+            '\0';
+
+        for (int index = Math.Max(
+                 0,
+                 startIndex);
+             index < text.Length;
+             index++)
+        {
+            char character =
+                text[index];
+
+            if (quote !=
+                '\0')
+            {
+                if (character ==
+                        quote &&
+                    (index ==
+                         0 ||
+                     text[index - 1] !=
+                         '\\'))
+                {
+                    quote =
+                        '\0';
+                }
+
+                continue;
+            }
+
+            if (character ==
+                    '"' ||
+                character ==
+                    '\'')
+            {
+                quote =
+                    character;
+                continue;
+            }
+
+            if (character ==
+                '[')
+            {
+                squareDepth++;
+                continue;
+            }
+
+            if (character ==
+                ']')
+            {
+                squareDepth =
+                    Math.Max(
+                        0,
+                        squareDepth - 1);
+                continue;
+            }
+
+            if (character ==
+                '(')
+            {
+                roundDepth++;
+                continue;
+            }
+
+            if (character ==
+                ')')
+            {
+                roundDepth =
+                    Math.Max(
+                        0,
+                        roundDepth - 1);
+                continue;
+            }
+
+            if (character ==
+                '{')
+            {
+                curlyDepth++;
+                continue;
+            }
+
+            if (character ==
+                '}')
+            {
+                curlyDepth =
+                    Math.Max(
+                        0,
+                        curlyDepth - 1);
+                continue;
+            }
+
+            if (squareDepth !=
+                    0 ||
+                roundDepth !=
+                    0 ||
+                curlyDepth !=
+                    0)
+            {
+                continue;
+            }
+
+            if (MatchesOperator(
+                    text,
+                    index,
+                    "-.->"))
+            {
+                return new EdgeOperatorMatch(
+                    index,
+                    "-.->",
+                    true);
+            }
+
+            if (MatchesOperator(
+                    text,
+                    index,
+                    "==>"))
+            {
+                return new EdgeOperatorMatch(
+                    index,
+                    "==>",
+                    true);
+            }
+
+            if (MatchesOperator(
+                    text,
+                    index,
+                    "-->"))
+            {
+                return new EdgeOperatorMatch(
+                    index,
+                    "-->",
+                    true);
+            }
+
+            if (MatchesOperator(
+                    text,
+                    index,
+                    "---"))
+            {
+                return new EdgeOperatorMatch(
+                    index,
+                    "---",
+                    false);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks whether an operator token starts at the requested source index.
+    /// </summary>
+    /// <param name="text">The source text.</param>
+    /// <param name="index">The candidate start index.</param>
+    /// <param name="token">The edge token.</param>
+    /// <returns><see langword="true"/> when the token matches.</returns>
+    private static bool MatchesOperator(
+            string text,
+            int index,
+            string token) =>
+        index +
+            token.Length <=
+        text.Length &&
+        text.AsSpan(
+                index,
+                token.Length)
+            .SequenceEqual(
+                token.AsSpan());
+
+    /// <summary>
+    /// Parses one supported Mermaid node token, including classic bracket forms
+    /// and the newer <c>@{ shape: ..., label: ... }</c> definition syntax.
     /// </summary>
     /// <param name="text">The node token.</param>
     /// <param name="token">The parsed token when successful.</param>
@@ -360,9 +796,200 @@ public static partial class MermaidFlowchartParser
             string text,
             [NotNullWhen(true)] out ParsedNodeToken? token)
     {
+        string trimmed =
+            text.Trim();
+
+        int inlineClassIndex =
+            trimmed.IndexOf(
+                ":::",
+                StringComparison.Ordinal);
+
+        if (inlineClassIndex >
+            0)
+        {
+            trimmed =
+                trimmed[..inlineClassIndex].Trim();
+        }
+
+        if (TryParseAttributeNodeToken(
+                trimmed,
+                out token))
+        {
+            return true;
+        }
+
+        Match idMatch =
+            NodeIdPrefixPattern().Match(
+                trimmed);
+
+        if (!idMatch.Success ||
+            idMatch.Index !=
+                0)
+        {
+            token =
+                null!;
+            return false;
+        }
+
+        string id =
+            idMatch.Groups["id"].Value;
+        string suffix =
+            trimmed[idMatch.Length..].Trim();
+
+        if (suffix.Length ==
+            0)
+        {
+            token =
+                new ParsedNodeToken(
+                    id,
+                    id,
+                    FlowchartNodeShape.Rectangle,
+                    false);
+            return true;
+        }
+
+        if (!TryParseClassicShape(
+                suffix,
+                out string? label,
+                out FlowchartNodeShape shape))
+        {
+            token =
+                null!;
+            return false;
+        }
+
+        token =
+            new ParsedNodeToken(
+                id,
+                NormalizeLabel(
+                    label),
+                shape,
+                true);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Parses the classic Mermaid delimiters used to define common node shapes.
+    /// </summary>
+    /// <param name="suffix">The text following the node identifier.</param>
+    /// <param name="label">The visible node label.</param>
+    /// <param name="shape">The node shape.</param>
+    /// <returns><see langword="true"/> when the delimiters are supported.</returns>
+    private static bool TryParseClassicShape(
+            string suffix,
+            [NotNullWhen(true)] out string? label,
+            out FlowchartNodeShape shape)
+    {
+        if (TryUnwrap(
+                suffix,
+                "[[",
+                "]]",
+                out label))
+        {
+            shape =
+                FlowchartNodeShape.Subroutine;
+            return true;
+        }
+
+        if (TryUnwrap(
+                suffix,
+                "[(",
+                ")]",
+                out label))
+        {
+            shape =
+                FlowchartNodeShape.Database;
+            return true;
+        }
+
+        if (TryUnwrap(
+                suffix,
+                "((",
+                "))",
+                out label))
+        {
+            shape =
+                FlowchartNodeShape.Circle;
+            return true;
+        }
+
+        if (TryUnwrap(
+                suffix,
+                "([",
+                "])",
+                out label))
+        {
+            shape =
+                FlowchartNodeShape.Stadium;
+            return true;
+        }
+
+        if (TryUnwrap(
+                suffix,
+                "{{",
+                "}}",
+                out label))
+        {
+            shape =
+                FlowchartNodeShape.Hexagon;
+            return true;
+        }
+
+        if (TryUnwrap(
+                suffix,
+                "{",
+                "}",
+                out label))
+        {
+            shape =
+                FlowchartNodeShape.Decision;
+            return true;
+        }
+
+        if (TryUnwrap(
+                suffix,
+                "(",
+                ")",
+                out label))
+        {
+            shape =
+                FlowchartNodeShape.Rounded;
+            return true;
+        }
+
+        if (TryUnwrap(
+                suffix,
+                "[",
+                "]",
+                out label))
+        {
+            shape =
+                FlowchartNodeShape.Rectangle;
+            return true;
+        }
+
+        label =
+            null!;
+        shape =
+            FlowchartNodeShape.Rectangle;
+        return false;
+    }
+
+    /// <summary>
+    /// Parses a Mermaid expanded node definition such as
+    /// <c>A@{ shape: rect, label: "Texte" }</c>.
+    /// </summary>
+    /// <param name="text">The complete node token.</param>
+    /// <param name="token">The parsed token.</param>
+    /// <returns><see langword="true"/> when expanded syntax was recognized.</returns>
+    private static bool TryParseAttributeNodeToken(
+            string text,
+            [NotNullWhen(true)] out ParsedNodeToken? token)
+    {
         Match match =
-            NodePattern().Match(
-                text.Trim());
+            AttributeNodePattern().Match(
+                text);
 
         if (!match.Success)
         {
@@ -371,48 +998,222 @@ public static partial class MermaidFlowchartParser
             return false;
         }
 
+        string id =
+            match.Groups["id"].Value;
+        string label =
+            id;
         FlowchartNodeShape shape =
             FlowchartNodeShape.Rectangle;
-        string label =
-            match.Groups["id"].Value;
-        bool explicitDefinition =
-            false;
 
-        if (match.Groups["decision"].Success)
+        IReadOnlyList<string> attributes =
+            SplitAttributes(
+                match.Groups["body"].Value);
+
+        foreach (string attribute in
+                 attributes)
         {
-            shape =
-                FlowchartNodeShape.Decision;
-            label =
-                match.Groups["decision"].Value;
-            explicitDefinition =
-                true;
-        }
-        else if (match.Groups["rounded"].Success)
-        {
-            shape =
-                FlowchartNodeShape.Rounded;
-            label =
-                match.Groups["rounded"].Value;
-            explicitDefinition =
-                true;
-        }
-        else if (match.Groups["rectangle"].Success)
-        {
-            label =
-                match.Groups["rectangle"].Value;
-            explicitDefinition =
-                true;
+            int separator =
+                attribute.IndexOf(
+                    ':');
+
+            if (separator <=
+                0)
+            {
+                continue;
+            }
+
+            string key =
+                attribute[..separator]
+                    .Trim();
+            string value =
+                attribute[(separator + 1)..]
+                    .Trim();
+
+            if (key.Equals(
+                    "label",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                label =
+                    NormalizeLabel(
+                        value);
+                continue;
+            }
+
+            if (key.Equals(
+                    "shape",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                shape =
+                    ParseExpandedShape(
+                        value);
+            }
         }
 
         token =
             new ParsedNodeToken(
-                match.Groups["id"].Value,
-                NormalizeLabel(
-                    label),
+                id,
+                label,
                 shape,
-                explicitDefinition);
-
+                true);
         return true;
+    }
+
+    /// <summary>
+    /// Splits comma-delimited expanded-node attributes while respecting quotes.
+    /// </summary>
+    /// <param name="body">The attribute body.</param>
+    /// <returns>The parsed attribute fragments.</returns>
+    private static IReadOnlyList<string> SplitAttributes(
+            string body)
+    {
+        List<string> result =
+            [];
+        StringBuilder current =
+            new StringBuilder();
+        char quote =
+            '\0';
+
+        for (int index = 0;
+             index < body.Length;
+             index++)
+        {
+            char character =
+                body[index];
+
+            if (quote !=
+                '\0')
+            {
+                current.Append(
+                    character);
+
+                if (character ==
+                        quote &&
+                    (index ==
+                         0 ||
+                     body[index - 1] !=
+                         '\\'))
+                {
+                    quote =
+                        '\0';
+                }
+
+                continue;
+            }
+
+            if (character ==
+                    '"' ||
+                character ==
+                    '\'')
+            {
+                quote =
+                    character;
+                current.Append(
+                    character);
+                continue;
+            }
+
+            if (character ==
+                ',')
+            {
+                result.Add(
+                    current.ToString());
+                current.Clear();
+                continue;
+            }
+
+            current.Append(
+                character);
+        }
+
+        if (current.Length >
+            0)
+        {
+            result.Add(
+                current.ToString());
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Maps expanded Mermaid shape names to native Nodalis preview shapes.
+    /// </summary>
+    /// <param name="value">The Mermaid shape token.</param>
+    /// <returns>The closest portable Nodalis shape.</returns>
+    private static FlowchartNodeShape ParseExpandedShape(
+            string value)
+    {
+        string normalized =
+            NormalizeLabel(
+                    value)
+                .Trim()
+                .ToLowerInvariant();
+
+        return normalized switch
+        {
+            "round" or
+            "rounded" or
+            "rounded-rect" =>
+                FlowchartNodeShape.Rounded,
+            "diamond" or
+            "diam" or
+            "decision" =>
+                FlowchartNodeShape.Decision,
+            "circle" =>
+                FlowchartNodeShape.Circle,
+            "cylinder" or
+            "cyl" or
+            "database" =>
+                FlowchartNodeShape.Database,
+            "subroutine" or
+            "subproc" or
+            "process" =>
+                FlowchartNodeShape.Subroutine,
+            "stadium" or
+            "terminal" =>
+                FlowchartNodeShape.Stadium,
+            "hexagon" or
+            "hex" =>
+                FlowchartNodeShape.Hexagon,
+            _ =>
+                FlowchartNodeShape.Rectangle
+        };
+    }
+
+    /// <summary>
+    /// Removes one matching pair of shape delimiters.
+    /// </summary>
+    /// <param name="value">The source suffix.</param>
+    /// <param name="prefix">The opening delimiter.</param>
+    /// <param name="suffix">The closing delimiter.</param>
+    /// <param name="content">The unwrapped content.</param>
+    /// <returns><see langword="true"/> when both delimiters match.</returns>
+    private static bool TryUnwrap(
+            string value,
+            string prefix,
+            string suffix,
+            [NotNullWhen(true)] out string? content)
+    {
+        if (value.StartsWith(
+                prefix,
+                StringComparison.Ordinal) &&
+            value.EndsWith(
+                suffix,
+                StringComparison.Ordinal) &&
+            value.Length >=
+                prefix.Length +
+                suffix.Length)
+        {
+            content =
+                value[
+                    prefix.Length..
+                    (value.Length - suffix.Length)];
+            return true;
+        }
+
+        content =
+            null!;
+        return false;
     }
 
     /// <summary>
@@ -492,39 +1293,6 @@ public static partial class MermaidFlowchartParser
     }
 
     /// <summary>
-    /// Removes optional trailing Mermaid statement separators.
-    /// </summary>
-    /// <param name="line">The source line.</param>
-    /// <returns>The trimmed statement.</returns>
-    private static string TrimStatement(
-            string line) =>
-        line
-            .Trim()
-            .TrimEnd(
-                ';')
-            .Trim();
-
-    /// <summary>
-    /// Determines whether a line uses an unsupported Mermaid link operator.
-    /// </summary>
-    /// <param name="line">The statement to inspect.</param>
-    /// <returns><see langword="true"/> for unsupported link operators.</returns>
-    private static bool ContainsUnsupportedArrow(
-            string line) =>
-        line.Contains(
-            "-.->",
-            StringComparison.Ordinal) ||
-        line.Contains(
-            "==>",
-            StringComparison.Ordinal) ||
-        line.Contains(
-            "---",
-            StringComparison.Ordinal) &&
-        !line.Contains(
-            "-->",
-            StringComparison.Ordinal);
-
-    /// <summary>
     /// Creates one localized warning diagnostic.
     /// </summary>
     /// <param name="lineNumber">The one-based source line number.</param>
@@ -567,25 +1335,48 @@ public static partial class MermaidFlowchartParser
     /// </summary>
     /// <returns>The generated header expression.</returns>
     [GeneratedRegex(
-            @"^\s*(?:flowchart|graph)\s+(?<direction>TD|TB|LR|RL|BT)\s*;?\s*$",
+            @"^\s*(?:flowchart|graph)(?:\s+(?<direction>TD|TB|LR|RL|BT))?\s*;?\s*$",
             RegexOptions.IgnoreCase |
             RegexOptions.CultureInvariant)]
     private static partial Regex HeaderPattern();
 
     /// <summary>
-    /// Matches one supported Mermaid node token.
+    /// Matches a Mermaid node identifier at the start of a token.
     /// </summary>
-    /// <returns>The generated node expression.</returns>
+    /// <returns>The generated identifier expression.</returns>
     [GeneratedRegex(
-            @"^(?<id>[A-Za-z_][A-Za-z0-9_-]*)(?:\s*(?:\[(?<rectangle>.*)\]|\{(?<decision>.*)\}|\((?<rounded>.*)\)))?$",
+            @"^(?<id>[A-Za-z_][A-Za-z0-9_-]*)",
             RegexOptions.CultureInvariant)]
-    private static partial Regex NodePattern();
+    private static partial Regex NodeIdPrefixPattern();
+
+    /// <summary>
+    /// Matches Mermaid's expanded node-definition syntax.
+    /// </summary>
+    /// <returns>The generated expanded-node expression.</returns>
+    [GeneratedRegex(
+            @"^(?<id>[A-Za-z_][A-Za-z0-9_-]*)\s*@\{(?<body>.*)\}\s*$",
+            RegexOptions.CultureInvariant)]
+    private static partial Regex AttributeNodePattern();
+
+    /// <summary>
+    /// Matches the alternate readable edge-label syntax <c>-- label --&gt;</c>.
+    /// </summary>
+    /// <returns>The generated edge-label expression.</returns>
+    [GeneratedRegex(
+            @"--\s+(?<label>[^|\[\]{}()]+?)\s+-->",
+            RegexOptions.CultureInvariant)]
+    private static partial Regex TextLabelEdgePattern();
 
     private sealed record ParsedNodeToken(
         string Id,
         string Label,
         FlowchartNodeShape Shape,
         bool ExplicitDefinition);
+
+    private readonly record struct EdgeOperatorMatch(
+        int Index,
+        string Token,
+        bool HasArrow);
 
     private sealed class MutableNode
     {
