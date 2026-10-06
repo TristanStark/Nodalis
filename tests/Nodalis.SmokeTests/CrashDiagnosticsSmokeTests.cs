@@ -1,6 +1,5 @@
 using Nodalis.Infrastructure.Reliability;
 
-namespace Nodalis.SmokeTests;
 
 /// <summary>
 /// Smoke tests for local crash diagnostics and safe temporary-file recovery.
