@@ -74,6 +74,9 @@
                             Click="OpenBackups_Click"
                             Content="Sauvegardes" />
                     <Button Margin="0,0,8,0"
+                            Click="OpenDiagnostics_Click"
+                            Content="Diagnostics" />
+                    <Button Margin="0,0,8,0"
                             Click="OpenTemplateEditor_Click"
                             Content="Templates" />
                     <Button Margin="0,0,8,0"
