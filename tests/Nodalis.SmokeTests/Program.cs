@@ -94,6 +94,7 @@ try
     await MeetingAiSummarySmokeTests.RunAsync(root);
     await ProjectAiChallengeSmokeTests.RunAsync(root);
     await AiTestGenerationSmokeTests.RunAsync(root);
+    PersistenceContractSmokeTests.Run();
     VerifyDomainCatalog();
 
     Console.WriteLine("Nodalis smoke tests passed.");
