@@ -89,6 +89,9 @@
                             Click="CaptureQuickNote_Click"
                             Content="Note rapide  Ctrl+Alt+N" />
                     <Button Margin="0,0,8,0"
+                            Click="ExtractMeeting_Click"
+                            Content="Extraire réunion" />
+                    <Button Margin="0,0,8,0"
                             Click="ImportDocx_Click"
                             Content="Importer DOCX" />
                     <Button Margin="0,0,8,0"
