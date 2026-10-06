@@ -20,6 +20,8 @@ public sealed record UserPreferences
 
     public BackupPreferences Backup { get; init; } = new();
 
+    public AiPreferences Ai { get; init; } = new();
+
     public List<RecentItemReference> RecentItems { get; init; } = [];
 
     public List<RecentSearchReference> RecentSearches { get; init; } = [];
