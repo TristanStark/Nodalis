@@ -1270,6 +1270,12 @@ public sealed class WorkspaceProjectStructureService
                 section));
     }
 
+    /// <summary>
+    /// Resolves a directory-backed section's physical directory from its logical name.
+    /// </summary>
+    /// <param name="projectDirectory">The project directory.</param>
+    /// <param name="section">The section manifest.</param>
+    /// <returns>The absolute directory path.</returns>
     private static string ResolveSectionDirectory(
             string projectDirectory,
             SectionManifest section) =>

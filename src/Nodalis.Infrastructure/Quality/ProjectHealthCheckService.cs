@@ -350,6 +350,12 @@ public sealed class ProjectHealthCheckService
         }
     }
 
+    /// <summary>
+    /// Reports required logical project sections that are absent from the manifest.
+    /// </summary>
+    /// <param name="project">The project manifest.</param>
+    /// <param name="projectDirectory">The project root.</param>
+    /// <param name="issues">The findings collection.</param>
     private void CheckRequiredSections(
             ProjectManifest project,
             string projectDirectory,

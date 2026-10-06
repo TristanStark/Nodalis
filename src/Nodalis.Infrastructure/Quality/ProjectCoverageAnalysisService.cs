@@ -1350,6 +1350,12 @@ public sealed partial class ProjectCoverageAnalysisService
             safeSectionName);
     }
 
+    /// <summary>
+    /// Determines whether a project-relative document belongs to a top-level directory-backed section.
+    /// </summary>
+    /// <param name="relativePath">Project-relative path.</param>
+    /// <param name="directoryName">Section directory name.</param>
+    /// <returns>Whether the path is in that section.</returns>
     private static bool IsInTopLevelDirectory(
             string relativePath,
             string directoryName)
