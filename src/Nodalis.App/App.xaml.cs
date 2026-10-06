@@ -243,11 +243,14 @@ public partial class App : Application
         global::Nodalis.Core.Domain.WorkspaceManifest workspace =
             await workspaceStore.LoadAsync();
 
+        int expectedSchemaVersion =
+            global::Nodalis.Core.Domain.WorkspaceManifest.CurrentSchemaVersion;
+
         if (workspace.SchemaVersion !=
-            global::Nodalis.Core.Domain.WorkspaceManifest.CurrentSchemaVersion)
+            expectedSchemaVersion)
         {
             throw new InvalidDataException(
-                $"Le workspace RC utilise le schéma {workspace.SchemaVersion} au lieu du schéma attendu {global::Nodalis.Core.Domain.WorkspaceManifest.CurrentSchemaVersion}.");
+                $"Le workspace RC utilise le schéma {workspace.SchemaVersion} au lieu du schéma attendu {expectedSchemaVersion}.");
         }
 
         global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore templateStore =
