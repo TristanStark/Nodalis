@@ -74,7 +74,8 @@ try
     await VerifyDocxImportAnalysisAsync(root);
     await DocxFineSelectionSmokeTests.RunAsync(root);
     await MarkdownBulkImportSmokeTests.RunAsync(root);
-    await ProjectExportSmokeTests.RunAsync(root);\n    await MeetingExtractionSmokeTests.RunAsync(root);
+    await ProjectExportSmokeTests.RunAsync(root);
+    await MeetingExtractionSmokeTests.RunAsync(root);
     VerifyMarkdownParser();
     VerifyFlowcharts();
     VerifyMarkdownFrontMatter();
