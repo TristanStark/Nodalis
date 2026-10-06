@@ -783,7 +783,7 @@ static async Task VerifyProjectStructureAsync(string root)
         "Workspace navigation must honor manifest section order and logical display names.");
 
     Assert(
-        projectNode.Children.Any(child =>
+        projectNode!.Children.Any(child =>
             child.Kind ==
                 WorkspaceNodeKind.Document &&
             string.Equals(
