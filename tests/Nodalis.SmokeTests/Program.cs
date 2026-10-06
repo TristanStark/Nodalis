@@ -73,6 +73,7 @@ try
     await VerifyDocxImportAsync(root);
     await VerifyDocxImportAnalysisAsync(root);
     await DocxFineSelectionSmokeTests.RunAsync(root);
+    await MarkdownBulkImportSmokeTests.RunAsync(root);
     VerifyMarkdownParser();
     VerifyFlowcharts();
     VerifyMarkdownFrontMatter();
