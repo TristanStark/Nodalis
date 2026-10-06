@@ -39,12 +39,19 @@
                                Foreground="{StaticResource SecondaryTextBrush}" />
                 </StackPanel>
 
-                <CheckBox x:Name="IncludeCompletedCheckBox"
-                          Grid.Column="1"
-                          VerticalAlignment="Center"
-                          Checked="IncludeCompletedCheckBox_Changed"
-                          Unchecked="IncludeCompletedCheckBox_Changed"
-                          Content="Inclure terminées" />
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button Margin="0,0,14,0"
+                            Padding="12,6"
+                            Click="CreateTask_Click"
+                            Content="+ Nouvelle tâche" />
+                    <CheckBox x:Name="IncludeCompletedCheckBox"
+                              VerticalAlignment="Center"
+                              Checked="IncludeCompletedCheckBox_Changed"
+                              Unchecked="IncludeCompletedCheckBox_Changed"
+                              Content="Inclure terminées" />
+                </StackPanel>
 
                 <WrapPanel Grid.Row="1"
                            Grid.ColumnSpan="2"

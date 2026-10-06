@@ -17,12 +17,14 @@ public partial class TaskListDialog : Window
 
     private readonly WorkspaceTaskService _tasks;
     private readonly string? _contextPath;
+    private readonly Func<string, TaskMetadataUpdate, Task<TaskItem>> _createTaskAsync;
     private readonly Func<TaskItem, bool, Task> _toggleTaskAsync;
     private readonly Func<TaskItem, TaskMetadataUpdate, Task> _updateTaskMetadataAsync;
     private readonly Func<TaskItem, TaskMetadataUpdate, Task<MeetingActionPromotionResult>> _promoteMeetingActionAsync;
 
     private IReadOnlyList<TaskItem> _loadedTasks = [];
     private bool _updatingFilters;
+    private bool _isInitialized;
 
     /// <summary>
     /// Initializes a new instance of <see cref="TaskListDialog"/>.
@@ -30,6 +32,7 @@ public partial class TaskListDialog : Window
     /// <param name="workspaceRoot">The workspace root.</param>
     /// <param name="contextPath">The current task scope path.</param>
     /// <param name="scopeLabel">The localized scope label.</param>
+    /// <param name="createTaskAsync">The callback used to create a project task.</param>
     /// <param name="toggleTaskAsync">The callback used to change checkbox completion.</param>
     /// <param name="updateTaskMetadataAsync">The callback used to rewrite task metadata.</param>
     /// <param name="promoteMeetingActionAsync">The callback used to promote a meeting action into project task tracking.</param>
@@ -37,12 +40,15 @@ public partial class TaskListDialog : Window
             string workspaceRoot,
             string? contextPath,
             string scopeLabel,
+            Func<string, TaskMetadataUpdate, Task<TaskItem>> createTaskAsync,
             Func<TaskItem, bool, Task> toggleTaskAsync,
             Func<TaskItem, TaskMetadataUpdate, Task> updateTaskMetadataAsync,
             Func<TaskItem, TaskMetadataUpdate, Task<MeetingActionPromotionResult>> promoteMeetingActionAsync)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(
             workspaceRoot);
+        ArgumentNullException.ThrowIfNull(
+            createTaskAsync);
         ArgumentNullException.ThrowIfNull(
             toggleTaskAsync);
         ArgumentNullException.ThrowIfNull(
@@ -54,6 +60,8 @@ public partial class TaskListDialog : Window
             workspaceRoot);
         _contextPath =
             contextPath;
+        _createTaskAsync =
+            createTaskAsync;
         _toggleTaskAsync =
             toggleTaskAsync;
         _updateTaskMetadataAsync =
@@ -62,6 +70,8 @@ public partial class TaskListDialog : Window
             promoteMeetingActionAsync;
 
         InitializeComponent();
+        _isInitialized =
+            true;
 
         ScopeText.Text =
             scopeLabel;
@@ -82,8 +92,15 @@ public partial class TaskListDialog : Window
     /// <param name="e">The routed event.</param>
     private async void IncludeCompletedCheckBox_Changed(
             object sender,
-            RoutedEventArgs e) =>
-            await RefreshAsync();
+            RoutedEventArgs e)
+    {
+        if (!_isInitialized)
+        {
+            return;
+        }
+
+        await RefreshAsync();
+    }
 
     /// <summary>
     /// Reapplies in-memory filters or sorting when one filter changes.
@@ -94,12 +111,59 @@ public partial class TaskListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (_updatingFilters)
+        if (!_isInitialized ||
+            _updatingFilters)
         {
             return;
         }
 
         ApplyFiltersAndSort();
+    }
+
+
+    /// <summary>
+    /// Creates a new Markdown task in the task document of the current project.
+    /// </summary>
+    /// <param name="sender">The create button.</param>
+    /// <param name="e">The routed event.</param>
+    private async void CreateTask_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        TaskCreationDialog dialog =
+            new TaskCreationDialog
+            {
+                Owner =
+                    this
+            };
+
+        if (dialog.ShowDialog() != true ||
+            dialog.Metadata is null)
+        {
+            return;
+        }
+
+        try
+        {
+            TaskItem created = await _createTaskAsync(
+                dialog.TaskText,
+                dialog.Metadata);
+
+            StatusText.Text =
+                $"Tâche créée · {created.Text}";
+
+            await RefreshAsync();
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            TaskSourceConflictException)
+        {
+            StatusText.Text =
+                exception.Message;
+        }
     }
 
     /// <summary>

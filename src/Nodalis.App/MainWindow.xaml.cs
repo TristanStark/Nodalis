@@ -5089,6 +5089,11 @@ public partial class MainWindow : Window
             _root.FullPath,
             contextPath,
             scopeLabel,
+            (text, metadata) =>
+                CreateTaskFromViewAsync(
+                    contextPath,
+                    text,
+                    metadata),
             ToggleTaskFromViewAsync,
             UpdateTaskMetadataFromViewAsync,
             PromoteMeetingActionFromViewAsync)
@@ -5160,6 +5165,48 @@ public partial class MainWindow : Window
 
         await NavigateToTaskAsync(
             task);
+    }
+
+
+    /// <summary>
+    /// Creates a project task from a consolidated view and refreshes navigation and dashboards.
+    /// </summary>
+    /// <param name="contextPath">The project context used to resolve the destination task document.</param>
+    /// <param name="text">The task text.</param>
+    /// <param name="metadata">The task metadata.</param>
+    /// <returns>The indexed task created in Markdown.</returns>
+    private async Task<TaskItem> CreateTaskFromViewAsync(
+            string contextPath,
+            string text,
+            TaskMetadataUpdate metadata)
+    {
+        string? selectedPath =
+            _selectedNode?.FullPath;
+
+        if (_autosave is not null)
+        {
+            await _autosave.FlushAsync();
+
+            if (_documentDirty)
+            {
+                throw new InvalidOperationException(
+                    "Le document courant contient des modifications non enregistrées. Résolvez d'abord le conflit avant de créer une tâche.");
+            }
+        }
+
+        TaskItem created = await _taskService.CreateTaskAsync(
+            contextPath,
+            text,
+            metadata);
+
+        await RefreshNavigationAsync(
+            selectedPath);
+        await RefreshDashboardTasksAsync();
+
+        StatusText.Text =
+            $"Tâche créée · {created.Text}";
+
+        return created;
     }
 
     /// <summary>

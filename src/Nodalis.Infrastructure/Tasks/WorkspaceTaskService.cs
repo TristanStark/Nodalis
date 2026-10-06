@@ -193,6 +193,159 @@ public sealed partial class WorkspaceTaskService
             .ToArray();
     }
 
+
+    /// <summary>
+    /// Creates a new task in the dedicated task document of the project resolved from the supplied context.
+    /// </summary>
+    /// <param name="contextPath">A project, sub-project or project document path.</param>
+    /// <param name="text">The human-readable task text.</param>
+    /// <param name="metadata">Optional task metadata.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The indexed task created in the project task document.</returns>
+    public async Task<TaskItem> CreateTaskAsync(
+            string contextPath,
+            string text,
+            TaskMetadataUpdate metadata,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            contextPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            text);
+        ArgumentNullException.ThrowIfNull(
+            metadata);
+
+        string taskText =
+            text.Trim();
+
+        if (taskText.Contains(
+                '|') ||
+            taskText.Contains(
+                '\r') ||
+            taskText.Contains(
+                '\n'))
+        {
+            throw new InvalidDataException(
+                "Le texte d'une tâche doit tenir sur une ligne et ne peut pas contenir « | ».");
+        }
+
+        LinkIndexCatalog links = await _linkIndex.RefreshAsync(
+            cancellationToken);
+
+        (Guid? ApplicationId, Guid? ProjectId) context = ResolveContext(
+            contextPath,
+            links);
+
+        if (context.ProjectId is not Guid projectId)
+        {
+            throw new InvalidOperationException(
+                "Sélectionnez un projet, un sous-projet ou un document de projet pour créer une tâche.");
+        }
+
+        LinkTargetEntry projectTarget = links.Targets.FirstOrDefault(target =>
+                target.Kind == LinkTargetKind.Project &&
+                target.Id == projectId)
+            ?? throw new InvalidDataException(
+                "Le projet courant n'est plus indexé dans le workspace.");
+
+        string projectDirectory = ResolveWorkspacePath(
+            projectTarget.RelativePath);
+
+        if (!Directory.Exists(
+                projectDirectory))
+        {
+            throw new DirectoryNotFoundException(
+                $"Le dossier projet est introuvable : {projectDirectory}");
+        }
+
+        string taskDocumentPath = Path.Combine(
+            projectDirectory,
+            "Tâches.md");
+
+        if (!File.Exists(
+                taskDocumentPath))
+        {
+            await AtomicFileWriter.WriteAllTextAsync(
+                taskDocumentPath,
+                "# Tâches\n\n",
+                cancellationToken);
+        }
+
+        TextDocumentSession session = await TextDocumentSession.OpenAsync(
+            taskDocumentPath,
+            cancellationToken);
+
+        List<string> lines = SplitDocumentLines(
+            session.Content,
+            out string newline,
+            out bool hadTrailingNewline);
+
+        EnsureManualTaskAppendSection(
+            lines);
+
+        string owner = NormalizeMetadataValue(
+            metadata.Owner,
+            "responsable");
+        string priority = NormalizeMetadataValue(
+            metadata.Priority,
+            "priorité");
+        string status = NormalizeMetadataValue(
+            metadata.Status,
+            "statut");
+        IReadOnlyList<string> tags = NormalizeTags(
+            metadata.Tags);
+
+        string body = BuildTaskBody(
+            taskText,
+            owner,
+            metadata.DueDate,
+            priority,
+            status,
+            tags);
+
+        string rawLine =
+            $"- [ ] {body}";
+        int lineIndex =
+            lines.Count;
+
+        lines.Add(
+            rawLine);
+
+        await session.SaveAsync(
+            JoinDocumentLines(
+                lines,
+                newline,
+                hadTrailingNewline),
+            cancellationToken);
+
+        await _linkIndex.RefreshAsync(
+            cancellationToken);
+
+        string taskRelativePath = NormalizeRelativePath(
+            Path.GetRelativePath(
+                _workspaceRoot,
+                taskDocumentPath));
+
+        IReadOnlyList<TaskItem> projectTasks = await GetTasksAsync(
+            projectDirectory,
+            includeCompleted: true,
+            cancellationToken);
+
+        return projectTasks.FirstOrDefault(task =>
+                string.Equals(
+                    task.SourceRelativePath,
+                    taskRelativePath,
+                    StringComparison.OrdinalIgnoreCase) &&
+                task.LineNumber ==
+                    lineIndex + 1 &&
+                string.Equals(
+                    task.RawLine,
+                    rawLine,
+                    StringComparison.Ordinal))
+            ?? throw new InvalidDataException(
+                "La tâche a été écrite mais n'a pas pu être retrouvée dans l'index.");
+    }
+
     /// <summary>
     /// Promotes one project meeting action into the project's dedicated task document while retaining bidirectional links.
     /// </summary>
@@ -894,6 +1047,44 @@ public sealed partial class WorkspaceTaskService
             string prefix,
             Guid promotionId) =>
             $"{prefix}{promotionId:D}{PromotionMarkerSuffix}";
+
+
+    /// <summary>
+    /// Ensures that manual project tasks are appended under a dedicated task section.
+    /// </summary>
+    /// <param name="lines">The editable task document lines.</param>
+    private static void EnsureManualTaskAppendSection(
+            List<string> lines)
+    {
+        string? lastSecondLevelHeading = lines
+            .AsEnumerable()
+            .Reverse()
+            .FirstOrDefault(line =>
+                line.TrimStart()
+                    .StartsWith(
+                        "## ",
+                        StringComparison.Ordinal));
+
+        if (string.Equals(
+                lastSecondLevelHeading?.Trim(),
+                "## Tâches",
+                StringComparison.CurrentCultureIgnoreCase))
+        {
+            return;
+        }
+
+        if (lines.Count > 0 &&
+            lines[^1].Length > 0)
+        {
+            lines.Add(
+                string.Empty);
+        }
+
+        lines.Add(
+            "## Tâches");
+        lines.Add(
+            string.Empty);
+    }
 
     /// <summary>
     /// Adds the dedicated meeting-action section to a project task document when it is missing.

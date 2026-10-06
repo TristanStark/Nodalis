@@ -2680,6 +2680,52 @@ static async Task VerifyTasksAsync(string root)
             ambiguous,
             completed: true),
         "Task toggle must refuse ambiguous moved source lines.");
+
+
+    global::Nodalis.Core.Tasks.TaskItem createdTask = await service.CreateTaskAsync(
+        project.ProjectDirectory,
+        "Documenter le déploiement",
+        new TaskMetadataUpdate
+        {
+            Owner = "Alice",
+            DueDate = new DateOnly(
+                2026,
+                10,
+                20),
+            Priority = "Normale",
+            Status = "À faire",
+            Tags =
+            [
+                "documentation"
+            ]
+        });
+
+    string createdTaskPath = Path.Combine(
+        root,
+        createdTask.SourceRelativePath.Replace(
+            '/',
+            Path.DirectorySeparatorChar));
+
+    string createdTaskContent = await File.ReadAllTextAsync(
+        createdTaskPath);
+
+    Assert(
+        Path.GetFileName(
+            createdTaskPath) == "Tâches.md" &&
+        createdTask.Text == "Documenter le déploiement" &&
+        createdTask.Owner == "Alice" &&
+        createdTaskContent.Contains(
+            "- [ ] Documenter le déploiement | Responsable: Alice | Échéance: 2026-10-20 | Priorité: Normale | Statut: À faire | Tags: documentation",
+            StringComparison.Ordinal),
+        "Task creation must persist a readable Markdown checkbox in the current project's dedicated task document.");
+
+    await AssertThrowsAsync<InvalidOperationException>(
+        () => service.CreateTaskAsync(
+            root,
+            "Tâche sans projet",
+            new TaskMetadataUpdate()),
+        "Task creation from global scope must require an explicit project context.");
+
 }
 
 static async Task VerifyMilestonesAsync(string root)
