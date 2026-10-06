@@ -1,0 +1,3 @@
+# Glossaire
+
+- **RC** : Release Candidate.

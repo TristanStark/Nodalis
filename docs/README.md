@@ -43,6 +43,7 @@ sert de sommaire et de matrice de couverture des fonctionnalités majeures.
 | Accessibilité, clavier et cohérence UI | accessibility.md, README-UTILISATEUR.md |
 | Budgets de performance | performance-budgets.md |
 | Régression et fixtures CI | regression-testing.md |
+| Release Candidate et passage en stable | release-checklist.md |
 | Dépannage et FAQ | troubleshooting.md |
 | Architecture du code | architecture.md |
 

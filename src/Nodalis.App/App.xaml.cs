@@ -46,11 +46,20 @@ public partial class App : Application
         {
             ShortcutCatalog.ValidateUniqueBindings();
 
-            if (e.Args.Any(argument =>
+            string? smokeTestWorkspacePath =
+                GetOptionalArgumentValue(
+                    e.Args,
+                    "--smoke-test-workspace");
+
+            bool smokeTestRequested =
+                e.Args.Any(argument =>
                     string.Equals(
                         argument,
                         "--smoke-test",
-                        StringComparison.OrdinalIgnoreCase)))
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (smokeTestRequested ||
+                smokeTestWorkspacePath is not null)
             {
                 if (TryFindResource(
                         "NodalisWindowStyle") is not Style ||
@@ -59,6 +68,12 @@ public partial class App : Application
                 {
                     throw new InvalidOperationException(
                         "Le thème WPF Nodalis ou ses styles d'accessibilité n'ont pas pu être chargés.");
+                }
+
+                if (smokeTestWorkspacePath is not null)
+                {
+                    await VerifySmokeTestWorkspaceAsync(
+                        smokeTestWorkspacePath);
                 }
 
                 Shutdown(0);
@@ -158,6 +173,189 @@ public partial class App : Application
                 MessageBoxImage.Error);
 
             Shutdown(-1);
+        }
+    }
+
+    /// <summary>
+    /// Returns the value that follows an optional command-line argument.
+    /// </summary>
+    /// <param name="arguments">Application startup arguments.</param>
+    /// <param name="argumentName">Argument name whose value should be returned.</param>
+    /// <returns>The argument value, or <see langword="null"/> when the argument is absent.</returns>
+    private static string? GetOptionalArgumentValue(
+            string[] arguments,
+            string argumentName)
+    {
+        int argumentIndex =
+            Array.FindIndex(
+                arguments,
+                argument =>
+                    string.Equals(
+                        argument,
+                        argumentName,
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (argumentIndex < 0)
+        {
+            return null;
+        }
+
+        int valueIndex =
+            argumentIndex + 1;
+
+        if (valueIndex >= arguments.Length ||
+            string.IsNullOrWhiteSpace(
+                arguments[valueIndex]) ||
+            arguments[valueIndex].StartsWith(
+                "--",
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"L'argument {argumentName} nécessite une valeur.");
+        }
+
+        return arguments[valueIndex];
+    }
+
+    /// <summary>
+    /// Exercises the packaged application against a representative release-candidate workspace.
+    /// </summary>
+    /// <param name="workspacePath">Workspace copied to an isolated temporary directory by the release workflow.</param>
+    /// <returns>A task representing the validation.</returns>
+    private static async Task VerifySmokeTestWorkspaceAsync(
+            string workspacePath)
+    {
+        string workspaceRoot =
+            Path.GetFullPath(
+                workspacePath);
+
+        if (!Directory.Exists(
+                workspaceRoot))
+        {
+            throw new DirectoryNotFoundException(
+                $"Le workspace de smoke test est introuvable : {workspaceRoot}");
+        }
+
+        global::Nodalis.Infrastructure.Persistence.FileSystemWorkspaceStore workspaceStore =
+            new FileSystemWorkspaceStore(
+                workspaceRoot);
+
+        global::Nodalis.Core.Domain.WorkspaceManifest workspace =
+            await workspaceStore.LoadAsync();
+
+        if (workspace.SchemaVersion !=
+            global::Nodalis.Core.Domain.WorkspaceManifest.CurrentSchemaVersion)
+        {
+            throw new InvalidDataException(
+                $"Le workspace RC utilise le schéma {workspace.SchemaVersion} au lieu du schéma attendu {global::Nodalis.Core.Domain.WorkspaceManifest.CurrentSchemaVersion}.");
+        }
+
+        global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore templateStore =
+            new FileSystemTemplateStore(
+                workspaceRoot);
+
+        await templateStore.InitializeDefaultsAsync();
+
+        global::Nodalis.Infrastructure.Navigation.WorkspaceNavigationBuilder navigationBuilder =
+            new WorkspaceNavigationBuilder();
+
+        global::Nodalis.Core.Navigation.WorkspaceNavigationNode navigation =
+            await navigationBuilder.BuildAsync(
+                workspaceRoot);
+
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> nodes =
+            DescendantsAndSelf(
+                    navigation)
+                .ToArray();
+
+        if (!nodes.Any(node =>
+                node.Kind ==
+                    global::Nodalis.Core.Navigation.WorkspaceNodeKind.Project))
+        {
+            throw new InvalidDataException(
+                "Le workspace RC ne contient aucun projet navigable.");
+        }
+
+        global::Nodalis.Core.Navigation.WorkspaceNavigationNode? sentinelDocument =
+            nodes.FirstOrDefault(node =>
+                node.Kind ==
+                    global::Nodalis.Core.Navigation.WorkspaceNodeKind.Document &&
+                string.Equals(
+                    Path.GetFileName(
+                        node.FullPath),
+                    "Architecture.md",
+                    StringComparison.OrdinalIgnoreCase));
+
+        if (sentinelDocument is null)
+        {
+            throw new InvalidDataException(
+                "Le document sentinelle Architecture.md du workspace RC est introuvable.");
+        }
+
+        global::Nodalis.Infrastructure.Search.WorkspaceSearchService searchService =
+            new global::Nodalis.Infrastructure.Search.WorkspaceSearchService();
+
+        global::Nodalis.Core.Search.SearchResultSet searchResults =
+            await searchService.SearchAsync(
+                workspaceRoot,
+                sentinelDocument.FullPath,
+                "release-candidate-sentinel",
+                global::Nodalis.Core.Search.SearchMatchMode.Exact);
+
+        bool sentinelFound =
+            searchResults.Project
+                .Concat(
+                    searchResults.Application)
+                .Concat(
+                    searchResults.Global)
+                .Any(result =>
+                    string.Equals(
+                        result.FilePath,
+                        sentinelDocument.FullPath,
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (!sentinelFound)
+        {
+            throw new InvalidDataException(
+                "La recherche du binaire publié ne retrouve pas le document sentinelle du workspace RC.");
+        }
+
+        global::Nodalis.Infrastructure.Links.WorkspaceLinkIndexService linkIndexService =
+            new global::Nodalis.Infrastructure.Links.WorkspaceLinkIndexService(
+                workspaceRoot);
+
+        global::Nodalis.Core.Links.LinkIndexCatalog links =
+            await linkIndexService.RefreshAsync();
+
+        if (!links.References.Any(reference =>
+                string.Equals(
+                    reference.RawTarget,
+                    "Architecture",
+                    StringComparison.OrdinalIgnoreCase) &&
+                reference.TargetId is not null))
+        {
+            throw new InvalidDataException(
+                "Le binaire publié ne résout pas le lien interne sentinelle du workspace RC.");
+        }
+    }
+
+    /// <summary>
+    /// Enumerates a navigation node and all of its descendants.
+    /// </summary>
+    /// <param name="node">Navigation node to enumerate.</param>
+    /// <returns>The node followed by all descendants.</returns>
+    private static IEnumerable<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> DescendantsAndSelf(
+            global::Nodalis.Core.Navigation.WorkspaceNavigationNode node)
+    {
+        yield return node;
+
+        foreach (global::Nodalis.Core.Navigation.WorkspaceNavigationNode child in node.Children)
+        {
+            foreach (global::Nodalis.Core.Navigation.WorkspaceNavigationNode descendant in DescendantsAndSelf(
+                         child))
+            {
+                yield return descendant;
+            }
         }
     }
 

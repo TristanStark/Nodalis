@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  issues: read
 
 jobs:
   package:
@@ -46,6 +47,17 @@ jobs:
 
           "version=$version" >> $env:GITHUB_OUTPUT
 
+      - name: Verify no open blocker issues
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $blockers = @(gh issue list --repo "${{ github.repository }}" --label blocker --state open --limit 100 --json number,title | ConvertFrom-Json)
+          if ($blockers.Count -gt 0) {
+            $summary = ($blockers | ForEach-Object { "#$($_.number) $($_.title)" }) -join "; "
+            throw "Release blocked by open blocker issue(s): $summary"
+          }
+
       - name: Verify local-only constraints
         shell: pwsh
         run: ./scripts/verify-constraints.ps1
@@ -67,12 +79,22 @@ jobs:
         shell: pwsh
         run: ./scripts/publish-portable.ps1 -Version "${{ steps.version.outputs.version }}"
 
-      - name: Start published portable binary
+      - name: Verify reproducible portable package
+        shell: pwsh
+        run: ./scripts/verify-release-reproducibility.ps1 -Version "${{ steps.version.outputs.version }}" -BaselineArchive "artifacts/Nodalis-win-x64.zip"
+
+      - name: Start published portable binary against RC workspace
         shell: pwsh
         run: |
-          $process = Start-Process "artifacts/Nodalis-win-x64/Nodalis.exe" -ArgumentList "--smoke-test" -PassThru -Wait
+          $workspace = Join-Path $env:RUNNER_TEMP "Nodalis-RC-Workspace"
+          if (Test-Path $workspace) {
+            Remove-Item $workspace -Recurse -Force
+          }
+          Copy-Item "tests/ReleaseCandidateWorkspace" -Destination $workspace -Recurse -Force
+          $arguments = "--smoke-test --smoke-test-workspace `"$workspace`""
+          $process = Start-Process "artifacts/Nodalis-win-x64/Nodalis.exe" -ArgumentList $arguments -PassThru -Wait
           if ($process.ExitCode -ne 0) {
-            throw "Published Nodalis.exe failed startup smoke test with exit code $($process.ExitCode)."
+            throw "Published Nodalis.exe failed RC workspace smoke test with exit code $($process.ExitCode)."
           }
 
       - name: Upload portable archive

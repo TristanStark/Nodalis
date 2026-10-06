@@ -1,0 +1,15 @@
+{
+  "id": "30000000-0000-0000-0000-000000000001",
+  "name": "Projet RC",
+  "applicationId": "20000000-0000-0000-0000-000000000001",
+  "moduleId": null,
+  "parentProjectId": null,
+  "initialComplexity": "medium",
+  "sections": [
+    {"id":"40000000-0000-0000-0000-000000000001","name":"Jalons","order":10,"isSingleton":true,"templateKey":"milestones"},
+    {"id":"40000000-0000-0000-0000-000000000002","name":"Technique","order":20,"isSingleton":false,"templateKey":"technical-medium"},
+    {"id":"40000000-0000-0000-0000-000000000003","name":"Glossaire","order":30,"isSingleton":true,"templateKey":"glossary"},
+    {"id":"40000000-0000-0000-0000-000000000004","name":"Tests","order":40,"isSingleton":false,"templateKey":"tests-medium"}
+  ],
+  "createdUtc": "2026-10-06T00:00:00+00:00"
+}
