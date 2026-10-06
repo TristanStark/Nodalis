@@ -9,6 +9,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Prompts\**\*.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Nodalis.Core\Nodalis.Core.csproj" />
     <ProjectReference Include="..\Nodalis.Infrastructure\Nodalis.Infrastructure.csproj" />
   </ItemGroup>
