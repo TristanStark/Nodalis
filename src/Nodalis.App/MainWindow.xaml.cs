@@ -3925,13 +3925,15 @@ public partial class MainWindow : Window
     {
         global::Nodalis.App.Dialogs.PreferencesDialog dialog = new PreferencesDialog(
             _preferences.Editor,
-            _contextPanelOpen)
+            _contextPanelOpen,
+            _preferences.Ai)
         {
             Owner = this
         };
 
         if (dialog.ShowDialog() != true ||
-            dialog.Editor is null)
+            dialog.Editor is null ||
+            dialog.Ai is null)
         {
             return;
         }
@@ -3977,7 +3979,8 @@ public partial class MainWindow : Window
         _preferences = _preferences with
         {
             IsContextPanelOpen = _contextPanelOpen,
-            Editor = editor
+            Editor = editor,
+            Ai = dialog.Ai
         };
 
         await _preferencesStore.SaveAsync(
