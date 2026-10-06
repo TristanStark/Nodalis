@@ -304,9 +304,9 @@ public sealed partial class ProjectCoverageAnalysisService
         SectionManifest[] functionalSections =
             project.Sections
                 .Where(section =>
-                    section.TemplateKey.StartsWith(
+                    (section.TemplateKey?.StartsWith(
                         "functional",
-                        StringComparison.OrdinalIgnoreCase) ||
+                        StringComparison.OrdinalIgnoreCase) ?? false) ||
                     section.Name.Contains(
                         "fonction",
                         StringComparison.CurrentCultureIgnoreCase))
@@ -315,9 +315,9 @@ public sealed partial class ProjectCoverageAnalysisService
         SectionManifest[] testSections =
             project.Sections
                 .Where(section =>
-                    section.TemplateKey.StartsWith(
+                    (section.TemplateKey?.StartsWith(
                         "tests",
-                        StringComparison.OrdinalIgnoreCase) ||
+                        StringComparison.OrdinalIgnoreCase) ?? false) ||
                     section.Name.Contains(
                         "test",
                         StringComparison.CurrentCultureIgnoreCase))
@@ -642,9 +642,9 @@ public sealed partial class ProjectCoverageAnalysisService
         SectionManifest[] glossarySections =
             project.Sections
                 .Where(section =>
-                    section.TemplateKey.StartsWith(
+                    (section.TemplateKey?.StartsWith(
                         "glossary",
-                        StringComparison.OrdinalIgnoreCase) ||
+                        StringComparison.OrdinalIgnoreCase) ?? false) ||
                     section.Name.Contains(
                         "gloss",
                         StringComparison.CurrentCultureIgnoreCase))
@@ -852,9 +852,9 @@ public sealed partial class ProjectCoverageAnalysisService
         SectionManifest[] milestoneSections =
             project.Sections
                 .Where(section =>
-                    section.TemplateKey.StartsWith(
+                    (section.TemplateKey?.StartsWith(
                         "milestone",
-                        StringComparison.OrdinalIgnoreCase) ||
+                        StringComparison.OrdinalIgnoreCase) ?? false) ||
                     section.Name.Contains(
                         "jalon",
                         StringComparison.CurrentCultureIgnoreCase))
