@@ -244,6 +244,10 @@ internal static class MarkdownBulkImportSmokeTests
                 plannedImportDirectory),
             "Building a bulk Markdown plan must not create destination files or directories.");
 
+        byte[] attachmentAfterPlanning =
+            await File.ReadAllBytesAsync(
+                attachmentPath);
+
         Assert(
             await File.ReadAllTextAsync(
                 indexPath) ==
@@ -252,8 +256,7 @@ internal static class MarkdownBulkImportSmokeTests
                 detailPath) ==
                 detailContent &&
             attachmentBefore.SequenceEqual(
-                await File.ReadAllBytesAsync(
-                    attachmentPath)) &&
+                attachmentAfterPlanning) &&
             File.GetLastWriteTimeUtc(
                 indexPath) ==
                 indexWriteBefore &&
@@ -291,6 +294,10 @@ internal static class MarkdownBulkImportSmokeTests
                 importedAttachment),
             "Committed bulk Markdown import must preserve the source tree needed by relative links.");
 
+        byte[] importedAttachmentContent =
+            await File.ReadAllBytesAsync(
+                importedAttachment);
+
         Assert(
             await File.ReadAllTextAsync(
                 importedIndex) ==
@@ -299,8 +306,7 @@ internal static class MarkdownBulkImportSmokeTests
                 importedDetail) ==
                 detailContent &&
             attachmentBefore.SequenceEqual(
-                await File.ReadAllBytesAsync(
-                    importedAttachment)),
+                importedAttachmentContent),
             "Committed bulk Markdown import must copy source bytes without rewriting Markdown or attachments.");
 
         MarkdownBulkImportPlan secondPlan =
@@ -319,6 +325,10 @@ internal static class MarkdownBulkImportSmokeTests
                     StringComparison.CurrentCultureIgnoreCase)),
             "A subsequent plan must choose a collision-free directory and explicitly report duplicate Markdown content.");
 
+        byte[] attachmentAfterCommit =
+            await File.ReadAllBytesAsync(
+                attachmentPath);
+
         Assert(
             await File.ReadAllTextAsync(
                 indexPath) ==
@@ -327,8 +337,7 @@ internal static class MarkdownBulkImportSmokeTests
                 detailPath) ==
                 detailContent &&
             attachmentBefore.SequenceEqual(
-                await File.ReadAllBytesAsync(
-                    attachmentPath)),
+                attachmentAfterCommit),
             "Committing an import must never modify its source corpus.");
     }
 
