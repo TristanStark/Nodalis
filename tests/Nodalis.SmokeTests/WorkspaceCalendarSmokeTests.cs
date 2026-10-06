@@ -2,9 +2,11 @@ using System.Text.Json;
 using Nodalis.Core.Calendar;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Meetings;
+using Nodalis.Core.Tasks;
 using Nodalis.Infrastructure.Calendar;
 using Nodalis.Infrastructure.Meetings;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Tasks;
 
 internal static class WorkspaceCalendarSmokeTests
 {
@@ -129,14 +131,38 @@ internal static class WorkspaceCalendarSmokeTests
                 project,
                 jsonOptions));
 
-        string taskPath =
-            Path.Combine(
-                projectDirectory,
-                "Tâches.md");
+        WorkspaceTaskService taskService =
+            new WorkspaceTaskService(
+                workspaceRoot);
 
-        await File.WriteAllTextAsync(
-            taskPath,
-            "# Tâches\n\n- [ ] Préparer livraison | Responsable: Alice | Échéance: 2026-10-10 | Priorité: Haute | Statut: À faire | Tags: #release\n");
+        TaskItem createdTask =
+            await taskService.CreateTaskAsync(
+                projectDirectory,
+                "Préparer livraison",
+                new TaskMetadataUpdate
+                {
+                    Owner =
+                        "Alice",
+                    DueDate =
+                        new DateOnly(
+                            2026,
+                            10,
+                            10),
+                    Priority =
+                        "Haute",
+                    Status =
+                        "À faire",
+                    Tags =
+                        ["release"]
+                });
+
+        Assert(
+            createdTask.DueDate ==
+                new DateOnly(
+                    2026,
+                    10,
+                    10),
+            "Task creation must persist the selected due date before calendar projection.");
 
         string milestonePath =
             Path.Combine(

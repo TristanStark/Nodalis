@@ -74,14 +74,24 @@
                       Grid.Column="4"
                       Width="170"
                       Margin="0,0,8,0"
-                      DisplayMemberPath="Label"
-                      SelectionChanged="Filter_SelectionChanged" />
+                      SelectionChanged="Filter_SelectionChanged">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Label, Mode=OneWay}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
             <ComboBox x:Name="ProjectFilter"
                       Grid.Column="5"
                       Width="190"
                       HorizontalAlignment="Left"
-                      DisplayMemberPath="Label"
-                      SelectionChanged="Filter_SelectionChanged" />
+                      SelectionChanged="Filter_SelectionChanged">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Label, Mode=OneWay}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
 
             <ComboBox x:Name="TypeFilter"
                       Grid.Column="6"

@@ -57,12 +57,13 @@
                        Margin="0,0,12,12"
                        VerticalAlignment="Center"
                        Text="Échéance" />
-            <TextBox x:Name="DueDateTextBox"
-                     Grid.Row="2"
-                     Grid.Column="1"
-                     Margin="0,0,0,12"
-                     Padding="8,5"
-                     ToolTip="AAAA-MM-JJ, vide pour aucune échéance" />
+            <DatePicker x:Name="DueDatePicker"
+                        Grid.Row="2"
+                        Grid.Column="1"
+                        Margin="0,0,0,12"
+                        Padding="8,5"
+                        SelectedDateFormat="Short"
+                        ToolTip="Sélectionnez une date ou laissez vide." />
 
             <TextBlock Grid.Row="3"
                        Margin="0,0,12,12"
@@ -73,7 +74,7 @@
                       Grid.Column="1"
                       Margin="0,0,0,12"
                       Padding="8,5"
-                      IsEditable="True"
+                      IsEditable="False"
                       SelectedIndex="2">
                 <ComboBoxItem Content="Critique" />
                 <ComboBoxItem Content="Haute" />
@@ -90,7 +91,7 @@
                       Grid.Column="1"
                       Margin="0,0,0,12"
                       Padding="8,5"
-                      IsEditable="True"
+                      IsEditable="False"
                       SelectedIndex="0">
                 <ComboBoxItem Content="À faire" />
                 <ComboBoxItem Content="En cours" />

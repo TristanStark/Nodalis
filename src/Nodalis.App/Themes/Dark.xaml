@@ -68,6 +68,10 @@
                      Color="{StaticResource AccentMutedColor}" />
     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
                      Color="{StaticResource PrimaryTextColor}" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
+                     Color="{StaticResource AccentMutedColor}" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
+                     Color="{StaticResource PrimaryTextColor}" />
     <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}"
                      Color="{StaticResource DisabledTextColor}" />
 
@@ -199,6 +203,7 @@
                                               HorizontalAlignment="Left"
                                               Content="{TemplateBinding SelectionBoxItem}"
                                               ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
                                               ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
 
                             <Path Grid.Column="1"

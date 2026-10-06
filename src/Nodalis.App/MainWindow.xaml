@@ -28,16 +28,17 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="48" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0"
+                MinHeight="58"
                 Background="{StaticResource PanelBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1">
-            <Grid Margin="14,0">
+            <Grid Margin="16,5">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -211,14 +212,14 @@
                   Background="{StaticResource WindowBackgroundBrush}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="58" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
                 <Border x:Name="DocumentTabsHost"
                         Grid.Row="0"
-                        Height="38"
+                        MinHeight="42"
                         Visibility="Collapsed"
                         Background="{StaticResource PanelBackgroundBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
@@ -271,7 +272,8 @@
                 </Border>
 
                 <Border Grid.Row="1"
-                        Padding="22,10"
+                        MinHeight="64"
+                        Padding="22,12"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,0,0,1">
                     <StackPanel>
@@ -289,6 +291,7 @@
 
                 <Border x:Name="EditorToolbar"
                         Grid.Row="2"
+                        Padding="0,4"
                         Visibility="Collapsed"
                         Background="{StaticResource PanelBackgroundBrush}"
                         BorderBrush="{StaticResource BorderBrush}"

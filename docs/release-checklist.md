@@ -81,6 +81,18 @@ Sur au moins une session Windows client, vérifier également :
 Conserver le numéro de version RC, le commit et les résultats de ces essais dans
 l'issue GitHub #79.
 
+### Smoke UX issu de la RC terrain (#91)
+
+Sur le même poste Windows client, vérifier également :
+
+- [ ] création d'une tâche avec échéance via le DatePicker, puis réouverture avec la même date ;
+- [ ] priorité et statut lisibles dans le champ fermé, le dropdown, le survol et la sélection ;
+- [ ] sélection application/projet/dossier/section/document entièrement sombre, même quand l'arbre perd le focus ;
+- [ ] filtres Calendrier et Kanban limités aux libellés utilisateur, sans `FilterOption {...}` ni `ScopeFilterOption {...}` ;
+- [ ] tâche datée visible dans le calendrier au bon jour et ouvrable par double-clic ;
+- [ ] compteur du calendrier cohérent avec les éléments réellement visibles après filtres et changement de mois ;
+- [ ] bandeaux supérieurs lisibles sans crop ni chevauchement à 1024 px et avec mise à l'échelle Windows.
+
 ## Passage en stable
 
 Lorsque le gate automatisé est vert et la matrice Windows manuelle entièrement

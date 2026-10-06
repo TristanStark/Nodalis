@@ -311,10 +311,6 @@ public partial class WorkspaceCalendarDialog : Window
             RebuildApplicationFilter();
             RebuildProjectFilter();
             RebuildView();
-
-            StatusText.Text =
-                _snapshot.Events.Count +
-                " élément(s) daté(s) · glissez uniquement les tâches et jalons à date explicite.";
         }
         catch (Exception exception) when (
             exception is IOException or
@@ -498,6 +494,16 @@ public partial class WorkspaceCalendarDialog : Window
 
         DaysItemsControl.ItemsSource =
             days;
+
+        int visibleEventCount =
+            days.Sum(day =>
+                day.Events.Count);
+
+        StatusText.Text =
+            visibleEventCount +
+            " élément(s) visible(s) sur " +
+            _snapshot.Events.Count +
+            " daté(s) · double-cliquez pour ouvrir la source ; tâches et jalons datés sont déplaçables.";
     }
 
     /// <summary>

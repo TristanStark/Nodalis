@@ -6,6 +6,9 @@ $themePath = Join-Path $appRoot "Themes/Dark.xaml"
 $appXamlPath = Join-Path $appRoot "App.xaml"
 $mainWindowCodePath = Join-Path $appRoot "MainWindow.xaml.cs"
 $mainWindowXamlPath = Join-Path $appRoot "MainWindow.xaml"
+$taskCreationXamlPath = Join-Path $appRoot "Dialogs/TaskCreationDialog.xaml"
+$calendarXamlPath = Join-Path $appRoot "Dialogs/WorkspaceCalendarDialog.xaml"
+$kanbanXamlPath = Join-Path $appRoot "Dialogs/WorkspaceKanbanDialog.xaml"
 $appProjectPath = Join-Path $appRoot "Nodalis.App.csproj"
 $appManifestPath = Join-Path $appRoot "app.manifest"
 
@@ -42,7 +45,9 @@ $requiredThemeTokens = @(
     'TargetType="DatePicker"',
     'TargetType="Calendar"',
     'TargetType="ListBoxItem"',
-    'TargetType="TreeViewItem"'
+    'TargetType="TreeViewItem"',
+    'SystemColors.InactiveSelectionHighlightBrushKey',
+    'ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"'
 )
 
 foreach ($token in $requiredThemeTokens) {
@@ -66,6 +71,28 @@ if ($mainWindowXaml.Contains('<Run Text="{Binding OverdueDisplay}" />')) {
 if (-not $mainWindowXaml.Contains('<Run Text="{Binding OverdueDisplay, Mode=OneWay}" />')) {
     $failures.Add("Project dashboard is missing the safe OneWay OverdueDisplay binding.")
 }
+
+$taskCreationXaml = Get-Content -Raw -LiteralPath $taskCreationXamlPath
+$calendarXaml = Get-Content -Raw -LiteralPath $calendarXamlPath
+$kanbanXaml = Get-Content -Raw -LiteralPath $kanbanXamlPath
+
+if (-not $taskCreationXaml.Contains('x:Name="DueDatePicker"') -or
+    $taskCreationXaml.Contains('x:Name="DueDateTextBox"')) {
+    $failures.Add("Task creation must use the WPF DatePicker for the optional due date.")
+}
+
+if ($taskCreationXaml.Contains('IsEditable="True"')) {
+    $failures.Add("Task creation priority/status ComboBoxes must expose their selected labels in the closed state.")
+}
+
+if (-not $calendarXaml.Contains('Text="{Binding Label, Mode=OneWay}"')) {
+    $failures.Add("Workspace calendar filters must render user-facing labels instead of record ToString() values.")
+}
+
+if (-not $kanbanXaml.Contains('Text="{Binding Label, Mode=OneWay}"')) {
+    $failures.Add("Workspace Kanban filters must render user-facing labels instead of record ToString() values.")
+}
+
 $requiredContextMenuCodeTokens = @(
     'InitializeContextMenus();',
     'PrepareNodalisContextMenu',

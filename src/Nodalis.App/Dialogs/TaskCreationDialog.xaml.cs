@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Windows;
 using Nodalis.Core.Tasks;
 
@@ -70,33 +69,11 @@ public partial class TaskCreationDialog : Window
             return;
         }
 
-        string dueText =
-            DueDateTextBox.Text.Trim();
-
         DateOnly? dueDate =
-            null;
-
-        if (dueText.Length > 0)
-        {
-            if (!DateOnly.TryParseExact(
-                    dueText,
-                    "yyyy-MM-dd",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out DateOnly parsed))
-            {
-                MessageBox.Show(
-                    this,
-                    "L'échéance doit utiliser le format AAAA-MM-JJ.",
-                    "Nouvelle tâche",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
-            dueDate =
-                parsed;
-        }
+            DueDatePicker.SelectedDate is DateTime selectedDueDate
+                ? DateOnly.FromDateTime(
+                    selectedDueDate)
+                : null;
 
         string[] tags = TagsTextBox.Text
             .Split(
