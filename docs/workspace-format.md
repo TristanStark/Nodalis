@@ -353,3 +353,7 @@ interruption en plein enregistrement ne laisse un JSON partiellement écrit.
 `schemaVersion` est incrémenté uniquement lorsqu'une évolution nécessite une
 migration. Une version de Nodalis refuse de sauvegarder silencieusement un
 workspace dont le schéma est plus récent que celui qu'elle comprend.
+
+Le préflight, les sauvegardes obligatoires, le staging transactionnel, les
+rapports et la chaîne de migrations supportée sont documentés dans
+[workspace-migrations.md](workspace-migrations.md).
