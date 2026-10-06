@@ -4,6 +4,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $appRoot = Join-Path $repoRoot "src/Nodalis.App"
 $themePath = Join-Path $appRoot "Themes/Dark.xaml"
 $appXamlPath = Join-Path $appRoot "App.xaml"
+$mainWindowCodePath = Join-Path $appRoot "MainWindow.xaml.cs"
 
 $xamlFiles = Get-ChildItem -Path $appRoot -Recurse -Filter *.xaml -File
 $failures = [System.Collections.Generic.List[string]]::new()
@@ -33,6 +34,7 @@ $requiredThemeTokens = @(
     'KeyboardNavigation.ControlTabNavigation',
     'TextOptions.TextFormattingMode',
     'TargetType="{x:Type ContextMenu}"',
+    'ScrollViewer.VerticalScrollBarVisibility="Auto"',
     'TargetType="{x:Type MenuItem}"',
     'TargetType="DatePicker"',
     'TargetType="Calendar"',
@@ -51,9 +53,24 @@ if (-not $appXaml.Contains('ResourceDictionary Source="Themes/Dark.xaml"')) {
     $failures.Add("App.xaml no longer loads Themes/Dark.xaml globally.")
 }
 
+$mainWindowCode = Get-Content -Raw -LiteralPath $mainWindowCodePath
+$requiredContextMenuCodeTokens = @(
+    'InitializeContextMenus();',
+    'PrepareNodalisContextMenu',
+    'CreateNodalisMenuItem',
+    'PlacementMode.MousePoint',
+    'Ajouter au glossaire du projet'
+)
+
+foreach ($token in $requiredContextMenuCodeTokens) {
+    if (-not $mainWindowCode.Contains($token)) {
+        $failures.Add("MainWindow.xaml.cs is missing required context-menu regression token: $token")
+    }
+}
+
 if ($failures.Count -gt 0) {
     Write-Error ("Accessibility audit failed:`n - " + ($failures -join "`n - "))
     exit 1
 }
 
-Write-Host "Accessibility audit passed for $($xamlFiles.Count) XAML files."
+Write-Host "Accessibility and context-menu audit passed for $($xamlFiles.Count) XAML files."

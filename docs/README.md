@@ -41,6 +41,7 @@ sert de sommaire et de matrice de couverture des fonctionnalités majeures.
 | Contrats de données 1.0 | data-contracts-v1.md |
 | Crashs, diagnostics et récupération locale | crash-diagnostics.md |
 | Accessibilité, clavier et cohérence UI | accessibility.md, README-UTILISATEUR.md |
+| Menus contextuels, dark mode et DPI | context-menu-smoke-test.md, accessibility.md |
 | Budgets de performance | performance-budgets.md |
 | Régression et fixtures CI | regression-testing.md |
 | Release Candidate et passage en stable | release-checklist.md |

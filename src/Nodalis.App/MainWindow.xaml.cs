@@ -128,6 +128,7 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(diagnosticsService);
 
         InitializeComponent();
+        InitializeContextMenus();
         InitializeDocumentTabs();
         InitializeDocumentOutline();
 
@@ -339,6 +340,128 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Installs persistent context menus before WPF processes the first right-click.
+    /// This prevents the stock TextBox menu from winning the first opening event.
+    /// </summary>
+    private void InitializeContextMenus()
+    {
+        MarkdownEditorTextBox.ContextMenu =
+            CreateNodalisContextMenu(
+                MarkdownEditorTextBox);
+
+        NavigationTree.ContextMenu =
+            CreateNodalisContextMenu(
+                NavigationTree);
+    }
+
+    /// <summary>
+    /// Prepares an existing Nodalis context menu for a new opening.
+    /// </summary>
+    /// <param name="menu">The persistent menu instance, when already created.</param>
+    /// <param name="placementTarget">The control that owns the menu.</param>
+    /// <returns>The themed and screen-bounded menu.</returns>
+    private ContextMenu PrepareNodalisContextMenu(
+            ContextMenu? menu,
+            FrameworkElement placementTarget)
+    {
+        global::System.Windows.Controls.ContextMenu preparedMenu =
+            menu ??
+            CreateNodalisContextMenu(
+                placementTarget);
+
+        preparedMenu.PlacementTarget =
+            placementTarget;
+        preparedMenu.Placement =
+            global::System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        preparedMenu.MaxHeight =
+            Math.Max(
+                120,
+                SystemParameters.WorkArea.Height - 24);
+        preparedMenu.Items.Clear();
+
+        return preparedMenu;
+    }
+
+    /// <summary>
+    /// Creates a context menu with the Nodalis dark style explicitly applied.
+    /// </summary>
+    /// <param name="placementTarget">The control that owns the menu.</param>
+    /// <returns>A persistent themed context menu.</returns>
+    private ContextMenu CreateNodalisContextMenu(
+            FrameworkElement placementTarget)
+    {
+        global::System.Windows.Controls.ContextMenu menu = new ContextMenu
+        {
+            PlacementTarget = placementTarget,
+            Placement =
+                global::System.Windows.Controls.Primitives.PlacementMode.MousePoint,
+            MaxHeight =
+                Math.Max(
+                    120,
+                    SystemParameters.WorkArea.Height - 24)
+        };
+
+        Style? menuStyle =
+            TryFindResource(
+                typeof(ContextMenu)) as Style;
+
+        if (menuStyle is not null)
+        {
+            menu.Style =
+                menuStyle;
+        }
+
+        return menu;
+    }
+
+    /// <summary>
+    /// Creates a menu item with the application dark-menu style explicitly applied.
+    /// </summary>
+    /// <param name="header">Visible menu item header.</param>
+    /// <returns>The themed menu item.</returns>
+    private MenuItem CreateNodalisMenuItem(
+            string header)
+    {
+        global::System.Windows.Controls.MenuItem item = new MenuItem
+        {
+            Header = header
+        };
+
+        Style? itemStyle =
+            TryFindResource(
+                typeof(MenuItem)) as Style;
+
+        if (itemStyle is not null)
+        {
+            item.Style =
+                itemStyle;
+        }
+
+        return item;
+    }
+
+    /// <summary>
+    /// Creates a separator with the application dark-menu style explicitly applied.
+    /// </summary>
+    /// <returns>The themed separator.</returns>
+    private Separator CreateNodalisSeparator()
+    {
+        global::System.Windows.Controls.Separator separator = new Separator();
+
+        Style? separatorStyle =
+            TryFindResource(
+                typeof(Separator)) as Style;
+
+        if (separatorStyle is not null)
+        {
+            separator.Style =
+                separatorStyle;
+        }
+
+        return separator;
+    }
+
+    /// <summary>
     /// Performs the <c>NavigationTree_PreviewMouseRightButtonDown</c> operation.
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
@@ -366,27 +489,32 @@ public partial class MainWindow : Window
             object sender,
             ContextMenuEventArgs e)
     {
+        global::System.Windows.Controls.ContextMenu menu =
+            PrepareNodalisContextMenu(
+                NavigationTree.ContextMenu,
+                NavigationTree);
+
+        NavigationTree.ContextMenu =
+            menu;
+
         if (_selectedNode is null ||
             _workspaceReadOnly)
         {
             e.Handled = true;
-            NavigationTree.ContextMenu = null;
             return;
         }
-
-        global::System.Windows.Controls.ContextMenu menu = new ContextMenu();
 
         void AddItem(
             string header,
             RoutedEventHandler handler)
         {
-            global::System.Windows.Controls.MenuItem item = new MenuItem
-            {
-                Header = header
-            };
+            global::System.Windows.Controls.MenuItem item =
+                CreateNodalisMenuItem(
+                    header);
 
             item.Click += handler;
-            menu.Items.Add(item);
+            menu.Items.Add(
+                item);
         }
 
         switch (_selectedNode.Kind)
@@ -401,7 +529,8 @@ public partial class MainWindow : Window
                 AddItem(
                     "Nouveau module",
                     async (_, _) => await CreateModuleAsync(_selectedNode));
-                menu.Items.Add(new Separator());
+                menu.Items.Add(
+                    CreateNodalisSeparator());
                 AddItem(
                     "Renommer",
                     async (_, _) => await RenameApplicationOrModuleAsync(_selectedNode));
@@ -417,7 +546,8 @@ public partial class MainWindow : Window
                 AddItem(
                     "Déplacer le module",
                     async (_, _) => await MoveModuleAsync(_selectedNode));
-                menu.Items.Add(new Separator());
+                menu.Items.Add(
+                    CreateNodalisSeparator());
                 AddItem(
                     "Renommer",
                     async (_, _) => await RenameApplicationOrModuleAsync(_selectedNode));
@@ -432,7 +562,8 @@ public partial class MainWindow : Window
                         ? "Retirer des favoris"
                         : "Ajouter aux favoris",
                     async (_, _) => await ToggleFavoriteAsync(_selectedNode));
-                menu.Items.Add(new Separator());
+                menu.Items.Add(
+                    CreateNodalisSeparator());
                 AddItem(
                     "Mettre à la corbeille",
                     async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
@@ -444,7 +575,8 @@ public partial class MainWindow : Window
                         ? "Retirer des favoris"
                         : "Ajouter aux favoris",
                     async (_, _) => await ToggleFavoriteAsync(_selectedNode));
-                menu.Items.Add(new Separator());
+                menu.Items.Add(
+                    CreateNodalisSeparator());
                 AddItem(
                     "Renommer le document",
                     async (_, _) => await RenameDocumentAsync(_selectedNode));
@@ -457,8 +589,6 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 return;
         }
-
-        NavigationTree.ContextMenu = menu;
     }
 
     /// <summary>
@@ -4474,84 +4604,142 @@ public partial class MainWindow : Window
             object sender,
             ContextMenuEventArgs e)
     {
-        global::System.Windows.Controls.ContextMenu menu = new ContextMenu();
+        global::System.Windows.Controls.ContextMenu menu =
+            PrepareNodalisContextMenu(
+                MarkdownEditorTextBox.ContextMenu,
+                MarkdownEditorTextBox);
 
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Couper",
-            Command = ApplicationCommands.Cut,
-            CommandTarget = MarkdownEditorTextBox
-        });
+        MarkdownEditorTextBox.ContextMenu =
+            menu;
 
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Copier",
-            Command = ApplicationCommands.Copy,
-            CommandTarget = MarkdownEditorTextBox
-        });
+        global::System.Windows.Controls.MenuItem cutItem =
+            CreateNodalisMenuItem(
+                "Couper");
+        cutItem.Command =
+            ApplicationCommands.Cut;
+        cutItem.CommandTarget =
+            MarkdownEditorTextBox;
+        menu.Items.Add(
+            cutItem);
 
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Coller",
-            Command = ApplicationCommands.Paste,
-            CommandTarget = MarkdownEditorTextBox
-        });
+        global::System.Windows.Controls.MenuItem copyItem =
+            CreateNodalisMenuItem(
+                "Copier");
+        copyItem.Command =
+            ApplicationCommands.Copy;
+        copyItem.CommandTarget =
+            MarkdownEditorTextBox;
+        menu.Items.Add(
+            copyItem);
+
+        global::System.Windows.Controls.MenuItem pasteItem =
+            CreateNodalisMenuItem(
+                "Coller");
+        pasteItem.Command =
+            ApplicationCommands.Paste;
+        pasteItem.CommandTarget =
+            MarkdownEditorTextBox;
+        menu.Items.Add(
+            pasteItem);
 
         string glossaryTerm =
             GetGlossaryCandidateTerm();
 
-        if (_glossaryScopes.Count > 0)
+        global::Nodalis.Core.Glossary.GlossaryScope? preferredGlossaryScope =
+            _glossaryScopes.FirstOrDefault(scope =>
+                scope.Kind ==
+                    GlossaryScopeKind.Project) ??
+            _glossaryScopes.FirstOrDefault(scope =>
+                scope.Kind ==
+                    GlossaryScopeKind.Application) ??
+            _glossaryScopes.FirstOrDefault(scope =>
+                scope.Kind ==
+                    GlossaryScopeKind.Global);
+
+        if (preferredGlossaryScope is not null)
         {
             menu.Items.Add(
-                new Separator());
+                CreateNodalisSeparator());
+
+            bool targetsCurrentProject =
+                preferredGlossaryScope.Kind ==
+                    GlossaryScopeKind.Project;
 
             string glossaryHeader =
-                string.IsNullOrWhiteSpace(glossaryTerm)
-                    ? "Ajouter au glossaire…"
-                    : $"Ajouter « {FormatGlossaryMenuTerm(glossaryTerm)} » au glossaire";
+                string.IsNullOrWhiteSpace(
+                    glossaryTerm)
+                    ? targetsCurrentProject
+                        ? "Ajouter au glossaire du projet…"
+                        : "Ajouter au glossaire…"
+                    : targetsCurrentProject
+                        ? $"Ajouter « {FormatGlossaryMenuTerm(glossaryTerm)} » au glossaire du projet"
+                        : $"Ajouter « {FormatGlossaryMenuTerm(glossaryTerm)} » au glossaire";
 
-            global::System.Windows.Controls.MenuItem addToGlossary = new MenuItem
-            {
-                Header = glossaryHeader
-            };
+            global::Nodalis.Core.Glossary.GlossaryScope capturedPreferredScope =
+                preferredGlossaryScope;
 
-            foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in _glossaryScopes)
-            {
-                global::Nodalis.Core.Glossary.GlossaryScope capturedScope = scope;
+            global::System.Windows.Controls.MenuItem addToPreferredGlossary =
+                CreateNodalisMenuItem(
+                    glossaryHeader);
 
-                global::System.Windows.Controls.MenuItem scopeItem = new MenuItem
-                {
-                    Header = scope.DisplayName,
-                    FontWeight =
-                        scope.Kind == GlossaryScopeKind.Project
-                            ? FontWeights.SemiBold
-                            : FontWeights.Normal
-                };
-
-                scopeItem.Click += async (_, _) =>
-                    await AddGlossaryEntryAsync(
-                        capturedScope,
-                        glossaryTerm);
-
-                addToGlossary.Items.Add(
-                    scopeItem);
-            }
+            addToPreferredGlossary.Click += async (_, _) =>
+                await AddGlossaryEntryAsync(
+                    capturedPreferredScope,
+                    glossaryTerm);
 
             menu.Items.Add(
-                addToGlossary);
+                addToPreferredGlossary);
+
+            global::Nodalis.Core.Glossary.GlossaryScope[] alternateScopes =
+                _glossaryScopes
+                    .Where(scope =>
+                        !ReferenceEquals(
+                            scope,
+                            preferredGlossaryScope))
+                    .ToArray();
+
+            if (alternateScopes.Length > 0)
+            {
+                global::System.Windows.Controls.MenuItem otherGlossaries =
+                    CreateNodalisMenuItem(
+                        "Ajouter à un autre glossaire");
+
+                foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in alternateScopes)
+                {
+                    global::Nodalis.Core.Glossary.GlossaryScope capturedScope =
+                        scope;
+
+                    global::System.Windows.Controls.MenuItem scopeItem =
+                        CreateNodalisMenuItem(
+                            scope.DisplayName);
+
+                    scopeItem.Click += async (_, _) =>
+                        await AddGlossaryEntryAsync(
+                            capturedScope,
+                            glossaryTerm);
+
+                    otherGlossaries.Items.Add(
+                        scopeItem);
+                }
+
+                menu.Items.Add(
+                    otherGlossaries);
+            }
         }
 
         menu.Items.Add(
-            new Separator());
+            CreateNodalisSeparator());
 
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Tout sélectionner",
-            Command = ApplicationCommands.SelectAll,
-            CommandTarget = MarkdownEditorTextBox
-        });
+        global::System.Windows.Controls.MenuItem selectAllItem =
+            CreateNodalisMenuItem(
+                "Tout sélectionner");
+        selectAllItem.Command =
+            ApplicationCommands.SelectAll;
+        selectAllItem.CommandTarget =
+            MarkdownEditorTextBox;
 
-        MarkdownEditorTextBox.ContextMenu = menu;
+        menu.Items.Add(
+            selectAllItem);
     }
 
     /// <summary>
