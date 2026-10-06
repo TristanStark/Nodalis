@@ -92,34 +92,48 @@ public sealed class LocalDiagnosticsService
                 return;
             }
 
-            Directory.CreateDirectory(DiagnosticsDirectory);
-
-            string markerPath = GetSessionMarkerPath();
-            PreviousSessionEndedUnexpectedly = File.Exists(markerPath);
             _sessionStarted = true;
 
-            if (PreviousSessionEndedUnexpectedly)
+            try
             {
+                Directory.CreateDirectory(DiagnosticsDirectory);
+
+                string markerPath = GetSessionMarkerPath();
+                PreviousSessionEndedUnexpectedly = File.Exists(markerPath);
+
+                if (PreviousSessionEndedUnexpectedly)
+                {
+                    WriteEventUnsafe(
+                        "WARN",
+                        "Un marqueur de session existant indique un arrêt anormal précédent.",
+                        exception: null);
+                }
+
+                string marker =
+                    $"startedUtc={DateTimeOffset.UtcNow:O}{Environment.NewLine}" +
+                    $"processId={Environment.ProcessId}{Environment.NewLine}" +
+                    $"version={GetApplicationVersion()}{Environment.NewLine}";
+
+                File.WriteAllText(
+                    markerPath,
+                    marker,
+                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
                 WriteEventUnsafe(
-                    "WARN",
-                    "Un marqueur de session existant indique un arrêt anormal précédent.",
+                    "INFO",
+                    "Session Nodalis démarrée.",
                     exception: null);
             }
-
-            string marker =
-                $"startedUtc={DateTimeOffset.UtcNow:O}{Environment.NewLine}" +
-                $"processId={Environment.ProcessId}{Environment.NewLine}" +
-                $"version={GetApplicationVersion()}{Environment.NewLine}";
-
-            File.WriteAllText(
-                markerPath,
-                marker,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-
-            WriteEventUnsafe(
-                "INFO",
-                "Session Nodalis démarrée.",
-                exception: null);
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException)
+            {
+                PreviousSessionEndedUnexpectedly = false;
+                WriteEventUnsafe(
+                    "WARN",
+                    "Le service de diagnostics local n'a pas pu initialiser son stockage.",
+                    exception);
+            }
         }
     }
 
