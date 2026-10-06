@@ -383,6 +383,8 @@ public sealed partial class WorkspaceMeetingExtractionService
     /// <summary>
     /// Validates that the requested file belongs to the workspace and to a meeting directory.
     /// </summary>
+    /// <param name="meetingPath">Candidate meeting path.</param>
+    /// <returns>The validated absolute path.</returns>
     private string ValidateMeetingPath(
             string meetingPath)
     {
@@ -450,6 +452,9 @@ public sealed partial class WorkspaceMeetingExtractionService
     /// <summary>
     /// Resolves the meeting date from metadata or filename without using current time.
     /// </summary>
+    /// <param name="content">Meeting Markdown content.</param>
+    /// <param name="fullPath">Absolute meeting file path.</param>
+    /// <returns>The deterministic meeting date.</returns>
     private static DateOnly ResolveMeetingDate(
             string content,
             string fullPath)
@@ -493,6 +498,8 @@ public sealed partial class WorkspaceMeetingExtractionService
     /// <summary>
     /// Builds a concise deterministic title from decision text.
     /// </summary>
+    /// <param name="text">Decision text.</param>
+    /// <returns>A concise Decision Record title.</returns>
     private static string BuildDecisionTitle(
             string text)
     {
@@ -515,6 +522,8 @@ public sealed partial class WorkspaceMeetingExtractionService
     /// <summary>
     /// Normalizes decision text for deterministic duplicate detection.
     /// </summary>
+    /// <param name="value">Decision text.</param>
+    /// <returns>The normalized comparison value.</returns>
     private static string NormalizeDecisionText(
             string value)
     {
@@ -532,6 +541,10 @@ public sealed partial class WorkspaceMeetingExtractionService
     /// <summary>
     /// Creates a stable candidate identifier from source coordinates and normalized content.
     /// </summary>
+    /// <param name="relativePath">Workspace-relative source path.</param>
+    /// <param name="lineNumber">One-based source line.</param>
+    /// <param name="normalizedText">Normalized decision text.</param>
+    /// <returns>A stable candidate identifier.</returns>
     private static Guid CreateCandidateId(
             string relativePath,
             int lineNumber,
@@ -563,6 +576,8 @@ public sealed partial class WorkspaceMeetingExtractionService
     /// <summary>
     /// Normalizes a workspace-relative path.
     /// </summary>
+    /// <param name="value">Relative path.</param>
+    /// <returns>A forward-slash path.</returns>
     private static string NormalizeRelativePath(
             string value)
     {
@@ -571,16 +586,28 @@ public sealed partial class WorkspaceMeetingExtractionService
             '/');
     }
 
+    /// <summary>
+    /// Gets the Markdown heading parser.
+    /// </summary>
+    /// <returns>The compiled heading expression.</returns>
     [GeneratedRegex(
         @"^\s{0,3}#{1,6}\s+(?<title>.+?)\s*#*\s*$",
         RegexOptions.CultureInvariant)]
     private static partial Regex HeadingPattern();
 
+    /// <summary>
+    /// Gets the Markdown list-entry parser.
+    /// </summary>
+    /// <returns>The compiled list expression.</returns>
     [GeneratedRegex(
         @"^\s*(?:[-*+]\s+|\d+[.)]\s+)(?<body>.+?)\s*$",
         RegexOptions.CultureInvariant)]
     private static partial Regex BulletPattern();
 
+    /// <summary>
+    /// Gets the meeting date metadata parser.
+    /// </summary>
+    /// <returns>The compiled date metadata expression.</returns>
     [GeneratedRegex(
         @"^\s*\*\*Date\s*:\*\*\s*(?<date>\d{4}-\d{2}-\d{2})\s*$",
         RegexOptions.CultureInvariant |
@@ -588,6 +615,10 @@ public sealed partial class WorkspaceMeetingExtractionService
         RegexOptions.Multiline)]
     private static partial Regex DateMetadataPattern();
 
+    /// <summary>
+    /// Gets the meeting filename date parser.
+    /// </summary>
+    /// <returns>The compiled filename date expression.</returns>
     [GeneratedRegex(
         @"^(?<date>\d{4}-\d{2}-\d{2})\b",
         RegexOptions.CultureInvariant)]
