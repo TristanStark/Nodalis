@@ -8,6 +8,39 @@
         MinHeight="600"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
+    <Window.Resources>
+        <DataTemplate x:Key="TaskCardTemplate">
+            <Border Margin="0,2,0,5"
+                    Padding="8"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="{Binding Text}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,3,0,0"
+                               Text="{Binding ProjectName}"
+                               FontSize="10"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                    <StackPanel Margin="0,3,0,0"
+                                Orientation="Horizontal">
+                        <TextBlock Text="{Binding Owner}"
+                                   FontSize="10"
+                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                        <TextBlock Margin="8,0,0,0"
+                                   Text="{Binding Priority}"
+                                   FontSize="10"
+                                   Foreground="{StaticResource AccentBrush}" />
+                    </StackPanel>
+                    <TextBlock Margin="0,3,0,0"
+                               Text="{Binding DueDate, StringFormat='Échéance : {0:dd/MM/yyyy}'}"
+                               FontSize="10"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -165,36 +198,5 @@
         </Border>
     </Grid>
 
-    <Window.Resources>
-        <DataTemplate x:Key="TaskCardTemplate">
-            <Border Margin="0,2,0,5"
-                    Padding="8"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1">
-                <StackPanel>
-                    <TextBlock Text="{Binding Text}"
-                               FontWeight="SemiBold"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,3,0,0"
-                               Text="{Binding ProjectName}"
-                               FontSize="10"
-                               Foreground="{StaticResource SecondaryTextBrush}" />
-                    <StackPanel Margin="0,3,0,0"
-                                Orientation="Horizontal">
-                        <TextBlock Text="{Binding Owner}"
-                                   FontSize="10"
-                                   Foreground="{StaticResource SecondaryTextBrush}" />
-                        <TextBlock Margin="8,0,0,0"
-                                   Text="{Binding Priority}"
-                                   FontSize="10"
-                                   Foreground="{StaticResource AccentBrush}" />
-                    </StackPanel>
-                    <TextBlock Margin="0,3,0,0"
-                               Text="{Binding DueDate, StringFormat='Échéance : {0:dd/MM/yyyy}'}"
-                               FontSize="10"
-                               Foreground="{StaticResource SecondaryTextBrush}" />
-                </StackPanel>
-            </Border>
-        </DataTemplate>
-    </Window.Resources>
+
 </Window>
