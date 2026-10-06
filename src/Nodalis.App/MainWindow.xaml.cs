@@ -72,6 +72,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceProjectExportService _projectExportService;
     private readonly WorkspaceTrashService _trashService;
     private readonly WorkspaceBackupService _backupService;
+    private readonly LocalDiagnosticsService _diagnosticsService;
     private readonly DispatcherTimer _previewTimer;
     private readonly DispatcherTimer _backupTimer;
     private readonly bool _workspaceReadOnly;
@@ -108,6 +109,7 @@ public partial class MainWindow : Window
     /// <param name="preferences">The <c>preferences</c> value.</param>
     /// <param name="preferencesStore">The <c>preferencesStore</c> value.</param>
     /// <param name="templateStore">The <c>templateStore</c> value.</param>
+    /// <param name="diagnosticsService">The local crash diagnostics service.</param>
     /// <param name="workspaceReadOnly">Whether this window is displaying an isolated fallback snapshot.</param>
     /// <param name="workspaceAccessMessage">The compatibility message shown for fallback access.</param>
     public MainWindow(
@@ -115,6 +117,7 @@ public partial class MainWindow : Window
             UserPreferences preferences,
             IUserPreferencesStore preferencesStore,
             ITemplateStore templateStore,
+            LocalDiagnosticsService diagnosticsService,
             bool workspaceReadOnly = false,
             string? workspaceAccessMessage = null)
     {
@@ -122,6 +125,7 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(preferencesStore);
         ArgumentNullException.ThrowIfNull(templateStore);
+        ArgumentNullException.ThrowIfNull(diagnosticsService);
 
         InitializeComponent();
         InitializeDocumentTabs();
@@ -130,6 +134,7 @@ public partial class MainWindow : Window
         _preferences = preferences;
         _preferencesStore = preferencesStore;
         _templateStore = templateStore;
+        _diagnosticsService = diagnosticsService;
         _workspaceReadOnly = workspaceReadOnly;
         _workspaceAccessMessage = workspaceAccessMessage;
         _linkIndexService = new WorkspaceLinkIndexService(
@@ -219,6 +224,7 @@ public partial class MainWindow : Window
                     StatusText.Text =
                         _workspaceAccessMessage ??
                         "Lecture seule de compatibilité : consultation Markdown uniquement.";
+                    AppendDiagnosticsStatus();
                     return;
                 }
 
@@ -234,6 +240,7 @@ public partial class MainWindow : Window
                 await RestoreEditorSplitAsync();
                 _backupTimer.Start();
                 await TryRunAutomaticBackupAsync();
+                AppendDiagnosticsStatus();
             }
             catch (Exception exception) when (
                 exception is IOException or
@@ -452,6 +459,66 @@ public partial class MainWindow : Window
         }
 
         NavigationTree.ContextMenu = menu;
+    }
+
+    /// <summary>
+    /// Opens the local diagnostics and recovery dialog.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private void OpenDiagnostics_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        global::Nodalis.App.Dialogs.DiagnosticsDialog dialog =
+            new DiagnosticsDialog(
+                _diagnosticsService,
+                _root.FullPath)
+            {
+                Owner = this
+            };
+
+        dialog.ShowDialog();
+    }
+
+    /// <summary>
+    /// Appends abnormal-shutdown and recovered-temporary-file information to the status bar.
+    /// </summary>
+    private void AppendDiagnosticsStatus()
+    {
+        bool previousCrash =
+            _diagnosticsService.PreviousSessionEndedUnexpectedly;
+        int recoveredCount =
+            _diagnosticsService.RecoveredTemporaryFiles.Count;
+
+        if (!previousCrash &&
+            recoveredCount == 0)
+        {
+            return;
+        }
+
+        global::System.Collections.Generic.List<string> parts = [];
+
+        if (previousCrash)
+        {
+            parts.Add(
+                "arrêt anormal précédent détecté");
+        }
+
+        if (recoveredCount > 0)
+        {
+            parts.Add(
+                $"{recoveredCount} temporaire(s) mis en quarantaine");
+        }
+
+        string diagnosticsStatus =
+            $"{string.Join(", ", parts)} — ouvrez Diagnostics.";
+
+        StatusText.Text =
+            string.IsNullOrWhiteSpace(
+                StatusText.Text)
+                ? diagnosticsStatus
+                : $"{StatusText.Text} · {diagnosticsStatus}";
     }
 
     /// <summary>
