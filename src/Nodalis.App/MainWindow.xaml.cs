@@ -6555,6 +6555,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the meeting extraction toolbar action.
     /// </summary>
+    /// <param name="sender">Event sender.</param>
+    /// <param name="e">Event arguments.</param>
     private async void ExtractMeeting_Click(
             object sender,
             RoutedEventArgs e)
