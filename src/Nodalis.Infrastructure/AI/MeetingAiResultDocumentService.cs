@@ -1,6 +1,6 @@
 using System.Text;
 using Nodalis.Core.AI;
-using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.AI;
 
