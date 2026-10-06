@@ -1,0 +1,92 @@
+<Window x:Class="Nodalis.App.Dialogs.AiTestOptionsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Paramètres de génération de tests"
+        Width="620"
+        Height="390"
+        MinWidth="540"
+        MinHeight="340"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="GÉNÉRATION DE TESTS"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource AccentBrush}" />
+            <TextBlock Margin="0,6,0,0"
+                       Text="Choisir le type et le niveau"
+                       FontSize="20"
+                       FontWeight="SemiBold" />
+            <TextBlock Margin="0,6,0,0"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Le moteur local devra couvrir cas nominal, erreurs, limites et non-régression à partir des seules sources sélectionnées." />
+        </StackPanel>
+
+        <Grid Grid.Row="1"
+              Margin="0,22,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock VerticalAlignment="Center"
+                       Text="Type de test" />
+            <ComboBox x:Name="TypeComboBox"
+                      Grid.Column="1"
+                      MinHeight="32"
+                      SelectedIndex="0">
+                <ComboBoxItem Content="Fonctionnel" Tag="Functional" />
+                <ComboBoxItem Content="Unitaire" Tag="Unit" />
+                <ComboBoxItem Content="Intégration" Tag="Integration" />
+            </ComboBox>
+        </Grid>
+
+        <Grid Grid.Row="2"
+              Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock VerticalAlignment="Center"
+                       Text="Niveau / portée" />
+            <ComboBox x:Name="LevelComboBox"
+                      Grid.Column="1"
+                      MinHeight="32"
+                      SelectedIndex="0">
+                <ComboBoxItem Content="Exigence / comportement" Tag="Requirement" />
+                <ComboBoxItem Content="Composant / module" Tag="Component" />
+                <ComboBoxItem Content="Projet / bout en bout" Tag="Project" />
+            </ComboBox>
+        </Grid>
+
+        <TextBlock Grid.Row="3"
+                   Margin="0,18,0,0"
+                   TextWrapping="Wrap"
+                   FontSize="11"
+                   Foreground="{StaticResource SecondaryTextBrush}"
+                   Text="Aucun test ne sera inséré à cette étape. Après génération, le Markdown complet restera éditable et nécessitera une validation explicite avant création dans la section Tests." />
+
+        <StackPanel Grid.Row="4"
+                    Margin="0,18,0,0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Width="100"
+                    Margin="0,0,8,0"
+                    IsCancel="True"
+                    Content="Annuler" />
+            <Button Width="150"
+                    IsDefault="True"
+                    Click="Continue_Click"
+                    Content="Générer l'aperçu" />
+        </StackPanel>
+    </Grid>
+</Window>
