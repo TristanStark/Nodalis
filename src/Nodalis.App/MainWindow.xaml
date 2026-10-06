@@ -137,6 +137,9 @@
                                 Click="OpenWorkspaceCalendar_Click"
                                 Content="Calendrier workspace" />
                         <Button Margin="0,0,0,6"
+                                Click="OpenWorkspaceKanban_Click"
+                                Content="Kanban tâches" />
+                        <Button Margin="0,0,0,6"
                                 Click="OpenProjectHealth_Click"
                                 Content="Health check projet" />
                         <Button Margin="0,0,0,6"
