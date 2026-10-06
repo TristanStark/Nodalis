@@ -360,7 +360,7 @@ public sealed class LocalDiagnosticsService
         string fileName = Path.GetFileName(path);
 
         if (!fileName.StartsWith(
-                '.',
+                ".",
                 StringComparison.Ordinal) ||
             !fileName.EndsWith(
                 ".tmp",
@@ -552,8 +552,7 @@ public sealed class LocalDiagnosticsService
         }
         catch (Exception exception) when (
             exception is IOException or
-            UnauthorizedAccessException or
-            DirectoryNotFoundException)
+            UnauthorizedAccessException)
         {
             return [];
         }
