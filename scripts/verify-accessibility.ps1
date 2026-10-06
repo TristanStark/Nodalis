@@ -5,6 +5,8 @@ $appRoot = Join-Path $repoRoot "src/Nodalis.App"
 $themePath = Join-Path $appRoot "Themes/Dark.xaml"
 $appXamlPath = Join-Path $appRoot "App.xaml"
 $mainWindowCodePath = Join-Path $appRoot "MainWindow.xaml.cs"
+$appProjectPath = Join-Path $appRoot "Nodalis.App.csproj"
+$appManifestPath = Join-Path $appRoot "app.manifest"
 
 $xamlFiles = Get-ChildItem -Path $appRoot -Recurse -Filter *.xaml -File
 $failures = [System.Collections.Generic.List[string]]::new()
@@ -65,6 +67,22 @@ $requiredContextMenuCodeTokens = @(
 foreach ($token in $requiredContextMenuCodeTokens) {
     if (-not $mainWindowCode.Contains($token)) {
         $failures.Add("MainWindow.xaml.cs is missing required context-menu regression token: $token")
+    }
+}
+
+$appProject = Get-Content -Raw -LiteralPath $appProjectPath
+if (-not $appProject.Contains('<ApplicationManifest>app.manifest</ApplicationManifest>')) {
+    $failures.Add("Nodalis.App.csproj must embed app.manifest for explicit DPI awareness.")
+}
+
+if (-not (Test-Path -LiteralPath $appManifestPath)) {
+    $failures.Add("Nodalis.App/app.manifest is missing.")
+}
+else {
+    $appManifest = Get-Content -Raw -LiteralPath $appManifestPath
+
+    if (-not $appManifest.Contains('PerMonitorV2')) {
+        $failures.Add("Nodalis.App/app.manifest must declare PerMonitorV2 DPI awareness.")
     }
 }
 
