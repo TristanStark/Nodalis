@@ -65,6 +65,8 @@ public partial class MeetingExtractionDialog : Window
     /// <summary>
     /// Cancels the workflow without creating anything.
     /// </summary>
+    /// <param name="sender">Event sender.</param>
+    /// <param name="e">Event arguments.</param>
     private void Cancel_Click(
             object sender,
             RoutedEventArgs e)
@@ -76,6 +78,8 @@ public partial class MeetingExtractionDialog : Window
     /// <summary>
     /// Materializes only the candidates selected by the user.
     /// </summary>
+    /// <param name="sender">Event sender.</param>
+    /// <param name="e">Event arguments.</param>
     private void Apply_Click(
             object sender,
             RoutedEventArgs e)
@@ -119,6 +123,10 @@ public partial class MeetingExtractionDialog : Window
         /// <summary>
         /// Initializes a new candidate row.
         /// </summary>
+        /// <param name="id">Candidate identifier.</param>
+        /// <param name="text">Candidate text.</param>
+        /// <param name="duplicate">Whether the candidate is a duplicate.</param>
+        /// <param name="detail">Secondary display detail.</param>
         public CandidateViewModel(
                 Guid id,
                 string text,
