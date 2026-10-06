@@ -11,6 +11,11 @@ compréhensible et récupérable sans Nodalis.
 - noms de dossiers humains pour la navigation hors Nodalis ;
 - aucun historique caché.
 
+Le contrat de persistance stable pour Nodalis 1.0 est détaillé dans
+[data-contracts-v1.md](data-contracts-v1.md). Ce document d'arborescence reste
+la vue pratique du format ; le registre 1.0 tranche l'autorité des données,
+les versions de schéma et les invariants d'identité.
+
 ## Exemple complet
 
 ```text
@@ -268,6 +273,13 @@ liens lorsque l'utilisateur renomme ou déplace un élément.
 
 La syntaxe lisible `[[Nom du document]]` sera résolue par l'index Nodalis vers
 l'identité stable correspondante.
+
+Dans le schéma 1, `.nodalis-links.json` est un format hybride : `targets`
+conserve l'identité technique et les alias des documents, tandis que
+`references` et `relations` sont dérivés et reconstruisibles. Le fichier ne doit
+donc pas être supprimé comme un cache ordinaire si l'on veut préserver les GUID
+de documents et leurs alias. Voir `docs/data-contracts-v1.md` pour le contrat
+figé 1.0.
 
 ## Relations typées
 
