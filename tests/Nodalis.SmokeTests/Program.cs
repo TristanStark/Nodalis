@@ -86,6 +86,7 @@ try
     VerifyDocumentBookmarks();
     await VerifyUserPreferencesAsync(root);
     await VerifyLocalReleasePackageAsync(root);
+    await UpdaterRecoverySmokeTests.RunAsync(root);
     await VerifyDocumentReliabilityAsync(root);
     await WorkspaceIntegritySmokeTests.RunAsync(root);
     await ProjectHealthSmokeTests.RunAsync(root);
@@ -4481,8 +4482,12 @@ static async Task VerifyLocalReleasePackageAsync(string root)
         Product = "Nodalis",
         Version = "9.9.9",
         TargetRid = "win-x64",
-        MinimumWorkspaceSchemaVersion = 1,
-        MaximumWorkspaceSchemaVersion = 1,
+        MinimumWorkspaceSchemaVersion = 2,
+        MaximumWorkspaceSchemaVersion = 2,
+        MigratableWorkspaceSchemaVersions =
+        [
+            WorkspaceManifest.CurrentSchemaVersion
+        ],
         PayloadDirectory = "Nodalis-win-x64",
         Files =
         [

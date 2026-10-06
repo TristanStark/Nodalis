@@ -201,6 +201,11 @@ public sealed class LocalReleasePackageService
                 stagingDirectory,
                 UpdaterExecutableName);
 
+            await WriteStagedManifestAsync(
+                stagingDirectory,
+                manifest,
+                cancellationToken);
+
             return new StagedReleasePackage
             {
                 ArchivePath =
@@ -217,6 +222,43 @@ public sealed class LocalReleasePackageService
                 stagingDirectory);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Persists the validated release manifest inside the staging directory for updater-side revalidation.
+    /// </summary>
+    /// <param name="stagingDirectory">The verified staging directory.</param>
+    /// <param name="manifest">The validated release manifest.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    private static async Task WriteStagedManifestAsync(
+            string stagingDirectory,
+            ReleaseManifest manifest,
+            CancellationToken cancellationToken)
+    {
+        string manifestPath = Path.Combine(
+            stagingDirectory,
+            ManifestFileName);
+
+        if (File.Exists(
+                manifestPath))
+        {
+            throw new InvalidDataException(
+                $"{ManifestFileName} est un nom réservé dans le payload applicatif.");
+        }
+
+        await using global::System.IO.FileStream stream = new FileStream(
+            manifestPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            useAsync: true);
+
+        await JsonSerializer.SerializeAsync(
+            stream,
+            manifest,
+            ManifestJsonOptions,
+            cancellationToken);
     }
 
     /// <summary>
@@ -415,14 +457,35 @@ public sealed class LocalReleasePackageService
         }
 
         if (manifest.MinimumWorkspaceSchemaVersion >
-                manifest.MaximumWorkspaceSchemaVersion ||
-            workspaceSchemaVersion <
-                manifest.MinimumWorkspaceSchemaVersion ||
-            workspaceSchemaVersion >
-                manifest.MaximumWorkspaceSchemaVersion)
+            manifest.MaximumWorkspaceSchemaVersion)
         {
             throw new InvalidDataException(
-                $"La release {manifest.Version} n'est pas compatible avec le schéma de workspace {workspaceSchemaVersion}.");
+                "La plage de schémas de workspace du manifeste est invalide.");
+        }
+
+        bool directlyCompatible =
+            workspaceSchemaVersion >=
+                manifest.MinimumWorkspaceSchemaVersion &&
+            workspaceSchemaVersion <=
+                manifest.MaximumWorkspaceSchemaVersion;
+        bool migratable =
+            manifest.MigratableWorkspaceSchemaVersions.Contains(
+                workspaceSchemaVersion);
+
+        if (!directlyCompatible &&
+            !migratable)
+        {
+            throw new InvalidDataException(
+                $"La release {manifest.Version} ne sait ni ouvrir directement ni migrer le schéma de workspace {workspaceSchemaVersion}.");
+        }
+
+        if (manifest.MigratableWorkspaceSchemaVersions.Any(
+                version => version < 0) ||
+            manifest.MigratableWorkspaceSchemaVersions.Count !=
+                manifest.MigratableWorkspaceSchemaVersions.Distinct().Count())
+        {
+            throw new InvalidDataException(
+                "La liste des schémas migrables du manifeste est invalide.");
         }
 
         if (manifest.Files.Count == 0)

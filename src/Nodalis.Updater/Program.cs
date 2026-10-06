@@ -33,6 +33,8 @@ internal static class Program
                     parsed),
                 "rollback" => Rollback(
                     parsed),
+                "recover" => Recover(
+                    parsed),
                 _ => throw new InvalidDataException(
                     $"Commande updater inconnue : {parsed.Command}.")
             };
@@ -47,10 +49,10 @@ internal static class Program
     }
 
     /// <summary>
-    /// Replaces the current installation with the previously validated staging directory.
+    /// Applies a validated staged release through the journaled transaction engine.
     /// </summary>
     /// <param name="arguments">The validated command arguments.</param>
-    /// <returns>Zero on success or one when the previous version had to be restored.</returns>
+    /// <returns>Zero on success or one when automatic recovery was required.</returns>
     private static int ApplyUpdate(
             UpdaterArguments arguments)
     {
@@ -61,247 +63,123 @@ internal static class Program
                 "Le dossier de staging est obligatoire pour appliquer une mise à jour.");
         }
 
-        string installationDirectory =
-            NormalizeDirectory(
-                arguments.InstallationDirectory);
-        string stagingDirectory =
-            NormalizeDirectory(
-                arguments.StagingDirectory);
+        UpdateTransactionEngine engine = CreateTransactionEngine();
 
-        EnsureApplicationPayload(
-            stagingDirectory);
-
-        string previousDirectory =
-            installationDirectory +
-            ".previous";
-
-        bool currentMoved = false;
-
-        try
-        {
-            if (Directory.Exists(
-                    previousDirectory))
-            {
-                Directory.Delete(
-                    previousDirectory,
-                    recursive: true);
-            }
-
-            Directory.Move(
-                installationDirectory,
-                previousDirectory);
-            currentMoved = true;
-
-            Directory.Move(
-                stagingDirectory,
-                installationDirectory);
-
-            EnsureApplicationPayload(
-                installationDirectory);
-
-            LaunchApplication(
-                installationDirectory,
-                arguments.LaunchExecutable);
-
-            TryWriteLog(
-                $"APPLY OK {installationDirectory}");
-
-            return 0;
-        }
-        catch (Exception exception)
-        {
-            TryWriteLog(
-                $"APPLY FAILED {exception}");
-
-            RecoverPreviousInstallation(
-                installationDirectory,
-                previousDirectory,
-                currentMoved);
-
-            return 1;
-        }
+        return engine.Apply(
+            arguments.InstallationDirectory,
+            arguments.StagingDirectory,
+            arguments.LaunchExecutable);
     }
 
     /// <summary>
-    /// Swaps the current installation with the preserved previous version.
+    /// Rolls back to the retained previous version through the journaled transaction engine.
     /// </summary>
     /// <param name="arguments">The validated command arguments.</param>
-    /// <returns>Zero on success or one when the rollback could not be completed.</returns>
+    /// <returns>Zero on success or one when recovery was required.</returns>
     private static int Rollback(
             UpdaterArguments arguments)
     {
-        string installationDirectory =
-            NormalizeDirectory(
-                arguments.InstallationDirectory);
-        string previousDirectory =
-            installationDirectory +
-            ".previous";
+        UpdateTransactionEngine engine = CreateTransactionEngine();
 
-        EnsureApplicationPayload(
-            previousDirectory);
-
-        string swapDirectory =
-            installationDirectory +
-            $".rollback-{Guid.NewGuid():N}";
-
-        bool currentMoved = false;
-        bool previousMoved = false;
-
-        try
-        {
-            Directory.Move(
-                installationDirectory,
-                swapDirectory);
-            currentMoved = true;
-
-            Directory.Move(
-                previousDirectory,
-                installationDirectory);
-            previousMoved = true;
-
-            EnsureApplicationPayload(
-                installationDirectory);
-
-            Directory.Move(
-                swapDirectory,
-                previousDirectory);
-
-            LaunchApplication(
-                installationDirectory,
-                arguments.LaunchExecutable);
-
-            TryWriteLog(
-                $"ROLLBACK OK {installationDirectory}");
-
-            return 0;
-        }
-        catch (Exception exception)
-        {
-            TryWriteLog(
-                $"ROLLBACK FAILED {exception}");
-
-            RecoverRollbackSwap(
-                installationDirectory,
-                previousDirectory,
-                swapDirectory,
-                currentMoved,
-                previousMoved);
-
-            return 1;
-        }
+        return engine.Rollback(
+            arguments.InstallationDirectory,
+            arguments.LaunchExecutable);
     }
 
     /// <summary>
-    /// Restores the previous installation when an apply operation fails after the current directory has moved.
+    /// Recovers an interrupted transaction without attempting another update.
     /// </summary>
-    /// <param name="installationDirectory">The intended application directory.</param>
-    /// <param name="previousDirectory">The backup directory.</param>
-    /// <param name="currentMoved">Whether the original installation was already moved.</param>
-    private static void RecoverPreviousInstallation(
-            string installationDirectory,
-            string previousDirectory,
-            bool currentMoved)
+    /// <param name="arguments">The validated command arguments.</param>
+    /// <returns>Zero when recovery succeeds or no transaction is pending.</returns>
+    private static int Recover(
+            UpdaterArguments arguments)
     {
-        if (!currentMoved)
-        {
-            return;
-        }
+        UpdateTransactionEngine engine = CreateTransactionEngine();
+        engine.RecoverInterruptedTransaction(
+            arguments.InstallationDirectory);
 
-        try
-        {
-            if (Directory.Exists(
-                    installationDirectory))
-            {
-                string failedDirectory =
-                    installationDirectory +
-                    $".failed-{Guid.NewGuid():N}";
-
-                Directory.Move(
-                    installationDirectory,
-                    failedDirectory);
-            }
-
-            if (!Directory.Exists(
-                    installationDirectory) &&
-                Directory.Exists(
-                    previousDirectory))
-            {
-                Directory.Move(
-                    previousDirectory,
-                    installationDirectory);
-
-                if (File.Exists(
-                        Path.Combine(
-                            installationDirectory,
-                            ApplicationExecutableName)))
-                {
-                    LaunchApplication(
-                        installationDirectory,
-                        ApplicationExecutableName);
-                }
-            }
-        }
-        catch (Exception recoveryException)
-        {
-            TryWriteLog(
-                $"RECOVERY FAILED {recoveryException}");
-        }
+        return 0;
     }
 
     /// <summary>
-    /// Restores the original directory layout when a rollback swap fails.
+    /// Creates the production transaction engine with updater diagnostics.
     /// </summary>
-    /// <param name="installationDirectory">The intended application directory.</param>
-    /// <param name="previousDirectory">The previous-version directory.</param>
-    /// <param name="swapDirectory">The temporary current-version directory.</param>
-    /// <param name="currentMoved">Whether the current version moved to the swap directory.</param>
-    /// <param name="previousMoved">Whether the previous version moved into the application directory.</param>
-    private static void RecoverRollbackSwap(
+    /// <returns>The configured transaction engine.</returns>
+    private static UpdateTransactionEngine CreateTransactionEngine() =>
+        new UpdateTransactionEngine(
+            ValidateApplicationStartup,
+            LaunchApplication,
+            TryWriteLog);
+
+    /// <summary>
+    /// Validates an application process with the same smoke-test contract used by CI.
+    /// </summary>
+    /// <param name="installationDirectory">The candidate installation directory.</param>
+    /// <param name="launchExecutable">The executable to validate.</param>
+    /// <returns>True when the process exits successfully within the startup timeout.</returns>
+    private static bool ValidateApplicationStartup(
             string installationDirectory,
-            string previousDirectory,
-            string swapDirectory,
-            bool currentMoved,
-            bool previousMoved)
+            string launchExecutable)
     {
-        try
+        string executableName = Path.GetFileName(
+            launchExecutable);
+
+        if (!string.Equals(
+                executableName,
+                launchExecutable,
+                StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(
+                executableName))
         {
-            if (previousMoved &&
-                Directory.Exists(
-                    installationDirectory) &&
-                !Directory.Exists(
-                    previousDirectory))
+            return false;
+        }
+
+        string executablePath = Path.Combine(
+            installationDirectory,
+            executableName);
+
+        if (!File.Exists(
+                executablePath))
+        {
+            return false;
+        }
+
+        ProcessStartInfo startInfo = new ProcessStartInfo(
+            executablePath)
+        {
+            WorkingDirectory =
+                installationDirectory,
+            UseShellExecute =
+                false
+        };
+        startInfo.ArgumentList.Add(
+            "--smoke-test");
+
+        using Process? process = Process.Start(
+            startInfo);
+
+        if (process is null)
+        {
+            return false;
+        }
+
+        if (!process.WaitForExit(
+                milliseconds: 30_000))
+        {
+            try
             {
-                Directory.Move(
-                    installationDirectory,
-                    previousDirectory);
+                process.Kill(
+                    entireProcessTree: true);
+            }
+            catch
+            {
             }
 
-            if (currentMoved &&
-                Directory.Exists(
-                    swapDirectory) &&
-                !Directory.Exists(
-                    installationDirectory))
-            {
-                Directory.Move(
-                    swapDirectory,
-                    installationDirectory);
-            }
+            return false;
+        }
 
-            if (File.Exists(
-                    Path.Combine(
-                        installationDirectory,
-                        ApplicationExecutableName)))
-            {
-                LaunchApplication(
-                    installationDirectory,
-                    ApplicationExecutableName);
-            }
-        }
-        catch (Exception recoveryException)
-        {
-            TryWriteLog(
-                $"ROLLBACK RECOVERY FAILED {recoveryException}");
-        }
+        return process.ExitCode ==
+            0;
     }
 
     /// <summary>

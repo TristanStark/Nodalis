@@ -17,6 +17,8 @@ public sealed record ReleaseManifest
 
     public int MaximumWorkspaceSchemaVersion { get; init; }
 
+    public List<int> MigratableWorkspaceSchemaVersions { get; init; } = [];
+
     public required string PayloadDirectory { get; init; }
 
     public List<ReleaseFileEntry> Files { get; init; } = [];

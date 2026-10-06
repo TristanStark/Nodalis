@@ -8,4 +8,8 @@
     <PublishSingleFile>true</PublishSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nodalis.Core\Nodalis.Core.csproj" />
+  </ItemGroup>
 </Project>

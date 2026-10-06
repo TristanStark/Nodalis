@@ -8,5 +8,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nodalis.Core\Nodalis.Core.csproj" />
     <ProjectReference Include="..\..\src\Nodalis.Infrastructure\Nodalis.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Nodalis.Updater\Nodalis.Updater.csproj" />
   </ItemGroup>
 </Project>
