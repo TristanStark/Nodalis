@@ -18,6 +18,7 @@ using Nodalis.App.Glossary;
 using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Abstractions;
+using Nodalis.Core.AI;
 using Nodalis.Core.Decisions;
 using Nodalis.Core.Exporting;
 using Nodalis.Core.Glossary;
@@ -31,6 +32,7 @@ using Nodalis.Core.Settings;
 using Nodalis.Core.Tasks;
 using Nodalis.Core.Templates;
 using Nodalis.Core.Trash;
+using Nodalis.Infrastructure.AI;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
 using Nodalis.Infrastructure.Backups;
@@ -63,6 +65,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceMilestoneService _milestoneService;
     private readonly WorkspaceMeetingService _meetingService;
     private readonly WorkspaceMeetingExtractionService _meetingExtractionService;
+    private readonly MeetingAiResultDocumentService _meetingAiResultDocumentService;
     private readonly WorkspaceDecisionService _decisionService;
     private readonly WorkspaceDocxImportService _docxImportService;
     private readonly WorkspaceMarkdownBulkImportService _markdownBulkImportService;
@@ -130,6 +133,8 @@ public partial class MainWindow : Window
         _meetingService = new WorkspaceMeetingService(
             root.FullPath);
         _meetingExtractionService = new WorkspaceMeetingExtractionService(
+            root.FullPath);
+        _meetingAiResultDocumentService = new MeetingAiResultDocumentService(
             root.FullPath);
         _decisionService = new WorkspaceDecisionService(
             root.FullPath);
@@ -6434,6 +6439,235 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"Décision · {decision.Title}";
+    }
+
+    /// <summary>
+    /// Uses the explicitly enabled local AI provider to summarize the selected meeting and review every proposal before persistence.
+    /// </summary>
+    /// <returns>A task representing the local meeting-assistant workflow.</returns>
+    private async Task SummarizeMeetingWithAiAsync()
+    {
+        if (_selectedNode?.Kind !=
+                WorkspaceNodeKind.Document ||
+            !string.Equals(
+                Path.GetExtension(
+                    _selectedNode.FullPath),
+                ".md",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(
+                this,
+                "Sélectionnez d'abord un compte-rendu Markdown dans une section Réunions.",
+                "Résumé IA de réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        if (!_preferences.Ai.IsEnabled)
+        {
+            MessageBox.Show(
+                this,
+                "L'assistant IA local est désactivé. Activez-le et configurez un exécutable local dans Préférences.",
+                "Résumé IA de réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            if (_autosave is not null &&
+                _documentSession is not null &&
+                string.Equals(
+                    Path.GetFullPath(
+                        _documentSession.Path),
+                    Path.GetFullPath(
+                        _selectedNode.FullPath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await _autosave.FlushAsync();
+
+                if (_documentDirty)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Le compte-rendu contient encore des modifications non enregistrées. Enregistrez-les avant de lancer l'assistant.",
+                        "Résumé IA de réunion",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            string sourceContent =
+                await File.ReadAllTextAsync(
+                    _selectedNode.FullPath);
+
+            FileSystemAiPromptStore promptStore =
+                new FileSystemAiPromptStore(
+                    Path.Combine(
+                        AppContext.BaseDirectory,
+                        "Prompts"));
+            const string promptId =
+                "meeting-summary-v1";
+            string systemPrompt =
+                await promptStore.LoadAsync(
+                    promptId);
+
+            LocalAiRequest request =
+                new LocalAiRequest
+                {
+                    PromptId =
+                        promptId,
+                    SystemPrompt =
+                        systemPrompt,
+                    UserPrompt =
+                        "Analyse ce compte-rendu de réunion et retourne uniquement le format demandé par le prompt système.",
+                    Context =
+                    [
+                        new LocalAiContextItem
+                        {
+                            Label =
+                                Path.GetRelativePath(
+                                        _root.FullPath,
+                                        _selectedNode.FullPath)
+                                    .Replace(
+                                        '\\',
+                                        '/'),
+                            Content =
+                                sourceContent
+                        }
+                    ]
+                };
+
+            ProcessLocalAiProvider provider =
+                new ProcessLocalAiProvider(
+                    _preferences.Ai);
+            LocalAiExecutionService executionService =
+                new LocalAiExecutionService(
+                    _preferences.Ai,
+                    provider);
+
+            StatusText.Text =
+                "Assistant IA local · validation du payload";
+
+            LocalAiResponse? response =
+                await executionService.ExecuteWithApprovalAsync(
+                    request,
+                    ShowLocalAiPayloadApprovalAsync);
+
+            if (response is null)
+            {
+                StatusText.Text =
+                    "Résumé IA annulé avant exécution";
+                return;
+            }
+
+            MeetingAiDraft draft =
+                MeetingAiResponseParser.Parse(
+                    response.Content);
+
+            MeetingAiReviewDialog reviewDialog =
+                new MeetingAiReviewDialog(
+                    draft,
+                    _selectedNode.FullPath)
+                {
+                    Owner =
+                        this
+                };
+
+            if (reviewDialog.ShowDialog() !=
+                    true ||
+                reviewDialog.ApprovedDraft is null)
+            {
+                StatusText.Text =
+                    "Résumé IA rejeté · aucun fichier modifié";
+                return;
+            }
+
+            string outputPath =
+                await _meetingAiResultDocumentService.WriteAsync(
+                    _selectedNode.FullPath,
+                    promptId,
+                    reviewDialog.ApprovedDraft);
+
+            await RefreshNavigationAsync(
+                outputPath);
+            await RefreshLinkIndexAndContextAsync();
+
+            StatusText.Text =
+                "Synthèse IA créée · " +
+                Path.GetRelativePath(
+                    _root.FullPath,
+                    outputPath);
+
+            MessageBox.Show(
+                this,
+                "La synthèse validée a été créée dans une note séparée.\n\nLe compte-rendu source n'a pas été modifié.",
+                "Résumé IA de réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            ArgumentException or
+            TimeoutException)
+        {
+            MessageBox.Show(
+                this,
+                "Le résumé IA de la réunion a échoué.\n\n" +
+                exception.Message,
+                "Résumé IA de réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            StatusText.Text =
+                "Résumé IA en échec";
+        }
+    }
+
+    /// <summary>
+    /// Displays the exact local-AI payload and returns the user's explicit approval.
+    /// </summary>
+    /// <param name="preview">The exact payload preview.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>Whether the user approved execution.</returns>
+    private Task<bool> ShowLocalAiPayloadApprovalAsync(
+            LocalAiPayloadPreview preview,
+            CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        LocalAiPayloadPreviewDialog dialog =
+            new LocalAiPayloadPreviewDialog(
+                preview)
+            {
+                Owner =
+                    this
+            };
+
+        bool approved =
+            dialog.ShowDialog() ==
+            true;
+
+        return Task.FromResult(
+            approved);
+    }
+
+    /// <summary>
+    /// Handles the local-AI meeting summary toolbar action.
+    /// </summary>
+    /// <param name="sender">Event sender.</param>
+    /// <param name="e">Event arguments.</param>
+    private async void SummarizeMeetingAi_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await SummarizeMeetingWithAiAsync();
     }
 
     /// <summary>
