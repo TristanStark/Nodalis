@@ -66,6 +66,18 @@ Avant `v1.0.0`, cocher manuellement :
 - [ ] update puis rollback de la RC exercés sur Windows 11 x64 ;
 - [ ] aucun blocker fonctionnel découvert pendant ces essais.
 
+### Smoke UX issu de la RC terrain (#90)
+
+Sur au moins une session Windows client, vérifier également :
+
+- [ ] navigation gauche sans barre horizontale parasite ni contenu rogné ;
+- [ ] un ancien onglet `Jalons/Jalons.md` est réparé vers `Jalons.md` ;
+- [ ] survol d'un terme surligné du glossaire : définition et scope visibles ;
+- [ ] barre principale regroupée par thèmes et entièrement accessible à 1024 px ;
+- [ ] `Nouvelle tâche` trouvable via Ctrl+P et création effective dans le projet courant ;
+- [ ] filtres ComboBox des vues Tâches et Kanban entièrement sombres ;
+- [ ] aperçu Mermaid/Flowchart vérifié avec définitions de nœuds étendues et chaînes de liens.
+
 Conserver le numéro de version RC, le commit et les résultats de ces essais dans
 l'issue GitHub #79.
 
