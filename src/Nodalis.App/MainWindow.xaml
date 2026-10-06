@@ -92,6 +92,9 @@
                             Click="ExtractMeeting_Click"
                             Content="Extraire réunion" />
                     <Button Margin="0,0,8,0"
+                            Click="SummarizeMeetingAi_Click"
+                            Content="Résumé réunion IA" />
+                    <Button Margin="0,0,8,0"
                             Click="ImportDocx_Click"
                             Content="Importer DOCX" />
                     <Button Margin="0,0,8,0"
