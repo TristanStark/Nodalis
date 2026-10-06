@@ -34,7 +34,7 @@ $requiredThemeTokens = @(
     'KeyboardNavigation.ControlTabNavigation',
     'TextOptions.TextFormattingMode',
     'TargetType="{x:Type ContextMenu}"',
-    'ScrollViewer.VerticalScrollBarVisibility="Auto"',
+    'VerticalScrollBarVisibility="Auto"',
     'TargetType="{x:Type MenuItem}"',
     'TargetType="DatePicker"',
     'TargetType="Calendar"',
