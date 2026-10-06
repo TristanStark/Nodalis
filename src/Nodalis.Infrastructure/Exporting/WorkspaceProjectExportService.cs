@@ -2609,7 +2609,7 @@ public sealed class WorkspaceProjectExportService
     /// <returns>The escaped HTML.</returns>
     private static string Html(
             string value) =>
-        System.Net.WebUtility.HtmlEncode(
+        EscapeHtml(
             value);
 
     /// <summary>
@@ -2619,8 +2619,59 @@ public sealed class WorkspaceProjectExportService
     /// <returns>The escaped attribute value.</returns>
     private static string HtmlAttribute(
             string value) =>
-        System.Net.WebUtility.HtmlEncode(
+        EscapeHtml(
             value);
+
+    /// <summary>
+    /// Escapes HTML locally without relying on any network-oriented framework namespace.
+    /// </summary>
+    /// <param name="value">The source text.</param>
+    /// <returns>The escaped HTML text.</returns>
+    private static string EscapeHtml(
+            string value)
+    {
+        StringBuilder builder =
+            new StringBuilder(
+                value.Length);
+
+        foreach (char character in value)
+        {
+            switch (character)
+            {
+                case '&':
+                    builder.Append(
+                        "&amp;");
+                    break;
+
+                case '<':
+                    builder.Append(
+                        "&lt;");
+                    break;
+
+                case '>':
+                    builder.Append(
+                        "&gt;");
+                    break;
+
+                case '"':
+                    builder.Append(
+                        "&quot;");
+                    break;
+
+                case '\'':
+                    builder.Append(
+                        "&#39;");
+                    break;
+
+                default:
+                    builder.Append(
+                        character);
+                    break;
+            }
+        }
+
+        return builder.ToString();
+    }
 
     /// <summary>
     /// Escapes XML text for Open XML parts.
