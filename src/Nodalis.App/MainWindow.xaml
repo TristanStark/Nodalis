@@ -1039,7 +1039,7 @@
                                                                 <Run Text="  " />
                                                                 <Run Text="{Binding Owner}" />
                                                                 <Run Text="  " />
-                                                                <Run Text="{Binding OverdueDisplay}" />
+                                                                <Run Text="{Binding OverdueDisplay, Mode=OneWay}" />
                                                             </TextBlock>
                                                         </StackPanel>
                                                     </DataTemplate>
