@@ -204,27 +204,16 @@ internal static class WorkspaceRegressionFixtureSmokeTests
                     title + ".md");
 
             string content =
-                "---
-" +
-                "status: active
-" +
-                $"tags: regression, {definition.Name.ToLowerInvariant()}
-" +
-                "---
-" +
-                $"# {title}
-
-" +
+                "---\n" +
+                "status: active\n" +
+                $"tags: regression, {definition.Name.ToLowerInvariant()}\n" +
+                "---\n" +
+                $"# {title}\n\n" +
                 fixtureToken +
-                "
-
-" +
-                $"[[{nextTitle}]]
-
-" +
+                "\n\n" +
+                $"[[{nextTitle}]]\n\n" +
                 payload +
-                "
-";
+                "\n";
 
             await File.WriteAllTextAsync(
                 documentPath,
@@ -310,9 +299,7 @@ internal static class WorkspaceRegressionFixtureSmokeTests
 
         await File.AppendAllTextAsync(
             documentPaths[0],
-            "
-regression-filesystem-mutation
-");
+            "\nregression-filesystem-mutation\n");
 
         global::Nodalis.Core.Search.SearchResultSet mutationResults =
             await search.SearchAsync(
