@@ -19,7 +19,8 @@ $checksumPath = Join-Path $OutputRoot "SHA256SUMS.txt"
 $projectPath = Join-Path $root "src\Nodalis.App\Nodalis.App.csproj"
 $updaterProjectPath = Join-Path $root "src\Nodalis.Updater\Nodalis.Updater.csproj"
 $updaterPublishDirectory = Join-Path $OutputRoot ".Nodalis.Updater-win-x64"
-$userGuidePath = Join-Path $root "docs\README-UTILISATEUR.md"
+$docsPath = Join-Path $root "docs"
+$userGuidePath = Join-Path $docsPath "README-UTILISATEUR.md"
 
 if (Test-Path $publishDirectory) {
     Remove-Item $publishDirectory -Recurse -Force
@@ -91,6 +92,28 @@ if (-not (Test-Path $updaterExecutablePath)) {
 
 Copy-Item -Path $updaterExecutablePath -Destination (Join-Path $publishDirectory "Nodalis.Updater.exe") -Force
 Copy-Item -Path $userGuidePath -Destination (Join-Path $publishDirectory "README.md") -Force
+
+$documentationDirectory = Join-Path $publishDirectory "Documentation"
+New-Item -ItemType Directory -Path $documentationDirectory -Force | Out-Null
+Copy-Item -Path (Join-Path $docsPath "*") -Destination $documentationDirectory -Recurse -Force
+
+$requiredDocumentation = @(
+    "README.md",
+    "README-UTILISATEUR.md",
+    "import-export.md",
+    "troubleshooting.md",
+    "backups.md",
+    "update-recovery.md",
+    "workspace-compatibility.md"
+)
+
+foreach ($documentationFile in $requiredDocumentation) {
+    $documentationPath = Join-Path $documentationDirectory $documentationFile
+
+    if (-not (Test-Path $documentationPath)) {
+        throw "Portable publish is missing required documentation: $documentationFile"
+    }
+}
 
 $commit = "unknown"
 

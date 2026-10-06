@@ -265,4 +265,4 @@ crash-diagnostics.md.
 
 ## 19. Documentation complémentaire
 
-Le sommaire complet des documents 1.0 est docs/README.md.
+Le sommaire complet des documents 1.0 est docs/README.md dans le dépôt et Documentation/README.md dans l'archive portable.

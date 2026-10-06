@@ -90,7 +90,7 @@ Le script produit :
 - `artifacts/Nodalis-win-x64.zip` ;
 - `artifacts/SHA256SUMS.txt` ;
 - un exécutable `Nodalis.exe` self-contained et single-file ;
-- le guide utilisateur et les informations de version dans l'archive.
+- le guide utilisateur, la documentation 1.0 complète et les informations de version dans l'archive.
 
 Le workflow `Portable Windows Release` réalise le même build sur GitHub Actions.
 Un tag `vX.Y.Z` publie automatiquement l'archive et son SHA-256 dans une GitHub Release.
