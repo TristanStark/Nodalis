@@ -99,5 +99,4 @@ Les données utilisateur sont séparées du dossier de l'application : remplacer
 version portable de Nodalis ne modifie pas le workspace. Voir
 `docs/README-UTILISATEUR.md` pour les instructions d'installation et de mise à jour.
 
-Voir `docs/architecture.md`, `docs/workspace-format.md`, `docs/project-profiles.md` et
-`docs/regression-testing.md` pour les décisions de conception et la couverture de régression actuelles.
+Le sommaire complet de la documentation 1.0 se trouve dans `docs/README.md`.
