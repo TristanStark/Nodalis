@@ -5,6 +5,7 @@ $appRoot = Join-Path $repoRoot "src/Nodalis.App"
 $themePath = Join-Path $appRoot "Themes/Dark.xaml"
 $appXamlPath = Join-Path $appRoot "App.xaml"
 $mainWindowCodePath = Join-Path $appRoot "MainWindow.xaml.cs"
+$mainWindowXamlPath = Join-Path $appRoot "MainWindow.xaml"
 $appProjectPath = Join-Path $appRoot "Nodalis.App.csproj"
 $appManifestPath = Join-Path $appRoot "app.manifest"
 
@@ -56,6 +57,15 @@ if (-not $appXaml.Contains('ResourceDictionary Source="Themes/Dark.xaml"')) {
 }
 
 $mainWindowCode = Get-Content -Raw -LiteralPath $mainWindowCodePath
+$mainWindowXaml = Get-Content -Raw -LiteralPath $mainWindowXamlPath
+
+if ($mainWindowXaml.Contains('<Run Text="{Binding OverdueDisplay}" />')) {
+    $failures.Add("Project dashboard OverdueDisplay must bind OneWay because TaskItem.OverdueDisplay is read-only.")
+}
+
+if (-not $mainWindowXaml.Contains('<Run Text="{Binding OverdueDisplay, Mode=OneWay}" />')) {
+    $failures.Add("Project dashboard is missing the safe OneWay OverdueDisplay binding.")
+}
 $requiredContextMenuCodeTokens = @(
     'InitializeContextMenus();',
     'PrepareNodalisContextMenu',
