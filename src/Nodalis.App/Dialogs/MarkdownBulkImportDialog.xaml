@@ -1,0 +1,188 @@
+<Window x:Class="Nodalis.App.Dialogs.MarkdownBulkImportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Import Markdown massif"
+        Width="980"
+        Height="720"
+        MinWidth="820"
+        MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBackgroundBrush}"
+        Foreground="{StaticResource PrimaryTextBrush}">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0"
+                    Margin="0,0,0,14">
+            <TextBlock FontSize="22"
+                       FontWeight="SemiBold"
+                       Text="Import Markdown massif" />
+            <TextBlock x:Name="SourceText"
+                       Margin="0,6,0,0"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       TextWrapping="Wrap" />
+            <TextBlock x:Name="SummaryText"
+                       Margin="0,4,0,0"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Margin="0,0,0,14"
+                Padding="12"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            Margin="0,0,10,0">
+                    <TextBlock Margin="0,0,0,5"
+                               FontWeight="SemiBold"
+                               Text="Application" />
+                    <ComboBox x:Name="ApplicationComboBox"
+                              MinHeight="30"
+                              DisplayMemberPath="QualifiedName"
+                              SelectionChanged="ApplicationComboBox_SelectionChanged" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Margin="0,0,10,0">
+                    <TextBlock Margin="0,0,0,5"
+                               FontWeight="SemiBold"
+                               Text="Projet" />
+                    <ComboBox x:Name="ProjectComboBox"
+                              MinHeight="30"
+                              DisplayMemberPath="QualifiedName"
+                              SelectionChanged="TargetSelection_Changed" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Margin="0,0,0,5"
+                               FontWeight="SemiBold"
+                               Text="Section cible" />
+                    <TextBox x:Name="SectionTextBox"
+                             MinHeight="30"
+                             VerticalContentAlignment="Center"
+                             TextChanged="TargetText_Changed" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <TabControl x:Name="ImportTabs"
+                    Grid.Row="2"
+                    SelectionChanged="ImportTabs_SelectionChanged">
+            <TabItem Header="Sources">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="2*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <ListView x:Name="SourceItemsList"
+                              Grid.Row="0">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Type"
+                                                Width="110"
+                                                DisplayMemberBinding="{Binding KindLabel}" />
+                                <GridViewColumn Header="Chemin source relatif"
+                                                Width="610"
+                                                DisplayMemberBinding="{Binding RelativePath}" />
+                                <GridViewColumn Header="Taille"
+                                                Width="100"
+                                                DisplayMemberBinding="{Binding SizeLabel}" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,12,0,6"
+                               FontWeight="SemiBold"
+                               Text="Avertissements détectés" />
+
+                    <ListBox x:Name="SourceWarningsList"
+                             Grid.Row="2"
+                             MinHeight="90" />
+                </Grid>
+            </TabItem>
+
+            <TabItem x:Name="PlanTab"
+                     Header="Plan d'écriture">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="2*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock x:Name="PlanTargetText"
+                               Grid.Row="0"
+                               Margin="0,0,0,10"
+                               Text="Le plan sera calculé après sélection de la cible."
+                               TextWrapping="Wrap" />
+
+                    <ListView x:Name="PlannedChangesList"
+                              Grid.Row="1">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Opération"
+                                                Width="90"
+                                                DisplayMemberBinding="{Binding Operation}" />
+                                <GridViewColumn Header="Source"
+                                                Width="260"
+                                                DisplayMemberBinding="{Binding SourceRelativePath}" />
+                                <GridViewColumn Header="Destination"
+                                                Width="420"
+                                                DisplayMemberBinding="{Binding DestinationRelativePath}" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+
+                    <TextBlock Grid.Row="2"
+                               Margin="0,12,0,6"
+                               FontWeight="SemiBold"
+                               Text="Conflits / doublons / liens" />
+
+                    <ListBox x:Name="PlanWarningsList"
+                             Grid.Row="3"
+                             MinHeight="90" />
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <DockPanel Grid.Row="3"
+                   Margin="0,14,0,0">
+            <TextBlock x:Name="StatusText"
+                       VerticalAlignment="Center"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Aucune écriture n'est effectuée avant validation." />
+
+            <StackPanel DockPanel.Dock="Right"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Margin="0,0,8,0"
+                        MinWidth="110"
+                        Click="Close_Click"
+                        Content="Annuler" />
+                <Button x:Name="ImportButton"
+                        MinWidth="170"
+                        Click="Import_Click"
+                        Content="Prévisualiser les fichiers" />
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>
