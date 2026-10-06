@@ -84,6 +84,7 @@
            TargetType="{x:Type Window}">
         <Setter Property="Background" Value="{StaticResource WindowBackgroundBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="Icon" Value="/Nodalis;component/Assets/Nodalis.ico" />
         <Setter Property="FontFamily" Value="Segoe UI" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="MinWidth" Value="360" />

@@ -11,6 +11,7 @@ $calendarXamlPath = Join-Path $appRoot "Dialogs/WorkspaceCalendarDialog.xaml"
 $kanbanXamlPath = Join-Path $appRoot "Dialogs/WorkspaceKanbanDialog.xaml"
 $appProjectPath = Join-Path $appRoot "Nodalis.App.csproj"
 $appManifestPath = Join-Path $appRoot "app.manifest"
+$appIconPath = Join-Path $appRoot "Assets/Nodalis.ico"
 
 $xamlFiles = Get-ChildItem -Path $appRoot -Recurse -Filter *.xaml -File
 $failures = [System.Collections.Generic.List[string]]::new()
@@ -110,6 +111,27 @@ foreach ($token in $requiredContextMenuCodeTokens) {
 $appProject = Get-Content -Raw -LiteralPath $appProjectPath
 if (-not $appProject.Contains('<ApplicationManifest>app.manifest</ApplicationManifest>')) {
     $failures.Add("Nodalis.App.csproj must embed app.manifest for explicit DPI awareness.")
+}
+
+if (-not $appProject.Contains('<ApplicationIcon>Assets\Nodalis.ico</ApplicationIcon>')) {
+    $failures.Add("Nodalis.App.csproj must embed the Nodalis application icon.")
+}
+
+if (-not $appProject.Contains('<Resource Include="Assets\Nodalis.ico" />')) {
+    $failures.Add("Nodalis.App.csproj must expose the Nodalis icon as a WPF resource.")
+}
+
+if (-not (Test-Path -LiteralPath $appIconPath)) {
+    $failures.Add("Nodalis.App/Assets/Nodalis.ico is missing.")
+}
+
+if (-not $mainWindowXaml.Contains('Icon="Assets/Nodalis.ico"') -or
+    -not $mainWindowXaml.Contains('Source="Assets/Nodalis.ico"')) {
+    $failures.Add("MainWindow must use the Nodalis logo for the window/taskbar icon and header branding.")
+}
+
+if (-not $theme.Contains('Property="Icon" Value="/Nodalis;component/Assets/Nodalis.ico"')) {
+    $failures.Add("NodalisWindowStyle must propagate the Nodalis icon to secondary windows.")
 }
 
 if (-not (Test-Path -LiteralPath $appManifestPath)) {

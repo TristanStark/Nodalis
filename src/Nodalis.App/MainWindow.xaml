@@ -4,6 +4,7 @@
         xmlns:navigation="clr-namespace:Nodalis.App.Navigation"
         xmlns:editor="clr-namespace:Nodalis.App.Editor"
         Title="Nodalis"
+        Icon="Assets/Nodalis.ico"
         Width="1440"
         Height="900"
         MinWidth="1024"
@@ -47,6 +48,13 @@
 
                 <StackPanel Orientation="Horizontal"
                             VerticalAlignment="Center">
+                    <Image Width="30"
+                           Height="30"
+                           Margin="0,0,10,0"
+                           Source="Assets/Nodalis.ico"
+                           Stretch="Uniform"
+                           SnapsToDevicePixels="True"
+                           ToolTip="Nodalis" />
                     <TextBlock Text="NODALIS"
                                FontWeight="SemiBold"
                                FontSize="16"
