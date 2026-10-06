@@ -1206,8 +1206,7 @@ public static partial class MermaidFlowchartParser
         {
             content =
                 value[
-                    prefix.Length..
-                    (value.Length - suffix.Length)];
+                    prefix.Length..(value.Length - suffix.Length)];
             return true;
         }
 
