@@ -982,14 +982,19 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        global::Nodalis.App.Dialogs.WorkspaceIntegrityDialog dialog =
-            new WorkspaceIntegrityDialog(
-                _root.FullPath)
+        RunUiAction(
+            "Intégrité du workspace",
+            () =>
             {
-                Owner = this
-            };
+                global::Nodalis.App.Dialogs.WorkspaceIntegrityDialog dialog =
+                    new WorkspaceIntegrityDialog(
+                        _root.FullPath)
+                    {
+                        Owner = this
+                    };
 
-        dialog.ShowDialog();
+                dialog.ShowDialog();
+            });
     }
 
     /// <summary>
@@ -2487,38 +2492,44 @@ public partial class MainWindow : Window
             object sender,
             System.Windows.Controls.TextChangedEventArgs e)
     {
-        if (_workspaceReadOnly ||
-            _suppressEditorChanges ||
-            _autosave is null)
-        {
-            return;
-        }
+        RunUiAction(
+            "Éditeur · modification",
+            () =>
+            {
+                if (_workspaceReadOnly ||
+                    _suppressEditorChanges ||
+                    _autosave is null)
+                {
+                    return;
+                }
 
-        _documentDirty = true;
+                _documentDirty = true;
 
-        if (_activeDocumentTab is not null)
-        {
-            _activeDocumentTab.Content =
-                MarkdownEditorTextBox.Text;
-            _activeDocumentTab.IsDirty = true;
-        }
+                if (_activeDocumentTab is not null)
+                {
+                    _activeDocumentTab.Content =
+                        MarkdownEditorTextBox.Text;
+                    _activeDocumentTab.IsDirty = true;
+                }
 
-        RefreshDocumentPropertiesContext(
-            MarkdownEditorTextBox.Text);
+                RefreshDocumentPropertiesContext(
+                    MarkdownEditorTextBox.Text);
 
-        SaveStateText.Text = "Modification…";
+                SaveStateText.Text = "Modification…";
 
-        _autosave.Schedule(
-            MarkdownEditorTextBox.Text);
+                _autosave.Schedule(
+                    MarkdownEditorTextBox.Text);
 
-        _previewTimer.Stop();
-        _previewTimer.Start();
+                _previewTimer.Stop();
+                _previewTimer.Start();
 
-        if (!_suppressLinkAutocomplete)
-        {
-            InternalLinkPopup.IsOpen = false;
-            _ = RefreshInternalLinkSuggestionsSafelyAsync();
-        }
+                if (!_suppressLinkAutocomplete)
+                {
+                    InternalLinkPopup.IsOpen = false;
+                    _ = RefreshInternalLinkSuggestionsSafelyAsync();
+                }
+            },
+            showDialog: false);
     }
 
     /// <summary>
@@ -3080,13 +3091,18 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        _previewVisible = !_previewVisible;
-        ApplyPreviewState();
+        RunUiAction(
+            "Aperçu Markdown / Mermaid",
+            () =>
+            {
+                _previewVisible = !_previewVisible;
+                ApplyPreviewState();
 
-        if (_previewVisible)
-        {
-            RenderPreview();
-        }
+                if (_previewVisible)
+                {
+                    RenderPreview();
+                }
+            });
     }
 
     /// <summary>
@@ -3844,10 +3860,14 @@ public partial class MainWindow : Window
             await RefreshInternalLinkSuggestionsAsync();
         }
         catch (Exception exception) when (
-            exception is ArgumentException or
-            InvalidOperationException)
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                exception))
         {
             InternalLinkPopup.IsOpen = false;
+            ReportRecoverableUiError(
+                "Liens internes · autocomplétion",
+                exception,
+                showDialog: false);
         }
     }
 
