@@ -30,74 +30,145 @@ public partial class MainWindow
     /// <returns>A task representing preference persistence.</returns>
     private async Task EditSelectedBookmarkAsync()
     {
-        DocumentTabViewModel? tab =
-            GetFocusedDocumentTab();
-
-        if (tab is null)
-        {
-            StatusText.Text =
-                "Ouvrez un document Markdown avant de créer un signet.";
-            return;
-        }
-
-        DocumentOutlineItemViewModel? heading =
-            DocumentOutlineTree.SelectedItem as
-                DocumentOutlineItemViewModel ??
-            _currentDocumentOutlineItem;
-
-        if (heading is null)
-        {
-            StatusText.Text =
-                "Sélectionnez un titre dans le plan du document avant de créer un signet.";
-            return;
-        }
-
-        int occurrence =
-            GetHeadingOccurrence(
-                heading);
-
-        DocumentBookmarkReference? existing =
-            FindBookmark(
-                tab.DocumentId,
-                heading.Level,
-                heading.Title,
-                occurrence);
-
-        BookmarkDialog dialog =
-            new BookmarkDialog(
-                heading.Title,
-                existing?.DisplayName ??
-                heading.Title,
-                existing is not null)
+        await RunUiActionAsync(
+            "Signets · navigation",
+            async () =>
             {
-                Owner =
-                    this
-            };
-
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        global::System.Collections.Generic.List<global::Nodalis.Core.Settings.DocumentBookmarkReference> bookmarks =
-            _preferences.Bookmarks
-                .Where(bookmark =>
-                    existing is null ||
-                    bookmark.Id != existing.Id)
-                .ToList();
-
-        global::System.Collections.Generic.List<global::Nodalis.Core.Settings.UserItemReference> favorites =
-            _preferences.Favorites
-                .Where(reference =>
-                    existing is null ||
-                    !string.Equals(
-                        reference.Key,
-                        existing.Id.ToString("D"),
-                        StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-        if (dialog.DeleteRequested)
-        {
+            DocumentTabViewModel? tab =
+                GetFocusedDocumentTab();
+    
+            if (tab is null)
+            {
+                StatusText.Text =
+                    "Ouvrez un document Markdown avant de créer un signet.";
+                return;
+            }
+    
+            DocumentOutlineItemViewModel? heading =
+                DocumentOutlineTree.SelectedItem as
+                    DocumentOutlineItemViewModel ??
+                _currentDocumentOutlineItem;
+    
+            if (heading is null)
+            {
+                StatusText.Text =
+                    "Sélectionnez un titre dans le plan du document avant de créer un signet.";
+                return;
+            }
+    
+            int occurrence =
+                GetHeadingOccurrence(
+                    heading);
+    
+            DocumentBookmarkReference? existing =
+                FindBookmark(
+                    tab.DocumentId,
+                    heading.Level,
+                    heading.Title,
+                    occurrence);
+    
+            BookmarkDialog dialog =
+                new BookmarkDialog(
+                    heading.Title,
+                    existing?.DisplayName ??
+                    heading.Title,
+                    existing is not null)
+                {
+                    Owner =
+                        this
+                };
+    
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+    
+            global::System.Collections.Generic.List<global::Nodalis.Core.Settings.DocumentBookmarkReference> bookmarks =
+                _preferences.Bookmarks
+                    .Where(bookmark =>
+                        existing is null ||
+                        bookmark.Id != existing.Id)
+                    .ToList();
+    
+            global::System.Collections.Generic.List<global::Nodalis.Core.Settings.UserItemReference> favorites =
+                _preferences.Favorites
+                    .Where(reference =>
+                        existing is null ||
+                        !string.Equals(
+                            reference.Key,
+                            existing.Id.ToString("D"),
+                            StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+    
+            if (dialog.DeleteRequested)
+            {
+                _preferences =
+                    _preferences with
+                    {
+                        Bookmarks =
+                            bookmarks,
+                        Favorites =
+                            favorites
+                    };
+    
+                await _preferencesStore.SaveAsync(
+                    _preferences);
+    
+                RefreshDashboard();
+                StatusText.Text =
+                    $"Signet supprimé · {existing?.DisplayName ?? heading.Title}";
+                return;
+            }
+    
+            Guid bookmarkId =
+                existing?.Id ??
+                Guid.NewGuid();
+    
+            string relativePath =
+                Path.GetRelativePath(
+                        _root.FullPath,
+                        tab.FullPath)
+                    .Replace(
+                        Path.DirectorySeparatorChar,
+                        '/');
+    
+            DocumentBookmarkReference bookmark =
+                new DocumentBookmarkReference
+                {
+                    Id =
+                        bookmarkId,
+                    DocumentId =
+                        tab.DocumentId,
+                    DocumentRelativePath =
+                        relativePath,
+                    DisplayName =
+                        dialog.BookmarkName,
+                    HeadingLevel =
+                        heading.Level,
+                    HeadingTitle =
+                        heading.Title,
+                    HeadingOccurrence =
+                        occurrence,
+                    OriginalOffset =
+                        heading.Offset,
+                    OriginalLineNumber =
+                        heading.LineNumber
+                };
+    
+            bookmarks.Add(
+                bookmark);
+    
+            favorites.Add(
+                new UserItemReference
+                {
+                    Kind =
+                        "Bookmark",
+                    Key =
+                        bookmark.Id.ToString("D"),
+                    DisplayName =
+                        bookmark.DisplayName
+                });
+    
             _preferences =
                 _preferences with
                 {
@@ -106,82 +177,16 @@ public partial class MainWindow
                     Favorites =
                         favorites
                 };
-
+    
             await _preferencesStore.SaveAsync(
                 _preferences);
-
+    
             RefreshDashboard();
             StatusText.Text =
-                $"Signet supprimé · {existing?.DisplayName ?? heading.Title}";
-            return;
-        }
-
-        Guid bookmarkId =
-            existing?.Id ??
-            Guid.NewGuid();
-
-        string relativePath =
-            Path.GetRelativePath(
-                    _root.FullPath,
-                    tab.FullPath)
-                .Replace(
-                    Path.DirectorySeparatorChar,
-                    '/');
-
-        DocumentBookmarkReference bookmark =
-            new DocumentBookmarkReference
-            {
-                Id =
-                    bookmarkId,
-                DocumentId =
-                    tab.DocumentId,
-                DocumentRelativePath =
-                    relativePath,
-                DisplayName =
-                    dialog.BookmarkName,
-                HeadingLevel =
-                    heading.Level,
-                HeadingTitle =
-                    heading.Title,
-                HeadingOccurrence =
-                    occurrence,
-                OriginalOffset =
-                    heading.Offset,
-                OriginalLineNumber =
-                    heading.LineNumber
-            };
-
-        bookmarks.Add(
-            bookmark);
-
-        favorites.Add(
-            new UserItemReference
-            {
-                Kind =
-                    "Bookmark",
-                Key =
-                    bookmark.Id.ToString("D"),
-                DisplayName =
-                    bookmark.DisplayName
+                existing is null
+                    ? $"Signet ajouté · {bookmark.DisplayName}"
+                    : $"Signet renommé · {bookmark.DisplayName}";
             });
-
-        _preferences =
-            _preferences with
-            {
-                Bookmarks =
-                    bookmarks,
-                Favorites =
-                    favorites
-            };
-
-        await _preferencesStore.SaveAsync(
-            _preferences);
-
-        RefreshDashboard();
-        StatusText.Text =
-            existing is null
-                ? $"Signet ajouté · {bookmark.DisplayName}"
-                : $"Signet renommé · {bookmark.DisplayName}";
     }
 
     /// <summary>
