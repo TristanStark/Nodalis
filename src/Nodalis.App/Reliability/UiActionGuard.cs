@@ -44,7 +44,7 @@ internal static class UiActionGuard
             }
         }
         catch (Exception exception) when (
-            RecoverableExceptionPolicy.CanContinue(
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 exception))
         {
             ReportRecoverableError(
@@ -108,7 +108,7 @@ internal static class UiActionGuard
             dialog.ShowDialog();
         }
         catch (Exception dialogException) when (
-            RecoverableExceptionPolicy.CanContinue(
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 dialogException))
         {
             diagnosticsService.LogException(
