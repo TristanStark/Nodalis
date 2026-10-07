@@ -955,33 +955,38 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        global::Nodalis.App.Dialogs.TrashDialog dialog = new TrashDialog(
-            _trashService)
-        {
-            Owner = this
-        };
-
-        dialog.ShowDialog();
-
-        if (!dialog.WorkspaceChanged)
-        {
-            return;
-        }
-
-        try
-        {
-            await RefreshNavigationAsync();
-            StatusText.Text = "Corbeille mise à jour";
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException)
-        {
-            ShowStructureError(
-                "Corbeille",
-                exception);
-        }
+        await RunUiActionAsync(
+            "Corbeille",
+            async () =>
+            {
+            global::Nodalis.App.Dialogs.TrashDialog dialog = new TrashDialog(
+                _trashService)
+            {
+                Owner = this
+            };
+    
+            dialog.ShowDialog();
+    
+            if (!dialog.WorkspaceChanged)
+            {
+                return;
+            }
+    
+            try
+            {
+                await RefreshNavigationAsync();
+                StatusText.Text = "Corbeille mise à jour";
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                ShowStructureError(
+                    "Corbeille",
+                    exception);
+            }
+            });
     }
 
     /// <summary>
@@ -3053,26 +3058,31 @@ public partial class MainWindow : Window
     /// <param name="target">The <c>target</c> value.</param>
     private async void OnInternalLinkClicked(string target)
     {
-        if (_linkIndex.Targets.Count == 0)
-        {
-            await RefreshLinkIndexAsync();
-        }
-
-        global::Nodalis.Core.Links.LinkResolution resolution = WorkspaceLinkIndexService.Resolve(
-            _linkIndex,
-            target);
-
-        if (resolution.Status == LinkResolutionStatus.Resolved)
-        {
-            await NavigateToLinkTargetAsync(
-                resolution.Target!);
-            return;
-        }
-
-        StatusText.Text =
-            resolution.Status == LinkResolutionStatus.Missing
-                ? $"Lien interne introuvable : {target}"
-                : $"Lien interne ambigu : {target} ({resolution.Candidates.Count} cibles)";
+        await RunUiActionAsync(
+            "Navigation · lien interne",
+            async () =>
+            {
+            if (_linkIndex.Targets.Count == 0)
+            {
+                await RefreshLinkIndexAsync();
+            }
+    
+            global::Nodalis.Core.Links.LinkResolution resolution = WorkspaceLinkIndexService.Resolve(
+                _linkIndex,
+                target);
+    
+            if (resolution.Status == LinkResolutionStatus.Resolved)
+            {
+                await NavigateToLinkTargetAsync(
+                    resolution.Target!);
+                return;
+            }
+    
+            StatusText.Text =
+                resolution.Status == LinkResolutionStatus.Missing
+                    ? $"Lien interne introuvable : {target}"
+                    : $"Lien interne ambigu : {target} ({resolution.Candidates.Count} cibles)";
+            });
     }
 
     /// <summary>
@@ -3272,42 +3282,47 @@ public partial class MainWindow : Window
             object sender,
             MouseButtonEventArgs e)
     {
-        if (sender is not ListBox list ||
-            list.SelectedItem is not DashboardItemViewModel item)
-        {
-            return;
-        }
-
-        if (item.BookmarkId is Guid bookmarkId)
-        {
-            DocumentBookmarkReference? bookmark =
-                _preferences.Bookmarks.FirstOrDefault(candidate =>
-                    candidate.Id == bookmarkId);
-
-            if (bookmark is null)
+        await RunUiActionAsync(
+            "Dashboard · navigation",
+            async () =>
             {
-                StatusText.Text =
-                    $"Signet introuvable : {item.DisplayName}";
+            if (sender is not ListBox list ||
+                list.SelectedItem is not DashboardItemViewModel item)
+            {
                 return;
             }
-
-            await NavigateToBookmarkAsync(
-                bookmark);
-            return;
-        }
-
-        global::Nodalis.Core.Links.LinkTargetEntry? target = _linkIndex.Targets.FirstOrDefault(candidate =>
-            candidate.Id == item.TargetId);
-
-        if (target is null)
-        {
-            StatusText.Text =
-                $"Favori/récent introuvable : {item.DisplayName}";
-            return;
-        }
-
-        await NavigateToLinkTargetAsync(
-            target);
+    
+            if (item.BookmarkId is Guid bookmarkId)
+            {
+                DocumentBookmarkReference? bookmark =
+                    _preferences.Bookmarks.FirstOrDefault(candidate =>
+                        candidate.Id == bookmarkId);
+    
+                if (bookmark is null)
+                {
+                    StatusText.Text =
+                        $"Signet introuvable : {item.DisplayName}";
+                    return;
+                }
+    
+                await NavigateToBookmarkAsync(
+                    bookmark);
+                return;
+            }
+    
+            global::Nodalis.Core.Links.LinkTargetEntry? target = _linkIndex.Targets.FirstOrDefault(candidate =>
+                candidate.Id == item.TargetId);
+    
+            if (target is null)
+            {
+                StatusText.Text =
+                    $"Favori/récent introuvable : {item.DisplayName}";
+                return;
+            }
+    
+            await NavigateToLinkTargetAsync(
+                target);
+            });
     }
 
     /// <summary>
@@ -4079,14 +4094,19 @@ public partial class MainWindow : Window
             object sender,
             MouseButtonEventArgs e)
     {
-        if (BacklinksList.SelectedItem is not BacklinkEntry backlink)
-        {
-            return;
-        }
-
-        await NavigateToLinkTargetAsync(
-            backlink.Source,
-            backlink.LineNumber);
+        await RunUiActionAsync(
+            "Références · backlink",
+            async () =>
+            {
+            if (BacklinksList.SelectedItem is not BacklinkEntry backlink)
+            {
+                return;
+            }
+    
+            await NavigateToLinkTargetAsync(
+                backlink.Source,
+                backlink.LineNumber);
+            });
     }
 
     /// <summary>
@@ -4095,113 +4115,118 @@ public partial class MainWindow : Window
     /// <param name="target">The <c>target</c> value.</param>
     private async void OnMarkdownLinkClicked(string target)
     {
-        if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
-        {
-            string? baseDirectory = Path.GetDirectoryName(
-                _selectedNode.FullPath);
-
-            if (!string.IsNullOrWhiteSpace(baseDirectory) &&
-                !Uri.TryCreate(
-                    target,
-                    UriKind.Absolute,
-                    out global::System.Uri? absoluteUri))
+        await RunUiActionAsync(
+            "Navigation · lien Markdown",
+            async () =>
             {
-                string localPath = Path.GetFullPath(
-                    Path.Combine(
-                        baseDirectory,
-                        target.Replace(
-                            '/',
-                            Path.DirectorySeparatorChar)));
-
-                global::Nodalis.App.Navigation.NavigationNodeViewModel? match = _root
-                    .DescendantsAndSelf()
-                    .FirstOrDefault(node =>
-                        string.Equals(
-                            Path.GetFullPath(node.FullPath),
-                            localPath,
-                            StringComparison.OrdinalIgnoreCase));
-
-                if (match is not null)
+            if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
+            {
+                string? baseDirectory = Path.GetDirectoryName(
+                    _selectedNode.FullPath);
+    
+                if (!string.IsNullOrWhiteSpace(baseDirectory) &&
+                    !Uri.TryCreate(
+                        target,
+                        UriKind.Absolute,
+                        out global::System.Uri? absoluteUri))
                 {
-                    if (_selectedNode is not null &&
-                        !ReferenceEquals(
-                            _selectedNode,
-                            match) &&
-                        !await TryCloseCurrentDocumentAsync(
-                            "ouvrir le document lié"))
+                    string localPath = Path.GetFullPath(
+                        Path.Combine(
+                            baseDirectory,
+                            target.Replace(
+                                '/',
+                                Path.DirectorySeparatorChar)));
+    
+                    global::Nodalis.App.Navigation.NavigationNodeViewModel? match = _root
+                        .DescendantsAndSelf()
+                        .FirstOrDefault(node =>
+                            string.Equals(
+                                Path.GetFullPath(node.FullPath),
+                                localPath,
+                                StringComparison.OrdinalIgnoreCase));
+    
+                    if (match is not null)
                     {
+                        if (_selectedNode is not null &&
+                            !ReferenceEquals(
+                                _selectedNode,
+                                match) &&
+                            !await TryCloseCurrentDocumentAsync(
+                                "ouvrir le document lié"))
+                        {
+                            return;
+                        }
+    
+                        _restoringSelection = true;
+                        match.IsSelected = true;
+                        _restoringSelection = false;
+                        _selectedNode = match;
+                        await DisplayNodeAsync(match);
                         return;
                     }
-
-                    _restoringSelection = true;
-                    match.IsSelected = true;
-                    _restoringSelection = false;
-                    _selectedNode = match;
-                    await DisplayNodeAsync(match);
+                }
+    
+                if (Uri.TryCreate(
+                        target,
+                        UriKind.Absolute,
+                        out global::System.Uri? uri) &&
+                    !uri.IsFile)
+                {
+                    CopyExternalTargetToClipboard(
+                        target);
                     return;
                 }
-            }
-
-            if (Uri.TryCreate(
+    
+                global::Nodalis.Infrastructure.Attachments.AttachmentService attachmentService = new AttachmentService(
+                    _root.FullPath);
+    
+                global::Nodalis.Core.Attachments.AttachmentReference reference = attachmentService.Resolve(
                     target,
-                    UriKind.Absolute,
-                    out global::System.Uri? uri) &&
-                !uri.IsFile)
-            {
-                CopyExternalTargetToClipboard(
-                    target);
-                return;
-            }
-
-            global::Nodalis.Infrastructure.Attachments.AttachmentService attachmentService = new AttachmentService(
-                _root.FullPath);
-
-            global::Nodalis.Core.Attachments.AttachmentReference reference = attachmentService.Resolve(
-                target,
-                _selectedNode.FullPath);
-
-            if (reference.Exists)
-            {
-                try
+                    _selectedNode.FullPath);
+    
+                if (reference.Exists)
                 {
-                    Process.Start(new ProcessStartInfo(
-                        reference.FullPath)
+                    try
                     {
-                        UseShellExecute = true
-                    });
-
-                    StatusText.Text =
-                        $"Ouvert avec Windows · {reference.DisplayName}";
+                        Process.Start(new ProcessStartInfo(
+                            reference.FullPath)
+                        {
+                            UseShellExecute = true
+                        });
+    
+                        StatusText.Text =
+                            $"Ouvert avec Windows · {reference.DisplayName}";
+                    }
+                    catch (Exception exception) when (
+                        exception is Win32Exception or
+                        InvalidOperationException)
+                    {
+                        MessageBox.Show(
+                            this,
+                            $"Windows n'a pas pu ouvrir ce fichier.\n\n{exception.Message}",
+                            "Ouvrir le fichier",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                    }
+    
+                    return;
                 }
-                catch (Exception exception) when (
-                    exception is Win32Exception or
-                    InvalidOperationException)
-                {
-                    MessageBox.Show(
-                        this,
-                        $"Windows n'a pas pu ouvrir ce fichier.\n\n{exception.Message}",
-                        "Ouvrir le fichier",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                }
-
+    
+                MessageBox.Show(
+                    this,
+                    $"Le fichier lié est introuvable.\n\n{reference.FullPath}",
+                    "Fichier manquant",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+    
+                StatusText.Text =
+                    $"Fichier manquant · {reference.DisplayName}";
                 return;
             }
-
-            MessageBox.Show(
-                this,
-                $"Le fichier lié est introuvable.\n\n{reference.FullPath}",
-                "Fichier manquant",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-
-            StatusText.Text =
-                $"Fichier manquant · {reference.DisplayName}";
-            return;
-        }
-
-        CopyExternalTargetToClipboard(
-            target);
+    
+            CopyExternalTargetToClipboard(
+                target);
+            });
     }
 
     /// <summary>
@@ -4813,17 +4838,22 @@ public partial class MainWindow : Window
             object sender,
             MouseButtonEventArgs e)
     {
-        global::Nodalis.Core.Glossary.GlossaryTextMatch? match = FindGlossaryMatchAtPoint(
-            e.GetPosition(MarkdownEditorTextBox));
-
-        if (match is null)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        await OpenGlossaryEntryAsync(
-            match.Entry);
+        await RunUiActionAsync(
+            "Glossaire · ouverture",
+            async () =>
+            {
+            global::Nodalis.Core.Glossary.GlossaryTextMatch? match = FindGlossaryMatchAtPoint(
+                e.GetPosition(MarkdownEditorTextBox));
+    
+            if (match is null)
+            {
+                return;
+            }
+    
+            e.Handled = true;
+            await OpenGlossaryEntryAsync(
+                match.Entry);
+            });
     }
 
     /// <summary>
@@ -5382,13 +5412,18 @@ public partial class MainWindow : Window
             object sender,
             MouseButtonEventArgs e)
     {
-        if (UpcomingMilestonesList.SelectedItem is not MilestoneItem milestone)
-        {
-            return;
-        }
-
-        await NavigateToMilestoneAsync(
-            milestone);
+        await RunUiActionAsync(
+            "Jalons · navigation dashboard",
+            async () =>
+            {
+            if (UpcomingMilestonesList.SelectedItem is not MilestoneItem milestone)
+            {
+                return;
+            }
+    
+            await NavigateToMilestoneAsync(
+                milestone);
+            });
     }
 
     /// <summary>
@@ -5732,35 +5767,40 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (sender is not CheckBox checkBox ||
-            checkBox.DataContext is not TaskItem task)
-        {
-            return;
-        }
-
-        try
-        {
-            await ToggleTaskFromViewAsync(
-                task,
-                checkBox.IsChecked == true);
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            TaskSourceConflictException)
-        {
-            MessageBox.Show(
-                this,
-                exception.Message,
-                "Mettre à jour la tâche",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
-        finally
-        {
-            await RefreshDashboardTasksAsync();
-        }
+        await RunUiActionAsync(
+            "Tâches · mise à jour dashboard",
+            async () =>
+            {
+            if (sender is not CheckBox checkBox ||
+                checkBox.DataContext is not TaskItem task)
+            {
+                return;
+            }
+    
+            try
+            {
+                await ToggleTaskFromViewAsync(
+                    task,
+                    checkBox.IsChecked == true);
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                TaskSourceConflictException)
+            {
+                MessageBox.Show(
+                    this,
+                    exception.Message,
+                    "Mettre à jour la tâche",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+            finally
+            {
+                await RefreshDashboardTasksAsync();
+            }
+            });
     }
 
     /// <summary>
@@ -5772,13 +5812,18 @@ public partial class MainWindow : Window
             object sender,
             MouseButtonEventArgs e)
     {
-        if (OpenTasksList.SelectedItem is not TaskItem task)
-        {
-            return;
-        }
-
-        await NavigateToTaskAsync(
-            task);
+        await RunUiActionAsync(
+            "Tâches · navigation dashboard",
+            async () =>
+            {
+            if (OpenTasksList.SelectedItem is not TaskItem task)
+            {
+                return;
+            }
+    
+            await NavigateToTaskAsync(
+                task);
+            });
     }
 
 
@@ -7498,7 +7543,12 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ExtractMeetingItemsAsync();
+        await RunUiActionAsync(
+            "Réunion · extraction",
+            async () =>
+            {
+            await ExtractMeetingItemsAsync();
+            });
     }
 
     /// <summary>
