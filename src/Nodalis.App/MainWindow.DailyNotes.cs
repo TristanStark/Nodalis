@@ -6,7 +6,6 @@ using Nodalis.Core.Notes;
 using Nodalis.Core.Settings;
 using Nodalis.Infrastructure.Persistence;
 
-using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.App;
 
@@ -21,48 +20,42 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
-        try
-        {
-            await RefreshLinkIndexAsync();
-
-            DateTimeOffset localNow =
-                DateTimeOffset.Now;
-            IReadOnlyList<DailyNoteReference> openedToday =
-                BuildDailyNoteReferences(
-                    localNow);
-
-            DailyNotesDialog dialog =
-                new DailyNotesDialog(
-                    _root.FullPath,
-                    _templateStore,
-                    openedToday)
-                {
-                    Owner =
-                        this
-                };
-
-            if (dialog.ShowDialog() !=
-                    true ||
-                string.IsNullOrWhiteSpace(
-                    dialog.SelectedPath))
+        await RunUiActionAsync(
+            "Journal quotidien",
+            async () =>
             {
-                return;
-            }
+                await RefreshLinkIndexAsync();
 
-            await RefreshNavigationAsync(
-                dialog.SelectedPath);
+                DateTimeOffset localNow =
+                    DateTimeOffset.Now;
+                IReadOnlyList<DailyNoteReference> openedToday =
+                    BuildDailyNoteReferences(
+                        localNow);
 
-            StatusText.Text =
-                $"Journal ouvert · {Path.GetFileNameWithoutExtension(dialog.SelectedPath)}";
-        }
-        catch (Exception exception) when (
-            RecoverableExceptionPolicy.CanContinue(
-                exception))
-        {
-            ReportRecoverableUiError(
-                "Journal quotidien",
-                exception);
-        }
+                DailyNotesDialog dialog =
+                    new DailyNotesDialog(
+                        _root.FullPath,
+                        _templateStore,
+                        openedToday)
+                    {
+                        Owner =
+                            this
+                    };
+
+                if (dialog.ShowDialog() !=
+                        true ||
+                    string.IsNullOrWhiteSpace(
+                        dialog.SelectedPath))
+                {
+                    return;
+                }
+
+                await RefreshNavigationAsync(
+                    dialog.SelectedPath);
+
+                StatusText.Text =
+                    $"Journal ouvert · {Path.GetFileNameWithoutExtension(dialog.SelectedPath)}";
+            });
     }
 
     /// <summary>
