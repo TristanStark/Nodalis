@@ -27,107 +27,112 @@ public partial class MainWindow
     /// <returns>A task representing the insertion, save and index refresh.</returns>
     private async Task AddRelationAsync()
     {
-        if (_selectedNode?.Kind != WorkspaceNodeKind.Document)
-        {
-            StatusText.Text =
-                "Les relations sortantes s'ajoutent depuis un document Markdown.";
-            return;
-        }
-
-        LinkTargetEntry? source =
-            FindIndexedTarget(
-                _selectedNode);
-
-        if (source is null)
-        {
-            await RefreshLinkIndexAsync();
-            source =
+        await RunUiActionAsync(
+            "Relations · ajout",
+            async () =>
+            {
+            if (_selectedNode?.Kind != WorkspaceNodeKind.Document)
+            {
+                StatusText.Text =
+                    "Les relations sortantes s'ajoutent depuis un document Markdown.";
+                return;
+            }
+    
+            LinkTargetEntry? source =
                 FindIndexedTarget(
                     _selectedNode);
-        }
-
-        if (source is null)
-        {
-            StatusText.Text =
-                "Impossible d'indexer le document source de la relation.";
-            return;
-        }
-
-        LinkTargetEntry[] targets =
-            _linkIndex.Targets
-                .Where(target =>
-                    target.Id != source.Id)
-                .OrderBy(
-                    target => target.QualifiedName,
-                    StringComparer.CurrentCultureIgnoreCase)
-                .ToArray();
-
-        if (targets.Length == 0)
-        {
-            StatusText.Text =
-                "Aucune autre cible indexée dans le workspace.";
-            return;
-        }
-
-        RelationDialog dialog =
-            new RelationDialog(
-                targets)
+    
+            if (source is null)
             {
-                Owner =
-                    this
-            };
-
-        if (dialog.ShowDialog() != true ||
-            dialog.SelectedTarget is null)
-        {
-            return;
-        }
-
-        TextBox editor =
-            GetFocusedEditorTextBox();
-
-        string relationLine =
-            MarkdownRelationParser.Format(
-                dialog.RelationType,
-                dialog.SelectedTarget.Id,
-                dialog.SelectedTarget.DisplayName);
-
-        int insertionIndex =
-            editor.SelectionStart;
-
-        bool needsLeadingBreak =
-            insertionIndex > 0 &&
-            editor.Text[insertionIndex - 1] != '\n';
-
-        bool needsTrailingBreak =
-            insertionIndex < editor.Text.Length &&
-            editor.Text[insertionIndex] != '\r' &&
-            editor.Text[insertionIndex] != '\n';
-
-        string insertedText =
-            (needsLeadingBreak
-                ? Environment.NewLine
-                : string.Empty) +
-            relationLine +
-            (needsTrailingBreak
-                ? Environment.NewLine
-                : string.Empty);
-
-        editor.SelectedText =
-            insertedText;
-        editor.CaretIndex =
-            Math.Min(
-                editor.Text.Length,
-                insertionIndex +
-                insertedText.Length);
-        editor.SelectionLength =
-            0;
-
-        await SaveFocusedDocumentAsync();
-        await RefreshLinkIndexAndContextAsync();
-
-        StatusText.Text =
-            $"Relation ajoutée · {dialog.RelationType} → {dialog.SelectedTarget.DisplayName}";
+                await RefreshLinkIndexAsync();
+                source =
+                    FindIndexedTarget(
+                        _selectedNode);
+            }
+    
+            if (source is null)
+            {
+                StatusText.Text =
+                    "Impossible d'indexer le document source de la relation.";
+                return;
+            }
+    
+            LinkTargetEntry[] targets =
+                _linkIndex.Targets
+                    .Where(target =>
+                        target.Id != source.Id)
+                    .OrderBy(
+                        target => target.QualifiedName,
+                        StringComparer.CurrentCultureIgnoreCase)
+                    .ToArray();
+    
+            if (targets.Length == 0)
+            {
+                StatusText.Text =
+                    "Aucune autre cible indexée dans le workspace.";
+                return;
+            }
+    
+            RelationDialog dialog =
+                new RelationDialog(
+                    targets)
+                {
+                    Owner =
+                        this
+                };
+    
+            if (dialog.ShowDialog() != true ||
+                dialog.SelectedTarget is null)
+            {
+                return;
+            }
+    
+            TextBox editor =
+                GetFocusedEditorTextBox();
+    
+            string relationLine =
+                MarkdownRelationParser.Format(
+                    dialog.RelationType,
+                    dialog.SelectedTarget.Id,
+                    dialog.SelectedTarget.DisplayName);
+    
+            int insertionIndex =
+                editor.SelectionStart;
+    
+            bool needsLeadingBreak =
+                insertionIndex > 0 &&
+                editor.Text[insertionIndex - 1] != '\n';
+    
+            bool needsTrailingBreak =
+                insertionIndex < editor.Text.Length &&
+                editor.Text[insertionIndex] != '\r' &&
+                editor.Text[insertionIndex] != '\n';
+    
+            string insertedText =
+                (needsLeadingBreak
+                    ? Environment.NewLine
+                    : string.Empty) +
+                relationLine +
+                (needsTrailingBreak
+                    ? Environment.NewLine
+                    : string.Empty);
+    
+            editor.SelectedText =
+                insertedText;
+            editor.CaretIndex =
+                Math.Min(
+                    editor.Text.Length,
+                    insertionIndex +
+                    insertedText.Length);
+            editor.SelectionLength =
+                0;
+    
+            await SaveFocusedDocumentAsync();
+            await RefreshLinkIndexAndContextAsync();
+    
+            StatusText.Text =
+                $"Relation ajoutée · {dialog.RelationType} → {dialog.SelectedTarget.DisplayName}";
+            });
     }
 
     /// <summary>
@@ -283,34 +288,39 @@ public partial class MainWindow
             object sender,
             MouseButtonEventArgs e)
     {
-        if (sender is not ListBox list ||
-            list.SelectedItem is not
-                RelationContextItemViewModel item)
-        {
-            return;
-        }
-
-        if (item.NavigationTargetId is not
-            Guid navigationTargetId)
-        {
-            StatusText.Text =
-                $"⚠ Relation cassée · {item.RelationType} → {item.DisplayName}";
-            return;
-        }
-
-        LinkTargetEntry? target =
-            _linkIndex.Targets.FirstOrDefault(candidate =>
-                candidate.Id == navigationTargetId);
-
-        if (target is null)
-        {
-            StatusText.Text =
-                $"⚠ Cible de relation introuvable · {item.DisplayName}";
-            return;
-        }
-
-        await NavigateToLinkTargetAsync(
-            target,
-            item.NavigationLineNumber);
+        await RunUiActionAsync(
+            "Relations · navigation",
+            async () =>
+            {
+            if (sender is not ListBox list ||
+                list.SelectedItem is not
+                    RelationContextItemViewModel item)
+            {
+                return;
+            }
+    
+            if (item.NavigationTargetId is not
+                Guid navigationTargetId)
+            {
+                StatusText.Text =
+                    $"⚠ Relation cassée · {item.RelationType} → {item.DisplayName}";
+                return;
+            }
+    
+            LinkTargetEntry? target =
+                _linkIndex.Targets.FirstOrDefault(candidate =>
+                    candidate.Id == navigationTargetId);
+    
+            if (target is null)
+            {
+                StatusText.Text =
+                    $"⚠ Cible de relation introuvable · {item.DisplayName}";
+                return;
+            }
+    
+            await NavigateToLinkTargetAsync(
+                target,
+                item.NavigationLineNumber);
+            });
     }
 }
