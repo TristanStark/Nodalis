@@ -462,7 +462,7 @@ public partial class App : Application
             dialog.ShowDialog();
         }
         catch (Exception dialogException) when (
-            RecoverableExceptionPolicy.CanContinue(
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 dialogException))
         {
             _diagnosticsService.LogException(
@@ -517,8 +517,33 @@ public partial class App : Application
             object? sender,
             UnobservedTaskExceptionEventArgs e)
     {
+        if (RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                e.Exception))
+        {
+            string errorId =
+                _diagnosticsService.LogRecoverableException(
+                    "Tâche asynchrone non observée",
+                    e.Exception);
+
+            e.SetObserved();
+
+            if (!Dispatcher.HasShutdownStarted &&
+                !Dispatcher.HasShutdownFinished)
+            {
+                Dispatcher.BeginInvoke(() =>
+                    ShowRecoverableError(
+                        "Tâche asynchrone",
+                        errorId,
+                        e.Exception));
+            }
+
+            return;
+        }
+
+        _fatalExceptionObserved =
+            true;
         _diagnosticsService.LogException(
-            "Exception de tâche non observée",
+            "Exception de tâche non observée potentiellement fatale",
             e.Exception);
         e.SetObserved();
     }
