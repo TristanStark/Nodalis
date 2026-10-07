@@ -277,74 +277,79 @@ public partial class MainWindow : Window
 
         e.Cancel = true;
 
-        if (_workspaceReadOnly)
-        {
-            await DisposeAllDocumentTabsAsync();
-            _previewTimer.Stop();
-            _backupTimer.Stop();
-            _allowClose = true;
-            Close();
-            return;
-        }
-
-        if (!await TryFlushAllDocumentTabsForShutdownAsync())
-        {
-            return;
-        }
-
-        global::System.Collections.Generic.List<global::Nodalis.Core.Settings.OpenDocumentTabReference> openDocumentTabs =
-            BuildOpenDocumentTabReferences();
-
-        Guid? activeDocumentTabId =
-            _activeDocumentTab?.DocumentId;
-
-        try
-        {
-            _preferences = _preferences with
+        await RunUiActionAsync(
+            "Fermeture de Nodalis",
+            async () =>
             {
-                ExpandedNodeIds = GetExpandedNodeIds(),
-                IsContextPanelOpen = _contextPanelOpen,
-                NavigationPanelWidth = Math.Max(
-                    180,
-                    NavigationColumn.ActualWidth),
-                ContextPanelWidth = Math.Max(
-                    180,
-                    _contextPanelOpen
-                        ? ContextColumn.ActualWidth
-                        : _lastContextWidth),
-                Editor = _preferences.Editor with
+                if (_workspaceReadOnly)
                 {
-                    LivePreview = _previewVisible,
-                    WordWrap =
-                        MarkdownEditorTextBox.TextWrapping ==
-                        TextWrapping.Wrap,
-                    FontSize = (int)Math.Round(
-                        MarkdownEditorTextBox.FontSize),
-                    SplitMode = _editorSplitMode,
-                    SplitRatio = CaptureEditorSplitRatio(),
-                    SecondaryDocumentTabId =
-                        _secondaryDocumentTab?.DocumentId
-                },
-                OpenDocumentTabs = openDocumentTabs,
-                ActiveDocumentTabId = activeDocumentTabId
-            };
+                    await DisposeAllDocumentTabsAsync();
+                    _previewTimer.Stop();
+                    _backupTimer.Stop();
+                    _allowClose = true;
+                    Close();
+                    return;
+                }
 
-            await _preferencesStore.SaveAsync(_preferences);
-            await DisposeAllDocumentTabsAsync();
-        }
-        catch (Exception exception) when (
-            RecoverableExceptionPolicy.CanContinue(
-                exception))
-        {
-            ReportRecoverableUiError(
-                "Fermeture · préférences d'interface",
-                exception);
-        }
+                if (!await TryFlushAllDocumentTabsForShutdownAsync())
+                {
+                    return;
+                }
 
-        _previewTimer.Stop();
-        _backupTimer.Stop();
-        _allowClose = true;
-        Close();
+                global::System.Collections.Generic.List<global::Nodalis.Core.Settings.OpenDocumentTabReference> openDocumentTabs =
+                    BuildOpenDocumentTabReferences();
+
+                Guid? activeDocumentTabId =
+                    _activeDocumentTab?.DocumentId;
+
+                try
+                {
+                    _preferences = _preferences with
+                    {
+                        ExpandedNodeIds = GetExpandedNodeIds(),
+                        IsContextPanelOpen = _contextPanelOpen,
+                        NavigationPanelWidth = Math.Max(
+                            180,
+                            NavigationColumn.ActualWidth),
+                        ContextPanelWidth = Math.Max(
+                            180,
+                            _contextPanelOpen
+                                ? ContextColumn.ActualWidth
+                                : _lastContextWidth),
+                        Editor = _preferences.Editor with
+                        {
+                            LivePreview = _previewVisible,
+                            WordWrap =
+                                MarkdownEditorTextBox.TextWrapping ==
+                                TextWrapping.Wrap,
+                            FontSize = (int)Math.Round(
+                                MarkdownEditorTextBox.FontSize),
+                            SplitMode = _editorSplitMode,
+                            SplitRatio = CaptureEditorSplitRatio(),
+                            SecondaryDocumentTabId =
+                                _secondaryDocumentTab?.DocumentId
+                        },
+                        OpenDocumentTabs = openDocumentTabs,
+                        ActiveDocumentTabId = activeDocumentTabId
+                    };
+
+                    await _preferencesStore.SaveAsync(_preferences);
+                    await DisposeAllDocumentTabsAsync();
+                }
+                catch (Exception exception) when (
+                    RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                        exception))
+                {
+                    ReportRecoverableUiError(
+                        "Fermeture · préférences d'interface",
+                        exception);
+                }
+
+                _previewTimer.Stop();
+                _backupTimer.Stop();
+                _allowClose = true;
+                Close();
+            });
     }
 
     /// <summary>
@@ -699,7 +704,7 @@ public partial class MainWindow : Window
             dialog.ShowDialog();
         }
         catch (Exception dialogException) when (
-            RecoverableExceptionPolicy.CanContinue(
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 dialogException))
         {
             _diagnosticsService.LogException(
@@ -2536,8 +2541,11 @@ public partial class MainWindow : Window
             EventArgs e)
     {
         Dispatcher.BeginInvoke(async () =>
-            await HandleDocumentTabAutosaveSavedAsync(
-                sender));
+            await RunUiActionAsync(
+                "Autosave · finalisation",
+                () =>
+                    HandleDocumentTabAutosaveSavedAsync(
+                        sender)));
     }
 
     /// <summary>
@@ -2550,8 +2558,12 @@ public partial class MainWindow : Window
             AutosaveConflictEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
-            HandleDocumentTabAutosaveConflict(
-                sender));
+            RunUiAction(
+                "Autosave · conflit",
+                () =>
+                    HandleDocumentTabAutosaveConflict(
+                        sender),
+                showDialog: false));
     }
 
     /// <summary>
@@ -2564,9 +2576,13 @@ public partial class MainWindow : Window
             AutosaveFailureEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
-            HandleDocumentTabAutosaveFailure(
-                sender,
-                e.Exception));
+            RunUiAction(
+                "Autosave · échec d'enregistrement",
+                () =>
+                    HandleDocumentTabAutosaveFailure(
+                        sender,
+                        e.Exception),
+                showDialog: false));
     }
 
     /// <summary>
