@@ -23,6 +23,12 @@ public partial class App : Application
     private bool _fatalExceptionObserved;
 
     /// <summary>
+    /// Gets the shared local diagnostics service used by recoverable UI error boundaries.
+    /// </summary>
+    internal LocalDiagnosticsService DiagnosticsService =>
+        _diagnosticsService;
+
+    /// <summary>
     /// Performs the <c>OnStartup</c> operation.
     /// </summary>
     /// <param name="e">The <c>e</c> value.</param>
