@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.Core.Calendar;
 using Nodalis.Infrastructure.Calendar;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -58,10 +59,16 @@ public partial class WorkspaceCalendarDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        Loaded -=
-            WorkspaceCalendarDialog_Loaded;
-
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Calendrier · chargement",
+            async () =>
+            {
+            Loaded -=
+                WorkspaceCalendarDialog_Loaded;
+    
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -73,7 +80,13 @@ public partial class WorkspaceCalendarDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Calendrier · actualiser",
+            async () =>
+            {
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -259,39 +272,45 @@ public partial class WorkspaceCalendarDialog : Window
             object sender,
             DragEventArgs e)
     {
-        if (sender is not FrameworkElement element ||
-            element.DataContext is not CalendarDayViewModel day ||
-            e.Data.GetData(
-                typeof(CalendarEventItem)) is not CalendarEventItem item ||
-            !item.CanReschedule)
-        {
-            return;
-        }
-
-        try
-        {
-            await _service.RescheduleAsync(
-                item,
-                day.Date);
-
-            StatusText.Text =
-                item.KindLabel +
-                " déplacé vers le " +
-                day.Date.ToString(
-                    "dd/MM/yyyy");
-
-            await RefreshAsync();
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException)
-        {
-            StatusText.Text =
-                "Déplacement refusé : " +
-                exception.Message;
-        }
+        await UiActionGuard.RunAsync(
+            this,
+            "Calendrier · déplacer un élément",
+            async () =>
+            {
+            if (sender is not FrameworkElement element ||
+                element.DataContext is not CalendarDayViewModel day ||
+                e.Data.GetData(
+                    typeof(CalendarEventItem)) is not CalendarEventItem item ||
+                !item.CanReschedule)
+            {
+                return;
+            }
+    
+            try
+            {
+                await _service.RescheduleAsync(
+                    item,
+                    day.Date);
+    
+                StatusText.Text =
+                    item.KindLabel +
+                    " déplacé vers le " +
+                    day.Date.ToString(
+                        "dd/MM/yyyy");
+    
+                await RefreshAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                InvalidOperationException)
+            {
+                StatusText.Text =
+                    "Déplacement refusé : " +
+                    exception.Message;
+            }
+            });
     }
 
     /// <summary>
