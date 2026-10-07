@@ -199,57 +199,57 @@ public partial class ProjectStructureDialog : Window
             "Structure projet · ajouter une section",
             async () =>
             {
-            string name =
-                NewSectionNameTextBox.Text.Trim();
-    
-            if (name.Length ==
-                0)
-            {
-                MessageBox.Show(
-                    this,
-                    "Saisissez un nom de section.",
-                    "Structure du projet",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                return;
-            }
-    
-            TemplateChoice? template =
-                TemplateComboBox.SelectedItem as
-                TemplateChoice;
-    
-            try
-            {
-                ProjectSectionState created =
-                    await _structure.AddSectionAsync(
-                        _projectDirectory,
-                        name,
-                        template?.Key,
-                        SingletonCheckBox.IsChecked ==
-                        true);
-    
-                Changed =
-                    true;
-                NewSectionNameTextBox.Text =
-                    string.Empty;
-                SingletonCheckBox.IsChecked =
-                    false;
-    
-                await RefreshAsync(
-                    created.Id);
-    
-                StatusText.Text =
-                    template?.Key is null
-                        ? $"Section « {created.Name} » ajoutée."
-                        : $"Section « {created.Name} » créée depuis le template « {template.DisplayName} ».";
-            }
-            catch (Exception exception) when (
-                IsExpectedStructureException(
-                    exception))
-            {
-                ShowError(
-                    exception.Message);
-            }
+                string name =
+                    NewSectionNameTextBox.Text.Trim();
+
+                if (name.Length ==
+                    0)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Saisissez un nom de section.",
+                        "Structure du projet",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                TemplateChoice? template =
+                    TemplateComboBox.SelectedItem as
+                    TemplateChoice;
+
+                try
+                {
+                    ProjectSectionState created =
+                        await _structure.AddSectionAsync(
+                            _projectDirectory,
+                            name,
+                            template?.Key,
+                            SingletonCheckBox.IsChecked ==
+                            true);
+
+                    Changed =
+                        true;
+                    NewSectionNameTextBox.Text =
+                        string.Empty;
+                    SingletonCheckBox.IsChecked =
+                        false;
+
+                    await RefreshAsync(
+                        created.Id);
+
+                    StatusText.Text =
+                        template?.Key is null
+                            ? $"Section « {created.Name} » ajoutée."
+                            : $"Section « {created.Name} » créée depuis le template « {template.DisplayName} ».";
+                }
+                catch (Exception exception) when (
+                    IsExpectedStructureException(
+                        exception))
+                {
+                    ShowError(
+                        exception.Message);
+                }
             });
     }
 
@@ -267,57 +267,57 @@ public partial class ProjectStructureDialog : Window
             "Structure projet · renommer une section",
             async () =>
             {
-            ProjectSectionState? selected =
-                SectionsList.SelectedItem as
-                ProjectSectionState;
-    
-            if (selected is null)
-            {
-                return;
-            }
-    
-            TextPromptDialog prompt =
-                new TextPromptDialog(
-                    "Renommer la section",
-                    "Nouveau nom :",
-                    selected.Name)
+                ProjectSectionState? selected =
+                    SectionsList.SelectedItem as
+                    ProjectSectionState;
+
+                if (selected is null)
                 {
-                    Owner =
-                        this
-                };
-    
-            if (prompt.ShowDialog() !=
-                    true ||
-                string.IsNullOrWhiteSpace(
-                    prompt.Value))
-            {
-                return;
-            }
-    
-            try
-            {
-                ProjectSectionState renamed =
-                    await _structure.RenameSectionAsync(
-                        _projectDirectory,
-                        selected.Id,
-                        prompt.Value);
-    
-                Changed =
-                    true;
-    
-                await RefreshAsync(
-                    renamed.Id);
-    
-                StatusText.Text =
-                    $"Section renommée en « {renamed.Name} ».";
-            }
-            catch (Exception exception) when (
-                IsExpectedStructureException(
-                    exception))
-            {
-                ShowError(
-                    exception.Message);
-            }
+                    return;
+                }
+
+                TextPromptDialog prompt =
+                    new TextPromptDialog(
+                        "Renommer la section",
+                        "Nouveau nom :",
+                        selected.Name)
+                    {
+                        Owner =
+                            this
+                    };
+
+                if (prompt.ShowDialog() !=
+                        true ||
+                    string.IsNullOrWhiteSpace(
+                        prompt.Value))
+                {
+                    return;
+                }
+
+                try
+                {
+                    ProjectSectionState renamed =
+                        await _structure.RenameSectionAsync(
+                            _projectDirectory,
+                            selected.Id,
+                            prompt.Value);
+
+                    Changed =
+                        true;
+
+                    await RefreshAsync(
+                        renamed.Id);
+
+                    StatusText.Text =
+                        $"Section renommée en « {renamed.Name} ».";
+                }
+                catch (Exception exception) when (
+                    IsExpectedStructureException(
+                        exception))
+                {
+                    ShowError(
+                        exception.Message);
+                }
             });
     }
 
@@ -356,65 +356,65 @@ public partial class ProjectStructureDialog : Window
             "Structure projet · monter une section",
             async () =>
             {
-            if (_state is null ||
-                SectionsList.SelectedItem is not ProjectSectionState selected)
-            {
-                return;
-            }
-    
-            List<ProjectSectionState> ordered =
-                _state.Sections.ToList();
-    
-            int currentIndex =
-                ordered.FindIndex(section =>
-                    section.Id ==
-                    selected.Id);
-    
-            int targetIndex =
-                currentIndex +
-                delta;
-    
-            if (currentIndex <
-                    0 ||
-                targetIndex <
-                    0 ||
-                targetIndex >=
-                    ordered.Count)
-            {
-                return;
-            }
-    
-            ProjectSectionState temporary =
-                ordered[currentIndex];
-            ordered[currentIndex] =
-                ordered[targetIndex];
-            ordered[targetIndex] =
-                temporary;
-    
-            try
-            {
-                await _structure.ReorderSectionsAsync(
-                    _projectDirectory,
-                    ordered.Select(section =>
-                            section.Id)
-                        .ToArray());
-    
-                Changed =
-                    true;
-    
-                await RefreshAsync(
-                    selected.Id);
-    
-                StatusText.Text =
-                    $"Ordre mis à jour · « {selected.Name} ».";
-            }
-            catch (Exception exception) when (
-                IsExpectedStructureException(
-                    exception))
-            {
-                ShowError(
-                    exception.Message);
-            }
+                if (_state is null ||
+                    SectionsList.SelectedItem is not ProjectSectionState selected)
+                {
+                    return;
+                }
+
+                List<ProjectSectionState> ordered =
+                    _state.Sections.ToList();
+
+                int currentIndex =
+                    ordered.FindIndex(section =>
+                        section.Id ==
+                        selected.Id);
+
+                int targetIndex =
+                    currentIndex +
+                    delta;
+
+                if (currentIndex <
+                        0 ||
+                    targetIndex <
+                        0 ||
+                    targetIndex >=
+                        ordered.Count)
+                {
+                    return;
+                }
+
+                ProjectSectionState temporary =
+                    ordered[currentIndex];
+                ordered[currentIndex] =
+                    ordered[targetIndex];
+                ordered[targetIndex] =
+                    temporary;
+
+                try
+                {
+                    await _structure.ReorderSectionsAsync(
+                        _projectDirectory,
+                        ordered.Select(section =>
+                                section.Id)
+                            .ToArray());
+
+                    Changed =
+                        true;
+
+                    await RefreshAsync(
+                        selected.Id);
+
+                    StatusText.Text =
+                        $"Ordre mis à jour · « {selected.Name} ».";
+                }
+                catch (Exception exception) when (
+                    IsExpectedStructureException(
+                        exception))
+                {
+                    ShowError(
+                        exception.Message);
+                }
             });
     }
 
@@ -432,50 +432,50 @@ public partial class ProjectStructureDialog : Window
             "Structure projet · déplacer un document",
             async () =>
             {
-            if (SectionsList.SelectedItem is not ProjectSectionState sourceSection ||
-                DocumentsList.SelectedItem is not string relativeDocument ||
-                TargetSectionComboBox.SelectedItem is not ProjectSectionState targetSection)
-            {
-                MessageBox.Show(
-                    this,
-                    "Sélectionnez un document et une section de destination.",
-                    "Structure du projet",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                return;
-            }
-    
-            string sourcePath =
-                Path.Combine(
-                    sourceSection.DirectoryPath,
-                    relativeDocument.Replace(
-                        '/',
-                        Path.DirectorySeparatorChar));
-    
-            try
-            {
-                string destination =
-                    await _structure.MoveDocumentAsync(
-                        _projectDirectory,
-                        sourcePath,
-                        targetSection.Id);
-    
-                Changed =
-                    true;
-    
-                await RefreshAsync(
-                    sourceSection.Id);
-    
-                StatusText.Text =
-                    $"Document déplacé vers « {targetSection.Name} » · {Path.GetFileName(destination)}";
-            }
-            catch (Exception exception) when (
-                IsExpectedStructureException(
-                    exception))
-            {
-                ShowError(
-                    exception.Message);
-            }
+                if (SectionsList.SelectedItem is not ProjectSectionState sourceSection ||
+                    DocumentsList.SelectedItem is not string relativeDocument ||
+                    TargetSectionComboBox.SelectedItem is not ProjectSectionState targetSection)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Sélectionnez un document et une section de destination.",
+                        "Structure du projet",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                string sourcePath =
+                    Path.Combine(
+                        sourceSection.DirectoryPath,
+                        relativeDocument.Replace(
+                            '/',
+                            Path.DirectorySeparatorChar));
+
+                try
+                {
+                    string destination =
+                        await _structure.MoveDocumentAsync(
+                            _projectDirectory,
+                            sourcePath,
+                            targetSection.Id);
+
+                    Changed =
+                        true;
+
+                    await RefreshAsync(
+                        sourceSection.Id);
+
+                    StatusText.Text =
+                        $"Document déplacé vers « {targetSection.Name} » · {Path.GetFileName(destination)}";
+                }
+                catch (Exception exception) when (
+                    IsExpectedStructureException(
+                        exception))
+                {
+                    ShowError(
+                        exception.Message);
+                }
             });
     }
 
@@ -493,95 +493,95 @@ public partial class ProjectStructureDialog : Window
             "Structure projet · supprimer une section",
             async () =>
             {
-            if (SectionsList.SelectedItem is not ProjectSectionState selected)
-            {
-                return;
-            }
-    
-            string[] entries =
-                Directory.Exists(
-                        selected.DirectoryPath)
-                    ? Directory
-                        .EnumerateFileSystemEntries(
+                if (SectionsList.SelectedItem is not ProjectSectionState selected)
+                {
+                    return;
+                }
+
+                string[] entries =
+                    Directory.Exists(
                             selected.DirectoryPath)
-                        .ToArray()
-                    : [];
-    
-            Guid? destinationId =
-                null;
-    
-            if (entries.Length >
-                0)
-            {
-                if (TargetSectionComboBox.SelectedItem is not ProjectSectionState target)
+                        ? Directory
+                            .EnumerateFileSystemEntries(
+                                selected.DirectoryPath)
+                            .ToArray()
+                        : [];
+
+                Guid? destinationId =
+                    null;
+
+                if (entries.Length >
+                    0)
                 {
-                    MessageBox.Show(
-                        this,
-                        "Cette section contient encore des éléments. Choisissez d'abord une section de destination.",
-                        "Structure du projet",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    return;
+                    if (TargetSectionComboBox.SelectedItem is not ProjectSectionState target)
+                    {
+                        MessageBox.Show(
+                            this,
+                            "Cette section contient encore des éléments. Choisissez d'abord une section de destination.",
+                            "Structure du projet",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    MessageBoxResult moveConfirmation =
+                        MessageBox.Show(
+                            this,
+                            $"La section « {selected.Name} » contient {entries.Length} élément(s).\n\n" +
+                            $"Déplacer explicitement tout son contenu vers « {target.Name} », puis supprimer la section ?",
+                            "Supprimer la section",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Warning);
+
+                    if (moveConfirmation !=
+                        MessageBoxResult.Yes)
+                    {
+                        return;
+                    }
+
+                    destinationId =
+                        target.Id;
                 }
-    
-                MessageBoxResult moveConfirmation =
-                    MessageBox.Show(
-                        this,
-                        $"La section « {selected.Name} » contient {entries.Length} élément(s).\n\n" +
-                        $"Déplacer explicitement tout son contenu vers « {target.Name} », puis supprimer la section ?",
-                        "Supprimer la section",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Warning);
-    
-                if (moveConfirmation !=
-                    MessageBoxResult.Yes)
+                else
                 {
-                    return;
+                    MessageBoxResult confirmation =
+                        MessageBox.Show(
+                            this,
+                            $"Supprimer la section vide « {selected.Name} » ?",
+                            "Supprimer la section",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question);
+
+                    if (confirmation !=
+                        MessageBoxResult.Yes)
+                    {
+                        return;
+                    }
                 }
-    
-                destinationId =
-                    target.Id;
-            }
-            else
-            {
-                MessageBoxResult confirmation =
-                    MessageBox.Show(
-                        this,
-                        $"Supprimer la section vide « {selected.Name} » ?",
-                        "Supprimer la section",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
-    
-                if (confirmation !=
-                    MessageBoxResult.Yes)
+
+                try
                 {
-                    return;
+                    await _structure.RemoveSectionAsync(
+                        _projectDirectory,
+                        selected.Id,
+                        destinationId);
+
+                    Changed =
+                        true;
+
+                    await RefreshAsync(
+                        selectedSectionId: null);
+
+                    StatusText.Text =
+                        $"Section « {selected.Name} » supprimée sans perte de document.";
                 }
-            }
-    
-            try
-            {
-                await _structure.RemoveSectionAsync(
-                    _projectDirectory,
-                    selected.Id,
-                    destinationId);
-    
-                Changed =
-                    true;
-    
-                await RefreshAsync(
-                    selectedSectionId: null);
-    
-                StatusText.Text =
-                    $"Section « {selected.Name} » supprimée sans perte de document.";
-            }
-            catch (Exception exception) when (
-                IsExpectedStructureException(
-                    exception))
-            {
-                ShowError(
-                    exception.Message);
-            }
+                catch (Exception exception) when (
+                    IsExpectedStructureException(
+                        exception))
+                {
+                    ShowError(
+                        exception.Message);
+                }
             });
     }
 

@@ -42,8 +42,8 @@ public partial class WorkspaceIntegrityDialog : Window
             "Intégrité workspace · chargement",
             async () =>
             {
-            Loaded -= WorkspaceIntegrityDialog_Loaded;
-            await RefreshAsync();
+                Loaded -= WorkspaceIntegrityDialog_Loaded;
+                await RefreshAsync();
             });
     }
 
@@ -61,7 +61,7 @@ public partial class WorkspaceIntegrityDialog : Window
             "Intégrité workspace · actualiser",
             async () =>
             {
-            await RefreshAsync();
+                await RefreshAsync();
             });
     }
 
@@ -79,27 +79,27 @@ public partial class WorkspaceIntegrityDialog : Window
             "Intégrité workspace · reconstruire l'index",
             async () =>
             {
-            SetBusy(true);
-            StatusText.Text = "Reconstruction explicite de l'index de liens…";
-    
-            try
-            {
-                await _service.RebuildDerivedIndexesAsync();
-                StatusText.Text = "Index de liens reconstruit.";
-            }
-            catch (Exception exception) when (
-                exception is IOException or
-                UnauthorizedAccessException or
-                InvalidDataException or
-                InvalidOperationException)
-            {
-                StatusText.Text = $"Reconstruction impossible · {exception.Message}";
+                SetBusy(true);
+                StatusText.Text = "Reconstruction explicite de l'index de liens…";
+
+                try
+                {
+                    await _service.RebuildDerivedIndexesAsync();
+                    StatusText.Text = "Index de liens reconstruit.";
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException or
+                    InvalidOperationException)
+                {
+                    StatusText.Text = $"Reconstruction impossible · {exception.Message}";
+                    SetBusy(false);
+                    return;
+                }
+
                 SetBusy(false);
-                return;
-            }
-    
-            SetBusy(false);
-            await RefreshAsync();
+                await RefreshAsync();
             });
     }
 

@@ -98,12 +98,12 @@ public partial class SearchDialog : Window
             "Recherche · saisir",
             async () =>
             {
-            if (!IsLoaded)
-            {
-                return;
-            }
-    
-            await SearchAsync();
+                if (!IsLoaded)
+                {
+                    return;
+                }
+
+                await SearchAsync();
             });
     }
 

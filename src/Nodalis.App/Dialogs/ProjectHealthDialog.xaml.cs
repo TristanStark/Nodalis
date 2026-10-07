@@ -62,10 +62,10 @@ public partial class ProjectHealthDialog : Window
             "Santé projet · chargement",
             async () =>
             {
-            Loaded -=
-                ProjectHealthDialog_Loaded;
-    
-            await RefreshAsync();
+                Loaded -=
+                    ProjectHealthDialog_Loaded;
+
+                await RefreshAsync();
             });
     }
 
@@ -83,7 +83,7 @@ public partial class ProjectHealthDialog : Window
             "Santé projet · actualiser",
             async () =>
             {
-            await RefreshAsync();
+                await RefreshAsync();
             });
     }
 

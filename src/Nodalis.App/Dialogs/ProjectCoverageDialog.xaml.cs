@@ -62,10 +62,10 @@ public partial class ProjectCoverageDialog : Window
             "Couverture projet · chargement",
             async () =>
             {
-            Loaded -=
-                ProjectCoverageDialog_Loaded;
-    
-            await RefreshAsync();
+                Loaded -=
+                    ProjectCoverageDialog_Loaded;
+
+                await RefreshAsync();
             });
     }
 
@@ -83,7 +83,7 @@ public partial class ProjectCoverageDialog : Window
             "Couverture projet · actualiser",
             async () =>
             {
-            await RefreshAsync();
+                await RefreshAsync();
             });
     }
 
