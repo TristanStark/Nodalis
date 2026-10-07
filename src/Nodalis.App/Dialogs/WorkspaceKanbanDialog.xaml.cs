@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.Core.Tasks;
 using Nodalis.Infrastructure.Kanban;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -51,10 +52,16 @@ public partial class WorkspaceKanbanDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        Loaded -=
-            WorkspaceKanbanDialog_Loaded;
-
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Kanban · chargement",
+            async () =>
+            {
+            Loaded -=
+                WorkspaceKanbanDialog_Loaded;
+    
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -66,7 +73,13 @@ public partial class WorkspaceKanbanDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Kanban · actualiser",
+            async () =>
+            {
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -178,38 +191,44 @@ public partial class WorkspaceKanbanDialog : Window
             object sender,
             DragEventArgs e)
     {
-        if (sender is not ListBox listBox ||
-            listBox.Tag is not string targetStatus ||
-            e.Data.GetData(
-                typeof(TaskItem)) is not TaskItem task)
-        {
-            return;
-        }
-
-        try
-        {
-            await _service.MoveAsync(
-                task,
-                targetStatus);
-
-            StatusText.Text =
-                "Tâche déplacée vers « " +
-                targetStatus +
-                " » · source Markdown mise à jour.";
-
-            await RefreshAsync();
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException or
-            ArgumentOutOfRangeException)
-        {
-            StatusText.Text =
-                "Déplacement refusé : " +
-                exception.Message;
-        }
+        await UiActionGuard.RunAsync(
+            this,
+            "Kanban · déplacer une tâche",
+            async () =>
+            {
+            if (sender is not ListBox listBox ||
+                listBox.Tag is not string targetStatus ||
+                e.Data.GetData(
+                    typeof(TaskItem)) is not TaskItem task)
+            {
+                return;
+            }
+    
+            try
+            {
+                await _service.MoveAsync(
+                    task,
+                    targetStatus);
+    
+                StatusText.Text =
+                    "Tâche déplacée vers « " +
+                    targetStatus +
+                    " » · source Markdown mise à jour.";
+    
+                await RefreshAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                InvalidOperationException or
+                ArgumentOutOfRangeException)
+            {
+                StatusText.Text =
+                    "Déplacement refusé : " +
+                    exception.Message;
+            }
+            });
     }
 
     /// <summary>
