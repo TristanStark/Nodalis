@@ -87,6 +87,55 @@ public static class RecoverableExceptionPolicy
     }
 
     /// <summary>
+    /// Determines whether a locally isolated user action can stop after an exception while keeping the process alive.
+    /// Unlike <see cref="CanContinue(Exception)"/>, this boundary accepts unknown exception types once the failure
+    /// is contained inside one action, but it still rejects runtime failures that may leave the CLR unreliable.
+    /// </summary>
+    /// <param name="exception">The exception raised inside the isolated user action.</param>
+    /// <returns><see langword="true"/> when the action may be aborted without terminating Nodalis.</returns>
+    public static bool CanContinueAtActionBoundary(
+            Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(
+            exception);
+
+        if (IsProcessFatal(
+                exception))
+        {
+            return false;
+        }
+
+        if (exception is AggregateException aggregateException)
+        {
+            IReadOnlyList<Exception> innerExceptions =
+                aggregateException
+                    .Flatten()
+                    .InnerExceptions;
+
+            return innerExceptions.Count >
+                       0 &&
+                   innerExceptions.All(
+                       CanContinueAtActionBoundary);
+        }
+
+        if (exception is System.Reflection.TargetInvocationException targetInvocationException &&
+            targetInvocationException.InnerException is Exception innerException)
+        {
+            return CanContinueAtActionBoundary(
+                innerException);
+        }
+
+        if (exception is TypeInitializationException typeInitializationException &&
+            typeInitializationException.InnerException is Exception initializationException)
+        {
+            return CanContinueAtActionBoundary(
+                initializationException);
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Returns a short functional message suitable for the primary error UI.
     /// </summary>
     /// <param name="exception">The captured recoverable exception.</param>
