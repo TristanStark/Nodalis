@@ -57,10 +57,10 @@ public partial class WorkspaceKanbanDialog : Window
             "Kanban · chargement",
             async () =>
             {
-            Loaded -=
-                WorkspaceKanbanDialog_Loaded;
-    
-            await RefreshAsync();
+                Loaded -=
+                    WorkspaceKanbanDialog_Loaded;
+
+                await RefreshAsync();
             });
     }
 
@@ -78,7 +78,7 @@ public partial class WorkspaceKanbanDialog : Window
             "Kanban · actualiser",
             async () =>
             {
-            await RefreshAsync();
+                await RefreshAsync();
             });
     }
 
@@ -196,38 +196,38 @@ public partial class WorkspaceKanbanDialog : Window
             "Kanban · déplacer une tâche",
             async () =>
             {
-            if (sender is not ListBox listBox ||
-                listBox.Tag is not string targetStatus ||
-                e.Data.GetData(
-                    typeof(TaskItem)) is not TaskItem task)
-            {
-                return;
-            }
-    
-            try
-            {
-                await _service.MoveAsync(
-                    task,
-                    targetStatus);
-    
-                StatusText.Text =
-                    "Tâche déplacée vers « " +
-                    targetStatus +
-                    " » · source Markdown mise à jour.";
-    
-                await RefreshAsync();
-            }
-            catch (Exception exception) when (
-                exception is IOException or
-                UnauthorizedAccessException or
-                InvalidDataException or
-                InvalidOperationException or
-                ArgumentOutOfRangeException)
-            {
-                StatusText.Text =
-                    "Déplacement refusé : " +
-                    exception.Message;
-            }
+                if (sender is not ListBox listBox ||
+                    listBox.Tag is not string targetStatus ||
+                    e.Data.GetData(
+                        typeof(TaskItem)) is not TaskItem task)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _service.MoveAsync(
+                        task,
+                        targetStatus);
+
+                    StatusText.Text =
+                        "Tâche déplacée vers « " +
+                        targetStatus +
+                        " » · source Markdown mise à jour.";
+
+                    await RefreshAsync();
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException or
+                    InvalidOperationException or
+                    ArgumentOutOfRangeException)
+                {
+                    StatusText.Text =
+                        "Déplacement refusé : " +
+                        exception.Message;
+                }
             });
     }
 

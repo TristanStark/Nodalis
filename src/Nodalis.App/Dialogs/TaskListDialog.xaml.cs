@@ -100,12 +100,12 @@ public partial class TaskListDialog : Window
             "Tâches · filtrer",
             async () =>
             {
-            if (!_isInitialized)
-            {
-                return;
-            }
-    
-            await RefreshAsync();
+                if (!_isInitialized)
+                {
+                    return;
+                }
+
+                await RefreshAsync();
             });
     }
 
@@ -142,40 +142,40 @@ public partial class TaskListDialog : Window
             "Tâches · créer",
             async () =>
             {
-            TaskCreationDialog dialog =
-                new TaskCreationDialog
+                TaskCreationDialog dialog =
+                    new TaskCreationDialog
+                    {
+                        Owner =
+                            this
+                    };
+
+                if (dialog.ShowDialog() != true ||
+                    dialog.Metadata is null)
                 {
-                    Owner =
-                        this
-                };
-    
-            if (dialog.ShowDialog() != true ||
-                dialog.Metadata is null)
-            {
-                return;
-            }
-    
-            try
-            {
-                TaskItem created = await _createTaskAsync(
-                    dialog.TaskText,
-                    dialog.Metadata);
-    
-                StatusText.Text =
-                    $"Tâche créée · {created.Text}";
-    
-                await RefreshAsync();
-            }
-            catch (Exception exception) when (
-                exception is IOException or
-                UnauthorizedAccessException or
-                InvalidDataException or
-                InvalidOperationException or
-                TaskSourceConflictException)
-            {
-                StatusText.Text =
-                    exception.Message;
-            }
+                    return;
+                }
+
+                try
+                {
+                    TaskItem created = await _createTaskAsync(
+                        dialog.TaskText,
+                        dialog.Metadata);
+
+                    StatusText.Text =
+                        $"Tâche créée · {created.Text}";
+
+                    await RefreshAsync();
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException or
+                    InvalidOperationException or
+                    TaskSourceConflictException)
+                {
+                    StatusText.Text =
+                        exception.Message;
+                }
             });
     }
 
@@ -193,34 +193,34 @@ public partial class TaskListDialog : Window
             "Tâches · changer le statut",
             async () =>
             {
-            if (sender is not CheckBox checkBox ||
-                checkBox.DataContext is not TaskItem task)
-            {
-                return;
-            }
-    
-            try
-            {
-                bool completed =
-                    checkBox.IsChecked ==
-                    true;
-    
-                await _toggleTaskAsync(
-                    task,
-                    completed);
-    
-                await RefreshAsync();
-            }
-            catch (Exception exception) when (
-                exception is IOException or
-                UnauthorizedAccessException or
-                InvalidDataException or
-                TaskSourceConflictException)
-            {
-                StatusText.Text =
-                    exception.Message;
-                await RefreshAsync();
-            }
+                if (sender is not CheckBox checkBox ||
+                    checkBox.DataContext is not TaskItem task)
+                {
+                    return;
+                }
+
+                try
+                {
+                    bool completed =
+                        checkBox.IsChecked ==
+                        true;
+
+                    await _toggleTaskAsync(
+                        task,
+                        completed);
+
+                    await RefreshAsync();
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException or
+                    TaskSourceConflictException)
+                {
+                    StatusText.Text =
+                        exception.Message;
+                    await RefreshAsync();
+                }
             });
     }
 
@@ -238,50 +238,50 @@ public partial class TaskListDialog : Window
             "Tâches · promouvoir",
             async () =>
             {
-            if (sender is not Button button ||
-                button.Tag is not TaskItem task ||
-                !task.CanPromoteMeetingAction)
-            {
-                return;
-            }
-    
-            TaskMetadataDialog dialog =
-                new TaskMetadataDialog(
-                    task)
+                if (sender is not Button button ||
+                    button.Tag is not TaskItem task ||
+                    !task.CanPromoteMeetingAction)
                 {
-                    Owner =
-                        this
-                };
-    
-            if (dialog.ShowDialog() != true ||
-                dialog.Metadata is null)
-            {
-                return;
-            }
-    
-            try
-            {
-                MeetingActionPromotionResult result = await _promoteMeetingActionAsync(
-                    task,
-                    dialog.Metadata);
-    
-                StatusText.Text = result.Created
-                    ? $"Action promue dans {result.ProjectTaskRelativePath}."
-                    : $"Action déjà promue ; liaison mise à jour dans {result.ProjectTaskRelativePath}.";
-    
-                await RefreshAsync();
-            }
-            catch (Exception exception) when (
-                exception is IOException or
-                UnauthorizedAccessException or
-                InvalidDataException or
-                InvalidOperationException or
-                TaskSourceConflictException)
-            {
-                StatusText.Text =
-                    exception.Message;
-                await RefreshAsync();
-            }
+                    return;
+                }
+
+                TaskMetadataDialog dialog =
+                    new TaskMetadataDialog(
+                        task)
+                    {
+                        Owner =
+                            this
+                    };
+
+                if (dialog.ShowDialog() != true ||
+                    dialog.Metadata is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    MeetingActionPromotionResult result = await _promoteMeetingActionAsync(
+                        task,
+                        dialog.Metadata);
+
+                    StatusText.Text = result.Created
+                        ? $"Action promue dans {result.ProjectTaskRelativePath}."
+                        : $"Action déjà promue ; liaison mise à jour dans {result.ProjectTaskRelativePath}.";
+
+                    await RefreshAsync();
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException or
+                    InvalidOperationException or
+                    TaskSourceConflictException)
+                {
+                    StatusText.Text =
+                        exception.Message;
+                    await RefreshAsync();
+                }
             });
     }
 
@@ -299,44 +299,44 @@ public partial class TaskListDialog : Window
             "Tâches · modifier",
             async () =>
             {
-            if (sender is not Button button ||
-                button.Tag is not TaskItem task)
-            {
-                return;
-            }
-    
-            TaskMetadataDialog dialog =
-                new TaskMetadataDialog(
-                    task)
+                if (sender is not Button button ||
+                    button.Tag is not TaskItem task)
                 {
-                    Owner =
-                        this
-                };
-    
-            if (dialog.ShowDialog() != true ||
-                dialog.Metadata is null)
-            {
-                return;
-            }
-    
-            try
-            {
-                await _updateTaskMetadataAsync(
-                    task,
-                    dialog.Metadata);
-    
-                await RefreshAsync();
-            }
-            catch (Exception exception) when (
-                exception is IOException or
-                UnauthorizedAccessException or
-                InvalidDataException or
-                TaskSourceConflictException)
-            {
-                StatusText.Text =
-                    exception.Message;
-                await RefreshAsync();
-            }
+                    return;
+                }
+
+                TaskMetadataDialog dialog =
+                    new TaskMetadataDialog(
+                        task)
+                    {
+                        Owner =
+                            this
+                    };
+
+                if (dialog.ShowDialog() != true ||
+                    dialog.Metadata is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _updateTaskMetadataAsync(
+                        task,
+                        dialog.Metadata);
+
+                    await RefreshAsync();
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException or
+                    TaskSourceConflictException)
+                {
+                    StatusText.Text =
+                        exception.Message;
+                    await RefreshAsync();
+                }
             });
     }
 

@@ -64,10 +64,10 @@ public partial class WorkspaceCalendarDialog : Window
             "Calendrier · chargement",
             async () =>
             {
-            Loaded -=
-                WorkspaceCalendarDialog_Loaded;
-    
-            await RefreshAsync();
+                Loaded -=
+                    WorkspaceCalendarDialog_Loaded;
+
+                await RefreshAsync();
             });
     }
 
@@ -85,7 +85,7 @@ public partial class WorkspaceCalendarDialog : Window
             "Calendrier · actualiser",
             async () =>
             {
-            await RefreshAsync();
+                await RefreshAsync();
             });
     }
 
@@ -277,39 +277,39 @@ public partial class WorkspaceCalendarDialog : Window
             "Calendrier · déplacer un élément",
             async () =>
             {
-            if (sender is not FrameworkElement element ||
-                element.DataContext is not CalendarDayViewModel day ||
-                e.Data.GetData(
-                    typeof(CalendarEventItem)) is not CalendarEventItem item ||
-                !item.CanReschedule)
-            {
-                return;
-            }
-    
-            try
-            {
-                await _service.RescheduleAsync(
-                    item,
-                    day.Date);
-    
-                StatusText.Text =
-                    item.KindLabel +
-                    " déplacé vers le " +
-                    day.Date.ToString(
-                        "dd/MM/yyyy");
-    
-                await RefreshAsync();
-            }
-            catch (Exception exception) when (
-                exception is IOException or
-                UnauthorizedAccessException or
-                InvalidDataException or
-                InvalidOperationException)
-            {
-                StatusText.Text =
-                    "Déplacement refusé : " +
-                    exception.Message;
-            }
+                if (sender is not FrameworkElement element ||
+                    element.DataContext is not CalendarDayViewModel day ||
+                    e.Data.GetData(
+                        typeof(CalendarEventItem)) is not CalendarEventItem item ||
+                    !item.CanReschedule)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _service.RescheduleAsync(
+                        item,
+                        day.Date);
+
+                    StatusText.Text =
+                        item.KindLabel +
+                        " déplacé vers le " +
+                        day.Date.ToString(
+                            "dd/MM/yyyy");
+
+                    await RefreshAsync();
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException or
+                    InvalidOperationException)
+                {
+                    StatusText.Text =
+                        "Déplacement refusé : " +
+                        exception.Message;
+                }
             });
     }
 

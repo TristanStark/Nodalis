@@ -138,18 +138,18 @@ public partial class MarkdownBulkImportDialog : Window
             "Import Markdown · prévisualiser",
             async () =>
             {
-            if (!ReferenceEquals(
-                    e.Source,
-                    ImportTabs) ||
-                !IsLoaded ||
-                PlanTab.IsSelected !=
-                true)
-            {
-                return;
-            }
-    
-            await RefreshPlanAsync(
-                showValidationMessages: false);
+                if (!ReferenceEquals(
+                        e.Source,
+                        ImportTabs) ||
+                    !IsLoaded ||
+                    PlanTab.IsSelected !=
+                    true)
+                {
+                    return;
+                }
+
+                await RefreshPlanAsync(
+                    showValidationMessages: false);
             });
     }
 
@@ -167,39 +167,39 @@ public partial class MarkdownBulkImportDialog : Window
             "Import Markdown · importer",
             async () =>
             {
-            MarkdownBulkImportRequest? request =
-                BuildCurrentRequest(
-                    showValidationMessages: true);
-    
-            if (request is null)
-            {
-                return;
-            }
-    
-            if (_lastPlan is null ||
-                _plannedRequest is null ||
-                !RequestsEquivalent(
-                    _plannedRequest,
-                    request))
-            {
-                PlanTab.IsSelected =
-                    true;
-    
-                if (!await RefreshPlanAsync(
-                        showValidationMessages: true))
+                MarkdownBulkImportRequest? request =
+                    BuildCurrentRequest(
+                        showValidationMessages: true);
+
+                if (request is null)
                 {
                     return;
                 }
-    
-                StatusText.Text =
-                    "Plan prêt : vérifiez les destinations puis cliquez de nouveau sur « Valider l'import ».";
-                return;
-            }
-    
-            CommitRequest =
-                request;
-            DialogResult =
-                true;
+
+                if (_lastPlan is null ||
+                    _plannedRequest is null ||
+                    !RequestsEquivalent(
+                        _plannedRequest,
+                        request))
+                {
+                    PlanTab.IsSelected =
+                        true;
+
+                    if (!await RefreshPlanAsync(
+                            showValidationMessages: true))
+                    {
+                        return;
+                    }
+
+                    StatusText.Text =
+                        "Plan prêt : vérifiez les destinations puis cliquez de nouveau sur « Valider l'import ».";
+                    return;
+                }
+
+                CommitRequest =
+                    request;
+                DialogResult =
+                    true;
             });
     }
 

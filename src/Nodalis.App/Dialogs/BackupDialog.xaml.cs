@@ -78,20 +78,20 @@ public partial class BackupDialog : Window
             "Sauvegardes · choisir le dossier",
             async () =>
             {
-            global::Microsoft.Win32.OpenFolderDialog dialog = new OpenFolderDialog
-            {
-                Title = "Choisir le dossier de sauvegarde Nodalis",
-                Multiselect = false
-            };
-    
-            if (dialog.ShowDialog(this) != true)
-            {
-                return;
-            }
-    
-            DestinationTextBox.Text =
-                dialog.FolderName;
-            await RefreshAsync();
+                global::Microsoft.Win32.OpenFolderDialog dialog = new OpenFolderDialog
+                {
+                    Title = "Choisir le dossier de sauvegarde Nodalis",
+                    Multiselect = false
+                };
+
+                if (dialog.ShowDialog(this) != true)
+                {
+                    return;
+                }
+
+                DestinationTextBox.Text =
+                    dialog.FolderName;
+                await RefreshAsync();
             });
     }
 
@@ -119,27 +119,27 @@ public partial class BackupDialog : Window
             "Sauvegardes · actualiser",
             async () =>
             {
-            BackupPreferences? preferences = ReadPreferences(
-                requireDestination: true);
-    
-            if (preferences is null ||
-                preferences.DestinationDirectory is null)
-            {
-                return;
-            }
-    
-            await RunBusyAsync(
-                async () =>
+                BackupPreferences? preferences = ReadPreferences(
+                    requireDestination: true);
+
+                if (preferences is null ||
+                    preferences.DestinationDirectory is null)
                 {
-                    global::Nodalis.Core.Backups.WorkspaceBackupInfo created = await _backup.CreateBackupAsync(
-                        preferences.DestinationDirectory,
-                        preferences.RetentionCount);
-    
-                    await RefreshCoreAsync(
-                        preferences.DestinationDirectory);
-                    StatusText.Text =
-                        $"Sauvegarde créée · {created.FileName} · {created.DisplaySize}";
-                });
+                    return;
+                }
+
+                await RunBusyAsync(
+                    async () =>
+                    {
+                        global::Nodalis.Core.Backups.WorkspaceBackupInfo created = await _backup.CreateBackupAsync(
+                            preferences.DestinationDirectory,
+                            preferences.RetentionCount);
+
+                        await RefreshCoreAsync(
+                            preferences.DestinationDirectory);
+                        StatusText.Text =
+                            $"Sauvegarde créée · {created.FileName} · {created.DisplaySize}";
+                    });
             });
     }
 
@@ -157,13 +157,13 @@ public partial class BackupDialog : Window
             "Sauvegardes · restaurer la sélection",
             async () =>
             {
-            if (BackupsList.SelectedItem is not WorkspaceBackupInfo backup)
-            {
-                return;
-            }
-    
-            await RestoreArchiveAsync(
-                backup.ArchivePath);
+                if (BackupsList.SelectedItem is not WorkspaceBackupInfo backup)
+                {
+                    return;
+                }
+
+                await RestoreArchiveAsync(
+                    backup.ArchivePath);
             });
     }
 
@@ -181,21 +181,21 @@ public partial class BackupDialog : Window
             "Sauvegardes · restaurer une archive",
             async () =>
             {
-            global::Microsoft.Win32.OpenFileDialog dialog = new OpenFileDialog
-            {
-                Title = "Choisir une sauvegarde Nodalis",
-                Filter = "Archive ZIP (*.zip)|*.zip|Tous les fichiers (*.*)|*.*",
-                CheckFileExists = true,
-                Multiselect = false
-            };
-    
-            if (dialog.ShowDialog(this) != true)
-            {
-                return;
-            }
-    
-            await RestoreArchiveAsync(
-                dialog.FileName);
+                global::Microsoft.Win32.OpenFileDialog dialog = new OpenFileDialog
+                {
+                    Title = "Choisir une sauvegarde Nodalis",
+                    Filter = "Archive ZIP (*.zip)|*.zip|Tous les fichiers (*.*)|*.*",
+                    CheckFileExists = true,
+                    Multiselect = false
+                };
+
+                if (dialog.ShowDialog(this) != true)
+                {
+                    return;
+                }
+
+                await RestoreArchiveAsync(
+                    dialog.FileName);
             });
     }
 
