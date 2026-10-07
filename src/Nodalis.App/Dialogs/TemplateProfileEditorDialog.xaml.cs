@@ -6,6 +6,7 @@ using Nodalis.App.Markdown;
 using Nodalis.Core.Abstractions;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Templates;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -329,25 +330,31 @@ public partial class TemplateProfileEditorDialog : Window
             object sender,
             SelectionChangedEventArgs e)
     {
-        if (_loadingTemplate ||
-            TemplatesList.SelectedItem is not
-                MarkdownTemplateDefinition definition)
-        {
-            return;
-        }
-
-        try
-        {
-            await LoadTemplateAsync(
-                definition);
-        }
-        catch (Exception exception) when (
-            IsExpectedTemplateException(
-                exception))
-        {
-            ShowError(
-                exception.Message);
-        }
+        await UiActionGuard.RunAsync(
+            this,
+            "Templates · sélectionner",
+            async () =>
+            {
+            if (_loadingTemplate ||
+                TemplatesList.SelectedItem is not
+                    MarkdownTemplateDefinition definition)
+            {
+                return;
+            }
+    
+            try
+            {
+                await LoadTemplateAsync(
+                    definition);
+            }
+            catch (Exception exception) when (
+                IsExpectedTemplateException(
+                    exception))
+            {
+                ShowError(
+                    exception.Message);
+            }
+            });
     }
 
     /// <summary>
@@ -395,52 +402,58 @@ public partial class TemplateProfileEditorDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (TemplatesList.SelectedItem is not
-            MarkdownTemplateDefinition current)
-        {
-            return;
-        }
-
-        try
-        {
-            MarkdownTemplateDefinition updated =
-                BuildValidatedTemplateDefinition(
-                    current);
-
-            IReadOnlyDictionary<string, string> variables =
-                ParsePreviewVariables();
-
-            MarkdownTemplateRenderer.Render(
-                TemplateContentTextBox.Text,
-                variables);
-
-            string renderedFileName =
+        await UiActionGuard.RunAsync(
+            this,
+            "Templates · enregistrer",
+            async () =>
+            {
+            if (TemplatesList.SelectedItem is not
+                MarkdownTemplateDefinition current)
+            {
+                return;
+            }
+    
+            try
+            {
+                MarkdownTemplateDefinition updated =
+                    BuildValidatedTemplateDefinition(
+                        current);
+    
+                IReadOnlyDictionary<string, string> variables =
+                    ParsePreviewVariables();
+    
                 MarkdownTemplateRenderer.Render(
-                    updated.DefaultFileName,
+                    TemplateContentTextBox.Text,
                     variables);
-
-            ValidateRenderedFileName(
-                renderedFileName);
-
-            await _templateStore.SaveTemplateAsync(
-                updated,
-                TemplateContentTextBox.Text);
-
-            Changed =
-                true;
-
-            await ReloadTemplatesAsync(
-                updated.Key);
-            TemplateStatusText.Text =
-                "Template enregistré dans les fichiers canoniques.";
-        }
-        catch (Exception exception) when (
-            IsExpectedTemplateException(
-                exception))
-        {
-            ShowError(
-                exception.Message);
-        }
+    
+                string renderedFileName =
+                    MarkdownTemplateRenderer.Render(
+                        updated.DefaultFileName,
+                        variables);
+    
+                ValidateRenderedFileName(
+                    renderedFileName);
+    
+                await _templateStore.SaveTemplateAsync(
+                    updated,
+                    TemplateContentTextBox.Text);
+    
+                Changed =
+                    true;
+    
+                await ReloadTemplatesAsync(
+                    updated.Key);
+                TemplateStatusText.Text =
+                    "Template enregistré dans les fichiers canoniques.";
+            }
+            catch (Exception exception) when (
+                IsExpectedTemplateException(
+                    exception))
+            {
+                ShowError(
+                    exception.Message);
+            }
+            });
     }
 
     /// <summary>
@@ -452,52 +465,58 @@ public partial class TemplateProfileEditorDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (TemplatesList.SelectedItem is not
-            MarkdownTemplateDefinition current)
-        {
-            return;
-        }
-
-        TextPromptDialog prompt =
-            new TextPromptDialog(
-                "Dupliquer le template",
-                "Nom du nouveau template :",
-                current.DisplayName + " — copie")
+        await UiActionGuard.RunAsync(
+            this,
+            "Templates · dupliquer",
+            async () =>
             {
-                Owner =
-                    this
-            };
-
-        if (prompt.ShowDialog() !=
-                true ||
-            string.IsNullOrWhiteSpace(
-                prompt.Value))
-        {
-            return;
-        }
-
-        try
-        {
-            MarkdownTemplateDefinition duplicate =
-                await _templateStore.DuplicateTemplateAsync(
-                    current.Key,
-                    prompt.Value);
-
-            Changed =
-                true;
-
-            await ReloadTemplatesAsync(
-                duplicate.Key);
-            TemplateStatusText.Text =
-                $"Template « {duplicate.DisplayName} » créé.";
-        }
-        catch (Exception exception) when (
-            IsExpectedTemplateException(
-                exception))
-        {
-            ShowError(
-                exception.Message);
-        }
+            if (TemplatesList.SelectedItem is not
+                MarkdownTemplateDefinition current)
+            {
+                return;
+            }
+    
+            TextPromptDialog prompt =
+                new TextPromptDialog(
+                    "Dupliquer le template",
+                    "Nom du nouveau template :",
+                    current.DisplayName + " — copie")
+                {
+                    Owner =
+                        this
+                };
+    
+            if (prompt.ShowDialog() !=
+                    true ||
+                string.IsNullOrWhiteSpace(
+                    prompt.Value))
+            {
+                return;
+            }
+    
+            try
+            {
+                MarkdownTemplateDefinition duplicate =
+                    await _templateStore.DuplicateTemplateAsync(
+                        current.Key,
+                        prompt.Value);
+    
+                Changed =
+                    true;
+    
+                await ReloadTemplatesAsync(
+                    duplicate.Key);
+                TemplateStatusText.Text =
+                    $"Template « {duplicate.DisplayName} » créé.";
+            }
+            catch (Exception exception) when (
+                IsExpectedTemplateException(
+                    exception))
+            {
+                ShowError(
+                    exception.Message);
+            }
+            });
     }
 
     /// <summary>
@@ -509,55 +528,61 @@ public partial class TemplateProfileEditorDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (TemplatesList.SelectedItem is not
-            MarkdownTemplateDefinition current)
-        {
-            return;
-        }
-
-        MessageBoxResult answer =
-            MessageBox.Show(
-                this,
-                $"Restaurer « {current.DisplayName} » avec son contenu livré par Nodalis ?\n\nLes modifications locales de ce template seront remplacées.",
-                "Restaurer le template",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-        if (answer !=
-            MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            await _templateStore.RestoreTemplateDefaultAsync(
-                current.Key);
-
-            Changed =
-                true;
-
-            await ReloadTemplatesAsync(
-                current.Key);
-            TemplateStatusText.Text =
-                "Valeurs par défaut restaurées.";
-        }
-        catch (KeyNotFoundException)
-        {
-            MessageBox.Show(
-                this,
-                "Ce template est personnalisé et n'a pas de valeur par défaut intégrée.",
-                "Restaurer le template",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-        }
-        catch (Exception exception) when (
-            IsExpectedTemplateException(
-                exception))
-        {
-            ShowError(
-                exception.Message);
-        }
+        await UiActionGuard.RunAsync(
+            this,
+            "Templates · restaurer",
+            async () =>
+            {
+            if (TemplatesList.SelectedItem is not
+                MarkdownTemplateDefinition current)
+            {
+                return;
+            }
+    
+            MessageBoxResult answer =
+                MessageBox.Show(
+                    this,
+                    $"Restaurer « {current.DisplayName} » avec son contenu livré par Nodalis ?\n\nLes modifications locales de ce template seront remplacées.",
+                    "Restaurer le template",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+    
+            if (answer !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+    
+            try
+            {
+                await _templateStore.RestoreTemplateDefaultAsync(
+                    current.Key);
+    
+                Changed =
+                    true;
+    
+                await ReloadTemplatesAsync(
+                    current.Key);
+                TemplateStatusText.Text =
+                    "Valeurs par défaut restaurées.";
+            }
+            catch (KeyNotFoundException)
+            {
+                MessageBox.Show(
+                    this,
+                    "Ce template est personnalisé et n'a pas de valeur par défaut intégrée.",
+                    "Restaurer le template",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception exception) when (
+                IsExpectedTemplateException(
+                    exception))
+            {
+                ShowError(
+                    exception.Message);
+            }
+            });
     }
 
     /// <summary>
@@ -789,53 +814,59 @@ public partial class TemplateProfileEditorDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (_profileCatalog is null ||
-            ProfilesComboBox.SelectedItem is not
-                ProjectProfileDefinition current)
-        {
-            return;
-        }
-
-        try
-        {
-            ProjectProfileDefinition updated =
-                BuildValidatedProjectProfile(
-                    current.Complexity);
-
-            List<ProjectProfileDefinition> profiles =
-                _profileCatalog.Profiles
-                    .Select(profile =>
-                        profile.Complexity ==
-                        updated.Complexity
-                            ? updated
-                            : profile)
-                    .ToList();
-
-            ProjectProfileCatalog updatedCatalog =
-                _profileCatalog with
-                {
-                    Profiles =
-                        profiles
-                };
-
-            await _templateStore.SaveProjectProfilesAsync(
-                updatedCatalog);
-
-            Changed =
-                true;
-
-            await ReloadProfilesAsync(
-                updated.Complexity);
-            ProfileStatusText.Text =
-                "Profil enregistré dans project-profiles.json.";
-        }
-        catch (Exception exception) when (
-            IsExpectedTemplateException(
-                exception))
-        {
-            ShowError(
-                exception.Message);
-        }
+        await UiActionGuard.RunAsync(
+            this,
+            "Profils · enregistrer",
+            async () =>
+            {
+            if (_profileCatalog is null ||
+                ProfilesComboBox.SelectedItem is not
+                    ProjectProfileDefinition current)
+            {
+                return;
+            }
+    
+            try
+            {
+                ProjectProfileDefinition updated =
+                    BuildValidatedProjectProfile(
+                        current.Complexity);
+    
+                List<ProjectProfileDefinition> profiles =
+                    _profileCatalog.Profiles
+                        .Select(profile =>
+                            profile.Complexity ==
+                            updated.Complexity
+                                ? updated
+                                : profile)
+                        .ToList();
+    
+                ProjectProfileCatalog updatedCatalog =
+                    _profileCatalog with
+                    {
+                        Profiles =
+                            profiles
+                    };
+    
+                await _templateStore.SaveProjectProfilesAsync(
+                    updatedCatalog);
+    
+                Changed =
+                    true;
+    
+                await ReloadProfilesAsync(
+                    updated.Complexity);
+                ProfileStatusText.Text =
+                    "Profil enregistré dans project-profiles.json.";
+            }
+            catch (Exception exception) when (
+                IsExpectedTemplateException(
+                    exception))
+            {
+                ShowError(
+                    exception.Message);
+            }
+            });
     }
 
     /// <summary>
@@ -847,46 +878,52 @@ public partial class TemplateProfileEditorDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (ProfilesComboBox.SelectedItem is not
-            ProjectProfileDefinition current)
-        {
-            return;
-        }
-
-        MessageBoxResult answer =
-            MessageBox.Show(
-                this,
-                $"Restaurer le profil « {current.DisplayName} » avec la structure livrée par Nodalis ?",
-                "Restaurer le profil",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-        if (answer !=
-            MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            await _templateStore.RestoreProjectProfileDefaultAsync(
-                current.Complexity);
-
-            Changed =
-                true;
-
-            await ReloadProfilesAsync(
-                current.Complexity);
-            ProfileStatusText.Text =
-                "Profil par défaut restauré.";
-        }
-        catch (Exception exception) when (
-            IsExpectedTemplateException(
-                exception))
-        {
-            ShowError(
-                exception.Message);
-        }
+        await UiActionGuard.RunAsync(
+            this,
+            "Profils · restaurer",
+            async () =>
+            {
+            if (ProfilesComboBox.SelectedItem is not
+                ProjectProfileDefinition current)
+            {
+                return;
+            }
+    
+            MessageBoxResult answer =
+                MessageBox.Show(
+                    this,
+                    $"Restaurer le profil « {current.DisplayName} » avec la structure livrée par Nodalis ?",
+                    "Restaurer le profil",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+    
+            if (answer !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+    
+            try
+            {
+                await _templateStore.RestoreProjectProfileDefaultAsync(
+                    current.Complexity);
+    
+                Changed =
+                    true;
+    
+                await ReloadProfilesAsync(
+                    current.Complexity);
+                ProfileStatusText.Text =
+                    "Profil par défaut restauré.";
+            }
+            catch (Exception exception) when (
+                IsExpectedTemplateException(
+                    exception))
+            {
+                ShowError(
+                    exception.Message);
+            }
+            });
     }
 
     /// <summary>
