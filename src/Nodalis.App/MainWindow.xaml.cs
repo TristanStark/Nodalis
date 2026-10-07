@@ -613,15 +613,56 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        global::Nodalis.App.Dialogs.DiagnosticsDialog dialog =
-            new DiagnosticsDialog(
-                _diagnosticsService,
-                _root.FullPath)
+        RunUiAction(
+            "Diagnostics",
+            () =>
             {
-                Owner = this
-            };
+                global::Nodalis.App.Dialogs.DiagnosticsDialog dialog =
+                    new DiagnosticsDialog(
+                        _diagnosticsService,
+                        _root.FullPath)
+                    {
+                        Owner = this
+                    };
 
-        dialog.ShowDialog();
+                dialog.ShowDialog();
+            });
+    }
+
+    /// <summary>
+    /// Executes one user-triggered synchronous action behind the common action-scoped error boundary.
+    /// </summary>
+    /// <param name="context">Short functional context used in logs and the error dialog.</param>
+    /// <param name="action">The synchronous action to execute.</param>
+    /// <param name="showDialog">Whether a recoverable failure should open the modal error dialog.</param>
+    private void RunUiAction(
+            string context,
+            Action action,
+            bool showDialog = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            context);
+        ArgumentNullException.ThrowIfNull(
+            action);
+
+        try
+        {
+            action();
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text =
+                "Action annulée.";
+        }
+        catch (Exception exception) when (
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                exception))
+        {
+            ReportRecoverableUiError(
+                context,
+                exception,
+                showDialog);
+        }
     }
 
     /// <summary>
@@ -649,7 +690,7 @@ public partial class MainWindow : Window
                 "Action annulée.";
         }
         catch (Exception exception) when (
-            RecoverableExceptionPolicy.CanContinue(
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 exception))
         {
             ReportRecoverableUiError(
