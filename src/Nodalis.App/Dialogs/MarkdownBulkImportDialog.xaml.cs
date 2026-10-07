@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Importing;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -132,18 +133,24 @@ public partial class MarkdownBulkImportDialog : Window
             object sender,
             SelectionChangedEventArgs e)
     {
-        if (!ReferenceEquals(
-                e.Source,
-                ImportTabs) ||
-            !IsLoaded ||
-            PlanTab.IsSelected !=
-            true)
-        {
-            return;
-        }
-
-        await RefreshPlanAsync(
-            showValidationMessages: false);
+        await UiActionGuard.RunAsync(
+            this,
+            "Import Markdown · prévisualiser",
+            async () =>
+            {
+            if (!ReferenceEquals(
+                    e.Source,
+                    ImportTabs) ||
+                !IsLoaded ||
+                PlanTab.IsSelected !=
+                true)
+            {
+                return;
+            }
+    
+            await RefreshPlanAsync(
+                showValidationMessages: false);
+            });
     }
 
     /// <summary>
@@ -155,39 +162,45 @@ public partial class MarkdownBulkImportDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        MarkdownBulkImportRequest? request =
-            BuildCurrentRequest(
-                showValidationMessages: true);
-
-        if (request is null)
-        {
-            return;
-        }
-
-        if (_lastPlan is null ||
-            _plannedRequest is null ||
-            !RequestsEquivalent(
-                _plannedRequest,
-                request))
-        {
-            PlanTab.IsSelected =
-                true;
-
-            if (!await RefreshPlanAsync(
-                    showValidationMessages: true))
+        await UiActionGuard.RunAsync(
+            this,
+            "Import Markdown · importer",
+            async () =>
+            {
+            MarkdownBulkImportRequest? request =
+                BuildCurrentRequest(
+                    showValidationMessages: true);
+    
+            if (request is null)
             {
                 return;
             }
-
-            StatusText.Text =
-                "Plan prêt : vérifiez les destinations puis cliquez de nouveau sur « Valider l'import ».";
-            return;
-        }
-
-        CommitRequest =
-            request;
-        DialogResult =
-            true;
+    
+            if (_lastPlan is null ||
+                _plannedRequest is null ||
+                !RequestsEquivalent(
+                    _plannedRequest,
+                    request))
+            {
+                PlanTab.IsSelected =
+                    true;
+    
+                if (!await RefreshPlanAsync(
+                        showValidationMessages: true))
+                {
+                    return;
+                }
+    
+                StatusText.Text =
+                    "Plan prêt : vérifiez les destinations puis cliquez de nouveau sur « Valider l'import ».";
+                return;
+            }
+    
+            CommitRequest =
+                request;
+            DialogResult =
+                true;
+            });
     }
 
     /// <summary>
