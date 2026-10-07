@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.Core.Search;
 using Nodalis.Infrastructure.Search;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -92,12 +93,18 @@ public partial class SearchDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (!IsLoaded)
-        {
-            return;
-        }
-
-        await SearchAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Recherche · saisir",
+            async () =>
+            {
+            if (!IsLoaded)
+            {
+                return;
+            }
+    
+            await SearchAsync();
+            });
     }
 
     /// <summary>
