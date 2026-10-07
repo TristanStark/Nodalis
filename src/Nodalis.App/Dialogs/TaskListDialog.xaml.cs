@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Tasks;
 using Nodalis.Infrastructure.Tasks;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -94,12 +95,18 @@ public partial class TaskListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (!_isInitialized)
-        {
-            return;
-        }
-
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Tâches · filtrer",
+            async () =>
+            {
+            if (!_isInitialized)
+            {
+                return;
+            }
+    
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -130,40 +137,46 @@ public partial class TaskListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        TaskCreationDialog dialog =
-            new TaskCreationDialog
+        await UiActionGuard.RunAsync(
+            this,
+            "Tâches · créer",
+            async () =>
             {
-                Owner =
-                    this
-            };
-
-        if (dialog.ShowDialog() != true ||
-            dialog.Metadata is null)
-        {
-            return;
-        }
-
-        try
-        {
-            TaskItem created = await _createTaskAsync(
-                dialog.TaskText,
-                dialog.Metadata);
-
-            StatusText.Text =
-                $"Tâche créée · {created.Text}";
-
-            await RefreshAsync();
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException or
-            TaskSourceConflictException)
-        {
-            StatusText.Text =
-                exception.Message;
-        }
+            TaskCreationDialog dialog =
+                new TaskCreationDialog
+                {
+                    Owner =
+                        this
+                };
+    
+            if (dialog.ShowDialog() != true ||
+                dialog.Metadata is null)
+            {
+                return;
+            }
+    
+            try
+            {
+                TaskItem created = await _createTaskAsync(
+                    dialog.TaskText,
+                    dialog.Metadata);
+    
+                StatusText.Text =
+                    $"Tâche créée · {created.Text}";
+    
+                await RefreshAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                InvalidOperationException or
+                TaskSourceConflictException)
+            {
+                StatusText.Text =
+                    exception.Message;
+            }
+            });
     }
 
     /// <summary>
@@ -175,34 +188,40 @@ public partial class TaskListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (sender is not CheckBox checkBox ||
-            checkBox.DataContext is not TaskItem task)
-        {
-            return;
-        }
-
-        try
-        {
-            bool completed =
-                checkBox.IsChecked ==
-                true;
-
-            await _toggleTaskAsync(
-                task,
-                completed);
-
-            await RefreshAsync();
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            TaskSourceConflictException)
-        {
-            StatusText.Text =
-                exception.Message;
-            await RefreshAsync();
-        }
+        await UiActionGuard.RunAsync(
+            this,
+            "Tâches · changer le statut",
+            async () =>
+            {
+            if (sender is not CheckBox checkBox ||
+                checkBox.DataContext is not TaskItem task)
+            {
+                return;
+            }
+    
+            try
+            {
+                bool completed =
+                    checkBox.IsChecked ==
+                    true;
+    
+                await _toggleTaskAsync(
+                    task,
+                    completed);
+    
+                await RefreshAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                TaskSourceConflictException)
+            {
+                StatusText.Text =
+                    exception.Message;
+                await RefreshAsync();
+            }
+            });
     }
 
     /// <summary>
@@ -214,50 +233,56 @@ public partial class TaskListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (sender is not Button button ||
-            button.Tag is not TaskItem task ||
-            !task.CanPromoteMeetingAction)
-        {
-            return;
-        }
-
-        TaskMetadataDialog dialog =
-            new TaskMetadataDialog(
-                task)
+        await UiActionGuard.RunAsync(
+            this,
+            "Tâches · promouvoir",
+            async () =>
             {
-                Owner =
-                    this
-            };
-
-        if (dialog.ShowDialog() != true ||
-            dialog.Metadata is null)
-        {
-            return;
-        }
-
-        try
-        {
-            MeetingActionPromotionResult result = await _promoteMeetingActionAsync(
-                task,
-                dialog.Metadata);
-
-            StatusText.Text = result.Created
-                ? $"Action promue dans {result.ProjectTaskRelativePath}."
-                : $"Action déjà promue ; liaison mise à jour dans {result.ProjectTaskRelativePath}.";
-
-            await RefreshAsync();
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException or
-            TaskSourceConflictException)
-        {
-            StatusText.Text =
-                exception.Message;
-            await RefreshAsync();
-        }
+            if (sender is not Button button ||
+                button.Tag is not TaskItem task ||
+                !task.CanPromoteMeetingAction)
+            {
+                return;
+            }
+    
+            TaskMetadataDialog dialog =
+                new TaskMetadataDialog(
+                    task)
+                {
+                    Owner =
+                        this
+                };
+    
+            if (dialog.ShowDialog() != true ||
+                dialog.Metadata is null)
+            {
+                return;
+            }
+    
+            try
+            {
+                MeetingActionPromotionResult result = await _promoteMeetingActionAsync(
+                    task,
+                    dialog.Metadata);
+    
+                StatusText.Text = result.Created
+                    ? $"Action promue dans {result.ProjectTaskRelativePath}."
+                    : $"Action déjà promue ; liaison mise à jour dans {result.ProjectTaskRelativePath}.";
+    
+                await RefreshAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                InvalidOperationException or
+                TaskSourceConflictException)
+            {
+                StatusText.Text =
+                    exception.Message;
+                await RefreshAsync();
+            }
+            });
     }
 
     /// <summary>
@@ -269,44 +294,50 @@ public partial class TaskListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (sender is not Button button ||
-            button.Tag is not TaskItem task)
-        {
-            return;
-        }
-
-        TaskMetadataDialog dialog =
-            new TaskMetadataDialog(
-                task)
+        await UiActionGuard.RunAsync(
+            this,
+            "Tâches · modifier",
+            async () =>
             {
-                Owner =
-                    this
-            };
-
-        if (dialog.ShowDialog() != true ||
-            dialog.Metadata is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await _updateTaskMetadataAsync(
-                task,
-                dialog.Metadata);
-
-            await RefreshAsync();
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            TaskSourceConflictException)
-        {
-            StatusText.Text =
-                exception.Message;
-            await RefreshAsync();
-        }
+            if (sender is not Button button ||
+                button.Tag is not TaskItem task)
+            {
+                return;
+            }
+    
+            TaskMetadataDialog dialog =
+                new TaskMetadataDialog(
+                    task)
+                {
+                    Owner =
+                        this
+                };
+    
+            if (dialog.ShowDialog() != true ||
+                dialog.Metadata is null)
+            {
+                return;
+            }
+    
+            try
+            {
+                await _updateTaskMetadataAsync(
+                    task,
+                    dialog.Metadata);
+    
+                await RefreshAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                TaskSourceConflictException)
+            {
+                StatusText.Text =
+                    exception.Message;
+                await RefreshAsync();
+            }
+            });
     }
 
     /// <summary>
