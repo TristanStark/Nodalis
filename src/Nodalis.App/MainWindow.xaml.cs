@@ -253,12 +253,12 @@ public partial class MainWindow : Window
                 AppendDiagnosticsStatus();
             }
             catch (Exception exception) when (
-                exception is IOException or
-                UnauthorizedAccessException or
-                InvalidDataException)
+                RecoverableExceptionPolicy.CanContinue(
+                    exception))
             {
-                StatusText.Text =
-                    $"Index de liens indisponible : {exception.Message}";
+                ReportRecoverableUiError(
+                    "Initialisation de l'interface",
+                    exception);
             }
         };
     }
@@ -332,14 +332,13 @@ public partial class MainWindow : Window
             await _preferencesStore.SaveAsync(_preferences);
             await DisposeAllDocumentTabsAsync();
         }
-        catch (Exception exception)
+        catch (Exception exception) when (
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
-            MessageBox.Show(
-                $"Les préférences d'interface n'ont pas pu être enregistrées.\n\n" +
-                exception.Message,
-                "Nodalis",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            ReportRecoverableUiError(
+                "Fermeture · préférences d'interface",
+                exception);
         }
 
         _previewTimer.Stop();
@@ -621,6 +620,112 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Executes one user-triggered asynchronous action behind the common recoverable-error boundary.
+    /// </summary>
+    /// <param name="context">Short functional context used in logs and the error dialog.</param>
+    /// <param name="action">The asynchronous action to execute.</param>
+    /// <returns>A task representing the protected action.</returns>
+    private async Task RunUiActionAsync(
+            string context,
+            Func<Task> action)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            context);
+        ArgumentNullException.ThrowIfNull(
+            action);
+
+        try
+        {
+            await action();
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text =
+                "Action annulée.";
+        }
+        catch (Exception exception) when (
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
+        {
+            ReportRecoverableUiError(
+                context,
+                exception);
+        }
+    }
+
+    /// <summary>
+    /// Logs and presents a recoverable UI failure while keeping the current window usable.
+    /// </summary>
+    /// <param name="context">Short functional context.</param>
+    /// <param name="exception">The captured recoverable exception.</param>
+    /// <param name="showDialog">Whether to show the modal recoverable-error dialog.</param>
+    /// <returns>The generated local error identifier.</returns>
+    private string ReportRecoverableUiError(
+            string context,
+            Exception exception,
+            bool showDialog = true)
+    {
+        string errorId =
+            _diagnosticsService.LogRecoverableException(
+                context,
+                exception);
+
+        StatusText.Text =
+            "Erreur récupérée · " +
+            errorId +
+            " · " +
+            RecoverableExceptionPolicy.GetUserMessage(
+                exception);
+
+        if (!showDialog)
+        {
+            return errorId;
+        }
+
+        try
+        {
+            global::Nodalis.App.Dialogs.RecoverableErrorDialog dialog =
+                new RecoverableErrorDialog(
+                    _diagnosticsService,
+                    _root.FullPath,
+                    context,
+                    errorId,
+                    exception)
+                {
+                    Owner =
+                        this
+                };
+
+            dialog.ShowDialog();
+        }
+        catch (Exception dialogException) when (
+            RecoverableExceptionPolicy.CanContinue(
+                dialogException))
+        {
+            _diagnosticsService.LogException(
+                "Échec de la boîte de dialogue d'erreur récupérée",
+                dialogException);
+
+            MessageBox.Show(
+                this,
+                RecoverableExceptionPolicy.GetUserMessage(
+                    exception) +
+                Environment.NewLine +
+                Environment.NewLine +
+                "Identifiant : " +
+                errorId +
+                Environment.NewLine +
+                "Journal : " +
+                _diagnosticsService.ActiveLogPath,
+                "Erreur récupérée",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+
+        return errorId;
+    }
+
+    /// <summary>
     /// Appends abnormal-shutdown and recovered-temporary-file information to the status bar.
     /// </summary>
     private void AppendDiagnosticsStatus()
@@ -668,7 +773,9 @@ public partial class MainWindow : Window
     private async void OpenBackups_Click(
             object sender,
             RoutedEventArgs e) =>
-            await ShowBackupsAsync();
+            await RunUiActionAsync(
+                "Sauvegardes",
+                ShowBackupsAsync);
 
     /// <summary>
     /// Opens the workspace template and project-profile editor.
@@ -678,7 +785,9 @@ public partial class MainWindow : Window
     private async void OpenTemplateEditor_Click(
             object sender,
             RoutedEventArgs e) =>
-        await ShowTemplateEditorAsync();
+        await RunUiActionAsync(
+            "Templates et profils",
+            ShowTemplateEditorAsync);
 
     /// <summary>
     /// Opens the template/profile editor backed by the canonical workspace files.
@@ -804,14 +913,13 @@ public partial class MainWindow : Window
                 $"Sauvegarde auto · {backup.FileName} · {backup.DisplaySize}";
         }
         catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException or
-            ArgumentException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
-            StatusText.Text =
-                $"Sauvegarde auto impossible · {exception.Message}";
+            ReportRecoverableUiError(
+                "Sauvegarde automatique",
+                exception,
+                showDialog: false);
         }
         finally
         {
@@ -1292,12 +1400,9 @@ public partial class MainWindow : Window
             string title,
             Exception exception)
     {
-        MessageBox.Show(
-            this,
-            $"L'opération n'a pas pu être effectuée.\n\n{exception.Message}",
+        ReportRecoverableUiError(
             title,
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+            exception);
     }
 
     /// <summary>
@@ -1339,7 +1444,12 @@ public partial class MainWindow : Window
         }
 
         _selectedNode = node;
-        await DisplayNodeAsync(node);
+        await RunUiActionAsync(
+            "Navigation · " +
+            node.DisplayName,
+            () =>
+                DisplayNodeAsync(
+                    node));
     }
 
     /// <summary>
@@ -1425,10 +1535,15 @@ public partial class MainWindow : Window
                 targetNode);
         }
         catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            DecoderFallbackException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
+            string errorId =
+                ReportRecoverableUiError(
+                    "Ouverture du document · " +
+                    targetNode.DisplayName,
+                    exception);
+
             NodeSummaryHost.Visibility = Visibility.Visible;
             ProjectDashboardHost.Visibility = Visibility.Collapsed;
             NodeSummaryText.Visibility = Visibility.Visible;
@@ -1436,9 +1551,11 @@ public partial class MainWindow : Window
             DocumentEditorHost.Visibility = Visibility.Collapsed;
 
             NodeSummaryText.Text =
-                $"Impossible de lire le document.\n\n{exception.Message}";
-
-            StatusText.Text = "Erreur de lecture";
+                "Impossible de lire le document.\n\n" +
+                RecoverableExceptionPolicy.GetUserMessage(
+                    exception) +
+                "\n\nIdentifiant : " +
+                errorId;
         }
     }
 
@@ -1653,19 +1770,26 @@ public partial class MainWindow : Window
                 $"Dashboard projet · {node.DisplayName}";
         }
         catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
+            string errorId =
+                ReportRecoverableUiError(
+                    "Dashboard projet · " +
+                    node.DisplayName,
+                    exception,
+                    showDialog: false);
+
             ProjectDashboardHost.Visibility =
                 Visibility.Collapsed;
             NodeSummaryText.Visibility =
                 Visibility.Visible;
             NodeSummaryText.Text =
-                $"Impossible de charger le dashboard du projet.\n\n{exception.Message}";
-            StatusText.Text =
-                "Dashboard projet indisponible";
+                "Impossible de charger le dashboard du projet.\n\n" +
+                RecoverableExceptionPolicy.GetUserMessage(
+                    exception) +
+                "\n\nIdentifiant : " +
+                errorId;
         }
     }
 
@@ -2114,8 +2238,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        await NavigateToTaskAsync(
-            task);
+        await RunUiActionAsync(
+            "Dashboard projet · ouvrir une tâche",
+            () =>
+                NavigateToTaskAsync(
+                    task));
     }
 
     /// <summary>
@@ -2132,8 +2259,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        await NavigateToMilestoneAsync(
-            milestone);
+        await RunUiActionAsync(
+            "Dashboard projet · ouvrir un jalon",
+            () =>
+                NavigateToMilestoneAsync(
+                    milestone));
     }
 
     /// <summary>
@@ -2150,9 +2280,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        await NavigateToProjectDashboardSourceAsync(
-            decision.SourceRelativePath,
-            lineNumber: null);
+        await RunUiActionAsync(
+            "Dashboard projet · ouvrir une décision",
+            () =>
+                NavigateToProjectDashboardSourceAsync(
+                    decision.SourceRelativePath,
+                    lineNumber: null));
     }
 
     /// <summary>
@@ -2181,8 +2314,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        await NavigateToLinkTargetAsync(
-            target);
+        await RunUiActionAsync(
+            "Dashboard projet · ouvrir un document",
+            () =>
+                NavigateToLinkTargetAsync(
+                    target));
     }
 
     /// <summary>
@@ -2199,9 +2335,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        await NavigateToProjectDashboardSourceAsync(
-            alert.SourceRelativePath,
-            alert.LineNumber);
+        await RunUiActionAsync(
+            "Dashboard projet · ouvrir une alerte",
+            () =>
+                NavigateToProjectDashboardSourceAsync(
+                    alert.SourceRelativePath,
+                    alert.LineNumber));
     }
 
     /// <summary>
@@ -2343,12 +2482,15 @@ public partial class MainWindow : Window
             UpdateGlossaryAnnotations();
         }
         catch (Exception exception) when (
-            exception is ArgumentException or
-            InvalidOperationException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
-            InternalLinkPopup.IsOpen = false;
-            StatusText.Text =
-                $"Aperçu Markdown temporairement indisponible : {exception.Message}";
+            InternalLinkPopup.IsOpen =
+                false;
+            ReportRecoverableUiError(
+                "Aperçu Markdown / Mermaid",
+                exception,
+                showDialog: false);
         }
     }
 
@@ -2426,7 +2568,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await CreateNoteAsync();
+        await RunUiActionAsync(
+            "Créer une note",
+            CreateNoteAsync);
     }
 
     /// <summary>
@@ -2438,7 +2582,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await CreateProjectAsync();
+        await RunUiActionAsync(
+            "Créer un projet",
+            CreateProjectAsync);
     }
 
     /// <summary>
@@ -2450,7 +2596,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await CaptureQuickNoteAsync();
+        await RunUiActionAsync(
+            "Capturer une note rapide",
+            CaptureQuickNoteAsync);
     }
 
     /// <summary>
@@ -2462,7 +2610,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ShowQuickNotesAsync();
+        await RunUiActionAsync(
+            "Ouvrir les notes rapides",
+            ShowQuickNotesAsync);
     }
 
     /// <summary>
@@ -2474,7 +2624,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ShowCommandPaletteAsync();
+        await RunUiActionAsync(
+            "Palette de commandes",
+            ShowCommandPaletteAsync);
     }
 
     /// <summary>
@@ -2486,7 +2638,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await AttachFileAsync();
+        await RunUiActionAsync(
+            "Joindre un fichier",
+            AttachFileAsync);
     }
 
     /// <summary>
@@ -2498,7 +2652,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ImportDocxAsync();
+        await RunUiActionAsync(
+            "Import DOCX",
+            ImportDocxAsync);
     }
 
     /// <summary>
@@ -2510,7 +2666,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ImportMarkdownAsync();
+        await RunUiActionAsync(
+            "Import Markdown",
+            ImportMarkdownAsync);
     }
 
     /// <summary>
@@ -2522,7 +2680,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ExportProjectAsync();
+        await RunUiActionAsync(
+            "Export projet",
+            ExportProjectAsync);
     }
 
     /// <summary>
@@ -2534,8 +2694,11 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ShowTasksAsync(
-            global: true);
+        await RunUiActionAsync(
+            "Tâches globales",
+            () =>
+                ShowTasksAsync(
+                    global: true));
     }
 
     /// <summary>
@@ -2545,6 +2708,21 @@ public partial class MainWindow : Window
     /// <param name="e">The <c>e</c> value.</param>
     private async void MainWindow_PreviewKeyDown(
             object sender,
+            KeyEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Raccourci clavier",
+            () =>
+                HandlePreviewKeyDownAsync(
+                    e));
+    }
+
+    /// <summary>
+    /// Executes keyboard shortcut business actions behind the common UI boundary.
+    /// </summary>
+    /// <param name="e">The keyboard event arguments.</param>
+    /// <returns>A task representing the shortcut action.</returns>
+    private async Task HandlePreviewKeyDownAsync(
             KeyEventArgs e)
     {
         bool controlPressed =
@@ -4193,7 +4371,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        await dialog.SelectedCommand.ExecuteAsync();
+        await RunUiActionAsync(
+            "Palette · " +
+            dialog.SelectedCommand.Title,
+            dialog.SelectedCommand.ExecuteAsync);
     }
 
     /// <summary>
@@ -5484,7 +5665,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await CreateTaskFromPaletteAsync();
+        await RunUiActionAsync(
+            "Créer une tâche",
+            CreateTaskFromPaletteAsync);
     }
 
     /// <summary>
@@ -5496,7 +5679,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ShowMilestonesAsync();
+        await RunUiActionAsync(
+            "Jalons du projet",
+            ShowMilestonesAsync);
     }
 
     /// <summary>
@@ -7180,7 +7365,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await SummarizeMeetingWithAiAsync();
+        await RunUiActionAsync(
+            "IA locale · résumé de réunion",
+            SummarizeMeetingWithAiAsync);
     }
 
     /// <summary>

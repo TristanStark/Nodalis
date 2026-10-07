@@ -19,6 +19,17 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
+        await RunUiActionAsync(
+            "Kanban tâches",
+            OpenWorkspaceKanbanAsync);
+    }
+
+    /// <summary>
+    /// Executes the Kanban workflow behind the common recoverable UI boundary.
+    /// </summary>
+    /// <returns>A task representing the workflow.</returns>
+    private async Task OpenWorkspaceKanbanAsync()
+    {
         WorkspaceKanbanDialog dialog =
             new WorkspaceKanbanDialog(
                 _root.FullPath)

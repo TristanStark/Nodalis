@@ -382,7 +382,7 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Journals an unhandled WPF dispatcher exception without masking the fatal error.
+    /// Converts known action-scoped WPF exceptions into recoverable user errors while allowing fatal failures to propagate.
     /// </summary>
     /// <param name="sender">The event sender.</param>
     /// <param name="e">The unhandled exception arguments.</param>
@@ -390,10 +390,93 @@ public partial class App : Application
             object sender,
             DispatcherUnhandledExceptionEventArgs e)
     {
-        _fatalExceptionObserved = true;
+        if (e.Exception is OperationCanceledException)
+        {
+            _diagnosticsService.LogInformation(
+                "Une action UI asynchrone a été annulée.");
+            e.Handled =
+                true;
+            return;
+        }
+
+        if (RecoverableExceptionPolicy.CanContinue(
+                e.Exception))
+        {
+            string errorId =
+                _diagnosticsService.LogRecoverableException(
+                    "Filet de sécurité global WPF",
+                    e.Exception);
+
+            e.Handled =
+                true;
+
+            ShowRecoverableError(
+                "Action utilisateur",
+                errorId,
+                e.Exception);
+            return;
+        }
+
+        _fatalExceptionObserved =
+            true;
         _diagnosticsService.LogException(
-            "Exception WPF non gérée",
+            "Exception WPF fatale ou non classifiée",
             e.Exception);
+    }
+
+    /// <summary>
+    /// Presents a recoverable error without allowing the error-reporting UI itself to become a second crash source.
+    /// </summary>
+    /// <param name="context">The functional context.</param>
+    /// <param name="errorId">The local error identifier.</param>
+    /// <param name="exception">The captured exception.</param>
+    private void ShowRecoverableError(
+            string context,
+            string errorId,
+            Exception exception)
+    {
+        try
+        {
+            global::Nodalis.App.Dialogs.RecoverableErrorDialog dialog =
+                new global::Nodalis.App.Dialogs.RecoverableErrorDialog(
+                    _diagnosticsService,
+                    workspaceRoot: null,
+                    context,
+                    errorId,
+                    exception);
+
+            if (MainWindow is Window owner &&
+                owner.IsLoaded &&
+                owner.IsVisible)
+            {
+                dialog.Owner =
+                    owner;
+            }
+
+            dialog.ShowDialog();
+        }
+        catch (Exception dialogException) when (
+            RecoverableExceptionPolicy.CanContinue(
+                dialogException))
+        {
+            _diagnosticsService.LogException(
+                "Échec de la boîte de dialogue d'erreur récupérée",
+                dialogException);
+
+            MessageBox.Show(
+                RecoverableExceptionPolicy.GetUserMessage(
+                    exception) +
+                Environment.NewLine +
+                Environment.NewLine +
+                "Identifiant : " +
+                errorId +
+                Environment.NewLine +
+                "Détails : " +
+                _diagnosticsService.ActiveLogPath,
+                "Erreur récupérée",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     /// <summary>

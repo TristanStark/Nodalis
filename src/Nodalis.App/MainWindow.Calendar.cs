@@ -19,6 +19,17 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
+        await RunUiActionAsync(
+            "Calendrier workspace",
+            OpenWorkspaceCalendarAsync);
+    }
+
+    /// <summary>
+    /// Executes the calendar workflow behind the common recoverable UI boundary.
+    /// </summary>
+    /// <returns>A task representing the workflow.</returns>
+    private async Task OpenWorkspaceCalendarAsync()
+    {
         WorkspaceCalendarDialog dialog =
             new WorkspaceCalendarDialog(
                 _root.FullPath)

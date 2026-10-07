@@ -21,6 +21,17 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
+        await RunUiActionAsync(
+            "Couverture et cohérence projet",
+            OpenProjectCoverageAsync);
+    }
+
+    /// <summary>
+    /// Executes the project coverage workflow behind the common UI error boundary.
+    /// </summary>
+    /// <returns>A task representing the coverage workflow.</returns>
+    private async Task OpenProjectCoverageAsync()
+    {
         NavigationNodeViewModel? project =
             ResolveSelectedProjectForHealthCheck();
 

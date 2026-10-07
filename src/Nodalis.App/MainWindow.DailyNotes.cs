@@ -54,17 +54,12 @@ public partial class MainWindow
                 $"Journal ouvert · {Path.GetFileNameWithoutExtension(dialog.SelectedPath)}";
         }
         catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            KeyNotFoundException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
-            MessageBox.Show(
-                this,
-                $"Le journal quotidien n'a pas pu être ouvert.\n\n{exception.Message}",
+            ReportRecoverableUiError(
                 "Journal quotidien",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                exception);
         }
     }
 

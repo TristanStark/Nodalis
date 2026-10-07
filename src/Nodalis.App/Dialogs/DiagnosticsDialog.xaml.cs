@@ -35,7 +35,11 @@ public partial class DiagnosticsDialog : Window
                 : "Aucun arrêt anormal précédent n'a été détecté pour cette session.";
 
         DiagnosticsPathText.Text =
-            $"Dossier : {diagnosticsService.DiagnosticsDirectory}";
+            "Dossier : " +
+            diagnosticsService.DiagnosticsDirectory +
+            Environment.NewLine +
+            "Journal actif : " +
+            diagnosticsService.ActiveLogPath;
 
         RefreshReport();
     }

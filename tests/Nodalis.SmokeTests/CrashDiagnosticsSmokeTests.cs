@@ -108,6 +108,70 @@ internal static class CrashDiagnosticsSmokeTests
                 StringComparison.Ordinal),
             "The technical report must never read or include document contents.");
 
+        Assert(
+            RecoverableExceptionPolicy.CanContinue(
+                new ArgumentOutOfRangeException(
+                    "lineIndex")) &&
+            RecoverableExceptionPolicy.CanContinue(
+                new NullReferenceException(
+                    "synthetic UI state")) &&
+            RecoverableExceptionPolicy.CanContinue(
+                new IOException(
+                    "synthetic file failure")),
+            "Common user-action failures must be classified as recoverable.");
+
+        Assert(
+            !RecoverableExceptionPolicy.CanContinue(
+                new OutOfMemoryException()) &&
+            !RecoverableExceptionPolicy.CanContinue(
+                new AccessViolationException()) &&
+            !RecoverableExceptionPolicy.CanContinue(
+                new Exception(
+                    "unclassified failure")),
+            "Fatal or unknown process failures must never be silently marked safe to continue.");
+
+        string errorId =
+            secondSession.LogRecoverableException(
+                "Smoke UI action · stale line",
+                new ArgumentOutOfRangeException(
+                    "lineIndex",
+                    "synthetic stale source"));
+
+        Assert(
+            errorId.StartsWith(
+                "NOD-",
+                StringComparison.Ordinal) &&
+            string.Equals(
+                secondSession.ActiveLogPath,
+                Path.Combine(
+                    diagnosticsRoot,
+                    "nodalis.log"),
+                StringComparison.OrdinalIgnoreCase),
+            "Recoverable failures must expose a stable error identifier and active local log path.");
+
+        string retainedLogs =
+            string.Join(
+                Environment.NewLine,
+                Directory
+                    .EnumerateFiles(
+                        diagnosticsRoot,
+                        "nodalis*.log",
+                        SearchOption.TopDirectoryOnly)
+                    .Select(
+                        File.ReadAllText));
+
+        Assert(
+            retainedLogs.Contains(
+                errorId,
+                StringComparison.Ordinal) &&
+            retainedLogs.Contains(
+                "Smoke UI action · stale line",
+                StringComparison.Ordinal) &&
+            retainedLogs.Contains(
+                "ArgumentOutOfRangeException",
+                StringComparison.Ordinal),
+            "Recoverable UI failures must journal identifier, context, exception type, message and stack details.");
+
         int logFileCount = Directory
             .EnumerateFiles(
                 diagnosticsRoot,

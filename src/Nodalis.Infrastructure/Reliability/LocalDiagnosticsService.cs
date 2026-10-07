@@ -61,6 +61,14 @@ public sealed class LocalDiagnosticsService
     public string DiagnosticsDirectory { get; }
 
     /// <summary>
+    /// Gets the active local log path.
+    /// </summary>
+    public string ActiveLogPath =>
+        Path.Combine(
+            DiagnosticsDirectory,
+            ActiveLogFileName);
+
+    /// <summary>
     /// Gets a value indicating whether the previous Nodalis process did not complete a clean shutdown.
     /// </summary>
     public bool PreviousSessionEndedUnexpectedly { get; private set; }
@@ -212,6 +220,45 @@ public sealed class LocalDiagnosticsService
                 source,
                 exception);
         }
+    }
+
+    /// <summary>
+    /// Logs one recoverable action failure and returns the identifier shown to the user.
+    /// </summary>
+    /// <param name="context">The functional action context.</param>
+    /// <param name="exception">The captured exception.</param>
+    /// <returns>A short unique local error identifier.</returns>
+    public string LogRecoverableException(
+            string context,
+            Exception exception)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            context);
+        ArgumentNullException.ThrowIfNull(
+            exception);
+
+        string errorId =
+            "NOD-" +
+            DateTimeOffset.UtcNow.ToString(
+                "yyyyMMdd-HHmmss") +
+            "-" +
+            Guid.NewGuid()
+                .ToString(
+                    "N")[..8]
+                .ToUpperInvariant();
+
+        lock (_gate)
+        {
+            WriteEventUnsafe(
+                "ERROR",
+                "Erreur récupérable · ErrorId=" +
+                errorId +
+                " · Contexte=" +
+                context,
+                exception);
+        }
+
+        return errorId;
     }
 
     /// <summary>
@@ -458,9 +505,7 @@ public sealed class LocalDiagnosticsService
             builder.AppendLine();
 
             File.AppendAllText(
-                Path.Combine(
-                    DiagnosticsDirectory,
-                    ActiveLogFileName),
+                ActiveLogPath,
                 builder.ToString(),
                 new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }

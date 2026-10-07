@@ -6,6 +6,11 @@ $themePath = Join-Path $appRoot "Themes/Dark.xaml"
 $appXamlPath = Join-Path $appRoot "App.xaml"
 $mainWindowCodePath = Join-Path $appRoot "MainWindow.xaml.cs"
 $mainWindowXamlPath = Join-Path $appRoot "MainWindow.xaml"
+$appCodePath = Join-Path $appRoot "App.xaml.cs"
+$recoverableErrorDialogPath = Join-Path $appRoot "Dialogs/RecoverableErrorDialog.xaml"
+$documentTabsCodePath = Join-Path $appRoot "MainWindow.DocumentTabs.cs"
+$diagnosticsServicePath = Join-Path $repoRoot "src/Nodalis.Infrastructure/Reliability/LocalDiagnosticsService.cs"
+$exceptionPolicyPath = Join-Path $repoRoot "src/Nodalis.Infrastructure/Reliability/RecoverableExceptionPolicy.cs"
 $taskCreationXamlPath = Join-Path $appRoot "Dialogs/TaskCreationDialog.xaml"
 $calendarXamlPath = Join-Path $appRoot "Dialogs/WorkspaceCalendarDialog.xaml"
 $kanbanXamlPath = Join-Path $appRoot "Dialogs/WorkspaceKanbanDialog.xaml"
@@ -71,8 +76,14 @@ if (-not $appXaml.Contains('ResourceDictionary Source="Themes/Dark.xaml"')) {
 
 $mainWindowCode = Get-Content -Raw -LiteralPath $mainWindowCodePath
 $mainWindowXaml = Get-Content -Raw -LiteralPath $mainWindowXamlPath
+$appCode = Get-Content -Raw -LiteralPath $appCodePath
+$recoverableErrorDialog = Get-Content -Raw -LiteralPath $recoverableErrorDialogPath
+$documentTabsCode = Get-Content -Raw -LiteralPath $documentTabsCodePath
+$diagnosticsService = Get-Content -Raw -LiteralPath $diagnosticsServicePath
+$exceptionPolicy = Get-Content -Raw -LiteralPath $exceptionPolicyPath
 
-if ($mainWindowXaml.Contains('<Run Text="{Binding OverdueDisplay}" />')) {
+if ($mainWindowXaml.Contains('<Run Text="{Binding OverdueDisplay}" />') -or
+    $mainWindowXaml -match '\{Binding\s+OverdueDisplay\s*\}') {
     $failures.Add("Project dashboard OverdueDisplay must bind OneWay because TaskItem.OverdueDisplay is read-only.")
 }
 
@@ -123,6 +134,72 @@ if (-not $mainWindowCode.Contains('Math.Clamp(') -or
 
 if (-not $mainWindowCode.Contains('GetMilestoneFileForContextAsync(')) {
     $failures.Add("The command-palette milestone workflow must resolve the canonical milestone document.")
+}
+
+$requiredAppExceptionTokens = @(
+    'DispatcherUnhandledException += App_DispatcherUnhandledException;',
+    'RecoverableExceptionPolicy.CanContinue(',
+    'e.Handled =',
+    'TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;',
+    'e.SetObserved();'
+)
+
+foreach ($token in $requiredAppExceptionTokens) {
+    if (-not $appCode.Contains($token)) {
+        $failures.Add("App.xaml.cs is missing recoverable-exception boundary token: $token")
+    }
+}
+
+$requiredMainWindowBoundaryTokens = @(
+    'RunUiActionAsync(',
+    'ReportRecoverableUiError(',
+    'Navigation · ',
+    'Palette · ',
+    'Aperçu Markdown / Mermaid'
+)
+
+foreach ($token in $requiredMainWindowBoundaryTokens) {
+    if (-not $mainWindowCode.Contains($token)) {
+        $failures.Add("MainWindow.xaml.cs is missing recoverable UI boundary token: $token")
+    }
+}
+
+$requiredDiagnosticsTokens = @(
+    'ActiveLogPath',
+    'LogRecoverableException(',
+    'ErrorId='
+)
+
+foreach ($token in $requiredDiagnosticsTokens) {
+    if (-not $diagnosticsService.Contains($token)) {
+        $failures.Add("LocalDiagnosticsService is missing recoverable-error diagnostics token: $token")
+    }
+}
+
+$requiredExceptionPolicyTokens = @(
+    'OutOfMemoryException',
+    'StackOverflowException',
+    'AccessViolationException',
+    'IndexOutOfRangeException',
+    'NullReferenceException',
+    'System.Windows.Markup.XamlParseException'
+)
+
+foreach ($token in $requiredExceptionPolicyTokens) {
+    if (-not $exceptionPolicy.Contains($token)) {
+        $failures.Add("RecoverableExceptionPolicy is missing required classification token: $token")
+    }
+}
+
+if (-not $recoverableErrorDialog.Contains('Identifiant d''erreur') -or
+    -not $recoverableErrorDialog.Contains('Copier les détails') -or
+    -not $recoverableErrorDialog.Contains('Content="Diagnostics"')) {
+    $failures.Add("RecoverableErrorDialog must expose context, error identifier, copy-details and diagnostics actions.")
+}
+
+if (-not $documentTabsCode.Contains('Autosave · ') -or
+    -not $documentTabsCode.Contains('LogRecoverableException(')) {
+    $failures.Add("Document autosave failures must be logged with an action context and error identifier.")
 }
 
 $requiredContextMenuCodeTokens = @(

@@ -235,23 +235,12 @@ public partial class MainWindow
                 MessageBoxImage.Information);
         }
         catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException or
-            ArgumentException or
-            TimeoutException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
-            MessageBox.Show(
-                this,
-                "La génération de tests IA a échoué.\n\n" +
-                exception.Message,
-                "Génération de tests IA",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-
-            StatusText.Text =
-                "Génération de tests IA en échec";
+            ReportRecoverableUiError(
+                "IA locale · génération de tests",
+                exception);
         }
     }
 
@@ -264,6 +253,8 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
-        await GenerateTestsWithAiAsync();
+        await RunUiActionAsync(
+            "IA locale · génération de tests",
+            GenerateTestsWithAiAsync);
     }
 }

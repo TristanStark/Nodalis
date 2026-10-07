@@ -102,6 +102,17 @@ Sur le même poste Windows client, vérifier également :
 - [ ] saisie clavier puis effacement de la date possibles ;
 - [ ] double-clic sur un jalon dont la ligne source a disparu ouvre le document au meilleur emplacement sans crash.
 
+### Smoke stabilité issu de la RC terrain (#93)
+
+- [ ] provoquer successivement une erreur de navigation, un fichier déplacé et un index de ligne obsolète sans fermeture de Nodalis ;
+- [ ] chaque erreur récupérable affiche un message fonctionnel avec un identifiant `NOD-...` ;
+- [ ] « Copier les détails » copie l'identifiant, le contexte, le type et le message technique ;
+- [ ] Diagnostics affiche le dossier et le journal actif, puis permet d'ouvrir le dossier et copier le rapport ;
+- [ ] une erreur récupérable dans Tâches, Kanban, Calendrier, Jalons, import/export ou IA laisse l'application utilisable ;
+- [ ] une erreur de preview Markdown/Mermaid est journalisée et signalée dans la barre d'état sans boucle de boîtes modales ;
+- [ ] une erreur d'autosave conserve les modifications locales et produit une entrée de log ;
+- [ ] vérifier qu'une erreur classée fatale n'est pas marquée comme récupérable.
+
 ## Passage en stable
 
 Lorsque le gate automatisé est vert et la matrice Windows manuelle entièrement

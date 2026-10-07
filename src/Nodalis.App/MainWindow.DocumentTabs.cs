@@ -386,10 +386,13 @@ public partial class MainWindow
             return;
         }
 
-        await ActivateDocumentTabForPaneAsync(
-            tab,
-            EditorPaneSlot.Primary,
-            synchronizeNavigation: true);
+        await RunUiActionAsync(
+            "Ouvrir un onglet document",
+            () =>
+                ActivateDocumentTabForPaneAsync(
+                    tab,
+                    EditorPaneSlot.Primary,
+                    synchronizeNavigation: true));
     }
 
     /// <summary>
@@ -406,10 +409,15 @@ public partial class MainWindow
         if (sender is Button button &&
             button.Tag is DocumentTabViewModel tab)
         {
-            await CloseDocumentTabAsync(
-                tab,
-                "fermer cet onglet",
-                activateNeighbor: true);
+            await RunUiActionAsync(
+                "Fermer un onglet document",
+                async () =>
+                {
+                    await CloseDocumentTabAsync(
+                        tab,
+                        "fermer cet onglet",
+                        activateNeighbor: true);
+                });
         }
     }
 
@@ -439,16 +447,17 @@ public partial class MainWindow
             await tab.Autosave.FlushAsync();
         }
         catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidOperationException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
             tab.IsDirty = true;
             tab.IsMissing = !File.Exists(
                 tab.FullPath);
 
-            StatusText.Text =
-                $"Enregistrement impossible · {exception.Message}";
+            ReportRecoverableUiError(
+                "Enregistrement avant fermeture d'onglet",
+                exception,
+                showDialog: false);
         }
 
         tab.IsDirty =
@@ -1131,8 +1140,18 @@ public partial class MainWindow
                 autosave,
                 out DocumentTabViewModel? tab))
         {
+            ReportRecoverableUiError(
+                "Autosave document",
+                exception,
+                showDialog: false);
             return;
         }
+
+        string errorId =
+            _diagnosticsService.LogRecoverableException(
+                "Autosave · " +
+                tab.TabTitle,
+                exception);
 
         tab.IsDirty = true;
         tab.IsMissing = !File.Exists(
@@ -1166,7 +1185,11 @@ public partial class MainWindow
                 : "Erreur d'enregistrement";
 
         StatusText.Text =
-            exception.Message;
+            "Autosave en échec · " +
+            errorId +
+            " · " +
+            RecoverableExceptionPolicy.GetUserMessage(
+                exception);
     }
 
     /// <summary>

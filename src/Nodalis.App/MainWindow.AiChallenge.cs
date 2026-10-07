@@ -167,23 +167,12 @@ public partial class MainWindow
                 "Challenge IA terminé · aucune modification automatique";
         }
         catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException or
-            ArgumentException or
-            TimeoutException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
-            MessageBox.Show(
-                this,
-                "Le challenge IA a échoué.\n\n" +
-                exception.Message,
-                "Challenge IA",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-
-            StatusText.Text =
-                "Challenge IA en échec";
+            ReportRecoverableUiError(
+                "IA locale · challenge",
+                exception);
         }
     }
 
@@ -196,6 +185,8 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
-        await ChallengeSelectedContextWithAiAsync();
+        await RunUiActionAsync(
+            "IA locale · challenge",
+            ChallengeSelectedContextWithAiAsync);
     }
 }

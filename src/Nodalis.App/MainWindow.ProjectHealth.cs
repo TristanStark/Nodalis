@@ -21,6 +21,17 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
+        await RunUiActionAsync(
+            "Health check projet",
+            OpenProjectHealthAsync);
+    }
+
+    /// <summary>
+    /// Executes the project health workflow behind the common UI error boundary.
+    /// </summary>
+    /// <returns>A task representing the health-check workflow.</returns>
+    private async Task OpenProjectHealthAsync()
+    {
         NavigationNodeViewModel? project =
             ResolveSelectedProjectForHealthCheck();
 

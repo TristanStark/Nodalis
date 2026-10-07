@@ -26,6 +26,17 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
+        await RunUiActionAsync(
+            "Mise à jour",
+            OpenUpdateAsync);
+    }
+
+    /// <summary>
+    /// Executes the local update workflow behind the common UI error boundary.
+    /// </summary>
+    /// <returns>A task representing the update workflow.</returns>
+    private async Task OpenUpdateAsync()
+    {
         if (!EnsureApplicationWorkspaceSeparation())
         {
             return;
@@ -70,21 +81,12 @@ public partial class MainWindow
                     WorkspaceManifest.CurrentSchemaVersion);
         }
         catch (Exception exception) when (
-            exception is InvalidDataException or
-            IOException or
-            UnauthorizedAccessException or
-            JsonException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
-            StatusText.Text =
-                "Archive de mise à jour refusée";
-
-            MessageBox.Show(
-                this,
-                $"La release locale n'est pas installable.\n\n{exception.Message}",
-                "Mise à jour Nodalis",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-
+            ReportRecoverableUiError(
+                "Mise à jour · validation de l'archive",
+                exception);
             return;
         }
 
@@ -126,22 +128,15 @@ public partial class MainWindow
             Application.Current.Shutdown();
         }
         catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidOperationException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
             TryDeleteStagingDirectory(
                 package.StagedApplicationDirectory);
 
-            StatusText.Text =
-                "Impossible de lancer la mise à jour";
-
-            MessageBox.Show(
-                this,
-                $"La mise à jour n'a pas été lancée. La version actuelle reste intacte.\n\n{exception.Message}",
-                "Mise à jour Nodalis",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            ReportRecoverableUiError(
+                "Mise à jour · lancement",
+                exception);
         }
     }
 
@@ -153,6 +148,17 @@ public partial class MainWindow
     private async void RollbackUpdate_Click(
             object sender,
             RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Rollback",
+            RollbackUpdateAsync);
+    }
+
+    /// <summary>
+    /// Executes the rollback workflow behind the common UI error boundary.
+    /// </summary>
+    /// <returns>A task representing the rollback workflow.</returns>
+    private async Task RollbackUpdateAsync()
     {
         if (!EnsureApplicationWorkspaceSeparation())
         {
@@ -205,19 +211,12 @@ public partial class MainWindow
             Application.Current.Shutdown();
         }
         catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidOperationException)
+            RecoverableExceptionPolicy.CanContinue(
+                exception))
         {
-            StatusText.Text =
-                "Impossible de lancer le rollback";
-
-            MessageBox.Show(
-                this,
-                $"Le rollback n'a pas été lancé. La version actuelle reste intacte.\n\n{exception.Message}",
-                "Rollback Nodalis",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            ReportRecoverableUiError(
+                "Rollback · lancement",
+                exception);
         }
     }
 
