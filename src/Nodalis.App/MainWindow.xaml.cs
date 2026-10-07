@@ -253,7 +253,7 @@ public partial class MainWindow : Window
                 AppendDiagnosticsStatus();
             }
             catch (Exception exception) when (
-                RecoverableExceptionPolicy.CanContinue(
+                RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                     exception))
             {
                 ReportRecoverableUiError(
@@ -959,7 +959,7 @@ public partial class MainWindow : Window
                 $"Sauvegarde auto · {backup.FileName} · {backup.DisplaySize}";
         }
         catch (Exception exception) when (
-            RecoverableExceptionPolicy.CanContinue(
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 exception))
         {
             ReportRecoverableUiError(
@@ -1586,7 +1586,7 @@ public partial class MainWindow : Window
                 targetNode);
         }
         catch (Exception exception) when (
-            RecoverableExceptionPolicy.CanContinue(
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 exception))
         {
             string errorId =
@@ -1821,7 +1821,7 @@ public partial class MainWindow : Window
                 $"Dashboard projet · {node.DisplayName}";
         }
         catch (Exception exception) when (
-            RecoverableExceptionPolicy.CanContinue(
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 exception))
         {
             string errorId =
@@ -2538,7 +2538,7 @@ public partial class MainWindow : Window
             UpdateGlossaryAnnotations();
         }
         catch (Exception exception) when (
-            RecoverableExceptionPolicy.CanContinue(
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 exception))
         {
             InternalLinkPopup.IsOpen =
