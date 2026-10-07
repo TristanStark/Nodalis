@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.Core.Milestones;
 using Nodalis.Infrastructure.Milestones;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -46,40 +47,46 @@ public partial class MilestoneListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (!await EnsureProjectDirectoryAsync())
-        {
-            return;
-        }
-
-        global::Nodalis.App.Dialogs.MilestoneEditorDialog dialog = new MilestoneEditorDialog(
-            availableMilestones: _currentMilestones)
-        {
-            Owner = this
-        };
-
-        if (dialog.ShowDialog() != true ||
-            dialog.Draft is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await _milestones.AddAsync(
-                _projectDirectory!,
-                dialog.Draft);
-
-            await RefreshAsync();
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException)
-        {
-            ShowError(
-                "Ajouter le jalon",
-                exception.Message);
-        }
+        await UiActionGuard.RunAsync(
+            this,
+            "Jalons · créer",
+            async () =>
+            {
+            if (!await EnsureProjectDirectoryAsync())
+            {
+                return;
+            }
+    
+            global::Nodalis.App.Dialogs.MilestoneEditorDialog dialog = new MilestoneEditorDialog(
+                availableMilestones: _currentMilestones)
+            {
+                Owner = this
+            };
+    
+            if (dialog.ShowDialog() != true ||
+                dialog.Draft is null)
+            {
+                return;
+            }
+    
+            try
+            {
+                await _milestones.AddAsync(
+                    _projectDirectory!,
+                    dialog.Draft);
+    
+                await RefreshAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                ShowError(
+                    "Ajouter le jalon",
+                    exception.Message);
+            }
+            });
     }
 
     /// <summary>
@@ -91,48 +98,54 @@ public partial class MilestoneListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        global::Nodalis.Core.Milestones.MilestoneItem? milestone = GetSelectedMilestone();
-
-        if (milestone is null)
-        {
-            ShowError(
-                "Modifier le jalon",
-                "Sélectionnez d'abord un jalon.");
-            return;
-        }
-
-        global::Nodalis.App.Dialogs.MilestoneEditorDialog dialog = new MilestoneEditorDialog(
-            milestone,
-            _currentMilestones)
-        {
-            Owner = this
-        };
-
-        if (dialog.ShowDialog() != true ||
-            dialog.Draft is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await _milestones.UpdateAsync(
+        await UiActionGuard.RunAsync(
+            this,
+            "Jalons · modifier",
+            async () =>
+            {
+            global::Nodalis.Core.Milestones.MilestoneItem? milestone = GetSelectedMilestone();
+    
+            if (milestone is null)
+            {
+                ShowError(
+                    "Modifier le jalon",
+                    "Sélectionnez d'abord un jalon.");
+                return;
+            }
+    
+            global::Nodalis.App.Dialogs.MilestoneEditorDialog dialog = new MilestoneEditorDialog(
                 milestone,
-                dialog.Draft);
-
-            await RefreshAsync();
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            MilestoneSourceConflictException)
-        {
-            ShowError(
-                "Modifier le jalon",
-                exception.Message);
-            await RefreshAsync();
-        }
+                _currentMilestones)
+            {
+                Owner = this
+            };
+    
+            if (dialog.ShowDialog() != true ||
+                dialog.Draft is null)
+            {
+                return;
+            }
+    
+            try
+            {
+                await _milestones.UpdateAsync(
+                    milestone,
+                    dialog.Draft);
+    
+                await RefreshAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                MilestoneSourceConflictException)
+            {
+                ShowError(
+                    "Modifier le jalon",
+                    exception.Message);
+                await RefreshAsync();
+            }
+            });
     }
 
     /// <summary>
@@ -201,46 +214,52 @@ public partial class MilestoneListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        global::Nodalis.Core.Milestones.MilestoneItem? milestone = GetSelectedMilestone();
-
-        if (milestone is null)
-        {
-            ShowError(
-                "Supprimer le jalon",
-                "Sélectionnez d'abord un jalon.");
-            return;
-        }
-
-        global::System.Windows.MessageBoxResult answer = MessageBox.Show(
+        await UiActionGuard.RunAsync(
             this,
-            $"Supprimer le jalon « {milestone.Name} » ?",
-            "Supprimer le jalon",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-
-        if (answer != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            await _milestones.DeleteAsync(
-                milestone);
-
-            await RefreshAsync();
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            MilestoneSourceConflictException)
-        {
-            ShowError(
+            "Jalons · supprimer",
+            async () =>
+            {
+            global::Nodalis.Core.Milestones.MilestoneItem? milestone = GetSelectedMilestone();
+    
+            if (milestone is null)
+            {
+                ShowError(
+                    "Supprimer le jalon",
+                    "Sélectionnez d'abord un jalon.");
+                return;
+            }
+    
+            global::System.Windows.MessageBoxResult answer = MessageBox.Show(
+                this,
+                $"Supprimer le jalon « {milestone.Name} » ?",
                 "Supprimer le jalon",
-                exception.Message);
-            await RefreshAsync();
-        }
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+    
+            if (answer != MessageBoxResult.Yes)
+            {
+                return;
+            }
+    
+            try
+            {
+                await _milestones.DeleteAsync(
+                    milestone);
+    
+                await RefreshAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                MilestoneSourceConflictException)
+            {
+                ShowError(
+                    "Supprimer le jalon",
+                    exception.Message);
+                await RefreshAsync();
+            }
+            });
     }
 
     /// <summary>
