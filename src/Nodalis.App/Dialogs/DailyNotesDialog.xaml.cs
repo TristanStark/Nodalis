@@ -4,6 +4,7 @@ using System.Windows.Input;
 using Nodalis.Core.Abstractions;
 using Nodalis.Core.Notes;
 using Nodalis.Infrastructure.Notes;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -54,33 +55,39 @@ public partial class DailyNotesDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        try
-        {
-            DateTimeOffset now =
-                DateTimeOffset.Now;
-            DailyNoteItem today =
-                await _service.GetOrCreateAsync(
-                    now,
+        await UiActionGuard.RunAsync(
+            this,
+            "Notes quotidiennes · aujourd'hui",
+            async () =>
+            {
+            try
+            {
+                DateTimeOffset now =
+                    DateTimeOffset.Now;
+                DailyNoteItem today =
+                    await _service.GetOrCreateAsync(
+                        now,
+                        _openedToday);
+    
+                await _service.SyncOpenedItemsAsync(
+                    today.Date,
                     _openedToday);
-
-            await _service.SyncOpenedItemsAsync(
-                today.Date,
-                _openedToday);
-
-            SelectedPath =
-                today.FullPath;
-            DialogResult =
-                true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            KeyNotFoundException)
-        {
-            ShowError(
-                exception.Message);
-        }
+    
+                SelectedPath =
+                    today.FullPath;
+                DialogResult =
+                    true;
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                KeyNotFoundException)
+            {
+                ShowError(
+                    exception.Message);
+            }
+            });
     }
 
     /// <summary>
@@ -92,40 +99,46 @@ public partial class DailyNotesDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        try
-        {
-            DateTimeOffset now =
-                DateTimeOffset.Now;
-            DailyNoteItem today =
-                await _service.GetOrCreateAsync(
-                    now,
+        await UiActionGuard.RunAsync(
+            this,
+            "Notes quotidiennes · synchroniser",
+            async () =>
+            {
+            try
+            {
+                DateTimeOffset now =
+                    DateTimeOffset.Now;
+                DailyNoteItem today =
+                    await _service.GetOrCreateAsync(
+                        now,
+                        _openedToday);
+    
+                await _service.SyncOpenedItemsAsync(
+                    today.Date,
                     _openedToday);
-
-            await _service.SyncOpenedItemsAsync(
-                today.Date,
-                _openedToday);
-
-            await RefreshAsync();
-
-            RecentNotesList.SelectedItem =
-                RecentNotesList.Items
-                    .Cast<DailyNoteItem>()
-                    .FirstOrDefault(item =>
-                        item.Date ==
-                        today.Date);
-
-            StatusText.Text =
-                $"{_openedToday.Count} élément(s) ouvert(s) synchronisé(s) dans le journal du jour.";
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            KeyNotFoundException)
-        {
-            ShowError(
-                exception.Message);
-        }
+    
+                await RefreshAsync();
+    
+                RecentNotesList.SelectedItem =
+                    RecentNotesList.Items
+                        .Cast<DailyNoteItem>()
+                        .FirstOrDefault(item =>
+                            item.Date ==
+                            today.Date);
+    
+                StatusText.Text =
+                    $"{_openedToday.Count} élément(s) ouvert(s) synchronisé(s) dans le journal du jour.";
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                KeyNotFoundException)
+            {
+                ShowError(
+                    exception.Message);
+            }
+            });
     }
 
     /// <summary>
