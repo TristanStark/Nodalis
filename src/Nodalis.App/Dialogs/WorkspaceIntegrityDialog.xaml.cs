@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using Nodalis.Core.Reliability;
 using Nodalis.Infrastructure.Reliability;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -36,8 +37,14 @@ public partial class WorkspaceIntegrityDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        Loaded -= WorkspaceIntegrityDialog_Loaded;
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Intégrité workspace · chargement",
+            async () =>
+            {
+            Loaded -= WorkspaceIntegrityDialog_Loaded;
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -49,7 +56,13 @@ public partial class WorkspaceIntegrityDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Intégrité workspace · actualiser",
+            async () =>
+            {
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -61,27 +74,33 @@ public partial class WorkspaceIntegrityDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        SetBusy(true);
-        StatusText.Text = "Reconstruction explicite de l'index de liens…";
-
-        try
-        {
-            await _service.RebuildDerivedIndexesAsync();
-            StatusText.Text = "Index de liens reconstruit.";
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException)
-        {
-            StatusText.Text = $"Reconstruction impossible · {exception.Message}";
+        await UiActionGuard.RunAsync(
+            this,
+            "Intégrité workspace · reconstruire l'index",
+            async () =>
+            {
+            SetBusy(true);
+            StatusText.Text = "Reconstruction explicite de l'index de liens…";
+    
+            try
+            {
+                await _service.RebuildDerivedIndexesAsync();
+                StatusText.Text = "Index de liens reconstruit.";
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                InvalidOperationException)
+            {
+                StatusText.Text = $"Reconstruction impossible · {exception.Message}";
+                SetBusy(false);
+                return;
+            }
+    
             SetBusy(false);
-            return;
-        }
-
-        SetBusy(false);
-        await RefreshAsync();
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
