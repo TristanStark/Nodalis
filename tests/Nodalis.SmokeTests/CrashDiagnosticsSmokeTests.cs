@@ -130,6 +130,26 @@ internal static class CrashDiagnosticsSmokeTests
                     "unclassified failure")),
             "Fatal or unknown process failures must never be silently marked safe to continue.");
 
+        Assert(
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                new Exception(
+                    "synthetic isolated UI failure")) &&
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                new TypeInitializationException(
+                    "SyntheticType",
+                    new InvalidOperationException(
+                        "synthetic initializer failure"))) &&
+            !RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                new TypeInitializationException(
+                    "SyntheticType",
+                    new OutOfMemoryException())) &&
+            !RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                new AggregateException(
+                    new InvalidOperationException(
+                        "recoverable branch"),
+                    new AccessViolationException())),
+            "Action-scoped boundaries must recover unknown nonfatal failures while preserving fatal CLR failures.");
+
         string errorId =
             secondSession.LogRecoverableException(
                 "Smoke UI action · stale line",
