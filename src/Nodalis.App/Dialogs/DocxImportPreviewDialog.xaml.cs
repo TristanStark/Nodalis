@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Importing;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -381,17 +382,23 @@ public partial class DocxImportPreviewDialog : Window
             object sender,
             SelectionChangedEventArgs e)
     {
-        if (!ReferenceEquals(
-                e.Source,
-                ImportTabs) ||
-            !IsLoaded ||
-            FilesTab.IsSelected != true)
-        {
-            return;
-        }
-
-        await RefreshPlanAsync(
-            showValidationMessages: false);
+        await UiActionGuard.RunAsync(
+            this,
+            "Import DOCX · prévisualiser",
+            async () =>
+            {
+            if (!ReferenceEquals(
+                    e.Source,
+                    ImportTabs) ||
+                !IsLoaded ||
+                FilesTab.IsSelected != true)
+            {
+                return;
+            }
+    
+            await RefreshPlanAsync(
+                showValidationMessages: false);
+            });
     }
 
     /// <summary>
@@ -403,35 +410,41 @@ public partial class DocxImportPreviewDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        global::Nodalis.Core.Importing.DocxImportCommitRequest? request = BuildCurrentRequest(
-            showValidationMessages: true);
-
-        if (request is null)
-        {
-            return;
-        }
-
-        if (_lastPlan is null ||
-            _plannedRequest is null ||
-            !RequestsEquivalent(
-                _plannedRequest,
-                request))
-        {
-            FilesTab.IsSelected = true;
-
-            if (!await RefreshPlanAsync(
-                    showValidationMessages: true))
+        await UiActionGuard.RunAsync(
+            this,
+            "Import DOCX · importer",
+            async () =>
+            {
+            global::Nodalis.Core.Importing.DocxImportCommitRequest? request = BuildCurrentRequest(
+                showValidationMessages: true);
+    
+            if (request is null)
             {
                 return;
             }
-
-            SummaryText.Text =
-                "Vérifiez le plan d'écriture puis cliquez de nouveau sur « Valider l'import ».";
-            return;
-        }
-
-        CommitRequest = request;
-        DialogResult = true;
+    
+            if (_lastPlan is null ||
+                _plannedRequest is null ||
+                !RequestsEquivalent(
+                    _plannedRequest,
+                    request))
+            {
+                FilesTab.IsSelected = true;
+    
+                if (!await RefreshPlanAsync(
+                        showValidationMessages: true))
+                {
+                    return;
+                }
+    
+                SummaryText.Text =
+                    "Vérifiez le plan d'écriture puis cliquez de nouveau sur « Valider l'import ».";
+                return;
+            }
+    
+            CommitRequest = request;
+            DialogResult = true;
+            });
     }
 
     /// <summary>
