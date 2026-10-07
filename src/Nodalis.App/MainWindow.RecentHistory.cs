@@ -346,38 +346,43 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
-        if (_preferences.RecentItems.Count == 0 &&
-            _preferences.RecentSearches.Count == 0)
-        {
+        await RunUiActionAsync(
+            "Historique récent · nettoyage",
+            async () =>
+            {
+            if (_preferences.RecentItems.Count == 0 &&
+                _preferences.RecentSearches.Count == 0)
+            {
+                StatusText.Text =
+                    "L'historique récent est déjà vide.";
+                return;
+            }
+    
+            MessageBoxResult result = MessageBox.Show(
+                "Effacer les documents, projets, réunions et recherches récents ?\n\nLes favoris et les onglets actuellement ouverts seront conservés.",
+                "Effacer l'historique",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+    
+            if (result != MessageBoxResult.Yes)
+            {
+                return;
+            }
+    
+            _preferences = _preferences with
+            {
+                RecentItems = [],
+                RecentSearches = []
+            };
+    
+            await _preferencesStore.SaveAsync(
+                _preferences);
+    
+            RefreshDashboard();
+    
             StatusText.Text =
-                "L'historique récent est déjà vide.";
-            return;
-        }
-
-        MessageBoxResult result = MessageBox.Show(
-            "Effacer les documents, projets, réunions et recherches récents ?\n\nLes favoris et les onglets actuellement ouverts seront conservés.",
-            "Effacer l'historique",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-
-        if (result != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        _preferences = _preferences with
-        {
-            RecentItems = [],
-            RecentSearches = []
-        };
-
-        await _preferencesStore.SaveAsync(
-            _preferences);
-
-        RefreshDashboard();
-
-        StatusText.Text =
-            "Historique récent effacé.";
+                "Historique récent effacé.";
+            });
     }
 
     /// <summary>
@@ -389,29 +394,34 @@ public partial class MainWindow
             object sender,
             MouseButtonEventArgs e)
     {
-        if (sender is not ListBox list ||
-            list.SelectedItem is not RecentSearchViewModel search)
-        {
-            return;
-        }
-
-        string? contextPath =
-            string.IsNullOrWhiteSpace(
-                search.ContextRelativePath)
-                ? null
-                : ResolveWorkspaceRelativePath(
-                    search.ContextRelativePath);
-
-        if (contextPath is not null &&
-            !File.Exists(contextPath) &&
-            !Directory.Exists(contextPath))
-        {
-            contextPath = null;
-        }
-
-        await SearchAsync(
-            search.Query,
-            contextPath);
+        await RunUiActionAsync(
+            "Recherche récente · navigation",
+            async () =>
+            {
+            if (sender is not ListBox list ||
+                list.SelectedItem is not RecentSearchViewModel search)
+            {
+                return;
+            }
+    
+            string? contextPath =
+                string.IsNullOrWhiteSpace(
+                    search.ContextRelativePath)
+                    ? null
+                    : ResolveWorkspaceRelativePath(
+                        search.ContextRelativePath);
+    
+            if (contextPath is not null &&
+                !File.Exists(contextPath) &&
+                !Directory.Exists(contextPath))
+            {
+                contextPath = null;
+            }
+    
+            await SearchAsync(
+                search.Query,
+                contextPath);
+            });
     }
 
     /// <summary>
