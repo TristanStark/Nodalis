@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.Core.Quality;
 using Nodalis.Infrastructure.Quality;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -56,10 +57,16 @@ public partial class ProjectHealthDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        Loaded -=
-            ProjectHealthDialog_Loaded;
-
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Santé projet · chargement",
+            async () =>
+            {
+            Loaded -=
+                ProjectHealthDialog_Loaded;
+    
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -71,7 +78,13 @@ public partial class ProjectHealthDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Santé projet · actualiser",
+            async () =>
+            {
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
