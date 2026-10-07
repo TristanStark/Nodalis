@@ -6,6 +6,8 @@ using Nodalis.Core.Notes;
 using Nodalis.Core.Settings;
 using Nodalis.Infrastructure.Persistence;
 
+using Nodalis.Infrastructure.Reliability;
+
 namespace Nodalis.App;
 
 public partial class MainWindow

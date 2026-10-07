@@ -5,6 +5,8 @@ using Nodalis.Core.AI;
 using Nodalis.Core.Navigation;
 using Nodalis.Infrastructure.AI;
 
+using Nodalis.Infrastructure.Reliability;
+
 namespace Nodalis.App;
 
 public partial class MainWindow

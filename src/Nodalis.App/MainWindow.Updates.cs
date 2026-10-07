@@ -8,6 +8,8 @@ using Nodalis.Core.Domain;
 using Nodalis.Core.Updates;
 using Nodalis.Infrastructure.Updates;
 
+using Nodalis.Infrastructure.Reliability;
+
 namespace Nodalis.App;
 
 public partial class MainWindow
