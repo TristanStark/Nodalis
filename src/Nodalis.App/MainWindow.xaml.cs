@@ -2209,24 +2209,29 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (_selectedNode is not NavigationNodeViewModel node ||
-            node.Kind != WorkspaceNodeKind.Project)
-        {
-            return;
-        }
+        await RunUiActionAsync(
+            "Dashboard projet · favori",
+            async () =>
+            {
+                if (_selectedNode is not NavigationNodeViewModel node ||
+                    node.Kind != WorkspaceNodeKind.Project)
+                {
+                    return;
+                }
 
-        await ToggleFavoriteAsync(
-            node);
+                await ToggleFavoriteAsync(
+                    node);
 
-        string projectRelativePath =
-            NormalizeDashboardRelativePath(
-                Path.GetRelativePath(
-                    _root.FullPath,
-                    node.FullPath));
+                string projectRelativePath =
+                    NormalizeDashboardRelativePath(
+                        Path.GetRelativePath(
+                            _root.FullPath,
+                            node.FullPath));
 
-        RefreshProjectDashboardFavorites(
-            node,
-            projectRelativePath);
+                RefreshProjectDashboardFavorites(
+                    node,
+                    projectRelativePath);
+            });
     }
 
     /// <summary>
