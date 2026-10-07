@@ -58,8 +58,7 @@ public partial class SearchDialog : Window
 
         Closed += (_, _) =>
         {
-            _searchCancellation?.Cancel();
-            _searchCancellation?.Dispose();
+            CancelActiveSearch();
         };
     }
 
@@ -81,8 +80,19 @@ public partial class SearchDialog : Window
     /// <param name="e">The text event.</param>
     private async void SearchTextBox_TextChanged(
             object sender,
-            TextChangedEventArgs e) =>
-        await SearchAsync();
+            TextChangedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        await UiActionGuard.RunAsync(
+            this,
+            "Recherche · saisir",
+            SearchAsync,
+            _workspaceRoot);
+    }
 
     /// <summary>
     /// Reruns the current query when exact mode changes.
@@ -113,8 +123,7 @@ public partial class SearchDialog : Window
     /// <returns>A task representing the search refresh.</returns>
     private async Task SearchAsync()
     {
-        _searchCancellation?.Cancel();
-        _searchCancellation?.Dispose();
+        CancelActiveSearch();
 
         string query =
             SearchTextBox.Text.Trim();
@@ -201,6 +210,44 @@ public partial class SearchDialog : Window
         {
             StatusText.Text =
                 exception.Message;
+        }
+        finally
+        {
+            if (ReferenceEquals(
+                    _searchCancellation,
+                    cancellation))
+            {
+                _searchCancellation =
+                    null;
+            }
+
+            cancellation.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Cancels the active search without disposing a token source that may still be in use.
+    /// The owning search disposes its token source when its asynchronous work has completed.
+    /// </summary>
+    private void CancelActiveSearch()
+    {
+        CancellationTokenSource? cancellation =
+            _searchCancellation;
+        _searchCancellation =
+            null;
+
+        if (cancellation is null)
+        {
+            return;
+        }
+
+        try
+        {
+            cancellation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Cancellation is idempotent from the UI perspective.
         }
     }
 
