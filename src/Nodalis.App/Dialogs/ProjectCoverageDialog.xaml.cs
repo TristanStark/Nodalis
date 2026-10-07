@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.Core.Quality;
 using Nodalis.Infrastructure.Quality;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -56,10 +57,16 @@ public partial class ProjectCoverageDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        Loaded -=
-            ProjectCoverageDialog_Loaded;
-
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Couverture projet · chargement",
+            async () =>
+            {
+            Loaded -=
+                ProjectCoverageDialog_Loaded;
+    
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -71,7 +78,13 @@ public partial class ProjectCoverageDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Couverture projet · actualiser",
+            async () =>
+            {
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
