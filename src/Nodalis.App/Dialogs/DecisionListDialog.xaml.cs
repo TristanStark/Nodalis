@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.Core.Decisions;
 using Nodalis.Infrastructure.Decisions;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -53,7 +54,13 @@ public partial class DecisionListDialog : Window
             object sender,
             TextChangedEventArgs e)
     {
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Décisions · rechercher",
+            async () =>
+            {
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -65,12 +72,18 @@ public partial class DecisionListDialog : Window
             object sender,
             SelectionChangedEventArgs e)
     {
-        if (!IsLoaded)
-        {
-            return;
-        }
-
-        await RefreshAsync();
+        await UiActionGuard.RunAsync(
+            this,
+            "Décisions · filtrer",
+            async () =>
+            {
+            if (!IsLoaded)
+            {
+                return;
+            }
+    
+            await RefreshAsync();
+            });
     }
 
     /// <summary>
@@ -102,15 +115,21 @@ public partial class DecisionListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (DecisionsList.SelectedItem is not DecisionRecord decision)
-        {
-            ShowSelectionRequired();
-            return;
-        }
-
-        await SetLifecycleStatusAsync(
-            decision,
-            WorkspaceDecisionService.ActiveStatus);
+        await UiActionGuard.RunAsync(
+            this,
+            "Décisions · activer",
+            async () =>
+            {
+            if (DecisionsList.SelectedItem is not DecisionRecord decision)
+            {
+                ShowSelectionRequired();
+                return;
+            }
+    
+            await SetLifecycleStatusAsync(
+                decision,
+                WorkspaceDecisionService.ActiveStatus);
+            });
     }
 
     /// <summary>
@@ -122,15 +141,21 @@ public partial class DecisionListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (DecisionsList.SelectedItem is not DecisionRecord decision)
-        {
-            ShowSelectionRequired();
-            return;
-        }
-
-        await SetLifecycleStatusAsync(
-            decision,
-            WorkspaceDecisionService.DeprecatedStatus);
+        await UiActionGuard.RunAsync(
+            this,
+            "Décisions · déprécier",
+            async () =>
+            {
+            if (DecisionsList.SelectedItem is not DecisionRecord decision)
+            {
+                ShowSelectionRequired();
+                return;
+            }
+    
+            await SetLifecycleStatusAsync(
+                decision,
+                WorkspaceDecisionService.DeprecatedStatus);
+            });
     }
 
     /// <summary>
@@ -142,82 +167,88 @@ public partial class DecisionListDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (DecisionsList.SelectedItem is not DecisionRecord previous)
-        {
-            ShowSelectionRequired();
-            return;
-        }
-
-        try
-        {
-            IReadOnlyList<DecisionRecord> all =
-                await _decisions.GetDecisionsAsync(
-                    _contextPath);
-
-            DecisionRecord[] candidates = all
-                .Where(candidate =>
-                    !string.Equals(
-                        candidate.SourceRelativePath,
-                        previous.SourceRelativePath,
-                        StringComparison.OrdinalIgnoreCase) &&
-                    candidate.LifecycleState != DecisionLifecycleState.Superseded &&
-                    string.IsNullOrWhiteSpace(
-                        candidate.SupersededByReference))
-                .OrderByDescending(candidate =>
-                    candidate.Date ?? DateOnly.MinValue)
-                .ThenBy(
-                    candidate => candidate.Title,
-                    StringComparer.CurrentCultureIgnoreCase)
-                .ToArray();
-
-            if (candidates.Length == 0)
+        await UiActionGuard.RunAsync(
+            this,
+            "Décisions · remplacer",
+            async () =>
+            {
+            if (DecisionsList.SelectedItem is not DecisionRecord previous)
+            {
+                ShowSelectionRequired();
+                return;
+            }
+    
+            try
+            {
+                IReadOnlyList<DecisionRecord> all =
+                    await _decisions.GetDecisionsAsync(
+                        _contextPath);
+    
+                DecisionRecord[] candidates = all
+                    .Where(candidate =>
+                        !string.Equals(
+                            candidate.SourceRelativePath,
+                            previous.SourceRelativePath,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        candidate.LifecycleState != DecisionLifecycleState.Superseded &&
+                        string.IsNullOrWhiteSpace(
+                            candidate.SupersededByReference))
+                    .OrderByDescending(candidate =>
+                        candidate.Date ?? DateOnly.MinValue)
+                    .ThenBy(
+                        candidate => candidate.Title,
+                        StringComparer.CurrentCultureIgnoreCase)
+                    .ToArray();
+    
+                if (candidates.Length == 0)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Aucune autre décision utilisable comme remplaçante n'existe dans ce contexte. Créez d'abord le nouveau Decision Record.",
+                        "Remplacer une décision",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+    
+                DecisionReplacementDialog dialog =
+                    new DecisionReplacementDialog(
+                        previous,
+                        candidates)
+                    {
+                        Owner =
+                            this
+                    };
+    
+                if (dialog.ShowDialog() != true ||
+                    dialog.SelectedReplacement is null)
+                {
+                    return;
+                }
+    
+                await _decisions.SupersedeAsync(
+                    previous,
+                    dialog.SelectedReplacement);
+    
+                StatusText.Text =
+                    $"« {previous.Title} » est remplacée par « {dialog.SelectedReplacement.Title} ».";
+    
+                await RefreshAsync();
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                InvalidOperationException)
             {
                 MessageBox.Show(
                     this,
-                    "Aucune autre décision utilisable comme remplaçante n'existe dans ce contexte. Créez d'abord le nouveau Decision Record.",
+                    exception.Message,
                     "Remplacer une décision",
                     MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                return;
+                    MessageBoxImage.Warning);
             }
-
-            DecisionReplacementDialog dialog =
-                new DecisionReplacementDialog(
-                    previous,
-                    candidates)
-                {
-                    Owner =
-                        this
-                };
-
-            if (dialog.ShowDialog() != true ||
-                dialog.SelectedReplacement is null)
-            {
-                return;
-            }
-
-            await _decisions.SupersedeAsync(
-                previous,
-                dialog.SelectedReplacement);
-
-            StatusText.Text =
-                $"« {previous.Title} » est remplacée par « {dialog.SelectedReplacement.Title} ».";
-
-            await RefreshAsync();
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException)
-        {
-            MessageBox.Show(
-                this,
-                exception.Message,
-                "Remplacer une décision",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
+            });
     }
 
     /// <summary>
