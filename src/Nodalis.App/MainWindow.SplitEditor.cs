@@ -124,8 +124,13 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
-        await EnableEditorSplitAsync(
-            EditorSplitMode.Vertical);
+        await RunUiActionAsync(
+            "Éditeur scindé · vertical",
+            async () =>
+            {
+            await EnableEditorSplitAsync(
+                EditorSplitMode.Vertical);
+            });
     }
 
     /// <summary>
@@ -137,8 +142,13 @@ public partial class MainWindow
             object sender,
             RoutedEventArgs e)
     {
-        await EnableEditorSplitAsync(
-            EditorSplitMode.Horizontal);
+        await RunUiActionAsync(
+            "Éditeur scindé · horizontal",
+            async () =>
+            {
+            await EnableEditorSplitAsync(
+                EditorSplitMode.Horizontal);
+            });
     }
 
     /// <summary>
@@ -684,31 +694,36 @@ public partial class MainWindow
             object sender,
             SelectionChangedEventArgs e)
     {
-        if (_suppressSecondaryDocumentSelection ||
-            SecondaryDocumentPicker.SelectedItem is not
-                DocumentTabViewModel tab)
-        {
-            return;
-        }
-
-        if (ReferenceEquals(
+        await RunUiActionAsync(
+            "Éditeur scindé · document secondaire",
+            async () =>
+            {
+            if (_suppressSecondaryDocumentSelection ||
+                SecondaryDocumentPicker.SelectedItem is not
+                    DocumentTabViewModel tab)
+            {
+                return;
+            }
+    
+            if (ReferenceEquals(
+                    tab,
+                    _activeDocumentTab))
+            {
+                _suppressSecondaryDocumentSelection = true;
+                SecondaryDocumentPicker.SelectedItem =
+                    _secondaryDocumentTab;
+                _suppressSecondaryDocumentSelection = false;
+    
+                StatusText.Text =
+                    "Choisissez un document différent de celui de la pane principale.";
+                return;
+            }
+    
+            await ActivateSecondaryDocumentTabAsync(
                 tab,
-                _activeDocumentTab))
-        {
-            _suppressSecondaryDocumentSelection = true;
-            SecondaryDocumentPicker.SelectedItem =
-                _secondaryDocumentTab;
-            _suppressSecondaryDocumentSelection = false;
-
-            StatusText.Text =
-                "Choisissez un document différent de celui de la pane principale.";
-            return;
-        }
-
-        await ActivateSecondaryDocumentTabAsync(
-            tab,
-            synchronizeNavigation: true,
-            focusEditor: true);
+                synchronizeNavigation: true,
+                focusEditor: true);
+            });
     }
 
     /// <summary>
