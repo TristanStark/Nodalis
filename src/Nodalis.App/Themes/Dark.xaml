@@ -299,62 +299,130 @@
         </Setter>
     </Style>
 
-    <Style TargetType="TabControl">
+    <!--
+        Stock TabControl/TabItem chrome uses Windows theme brushes for selected
+        tabs. Own the complete headers/content surface so Liste/Timeline and
+        every other tab remain inside the Nodalis dark palette.
+    -->
+    <Style TargetType="{x:Type TabControl}">
         <Setter Property="Background" Value="{StaticResource WindowBackgroundBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TabControl}">
+                    <Grid SnapsToDevicePixels="True"
+                          KeyboardNavigation.TabNavigation="Local">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TabPanel Grid.Row="0"
+                                  Margin="0,0,0,8"
+                                  IsItemsHost="True"
+                                  KeyboardNavigation.TabIndex="1" />
+
+                        <Border Grid.Row="1"
+                                Padding="8"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter x:Name="PART_SelectedContentHost"
+                                              ContentSource="SelectedContent"
+                                              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
-    <Style TargetType="TabItem">
+    <Style TargetType="{x:Type TabItem}">
         <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
-        <Setter Property="Padding" Value="10,5" />
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource PanelHoverBrush}" />
-            </Trigger>
-            <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
-                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-            </Trigger>
-        </Style.Triggers>
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TabItem}">
+                    <Border x:Name="HeaderBorder"
+                            Margin="0,0,5,0"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ContentPresenter ContentSource="Header"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="HeaderBorder"
+                                    Property="Background"
+                                    Value="{StaticResource PanelHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="HeaderBorder"
+                                    Property="Background"
+                                    Value="{StaticResource AccentMutedBrush}" />
+                            <Setter TargetName="HeaderBorder"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource AccentBrush}" />
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource PrimaryTextBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="HeaderBorder"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource DisabledTextBrush}" />
+                            <Setter TargetName="HeaderBorder"
+                                    Property="Opacity"
+                                    Value="0.65" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
-    <Style TargetType="DatePicker">
-        <Setter Property="MinHeight" Value="28" />
+    <Style x:Key="NodalisCalendarDayButtonStyle"
+           TargetType="{x:Type primitives:CalendarDayButton}">
         <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
-        <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
-    </Style>
-
-    <Style TargetType="Calendar">
         <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
-    </Style>
-
-    <Style TargetType="{x:Type primitives:DatePickerTextBox}"
-           BasedOn="{StaticResource {x:Type TextBox}}">
-        <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-        <Setter Property="CaretBrush" Value="{StaticResource PrimaryTextBrush}" />
-    </Style>
-
-    <Style TargetType="{x:Type primitives:CalendarDayButton}">
-        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
-        <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Margin" Value="1" />
         <Style.Triggers>
+            <Trigger Property="IsInactive" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}" />
+                <Setter Property="Opacity" Value="0.72" />
+            </Trigger>
+            <Trigger Property="IsToday" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource PanelHoverBrush}" />
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="{StaticResource AccentMutedBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
                 <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            </Trigger>
+            <Trigger Property="IsBlackedOut" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}" />
+                <Setter Property="Opacity" Value="0.45" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}" />
@@ -362,16 +430,63 @@
         </Style.Triggers>
     </Style>
 
-    <Style TargetType="{x:Type primitives:CalendarButton}">
+    <Style x:Key="NodalisCalendarButtonStyle"
+           TargetType="{x:Type primitives:CalendarButton}">
         <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
         <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Margin" Value="2" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource PanelHoverBrush}" />
             </Trigger>
+            <Trigger Property="IsFocused" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}" />
+            </Trigger>
         </Style.Triggers>
+    </Style>
+
+    <Style x:Key="NodalisCalendarItemStyle"
+           TargetType="{x:Type primitives:CalendarItem}">
+        <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style x:Key="NodalisCalendarStyle"
+           TargetType="{x:Type Calendar}">
+        <Setter Property="Background" Value="{StaticResource PanelElevatedBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="CalendarDayButtonStyle" Value="{StaticResource NodalisCalendarDayButtonStyle}" />
+        <Setter Property="CalendarButtonStyle" Value="{StaticResource NodalisCalendarButtonStyle}" />
+        <Setter Property="CalendarItemStyle" Value="{StaticResource NodalisCalendarItemStyle}" />
+    </Style>
+
+    <Style TargetType="{x:Type Calendar}"
+           BasedOn="{StaticResource NodalisCalendarStyle}" />
+
+    <Style TargetType="{x:Type DatePicker}">
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NodalisKeyboardFocusVisual}" />
+        <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="CalendarStyle" Value="{StaticResource NodalisCalendarStyle}" />
+    </Style>
+
+    <Style TargetType="{x:Type primitives:DatePickerTextBox}"
+           BasedOn="{StaticResource {x:Type TextBox}}">
+        <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}" />
     </Style>
 
     <Style TargetType="ListBox">

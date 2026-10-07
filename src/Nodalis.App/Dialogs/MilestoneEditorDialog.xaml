@@ -40,7 +40,10 @@
                 <TextBlock Text="Date cible"
                            FontWeight="SemiBold" />
                 <DatePicker x:Name="TargetDatePicker"
-                            Margin="0,6,0,0" />
+                            Margin="0,6,0,0"
+                            SelectedDateFormat="Short"
+                            IsTodayHighlighted="True"
+                            ToolTip="Sélectionnez une date, saisissez-la au clavier ou effacez-la." />
             </StackPanel>
 
             <StackPanel Grid.Column="2">

@@ -4155,11 +4155,23 @@ public partial class MainWindow : Window
             index++;
         }
 
+        int availableLineCount =
+            Math.Max(
+                1,
+                MarkdownEditorTextBox.LineCount);
+        int targetLineIndex =
+            Math.Clamp(
+                currentLine - 1,
+                0,
+                availableLineCount - 1);
+
         MarkdownEditorTextBox.CaretIndex =
-            Math.Min(index, text.Length);
+            Math.Min(
+                index,
+                text.Length);
         MarkdownEditorTextBox.Focus();
         MarkdownEditorTextBox.ScrollToLine(
-            Math.Max(0, lineNumber - 1));
+            targetLineIndex);
     }
 
     /// <summary>
@@ -5360,8 +5372,12 @@ public partial class MainWindow : Window
             string? projectDirectory =
                 await _milestoneService.GetProjectDirectoryForContextAsync(
                     contextPath);
+            string? milestoneFile =
+                await _milestoneService.GetMilestoneFileForContextAsync(
+                    contextPath);
 
-            if (projectDirectory is null)
+            if (projectDirectory is null ||
+                milestoneFile is null)
             {
                 MessageBox.Show(
                     this,

@@ -2765,6 +2765,92 @@ static async Task VerifyMilestonesAsync(string root)
 
     global::Nodalis.Infrastructure.Milestones.WorkspaceMilestoneService service = new WorkspaceMilestoneService(root);
 
+    string canonicalMilestonePath =
+        Path.Combine(
+            project.ProjectDirectory,
+            "Jalons.md");
+    string legacyMilestoneDirectory =
+        Path.Combine(
+            project.ProjectDirectory,
+            "Jalons");
+    string legacyMilestonePath =
+        Path.Combine(
+            legacyMilestoneDirectory,
+            "Jalons.md");
+
+    Directory.CreateDirectory(
+        legacyMilestoneDirectory);
+    File.Move(
+        canonicalMilestonePath,
+        legacyMilestonePath);
+
+    string? paletteMilestonePath =
+        await service.GetMilestoneFileForContextAsync(
+            project.ProjectDirectory);
+
+    Assert(
+        string.Equals(
+            paletteMilestonePath,
+            canonicalMilestonePath,
+            StringComparison.OrdinalIgnoreCase) &&
+        File.Exists(
+            canonicalMilestonePath) &&
+        !File.Exists(
+            legacyMilestonePath),
+        "Milestone palette resolution must migrate and use the canonical project-root Jalons.md.");
+
+    Guid templateMilestoneId =
+        Guid.NewGuid();
+
+    await File.WriteAllTextAsync(
+        canonicalMilestonePath,
+        "# Jalons personnalisés\n\n" +
+        "| Nom | Échéance | État | Commentaire | Référence | Identifiant | Prérequis |\n" +
+        "| --- | --- | --- | --- | --- | --- | --- |\n" +
+        $"| Validation template | 2026-10-08 | À faire | Ligne issue du template | [[Architecture]] | {templateMilestoneId:D} | |\n");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> templateMilestones =
+        await service.GetMilestonesAsync(
+            project.ProjectDirectory);
+
+    global::Nodalis.Core.Milestones.MilestoneItem templateMilestone =
+        templateMilestones.Single(item =>
+            item.Id ==
+                templateMilestoneId);
+
+    Assert(
+        templateMilestone.Name ==
+            "Validation template" &&
+        templateMilestone.TargetDate ==
+            new DateOnly(
+                2026,
+                10,
+                8) &&
+        templateMilestone.Status ==
+            "À faire" &&
+        templateMilestone.Description ==
+            "Ligne issue du template" &&
+        templateMilestone.SourceRelativePath.EndsWith(
+            "/Jalons.md",
+            StringComparison.OrdinalIgnoreCase),
+        "Compatible customized milestone template tables must be parsed directly from canonical Jalons.md.");
+
+    await service.DeleteAsync(
+        templateMilestone);
+
+    string normalizedTemplate =
+        await File.ReadAllTextAsync(
+            canonicalMilestonePath);
+
+    Assert(
+        normalizedTemplate.Contains(
+            "| Jalon | Date cible | Statut | Description | Lien | Id | Dépend de |",
+            StringComparison.Ordinal) &&
+        !normalizedTemplate.Contains(
+            "Validation template",
+            StringComparison.Ordinal),
+        "Editing a compatible customized milestone table must safely normalize its supported schema.");
+
     global::Nodalis.Core.Milestones.MilestoneItem first = await service.AddAsync(
         project.ProjectDirectory,
         new MilestoneDraft

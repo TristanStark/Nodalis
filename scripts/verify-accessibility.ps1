@@ -43,8 +43,15 @@ $requiredThemeTokens = @(
     'TargetType="{x:Type ContextMenu}"',
     'VerticalScrollBarVisibility="Auto"',
     'TargetType="{x:Type MenuItem}"',
-    'TargetType="DatePicker"',
-    'TargetType="Calendar"',
+    'TargetType="{x:Type TabControl}"',
+    'PART_SelectedContentHost',
+    'NodalisCalendarStyle',
+    'NodalisCalendarItemStyle',
+    'CalendarDayButtonStyle',
+    'CalendarButtonStyle',
+    'CalendarItemStyle',
+    'TargetType="{x:Type DatePicker}"',
+    'TargetType="{x:Type Calendar}"',
     'TargetType="ListBoxItem"',
     'TargetType="TreeViewItem"',
     'SystemColors.InactiveSelectionHighlightBrushKey',
@@ -92,6 +99,30 @@ if (-not $calendarXaml.Contains('Text="{Binding Label, Mode=OneWay}"')) {
 
 if (-not $kanbanXaml.Contains('Text="{Binding Label, Mode=OneWay}"')) {
     $failures.Add("Workspace Kanban filters must render user-facing labels instead of record ToString() values.")
+}
+
+$milestoneEditorXamlPath = Join-Path $appRoot "Dialogs/MilestoneEditorDialog.xaml"
+$milestoneListXamlPath = Join-Path $appRoot "Dialogs/MilestoneListDialog.xaml"
+$milestoneEditorXaml = Get-Content -Raw -LiteralPath $milestoneEditorXamlPath
+$milestoneListXaml = Get-Content -Raw -LiteralPath $milestoneListXamlPath
+
+if (-not $milestoneEditorXaml.Contains('x:Name="TargetDatePicker"') -or
+    -not $milestoneEditorXaml.Contains('SelectedDateFormat="Short"')) {
+    $failures.Add("Milestone editing must keep a keyboard-editable themed DatePicker.")
+}
+
+if (-not $milestoneListXaml.Contains('<TabItem Header="Liste">') -or
+    -not $milestoneListXaml.Contains('<TabItem Header="Timeline">')) {
+    $failures.Add("Milestone List/Timeline tabs are missing.")
+}
+
+if (-not $mainWindowCode.Contains('Math.Clamp(') -or
+    -not $mainWindowCode.Contains('availableLineCount - 1')) {
+    $failures.Add("Source navigation must clamp editor line indices before ScrollToLine.")
+}
+
+if (-not $mainWindowCode.Contains('GetMilestoneFileForContextAsync(')) {
+    $failures.Add("The command-palette milestone workflow must resolve the canonical milestone document.")
 }
 
 $requiredContextMenuCodeTokens = @(

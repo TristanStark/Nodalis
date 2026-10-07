@@ -93,6 +93,15 @@ Sur le même poste Windows client, vérifier également :
 - [ ] compteur du calendrier cohérent avec les éléments réellement visibles après filtres et changement de mois ;
 - [ ] bandeaux supérieurs lisibles sans crop ni chevauchement à 1024 px et avec mise à l'échelle Windows.
 
+### Smoke UX issu de la RC terrain (#92)
+
+- [ ] `Jalons.md` racine alimente directement Liste et Timeline, y compris avec un tableau de template compatible ;
+- [ ] ancien `Jalons/Jalons.md` migré sans stockage parallèle puis utilisé par Ctrl+P → « Jalons du projet » ;
+- [ ] onglets Liste/Timeline entièrement sombres au repos, hover, sélection, focus et état désactivé ;
+- [ ] DatePicker Jalons entièrement sombre : popup, jour courant, sélection, hors mois, hover et navigation mois/année ;
+- [ ] saisie clavier puis effacement de la date possibles ;
+- [ ] double-clic sur un jalon dont la ligne source a disparu ouvre le document au meilleur emplacement sans crash.
+
 ## Passage en stable
 
 Lorsque le gate automatisé est vert et la matrice Windows manuelle entièrement

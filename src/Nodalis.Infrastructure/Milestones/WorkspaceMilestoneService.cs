@@ -502,6 +502,29 @@ public sealed class WorkspaceMilestoneService
     }
 
     /// <summary>
+    /// Resolves the active milestone Markdown file for a project/document context.
+    /// The returned path always follows the singleton-document migration rules.
+    /// </summary>
+    /// <param name="contextPath">A project, section or project-document path.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The active milestone file, or <see langword="null"/> when no project can be resolved.</returns>
+    public async Task<string?> GetMilestoneFileForContextAsync(
+            string? contextPath,
+            CancellationToken cancellationToken = default)
+    {
+        string? projectDirectory =
+            await GetProjectDirectoryForContextAsync(
+                contextPath,
+                cancellationToken);
+
+        return projectDirectory is null
+            ? null
+            : await ResolveMilestoneFileAsync(
+                projectDirectory,
+                cancellationToken);
+    }
+
+    /// <summary>
     /// Performs the <c>ResolveMilestoneFileAsync</c> operation.
     /// </summary>
     /// <param name="projectDirectory">The <c>projectDirectory</c> value.</param>
@@ -802,6 +825,7 @@ public sealed class WorkspaceMilestoneService
         }
 
         int headerIndex = -1;
+        global::System.Collections.Generic.List<string>? headerCells = null;
         global::System.Collections.Generic.Dictionary<string, int>? columns = null;
 
         for (int index = 0; index < lines.Count; index++)
@@ -824,6 +848,7 @@ public sealed class WorkspaceMilestoneService
             }
 
             headerIndex = index;
+            headerCells = cells;
             columns = cells
                 .Select((cell, columnIndex) =>
                     (Key: NormalizeHeader(cell), columnIndex))
@@ -839,16 +864,53 @@ public sealed class WorkspaceMilestoneService
         }
 
         if (headerIndex < 0 ||
+            headerCells is null ||
             columns is null)
         {
             return false;
         }
 
+        string[] stableColumns =
+        [
+            "jalon",
+            "date cible",
+            "statut",
+            "description",
+            "lien",
+            "id",
+            "depend de"
+        ];
+
+        string[] unknownColumns =
+            columns.Keys
+                .Where(key =>
+                    !stableColumns.Contains(
+                        key,
+                        StringComparer.OrdinalIgnoreCase))
+                .ToArray();
+
+        if (unknownColumns.Length > 0)
+        {
+            throw new InvalidDataException(
+                "Le tableau Jalons contient des colonnes personnalisées non reconnues (" +
+                string.Join(
+                    ", ",
+                    unknownColumns) +
+                "). Nodalis refuse de les supprimer automatiquement.");
+        }
+
         bool alreadyStable =
-            columns.ContainsKey("id") &&
-            columns.ContainsKey("depend de") &&
-            columns.ContainsKey("description") &&
-            columns.ContainsKey("lien");
+            headerCells.Count ==
+                stableColumns.Length &&
+            stableColumns
+                .Select((column, index) =>
+                    string.Equals(
+                        NormalizeHeader(
+                            headerCells[index]),
+                        column,
+                        StringComparison.OrdinalIgnoreCase))
+                .All(match =>
+                    match);
 
         if (alreadyStable)
         {
@@ -1546,13 +1608,58 @@ public sealed class WorkspaceMilestoneService
     /// </summary>
     /// <param name="value">The <c>value</c> value.</param>
     /// <returns>The result of the operation.</returns>
-    private static string NormalizeHeader(string value) =>
+    private static string NormalizeHeader(
+            string value)
+    {
+        string normalized =
             value
                 .Trim()
                 .ToLowerInvariant()
                 .Replace("é", "e", StringComparison.Ordinal)
                 .Replace("è", "e", StringComparison.Ordinal)
-                .Replace("ê", "e", StringComparison.Ordinal);
+                .Replace("ê", "e", StringComparison.Ordinal)
+                .Replace("à", "a", StringComparison.Ordinal)
+                .Replace("â", "a", StringComparison.Ordinal)
+                .Replace("î", "i", StringComparison.Ordinal)
+                .Replace("ô", "o", StringComparison.Ordinal)
+                .Replace("ù", "u", StringComparison.Ordinal)
+                .Replace("û", "u", StringComparison.Ordinal);
+
+        return normalized switch
+        {
+            "nom" or
+            "name" or
+            "milestone" =>
+                "jalon",
+            "date" or
+            "echeance" or
+            "target date" or
+            "targetdate" =>
+                "date cible",
+            "etat" or
+            "state" or
+            "status" =>
+                "statut",
+            "commentaire" or
+            "comment" or
+            "details" =>
+                "description",
+            "reference" or
+            "url" =>
+                "lien",
+            "identifiant" or
+            "identifier" =>
+                "id",
+            "dependances" or
+            "dependencies" or
+            "prerequis" or
+            "prerequisite" or
+            "prerequisites" =>
+                "depend de",
+            _ =>
+                normalized
+        };
+    }
 
     /// <summary>
     /// Performs the <c>EscapeCell</c> operation.
