@@ -905,7 +905,7 @@ public sealed class WorkspaceMilestoneService
             stableColumns
                 .Select((column, index) =>
                     string.Equals(
-                        NormalizeHeader(
+                        NormalizeHeaderText(
                             headerCells[index]),
                         column,
                         StringComparison.OrdinalIgnoreCase))
@@ -1612,18 +1612,8 @@ public sealed class WorkspaceMilestoneService
             string value)
     {
         string normalized =
-            value
-                .Trim()
-                .ToLowerInvariant()
-                .Replace("é", "e", StringComparison.Ordinal)
-                .Replace("è", "e", StringComparison.Ordinal)
-                .Replace("ê", "e", StringComparison.Ordinal)
-                .Replace("à", "a", StringComparison.Ordinal)
-                .Replace("â", "a", StringComparison.Ordinal)
-                .Replace("î", "i", StringComparison.Ordinal)
-                .Replace("ô", "o", StringComparison.Ordinal)
-                .Replace("ù", "u", StringComparison.Ordinal)
-                .Replace("û", "u", StringComparison.Ordinal);
+            NormalizeHeaderText(
+                value);
 
         return normalized switch
         {
@@ -1660,6 +1650,26 @@ public sealed class WorkspaceMilestoneService
                 normalized
         };
     }
+
+    /// <summary>
+    /// Normalizes casing and French diacritics without applying semantic aliases.
+    /// </summary>
+    /// <param name="value">The header text.</param>
+    /// <returns>The normalized literal header.</returns>
+    private static string NormalizeHeaderText(
+            string value) =>
+            value
+                .Trim()
+                .ToLowerInvariant()
+                .Replace("é", "e", StringComparison.Ordinal)
+                .Replace("è", "e", StringComparison.Ordinal)
+                .Replace("ê", "e", StringComparison.Ordinal)
+                .Replace("à", "a", StringComparison.Ordinal)
+                .Replace("â", "a", StringComparison.Ordinal)
+                .Replace("î", "i", StringComparison.Ordinal)
+                .Replace("ô", "o", StringComparison.Ordinal)
+                .Replace("ù", "u", StringComparison.Ordinal)
+                .Replace("û", "u", StringComparison.Ordinal);
 
     /// <summary>
     /// Performs the <c>EscapeCell</c> operation.
