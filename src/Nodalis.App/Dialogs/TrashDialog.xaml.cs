@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Trash;
 using Nodalis.Infrastructure.Trash;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -50,54 +51,60 @@ public partial class TrashDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (EntriesList.SelectedItem is not TrashEntry entry)
-        {
-            return;
-        }
-
-        global::System.Windows.MessageBoxResult answer = MessageBox.Show(
+        await UiActionGuard.RunAsync(
             this,
-            $"Restaurer « {entry.DisplayName} » vers :\n\n{entry.OriginalRelativePath}",
-            "Restaurer",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-
-        if (answer != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            await _trash.RestoreAsync(
-                entry.EntryId);
-
-            WorkspaceChanged = true;
-            await RefreshAsync();
-            StatusText.Text = $"Restauré · {entry.DisplayName}";
-        }
-        catch (TrashRestoreCollisionException exception)
-        {
-            MessageBox.Show(
+            "Corbeille · restaurer",
+            async () =>
+            {
+            if (EntriesList.SelectedItem is not TrashEntry entry)
+            {
+                return;
+            }
+    
+            global::System.Windows.MessageBoxResult answer = MessageBox.Show(
                 this,
-                "La restauration est impossible car l'emplacement d'origine est déjà occupé.\n\n" +
-                exception.DestinationPath,
-                "Collision de restauration",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException)
-        {
-            MessageBox.Show(
-                this,
-                $"La restauration a échoué.\n\n{exception.Message}",
-                "Corbeille",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
+                $"Restaurer « {entry.DisplayName} » vers :\n\n{entry.OriginalRelativePath}",
+                "Restaurer",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+    
+            if (answer != MessageBoxResult.Yes)
+            {
+                return;
+            }
+    
+            try
+            {
+                await _trash.RestoreAsync(
+                    entry.EntryId);
+    
+                WorkspaceChanged = true;
+                await RefreshAsync();
+                StatusText.Text = $"Restauré · {entry.DisplayName}";
+            }
+            catch (TrashRestoreCollisionException exception)
+            {
+                MessageBox.Show(
+                    this,
+                    "La restauration est impossible car l'emplacement d'origine est déjà occupé.\n\n" +
+                    exception.DestinationPath,
+                    "Collision de restauration",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                MessageBox.Show(
+                    this,
+                    $"La restauration a échoué.\n\n{exception.Message}",
+                    "Corbeille",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            });
     }
 
     /// <summary>
@@ -109,42 +116,48 @@ public partial class TrashDialog : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (_entries.Count == 0)
-        {
-            return;
-        }
-
-        global::System.Windows.MessageBoxResult answer = MessageBox.Show(
+        await UiActionGuard.RunAsync(
             this,
-            $"Vider définitivement la corbeille ?\n\n{_entries.Count} élément(s) seront supprimés sans possibilité de restauration.",
-            "Vider la corbeille",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-
-        if (answer != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            await _trash.EmptyAsync();
-
-            WorkspaceChanged = true;
-            await RefreshAsync();
-            StatusText.Text = "Corbeille vidée.";
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException)
-        {
-            MessageBox.Show(
+            "Corbeille · vider",
+            async () =>
+            {
+            if (_entries.Count == 0)
+            {
+                return;
+            }
+    
+            global::System.Windows.MessageBoxResult answer = MessageBox.Show(
                 this,
-                $"La corbeille n'a pas pu être vidée.\n\n{exception.Message}",
-                "Corbeille",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
+                $"Vider définitivement la corbeille ?\n\n{_entries.Count} élément(s) seront supprimés sans possibilité de restauration.",
+                "Vider la corbeille",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+    
+            if (answer != MessageBoxResult.Yes)
+            {
+                return;
+            }
+    
+            try
+            {
+                await _trash.EmptyAsync();
+    
+                WorkspaceChanged = true;
+                await RefreshAsync();
+                StatusText.Text = "Corbeille vidée.";
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException)
+            {
+                MessageBox.Show(
+                    this,
+                    $"La corbeille n'a pas pu être vidée.\n\n{exception.Message}",
+                    "Corbeille",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            });
     }
 
     /// <summary>
