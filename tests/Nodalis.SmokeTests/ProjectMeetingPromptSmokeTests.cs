@@ -112,7 +112,7 @@ internal static class ProjectMeetingPromptSmokeTests
             await service.GenerateAsync(meetingPath);
         }
         catch (Exception exception) when (
-            exception is IOException or InvalidOperationException or ArgumentException)
+            exception is IOException or InvalidDataException or InvalidOperationException or ArgumentException)
         {
             failed = true;
         }
