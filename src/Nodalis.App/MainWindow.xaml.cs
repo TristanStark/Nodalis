@@ -7527,7 +7527,11 @@ public partial class MainWindow : Window
         };
 
         if (_selectedNode?.Kind == WorkspaceNodeKind.Document &&
-            File.Exists(_selectedNode.FullPath))
+            File.Exists(_selectedNode.FullPath) &&
+            string.Equals(
+                Path.GetFileName(Path.GetDirectoryName(_selectedNode.FullPath)),
+                WorkspaceMeetingService.MeetingsDirectoryName,
+                StringComparison.OrdinalIgnoreCase))
         {
             picker.FileName = Path.GetFileName(_selectedNode.FullPath);
         }
