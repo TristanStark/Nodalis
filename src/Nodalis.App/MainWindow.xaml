@@ -127,6 +127,8 @@
                     <MenuItem Header="IA locale">
                         <MenuItem Header="Résumé réunion IA"
                                   Click="SummarizeMeetingAi_Click" />
+                        <MenuItem Header="Préparer le prompt de mise à jour du projet"
+                                  Click="GenerateProjectUpdatePrompt_Click" />
                         <MenuItem Header="Challenger IA"
                                   Click="ChallengeWithAi_Click" />
                         <MenuItem Header="Générer tests IA"
