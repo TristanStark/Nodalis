@@ -1,3 +1,6 @@
+using System.Text.Json;
+using Nodalis.Core.Domain;
+using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.Meetings;
 
 internal static class ProjectMeetingPromptSmokeTests
@@ -9,11 +12,64 @@ internal static class ProjectMeetingPromptSmokeTests
     /// <returns>A task representing the smoke tests.</returns>
     public static async Task RunAsync(string workspaceRoot)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+
+        string isolatedWorkspace = Path.Combine(
+            Path.GetTempPath(),
+            "Nodalis-ProjectPromptSmoke-" + Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            await RunIsolatedAsync(isolatedWorkspace);
+        }
+        finally
+        {
+            if (Directory.Exists(isolatedWorkspace))
+            {
+                Directory.Delete(isolatedWorkspace, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Runs prompt generation tests in a disposable workspace without contaminating other smoke suites.
+    /// </summary>
+    /// <param name="workspaceRoot">Isolated temporary workspace root.</param>
+    /// <returns>A task representing the isolated checks.</returns>
+    private static async Task RunIsolatedAsync(string workspaceRoot)
+    {
+        string applicationDirectory = Path.Combine(workspaceRoot, "Applications", "Prompt Demo");
         string projectDirectory = Path.Combine(
-            workspaceRoot, "Applications", "Prompt Demo", "Projets", "Projet Prompt");
+            applicationDirectory, "Projets", "Projet Prompt");
         string meetingsDirectory = Path.Combine(projectDirectory, "Réunions");
         Directory.CreateDirectory(meetingsDirectory);
-        await File.WriteAllTextAsync(Path.Combine(projectDirectory, ".project.json"), "{}");
+
+        Guid applicationId = Guid.NewGuid();
+        JsonSerializerOptions options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = true
+        };
+        await File.WriteAllTextAsync(
+            Path.Combine(applicationDirectory, ".application.json"),
+            JsonSerializer.Serialize(
+                new ApplicationManifest
+                {
+                    Id = applicationId,
+                    Name = "Prompt Demo"
+                },
+                options));
+        await File.WriteAllTextAsync(
+            Path.Combine(projectDirectory, ".project.json"),
+            JsonSerializer.Serialize(
+                new ProjectManifest
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Projet Prompt",
+                    ApplicationId = applicationId,
+                    InitialComplexity = ProjectComplexity.Medium
+                },
+                options));
 
         string presentationPath = Path.Combine(projectDirectory, "Présentation.md");
         string presentation = "# Projet\n\n## Présentation\n\n" +
