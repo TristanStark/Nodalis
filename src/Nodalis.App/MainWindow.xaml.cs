@@ -4599,6 +4599,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "meeting.project-update-prompt",
+                Title = "Préparer un prompt de mise à jour du projet",
+                Subtitle = "Sélectionner une réunion, puis copier sa synthèse IA avec la présentation du projet",
+                Keywords = ["réunion", "résumé IA", "prompt", "présentation", "projet", "copier"],
+                ExecuteAsync = GenerateProjectUpdatePromptAsync
+            },
+            new()
+            {
                 Id = "decision.new",
                 Title = "Nouvelle décision",
                 Subtitle = "Créer un Decision Record, éventuellement depuis le document courant",
@@ -7481,6 +7489,152 @@ public partial class MainWindow : Window
 
         return Task.FromResult(
             approved);
+    }
+
+    /// <summary>
+    /// Creates a temporary, copy-ready prompt from the selected meeting's AI summary and the owning project's presentation.
+    /// </summary>
+    /// <returns>A task representing the prompt export workflow.</returns>
+    private async Task GenerateProjectUpdatePromptAsync()
+    {
+        string initialDirectory = _root.FullPath;
+
+        if (_selectedNode is not null)
+        {
+            string selectedPath = _selectedNode.FullPath;
+            string? selectedDirectory = Directory.Exists(selectedPath)
+                ? selectedPath
+                : Path.GetDirectoryName(selectedPath);
+
+            if (selectedDirectory is not null && Directory.Exists(selectedDirectory))
+            {
+                string meetingsDirectory = Path.Combine(
+                    selectedDirectory,
+                    WorkspaceMeetingService.MeetingsDirectoryName);
+                initialDirectory = Directory.Exists(meetingsDirectory)
+                    ? meetingsDirectory
+                    : selectedDirectory;
+            }
+        }
+
+        global::Microsoft.Win32.OpenFileDialog picker = new OpenFileDialog
+        {
+            Title = "Choisir le compte-rendu à analyser",
+            Filter = "Compte-rendu Markdown (*.md)|*.md",
+            InitialDirectory = initialDirectory,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (_selectedNode?.Kind == WorkspaceNodeKind.Document &&
+            File.Exists(_selectedNode.FullPath))
+        {
+            picker.FileName = Path.GetFileName(_selectedNode.FullPath);
+        }
+
+        if (picker.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_autosave is not null && _documentSession is not null)
+            {
+                await _autosave.FlushAsync();
+
+                if (_documentDirty)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Le document en cours contient des modifications non enregistrées. Enregistrez-les avant de générer le prompt.",
+                        "Prompt de mise à jour du projet",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            ProjectMeetingPromptService promptService = new ProjectMeetingPromptService(
+                _root.FullPath);
+            (string FilePath, string Content) result = await promptService.GenerateAsync(
+                picker.FileName);
+
+            bool copied = false;
+            try
+            {
+                Clipboard.SetText(result.Content);
+                copied = true;
+            }
+            catch (System.Runtime.InteropServices.ExternalException)
+            {
+                // The temporary file remains available even when the clipboard is locked.
+            }
+
+            bool opened = false;
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "notepad.exe",
+                    ArgumentList = { result.FilePath },
+                    UseShellExecute = true
+                });
+                opened = true;
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                System.ComponentModel.Win32Exception or
+                InvalidOperationException)
+            {
+                // The exported file can still be opened manually from the displayed path.
+            }
+
+            StatusText.Text = copied
+                ? "Prompt projet copié · fichier temporaire : " + result.FilePath
+                : "Prompt projet généré · fichier temporaire : " + result.FilePath;
+
+            MessageBox.Show(
+                this,
+                (copied
+                    ? "Le prompt a été copié dans le presse-papiers."
+                    : "Le presse-papiers est indisponible : copiez le prompt depuis le fichier.") +
+                (opened ? "\nLe fichier est ouvert dans le Bloc-notes." : string.Empty) +
+                "\n\nFichier temporaire :\n" + result.FilePath +
+                "\n\nAucune note du projet n'a été modifiée.",
+                "Prompt de mise à jour du projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            ArgumentException)
+        {
+            StatusText.Text = "Échec de génération du prompt projet";
+            MessageBox.Show(
+                this,
+                "Impossible de préparer le prompt.\n\n" + exception.Message,
+                "Prompt de mise à jour du projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// Handles the project-update prompt action in the application menu.
+    /// </summary>
+    /// <param name="sender">Event sender.</param>
+    /// <param name="e">Event arguments.</param>
+    private async void GenerateProjectUpdatePrompt_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "IA locale · prompt de mise à jour du projet",
+            GenerateProjectUpdatePromptAsync);
     }
 
     /// <summary>
