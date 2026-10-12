@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Nodalis.Core.Domain;
+using Nodalis.Infrastructure.Persistence;
 
 namespace Nodalis.Infrastructure.Meetings;
 
