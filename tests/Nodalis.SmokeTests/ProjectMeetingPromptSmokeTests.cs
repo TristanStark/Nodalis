@@ -40,7 +40,7 @@ internal static class ProjectMeetingPromptSmokeTests
                 "Temporary prompts must be written outside the project workspace.");
             Ensure(string.Equals(await File.ReadAllTextAsync(result.FilePath), result.Content, StringComparison.Ordinal),
                 "The temporary prompt must match the content offered for clipboard copy.");
-            Ensure(result.Content.StartsWith("---\nExamine le contexte du projet", StringComparison.Ordinal),
+            Ensure(result.Content.StartsWith("---" + Environment.NewLine + "Examine le contexte du projet", StringComparison.Ordinal),
                 "The generated prompt must use the requested instruction.");
             Ensure(result.Content.Contains("Description métier du projet.", StringComparison.Ordinal) &&
                    result.Content.Contains("### Architecture actuelle", StringComparison.Ordinal),
