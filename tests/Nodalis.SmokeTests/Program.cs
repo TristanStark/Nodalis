@@ -73,6 +73,7 @@ try
     await VerifyTasksAsync(root);
     await VerifyMilestonesAsync(root);
     await VerifyMeetingsAsync(root);
+    await ProjectMeetingPromptSmokeTests.RunAsync(root);
     await VerifyDecisionsAsync(root);
     await VerifyDocxImportAsync(root);
     await VerifyDocxImportAnalysisAsync(root);
