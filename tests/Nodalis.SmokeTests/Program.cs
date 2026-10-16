@@ -426,6 +426,39 @@ static async Task VerifyTemplatesAsync(string root)
     Assert(await File.ReadAllTextAsync(templatePath) == customized,
         "Default initialization must never overwrite a customized template.");
 
+    // Simulate upgrading a workspace created before the Ultra-simple profile existed.
+    string profilesPath = Path.Combine(
+        root,
+        WorkspaceLayout.TemplatesDirectoryName,
+        FileSystemTemplateStore.ProjectProfilesFileName);
+    global::Nodalis.Core.Templates.ProjectProfileCatalog legacyProfiles = profiles with
+    {
+        Profiles = profiles.Profiles
+            .Where(profile => profile.Complexity != ProjectComplexity.UltraSimple)
+            .Select(profile => profile.Complexity == ProjectComplexity.Simple
+                ? profile with { DisplayName = "Simple hérité personnalisé" }
+                : profile)
+            .ToList()
+    };
+
+    await File.WriteAllTextAsync(
+        profilesPath,
+        JsonSerializer.Serialize(
+            legacyProfiles,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+
+    await store.InitializeDefaultsAsync();
+    global::Nodalis.Core.Templates.ProjectProfileCatalog migratedProfiles =
+        await store.LoadProjectProfilesAsync();
+    Assert(
+        migratedProfiles.Profiles.Count == 4 &&
+        migratedProfiles.Profiles.Single(profile =>
+            profile.Complexity == ProjectComplexity.Simple).DisplayName ==
+        "Simple hérité personnalisé" &&
+        migratedProfiles.Profiles.Single(profile =>
+            profile.Complexity == ProjectComplexity.UltraSimple).Sections.Count == 0,
+        "Upgrading an existing workspace must add Ultra-simple without overwriting customized profiles.");
+
     string duplicatePath = Path.Combine(root, "duplicate.md");
     await File.WriteAllTextAsync(duplicatePath, "existing");
 
