@@ -981,8 +981,8 @@ public partial class TemplateProfileEditorDialog : Window
                 "Le nom affiché du profil est requis.");
         }
 
-        if (_profileSections.Count ==
-            0)
+        if (_profileSections.Count == 0 &&
+            complexity != ProjectComplexity.UltraSimple)
         {
             throw new InvalidDataException(
                 "Un profil doit contenir au moins une section.");
