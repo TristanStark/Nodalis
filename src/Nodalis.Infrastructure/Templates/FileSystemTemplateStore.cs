@@ -49,6 +49,9 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         await EnsureMissingBuiltInTemplatesAsync(
             cancellationToken);
 
+        await EnsureMissingBuiltInProjectProfilesAsync(
+            cancellationToken);
+
         foreach (global::System.Collections.Generic.KeyValuePair<string, string> template in CreateDefaultTemplateFiles())
         {
             string path = ResolveTemplatePath(template.Key);
@@ -801,6 +804,41 @@ public sealed class FileSystemTemplateStore : ITemplateStore
     }
 
     /// <summary>
+    /// Adds newly introduced built-in project profiles to an existing workspace
+    /// without replacing any profile customized by the user.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private async Task EnsureMissingBuiltInProjectProfilesAsync(
+            CancellationToken cancellationToken)
+    {
+        ProjectProfileCatalog current = await LoadProjectProfilesAsync(
+            cancellationToken);
+        ProjectProfileCatalog defaults = CreateDefaultProjectProfiles();
+
+        List<ProjectProfileDefinition> profiles = current.Profiles.ToList();
+        bool changed = false;
+
+        foreach (ProjectProfileDefinition builtIn in defaults.Profiles)
+        {
+            if (profiles.Any(profile =>
+                    profile.Complexity == builtIn.Complexity))
+            {
+                continue;
+            }
+
+            profiles.Add(builtIn);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await SaveProjectProfilesAsync(
+                current with { Profiles = profiles },
+                cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// Adds newly shipped built-in templates to an existing workspace catalog without overwriting user edits.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -901,6 +939,14 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                     FileName = "daily-note.md",
                     Category = "Général",
                     DefaultFileName = "{{date}}.md"
+                },
+                new MarkdownTemplateDefinition
+                {
+                    Key = "maintenance",
+                    DisplayName = "Fiche de maintenance",
+                    FileName = "maintenance.md",
+                    Category = "Projet",
+                    DefaultFileName = "Fiche de Maintenance.md"
                 },
                 new MarkdownTemplateDefinition
                 {
@@ -1103,6 +1149,12 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                         Section("Risques", 110, "risks"),
                         Section("Dépendances", 120, "dependencies")
                     ]
+                },
+                new ProjectProfileDefinition
+                {
+                    Complexity = ProjectComplexity.UltraSimple,
+                    DisplayName = "Ultra-simple",
+                    Sections = []
                 }
             ]
         };
@@ -1120,6 +1172,10 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                 ["note.md"] =
                     "# {{title}}\n\n" +
                     "_Créé le {{date}}_\n\n",
+                ["maintenance.md"] =
+                    "# Fiche de maintenance — {{title}}\n\n" +
+                    "## Description / intervention\n\n" +
+                    "## Résultat\n\n",
                 ["daily-note.md"] =
                     "# Journal — {{date}}\n\n" +
                     "## Notes\n\n" +
