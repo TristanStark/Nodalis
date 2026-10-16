@@ -124,7 +124,8 @@ public sealed class WorkspaceProjectStructureService
                 .Select(section =>
                     CreateSectionState(
                         directory,
-                        section))
+                        section,
+                        manifest.InitialComplexity))
                 .ToArray();
 
         return new ProjectStructureState
@@ -378,7 +379,8 @@ public sealed class WorkspaceProjectStructureService
 
         return CreateSectionState(
             directory,
-            section);
+            section,
+            manifest.InitialComplexity);
     }
 
     /// <summary>
@@ -558,7 +560,8 @@ public sealed class WorkspaceProjectStructureService
 
         return CreateSectionState(
             directory,
-            renamed);
+            renamed,
+            manifest.InitialComplexity);
     }
 
     /// <summary>
@@ -810,7 +813,8 @@ public sealed class WorkspaceProjectStructureService
             ProjectRequiredSectionPolicy.GetRequiredRole(
                 section.TemplateKey);
 
-        if (requiredRole is not null)
+        if (requiredRole is not null &&
+            manifest.InitialComplexity != ProjectComplexity.UltraSimple)
         {
             bool hasAnotherRole =
                 manifest.Sections.Any(candidate =>
@@ -1041,10 +1045,12 @@ public sealed class WorkspaceProjectStructureService
     /// </summary>
     /// <param name="projectDirectory">The project directory.</param>
     /// <param name="section">The section manifest.</param>
+    /// <param name="complexity">The project's initial complexity.</param>
     /// <returns>The current section state.</returns>
     private static ProjectSectionState CreateSectionState(
             string projectDirectory,
-            SectionManifest section)
+            SectionManifest section,
+            ProjectComplexity complexity)
     {
         string? rootDocumentFileName =
             ProjectSingletonDocumentLayout.GetRootDocumentFileName(
@@ -1113,6 +1119,7 @@ public sealed class WorkspaceProjectStructureService
             TemplateKey =
                 section.TemplateKey,
             IsRequired =
+                complexity != ProjectComplexity.UltraSimple &&
                 ProjectRequiredSectionPolicy.IsRequiredTemplateKey(
                     section.TemplateKey),
             DirectoryPath =
