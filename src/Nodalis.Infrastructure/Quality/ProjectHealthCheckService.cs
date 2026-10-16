@@ -361,6 +361,12 @@ public sealed class ProjectHealthCheckService
             string projectDirectory,
             ICollection<ProjectHealthIssue> issues)
     {
+        // The ultra-simple profile explicitly has no mandatory project-management sections.
+        if (project.InitialComplexity == ProjectComplexity.UltraSimple)
+        {
+            return;
+        }
+
         foreach (string requiredRole in ProjectRequiredSectionPolicy.RequiredRoles)
         {
             bool present =
