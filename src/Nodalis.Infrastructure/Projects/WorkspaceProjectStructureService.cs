@@ -1180,6 +1180,13 @@ public sealed class WorkspaceProjectStructureService
     private static void ValidateRequiredRoles(
             ProjectManifest manifest)
     {
+        // Ultra-simple projects intentionally start without the four standard roles.
+        // Users may add sections manually at any point.
+        if (manifest.InitialComplexity == ProjectComplexity.UltraSimple)
+        {
+            return;
+        }
+
         string[] presentRoles =
             manifest.Sections
                 .Select(section =>
