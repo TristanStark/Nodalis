@@ -229,10 +229,11 @@ static async Task VerifyTemplatesAsync(string root)
         "The configurable daily-note template must exist.");
 
     global::Nodalis.Core.Templates.ProjectProfileCatalog profiles = await store.LoadProjectProfilesAsync();
-    Assert(profiles.Profiles.Count == 3,
-        "Simple, Medium and Complex project profiles must exist.");
+    Assert(profiles.Profiles.Count == 4,
+        "Ultra-simple, Simple, Medium and Complex project profiles must exist.");
 
-    foreach (global::Nodalis.Core.Templates.ProjectProfileDefinition profile in profiles.Profiles)
+    foreach (global::Nodalis.Core.Templates.ProjectProfileDefinition profile in profiles.Profiles
+                 .Where(profile => profile.Complexity != ProjectComplexity.UltraSimple))
     {
         global::System.Collections.Generic.HashSet<string> sectionNames = profile.Sections
             .Select(section => section.Name)
@@ -245,6 +246,11 @@ static async Task VerifyTemplatesAsync(string root)
             sectionNames.Contains("Tests"),
             "Every initial project profile must contain the four mandatory sections.");
     }
+
+    global::Nodalis.Core.Templates.ProjectProfileDefinition ultraSimpleProfile = profiles.Profiles.Single(profile =>
+        profile.Complexity == ProjectComplexity.UltraSimple);
+    Assert(ultraSimpleProfile.Sections.Count == 0,
+        "Ultra-simple projects must have no automatically generated management sections.");
 
     global::Nodalis.Core.Templates.ProjectProfileDefinition simpleProfile = profiles.Profiles.Single(profile =>
         profile.Complexity == ProjectComplexity.Simple);
@@ -498,6 +504,56 @@ static async Task VerifyProjectCreationAsync(string root)
         overview.Contains("https://outil-interne/projet/123", StringComparison.Ordinal) &&
         overview.Contains("RTC: WI-456", StringComparison.Ordinal),
         "Business links must be copied into the project overview.");
+
+    global::Nodalis.Core.Projects.ProjectCreationResult maintenanceProject = await creator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "INC-1234",
+            Complexity = ProjectComplexity.UltraSimple,
+            Target = applicationTarget
+        });
+
+    Assert(
+        maintenanceProject.Project.InitialComplexity == ProjectComplexity.UltraSimple &&
+        maintenanceProject.Project.Sections.Count == 0,
+        "Ultra-simple project manifests must not require Jalons, Technique, Glossaire or Tests.");
+
+    string maintenanceSheetPath = Path.Combine(
+        maintenanceProject.ProjectDirectory,
+        "Fiche de Maintenance.md");
+    string quickNotesPath = Path.Combine(
+        maintenanceProject.ProjectDirectory,
+        WorkspaceLayout.GlobalQuickNotesFileName);
+    string[] maintenanceFiles = Directory.GetFiles(
+        maintenanceProject.ProjectDirectory,
+        "*",
+        SearchOption.TopDirectoryOnly);
+
+    Assert(
+        File.Exists(maintenanceSheetPath) &&
+        File.Exists(quickNotesPath) &&
+        !File.Exists(Path.Combine(maintenanceProject.ProjectDirectory, "Présentation.md")) &&
+        maintenanceFiles.Length == 3 &&
+        Directory.GetDirectories(maintenanceProject.ProjectDirectory).Length == 0 &&
+        string.Equals(maintenanceProject.OverviewFilePath, maintenanceSheetPath, StringComparison.OrdinalIgnoreCase),
+        "An ultra-simple project must create only its manifest, quick notes and maintenance sheet.");
+
+    Assert(
+        (await File.ReadAllTextAsync(maintenanceSheetPath)).Contains("INC-1234", StringComparison.Ordinal),
+        "Maintenance sheet must identify its project reference.");
+
+    global::Nodalis.Infrastructure.Projects.WorkspaceProjectStructureService minimalStructure =
+        new WorkspaceProjectStructureService(root);
+    global::Nodalis.Core.Projects.ProjectSectionState optionalSection =
+        await minimalStructure.AddSectionAsync(
+            maintenanceProject.ProjectDirectory,
+            "Compléments");
+    Assert(
+        Directory.Exists(optionalSection.DirectoryPath),
+        "Ultra-simple projects must allow manual addition of sections without compulsory ones.");
+    await minimalStructure.RemoveSectionAsync(
+        maintenanceProject.ProjectDirectory,
+        optionalSection.Id);
 
     Assert(
         File.Exists(
