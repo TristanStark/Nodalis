@@ -4578,14 +4578,14 @@ public partial class MainWindow : Window
                 Id = "project.new",
                 Title = "Nouveau projet",
                 Subtitle = "Créer un projet ou sous-projet depuis un profil",
-                Keywords = ["projet", "simple", "moyen", "complexe"],
+                Keywords = ["projet", "ultra-simple", "maintenance", "simple", "moyen", "complexe"],
                 ExecuteAsync = CreateProjectAsync
             },
             new()
             {
                 Id = "templates.manage",
                 Title = "Templates et profils de projet",
-                Subtitle = "Modifier les templates Markdown et profils Simple / Moyen / Complexe",
+                Subtitle = "Modifier les templates Markdown et profils Ultra-simple / Simple / Moyen / Complexe",
                 Keywords = ["template", "profil", "projet", "markdown", "structure"],
                 ExecuteAsync = ShowTemplateEditorAsync
             },
