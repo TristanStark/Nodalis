@@ -64,13 +64,13 @@ public partial class NewProjectDialog : Window
 
     public IReadOnlyList<string> BusinessLinks =>
         SelectedComplexity == ProjectComplexity.UltraSimple
-            ? []
+            ? Array.Empty<string>()
             : BusinessLinksTextBox.Text
-            .Split(
-                ["\r\n", "\n", "\r"],
-                StringSplitOptions.TrimEntries |
-                StringSplitOptions.RemoveEmptyEntries)
-            .ToArray();
+                .Split(
+                    ["\r\n", "\n", "\r"],
+                    StringSplitOptions.TrimEntries |
+                    StringSplitOptions.RemoveEmptyEntries)
+                .ToArray();
 
     /// <summary>
     /// Hides irrelevant project metadata when creating a one-sheet
