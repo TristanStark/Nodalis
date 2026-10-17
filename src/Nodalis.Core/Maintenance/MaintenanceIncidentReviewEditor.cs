@@ -185,26 +185,40 @@ public static class MaintenanceIncidentReviewEditor
         }
 
         List<string> output = new List<string>(lines);
-        foreach ((string key, HashSet<string> values) in new[]
-                 {
-                     (linksKey, linked), (ignoredKey, ignored)
-                 })
+        (string Key, HashSet<string> Values)[] decisions =
+        [
+            (linksKey, linked), (ignoredKey, ignored)
+        ];
+
+        // Replace pre-existing fields at their original indices FIRST.
+        // Inserting a new field earlier would shift those indices and erase
+        // the wrong line when changing a prior "ignore" into a "link".
+        foreach ((string key, HashSet<string> values) in decisions)
         {
-            string label = "- **" + key + " :** ";
-            if (fields.TryGetValue(key, out (int Index, HashSet<string> Values) info))
+            if (!fields.TryGetValue(key, out (int Index, HashSet<string> Values) info))
             {
-                string cr = output[info.Index].EndsWith('\r') ? "\r" : string.Empty;
-                output[info.Index] = values.Count == 0
-                    ? string.Empty
-                    : label + string.Join(", ", values.OrderBy(value => value,
+                continue;
+            }
+
+            string cr = output[info.Index].EndsWith('\r') ? "\r" : string.Empty;
+            output[info.Index] = values.Count == 0
+                ? string.Empty
+                : "- **" + key + " :** " +
+                    string.Join(", ", values.OrderBy(value => value,
                         StringComparer.OrdinalIgnoreCase)) + cr;
-            }
-            else if (values.Count > 0)
+        }
+
+        foreach ((string key, HashSet<string> values) in decisions)
+        {
+            if (values.Count == 0 || fields.ContainsKey(key))
             {
-                string cr = block.Contains("\r\n", StringComparison.Ordinal) ? "\r" : string.Empty;
-                output.Insert(1, label + string.Join(", ", values.OrderBy(value => value,
-                    StringComparer.OrdinalIgnoreCase)) + cr);
+                continue;
             }
+
+            string cr = block.Contains("\r\n", StringComparison.Ordinal) ? "\r" : string.Empty;
+            output.Insert(1, "- **" + key + " :** " +
+                string.Join(", ", values.OrderBy(value => value,
+                    StringComparer.OrdinalIgnoreCase)) + cr);
         }
 
         return string.Join("\n", output);
