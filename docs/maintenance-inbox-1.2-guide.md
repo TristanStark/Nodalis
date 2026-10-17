@@ -19,7 +19,9 @@ puis de choisir :
 Le résumé est proposé à partir de la première ligne de la capture et
 reste modifiable. La date est celle de la capture, sans appeler l'IA.
 L'aperçu en lecture seule montre le texte d'origine, le projet cible,
-le Markdown projeté et les noms / tailles des pièces jointes.
+le Markdown projeté et les noms / tailles des pièces jointes. Pour une
+capture image, il montre également une vignette décodée en taille limitée,
+sans modifier le fichier d'origine.
 
 Une capture image ou fichier conserve son contenu, avec des copies
 d'attachements dans \`Attachments/Inbox-<id>/\` sous le projet **uniquement
