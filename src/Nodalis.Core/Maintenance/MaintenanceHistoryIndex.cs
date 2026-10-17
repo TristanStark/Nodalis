@@ -14,6 +14,7 @@ public sealed record MaintenanceHistoryItem
     public string? Id { get; init; }
     public DateOnly? Date { get; init; }
     public required string Summary { get; init; }
+    public string Problem { get; init; } = string.Empty;
     public string Resolution { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
     public string Category { get; init; } = string.Empty;
@@ -25,6 +26,9 @@ public sealed record MaintenanceHistoryItem
 
     /// <summary>User-facing label that does not conceal missing dates.</summary>
     public string DateLabel => Date?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "Date absente";
+    /// <summary>Human-readable linked incident summary when available.</summary>
+    public string ProblemLabel => string.IsNullOrWhiteSpace(Problem)
+        ? string.Empty : "Problème : " + Problem;
     /// <summary>Visible type.</summary>
     public string KindLabel => Kind == MaintenanceRecordKind.Incident ? "Incident" : "Intervention";
     /// <summary>Project and source line for actionable context.</summary>
@@ -168,10 +172,11 @@ public static class MaintenanceHistoryIndex
             });
         }
 
-        HashSet<string> incidentIds = entries
+        Dictionary<string, string> incidentSummaries = entries
             .Where(item => item.Kind == MaintenanceRecordKind.Incident && item.Id is not null)
-            .Select(item => item.Id!)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .GroupBy(item => item.Id!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Summary,
+                StringComparer.OrdinalIgnoreCase);
         HashSet<string> seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int index = 0; index < entries.Count; index++)
         {
@@ -182,9 +187,20 @@ public static class MaintenanceHistoryIndex
                 warnings.Add("identifiant répété");
             }
 
-            if (item.IncidentId is not null && !incidentIds.Contains(item.IncidentId))
+            if (item.IncidentId is not null)
             {
-                warnings.Add("incident lié introuvable");
+                if (incidentSummaries.TryGetValue(item.IncidentId, out string? problem))
+                {
+                    entries[index] = item = item with
+                    {
+                        Problem = problem,
+                        SearchText = item.SearchText + " " + problem
+                    };
+                }
+                else
+                {
+                    warnings.Add("incident lié introuvable");
+                }
             }
 
             if (warnings.Count > 0)
