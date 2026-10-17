@@ -149,6 +149,9 @@
                                            Foreground="{StaticResource SecondaryTextBrush}"/>
                                 <TextBlock Text="{Binding Summary}" TextWrapping="Wrap"
                                            FontWeight="SemiBold" Margin="0,3,0,0"/>
+                                <TextBlock Text="{Binding ProblemLabel}" TextWrapping="Wrap"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           Margin="0,4,0,0"/>
                                 <TextBlock Text="{Binding Resolution}" TextWrapping="Wrap"
                                            Margin="0,4,0,0"/>
                                 <TextBlock Text="{Binding SourceLabel}" FontSize="11"
