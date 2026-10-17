@@ -54,10 +54,11 @@ public static class MaintenanceInboxMarkdown
     /// <param name="entry">Source capture.</param>
     /// <param name="request">User-confirmed conversion configuration.</param>
     /// <param name="incident">Optional existing incident for intervention mode.</param>
+    /// <param name="sourceLink">Optional workspace-relative Markdown URL to the saved Inbox capture.</param>
     /// <returns>Document with provenance and source text.</returns>
     public static string Append(
         string markdown, InboxEntry entry, MaintenanceInboxRequest request,
-        MaintenanceRecord? incident = null)
+        MaintenanceRecord? incident = null, string? sourceLink = null)
     {
         ArgumentNullException.ThrowIfNull(markdown);
         ArgumentNullException.ThrowIfNull(entry);
@@ -90,6 +91,17 @@ public static class MaintenanceInboxMarkdown
         if (!string.IsNullOrWhiteSpace(entry.Origin))
         {
             details["Origine"] = CleanLine(entry.Origin);
+        }
+
+        if (!string.IsNullOrWhiteSpace(sourceLink))
+        {
+            if (sourceLink.Contains('\r') || sourceLink.Contains('\n') ||
+                sourceLink.Contains(')') || sourceLink.Contains('('))
+            {
+                throw new ArgumentException("Lien de provenance Markdown non sûr.", nameof(sourceLink));
+            }
+
+            details["Source Inbox"] = "[Capture originale](" + sourceLink + ")";
         }
 
         bool newIncident = request.Mode is MaintenanceInboxMode.Incident or
