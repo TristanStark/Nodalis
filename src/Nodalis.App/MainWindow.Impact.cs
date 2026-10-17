@@ -10,6 +10,7 @@ namespace Nodalis.App;
 
 public partial class MainWindow
 {
+    private readonly ImpactGraphSnapshotCache _impactGraphCache = new();
     /// <summary>
     /// Opens the impact analysis command for the current Markdown document.
     /// </summary>
@@ -53,7 +54,7 @@ public partial class MainWindow
     private async Task OpenImpactAnalysisForTargetAsync(LinkTargetEntry origin)
     {
         LinkIndexCatalog snapshot = _linkIndex;
-        ImpactGraphIndex graph = await Task.Run(() => ImpactGraphIndex.Build(snapshot));
+        ImpactGraphIndex graph = await Task.Run(() => _impactGraphCache.GetOrBuild(snapshot));
         IReadOnlyList<ImpactMaintenanceContext> maintenance =
             await LoadImpactMaintenanceContextsAsync(snapshot);
         ImpactAnalysisDialog dialog = new(origin, graph, maintenance)
