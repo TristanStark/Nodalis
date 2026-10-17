@@ -32,6 +32,8 @@ public partial class ImpactAnalysisDialog
             .Select(item => new MaintenanceRow(item,
                 item.Record.KindLabel + " · " + item.Record.Summary,
                 item.RelatedDocument.DisplayName + " · " + item.Explanation +
+                    (string.IsNullOrWhiteSpace(item.Record.IncidentId) ? "" :
+                        " · Incident associé : " + item.Record.IncidentId) +
                     " · " + item.SourceDocument.QualifiedName +
                     ", ligne " + item.Record.LineNumber +
                     (string.IsNullOrWhiteSpace(item.Record.Resolution) ? "" :

@@ -26,7 +26,8 @@ Le script publie uniquement les fichiers `*.md` présents dans `docs/wiki/`. Il 
 - Vérifier que `Home` est la page d'accueil.
 - Vérifier que `_Sidebar.md` permet de naviguer entre les pages.
 - Tester quelques liens `[[...]]`.
-- Contrôler que la roadmap ne présente pas la 1.1–1.4 comme livrée.
+- Contrôler que la roadmap indique la dernière release stable v1.2.0,
+  tout en présentant la 1.3/1.4 comme en cours de qualification sur develop.
 
 ## Maintenance
 

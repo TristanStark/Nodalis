@@ -361,6 +361,11 @@ public partial class ImpactAnalysisDialog : Window
             OpenFindingButton_Click(sender, e);
             e.Handled = true;
         }
+        else if (MaintenanceList.IsKeyboardFocusWithin)
+        {
+            OpenMaintenanceButton_Click(sender, e);
+            e.Handled = true;
+        }
     }
 
     /// <summary>Opens the double-clicked result.</summary>
