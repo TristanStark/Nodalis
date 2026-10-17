@@ -7,7 +7,7 @@ utiliser le clic droit **Ajouter à une fiche de maintenance**. Les captures
 déjà converties ou placées dans la corbeille ne sont pas modifiées.
 
 Le formulaire permet de choisir **Application · Projet**, parmi les projets
-disposant déjà de \`Fiche de Maintenance.md\` (y compris **Ultra-simple**),
+disposant déjà de `Fiche de Maintenance.md` (y compris **Ultra-simple**),
 puis de choisir :
 
 - **Nouvel incident** : une entrée Incident dans l'historique Markdown.
@@ -24,7 +24,7 @@ capture image, il montre également une vignette décodée en taille limitée,
 sans modifier le fichier d'origine.
 
 Une capture image ou fichier conserve son contenu, avec des copies
-d'attachements dans \`Attachments/Inbox-<id>/\` sous le projet **uniquement
+d'attachements dans `Attachments/Inbox-<id>/` sous le projet **uniquement
 lorsqu'il y a des fichiers joints**. Chaque fichier est lié depuis la
 fiche ; les copies identiques sont réutilisées lors d'une reprise,
 et toute collision différente est refusée sans remplacement.
@@ -36,7 +36,7 @@ La structure initiale d'un projet Ultra-simple reste inchangée.
 
 Les nouveaux blocs conservent le contrat de maintenance :
 
-\`\`\`markdown
+```markdown
 ## Historique de maintenance
 
 ### Incident
@@ -56,9 +56,9 @@ Les nouveaux blocs conservent le contrat de maintenance :
 
 Pièces jointes conservées :
 - [capture.png](Attachments/Inbox-<identifiant>/capture.png)
-\`\`\`
+```
 
-Le texte issu de la capture est cité avec \`>\`, pour que ses titres Markdown
+Le texte issu de la capture est cité avec `>`, pour que ses titres Markdown
 n'introduisent pas accidentellement de nouveaux incidents.
 La provenance comprend l'identifiant Inbox et un **lien Markdown
 relatif direct vers la capture d'origine** (`capture.md`). Le chemin est
@@ -73,18 +73,18 @@ L'entrée Inbox **n'est ni supprimée ni archivée** ; son statut devient
 La conversion est conçue pour être **idempotente** :
 
 1. Les choix de conversion sont enregistrés dans
-   \`Inbox/Items/<id>/maintenance-conversion.json\` avant toute modification
+   `Inbox/Items/<id>/maintenance-conversion.json` avant toute modification
    de la fiche. Après interruption, le formulaire reprend ces choix,
    sans permettre de changer la destination.
 2. Le Markdown contient un marqueur stable
-   \`<!-- nodalis-inbox-maintenance:<id> -->\`.
+   `<!-- nodalis-inbox-maintenance:<id> -->`.
    Si l'écriture du document a réussi mais que la mise à jour de l'état
    Inbox a été interrompue, la reprise retrouve le marqueur et
    **n'ajoute aucun autre bloc**.
-3. Un verrou \`conversion.lock\` est partagé avec la conversion Inbox
+3. Un verrou `conversion.lock` est partagé avec la conversion Inbox
    classique : deux instances Nodalis ne peuvent pas simultanément
    convertir le même item par deux modes différents.
-4. La fiche existante est sauvegardée via \`TextDocumentSession\` ;
+4. La fiche existante est sauvegardée via `TextDocumentSession` ;
    les modifications externes détectées pendant la transaction
    provoquent un refus de sauvegarde, non un écrasement.
 5. Quand la fiche est ouverte dans l'éditeur Nodalis, les modifications
@@ -99,7 +99,7 @@ sans conflit si leur empreinte SHA-256 correspond.
 
 ## Tests et limitations
 
-\`MaintenanceInboxSmokeTests\` vérifie :
+`MaintenanceInboxSmokeTests` vérifie :
 
 - création d'un incident depuis une capture texte, et vérification du
   contenu original cité ;
