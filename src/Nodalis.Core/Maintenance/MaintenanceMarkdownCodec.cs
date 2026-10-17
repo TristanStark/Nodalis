@@ -348,9 +348,29 @@ public static class MaintenanceMarkdownCodec
         Dictionary<string, string> properties = new Dictionary<string, string>(
             StringComparer.OrdinalIgnoreCase);
         bool duplicate = false;
+        char activeFence = '\0';
+        int activeLength = 0;
         for (int index = block.LineIndex + 1; index < end; index++)
         {
-            if (TryField(lines[index].Text, out string key, out string value) &&
+            string line = lines[index].Text;
+            if (TryFence(line, out char marker, out int length, out bool closing))
+            {
+                if (activeFence == '\0')
+                {
+                    activeFence = marker;
+                    activeLength = length;
+                }
+                else if (marker == activeFence && length >= activeLength && closing)
+                {
+                    activeFence = '\0';
+                    activeLength = 0;
+                }
+
+                continue;
+            }
+
+            if (activeFence == '\0' &&
+                TryField(line, out string key, out string value) &&
                 !properties.TryAdd(key, value))
             {
                 duplicate = true;
