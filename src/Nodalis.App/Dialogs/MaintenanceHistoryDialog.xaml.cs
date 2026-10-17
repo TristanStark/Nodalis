@@ -16,6 +16,7 @@ public enum MaintenanceHistoryAction
     EditIntervention,
     AddDocumentRelation,
     BrowseDocumentReferences,
+    AnalyzeImpact,
     LinkRecurrence,
     IgnoreRecurrence
 }
@@ -338,6 +339,21 @@ public partial class MaintenanceHistoryDialog : Window
     /// <summary>Shows only references explicitly written on the selected record.</summary>
     /// <param name="sender">Toolbar action.</param>
     /// <param name="e">Click.</param>
+    private void AnalyzeImpact_Click(object sender, RoutedEventArgs e)
+    {
+        if (CurrentSelection() is null)
+        {
+            MessageBox.Show(this, "Sélectionnez un incident ou une intervention.",
+                "Analyse d’impact", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        Accept(MaintenanceHistoryAction.AnalyzeImpact);
+    }
+
+    /// <summary>Requests an impact analysis of a document explicitly linked to the selected record.</summary>
+    /// <param name="sender">Toolbar action.</param>
+    /// <param name="e">Click event.</param>
     private void ShowReferences_Click(object sender, RoutedEventArgs e)
     {
         if (CurrentSelection() is null)

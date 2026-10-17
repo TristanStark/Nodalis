@@ -4691,6 +4691,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "impact.analyze",
+                Title = "Analyser les impacts",
+                Subtitle = "Documents potentiellement affectés, relations, chemins et preuves",
+                Keywords = ["impact", "dépendances", "graphe", "relations", "document", "propagation"],
+                ExecuteAsync = ShowImpactAnalysisAsync
+            },
+            new()
+            {
                 Id = "quick-open",
                 Title = "Quick Open",
                 Subtitle = "Ouvrir document, projet, module ou application · Ctrl+T",

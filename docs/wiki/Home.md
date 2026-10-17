@@ -2,7 +2,10 @@
 
 **Nodalis** est une application Windows de prise de notes, documentation et suivi de projets, entièrement locale. Elle réunit des applications, modules, projets et sous-projets dans **un seul workspace**. Les documents restent lisibles en **Markdown** et les données structurelles en **JSON**.
 
-> Ce Wiki décrit la version **1.0.0**. La [[Roadmap]] distingue les évolutions prévues des fonctions livrées.
+> La dernière release stable annoncée est **v1.2.0**.
+> Les fonctionnalités d'analyse d'impact des versions 1.3 et 1.4 sont
+> documentées sur `develop`, en attente de qualification et de publication.
+> La [[Roadmap]] distingue ce qui est livré de ce qui reste en développement.
 
 ## Pour commencer
 
@@ -23,6 +26,7 @@
 | Protéger et restaurer ses données | [[Sauvegardes-et-restauration]] |
 | Mettre à jour sans perdre son workspace | [[Mise-a-jour-et-compatibilite]] |
 | Résoudre un problème | [[Depannage-et-FAQ]] |
+| Analyser les impacts potentiels (develop) | [[Analyse-d-impact]] |
 
 ## Pour contribuer
 
@@ -37,4 +41,4 @@ Voir [[Architecture-et-contribution]] et la [[Roadmap]]. Le code évolue d'abord
 - **Résilient** : écritures atomiques, corbeille, sauvegardes, diagnostics et mises à jour réversibles.
 - **Sans dépendances tierces** : application C# / WPF / .NET 10.
 
-**Liens :** [Code source](https://github.com/TristanStark/Nodalis) · [Version 1.0.0](https://github.com/TristanStark/Nodalis/releases/tag/v1.0.0) · [Signaler un problème](https://github.com/TristanStark/Nodalis/issues)
+**Liens :** [Code source](https://github.com/TristanStark/Nodalis) · [Version stable v1.2.0](https://github.com/TristanStark/Nodalis/releases/tag/v1.2.0) · [Signaler un problème](https://github.com/TristanStark/Nodalis/issues)

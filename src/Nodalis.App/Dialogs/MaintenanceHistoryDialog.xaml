@@ -187,6 +187,9 @@
                            TextWrapping="Wrap" Foreground="{StaticResource SecondaryTextBrush}"
                            Margin="0,0,0,8"/>
                 <WrapPanel HorizontalAlignment="Right">
+                    <Button Content="Analyser les impacts" MinWidth="145"
+                            Click="AnalyzeImpact_Click" Margin="0,0,7,7"
+                            ToolTip="Analyser un document choisi parmi les relations explicites du bloc" />
                     <Button Content="Références" MinWidth="95"
                             Click="ShowReferences_Click" Margin="0,0,7,7"
                             ToolTip="Voir les relations explicitement déclarées"/>

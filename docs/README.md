@@ -109,3 +109,11 @@ matrice ou disposer d'un document dédié avant la release stable.
 - [Checklist de qualification 1.1](release-checklist-1.1.md) : Small/Medium/Large, CI, Windows 10/11, DPI et gate stable.
 - [Conversion Markdown native](inbox-conversion.md) : formats, idempotence et provenance.
 - [Sécurité des captures](inbox-safety.md) : doublons, erreurs, pièces jointes, staging.
+
+## Analyse d'impact 1.3 / 1.4 — en développement sur develop
+
+- [Guide utilisateur : analyser les impacts, graphe, maintenance, filtres](impact-user-guide-1.4.md).
+- [Sémantique et sens des relations](impact-semantics-1.3.md).
+- [Qualification v1.4](release-checklist-1.4.md).
+
+La documentation v1.4 est publiée dans le dépôt mais la version stable annoncée reste v1.2.0 jusqu'au tag officiel.

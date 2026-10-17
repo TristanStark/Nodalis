@@ -90,6 +90,9 @@ try
     VerifyMarkdownFrontMatter();
     VerifyMarkdownOutlineParser();
     VerifyTypedRelations();
+    ImpactAnalysisSmokeTests.Run();
+    ImpactReleaseQualificationSmokeTests.Run();
+    ImpactV14SmokeTests.Run();
     VerifyDocumentBookmarks();
     await VerifyUserPreferencesAsync(root);
     await VerifyLocalReleasePackageAsync(root);

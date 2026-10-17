@@ -1,0 +1,260 @@
+<Window x:Class="Nodalis.App.Dialogs.ImpactAnalysisDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Analyse d'impact — impacts potentiels"
+        Width="1020"
+        Height="710"
+        MinWidth="760"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Loaded="Window_Loaded"
+        Closing="Window_Closing"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="14,12"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel>
+                <TextBlock Text="Éléments potentiellement affectés"
+                           FontSize="16"
+                           FontWeight="SemiBold" />
+                <TextBlock x:Name="OriginText"
+                           Margin="0,4,0,0"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="Une relation explicite prouve le lien, pas qu'un impact réel est certain. Les suggestions ne sont jamais propagées." 
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="14,10,14,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="SearchTextBox"
+                     Grid.Row="0" Grid.Column="0"
+                     Padding="8,5"
+                     ToolTip="Filtrer par document, relation ou nom qualifié"
+                     TextChanged="Filters_Changed" />
+            <ComboBox x:Name="EvidenceComboBox"
+                      Grid.Row="0" Grid.Column="2"
+                      Height="30" SelectionChanged="Filters_Changed"
+                      ToolTip="Preuve explicite ou simple contexte" />
+            <ComboBox x:Name="ScopeComboBox"
+                      Grid.Row="0" Grid.Column="4"
+                      Height="30" SelectionChanged="Filters_Changed"
+                      ToolTip="Portée du résultat" />
+            <ComboBox x:Name="DepthComboBox"
+                      Grid.Row="0" Grid.Column="6"
+                      Width="115" Height="30"
+                      SelectionChanged="AnalysisSettings_Changed"
+                      ToolTip="Profondeur maximale de propagation" />
+
+            <CheckBox x:Name="CrossScopeCheckBox"
+                      Grid.Row="1" Grid.Column="0"
+                      Margin="0,9,0,0"
+                      VerticalAlignment="Center"
+                      Content="Inclure les autres projets, applications et le global"
+                      ToolTip="Option volontaire : analyse transversale au workspace"
+                      Checked="AnalysisSettings_Changed"
+                      Unchecked="AnalysisSettings_Changed" />
+            <CheckBox x:Name="SuggestionsCheckBox"
+                      Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3"
+                      Margin="0,9,0,0"
+                      VerticalAlignment="Center"
+                      Content="Afficher les suggestions contextuelles"
+                      IsChecked="True"
+                      Checked="AnalysisSettings_Changed"
+                      Unchecked="AnalysisSettings_Changed" />
+        </Grid>
+
+        <TabControl Grid.Row="2" Margin="12,0,12,8" SelectionChanged="GraphTab_Selected" AutomationProperties.Name="Vues de l'analyse d'impact">
+            <TabItem Header="Liste accessible">
+                <Grid Margin="2,8,2,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" MinWidth="250" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="3*" MinWidth="280" />
+            </Grid.ColumnDefinitions>
+            <ListBox x:Name="ResultsList"
+                     Grid.Column="0"
+                     BorderBrush="{StaticResource BorderBrush}"
+                     SelectionChanged="ResultsList_SelectionChanged"
+                     MouseDoubleClick="ResultsList_MouseDoubleClick"
+                     VirtualizingStackPanel.IsVirtualizing="True"
+                     ScrollViewer.CanContentScroll="True"
+                     AutomationProperties.Name="Résultats des impacts potentiels">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="9,8">
+                            <TextBlock Text="{Binding Title}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Subtitle}"
+                                       Margin="0,3,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <Border Grid.Column="2"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Pourquoi cet impact ?"
+                               FontWeight="SemiBold" />
+                    <TextBlock x:Name="ExplanationText"
+                               Grid.Row="1" Margin="0,10,0,12"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               TextWrapping="Wrap" />
+                    <ListBox x:Name="PathList"
+                             Grid.Row="2"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             MouseDoubleClick="PathList_MouseDoubleClick"
+                             AutomationProperties.Name="Chemin justificatif et documents navigables">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,6">
+                                    <TextBlock Text="{Binding Title}"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Detail}"
+                                               FontSize="11"
+                                               Foreground="{StaticResource SecondaryTextBrush}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Button Grid.Row="3"
+                            x:Name="OpenStepButton"
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Right"
+                            Content="Ouvrir l'étape sélectionnée"
+                            IsEnabled="False"
+                            Click="OpenStepButton_Click" />
+                </Grid>
+            </Border>
+                </Grid>
+            </TabItem>
+            <TabItem x:Name="GraphTab" Header="Graphe visuel">
+                <DockPanel Margin="6">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="Zoom" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <Slider x:Name="GraphZoomSlider" Minimum="40" Maximum="180" Value="100"
+                                TickFrequency="20" IsSnapToTickEnabled="True" Width="155"
+                                VerticalAlignment="Center" ValueChanged="GraphZoom_Changed"
+                                ToolTip="Zoom du graphe entre 40 et 180 pour cent" />
+                        <TextBlock Text="Regrouper" VerticalAlignment="Center" Margin="16,0,8,0" />
+                        <ComboBox x:Name="GraphGroupComboBox" Width="155" Height="29"
+                                  ToolTip="Regrouper les nœuds par profondeur, projet ou type"
+                                  SelectionChanged="GraphGroup_Changed" />
+                        <Button Content="Recentrer" Margin="10,0,0,0" Padding="7,2"
+                                Click="GraphReset_Click" ToolTip="Remettre le zoom à 100 % et revenir à la source" />
+                    </StackPanel>
+                    <TextBlock x:Name="GraphStatusText" DockPanel.Dock="Bottom"
+                               TextWrapping="Wrap" Margin="0,8,0,0"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                    <ScrollViewer x:Name="GraphScrollViewer" HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto" CanContentScroll="False">
+                        <Canvas x:Name="GraphCanvas" Width="600" Height="350" Background="Transparent" />
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="Maintenance liée">
+                <DockPanel Margin="6">
+                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap"
+                               Margin="0,0,0,8"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               Text="Références explicites d'incidents ou d'interventions vers les documents affichés. Un historique n'est pas une preuve de dépendance métier." />
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <TextBlock x:Name="MaintenanceStatusText" Margin="0,0,0,8"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap" />
+                        <Button x:Name="OpenMaintenanceButton" Content="Ouvrir la fiche à la bonne ligne"
+                                HorizontalAlignment="Right" Padding="10,5"
+                                IsEnabled="False" Click="OpenMaintenanceButton_Click" />
+                    </StackPanel>
+                    <ListBox x:Name="MaintenanceList" BorderBrush="{StaticResource BorderBrush}"
+                             SelectionChanged="MaintenanceList_SelectionChanged"
+                             MouseDoubleClick="MaintenanceList_MouseDoubleClick"
+                             VirtualizingStackPanel.IsVirtualizing="True"
+                             AutomationProperties.Name="Incidents et interventions liés explicitement">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="8,7">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Subtitle}" FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+
+        <TextBlock x:Name="StatusText"
+                   Grid.Row="3"
+                   Margin="14,0,14,10"
+                   Foreground="{StaticResource SecondaryTextBrush}"
+                   TextWrapping="Wrap" />
+
+        <Border Grid.Row="4"
+                Padding="12,9"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button x:Name="CancelAnalysisButton"
+                        Margin="0,0,8,0"
+                        Content="Annuler le calcul"
+                        IsEnabled="False"
+                        Click="CancelAnalysisButton_Click" />
+                <Button x:Name="OpenFindingButton"
+                        Margin="0,0,8,0"
+                        Content="Ouvrir le résultat"
+                        IsEnabled="False"
+                        Click="OpenFindingButton_Click" />
+                <Button Content="Fermer"
+                        IsCancel="True"
+                        Click="CloseButton_Click" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -1,6 +1,9 @@
 # Roadmap — après Nodalis 1.0
 
-**La version 1.0.0 est publiée.** Les capacités décrites ci-dessous sont des **objectifs futurs et non des fonctionnalités 1.0 déjà disponibles**. Leur avancement réel est suivi dans les issues GitHub.
+**Dernière release stable annoncée : v1.2.0.** La boîte de réception (1.1) et
+la maintenance avancée (1.2) sont publiées. L'analyse d'impact (1.3/1.4) est
+implémentée progressivement sur `develop`, mais elle n'est pas encore
+une release stable ; suivre les issues GitHub pour la qualification.
 
 ## 1.1 — Inbox universelle
 
@@ -27,6 +30,8 @@ Suivi : [EPIC #98](https://github.com/TristanStark/Nodalis/issues/98).
 Objectif : vue graphe WPF, alternative tabulaire accessible, liens avec les maintenances et performance sur les grands workspaces.
 
 Suivi : [EPIC #98](https://github.com/TristanStark/Nodalis/issues/98).
+
+Guide : [[Analyse-d-impact]] (disponible sur `develop`).
 
 ## Principes conservés
 
