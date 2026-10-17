@@ -57,3 +57,21 @@ Les données sont générées de façon déterministe et ne contiennent aucune d
 - Toutes les fixtures sont temporaires et supprimées après exécution.
 - Toute nouvelle fonctionnalité 1.0 doit soit ajouter un invariant à la suite existante,
   soit être explicitement reliée à une vérification dans cette matrice.
+
+## Contrôle de non-régression Inbox 1.1 (#105)
+
+La suite historique Small / Medium / Large (8, 64, 256 documents) appelle
+désormais `InboxReleaseQualificationSmokeTests` sur **le même workspace**,
+après avoir vérifié la navigation, la recherche et les liens 1.0.
+
+Chaque fixture valide : création différée Inbox, avertissement de
+doublon, aperçu sans écriture, conversion Markdown native idempotente,
+tâche dans le service ordinaire, archivage et corbeille/restauration,
+absence de modification du manifeste ou des trois Notes rapides,
+sauvegarde ZIP et restauration comprenant la capture et le fichier
+converti, enfin navigation sur workspace restauré. Small teste en
+outre la fiche de maintenance d'un projet ultra-simple réel.
+
+La matrice des systèmes clients, des modes clavier, de dark mode et
+de DPI se trouve dans [release-checklist-1.1.md](release-checklist-1.1.md).
+Une CI Windows Server hébergée ne vaut pas validation Windows 10/11.

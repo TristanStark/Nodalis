@@ -34,6 +34,7 @@ du Markdown ordinaire et un JSON lisible ; aucun index opaque ou appel réseau.
   "kind": "text",
   "state": "pending",
   "origin": "manual",
+  "fingerprintSha256": null,
   "convertedTargetRelativePath": null,
   "attachments": []
 }
@@ -42,6 +43,8 @@ du Markdown ordinaire et un JSON lisible ; aucun index opaque ou appel réseau.
 - kind : text, link, image, file.
 - state : pending, processed, archived.
 - origin : provenance facultative, purement descriptive.
+- fingerprintSha256 : SHA-256 facultatif (texte/type et pièces jointes) ;
+  les anciennes captures sans empreinte restent compatibles.
 - convertedTargetRelativePath : chemin **relatif au workspace**, facultatif ;
   il ne constitue pas une preuve que la cible existe toujours.
 - attachments : liste de {originalFileName, relativePath, sizeBytes} ; les chemins
@@ -87,5 +90,6 @@ restent inspectables et récupérables manuellement, sans suppression automatiqu
 la modification d'état, l'isolation des données cassées, les pièces jointes,
 la conservation des notes rapides et la corbeille/restauration.
 
-Implémentations UI, raccourci Win32, filtres, conversion idempotente et
-journaux intégrés à la vue sont planifiés dans #100 à #105.
+Les fonctions UI, raccourci Windows, filtres, conversion idempotente et
+journaux sont implémentés en #100 à #104. Leur qualification 1.1 est
+décrite dans [release-checklist-1.1.md](release-checklist-1.1.md).

@@ -82,3 +82,11 @@ matrice ou disposer d'un document dédié avant la release stable.
 
 - [Refonte UX de l'explorateur (worktree) — #122](worktree-navigation.md) :
   hiérarchie aplatie visuellement, cartes projets, sélection et contrôles de validation Windows.
+
+## Nodalis 1.1 — documentation de sortie
+
+- [Guide Inbox 1.1](inbox-1.1-guide.md) : capturer, trier, convertir, récupérer.
+- [Notes de version 1.1](release-notes-1.1.md) : nouveautés, compatibilité et limites.
+- [Checklist de qualification 1.1](release-checklist-1.1.md) : Small/Medium/Large, CI, Windows 10/11, DPI et gate stable.
+- [Conversion Markdown native](inbox-conversion.md) : formats, idempotence et provenance.
+- [Sécurité des captures](inbox-safety.md) : doublons, erreurs, pièces jointes, staging.
