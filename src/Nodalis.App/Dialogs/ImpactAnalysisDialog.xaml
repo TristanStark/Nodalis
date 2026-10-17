@@ -90,7 +90,9 @@
                       Unchecked="AnalysisSettings_Changed" />
         </Grid>
 
-        <Grid Grid.Row="2" Margin="14,0,14,10">
+        <TabControl Grid.Row="2" Margin="12,0,12,8" AutomationProperties.Name="Vues de l'analyse d'impact">
+            <TabItem Header="Liste accessible">
+                <Grid Margin="2,8,2,2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="2*" MinWidth="250" />
                 <ColumnDefinition Width="12" />
@@ -165,7 +167,29 @@
                             Click="OpenStepButton_Click" />
                 </Grid>
             </Border>
-        </Grid>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Graphe visuel">
+                <DockPanel Margin="6">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="Zoom" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <Slider x:Name="GraphZoomSlider" Minimum="40" Maximum="180" Value="100"
+                                TickFrequency="20" IsSnapToTickEnabled="True" Width="155"
+                                VerticalAlignment="Center" ValueChanged="GraphZoom_Changed"
+                                ToolTip="Zoom du graphe entre 40 et 180 pour cent" />
+                        <Button Content="Recentrer" Margin="10,0,0,0" Padding="7,2"
+                                Click="GraphReset_Click" ToolTip="Remettre le zoom à 100 % et revenir à la source" />
+                    </StackPanel>
+                    <TextBlock x:Name="GraphStatusText" DockPanel.Dock="Bottom"
+                               TextWrapping="Wrap" Margin="0,8,0,0"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                    <ScrollViewer x:Name="GraphScrollViewer" HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto" CanContentScroll="False">
+                        <Canvas x:Name="GraphCanvas" Width="600" Height="350" Background="Transparent" />
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
 
         <TextBlock x:Name="StatusText"
                    Grid.Row="3"

@@ -194,6 +194,7 @@ public partial class ImpactAnalysisDialog : Window
             .ToArray();
 
         ResultsList.ItemsSource = rows;
+        RenderGraph();
         if (rows.Length > 0)
         {
             ResultsList.SelectedIndex = 0;
@@ -223,6 +224,7 @@ public partial class ImpactAnalysisDialog : Window
     {
         ImpactFindingRow? row = ResultsList.SelectedItem as ImpactFindingRow;
         OpenFindingButton.IsEnabled = row is not null;
+        FocusGraphSelection();
         if (row is null)
         {
             PathList.ItemsSource = null;
