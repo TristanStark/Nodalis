@@ -91,6 +91,7 @@ try
     VerifyMarkdownOutlineParser();
     VerifyTypedRelations();
     ImpactAnalysisSmokeTests.Run();
+    ImpactReleaseQualificationSmokeTests.Run();
     VerifyDocumentBookmarks();
     await VerifyUserPreferencesAsync(root);
     await VerifyLocalReleasePackageAsync(root);
