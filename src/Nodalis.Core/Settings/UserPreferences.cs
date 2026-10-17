@@ -30,6 +30,9 @@ public sealed record UserPreferences
 
     public EditorPreferences Editor { get; init; } = new();
 
+    /// <summary>Opt-in visibility of deterministic recurrence suggestions, independent of maintenance.</summary>
+    public bool ShowMaintenanceSuggestions { get; init; } = true;
+
     public BackupPreferences Backup { get; init; } = new();
 
     public AiPreferences Ai { get; init; } = new();
