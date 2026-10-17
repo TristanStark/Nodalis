@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 using Nodalis.App.Reliability;
 using Nodalis.Core.Inbox;
 using Nodalis.Core.Maintenance;
@@ -64,9 +65,76 @@ public partial class InboxMaintenanceConversionDialog : Window
                     "• " + attachment.OriginalFileName + " (" +
                     attachment.SizeBytes + " octets)"));
         ModeComboBox.SelectedIndex = 0;
+        LoadImagePreview();
         Loaded += async (_, _) =>
             await UiActionGuard.RunAsync(this, "Maintenance · destinations",
                 LoadChoicesAsync, _root);
+    }
+
+    /// <summary>
+    /// Displays an optional bounded image preview from the original Inbox attachment
+    /// without following a redirected path or modifying the capture.
+    /// </summary>
+    private void LoadImagePreview()
+    {
+        if (_capture.Kind != InboxCaptureKind.Image || _capture.Attachments.Count == 0)
+        {
+            return;
+        }
+
+        string itemDirectory = Path.Combine(_root, "Inbox", "Items",
+            _capture.Id.ToString("N"));
+        InboxAttachment attachment = _capture.Attachments[0];
+        string source = Path.GetFullPath(Path.Combine(itemDirectory,
+            attachment.RelativePath.Replace('/', Path.DirectorySeparatorChar)));
+        if (!source.StartsWith(itemDirectory + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase) || !File.Exists(source))
+        {
+            AttachmentText.Text += "\nAperçu image indisponible : source manquante.";
+            return;
+        }
+
+        try
+        {
+            string cursor = Path.GetDirectoryName(source)!;
+            while (cursor.StartsWith(itemDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                if ((new DirectoryInfo(cursor).Attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    return;
+                }
+
+                if (string.Equals(cursor, itemDirectory,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                cursor = Path.GetDirectoryName(cursor)!;
+            }
+
+            if ((new FileInfo(source).Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                return;
+            }
+
+            BitmapImage preview = new BitmapImage();
+            preview.BeginInit();
+            preview.UriSource = new Uri(source, UriKind.Absolute);
+            preview.DecodePixelWidth = 450;
+            preview.CacheOption = BitmapCacheOption.OnLoad;
+            preview.EndInit();
+            preview.Freeze();
+            AttachmentImage.Source = preview;
+            AttachmentImage.Visibility = Visibility.Visible;
+        }
+        catch (Exception exception) when (exception is IOException or
+            UnauthorizedAccessException or NotSupportedException or
+            System.IO.FileFormatException)
+        {
+            AttachmentText.Text += "\nImpossible d'afficher l'image : " +
+                exception.Message;
+        }
     }
 
     /// <summary>Committed result, null when the user cancelled or conversion failed.</summary>
