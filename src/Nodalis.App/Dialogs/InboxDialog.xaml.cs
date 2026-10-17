@@ -208,7 +208,8 @@ public partial class InboxDialog : Window
         await UiActionGuard.RunAsync(this, "Inbox · nouvelle capture", async () =>
         {
             InboxCaptureDialog dialog = new InboxCaptureDialog(
-                _workspaceRoot, "inbox-view") { Owner = this };
+                _workspaceRoot, "inbox-view")
+            { Owner = this };
             try
             {
                 if (dialog.ShowDialog() != true)
