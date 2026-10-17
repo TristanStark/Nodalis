@@ -65,6 +65,11 @@ public sealed class WorkspaceInboxService
             EnsureWorkspace();
             EnsureInboxDirectories();
 
+            // Coordinate multiple Nodalis windows/processes so a concurrent
+            // recovery scan cannot quarantine an in-flight capture.
+            await using FileStream lease =
+                await AcquireStagingLeaseAsync(cancellationToken);
+
             Guid id = Guid.NewGuid();
             string stagedPath = Path.Combine(_stagingRoot, id.ToString("N"));
             string publishedPath = Path.Combine(_itemsRoot, id.ToString("N"));
@@ -237,7 +242,12 @@ public sealed class WorkspaceInboxService
                 CheckManagedDirectory(_itemsRoot);
             }
 
-            await RecoverStagingAsync(warnings, cancellationToken);
+            if (Directory.Exists(_stagingRoot))
+            {
+                await using FileStream lease =
+                    await AcquireStagingLeaseAsync(cancellationToken);
+                await RecoverStagingAsync(warnings, cancellationToken);
+            }
 
             if (Directory.Exists(_itemsRoot))
             {
@@ -477,6 +487,56 @@ public sealed class WorkspaceInboxService
             RelativePath = relativePath,
             SizeBytes = new FileInfo(destinationPath).Length
         };
+    }
+
+    /// <summary>
+    /// Acquires a cross-process exclusive staging lease. A staged item may not
+    /// be inspected for recovery while another Nodalis process is still
+    /// copying its source files. The lease is left as an empty harmless file,
+    /// and the OS releases its handle after a crash.
+    /// </summary>
+    /// <param name="token">Cancellation while waiting for a busy workspace.</param>
+    /// <returns>A disposable exclusive file lease.</returns>
+    private async Task<FileStream> AcquireStagingLeaseAsync(
+        CancellationToken token)
+    {
+        CheckManagedDirectory(_stagingRoot);
+        string leasePath = Path.Combine(_stagingRoot, ".capture.lock");
+        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (true)
+        {
+            token.ThrowIfCancellationRequested();
+            try
+            {
+                if (File.Exists(leasePath) &&
+                    (File.GetAttributes(leasePath) & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new InvalidDataException(
+                        "Inbox staging lease is redirected.");
+                }
+
+                FileStream handle = new FileStream(leasePath,
+                    FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None,
+                    1, FileOptions.Asynchronous);
+                if ((File.GetAttributes(leasePath) & FileAttributes.ReparsePoint) != 0)
+                {
+                    handle.Dispose();
+                    throw new InvalidDataException(
+                        "Inbox staging lease is redirected.");
+                }
+
+                return handle;
+            }
+            catch (IOException) when (DateTimeOffset.UtcNow < deadline)
+            {
+                await Task.Delay(80, token);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw new IOException(
+                    "Inbox est inaccessible en écriture : vérifier les permissions.");
+            }
+        }
     }
 
     /// <summary>Recovers complete captures interrupted before publication.</summary>

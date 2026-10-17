@@ -229,6 +229,29 @@ internal static class InboxSafetySmokeTests
                     "Chemin non fiable.", StringComparison.Ordinal)),
             "Malicious attachment traversal must quarantine the item and preserve the source.");
 
+        // Independent service instances represent separate windows/processes.
+        // Recovery must never classify another writer's staging directory as
+        // an incomplete or corrupt saved capture.
+        Task<InboxEntry>[] concurrentWrites = Enumerable.Range(0, 6)
+            .Select(index => Task.Run(async () =>
+                await new WorkspaceInboxService(root).CaptureAsync(
+                    text with { ContentMarkdown = "Concurrence " + index })))
+            .ToArray();
+        Task<InboxReadResult>[] concurrentReads = Enumerable.Range(0, 6)
+            .Select(_ => Task.Run(async () =>
+                await new WorkspaceInboxService(root).ReadAllAsync()))
+            .ToArray();
+        await Task.WhenAll(concurrentWrites);
+        await Task.WhenAll(concurrentReads);
+        Guid[] concurrentIds = concurrentWrites.Select(task => task.Result.Id)
+            .Distinct().ToArray();
+        InboxReadResult finalScan = await inbox.ReadAllAsync();
+        Assert(concurrentIds.Length == 6 &&
+            concurrentIds.All(id => finalScan.Entries.Any(entry => entry.Id == id)) &&
+            !finalScan.Warnings.Any(warning => concurrentIds.Any(id =>
+                warning.Item == id.ToString("N"))),
+            "Concurrent windows must not recover/quarantine a still-active staged capture.");
+
         string failureRoot = Path.Combine(testRoot, "inbox-safety-iofailure");
         FileSystemWorkspaceStore failureWorkspace = new FileSystemWorkspaceStore(failureRoot);
         await failureWorkspace.InitializeAsync("Disk error demo");

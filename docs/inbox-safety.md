@@ -38,7 +38,10 @@ L'action Enregistrer est désactivée pendant la vérification/l'écriture,
 
 Comme dans #99–103 :
 - Le stockage passe par `Inbox/.staging/` et publie le dossier complet
-  par renommage. Une écriture interrompue est récupérée ou déplacée dans
+  par renommage. Un verrou de staging **interprocessus**, libéré par
+  le système après un crash, empêche qu'une fenêtre encore en train de
+  copier soit prise pour une capture abandonnée par une autre fenêtre.
+  Une écriture réellement interrompue est récupérée ou déplacée dans
   `Inbox/Quarantaine/`, sans suppression silencieuse.
 - La corbeille Inbox conserve l'ID et les pièces jointes. La restauration
   refuse les collisions, sans écraser l'ancienne entrée.
@@ -76,6 +79,8 @@ et les liens symboliques imbriqués.
   quarantaine récupérable ; annulation avant publication ;
 - métadonnées de pièce jointe falsifiées avec traversal : quarantaine
   sans lecture externe et conservation du Markdown source ;
+- écritures et lectures Inbox simultanées depuis plusieurs instances :
+  aucune capture encore en cours n'est mise en quarantaine ;
 - erreur I/O contrôlée via collision avec un objet disque.
 
 La CI Windows couvre la compilation WPF, les régressions, le package
