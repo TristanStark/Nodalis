@@ -21,6 +21,9 @@ public partial class MainWindow
         bool visible = !_workspaceReadOnly &&
             focused is not null &&
             IsMaintenanceDocument(focused.FullPath);
+        MaintenanceHistoryButton.Visibility =
+            focused is not null && IsMaintenanceDocument(focused.FullPath)
+                ? Visibility.Visible : Visibility.Collapsed;
         NewMaintenanceInterventionButton.Visibility =
             visible ? Visibility.Visible : Visibility.Collapsed;
         EditMaintenanceInterventionButton.Visibility =
