@@ -83,6 +83,11 @@ matrice ou disposer d'un document dédié avant la release stable.
 - [Refonte UX de l'explorateur (worktree) — #122](worktree-navigation.md) :
   hiérarchie aplatie visuellement, cartes projets, sélection et contrôles de validation Windows.
 
+## Nodalis 1.2 — maintenance avancée (en cours)
+
+- [Contrat Markdown des incidents et interventions](maintenance-markdown-1.2.md) :
+  identité stable, lecture ancienne/nouvelle, liens, diagnostics et ajout non destructif.
+
 ## Nodalis 1.1 — documentation de sortie
 
 - [Guide Inbox 1.1](inbox-1.1-guide.md) : capturer, trier, convertir, récupérer.
