@@ -217,7 +217,7 @@ internal static class MaintenanceReleaseQualificationSmokeTests
 
         // The failure should be resumable after the user manually restores the
         // same source attachment. Verify that no duplicate is created on retry.
-        await File.CopyAsync(photo, attachedFile);
+        File.Copy(photo, attachedFile);
         MaintenanceInboxResult successful = await converter.ConvertAsync(request);
         MaintenanceInboxResult repeated = await converter.ConvertAsync(request);
         Assert(!successful.AlreadyConverted && repeated.AlreadyConverted &&
