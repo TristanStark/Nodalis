@@ -17,9 +17,10 @@ public partial class MainWindow
     /// <summary>Shows maintenance buttons only for an open maintenance document in editable mode.</summary>
     private void UpdateMaintenanceActionVisibility()
     {
+        DocumentTabViewModel? focused = GetFocusedDocumentTab();
         bool visible = !_workspaceReadOnly &&
-            _activeDocumentTab is not null &&
-            IsMaintenanceDocument(_activeDocumentTab.FullPath);
+            focused is not null &&
+            IsMaintenanceDocument(focused.FullPath);
         NewMaintenanceInterventionButton.Visibility =
             visible ? Visibility.Visible : Visibility.Collapsed;
         EditMaintenanceInterventionButton.Visibility =
@@ -39,10 +40,10 @@ public partial class MainWindow
     /// <returns>Existing sheet path, or null if no relevant project is selected.</returns>
     private string? ResolveMaintenanceFilePath()
     {
-        if (_activeDocumentTab is not null &&
-            IsMaintenanceDocument(_activeDocumentTab.FullPath))
+        DocumentTabViewModel? focused = GetFocusedDocumentTab();
+        if (focused is not null && IsMaintenanceDocument(focused.FullPath))
         {
-            return _activeDocumentTab.FullPath;
+            return focused.FullPath;
         }
 
         NavigationNodeViewModel? project = ResolveSelectedProjectForHealthCheck();
@@ -218,6 +219,9 @@ public partial class MainWindow
             throw new InvalidOperationException("Intervention sauvegardée, mais sa fiche est introuvable dans l'explorateur.");
         }
 
+        // The existing caret navigator targets the primary editor pane.
+        // Move the target there first, even when maintenance was invoked from a split pane.
+        SetFocusedEditorPane(EditorPaneSlot.Primary);
         await OpenOrActivateDocumentTabAsync(node);
         int position = saved.IndexOf("- **Identifiant :** " + entry.Id,
             StringComparison.OrdinalIgnoreCase);
