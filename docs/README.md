@@ -93,6 +93,8 @@ matrice ou disposer d'un document dédié avant la release stable.
   contextes projet/application, dates, filtres, sources Markdown et fiches partielles.
 - [Suggestions d'incidents récurrents](maintenance-recurrence-1.2-guide.md) :
   rapprochements explicables sans IA, comparaison, décisions lier/ignorer et prévention des faux positifs.
+- [Inbox vers fiche de maintenance](maintenance-inbox-1.2-guide.md) :
+  incident ou intervention structurés, pièces jointes, provenance, reprise sans doublon et projet Ultra-simple.
 
 ## Nodalis 1.1 — documentation de sortie
 
