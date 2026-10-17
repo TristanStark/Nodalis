@@ -126,6 +126,20 @@ internal static class MaintenanceRelationsSmokeTests
                await File.ReadAllTextAsync(path) == d,
             "Restoration of the same GUID must recover the relation without rewriting Markdown.");
 
+        // The existing intervention editor must preserve relation lines when other
+        // incident fields are modified. Relations remain native prose, not details.
+        MaintenanceRecord currentAction = MaintenanceMarkdownCodec.Parse(d).Records
+            .Single(item => item.Id == actionA.Id);
+        string edited = MaintenanceMarkdownEditor.Replace(d, currentAction,
+            currentAction with { Summary = "Vérification API terminée" });
+        Assert(MaintenanceRelationIndex.Parse(path, edited, restored).Count == 4 &&
+               edited.Contains(MarkdownRelationParser.Format(
+                   "documente", specificationId, specification.DisplayName),
+                   StringComparison.Ordinal) &&
+               MaintenanceMarkdownCodec.Parse(edited).Records.Single(
+                   item => item.Id == actionA.Id).Summary == "Vérification API terminée",
+            "Editing an intervention must retain its declared document references.");
+
         string fence = new string((char)96, 3);
         string example = d + "\r\n" + fence + "markdown\r\n> Relation: teste | Cible: Faux | ID: " +
             Guid.NewGuid().ToString("D") + "\r\n" + fence + "\r\n";
