@@ -1,9 +1,16 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Win32;
+using Nodalis.App.Commands;
+using Nodalis.Core.Compatibility;
+using Nodalis.Core.Migrations;
 using Nodalis.Core.Settings;
+using Nodalis.Infrastructure.Compatibility;
+using Nodalis.Infrastructure.Migrations;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Settings;
 using Nodalis.Infrastructure.Templates;
 
@@ -11,6 +18,16 @@ namespace Nodalis.App;
 
 public partial class App : Application
 {
+    private readonly LocalDiagnosticsService _diagnosticsService = new();
+    private ReadOnlyWorkspaceSnapshot? _readOnlyWorkspaceSnapshot;
+    private bool _fatalExceptionObserved;
+
+    /// <summary>
+    /// Gets the shared local diagnostics service used by recoverable UI error boundaries.
+    /// </summary>
+    internal LocalDiagnosticsService DiagnosticsService =>
+        _diagnosticsService;
+
     /// <summary>
     /// Performs the <c>OnStartup</c> operation.
     /// </summary>
@@ -18,6 +35,11 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        _diagnosticsService.StartSession();
+        DispatcherUnhandledException += App_DispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+        TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
 
         EventManager.RegisterClassHandler(
             typeof(Window),
@@ -28,17 +50,36 @@ public partial class App : Application
 
         try
         {
-            if (e.Args.Any(argument =>
+            ShortcutCatalog.ValidateUniqueBindings();
+
+            string? smokeTestWorkspacePath =
+                GetOptionalArgumentValue(
+                    e.Args,
+                    "--smoke-test-workspace");
+
+            bool smokeTestRequested =
+                e.Args.Any(argument =>
                     string.Equals(
                         argument,
                         "--smoke-test",
-                        StringComparison.OrdinalIgnoreCase)))
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (smokeTestRequested ||
+                smokeTestWorkspacePath is not null)
             {
                 if (TryFindResource(
-                        "NodalisWindowStyle") is not Style)
+                        "NodalisWindowStyle") is not Style ||
+                    TryFindResource(
+                        "NodalisKeyboardFocusVisual") is not Style)
                 {
                     throw new InvalidOperationException(
-                        "Le thème WPF Nodalis n'a pas pu être chargé.");
+                        "Le thème WPF Nodalis ou ses styles d'accessibilité n'ont pas pu être chargés.");
+                }
+
+                if (smokeTestWorkspacePath is not null)
+                {
+                    await VerifySmokeTestWorkspaceAsync(
+                        smokeTestWorkspacePath);
                 }
 
                 Shutdown(0);
@@ -60,19 +101,65 @@ public partial class App : Application
 
             preferences = resolved.Value.Preferences;
 
-            global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore templateStore = new FileSystemTemplateStore(
-                resolved.Value.WorkspacePath);
-            await templateStore.InitializeDefaultsAsync();
+            (string EffectiveWorkspacePath, bool IsReadOnly, string DisplayName, string? AccessMessage)? access =
+                await PrepareWorkspaceAccessAsync(
+                    resolved.Value.WorkspacePath);
 
-            global::Nodalis.Infrastructure.Navigation.WorkspaceNavigationBuilder navigationBuilder = new WorkspaceNavigationBuilder();
-            global::Nodalis.Core.Navigation.WorkspaceNavigationNode root = await navigationBuilder.BuildAsync(
-                resolved.Value.WorkspacePath);
+            if (access is null)
+            {
+                Shutdown();
+                return;
+            }
+
+            global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore templateStore = new FileSystemTemplateStore(
+                access.Value.EffectiveWorkspacePath);
+
+            if (!access.Value.IsReadOnly)
+            {
+                if (_diagnosticsService.PreviousSessionEndedUnexpectedly)
+                {
+                    _diagnosticsService.RecoverOrphanedAtomicWriteFiles(
+                        access.Value.EffectiveWorkspacePath);
+                }
+
+                await templateStore.InitializeDefaultsAsync();
+            }
+
+            global::Nodalis.Core.Navigation.WorkspaceNavigationNode root;
+
+            if (access.Value.IsReadOnly)
+            {
+                global::Nodalis.Infrastructure.Compatibility.ReadOnlyWorkspaceNavigationBuilder navigationBuilder =
+                    new ReadOnlyWorkspaceNavigationBuilder();
+                root = await navigationBuilder.BuildAsync(
+                    access.Value.EffectiveWorkspacePath,
+                    access.Value.DisplayName);
+            }
+            else
+            {
+                global::Nodalis.Infrastructure.Navigation.WorkspaceNavigationBuilder navigationBuilder =
+                    new WorkspaceNavigationBuilder();
+                root = await navigationBuilder.BuildAsync(
+                    access.Value.EffectiveWorkspacePath);
+            }
 
             global::Nodalis.App.MainWindow window = new MainWindow(
                 root,
                 preferences,
                 preferencesStore,
-                templateStore);
+                templateStore,
+                _diagnosticsService,
+                access.Value.IsReadOnly,
+                access.Value.AccessMessage);
+
+            if (_readOnlyWorkspaceSnapshot is not null)
+            {
+                window.Closed += (_, _) =>
+                {
+                    _readOnlyWorkspaceSnapshot?.Dispose();
+                    _readOnlyWorkspaceSnapshot = null;
+                };
+            }
 
             MainWindow = window;
             ShutdownMode = ShutdownMode.OnMainWindowClose;
@@ -80,6 +167,11 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
+            _fatalExceptionObserved = true;
+            _diagnosticsService.LogException(
+                "Démarrage de Nodalis",
+                exception);
+
             MessageBox.Show(
                 $"Nodalis n'a pas pu démarrer.\n\n{exception.Message}",
                 "Erreur Nodalis",
@@ -88,6 +180,372 @@ public partial class App : Application
 
             Shutdown(-1);
         }
+    }
+
+    /// <summary>
+    /// Returns the value that follows an optional command-line argument.
+    /// </summary>
+    /// <param name="arguments">Application startup arguments.</param>
+    /// <param name="argumentName">Argument name whose value should be returned.</param>
+    /// <returns>The argument value, or <see langword="null"/> when the argument is absent.</returns>
+    private static string? GetOptionalArgumentValue(
+            string[] arguments,
+            string argumentName)
+    {
+        int argumentIndex =
+            Array.FindIndex(
+                arguments,
+                argument =>
+                    string.Equals(
+                        argument,
+                        argumentName,
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (argumentIndex < 0)
+        {
+            return null;
+        }
+
+        int valueIndex =
+            argumentIndex + 1;
+
+        if (valueIndex >= arguments.Length ||
+            string.IsNullOrWhiteSpace(
+                arguments[valueIndex]) ||
+            arguments[valueIndex].StartsWith(
+                "--",
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"L'argument {argumentName} nécessite une valeur.");
+        }
+
+        return arguments[valueIndex];
+    }
+
+    /// <summary>
+    /// Exercises the packaged application against a representative release-candidate workspace.
+    /// </summary>
+    /// <param name="workspacePath">Workspace copied to an isolated temporary directory by the release workflow.</param>
+    /// <returns>A task representing the validation.</returns>
+    private static async Task VerifySmokeTestWorkspaceAsync(
+            string workspacePath)
+    {
+        string workspaceRoot =
+            Path.GetFullPath(
+                workspacePath);
+
+        if (!Directory.Exists(
+                workspaceRoot))
+        {
+            throw new DirectoryNotFoundException(
+                $"Le workspace de smoke test est introuvable : {workspaceRoot}");
+        }
+
+        global::Nodalis.Infrastructure.Persistence.FileSystemWorkspaceStore workspaceStore =
+            new FileSystemWorkspaceStore(
+                workspaceRoot);
+
+        global::Nodalis.Core.Domain.WorkspaceManifest workspace =
+            await workspaceStore.LoadAsync();
+
+        int expectedSchemaVersion =
+            global::Nodalis.Core.Domain.WorkspaceManifest.CurrentSchemaVersion;
+
+        if (workspace.SchemaVersion !=
+            expectedSchemaVersion)
+        {
+            throw new InvalidDataException(
+                $"Le workspace RC utilise le schéma {workspace.SchemaVersion} au lieu du schéma attendu {expectedSchemaVersion}.");
+        }
+
+        global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore templateStore =
+            new FileSystemTemplateStore(
+                workspaceRoot);
+
+        await templateStore.InitializeDefaultsAsync();
+
+        global::Nodalis.Infrastructure.Navigation.WorkspaceNavigationBuilder navigationBuilder =
+            new WorkspaceNavigationBuilder();
+
+        global::Nodalis.Core.Navigation.WorkspaceNavigationNode navigation =
+            await navigationBuilder.BuildAsync(
+                workspaceRoot);
+
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> nodes =
+            DescendantsAndSelf(
+                    navigation)
+                .ToArray();
+
+        if (!nodes.Any(node =>
+                node.Kind ==
+                    global::Nodalis.Core.Navigation.WorkspaceNodeKind.Project))
+        {
+            throw new InvalidDataException(
+                "Le workspace RC ne contient aucun projet navigable.");
+        }
+
+        global::Nodalis.Core.Navigation.WorkspaceNavigationNode? sentinelDocument =
+            nodes.FirstOrDefault(node =>
+                node.Kind ==
+                    global::Nodalis.Core.Navigation.WorkspaceNodeKind.Document &&
+                string.Equals(
+                    Path.GetFileName(
+                        node.FullPath),
+                    "Architecture.md",
+                    StringComparison.OrdinalIgnoreCase));
+
+        if (sentinelDocument is null)
+        {
+            throw new InvalidDataException(
+                "Le document sentinelle Architecture.md du workspace RC est introuvable.");
+        }
+
+        global::Nodalis.Infrastructure.Search.WorkspaceSearchService searchService =
+            new global::Nodalis.Infrastructure.Search.WorkspaceSearchService();
+
+        global::Nodalis.Core.Search.SearchResultSet searchResults =
+            await searchService.SearchAsync(
+                workspaceRoot,
+                sentinelDocument.FullPath,
+                "release-candidate-sentinel",
+                global::Nodalis.Core.Search.SearchMatchMode.Exact);
+
+        bool sentinelFound =
+            searchResults.Project
+                .Concat(
+                    searchResults.Application)
+                .Concat(
+                    searchResults.Global)
+                .Any(result =>
+                    string.Equals(
+                        result.FilePath,
+                        sentinelDocument.FullPath,
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (!sentinelFound)
+        {
+            throw new InvalidDataException(
+                "La recherche du binaire publié ne retrouve pas le document sentinelle du workspace RC.");
+        }
+
+        global::Nodalis.Infrastructure.Links.WorkspaceLinkIndexService linkIndexService =
+            new global::Nodalis.Infrastructure.Links.WorkspaceLinkIndexService(
+                workspaceRoot);
+
+        global::Nodalis.Core.Links.LinkIndexCatalog links =
+            await linkIndexService.RefreshAsync();
+
+        if (!links.References.Any(reference =>
+                string.Equals(
+                    reference.RawTarget,
+                    "Architecture",
+                    StringComparison.OrdinalIgnoreCase) &&
+                reference.TargetId is not null))
+        {
+            throw new InvalidDataException(
+                "Le binaire publié ne résout pas le lien interne sentinelle du workspace RC.");
+        }
+    }
+
+    /// <summary>
+    /// Enumerates a navigation node and all of its descendants.
+    /// </summary>
+    /// <param name="node">Navigation node to enumerate.</param>
+    /// <returns>The node followed by all descendants.</returns>
+    private static IEnumerable<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> DescendantsAndSelf(
+            global::Nodalis.Core.Navigation.WorkspaceNavigationNode node)
+    {
+        yield return node;
+
+        foreach (global::Nodalis.Core.Navigation.WorkspaceNavigationNode child in node.Children)
+        {
+            foreach (global::Nodalis.Core.Navigation.WorkspaceNavigationNode descendant in DescendantsAndSelf(
+                         child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Marks a clean application exit when no fatal exception was observed.
+    /// </summary>
+    /// <param name="e">The exit event arguments.</param>
+    protected override void OnExit(
+            ExitEventArgs e)
+    {
+        DispatcherUnhandledException -= App_DispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException -= CurrentDomain_UnhandledException;
+        TaskScheduler.UnobservedTaskException -= TaskScheduler_UnobservedTaskException;
+
+        if (!_fatalExceptionObserved)
+        {
+            _diagnosticsService.MarkCleanShutdown();
+        }
+
+        base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Converts known action-scoped WPF exceptions into recoverable user errors while allowing fatal failures to propagate.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The unhandled exception arguments.</param>
+    private void App_DispatcherUnhandledException(
+            object sender,
+            DispatcherUnhandledExceptionEventArgs e)
+    {
+        if (e.Exception is OperationCanceledException)
+        {
+            _diagnosticsService.LogInformation(
+                "Une action UI asynchrone a été annulée.");
+            e.Handled =
+                true;
+            return;
+        }
+
+        if (RecoverableExceptionPolicy.CanContinue(
+                e.Exception))
+        {
+            string errorId =
+                _diagnosticsService.LogRecoverableException(
+                    "Filet de sécurité global WPF",
+                    e.Exception);
+
+            e.Handled =
+                true;
+
+            ShowRecoverableError(
+                "Action utilisateur",
+                errorId,
+                e.Exception);
+            return;
+        }
+
+        _fatalExceptionObserved =
+            true;
+        _diagnosticsService.LogException(
+            "Exception WPF fatale ou non classifiée",
+            e.Exception);
+    }
+
+    /// <summary>
+    /// Presents a recoverable error without allowing the error-reporting UI itself to become a second crash source.
+    /// </summary>
+    /// <param name="context">The functional context.</param>
+    /// <param name="errorId">The local error identifier.</param>
+    /// <param name="exception">The captured exception.</param>
+    private void ShowRecoverableError(
+            string context,
+            string errorId,
+            Exception exception)
+    {
+        try
+        {
+            global::Nodalis.App.Dialogs.RecoverableErrorDialog dialog =
+                new global::Nodalis.App.Dialogs.RecoverableErrorDialog(
+                    _diagnosticsService,
+                    workspaceRoot: null,
+                    context,
+                    errorId,
+                    exception);
+
+            if (MainWindow is Window owner &&
+                owner.IsLoaded &&
+                owner.IsVisible)
+            {
+                dialog.Owner =
+                    owner;
+            }
+
+            dialog.ShowDialog();
+        }
+        catch (Exception dialogException) when (
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                dialogException))
+        {
+            _diagnosticsService.LogException(
+                "Échec de la boîte de dialogue d'erreur récupérée",
+                dialogException);
+
+            MessageBox.Show(
+                RecoverableExceptionPolicy.GetUserMessage(
+                    exception) +
+                Environment.NewLine +
+                Environment.NewLine +
+                "Identifiant : " +
+                errorId +
+                Environment.NewLine +
+                "Détails : " +
+                _diagnosticsService.ActiveLogPath,
+                "Erreur récupérée",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Journals an unhandled .NET domain exception.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The unhandled exception arguments.</param>
+    private void CurrentDomain_UnhandledException(
+            object sender,
+            UnhandledExceptionEventArgs e)
+    {
+        _fatalExceptionObserved = true;
+
+        if (e.ExceptionObject is Exception exception)
+        {
+            _diagnosticsService.LogException(
+                "Exception .NET non gérée",
+                exception);
+            return;
+        }
+
+        _diagnosticsService.LogInformation(
+            $"Exception .NET non gérée non typée : {e.ExceptionObject}");
+    }
+
+    /// <summary>
+    /// Journals an unobserved task exception and marks it observed after capture.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The task exception arguments.</param>
+    private void TaskScheduler_UnobservedTaskException(
+            object? sender,
+            UnobservedTaskExceptionEventArgs e)
+    {
+        if (RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                e.Exception))
+        {
+            string errorId =
+                _diagnosticsService.LogRecoverableException(
+                    "Tâche asynchrone non observée",
+                    e.Exception);
+
+            e.SetObserved();
+
+            if (!Dispatcher.HasShutdownStarted &&
+                !Dispatcher.HasShutdownFinished)
+            {
+                Dispatcher.BeginInvoke(() =>
+                    ShowRecoverableError(
+                        "Tâche asynchrone",
+                        errorId,
+                        e.Exception));
+            }
+
+            return;
+        }
+
+        _fatalExceptionObserved =
+            true;
+        _diagnosticsService.LogException(
+            "Exception de tâche non observée potentiellement fatale",
+            e.Exception);
+        e.SetObserved();
     }
 
     /// <summary>
@@ -112,6 +570,165 @@ public partial class App : Application
         // explicit application their surface can fall back to the light
         // system background while child controls still use the dark theme.
         window.Style = style;
+    }
+
+
+    /// <summary>
+    /// Evaluates compatibility and prepares either normal access, migration or isolated fallback reading.
+    /// </summary>
+    /// <param name="workspacePath">The selected source workspace.</param>
+    /// <returns>The effective workspace access, or null when the user cancels.</returns>
+    private async Task<(string EffectiveWorkspacePath, bool IsReadOnly, string DisplayName, string? AccessMessage)?>
+            PrepareWorkspaceAccessAsync(
+                string workspacePath)
+    {
+        global::Nodalis.Infrastructure.Compatibility.WorkspaceCompatibilityService compatibilityService =
+            new WorkspaceCompatibilityService(
+                workspacePath);
+        global::Nodalis.Core.Compatibility.WorkspaceCompatibilityDecision compatibility =
+            await compatibilityService.EvaluateAsync();
+        string displayName = new DirectoryInfo(
+            workspacePath).Name;
+
+        if (string.IsNullOrWhiteSpace(
+                displayName))
+        {
+            displayName = "Nodalis";
+        }
+
+        if (compatibility.AccessMode == WorkspaceAccessMode.ReadWrite)
+        {
+            return (
+                workspacePath,
+                false,
+                displayName,
+                null);
+        }
+
+        if (compatibility.AccessMode == WorkspaceAccessMode.MigrationRequired)
+        {
+            global::Nodalis.Infrastructure.Migrations.WorkspaceMigrationService migrationService =
+                new WorkspaceMigrationService(
+                    workspacePath);
+            global::Nodalis.Core.Migrations.WorkspaceMigrationPreflight preflight =
+                await migrationService.PreflightAsync();
+
+            if (!preflight.CanMigrate)
+            {
+                throw new InvalidDataException(
+                    "Le workspace doit être migré mais le préflight a échoué.\n\n" +
+                    string.Join(
+                        Environment.NewLine,
+                        preflight.Errors));
+            }
+
+            string stepText = string.Join(
+                Environment.NewLine,
+                preflight.Steps.Select(
+                    step =>
+                        $"• schéma {step.FromVersion} → {step.ToVersion} : {step.Description}"));
+
+            global::System.Windows.MessageBoxResult migrationAnswer = MessageBox.Show(
+                $"Ce workspace utilise le schéma {compatibility.WorkspaceSchemaVersion} et Nodalis écrit le schéma {compatibility.ApplicationSchemaVersion}.\n\n" +
+                $"{stepText}\n\n" +
+                "Oui : sauvegarder puis migrer.\n" +
+                "Non : ouvrir uniquement les fichiers Markdown en lecture seule.\n" +
+                "Annuler : ne pas ouvrir le workspace.",
+                "Compatibilité du workspace",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Warning);
+
+            if (migrationAnswer == MessageBoxResult.Cancel)
+            {
+                return null;
+            }
+
+            if (migrationAnswer == MessageBoxResult.Yes)
+            {
+                global::Nodalis.Core.Migrations.WorkspaceMigrationReport report =
+                    await migrationService.MigrateAsync(
+                        migrationApproved: true);
+
+                string reportText = report.ReportPath is null
+                    ? "Rapport non persisté, mais disponible pour cette session."
+                    : $"Rapport : {report.ReportPath}";
+
+                MessageBox.Show(
+                    "Migration terminée avec succès.\n\n" +
+                    $"Sauvegarde : {report.BackupArchivePath}\n" +
+                    reportText,
+                    "Migration terminée",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+
+                return (
+                    workspacePath,
+                    false,
+                    displayName,
+                    null);
+            }
+
+            return await CreateReadOnlyAccessAsync(
+                compatibilityService,
+                compatibility,
+                displayName);
+        }
+
+        if (compatibility.AccessMode == WorkspaceAccessMode.ReadOnlyFallback)
+        {
+            global::System.Windows.MessageBoxResult answer = MessageBox.Show(
+                $"Le workspace utilise le schéma {compatibility.WorkspaceSchemaVersion}, " +
+                $"plus récent que le schéma {compatibility.ApplicationSchemaVersion} compris par cette version de Nodalis.\n\n" +
+                "Nodalis ne modifiera pas le workspace. Seuls les fichiers Markdown seront consultables depuis une copie temporaire isolée. " +
+                "Les métadonnées, index, dashboards et fonctions d'écriture seront désactivés.\n\n" +
+                $"{compatibility.RecommendedAction}\n\nOuvrir en lecture seule ?",
+                "Workspace plus récent",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (answer != MessageBoxResult.Yes)
+            {
+                return null;
+            }
+
+            return await CreateReadOnlyAccessAsync(
+                compatibilityService,
+                compatibility,
+                displayName);
+        }
+
+        throw new InvalidDataException(
+            compatibility.Message + "\n\n" +
+            compatibility.RecommendedAction);
+    }
+
+    /// <summary>
+    /// Creates the isolated fallback snapshot and returns the effective read-only access tuple.
+    /// </summary>
+    /// <param name="compatibilityService">The compatibility service.</param>
+    /// <param name="compatibility">The evaluated compatibility decision.</param>
+    /// <param name="displayName">The source workspace display name.</param>
+    /// <returns>The prepared fallback access.</returns>
+    private async Task<(string EffectiveWorkspacePath, bool IsReadOnly, string DisplayName, string? AccessMessage)>
+            CreateReadOnlyAccessAsync(
+                WorkspaceCompatibilityService compatibilityService,
+                WorkspaceCompatibilityDecision compatibility,
+                string displayName)
+    {
+        _readOnlyWorkspaceSnapshot?.Dispose();
+        _readOnlyWorkspaceSnapshot =
+            await compatibilityService.CreateReadOnlySnapshotAsync();
+
+        string message =
+            $"LECTURE SEULE — workspace source schéma {compatibility.WorkspaceSchemaVersion}, " +
+            $"Nodalis schéma {compatibility.ApplicationSchemaVersion}. " +
+            "Consultation Markdown sur copie temporaire ; aucune écriture n'est faite dans le workspace source.";
+
+        return (
+            _readOnlyWorkspaceSnapshot.SnapshotRoot,
+            true,
+            displayName,
+            message);
     }
 
     /// <summary>

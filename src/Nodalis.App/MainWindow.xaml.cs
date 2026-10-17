@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -12,11 +13,14 @@ using Microsoft.Win32;
 using Nodalis.App.Commands;
 using Nodalis.App.Dashboard;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Editor;
 using Nodalis.App.Glossary;
 using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Abstractions;
+using Nodalis.Core.AI;
 using Nodalis.Core.Decisions;
+using Nodalis.Core.Exporting;
 using Nodalis.Core.Glossary;
 using Nodalis.Core.Importing;
 using Nodalis.Core.Links;
@@ -27,10 +31,14 @@ using Nodalis.Core.Projects;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Tasks;
 using Nodalis.Core.Templates;
+using Nodalis.Core.Trash;
+using Nodalis.Infrastructure.AI;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
+using Nodalis.Infrastructure.Backups;
 using Nodalis.Infrastructure.Decisions;
 using Nodalis.Infrastructure.Documents;
+using Nodalis.Infrastructure.Exporting;
 using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Importing;
 using Nodalis.Infrastructure.Links;
@@ -42,6 +50,7 @@ using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Tasks;
+using Nodalis.Infrastructure.Trash;
 
 namespace Nodalis.App;
 
@@ -55,9 +64,19 @@ public partial class MainWindow : Window
     private readonly WorkspaceTaskService _taskService;
     private readonly WorkspaceMilestoneService _milestoneService;
     private readonly WorkspaceMeetingService _meetingService;
+    private readonly WorkspaceMeetingExtractionService _meetingExtractionService;
+    private readonly MeetingAiResultDocumentService _meetingAiResultDocumentService;
     private readonly WorkspaceDecisionService _decisionService;
     private readonly WorkspaceDocxImportService _docxImportService;
+    private readonly WorkspaceMarkdownBulkImportService _markdownBulkImportService;
+    private readonly WorkspaceProjectExportService _projectExportService;
+    private readonly WorkspaceTrashService _trashService;
+    private readonly WorkspaceBackupService _backupService;
+    private readonly LocalDiagnosticsService _diagnosticsService;
     private readonly DispatcherTimer _previewTimer;
+    private readonly DispatcherTimer _backupTimer;
+    private readonly bool _workspaceReadOnly;
+    private readonly string? _workspaceAccessMessage;
 
     private NavigationNodeViewModel _root;
     private NavigationNodeViewModel? _selectedNode;
@@ -71,6 +90,7 @@ public partial class MainWindow : Window
     private bool _documentDirty;
     private bool _restoringSelection;
     private bool _conflictWarningShown;
+    private bool _backupInProgress;
     private double _lastContextWidth;
     private LinkIndexCatalog _linkIndex = new();
     private int _linkSuggestionStart;
@@ -81,6 +101,15 @@ public partial class MainWindow : Window
     private IReadOnlyList<GlossaryScope> _glossaryScopes = [];
     private IReadOnlyList<GlossaryEntry> _glossaryEntries = [];
     private IReadOnlyList<GlossaryTextMatch> _glossaryMatches = [];
+    private readonly ToolTip _glossaryToolTip = new ToolTip
+    {
+        StaysOpen = true,
+        Placement =
+            global::System.Windows.Controls.Primitives.PlacementMode.Mouse,
+        HorizontalOffset = 12,
+        VerticalOffset = 16
+    };
+    private GlossaryEntry? _hoveredGlossaryEntry;
 
     /// <summary>
     /// Initializes a new instance of <see cref="MainWindow"/>.
@@ -89,22 +118,35 @@ public partial class MainWindow : Window
     /// <param name="preferences">The <c>preferences</c> value.</param>
     /// <param name="preferencesStore">The <c>preferencesStore</c> value.</param>
     /// <param name="templateStore">The <c>templateStore</c> value.</param>
+    /// <param name="diagnosticsService">The local crash diagnostics service.</param>
+    /// <param name="workspaceReadOnly">Whether this window is displaying an isolated fallback snapshot.</param>
+    /// <param name="workspaceAccessMessage">The compatibility message shown for fallback access.</param>
     public MainWindow(
             WorkspaceNavigationNode root,
             UserPreferences preferences,
             IUserPreferencesStore preferencesStore,
-            ITemplateStore templateStore)
+            ITemplateStore templateStore,
+            LocalDiagnosticsService diagnosticsService,
+            bool workspaceReadOnly = false,
+            string? workspaceAccessMessage = null)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(preferencesStore);
         ArgumentNullException.ThrowIfNull(templateStore);
+        ArgumentNullException.ThrowIfNull(diagnosticsService);
 
         InitializeComponent();
+        InitializeContextMenus();
+        InitializeDocumentTabs();
+        InitializeDocumentOutline();
 
         _preferences = preferences;
         _preferencesStore = preferencesStore;
         _templateStore = templateStore;
+        _diagnosticsService = diagnosticsService;
+        _workspaceReadOnly = workspaceReadOnly;
+        _workspaceAccessMessage = workspaceAccessMessage;
         _linkIndexService = new WorkspaceLinkIndexService(
             root.FullPath);
         _taskService = new WorkspaceTaskService(
@@ -113,9 +155,21 @@ public partial class MainWindow : Window
             root.FullPath);
         _meetingService = new WorkspaceMeetingService(
             root.FullPath);
+        _meetingExtractionService = new WorkspaceMeetingExtractionService(
+            root.FullPath);
+        _meetingAiResultDocumentService = new MeetingAiResultDocumentService(
+            root.FullPath);
         _decisionService = new WorkspaceDecisionService(
             root.FullPath);
         _docxImportService = new WorkspaceDocxImportService(
+            root.FullPath);
+        _markdownBulkImportService = new WorkspaceMarkdownBulkImportService(
+            root.FullPath);
+        _projectExportService = new WorkspaceProjectExportService(
+            root.FullPath);
+        _trashService = new WorkspaceTrashService(
+            root.FullPath);
+        _backupService = new WorkspaceBackupService(
             root.FullPath);
         _contextPanelOpen = preferences.IsContextPanelOpen;
         _previewVisible = preferences.Editor.LivePreview;
@@ -130,7 +184,20 @@ public partial class MainWindow : Window
             IsEnabled = false
         };
 
+        _backupTimer = new DispatcherTimer(
+            TimeSpan.FromMinutes(1),
+            DispatcherPriority.Background,
+            BackupTimer_Tick,
+            Dispatcher)
+        {
+            IsEnabled = false
+        };
+
+        InitializeEditorSplit();
+
         MarkdownEditorTextBox.FontSize = preferences.Editor.FontSize;
+        MarkdownEditorTextBox.IsReadOnly =
+            _workspaceReadOnly;
         MarkdownEditorTextBox.TextWrapping =
             preferences.Editor.WordWrap
                 ? TextWrapping.Wrap
@@ -143,8 +210,14 @@ public partial class MainWindow : Window
         NavigationTree.ItemsSource =
             new[] { _root };
 
-        WorkspaceNameText.Text = $" / {root.DisplayName}";
-        Title = $"{root.DisplayName} — Nodalis";
+        WorkspaceNameText.Text =
+            _workspaceReadOnly
+                ? $" / {root.DisplayName} / LECTURE SEULE"
+                : $" / {root.DisplayName}";
+        Title =
+            _workspaceReadOnly
+                ? $"{root.DisplayName} — Nodalis — Lecture seule"
+                : $"{root.DisplayName} — Nodalis";
 
         NavigationColumn.Width = new GridLength(
             preferences.NavigationPanelWidth);
@@ -156,21 +229,36 @@ public partial class MainWindow : Window
         {
             try
             {
+                if (_workspaceReadOnly)
+                {
+                    StatusText.Text =
+                        _workspaceAccessMessage ??
+                        "Lecture seule de compatibilité : consultation Markdown uniquement.";
+                    AppendDiagnosticsStatus();
+                    return;
+                }
+
                 AttachGlossaryAdorner();
                 await RefreshLinkIndexAndContextAsync();
+                await CleanupRecentHistoryAsync();
                 await RefreshGlossaryContextAsync(
                     _selectedNode?.FullPath ?? _root.FullPath);
                 UpdateGlossaryAnnotations();
                 await RefreshDashboardTasksAsync();
                 await RefreshDashboardMilestonesAsync();
+                await RestoreDocumentTabsAsync();
+                await RestoreEditorSplitAsync();
+                _backupTimer.Start();
+                await TryRunAutomaticBackupAsync();
+                AppendDiagnosticsStatus();
             }
             catch (Exception exception) when (
-                exception is IOException or
-                UnauthorizedAccessException or
-                InvalidDataException)
+                RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                    exception))
             {
-                StatusText.Text =
-                    $"Index de liens indisponible : {exception.Message}";
+                ReportRecoverableUiError(
+                    "Initialisation de l'interface",
+                    exception);
             }
         };
     }
@@ -189,52 +277,201 @@ public partial class MainWindow : Window
 
         e.Cancel = true;
 
-        if (!await TryCloseCurrentDocumentAsync(
-                "fermer Nodalis"))
-        {
-            return;
-        }
-
-        try
-        {
-            _preferences = _preferences with
+        await RunUiActionAsync(
+            "Fermeture de Nodalis",
+            async () =>
             {
-                ExpandedNodeIds = GetExpandedNodeIds(),
-                IsContextPanelOpen = _contextPanelOpen,
-                NavigationPanelWidth = Math.Max(
-                    180,
-                    NavigationColumn.ActualWidth),
-                ContextPanelWidth = Math.Max(
-                    180,
-                    _contextPanelOpen
-                        ? ContextColumn.ActualWidth
-                        : _lastContextWidth),
-                Editor = _preferences.Editor with
+                if (_workspaceReadOnly)
                 {
-                    LivePreview = _previewVisible,
-                    WordWrap =
-                        MarkdownEditorTextBox.TextWrapping ==
-                        TextWrapping.Wrap,
-                    FontSize = (int)Math.Round(
-                        MarkdownEditorTextBox.FontSize)
+                    await DisposeAllDocumentTabsAsync();
+                    _previewTimer.Stop();
+                    _backupTimer.Stop();
+                    _allowClose = true;
+                    Close();
+                    return;
                 }
-            };
 
-            await _preferencesStore.SaveAsync(_preferences);
-        }
-        catch (Exception exception)
+                if (!await TryFlushAllDocumentTabsForShutdownAsync())
+                {
+                    return;
+                }
+
+                global::System.Collections.Generic.List<global::Nodalis.Core.Settings.OpenDocumentTabReference> openDocumentTabs =
+                    BuildOpenDocumentTabReferences();
+
+                Guid? activeDocumentTabId =
+                    _activeDocumentTab?.DocumentId;
+
+                try
+                {
+                    _preferences = _preferences with
+                    {
+                        ExpandedNodeIds = GetExpandedNodeIds(),
+                        IsContextPanelOpen = _contextPanelOpen,
+                        NavigationPanelWidth = Math.Max(
+                            180,
+                            NavigationColumn.ActualWidth),
+                        ContextPanelWidth = Math.Max(
+                            180,
+                            _contextPanelOpen
+                                ? ContextColumn.ActualWidth
+                                : _lastContextWidth),
+                        Editor = _preferences.Editor with
+                        {
+                            LivePreview = _previewVisible,
+                            WordWrap =
+                                MarkdownEditorTextBox.TextWrapping ==
+                                TextWrapping.Wrap,
+                            FontSize = (int)Math.Round(
+                                MarkdownEditorTextBox.FontSize),
+                            SplitMode = _editorSplitMode,
+                            SplitRatio = CaptureEditorSplitRatio(),
+                            SecondaryDocumentTabId =
+                                _secondaryDocumentTab?.DocumentId
+                        },
+                        OpenDocumentTabs = openDocumentTabs,
+                        ActiveDocumentTabId = activeDocumentTabId
+                    };
+
+                    await _preferencesStore.SaveAsync(_preferences);
+                    await DisposeAllDocumentTabsAsync();
+                }
+                catch (Exception exception) when (
+                    RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                        exception))
+                {
+                    ReportRecoverableUiError(
+                        "Fermeture · préférences d'interface",
+                        exception);
+                }
+
+                _previewTimer.Stop();
+                _backupTimer.Stop();
+                _allowClose = true;
+                Close();
+            });
+    }
+
+    /// <summary>
+    /// Installs persistent context menus before WPF processes the first right-click.
+    /// This prevents the stock TextBox menu from winning the first opening event.
+    /// </summary>
+    private void InitializeContextMenus()
+    {
+        MarkdownEditorTextBox.ContextMenu =
+            CreateNodalisContextMenu(
+                MarkdownEditorTextBox);
+
+        NavigationTree.ContextMenu =
+            CreateNodalisContextMenu(
+                NavigationTree);
+    }
+
+    /// <summary>
+    /// Prepares an existing Nodalis context menu for a new opening.
+    /// </summary>
+    /// <param name="menu">The persistent menu instance, when already created.</param>
+    /// <param name="placementTarget">The control that owns the menu.</param>
+    /// <returns>The themed and screen-bounded menu.</returns>
+    private ContextMenu PrepareNodalisContextMenu(
+            ContextMenu? menu,
+            FrameworkElement placementTarget)
+    {
+        global::System.Windows.Controls.ContextMenu preparedMenu =
+            menu ??
+            CreateNodalisContextMenu(
+                placementTarget);
+
+        preparedMenu.PlacementTarget =
+            placementTarget;
+        preparedMenu.Placement =
+            global::System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        preparedMenu.MaxHeight =
+            Math.Max(
+                120,
+                SystemParameters.WorkArea.Height - 24);
+        preparedMenu.Items.Clear();
+
+        return preparedMenu;
+    }
+
+    /// <summary>
+    /// Creates a context menu with the Nodalis dark style explicitly applied.
+    /// </summary>
+    /// <param name="placementTarget">The control that owns the menu.</param>
+    /// <returns>A persistent themed context menu.</returns>
+    private ContextMenu CreateNodalisContextMenu(
+            FrameworkElement placementTarget)
+    {
+        global::System.Windows.Controls.ContextMenu menu = new ContextMenu
         {
-            MessageBox.Show(
-                $"Les préférences d'interface n'ont pas pu être enregistrées.\n\n" +
-                exception.Message,
-                "Nodalis",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            PlacementTarget = placementTarget,
+            Placement =
+                global::System.Windows.Controls.Primitives.PlacementMode.MousePoint,
+            MaxHeight =
+                Math.Max(
+                    120,
+                    SystemParameters.WorkArea.Height - 24)
+        };
+
+        Style? menuStyle =
+            TryFindResource(
+                typeof(ContextMenu)) as Style;
+
+        if (menuStyle is not null)
+        {
+            menu.Style =
+                menuStyle;
         }
 
-        _previewTimer.Stop();
-        _allowClose = true;
-        Close();
+        return menu;
+    }
+
+    /// <summary>
+    /// Creates a menu item with the application dark-menu style explicitly applied.
+    /// </summary>
+    /// <param name="header">Visible menu item header.</param>
+    /// <returns>The themed menu item.</returns>
+    private MenuItem CreateNodalisMenuItem(
+            string header)
+    {
+        global::System.Windows.Controls.MenuItem item = new MenuItem
+        {
+            Header = header
+        };
+
+        Style? itemStyle =
+            TryFindResource(
+                typeof(MenuItem)) as Style;
+
+        if (itemStyle is not null)
+        {
+            item.Style =
+                itemStyle;
+        }
+
+        return item;
+    }
+
+    /// <summary>
+    /// Creates a separator with the application dark-menu style explicitly applied.
+    /// </summary>
+    /// <returns>The themed separator.</returns>
+    private Separator CreateNodalisSeparator()
+    {
+        global::System.Windows.Controls.Separator separator = new Separator();
+
+        Style? separatorStyle =
+            TryFindResource(
+                typeof(Separator)) as Style;
+
+        if (separatorStyle is not null)
+        {
+            separator.Style =
+                separatorStyle;
+        }
+
+        return separator;
     }
 
     /// <summary>
@@ -265,25 +502,32 @@ public partial class MainWindow : Window
             object sender,
             ContextMenuEventArgs e)
     {
-        if (_selectedNode is null)
+        global::System.Windows.Controls.ContextMenu menu =
+            PrepareNodalisContextMenu(
+                NavigationTree.ContextMenu,
+                NavigationTree);
+
+        NavigationTree.ContextMenu =
+            menu;
+
+        if (_selectedNode is null ||
+            _workspaceReadOnly)
         {
             e.Handled = true;
             return;
         }
 
-        global::System.Windows.Controls.ContextMenu menu = new ContextMenu();
-
         void AddItem(
             string header,
             RoutedEventHandler handler)
         {
-            global::System.Windows.Controls.MenuItem item = new MenuItem
-            {
-                Header = header
-            };
+            global::System.Windows.Controls.MenuItem item =
+                CreateNodalisMenuItem(
+                    header);
 
             item.Click += handler;
-            menu.Items.Add(item);
+            menu.Items.Add(
+                item);
         }
 
         switch (_selectedNode.Kind)
@@ -298,13 +542,14 @@ public partial class MainWindow : Window
                 AddItem(
                     "Nouveau module",
                     async (_, _) => await CreateModuleAsync(_selectedNode));
-                menu.Items.Add(new Separator());
+                menu.Items.Add(
+                    CreateNodalisSeparator());
                 AddItem(
                     "Renommer",
                     async (_, _) => await RenameApplicationOrModuleAsync(_selectedNode));
                 AddItem(
-                    "Supprimer",
-                    async (_, _) => await DeleteApplicationOrModuleAsync(_selectedNode));
+                    "Mettre à la corbeille",
+                    async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
                 break;
 
             case WorkspaceNodeKind.Module:
@@ -314,13 +559,14 @@ public partial class MainWindow : Window
                 AddItem(
                     "Déplacer le module",
                     async (_, _) => await MoveModuleAsync(_selectedNode));
-                menu.Items.Add(new Separator());
+                menu.Items.Add(
+                    CreateNodalisSeparator());
                 AddItem(
                     "Renommer",
                     async (_, _) => await RenameApplicationOrModuleAsync(_selectedNode));
                 AddItem(
-                    "Supprimer",
-                    async (_, _) => await DeleteApplicationOrModuleAsync(_selectedNode));
+                    "Mettre à la corbeille",
+                    async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
                 break;
 
             case WorkspaceNodeKind.Project:
@@ -329,6 +575,11 @@ public partial class MainWindow : Window
                         ? "Retirer des favoris"
                         : "Ajouter aux favoris",
                     async (_, _) => await ToggleFavoriteAsync(_selectedNode));
+                menu.Items.Add(
+                    CreateNodalisSeparator());
+                AddItem(
+                    "Mettre à la corbeille",
+                    async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
                 break;
 
             case WorkspaceNodeKind.Document:
@@ -337,18 +588,456 @@ public partial class MainWindow : Window
                         ? "Retirer des favoris"
                         : "Ajouter aux favoris",
                     async (_, _) => await ToggleFavoriteAsync(_selectedNode));
-                menu.Items.Add(new Separator());
+                menu.Items.Add(
+                    CreateNodalisSeparator());
                 AddItem(
                     "Renommer le document",
                     async (_, _) => await RenameDocumentAsync(_selectedNode));
+                AddItem(
+                    "Mettre à la corbeille",
+                    async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
                 break;
 
             default:
                 e.Handled = true;
                 return;
         }
+    }
 
-        NavigationTree.ContextMenu = menu;
+    /// <summary>
+    /// Opens the local diagnostics and recovery dialog.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private void OpenDiagnostics_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        RunUiAction(
+            "Diagnostics",
+            () =>
+            {
+                global::Nodalis.App.Dialogs.DiagnosticsDialog dialog =
+                    new DiagnosticsDialog(
+                        _diagnosticsService,
+                        _root.FullPath)
+                    {
+                        Owner = this
+                    };
+
+                dialog.ShowDialog();
+            });
+    }
+
+    /// <summary>
+    /// Executes one user-triggered synchronous action behind the common action-scoped error boundary.
+    /// </summary>
+    /// <param name="context">Short functional context used in logs and the error dialog.</param>
+    /// <param name="action">The synchronous action to execute.</param>
+    /// <param name="showDialog">Whether a recoverable failure should open the modal error dialog.</param>
+    private void RunUiAction(
+            string context,
+            Action action,
+            bool showDialog = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            context);
+        ArgumentNullException.ThrowIfNull(
+            action);
+
+        try
+        {
+            action();
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text =
+                "Action annulée.";
+        }
+        catch (Exception exception) when (
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                exception))
+        {
+            ReportRecoverableUiError(
+                context,
+                exception,
+                showDialog);
+        }
+    }
+
+    /// <summary>
+    /// Executes one user-triggered asynchronous action behind the common recoverable-error boundary.
+    /// </summary>
+    /// <param name="context">Short functional context used in logs and the error dialog.</param>
+    /// <param name="action">The asynchronous action to execute.</param>
+    /// <returns>A task representing the protected action.</returns>
+    private async Task RunUiActionAsync(
+            string context,
+            Func<Task> action)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            context);
+        ArgumentNullException.ThrowIfNull(
+            action);
+
+        try
+        {
+            await action();
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text =
+                "Action annulée.";
+        }
+        catch (Exception exception) when (
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                exception))
+        {
+            ReportRecoverableUiError(
+                context,
+                exception);
+        }
+    }
+
+    /// <summary>
+    /// Logs and presents a recoverable UI failure while keeping the current window usable.
+    /// </summary>
+    /// <param name="context">Short functional context.</param>
+    /// <param name="exception">The captured recoverable exception.</param>
+    /// <param name="showDialog">Whether to show the modal recoverable-error dialog.</param>
+    /// <returns>The generated local error identifier.</returns>
+    private string ReportRecoverableUiError(
+            string context,
+            Exception exception,
+            bool showDialog = true)
+    {
+        string errorId =
+            _diagnosticsService.LogRecoverableException(
+                context,
+                exception);
+
+        StatusText.Text =
+            "Erreur récupérée · " +
+            errorId +
+            " · " +
+            RecoverableExceptionPolicy.GetUserMessage(
+                exception);
+
+        if (!showDialog)
+        {
+            return errorId;
+        }
+
+        try
+        {
+            global::Nodalis.App.Dialogs.RecoverableErrorDialog dialog =
+                new RecoverableErrorDialog(
+                    _diagnosticsService,
+                    _root.FullPath,
+                    context,
+                    errorId,
+                    exception)
+                {
+                    Owner =
+                        this
+                };
+
+            dialog.ShowDialog();
+        }
+        catch (Exception dialogException) when (
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                dialogException))
+        {
+            _diagnosticsService.LogException(
+                "Échec de la boîte de dialogue d'erreur récupérée",
+                dialogException);
+
+            MessageBox.Show(
+                this,
+                RecoverableExceptionPolicy.GetUserMessage(
+                    exception) +
+                Environment.NewLine +
+                Environment.NewLine +
+                "Identifiant : " +
+                errorId +
+                Environment.NewLine +
+                "Journal : " +
+                _diagnosticsService.ActiveLogPath,
+                "Erreur récupérée",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+
+        return errorId;
+    }
+
+    /// <summary>
+    /// Appends abnormal-shutdown and recovered-temporary-file information to the status bar.
+    /// </summary>
+    private void AppendDiagnosticsStatus()
+    {
+        bool previousCrash =
+            _diagnosticsService.PreviousSessionEndedUnexpectedly;
+        int recoveredCount =
+            _diagnosticsService.RecoveredTemporaryFiles.Count;
+
+        if (!previousCrash &&
+            recoveredCount == 0)
+        {
+            return;
+        }
+
+        global::System.Collections.Generic.List<string> parts = [];
+
+        if (previousCrash)
+        {
+            parts.Add(
+                "arrêt anormal précédent détecté");
+        }
+
+        if (recoveredCount > 0)
+        {
+            parts.Add(
+                $"{recoveredCount} temporaire(s) mis en quarantaine");
+        }
+
+        string diagnosticsStatus =
+            $"{string.Join(", ", parts)} — ouvrez Diagnostics.";
+
+        StatusText.Text =
+            string.IsNullOrWhiteSpace(
+                StatusText.Text)
+                ? diagnosticsStatus
+                : $"{StatusText.Text} · {diagnosticsStatus}";
+    }
+
+    /// <summary>
+    /// Opens the backup manager.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void OpenBackups_Click(
+            object sender,
+            RoutedEventArgs e) =>
+            await RunUiActionAsync(
+                "Sauvegardes",
+                ShowBackupsAsync);
+
+    /// <summary>
+    /// Opens the workspace template and project-profile editor.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void OpenTemplateEditor_Click(
+            object sender,
+            RoutedEventArgs e) =>
+        await RunUiActionAsync(
+            "Templates et profils",
+            ShowTemplateEditorAsync);
+
+    /// <summary>
+    /// Opens the template/profile editor backed by the canonical workspace files.
+    /// </summary>
+    /// <returns>A task representing the modal editor workflow.</returns>
+    private Task ShowTemplateEditorAsync()
+    {
+        global::Nodalis.App.Dialogs.TemplateProfileEditorDialog dialog =
+            new TemplateProfileEditorDialog(
+                _templateStore)
+            {
+                Owner =
+                    this
+            };
+
+        dialog.ShowDialog();
+
+        if (dialog.Changed)
+        {
+            StatusText.Text =
+                "Templates et profils de projet mis à jour.";
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Opens the backup manager and persists its local scheduling preferences.
+    /// </summary>
+    /// <returns>A task representing the operation.</returns>
+    private async Task ShowBackupsAsync()
+    {
+        await FlushAllDocumentTabsAsync();
+
+        _backupTimer.Stop();
+
+        try
+        {
+            global::Nodalis.App.Dialogs.BackupDialog dialog = new BackupDialog(
+                _backupService,
+                _preferences.Backup)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true ||
+                dialog.Preferences is null)
+            {
+                return;
+            }
+
+            _preferences = _preferences with
+            {
+                Backup = dialog.Preferences
+            };
+
+            await _preferencesStore.SaveAsync(
+                _preferences);
+
+            StatusText.Text =
+                "Préférences de sauvegarde enregistrées localement";
+        }
+        finally
+        {
+            _backupTimer.Start();
+        }
+
+        await TryRunAutomaticBackupAsync();
+    }
+
+    /// <summary>
+    /// Checks the configured cadence when the automatic backup timer ticks.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
+    private async void BackupTimer_Tick(
+            object? sender,
+            EventArgs e) =>
+            await TryRunAutomaticBackupAsync();
+
+    /// <summary>
+    /// Creates a due automatic backup without blocking the editor thread with ZIP I/O.
+    /// </summary>
+    /// <returns>A task representing the scheduling check.</returns>
+    private async Task TryRunAutomaticBackupAsync()
+    {
+        if (_backupInProgress)
+        {
+            return;
+        }
+
+        global::Nodalis.Core.Settings.BackupPreferences settings =
+            _preferences.Backup;
+
+        if (!settings.AutomaticEnabled ||
+            string.IsNullOrWhiteSpace(
+                settings.DestinationDirectory))
+        {
+            return;
+        }
+
+        _backupInProgress = true;
+
+        try
+        {
+            bool due = await _backupService.IsBackupDueAsync(
+                settings.DestinationDirectory,
+                settings.IntervalMinutes,
+                DateTimeOffset.UtcNow);
+
+            if (!due)
+            {
+                return;
+            }
+
+            await FlushAllDocumentTabsAsync();
+
+            global::Nodalis.Core.Backups.WorkspaceBackupInfo backup = await _backupService.CreateBackupAsync(
+                settings.DestinationDirectory,
+                settings.RetentionCount);
+
+            StatusText.Text =
+                $"Sauvegarde auto · {backup.FileName} · {backup.DisplaySize}";
+        }
+        catch (Exception exception) when (
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                exception))
+        {
+            ReportRecoverableUiError(
+                "Sauvegarde automatique",
+                exception,
+                showDialog: false);
+        }
+        finally
+        {
+            _backupInProgress = false;
+        }
+    }
+
+    /// <summary>
+    /// Opens the read-only workspace integrity report.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private void OpenWorkspaceIntegrity_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        RunUiAction(
+            "Intégrité du workspace",
+            () =>
+            {
+                global::Nodalis.App.Dialogs.WorkspaceIntegrityDialog dialog =
+                    new WorkspaceIntegrityDialog(
+                        _root.FullPath)
+                    {
+                        Owner = this
+                    };
+
+                dialog.ShowDialog();
+            });
+    }
+
+    /// <summary>
+    /// Opens the workspace trash and refreshes navigation when its contents change.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void OpenTrash_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Corbeille",
+            async () =>
+            {
+                global::Nodalis.App.Dialogs.TrashDialog dialog = new TrashDialog(
+                    _trashService)
+                {
+                    Owner = this
+                };
+
+                dialog.ShowDialog();
+
+                if (!dialog.WorkspaceChanged)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await RefreshNavigationAsync();
+                    StatusText.Text = "Corbeille mise à jour";
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException)
+                {
+                    ShowStructureError(
+                        "Corbeille",
+                        exception);
+                }
+            });
     }
 
     /// <summary>
@@ -459,10 +1148,10 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the <c>RenameDocumentAsync</c> operation.
+    /// Renames a Markdown document and optionally rewrites selected textual internal links after preview.
     /// </summary>
-    /// <param name="node">The <c>node</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="node">The document navigation node.</param>
+    /// <returns>The result of the rename workflow.</returns>
     private async Task RenameDocumentAsync(
             NavigationNodeViewModel node)
     {
@@ -491,6 +1180,32 @@ public partial class MainWindow : Window
                 return;
             }
 
+            string requestedName =
+                dialog.Value.Trim();
+
+            if (requestedName.EndsWith(
+                    ".md",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                requestedName =
+                    Path.GetFileNameWithoutExtension(
+                        requestedName);
+            }
+
+            string rewrittenDisplayName =
+                global::Nodalis.Infrastructure.Persistence.WindowsPathRules.SanitizeSegment(
+                    requestedName);
+
+            SmartRenameWorkflow? smartRename =
+                await PrepareSmartRenameAsync(
+                    node,
+                    rewrittenDisplayName);
+
+            if (smartRename is null)
+            {
+                return;
+            }
+
             global::Nodalis.Infrastructure.Documents.DocumentStructureService service = new DocumentStructureService(
                 _root.FullPath);
 
@@ -498,8 +1213,13 @@ public partial class MainWindow : Window
                 node.FullPath,
                 dialog.Value);
 
+            string smartStatus =
+                await CompleteSmartRenameAsync(
+                    smartRename);
+
             await RefreshNavigationAsync(path);
-            StatusText.Text = $"Document renommé · {dialog.Value}";
+            StatusText.Text =
+                $"Document renommé · {rewrittenDisplayName} · {smartStatus}";
         }
         catch (Exception exception) when (
             exception is IOException or
@@ -514,10 +1234,10 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the <c>RenameApplicationOrModuleAsync</c> operation.
+    /// Renames an application or module and optionally rewrites selected textual internal links after preview.
     /// </summary>
-    /// <param name="node">The <c>node</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="node">The application or module navigation node.</param>
+    /// <returns>The result of the rename workflow.</returns>
     private async Task RenameApplicationOrModuleAsync(
             NavigationNodeViewModel node)
     {
@@ -546,6 +1266,19 @@ public partial class MainWindow : Window
                 return;
             }
 
+            string newDisplayName =
+                dialog.Value.Trim();
+
+            SmartRenameWorkflow? smartRename =
+                await PrepareSmartRenameAsync(
+                    node,
+                    newDisplayName);
+
+            if (smartRename is null)
+            {
+                return;
+            }
+
             global::Nodalis.Infrastructure.Applications.ApplicationStructureService service = new ApplicationStructureService(
                 _root.FullPath);
 
@@ -557,13 +1290,19 @@ public partial class MainWindow : Window
                     node.FullPath,
                     dialog.Value);
 
+            string smartStatus =
+                await CompleteSmartRenameAsync(
+                    smartRename);
+
             await RefreshNavigationAsync(path);
-            StatusText.Text = $"Renommé · {dialog.Value}";
+            StatusText.Text =
+                $"Renommé · {newDisplayName} · {smartStatus}";
         }
         catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException or
-            InvalidDataException)
+            InvalidDataException or
+            InvalidOperationException)
         {
             ShowStructureError(
                 "Renommer",
@@ -647,18 +1386,31 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the <c>DeleteApplicationOrModuleAsync</c> operation.
+    /// Moves a supported navigation item to the recoverable workspace trash.
     /// </summary>
-    /// <param name="node">The <c>node</c> value.</param>
-    /// <returns>The result of the operation.</returns>
-    private async Task DeleteApplicationOrModuleAsync(
+    /// <param name="node">The navigation item to move.</param>
+    /// <returns>A task representing the operation.</returns>
+    private async Task MoveNodeToTrashAsync(
             NavigationNodeViewModel node)
     {
+        TrashItemKind kind = node.Kind switch
+        {
+            WorkspaceNodeKind.Document => TrashItemKind.Document,
+            WorkspaceNodeKind.Project => TrashItemKind.Project,
+            WorkspaceNodeKind.Module => TrashItemKind.Module,
+            WorkspaceNodeKind.Application => TrashItemKind.Application,
+            _ => throw new InvalidOperationException(
+                "This navigation item cannot be moved to the trash.")
+        };
+
+        string scopeWarning = kind == TrashItemKind.Document
+            ? "Le document sera déplacé dans la corbeille Nodalis et pourra être restauré."
+            : "L'élément et tout son contenu seront déplacés dans la corbeille Nodalis et pourront être restaurés.";
+
         global::System.Windows.MessageBoxResult answer = MessageBox.Show(
             this,
-            $"Supprimer « {node.DisplayName} » ?\n\n" +
-            "La suppression sera refusée si l'élément contient des données.",
-            "Supprimer",
+            $"Mettre « {node.DisplayName} » à la corbeille ?\n\n{scopeWarning}",
+            "Corbeille",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
 
@@ -670,36 +1422,27 @@ public partial class MainWindow : Window
         try
         {
             if (!await TryCloseCurrentDocumentAsync(
-                    "supprimer cet élément"))
+                    "mettre cet élément à la corbeille"))
             {
                 return;
             }
 
-            global::Nodalis.Infrastructure.Applications.ApplicationStructureService service = new ApplicationStructureService(
-                _root.FullPath);
-
-            if (node.Kind == WorkspaceNodeKind.Application)
-            {
-                await service.DeleteApplicationAsync(
-                    node.FullPath);
-            }
-            else
-            {
-                await service.DeleteModuleAsync(
-                    node.FullPath);
-            }
+            await _trashService.MoveToTrashAsync(
+                node.FullPath,
+                kind,
+                node.Id);
 
             await RefreshNavigationAsync();
-            StatusText.Text = $"Supprimé · {node.DisplayName}";
+            StatusText.Text = $"Corbeille · {node.DisplayName}";
         }
         catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException or
             InvalidDataException or
-            Nodalis.Core.Validation.DomainValidationException)
+            InvalidOperationException)
         {
             ShowStructureError(
-                "Supprimer",
+                "Corbeille",
                 exception);
         }
     }
@@ -713,12 +1456,9 @@ public partial class MainWindow : Window
             string title,
             Exception exception)
     {
-        MessageBox.Show(
-            this,
-            $"L'opération n'a pas pu être effectuée.\n\n{exception.Message}",
+        ReportRecoverableUiError(
             title,
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+            exception);
     }
 
     /// <summary>
@@ -759,26 +1499,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        global::Nodalis.App.Navigation.NavigationNodeViewModel? previous = _selectedNode;
-
-        if (previous is not null &&
-            previous.Kind == WorkspaceNodeKind.Document &&
-            !ReferenceEquals(previous, node))
-        {
-            bool canLeave = await TryCloseCurrentDocumentAsync(
-                "changer de document");
-
-            if (!canLeave)
-            {
-                _restoringSelection = true;
-                previous.IsSelected = true;
-                _restoringSelection = false;
-                return;
-            }
-        }
-
         _selectedNode = node;
-        await DisplayNodeAsync(node);
+        await RunUiActionAsync(
+            "Navigation · " +
+            node.DisplayName,
+            () =>
+                DisplayNodeAsync(
+                    node));
     }
 
     /// <summary>
@@ -803,6 +1530,11 @@ public partial class MainWindow : Window
         ContextKindText.Text = GetKindLabel(node.Kind);
         ContextPathText.Text = node.FullPath;
 
+        if (node.Kind != WorkspaceNodeKind.Document)
+        {
+            ClearDocumentPropertiesContext();
+        }
+
         if (node.Kind == WorkspaceNodeKind.Workspace)
         {
             ShowDashboard();
@@ -818,6 +1550,9 @@ public partial class MainWindow : Window
         if (node.Kind == WorkspaceNodeKind.Project)
         {
             await TrackRecentContextAsync(node);
+            await ShowProjectDashboardAsync(
+                node);
+            return;
         }
 
         ShowNodeSummary(node);
@@ -831,67 +1566,52 @@ public partial class MainWindow : Window
     private async Task OpenDocumentAsync(
             NavigationNodeViewModel node)
     {
+        NavigationNodeViewModel targetNode =
+            ResolveMigratedSingletonDocumentNode(
+                node.FullPath) ??
+            node;
+
+        if (!ReferenceEquals(
+                targetNode,
+                node))
+        {
+            _selectedNode =
+                targetNode;
+            _restoringSelection =
+                true;
+            targetNode.IsSelected =
+                true;
+            _restoringSelection =
+                false;
+        }
+
         try
         {
-            global::Nodalis.Infrastructure.Reliability.TextDocumentSession session = await TextDocumentSession.OpenAsync(
-                node.FullPath);
-
-            _documentSession = session;
-            _documentDirty = false;
-            _conflictWarningShown = false;
-
-            _autosave = new DocumentAutosaveController(
-                session,
-                TimeSpan.FromMilliseconds(
-                    _preferences.Editor.AutosaveDelayMilliseconds));
-
-            _autosave.Saved += Autosave_Saved;
-            _autosave.ConflictDetected += Autosave_ConflictDetected;
-            _autosave.SaveFailed += Autosave_SaveFailed;
-
-            _suppressEditorChanges = true;
-            MarkdownEditorTextBox.Text = session.Content;
-            MarkdownEditorTextBox.CaretIndex = 0;
-            _suppressEditorChanges = false;
-
-            DashboardHost.Visibility = Visibility.Collapsed;
-            NodeSummaryHost.Visibility = Visibility.Collapsed;
-            EditorToolbar.Visibility = Visibility.Visible;
-            DocumentEditorHost.Visibility = Visibility.Visible;
-
-            SaveStateText.Text = "Enregistré";
-            StatusText.Text =
-                $"Document · {Path.GetRelativePath(_root.FullPath, node.FullPath)}";
-
-            if (_linkIndex.Targets.Count == 0)
-            {
-                await RefreshLinkIndexAsync();
-            }
-
-            UpdateLinkContext(node.FullPath);
-            await TrackRecentContextAsync(node);
-            await RefreshGlossaryContextAsync(
-                node.FullPath);
-            UpdateGlossaryAnnotations();
-            RenderPreview();
-            MarkdownEditorTextBox.Focus();
+            await OpenOrActivateDocumentTabAsync(
+                targetNode);
         }
         catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            DecoderFallbackException)
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                exception))
         {
-            _documentSession = null;
-            _autosave = null;
+            string errorId =
+                ReportRecoverableUiError(
+                    "Ouverture du document · " +
+                    targetNode.DisplayName,
+                    exception);
 
             NodeSummaryHost.Visibility = Visibility.Visible;
+            ProjectDashboardHost.Visibility = Visibility.Collapsed;
+            NodeSummaryText.Visibility = Visibility.Visible;
             EditorToolbar.Visibility = Visibility.Collapsed;
             DocumentEditorHost.Visibility = Visibility.Collapsed;
 
             NodeSummaryText.Text =
-                $"Impossible de lire le document.\n\n{exception.Message}";
-
-            StatusText.Text = "Erreur de lecture";
+                "Impossible de lire le document.\n\n" +
+                RecoverableExceptionPolicy.GetUserMessage(
+                    exception) +
+                "\n\nIdentifiant : " +
+                errorId;
         }
     }
 
@@ -902,14 +1622,14 @@ public partial class MainWindow : Window
     private void ShowNodeSummary(
             NavigationNodeViewModel node)
     {
-        _documentSession = null;
-        _autosave = null;
-        _documentDirty = false;
+        DeactivateDocumentTabView();
 
         DashboardHost.Visibility = Visibility.Collapsed;
         EditorToolbar.Visibility = Visibility.Collapsed;
         DocumentEditorHost.Visibility = Visibility.Collapsed;
         NodeSummaryHost.Visibility = Visibility.Visible;
+        ProjectDashboardHost.Visibility = Visibility.Collapsed;
+        NodeSummaryText.Visibility = Visibility.Visible;
 
         NodeSummaryText.Text =
             $"{GetKindLabel(node.Kind)}\n\n" +
@@ -917,13 +1637,840 @@ public partial class MainWindow : Window
             $"{node.FullPath}";
 
         BacklinksList.ItemsSource = null;
+        RefreshRelationsContext(
+            FindIndexedTarget(
+                node));
         ContextBrokenLinksText.Text = "Liens internes : —";
         _glossaryMatches = [];
         _glossaryAdorner?.SetMatches([]);
-        MarkdownEditorTextBox.ToolTip = null;
+        CloseGlossaryToolTip();
 
         StatusText.Text =
             $"{GetKindLabel(node.Kind)} · {node.Children.Count} élément(s)";
+    }
+
+    /// <summary>
+    /// Displays a live project dashboard assembled from the existing Markdown and local preference sources.
+    /// </summary>
+    /// <param name="node">The selected project navigation node.</param>
+    /// <returns>A task representing dashboard aggregation and rendering.</returns>
+    private async Task ShowProjectDashboardAsync(
+            NavigationNodeViewModel node)
+    {
+        DeactivateDocumentTabView();
+
+        DashboardHost.Visibility = Visibility.Collapsed;
+        EditorToolbar.Visibility = Visibility.Collapsed;
+        DocumentEditorHost.Visibility = Visibility.Collapsed;
+        NodeSummaryHost.Visibility = Visibility.Visible;
+        NodeSummaryText.Visibility = Visibility.Collapsed;
+        ProjectDashboardHost.Visibility = Visibility.Visible;
+
+        ProjectDashboardTitleText.Text =
+            node.DisplayName;
+        ProjectDashboardPathText.Text =
+            node.FullPath;
+        ProjectTaskSummaryText.Text =
+            "Chargement…";
+        ProjectMilestoneSummaryText.Text =
+            "Chargement…";
+        ProjectAlertSummaryText.Text =
+            "Chargement…";
+
+        ProjectOpenTasksList.ItemsSource = null;
+        ProjectUpcomingMilestonesList.ItemsSource = null;
+        ProjectRecentDecisionsList.ItemsSource = null;
+        ProjectMeetingsList.ItemsSource = null;
+        ProjectRecentDocumentsList.ItemsSource = null;
+        ProjectAlertsList.ItemsSource = null;
+        ProjectFavoritesList.ItemsSource = null;
+
+        BacklinksList.ItemsSource = null;
+        ContextBrokenLinksText.Text =
+            "Liens internes : —";
+        _glossaryMatches = [];
+        _glossaryAdorner?.SetMatches([]);
+        CloseGlossaryToolTip();
+
+        try
+        {
+            await RefreshLinkIndexAsync();
+            RefreshRelationsContext(
+                FindIndexedTarget(
+                    node));
+
+            Task<IReadOnlyList<TaskItem>> tasksTask =
+                _taskService.GetTasksAsync(
+                    node.FullPath,
+                    includeCompleted: false);
+            Task<IReadOnlyList<MilestoneItem>> milestonesTask =
+                _milestoneService.GetMilestonesAsync(
+                    node.FullPath);
+            Task<IReadOnlyList<DecisionRecord>> decisionsTask =
+                _decisionService.GetDecisionsAsync(
+                    node.FullPath);
+
+            await Task.WhenAll(
+                tasksTask,
+                milestonesTask,
+                decisionsTask);
+
+            IReadOnlyList<TaskItem> tasks =
+                await tasksTask;
+            IReadOnlyList<MilestoneItem> milestones =
+                await milestonesTask;
+            IReadOnlyList<DecisionRecord> decisions =
+                await decisionsTask;
+
+            DateOnly today =
+                DateOnly.FromDateTime(
+                    DateTime.Today);
+            DateOnly maximumMilestoneDate =
+                today.AddDays(
+                    60);
+
+            TaskItem[] orderedTasks = tasks
+                .OrderByDescending(task =>
+                    task.IsOverdue)
+                .ThenBy(task =>
+                    task.DueDate ?? DateOnly.MaxValue)
+                .ThenBy(
+                    task => task.Text,
+                    StringComparer.CurrentCultureIgnoreCase)
+                .Take(10)
+                .ToArray();
+
+            int overdueTaskCount = tasks.Count(task =>
+                task.IsOverdue);
+
+            ProjectOpenTasksList.ItemsSource =
+                orderedTasks;
+            ProjectTaskSummaryText.Text =
+                overdueTaskCount == 0
+                    ? $"{tasks.Count} ouverte(s)"
+                    : $"{tasks.Count} ouverte(s) · {overdueTaskCount} en retard";
+
+            MilestoneItem[] nearbyMilestones = milestones
+                .Where(item =>
+                    item.TargetDate is DateOnly date &&
+                    date <= maximumMilestoneDate &&
+                    !IsDashboardMilestoneCompleted(
+                        item.Status))
+                .OrderBy(item =>
+                    item.TargetDate ?? DateOnly.MaxValue)
+                .ThenBy(
+                    item => item.Name,
+                    StringComparer.CurrentCultureIgnoreCase)
+                .Take(10)
+                .ToArray();
+
+            int overdueMilestoneCount = milestones.Count(item =>
+                item.TargetDate is DateOnly date &&
+                date < today &&
+                !IsDashboardMilestoneCompleted(
+                    item.Status));
+
+            ProjectUpcomingMilestonesList.ItemsSource =
+                nearbyMilestones;
+            ProjectMilestoneSummaryText.Text =
+                overdueMilestoneCount == 0
+                    ? $"{nearbyMilestones.Length} proche(s)"
+                    : $"{nearbyMilestones.Length} à suivre · {overdueMilestoneCount} en retard";
+
+            ProjectRecentDecisionsList.ItemsSource = decisions
+                .Take(8)
+                .ToArray();
+
+            string projectRelativePath =
+                NormalizeDashboardRelativePath(
+                    Path.GetRelativePath(
+                        _root.FullPath,
+                        node.FullPath));
+
+            LinkTargetEntry[] projectDocuments = _linkIndex.Targets
+                .Where(target =>
+                    target.Kind == LinkTargetKind.Document &&
+                    IsDashboardTargetWithinProject(
+                        target,
+                        projectRelativePath))
+                .ToArray();
+
+            ProjectRecentDocumentsList.ItemsSource =
+                BuildRecentProjectDocuments(
+                    projectDocuments);
+
+            ProjectMeetingsList.ItemsSource =
+                BuildProjectMeetingCards(
+                    projectDocuments,
+                    today);
+
+            ProjectDashboardAlertViewModel[] alerts =
+                BuildProjectDashboardAlerts(
+                    projectRelativePath,
+                    tasks,
+                    milestones,
+                    today);
+
+            ProjectAlertsList.ItemsSource =
+                alerts;
+            ProjectAlertSummaryText.Text =
+                alerts.Length == 0
+                    ? "Aucune"
+                    : $"{alerts.Length} à vérifier";
+
+            RefreshProjectDashboardFavorites(
+                node,
+                projectRelativePath);
+
+            StatusText.Text =
+                $"Dashboard projet · {node.DisplayName}";
+        }
+        catch (Exception exception) when (
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                exception))
+        {
+            string errorId =
+                ReportRecoverableUiError(
+                    "Dashboard projet · " +
+                    node.DisplayName,
+                    exception,
+                    showDialog: false);
+
+            ProjectDashboardHost.Visibility =
+                Visibility.Collapsed;
+            NodeSummaryText.Visibility =
+                Visibility.Visible;
+            NodeSummaryText.Text =
+                "Impossible de charger le dashboard du projet.\n\n" +
+                RecoverableExceptionPolicy.GetUserMessage(
+                    exception) +
+                "\n\nIdentifiant : " +
+                errorId;
+        }
+    }
+
+    /// <summary>
+    /// Builds recently modified document cards for the selected project.
+    /// </summary>
+    /// <param name="documents">The indexed project documents.</param>
+    /// <returns>Documents ordered by local filesystem modification time.</returns>
+    private ProjectDashboardDocumentViewModel[] BuildRecentProjectDocuments(
+            IReadOnlyList<LinkTargetEntry> documents)
+    {
+        global::System.Collections.Generic.List<ProjectDashboardDocumentViewModel> result =
+            new List<ProjectDashboardDocumentViewModel>();
+
+        foreach (LinkTargetEntry document in documents)
+        {
+            string fullPath = Path.GetFullPath(
+                Path.Combine(
+                    _root.FullPath,
+                    document.RelativePath.Replace(
+                        '/',
+                        Path.DirectorySeparatorChar)));
+
+            if (!File.Exists(
+                    fullPath))
+            {
+                continue;
+            }
+
+            DateTime modified =
+                File.GetLastWriteTime(
+                    fullPath);
+
+            result.Add(
+                new ProjectDashboardDocumentViewModel
+                {
+                    TargetId =
+                        document.Id,
+                    DisplayName =
+                        document.DisplayName,
+                    Detail =
+                        document.LocalRelativePath ??
+                        document.RelativePath,
+                    SourceRelativePath =
+                        document.RelativePath,
+                    Timestamp =
+                        new DateTimeOffset(
+                            modified)
+                });
+        }
+
+        return result
+            .OrderByDescending(item =>
+                item.Timestamp)
+            .Take(10)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Builds the last and next known meeting cards from dated meeting filenames.
+    /// </summary>
+    /// <param name="documents">The indexed project documents.</param>
+    /// <param name="today">The current local date.</param>
+    /// <returns>Up to two cards: the latest past/current meeting and the nearest future meeting.</returns>
+    private ProjectDashboardDocumentViewModel[] BuildProjectMeetingCards(
+            IReadOnlyList<LinkTargetEntry> documents,
+            DateOnly today)
+    {
+        LinkTargetEntry? lastMeeting = null;
+        DateOnly? lastMeetingDate = null;
+        LinkTargetEntry? nextMeeting = null;
+        DateOnly? nextMeetingDate = null;
+
+        foreach (LinkTargetEntry document in documents.Where(
+                     IsDashboardMeetingDocument))
+        {
+            if (!TryParseDashboardDocumentDate(
+                    document.DisplayName,
+                    out DateOnly meetingDate))
+            {
+                continue;
+            }
+
+            if (meetingDate <= today &&
+                (lastMeetingDate is null ||
+                 meetingDate > lastMeetingDate.Value))
+            {
+                lastMeeting =
+                    document;
+                lastMeetingDate =
+                    meetingDate;
+            }
+
+            if (meetingDate > today &&
+                (nextMeetingDate is null ||
+                 meetingDate < nextMeetingDate.Value))
+            {
+                nextMeeting =
+                    document;
+                nextMeetingDate =
+                    meetingDate;
+            }
+        }
+
+        global::System.Collections.Generic.List<ProjectDashboardDocumentViewModel> result =
+            new List<ProjectDashboardDocumentViewModel>();
+
+        if (lastMeeting is not null &&
+            lastMeetingDate is DateOnly previousDate)
+        {
+            result.Add(
+                CreateMeetingDashboardCard(
+                    lastMeeting,
+                    previousDate,
+                    "Dernière réunion"));
+        }
+
+        if (nextMeeting is not null &&
+            nextMeetingDate is DateOnly upcomingDate)
+        {
+            result.Add(
+                CreateMeetingDashboardCard(
+                    nextMeeting,
+                    upcomingDate,
+                    "Prochaine réunion"));
+        }
+
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Creates one project meeting dashboard card.
+    /// </summary>
+    /// <param name="target">The indexed meeting document.</param>
+    /// <param name="date">The parsed meeting date.</param>
+    /// <param name="label">The temporal relation label.</param>
+    /// <returns>The navigable meeting card.</returns>
+    private static ProjectDashboardDocumentViewModel CreateMeetingDashboardCard(
+            LinkTargetEntry target,
+            DateOnly date,
+            string label) =>
+            new ProjectDashboardDocumentViewModel
+            {
+                TargetId =
+                    target.Id,
+                DisplayName =
+                    target.DisplayName,
+                Detail =
+                    $"{label} · {date:dd/MM/yyyy}",
+                SourceRelativePath =
+                    target.RelativePath
+            };
+
+    /// <summary>
+    /// Builds lightweight project consistency alerts from the live link index, task list and milestone list.
+    /// </summary>
+    /// <param name="projectRelativePath">The project path relative to the workspace.</param>
+    /// <param name="tasks">Current open project tasks.</param>
+    /// <param name="milestones">Current project milestones.</param>
+    /// <param name="today">The current local date.</param>
+    /// <returns>The ordered alert cards.</returns>
+    private ProjectDashboardAlertViewModel[] BuildProjectDashboardAlerts(
+            string projectRelativePath,
+            IReadOnlyList<TaskItem> tasks,
+            IReadOnlyList<MilestoneItem> milestones,
+            DateOnly today)
+    {
+        global::System.Collections.Generic.List<ProjectDashboardAlertViewModel> alerts =
+            new List<ProjectDashboardAlertViewModel>();
+        Dictionary<Guid, LinkTargetEntry> targetsById =
+            _linkIndex.Targets.ToDictionary(target =>
+                target.Id);
+
+        foreach (LinkReferenceEntry reference in _linkIndex.References.Where(reference =>
+                     reference.TargetId is null))
+        {
+            if (!targetsById.TryGetValue(
+                    reference.SourceId,
+                    out LinkTargetEntry? source) ||
+                source.Kind != LinkTargetKind.Document ||
+                !IsDashboardTargetWithinProject(
+                    source,
+                    projectRelativePath))
+            {
+                continue;
+            }
+
+            alerts.Add(
+                new ProjectDashboardAlertViewModel
+                {
+                    Category =
+                        "Lien interne",
+                    Message =
+                        $"Cible introuvable : [[{reference.RawTarget}]]",
+                    SourceRelativePath =
+                        source.RelativePath,
+                    LineNumber =
+                        reference.LineNumber
+                });
+        }
+
+        foreach (IGrouping<string, TaskItem> duplicate in tasks
+                     .Where(task =>
+                         !string.IsNullOrWhiteSpace(
+                             task.Text))
+                     .GroupBy(
+                         task => task.Text.Trim(),
+                         StringComparer.CurrentCultureIgnoreCase)
+                     .Where(group =>
+                         group.Count() > 1))
+        {
+            TaskItem first =
+                duplicate.First();
+
+            alerts.Add(
+                new ProjectDashboardAlertViewModel
+                {
+                    Category =
+                        "Tâche dupliquée",
+                    Message =
+                        $"« {duplicate.Key} » apparaît {duplicate.Count()} fois parmi les tâches ouvertes.",
+                    SourceRelativePath =
+                        first.SourceRelativePath,
+                    LineNumber =
+                        first.LineNumber
+                });
+        }
+
+        foreach (MilestoneItem milestone in milestones.Where(item =>
+                     item.TargetDate is DateOnly date &&
+                     date < today &&
+                     !IsDashboardMilestoneCompleted(
+                         item.Status)))
+        {
+            alerts.Add(
+                new ProjectDashboardAlertViewModel
+                {
+                    Category =
+                        "Planning",
+                    Message =
+                        $"Jalon dépassé : {milestone.Name} ({milestone.TargetDate:dd/MM/yyyy}).",
+                    SourceRelativePath =
+                        milestone.SourceRelativePath,
+                    LineNumber =
+                        milestone.LineNumber
+                });
+        }
+
+        return alerts
+            .OrderBy(
+                alert => alert.Category,
+                StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(
+                alert => alert.Message,
+                StringComparer.CurrentCultureIgnoreCase)
+            .Take(12)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Refreshes the project-scoped favorite list and favorite toggle button.
+    /// </summary>
+    /// <param name="node">The selected project node.</param>
+    /// <param name="projectRelativePath">The project path relative to the workspace.</param>
+    private void RefreshProjectDashboardFavorites(
+            NavigationNodeViewModel node,
+            string projectRelativePath)
+    {
+        DashboardItemViewModel[] favorites = _preferences.Favorites
+            .Select(reference =>
+                CreateDashboardItem(
+                    reference,
+                    lastOpenedUtc: null))
+            .Where(item =>
+                item is not null)
+            .Cast<DashboardItemViewModel>()
+            .Where(item =>
+            {
+                LinkTargetEntry? target =
+                    _linkIndex.Targets.FirstOrDefault(candidate =>
+                        candidate.Id == item.TargetId);
+
+                return target is not null &&
+                       IsDashboardTargetWithinProject(
+                           target,
+                           projectRelativePath);
+            })
+            .ToArray();
+
+        ProjectFavoritesList.ItemsSource =
+            favorites;
+        ProjectFavoriteButton.Content =
+            IsFavorite(
+                node)
+                ? "★ Retirer des favoris"
+                : "☆ Ajouter aux favoris";
+    }
+
+    /// <summary>
+    /// Determines whether an indexed target belongs to the selected project.
+    /// </summary>
+    /// <param name="target">The indexed target.</param>
+    /// <param name="projectRelativePath">The normalized project path.</param>
+    /// <returns><see langword="true"/> when the target is the project itself or one of its descendants.</returns>
+    private static bool IsDashboardTargetWithinProject(
+            LinkTargetEntry target,
+            string projectRelativePath)
+    {
+        string project =
+            projectRelativePath.TrimEnd(
+                '/');
+        string candidate =
+            target.RelativePath.TrimEnd(
+                '/');
+
+        return string.Equals(
+                   project,
+                   candidate,
+                   StringComparison.OrdinalIgnoreCase) ||
+               candidate.StartsWith(
+                   project + "/",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Determines whether an indexed document is stored under a meeting directory.
+    /// </summary>
+    /// <param name="target">The indexed document target.</param>
+    /// <returns><see langword="true"/> for project meeting documents.</returns>
+    private static bool IsDashboardMeetingDocument(
+            LinkTargetEntry target)
+    {
+        string[] segments = target.RelativePath.Split(
+            '/',
+            StringSplitOptions.RemoveEmptyEntries);
+
+        return segments.Any(segment =>
+            string.Equals(
+                segment,
+                WorkspaceMeetingService.MeetingsDirectoryName,
+                StringComparison.CurrentCultureIgnoreCase));
+    }
+
+    /// <summary>
+    /// Parses the leading ISO date used by meeting and decision document names.
+    /// </summary>
+    /// <param name="displayName">The indexed document display name.</param>
+    /// <param name="date">Receives the parsed date.</param>
+    /// <returns><see langword="true"/> when the name begins with a valid ISO date.</returns>
+    private static bool TryParseDashboardDocumentDate(
+            string displayName,
+            out DateOnly date)
+    {
+        date =
+            default;
+
+        if (displayName.Length < 10)
+        {
+            return false;
+        }
+
+        return DateOnly.TryParseExact(
+            displayName[..10],
+            "yyyy-MM-dd",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out date);
+    }
+
+    /// <summary>
+    /// Determines whether a milestone status represents a completed item.
+    /// </summary>
+    /// <param name="status">The milestone status.</param>
+    /// <returns><see langword="true"/> when the status is a common completed-state label.</returns>
+    private static bool IsDashboardMilestoneCompleted(
+            string status)
+    {
+        string normalized =
+            status.Trim()
+                .ToLowerInvariant();
+
+        return normalized is
+            "terminé" or
+            "termine" or
+            "terminée" or
+            "terminee" or
+            "clos" or
+            "clôturé" or
+            "cloture" or
+            "done" or
+            "complete" or
+            "completed";
+    }
+
+    /// <summary>
+    /// Normalizes a workspace-relative path for link-index comparisons.
+    /// </summary>
+    /// <param name="relativePath">The path to normalize.</param>
+    /// <returns>The forward-slash path.</returns>
+    private static string NormalizeDashboardRelativePath(
+            string relativePath) =>
+            relativePath.Replace(
+                Path.DirectorySeparatorChar,
+                '/');
+
+    /// <summary>
+    /// Toggles the current project itself in the existing local favorites preference.
+    /// </summary>
+    /// <param name="sender">The favorite button.</param>
+    /// <param name="e">The routed event.</param>
+    private async void ToggleProjectFavorite_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Dashboard projet · favori",
+            async () =>
+            {
+                if (_selectedNode is not NavigationNodeViewModel node ||
+                    node.Kind != WorkspaceNodeKind.Project)
+                {
+                    return;
+                }
+
+                await ToggleFavoriteAsync(
+                    node);
+
+                string projectRelativePath =
+                    NormalizeDashboardRelativePath(
+                        Path.GetRelativePath(
+                            _root.FullPath,
+                            node.FullPath));
+
+                RefreshProjectDashboardFavorites(
+                    node,
+                    projectRelativePath);
+            });
+    }
+
+    /// <summary>
+    /// Navigates from the project dashboard to one task source.
+    /// </summary>
+    /// <param name="sender">The task list.</param>
+    /// <param name="e">The mouse event.</param>
+    private async void ProjectTaskList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        if (ProjectOpenTasksList.SelectedItem is not TaskItem task)
+        {
+            return;
+        }
+
+        await RunUiActionAsync(
+            "Dashboard projet · ouvrir une tâche",
+            () =>
+                NavigateToTaskAsync(
+                    task));
+    }
+
+    /// <summary>
+    /// Navigates from the project dashboard to one milestone source.
+    /// </summary>
+    /// <param name="sender">The milestone list.</param>
+    /// <param name="e">The mouse event.</param>
+    private async void ProjectMilestoneList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        if (ProjectUpcomingMilestonesList.SelectedItem is not MilestoneItem milestone)
+        {
+            return;
+        }
+
+        await RunUiActionAsync(
+            "Dashboard projet · ouvrir un jalon",
+            () =>
+                NavigateToMilestoneAsync(
+                    milestone));
+    }
+
+    /// <summary>
+    /// Navigates from the project dashboard to one decision source.
+    /// </summary>
+    /// <param name="sender">The decision list.</param>
+    /// <param name="e">The mouse event.</param>
+    private async void ProjectDecisionList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        if (ProjectRecentDecisionsList.SelectedItem is not DecisionRecord decision)
+        {
+            return;
+        }
+
+        await RunUiActionAsync(
+            "Dashboard projet · ouvrir une décision",
+            () =>
+                NavigateToProjectDashboardSourceAsync(
+                    decision.SourceRelativePath,
+                    lineNumber: null));
+    }
+
+    /// <summary>
+    /// Navigates from a project dashboard document card to its indexed target.
+    /// </summary>
+    /// <param name="sender">The document list.</param>
+    /// <param name="e">The mouse event.</param>
+    private async void ProjectDocumentList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox list ||
+            list.SelectedItem is not ProjectDashboardDocumentViewModel document)
+        {
+            return;
+        }
+
+        LinkTargetEntry? target =
+            _linkIndex.Targets.FirstOrDefault(candidate =>
+                candidate.Id == document.TargetId);
+
+        if (target is null)
+        {
+            StatusText.Text =
+                $"Document introuvable : {document.SourceRelativePath}";
+            return;
+        }
+
+        await RunUiActionAsync(
+            "Dashboard projet · ouvrir un document",
+            () =>
+                NavigateToLinkTargetAsync(
+                    target));
+    }
+
+    /// <summary>
+    /// Navigates from a project consistency alert to its source document and line.
+    /// </summary>
+    /// <param name="sender">The alert list.</param>
+    /// <param name="e">The mouse event.</param>
+    private async void ProjectAlertList_MouseDoubleClick(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        if (ProjectAlertsList.SelectedItem is not ProjectDashboardAlertViewModel alert)
+        {
+            return;
+        }
+
+        await RunUiActionAsync(
+            "Dashboard projet · ouvrir une alerte",
+            () =>
+                NavigateToProjectDashboardSourceAsync(
+                    alert.SourceRelativePath,
+                    alert.LineNumber));
+    }
+
+    /// <summary>
+    /// Navigates to a workspace-relative dashboard source and optionally positions the editor on a line.
+    /// </summary>
+    /// <param name="sourceRelativePath">The workspace-relative Markdown source path.</param>
+    /// <param name="lineNumber">The optional one-based line number.</param>
+    /// <returns>A task representing navigation.</returns>
+    private async Task NavigateToProjectDashboardSourceAsync(
+            string sourceRelativePath,
+            int? lineNumber)
+    {
+        string fullPath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                sourceRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        NavigationNodeViewModel? node =
+            FindAndExpand(
+                _root,
+                fullPath);
+
+        if (node is null)
+        {
+            await RefreshNavigationAsync();
+            node =
+                FindAndExpand(
+                    _root,
+                    fullPath);
+        }
+
+        if (node is null)
+        {
+            StatusText.Text =
+                $"Source introuvable : {sourceRelativePath}";
+            return;
+        }
+
+        if (_selectedNode is not null &&
+            _selectedNode.Kind == WorkspaceNodeKind.Document &&
+            !ReferenceEquals(
+                _selectedNode,
+                node) &&
+            !await TryCloseCurrentDocumentAsync(
+                "ouvrir la source du dashboard"))
+        {
+            return;
+        }
+
+        _restoringSelection =
+            true;
+        node.IsSelected =
+            true;
+        _restoringSelection =
+            false;
+        _selectedNode =
+            node;
+
+        await DisplayNodeAsync(
+            node);
+
+        if (lineNumber is int line &&
+            node.Kind == WorkspaceNodeKind.Document)
+        {
+            MoveCaretToLine(
+                line);
+        }
     }
 
     /// <summary>
@@ -931,42 +2478,10 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="actionDescription">The <c>actionDescription</c> value.</param>
     /// <returns>The result of the operation.</returns>
-    private async Task<bool> TryCloseCurrentDocumentAsync(
-            string actionDescription)
-    {
-        if (_autosave is null)
-        {
-            return true;
-        }
-
-        await _autosave.FlushAsync();
-
-        if (_documentDirty)
-        {
-            global::System.Windows.MessageBoxResult answer = MessageBox.Show(
-                this,
-                "Les dernières modifications n'ont pas pu être enregistrées " +
-                "(le fichier a peut-être été modifié ailleurs ou est verrouillé).\n\n" +
-                $"Voulez-vous quand même {actionDescription} et abandonner " +
-                "les modifications locales non enregistrées ?",
-                "Modifications non enregistrées",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (answer != MessageBoxResult.Yes)
-            {
-                return false;
-            }
-        }
-
-        await _autosave.DisposeAsync();
-        _autosave = null;
-        _documentSession = null;
-        _documentDirty = false;
-        _previewTimer.Stop();
-
-        return true;
-    }
+    private Task<bool> TryCloseCurrentDocumentAsync(
+            string actionDescription) =>
+            TryCloseActiveDocumentTabAsync(
+                actionDescription);
 
     /// <summary>
     /// Performs the <c>MarkdownEditorTextBox_TextChanged</c> operation.
@@ -977,25 +2492,44 @@ public partial class MainWindow : Window
             object sender,
             System.Windows.Controls.TextChangedEventArgs e)
     {
-        if (_suppressEditorChanges ||
-            _autosave is null)
-        {
-            return;
-        }
+        RunUiAction(
+            "Éditeur · modification",
+            () =>
+            {
+                if (_workspaceReadOnly ||
+                    _suppressEditorChanges ||
+                    _autosave is null)
+                {
+                    return;
+                }
 
-        _documentDirty = true;
-        SaveStateText.Text = "Modification…";
+                _documentDirty = true;
 
-        _autosave.Schedule(
-            MarkdownEditorTextBox.Text);
+                if (_activeDocumentTab is not null)
+                {
+                    _activeDocumentTab.Content =
+                        MarkdownEditorTextBox.Text;
+                    _activeDocumentTab.IsDirty = true;
+                }
 
-        _previewTimer.Stop();
-        _previewTimer.Start();
+                RefreshDocumentPropertiesContext(
+                    MarkdownEditorTextBox.Text);
 
-        if (!_suppressLinkAutocomplete)
-        {
-            _ = RefreshInternalLinkSuggestionsAsync();
-        }
+                SaveStateText.Text = "Modification…";
+
+                _autosave.Schedule(
+                    MarkdownEditorTextBox.Text);
+
+                _previewTimer.Stop();
+                _previewTimer.Start();
+
+                if (!_suppressLinkAutocomplete)
+                {
+                    InternalLinkPopup.IsOpen = false;
+                    _ = RefreshInternalLinkSuggestionsSafelyAsync();
+                }
+            },
+            showDialog: false);
     }
 
     /// <summary>
@@ -1008,8 +2542,23 @@ public partial class MainWindow : Window
             EventArgs e)
     {
         _previewTimer.Stop();
-        RenderPreview();
-        UpdateGlossaryAnnotations();
+
+        try
+        {
+            RenderPreview();
+            UpdateGlossaryAnnotations();
+        }
+        catch (Exception exception) when (
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                exception))
+        {
+            InternalLinkPopup.IsOpen =
+                false;
+            ReportRecoverableUiError(
+                "Aperçu Markdown / Mermaid",
+                exception,
+                showDialog: false);
+        }
     }
 
     /// <summary>
@@ -1017,21 +2566,21 @@ public partial class MainWindow : Window
     /// </summary>
     private void RenderPreview()
     {
-        if (!_previewVisible ||
-            _selectedNode?.Kind != WorkspaceNodeKind.Document)
+        if (_previewVisible &&
+            _activeDocumentTab is not null)
         {
-            return;
+            string? baseDirectory = Path.GetDirectoryName(
+                _activeDocumentTab.FullPath);
+
+            MarkdownPreview.Document =
+                MarkdownFlowDocumentRenderer.Render(
+                    MarkdownEditorTextBox.Text,
+                    baseDirectory,
+                    OnInternalLinkClicked,
+                    OnMarkdownLinkClicked);
         }
 
-        string? baseDirectory = Path.GetDirectoryName(
-            _selectedNode.FullPath);
-
-        MarkdownPreview.Document =
-            MarkdownFlowDocumentRenderer.Render(
-                MarkdownEditorTextBox.Text,
-                baseDirectory,
-                OnInternalLinkClicked,
-                OnMarkdownLinkClicked);
+        RenderSecondaryPreview();
     }
 
     /// <summary>
@@ -1044,46 +2593,11 @@ public partial class MainWindow : Window
             EventArgs e)
     {
         Dispatcher.BeginInvoke(async () =>
-        {
-            if (_documentSession is null)
-            {
-                return;
-            }
-
-            _documentDirty =
-                !string.Equals(
-                    MarkdownEditorTextBox.Text,
-                    _documentSession.Content,
-                    StringComparison.Ordinal);
-
-            SaveStateText.Text =
-                _documentDirty
-                    ? "Modification…"
-                    : "Enregistré";
-
-            if (!_documentDirty)
-            {
-                StatusText.Text = "Enregistré localement";
-
-                try
-                {
-                    await RefreshLinkIndexAndContextAsync();
-                    await RefreshGlossaryContextAsync(
-                        _selectedNode?.FullPath ?? _root.FullPath);
-                    UpdateGlossaryAnnotations();
-                    await RefreshDashboardTasksAsync();
-                    await RefreshDashboardMilestonesAsync();
-                }
-                catch (Exception exception) when (
-                    exception is IOException or
-                    UnauthorizedAccessException or
-                    InvalidDataException)
-                {
-                    StatusText.Text =
-                        $"Enregistré · index liens indisponible : {exception.Message}";
-                }
-            }
-        });
+            await RunUiActionAsync(
+                "Autosave · finalisation",
+                () =>
+                    HandleDocumentTabAutosaveSavedAsync(
+                        sender)));
     }
 
     /// <summary>
@@ -1096,29 +2610,12 @@ public partial class MainWindow : Window
             AutosaveConflictEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
-        {
-            _documentDirty = true;
-            SaveStateText.Text = "Conflit externe";
-            StatusText.Text =
-                "Le fichier a été modifié en dehors de Nodalis.";
-
-            if (_conflictWarningShown)
-            {
-                return;
-            }
-
-            _conflictWarningShown = true;
-
-            MessageBox.Show(
-                this,
-                "Ce fichier a été modifié par un autre programme depuis son ouverture. " +
-                "Nodalis n'écrasera pas cette version automatiquement.\n\n" +
-                "Vos modifications restent visibles dans l'éditeur tant que vous " +
-                "ne changez pas de document.",
-                "Conflit de modification",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        });
+            RunUiAction(
+                "Autosave · conflit",
+                () =>
+                    HandleDocumentTabAutosaveConflict(
+                        sender),
+                showDialog: false));
     }
 
     /// <summary>
@@ -1131,11 +2628,13 @@ public partial class MainWindow : Window
             AutosaveFailureEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
-        {
-            _documentDirty = true;
-            SaveStateText.Text = "Erreur d'enregistrement";
-            StatusText.Text = e.Exception.Message;
-        });
+            RunUiAction(
+                "Autosave · échec d'enregistrement",
+                () =>
+                    HandleDocumentTabAutosaveFailure(
+                        sender,
+                        e.Exception),
+                showDialog: false));
     }
 
     /// <summary>
@@ -1147,7 +2646,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await CreateNoteAsync();
+        await RunUiActionAsync(
+            "Créer une note",
+            CreateNoteAsync);
     }
 
     /// <summary>
@@ -1159,7 +2660,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await CreateProjectAsync();
+        await RunUiActionAsync(
+            "Créer un projet",
+            CreateProjectAsync);
     }
 
     /// <summary>
@@ -1171,7 +2674,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await CaptureQuickNoteAsync();
+        await RunUiActionAsync(
+            "Capturer une note rapide",
+            CaptureQuickNoteAsync);
     }
 
     /// <summary>
@@ -1183,7 +2688,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ShowQuickNotesAsync();
+        await RunUiActionAsync(
+            "Ouvrir les notes rapides",
+            ShowQuickNotesAsync);
     }
 
     /// <summary>
@@ -1195,7 +2702,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ShowCommandPaletteAsync();
+        await RunUiActionAsync(
+            "Palette de commandes",
+            ShowCommandPaletteAsync);
     }
 
     /// <summary>
@@ -1207,7 +2716,9 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await AttachFileAsync();
+        await RunUiActionAsync(
+            "Joindre un fichier",
+            AttachFileAsync);
     }
 
     /// <summary>
@@ -1219,7 +2730,37 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ImportDocxAsync();
+        await RunUiActionAsync(
+            "Import DOCX",
+            ImportDocxAsync);
+    }
+
+    /// <summary>
+    /// Opens the bulk Markdown import workflow.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void ImportMarkdown_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Import Markdown",
+            ImportMarkdownAsync);
+    }
+
+    /// <summary>
+    /// Opens the consolidated project export workflow.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void ExportProject_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Export projet",
+            ExportProjectAsync);
     }
 
     /// <summary>
@@ -1231,8 +2772,11 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        await ShowTasksAsync(
-            global: true);
+        await RunUiActionAsync(
+            "Tâches globales",
+            () =>
+                ShowTasksAsync(
+                    global: true));
     }
 
     /// <summary>
@@ -1244,6 +2788,76 @@ public partial class MainWindow : Window
             object sender,
             KeyEventArgs e)
     {
+        await RunUiActionAsync(
+            "Raccourci clavier",
+            () =>
+                HandlePreviewKeyDownAsync(
+                    e));
+    }
+
+    /// <summary>
+    /// Executes keyboard shortcut business actions behind the common UI boundary.
+    /// </summary>
+    /// <param name="e">The keyboard event arguments.</param>
+    /// <returns>A task representing the shortcut action.</returns>
+    private async Task HandlePreviewKeyDownAsync(
+            KeyEventArgs e)
+    {
+        bool controlPressed =
+            (Keyboard.Modifiers & ModifierKeys.Control) ==
+            ModifierKeys.Control;
+
+        if (controlPressed &&
+            e.Key == Key.Tab)
+        {
+            e.Handled = true;
+
+            int delta =
+                (Keyboard.Modifiers & ModifierKeys.Shift) ==
+                ModifierKeys.Shift
+                    ? -1
+                    : 1;
+
+            await CycleFocusedDocumentTabAsync(
+                delta);
+            return;
+        }
+
+        DocumentTabViewModel? focusedTab =
+            GetFocusedDocumentTab();
+
+        if (controlPressed &&
+            e.Key == Key.W &&
+            focusedTab is not null)
+        {
+            e.Handled = true;
+            await CloseDocumentTabAsync(
+                focusedTab,
+                "fermer cet onglet",
+                activateNeighbor: true);
+            return;
+        }
+
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.MoveToPrimaryPane))
+        {
+            e.Handled = true;
+            await MoveFocusedTabToPaneAsync(
+                EditorPaneSlot.Primary);
+            return;
+        }
+
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.MoveToSecondaryPane))
+        {
+            e.Handled = true;
+            await MoveFocusedTabToPaneAsync(
+                EditorPaneSlot.Secondary);
+            return;
+        }
+
         if (InternalLinkPopup.IsOpen)
         {
             if (e.Key == Key.Down)
@@ -1273,6 +2887,15 @@ public partial class MainWindow : Window
                 InternalLinkPopup.IsOpen = false;
                 return;
             }
+        }
+
+        if (ShortcutCatalog.Matches(
+                e,
+                ShortcutCatalog.QuickOpen))
+        {
+            e.Handled = true;
+            await ShowQuickOpenAsync();
+            return;
         }
 
         if (ShortcutCatalog.Matches(
@@ -1350,7 +2973,7 @@ public partial class MainWindow : Window
         if (ShortcutCatalog.Matches(
                 e,
                 ShortcutCatalog.Bold) &&
-            _documentSession is not null)
+            GetFocusedDocumentTab() is not null)
         {
             e.Handled = true;
             WrapSelection("**", "**");
@@ -1360,7 +2983,7 @@ public partial class MainWindow : Window
         if (ShortcutCatalog.Matches(
                 e,
                 ShortcutCatalog.Italic) &&
-            _documentSession is not null)
+            GetFocusedDocumentTab() is not null)
         {
             e.Handled = true;
             WrapSelection("*", "*");
@@ -1370,7 +2993,7 @@ public partial class MainWindow : Window
         if (ShortcutCatalog.Matches(
                 e,
                 ShortcutCatalog.InlineCode) &&
-            _documentSession is not null)
+            GetFocusedDocumentTab() is not null)
         {
             e.Handled = true;
             string marker = ((char)96).ToString();
@@ -1384,17 +3007,7 @@ public partial class MainWindow : Window
     /// <returns>The result of the operation.</returns>
     private async Task SaveCurrentDocumentAsync()
     {
-        if (_autosave is null)
-        {
-            return;
-        }
-
-        await _autosave.FlushAsync();
-
-        SaveStateText.Text =
-            _documentDirty
-                ? "Non enregistré"
-                : "Enregistré";
+        await SaveFocusedDocumentAsync();
     }
 
     /// <summary>
@@ -1439,31 +3052,34 @@ public partial class MainWindow : Window
             string prefix,
             string suffix)
     {
-        if (_documentSession is null)
+        TextBox editor =
+            GetFocusedEditorTextBox();
+
+        if (GetFocusedDocumentTab() is null)
         {
             return;
         }
 
-        int start = MarkdownEditorTextBox.SelectionStart;
-        int length = MarkdownEditorTextBox.SelectionLength;
-        string selectedText = MarkdownEditorTextBox.SelectedText;
+        int start = editor.SelectionStart;
+        int length = editor.SelectionLength;
+        string selectedText = editor.SelectedText;
 
-        MarkdownEditorTextBox.SelectedText =
+        editor.SelectedText =
             prefix + selectedText + suffix;
 
         if (length == 0)
         {
-            MarkdownEditorTextBox.CaretIndex =
+            editor.CaretIndex =
                 start + prefix.Length;
         }
         else
         {
-            MarkdownEditorTextBox.Select(
+            editor.Select(
                 start + prefix.Length,
                 length);
         }
 
-        MarkdownEditorTextBox.Focus();
+        editor.Focus();
     }
 
     /// <summary>
@@ -1475,13 +3091,18 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        _previewVisible = !_previewVisible;
-        ApplyPreviewState();
+        RunUiAction(
+            "Aperçu Markdown / Mermaid",
+            () =>
+            {
+                _previewVisible = !_previewVisible;
+                ApplyPreviewState();
 
-        if (_previewVisible)
-        {
-            RenderPreview();
-        }
+                if (_previewVisible)
+                {
+                    RenderPreview();
+                }
+            });
     }
 
     /// <summary>
@@ -1497,13 +3118,16 @@ public partial class MainWindow : Window
             PreviewSplitterColumn.Width = new GridLength(5);
             MarkdownPreview.Visibility = Visibility.Visible;
             PreviewSplitter.Visibility = Visibility.Visible;
-            return;
+        }
+        else
+        {
+            PreviewColumn.Width = new GridLength(0);
+            PreviewSplitterColumn.Width = new GridLength(0);
+            MarkdownPreview.Visibility = Visibility.Collapsed;
+            PreviewSplitter.Visibility = Visibility.Collapsed;
         }
 
-        PreviewColumn.Width = new GridLength(0);
-        PreviewSplitterColumn.Width = new GridLength(0);
-        MarkdownPreview.Visibility = Visibility.Collapsed;
-        PreviewSplitter.Visibility = Visibility.Collapsed;
+        ApplySecondaryPreviewState();
     }
 
     /// <summary>
@@ -1512,26 +3136,31 @@ public partial class MainWindow : Window
     /// <param name="target">The <c>target</c> value.</param>
     private async void OnInternalLinkClicked(string target)
     {
-        if (_linkIndex.Targets.Count == 0)
-        {
-            await RefreshLinkIndexAsync();
-        }
+        await RunUiActionAsync(
+            "Navigation · lien interne",
+            async () =>
+            {
+                if (_linkIndex.Targets.Count == 0)
+                {
+                    await RefreshLinkIndexAsync();
+                }
 
-        global::Nodalis.Core.Links.LinkResolution resolution = WorkspaceLinkIndexService.Resolve(
-            _linkIndex,
-            target);
+                global::Nodalis.Core.Links.LinkResolution resolution = WorkspaceLinkIndexService.Resolve(
+                    _linkIndex,
+                    target);
 
-        if (resolution.Status == LinkResolutionStatus.Resolved)
-        {
-            await NavigateToLinkTargetAsync(
-                resolution.Target!);
-            return;
-        }
+                if (resolution.Status == LinkResolutionStatus.Resolved)
+                {
+                    await NavigateToLinkTargetAsync(
+                        resolution.Target!);
+                    return;
+                }
 
-        StatusText.Text =
-            resolution.Status == LinkResolutionStatus.Missing
-                ? $"Lien interne introuvable : {target}"
-                : $"Lien interne ambigu : {target} ({resolution.Candidates.Count} cibles)";
+                StatusText.Text =
+                    resolution.Status == LinkResolutionStatus.Missing
+                        ? $"Lien interne introuvable : {target}"
+                        : $"Lien interne ambigu : {target} ({resolution.Candidates.Count} cibles)";
+            });
     }
 
     /// <summary>
@@ -1539,9 +3168,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowDashboard()
     {
-        _documentSession = null;
-        _autosave = null;
-        _documentDirty = false;
+        DeactivateDocumentTabView();
 
         EditorToolbar.Visibility = Visibility.Collapsed;
         DocumentEditorHost.Visibility = Visibility.Collapsed;
@@ -1552,6 +3179,8 @@ public partial class MainWindow : Window
         DocumentPathText.Text = _root.FullPath;
 
         BacklinksList.ItemsSource = null;
+        RefreshRelationsContext(
+            null);
         ContextBrokenLinksText.Text = "Liens internes : —";
         _glossaryMatches = [];
         _glossaryAdorner?.SetMatches([]);
@@ -1613,6 +3242,8 @@ public partial class MainWindow : Window
             .Where(IsMeetingDashboardItem)
             .Take(8)
             .ToArray();
+
+        RefreshRecentSearchesDashboard();
     }
 
     /// <summary>
@@ -1630,6 +3261,22 @@ public partial class MainWindow : Window
                 out global::System.Guid targetId))
         {
             return null;
+        }
+
+        if (string.Equals(
+                reference.Kind,
+                "Bookmark",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            DocumentBookmarkReference? bookmark =
+                _preferences.Bookmarks.FirstOrDefault(candidate =>
+                    candidate.Id == targetId);
+
+            return bookmark is null
+                ? null
+                : CreateBookmarkDashboardItem(
+                    bookmark,
+                    lastOpenedUtc);
         }
 
         global::Nodalis.Core.Links.LinkTargetEntry? target = _linkIndex.Targets.FirstOrDefault(candidate =>
@@ -1713,24 +3360,47 @@ public partial class MainWindow : Window
             object sender,
             MouseButtonEventArgs e)
     {
-        if (sender is not ListBox list ||
-            list.SelectedItem is not DashboardItemViewModel item)
-        {
-            return;
-        }
+        await RunUiActionAsync(
+            "Dashboard · navigation",
+            async () =>
+            {
+                if (sender is not ListBox list ||
+                    list.SelectedItem is not DashboardItemViewModel item)
+                {
+                    return;
+                }
 
-        global::Nodalis.Core.Links.LinkTargetEntry? target = _linkIndex.Targets.FirstOrDefault(candidate =>
-            candidate.Id == item.TargetId);
+                if (item.BookmarkId is Guid bookmarkId)
+                {
+                    DocumentBookmarkReference? bookmark =
+                        _preferences.Bookmarks.FirstOrDefault(candidate =>
+                            candidate.Id == bookmarkId);
 
-        if (target is null)
-        {
-            StatusText.Text =
-                $"Favori/récent introuvable : {item.DisplayName}";
-            return;
-        }
+                    if (bookmark is null)
+                    {
+                        StatusText.Text =
+                            $"Signet introuvable : {item.DisplayName}";
+                        return;
+                    }
 
-        await NavigateToLinkTargetAsync(
-            target);
+                    await NavigateToBookmarkAsync(
+                        bookmark);
+                    return;
+                }
+
+                global::Nodalis.Core.Links.LinkTargetEntry? target = _linkIndex.Targets.FirstOrDefault(candidate =>
+                    candidate.Id == item.TargetId);
+
+                if (target is null)
+                {
+                    StatusText.Text =
+                        $"Favori/récent introuvable : {item.DisplayName}";
+                    return;
+                }
+
+                await NavigateToLinkTargetAsync(
+                    target);
+            });
     }
 
     /// <summary>
@@ -2031,10 +3701,15 @@ public partial class MainWindow : Window
         if (target is null)
         {
             BacklinksList.ItemsSource = null;
+            RefreshRelationsContext(
+                null);
             ContextBrokenLinksText.Text =
                 "Liens internes : indexation en attente";
             return;
         }
+
+        RefreshRelationsContext(
+            target);
 
         global::Nodalis.Core.Links.BacklinkEntry[] backlinks = _linkIndex.References
             .Where(reference =>
@@ -2174,6 +3849,29 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Refreshes internal-link suggestions without allowing a transient editor
+    /// index or visual-state error to terminate the application.
+    /// </summary>
+    /// <returns>A task representing the refresh operation.</returns>
+    private async Task RefreshInternalLinkSuggestionsSafelyAsync()
+    {
+        try
+        {
+            await RefreshInternalLinkSuggestionsAsync();
+        }
+        catch (Exception exception) when (
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(
+                exception))
+        {
+            InternalLinkPopup.IsOpen = false;
+            ReportRecoverableUiError(
+                "Liens internes · autocomplétion",
+                exception,
+                showDialog: false);
+        }
+    }
+
+    /// <summary>
     /// Performs the <c>RefreshInternalLinkSuggestionsAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
@@ -2241,7 +3939,10 @@ public partial class MainWindow : Window
             .Take(40)
             .ToArray();
 
-        if (suggestions.Length == 0)
+        if (suggestions.Length == 0 ||
+            !IsEditorRangeValid(
+                start,
+                length))
         {
             InternalLinkPopup.IsOpen = false;
             return;
@@ -2254,15 +3955,76 @@ public partial class MainWindow : Window
         InternalLinkSuggestions.ItemsSource = suggestions;
         InternalLinkSuggestions.SelectedIndex = 0;
 
-        Rect caretRect = MarkdownEditorTextBox.GetRectFromCharacterIndex(
-            MarkdownEditorTextBox.CaretIndex,
-            trailingEdge: true);
+        Rect caretRect =
+            GetSafeEditorCaretRect();
 
         InternalLinkPopup.HorizontalOffset =
-            Math.Max(8, caretRect.X);
+            caretRect.IsEmpty
+                ? 8
+                : Math.Max(
+                    8,
+                    caretRect.X);
+
         InternalLinkPopup.VerticalOffset =
-            Math.Max(8, caretRect.Bottom + 4);
+            caretRect.IsEmpty
+                ? 8
+                : Math.Max(
+                    8,
+                    caretRect.Bottom + 4);
+
         InternalLinkPopup.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Gets a caret rectangle only when the current editor content contains a
+    /// valid character index. This protects asynchronous popup refreshes after
+    /// deleting the last character in a document or line.
+    /// </summary>
+    /// <returns>The caret rectangle, or <see cref="Rect.Empty"/> for empty text.</returns>
+    private Rect GetSafeEditorCaretRect()
+    {
+        string text = MarkdownEditorTextBox.Text;
+
+        if (text.Length == 0)
+        {
+            return Rect.Empty;
+        }
+
+        int caret = Math.Clamp(
+            MarkdownEditorTextBox.CaretIndex,
+            0,
+            text.Length);
+
+        if (caret == text.Length)
+        {
+            return MarkdownEditorTextBox.GetRectFromCharacterIndex(
+                text.Length - 1,
+                trailingEdge: true);
+        }
+
+        return MarkdownEditorTextBox.GetRectFromCharacterIndex(
+            caret,
+            trailingEdge: false);
+    }
+
+    /// <summary>
+    /// Determines whether an editor range is still valid after an asynchronous
+    /// suggestion refresh.
+    /// </summary>
+    /// <param name="start">The range start.</param>
+    /// <param name="length">The range length.</param>
+    /// <returns><see langword="true"/> when the range fits the current text.</returns>
+    private bool IsEditorRangeValid(
+            int start,
+            int length)
+    {
+        int textLength =
+            MarkdownEditorTextBox.Text.Length;
+
+        return start >= 0 &&
+               length >= 0 &&
+               start <= textLength &&
+               length <= textLength - start;
     }
 
     /// <summary>
@@ -2351,8 +4113,12 @@ public partial class MainWindow : Window
     /// </summary>
     private void CompleteInternalLinkSuggestion()
     {
-        if (InternalLinkSuggestions.SelectedItem is not LinkTargetEntry target)
+        if (InternalLinkSuggestions.SelectedItem is not LinkTargetEntry target ||
+            !IsEditorRangeValid(
+                _linkSuggestionStart,
+                _linkSuggestionLength))
         {
+            InternalLinkPopup.IsOpen = false;
             return;
         }
 
@@ -2410,14 +4176,19 @@ public partial class MainWindow : Window
             object sender,
             MouseButtonEventArgs e)
     {
-        if (BacklinksList.SelectedItem is not BacklinkEntry backlink)
-        {
-            return;
-        }
+        await RunUiActionAsync(
+            "Références · backlink",
+            async () =>
+            {
+                if (BacklinksList.SelectedItem is not BacklinkEntry backlink)
+                {
+                    return;
+                }
 
-        await NavigateToLinkTargetAsync(
-            backlink.Source,
-            backlink.LineNumber);
+                await NavigateToLinkTargetAsync(
+                    backlink.Source,
+                    backlink.LineNumber);
+            });
     }
 
     /// <summary>
@@ -2426,113 +4197,118 @@ public partial class MainWindow : Window
     /// <param name="target">The <c>target</c> value.</param>
     private async void OnMarkdownLinkClicked(string target)
     {
-        if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
-        {
-            string? baseDirectory = Path.GetDirectoryName(
-                _selectedNode.FullPath);
-
-            if (!string.IsNullOrWhiteSpace(baseDirectory) &&
-                !Uri.TryCreate(
-                    target,
-                    UriKind.Absolute,
-                    out global::System.Uri? absoluteUri))
+        await RunUiActionAsync(
+            "Navigation · lien Markdown",
+            async () =>
             {
-                string localPath = Path.GetFullPath(
-                    Path.Combine(
-                        baseDirectory,
-                        target.Replace(
-                            '/',
-                            Path.DirectorySeparatorChar)));
-
-                global::Nodalis.App.Navigation.NavigationNodeViewModel? match = _root
-                    .DescendantsAndSelf()
-                    .FirstOrDefault(node =>
-                        string.Equals(
-                            Path.GetFullPath(node.FullPath),
-                            localPath,
-                            StringComparison.OrdinalIgnoreCase));
-
-                if (match is not null)
+                if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
                 {
-                    if (_selectedNode is not null &&
-                        !ReferenceEquals(
-                            _selectedNode,
-                            match) &&
-                        !await TryCloseCurrentDocumentAsync(
-                            "ouvrir le document lié"))
+                    string? baseDirectory = Path.GetDirectoryName(
+                        _selectedNode.FullPath);
+
+                    if (!string.IsNullOrWhiteSpace(baseDirectory) &&
+                        !Uri.TryCreate(
+                            target,
+                            UriKind.Absolute,
+                            out global::System.Uri? absoluteUri))
                     {
+                        string localPath = Path.GetFullPath(
+                            Path.Combine(
+                                baseDirectory,
+                                target.Replace(
+                                    '/',
+                                    Path.DirectorySeparatorChar)));
+
+                        global::Nodalis.App.Navigation.NavigationNodeViewModel? match = _root
+                            .DescendantsAndSelf()
+                            .FirstOrDefault(node =>
+                                string.Equals(
+                                    Path.GetFullPath(node.FullPath),
+                                    localPath,
+                                    StringComparison.OrdinalIgnoreCase));
+
+                        if (match is not null)
+                        {
+                            if (_selectedNode is not null &&
+                                !ReferenceEquals(
+                                    _selectedNode,
+                                    match) &&
+                                !await TryCloseCurrentDocumentAsync(
+                                    "ouvrir le document lié"))
+                            {
+                                return;
+                            }
+
+                            _restoringSelection = true;
+                            match.IsSelected = true;
+                            _restoringSelection = false;
+                            _selectedNode = match;
+                            await DisplayNodeAsync(match);
+                            return;
+                        }
+                    }
+
+                    if (Uri.TryCreate(
+                            target,
+                            UriKind.Absolute,
+                            out global::System.Uri? uri) &&
+                        !uri.IsFile)
+                    {
+                        CopyExternalTargetToClipboard(
+                            target);
                         return;
                     }
 
-                    _restoringSelection = true;
-                    match.IsSelected = true;
-                    _restoringSelection = false;
-                    _selectedNode = match;
-                    await DisplayNodeAsync(match);
-                    return;
-                }
-            }
+                    global::Nodalis.Infrastructure.Attachments.AttachmentService attachmentService = new AttachmentService(
+                        _root.FullPath);
 
-            if (Uri.TryCreate(
-                    target,
-                    UriKind.Absolute,
-                    out global::System.Uri? uri) &&
-                !uri.IsFile)
-            {
-                CopyExternalTargetToClipboard(
-                    target);
-                return;
-            }
+                    global::Nodalis.Core.Attachments.AttachmentReference reference = attachmentService.Resolve(
+                        target,
+                        _selectedNode.FullPath);
 
-            global::Nodalis.Infrastructure.Attachments.AttachmentService attachmentService = new AttachmentService(
-                _root.FullPath);
-
-            global::Nodalis.Core.Attachments.AttachmentReference reference = attachmentService.Resolve(
-                target,
-                _selectedNode.FullPath);
-
-            if (reference.Exists)
-            {
-                try
-                {
-                    Process.Start(new ProcessStartInfo(
-                        reference.FullPath)
+                    if (reference.Exists)
                     {
-                        UseShellExecute = true
-                    });
+                        try
+                        {
+                            Process.Start(new ProcessStartInfo(
+                                reference.FullPath)
+                            {
+                                UseShellExecute = true
+                            });
 
-                    StatusText.Text =
-                        $"Ouvert avec Windows · {reference.DisplayName}";
-                }
-                catch (Exception exception) when (
-                    exception is Win32Exception or
-                    InvalidOperationException)
-                {
+                            StatusText.Text =
+                                $"Ouvert avec Windows · {reference.DisplayName}";
+                        }
+                        catch (Exception exception) when (
+                            exception is Win32Exception or
+                            InvalidOperationException)
+                        {
+                            MessageBox.Show(
+                                this,
+                                $"Windows n'a pas pu ouvrir ce fichier.\n\n{exception.Message}",
+                                "Ouvrir le fichier",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Warning);
+                        }
+
+                        return;
+                    }
+
                     MessageBox.Show(
                         this,
-                        $"Windows n'a pas pu ouvrir ce fichier.\n\n{exception.Message}",
-                        "Ouvrir le fichier",
+                        $"Le fichier lié est introuvable.\n\n{reference.FullPath}",
+                        "Fichier manquant",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
+
+                    StatusText.Text =
+                        $"Fichier manquant · {reference.DisplayName}";
+                    return;
                 }
 
-                return;
-            }
-
-            MessageBox.Show(
-                this,
-                $"Le fichier lié est introuvable.\n\n{reference.FullPath}",
-                "Fichier manquant",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-
-            StatusText.Text =
-                $"Fichier manquant · {reference.DisplayName}";
-            return;
-        }
-
-        CopyExternalTargetToClipboard(
-            target);
+                CopyExternalTargetToClipboard(
+                    target);
+            });
     }
 
     /// <summary>
@@ -2555,19 +4331,44 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the <c>SearchAsync</c> operation.
+    /// Opens search using the current navigation context.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    private async Task SearchAsync()
+    private Task SearchAsync() =>
+        SearchAsync(
+            initialQuery: null,
+            contextPath: _selectedNode?.FullPath);
+
+    /// <summary>
+    /// Opens search with an optional restored query and local context.
+    /// </summary>
+    /// <param name="initialQuery">The query to prefill, when any.</param>
+    /// <param name="contextPath">The local scope path, when any.</param>
+    /// <returns>The result of the operation.</returns>
+    private async Task SearchAsync(
+            string? initialQuery,
+            string? contextPath)
     {
         global::Nodalis.App.Dialogs.SearchDialog dialog = new SearchDialog(
             _root.FullPath,
-            _selectedNode?.FullPath)
+            contextPath,
+            initialQuery)
         {
             Owner = this
         };
 
-        if (dialog.ShowDialog() != true ||
+        bool? accepted =
+            dialog.ShowDialog();
+
+        if (!string.IsNullOrWhiteSpace(
+                dialog.Query))
+        {
+            await TrackRecentSearchAsync(
+                dialog.Query,
+                contextPath);
+        }
+
+        if (accepted != true ||
             dialog.SelectedResult is null)
         {
             return;
@@ -2639,11 +4440,23 @@ public partial class MainWindow : Window
             index++;
         }
 
+        int availableLineCount =
+            Math.Max(
+                1,
+                MarkdownEditorTextBox.LineCount);
+        int targetLineIndex =
+            Math.Clamp(
+                currentLine - 1,
+                0,
+                availableLineCount - 1);
+
         MarkdownEditorTextBox.CaretIndex =
-            Math.Min(index, text.Length);
+            Math.Min(
+                index,
+                text.Length);
         MarkdownEditorTextBox.Focus();
         MarkdownEditorTextBox.ScrollToLine(
-            Math.Max(0, lineNumber - 1));
+            targetLineIndex);
     }
 
     /// <summary>
@@ -2665,7 +4478,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        await dialog.SelectedCommand.ExecuteAsync();
+        await RunUiActionAsync(
+            "Palette · " +
+            dialog.SelectedCommand.Title,
+            dialog.SelectedCommand.ExecuteAsync);
     }
 
     /// <summary>
@@ -2676,13 +4492,15 @@ public partial class MainWindow : Window
     {
         global::Nodalis.App.Dialogs.PreferencesDialog dialog = new PreferencesDialog(
             _preferences.Editor,
-            _contextPanelOpen)
+            _contextPanelOpen,
+            _preferences.Ai)
         {
             Owner = this
         };
 
         if (dialog.ShowDialog() != true ||
-            dialog.Editor is null)
+            dialog.Editor is null ||
+            dialog.Ai is null)
         {
             return;
         }
@@ -2719,26 +4537,17 @@ public partial class MainWindow : Window
         }
 
         if (autosaveDelayChanged &&
-            _documentSession is not null &&
-            _autosave is not null)
+            _documentTabs.Count > 0)
         {
-            await _autosave.FlushAsync();
-            await _autosave.DisposeAsync();
-
-            _autosave = new DocumentAutosaveController(
-                _documentSession,
-                TimeSpan.FromMilliseconds(
-                    editor.AutosaveDelayMilliseconds));
-
-            _autosave.Saved += Autosave_Saved;
-            _autosave.ConflictDetected += Autosave_ConflictDetected;
-            _autosave.SaveFailed += Autosave_SaveFailed;
+            await RecreateDocumentTabAutosavesAsync(
+                editor.AutosaveDelayMilliseconds);
         }
 
         _preferences = _preferences with
         {
             IsContextPanelOpen = _contextPanelOpen,
-            Editor = editor
+            Editor = editor,
+            Ai = dialog.Ai
         };
 
         await _preferencesStore.SaveAsync(
@@ -2769,8 +4578,16 @@ public partial class MainWindow : Window
                 Id = "project.new",
                 Title = "Nouveau projet",
                 Subtitle = "Créer un projet ou sous-projet depuis un profil",
-                Keywords = ["projet", "simple", "moyen", "complexe"],
+                Keywords = ["projet", "ultra-simple", "maintenance", "simple", "moyen", "complexe"],
                 ExecuteAsync = CreateProjectAsync
+            },
+            new()
+            {
+                Id = "templates.manage",
+                Title = "Templates et profils de projet",
+                Subtitle = "Modifier les templates Markdown et profils Ultra-simple / Simple / Moyen / Complexe",
+                Keywords = ["template", "profil", "projet", "markdown", "structure"],
+                ExecuteAsync = ShowTemplateEditorAsync
             },
             new()
             {
@@ -2779,6 +4596,14 @@ public partial class MainWindow : Window
                 Subtitle = "Créer une réunion structurée dans le projet ou l'application",
                 Keywords = ["réunion", "meeting", "compte-rendu", "participants", "actions", "décisions"],
                 ExecuteAsync = CreateMeetingAsync
+            },
+            new()
+            {
+                Id = "meeting.project-update-prompt",
+                Title = "Préparer un prompt de mise à jour du projet",
+                Subtitle = "Sélectionner une réunion, puis copier sa synthèse IA avec la présentation du projet",
+                Keywords = ["réunion", "résumé IA", "prompt", "présentation", "projet", "copier"],
+                ExecuteAsync = GenerateProjectUpdatePromptAsync
             },
             new()
             {
@@ -2806,6 +4631,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "quick-open",
+                Title = "Quick Open",
+                Subtitle = "Ouvrir document, projet, module ou application · Ctrl+T",
+                Keywords = ["ouvrir", "navigation", "document", "projet", "module", "application", "ctrl+t"],
+                ExecuteAsync = ShowQuickOpenAsync
+            },
+            new()
+            {
                 Id = "search",
                 Title = "Rechercher",
                 Subtitle = "Résultats Projet / Application / Global",
@@ -2830,6 +4663,30 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "markdown.import",
+                Title = "Importer du Markdown en masse",
+                Subtitle = "Analyser un dossier ou plusieurs fichiers avant toute écriture",
+                Keywords = ["markdown", "md", "import", "dossier", "masse", "prévisualisation"],
+                ExecuteAsync = ImportMarkdownAsync
+            },
+            new()
+            {
+                Id = "project.export",
+                Title = "Exporter le projet",
+                Subtitle = "Markdown portable, HTML autonome ou DOCX consolidé",
+                Keywords = ["export", "markdown", "html", "docx", "portable", "archive"],
+                ExecuteAsync = ExportProjectAsync
+            },
+            new()
+            {
+                Id = "task.new",
+                Title = "Nouvelle tâche",
+                Subtitle = "Créer une tâche Markdown dans le projet courant",
+                Keywords = ["nouvelle", "tâche", "task", "action", "créer", "projet"],
+                ExecuteAsync = CreateTaskFromPaletteAsync
+            },
+            new()
+            {
                 Id = "tasks.context",
                 Title = "Tâches du contexte",
                 Subtitle = "Projet / Application / Global selon la sélection",
@@ -2843,6 +4700,14 @@ public partial class MainWindow : Window
                 Subtitle = "Vue consolidée de toutes les tâches Markdown",
                 Keywords = ["tâches", "actions", "global", "checkbox"],
                 ExecuteAsync = () => ShowTasksAsync(global: true)
+            },
+            new()
+            {
+                Id = "project.structure",
+                Title = "Structure du projet",
+                Subtitle = "Ajouter, renommer, réordonner ou supprimer des sections et déplacer leurs documents",
+                Keywords = ["projet", "structure", "section", "réordonner", "template", "déplacer"],
+                ExecuteAsync = ShowProjectStructureAsync
             },
             new()
             {
@@ -2875,6 +4740,14 @@ public partial class MainWindow : Window
                 Subtitle = "Projet → Application → Global",
                 Keywords = ["rapide", "notes", "agrégé"],
                 ExecuteAsync = ShowQuickNotesAsync
+            },
+            new()
+            {
+                Id = "backups",
+                Title = "Sauvegardes",
+                Subtitle = "Créer, vérifier ou restaurer un ZIP du workspace",
+                Keywords = ["sauvegarde", "backup", "zip", "restauration", "sécurité"],
+                ExecuteAsync = ShowBackupsAsync
             },
             new()
             {
@@ -2996,13 +4869,54 @@ public partial class MainWindow : Window
             object sender,
             MouseEventArgs e)
     {
-        global::Nodalis.Core.Glossary.GlossaryTextMatch? match = FindGlossaryMatchAtPoint(
-            e.GetPosition(MarkdownEditorTextBox));
+        global::Nodalis.Core.Glossary.GlossaryTextMatch? match =
+            FindGlossaryMatchAtPoint(
+                e.GetPosition(
+                    MarkdownEditorTextBox));
 
-        MarkdownEditorTextBox.ToolTip =
-            match is null
-                ? null
-                : $"{match.Entry.Term}\n{match.Entry.Definition}\n\n{match.Entry.Scope.DisplayName}\nDouble-cliquer pour ouvrir.";
+        if (match is null)
+        {
+            CloseGlossaryToolTip();
+            return;
+        }
+
+        if (!ReferenceEquals(
+                _hoveredGlossaryEntry,
+                match.Entry))
+        {
+            _glossaryToolTip.IsOpen =
+                false;
+            _hoveredGlossaryEntry =
+                match.Entry;
+            _glossaryToolTip.Content =
+                $"{match.Entry.Term}\n{match.Entry.Definition}\n\n{match.Entry.Scope.DisplayName}\nDouble-cliquer pour ouvrir.";
+        }
+
+        _glossaryToolTip.PlacementTarget =
+            MarkdownEditorTextBox;
+        _glossaryToolTip.IsOpen =
+            true;
+    }
+
+    /// <summary>
+    /// Closes the glossary definition tooltip when the pointer leaves the editor.
+    /// </summary>
+    /// <param name="sender">The editor text box.</param>
+    /// <param name="e">The mouse event.</param>
+    private void MarkdownEditorTextBox_MouseLeave(
+            object sender,
+            MouseEventArgs e) =>
+        CloseGlossaryToolTip();
+
+    /// <summary>
+    /// Closes the manually controlled glossary tooltip and clears hover state.
+    /// </summary>
+    private void CloseGlossaryToolTip()
+    {
+        _glossaryToolTip.IsOpen =
+            false;
+        _hoveredGlossaryEntry =
+            null;
     }
 
     /// <summary>
@@ -3014,17 +4928,61 @@ public partial class MainWindow : Window
             object sender,
             MouseButtonEventArgs e)
     {
-        global::Nodalis.Core.Glossary.GlossaryTextMatch? match = FindGlossaryMatchAtPoint(
-            e.GetPosition(MarkdownEditorTextBox));
+        await RunUiActionAsync(
+            "Glossaire · ouverture",
+            async () =>
+            {
+                global::Nodalis.Core.Glossary.GlossaryTextMatch? match = FindGlossaryMatchAtPoint(
+                    e.GetPosition(MarkdownEditorTextBox));
 
-        if (match is null)
+                if (match is null)
+                {
+                    return;
+                }
+
+                e.Handled = true;
+                await OpenGlossaryEntryAsync(
+                    match.Entry);
+            });
+    }
+
+    /// <summary>
+    /// Moves the editor caret to the word that was right-clicked unless the
+    /// click happened inside the current selection.
+    /// </summary>
+    /// <param name="sender">The editor text box.</param>
+    /// <param name="e">The mouse event.</param>
+    private void MarkdownEditorTextBox_PreviewMouseRightButtonDown(
+            object sender,
+            MouseButtonEventArgs e)
+    {
+        int index = MarkdownEditorTextBox.GetCharacterIndexFromPoint(
+            e.GetPosition(MarkdownEditorTextBox),
+            snapToText: true);
+
+        if (index < 0)
         {
             return;
         }
 
-        e.Handled = true;
-        await OpenGlossaryEntryAsync(
-            match.Entry);
+        int selectionStart = MarkdownEditorTextBox.SelectionStart;
+        int selectionEnd =
+            selectionStart + MarkdownEditorTextBox.SelectionLength;
+
+        bool clickedInsideSelection =
+            MarkdownEditorTextBox.SelectionLength > 0 &&
+            index >= selectionStart &&
+            index < selectionEnd;
+
+        if (clickedInsideSelection)
+        {
+            return;
+        }
+
+        MarkdownEditorTextBox.CaretIndex = index;
+        MarkdownEditorTextBox.Select(
+            index,
+            0);
     }
 
     /// <summary>
@@ -3036,80 +4994,243 @@ public partial class MainWindow : Window
             object sender,
             ContextMenuEventArgs e)
     {
-        global::System.Windows.Controls.ContextMenu menu = new ContextMenu();
+        global::System.Windows.Controls.ContextMenu menu =
+            PrepareNodalisContextMenu(
+                MarkdownEditorTextBox.ContextMenu,
+                MarkdownEditorTextBox);
 
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Couper",
-            Command = ApplicationCommands.Cut,
-            CommandTarget = MarkdownEditorTextBox
-        });
+        MarkdownEditorTextBox.ContextMenu =
+            menu;
 
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Copier",
-            Command = ApplicationCommands.Copy,
-            CommandTarget = MarkdownEditorTextBox
-        });
+        global::System.Windows.Controls.MenuItem cutItem =
+            CreateNodalisMenuItem(
+                "Couper");
+        cutItem.Command =
+            ApplicationCommands.Cut;
+        cutItem.CommandTarget =
+            MarkdownEditorTextBox;
+        menu.Items.Add(
+            cutItem);
 
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Coller",
-            Command = ApplicationCommands.Paste,
-            CommandTarget = MarkdownEditorTextBox
-        });
+        global::System.Windows.Controls.MenuItem copyItem =
+            CreateNodalisMenuItem(
+                "Copier");
+        copyItem.Command =
+            ApplicationCommands.Copy;
+        copyItem.CommandTarget =
+            MarkdownEditorTextBox;
+        menu.Items.Add(
+            copyItem);
 
-        string selected = NormalizeGlossarySelection(
-            MarkdownEditorTextBox.SelectedText);
+        global::System.Windows.Controls.MenuItem pasteItem =
+            CreateNodalisMenuItem(
+                "Coller");
+        pasteItem.Command =
+            ApplicationCommands.Paste;
+        pasteItem.CommandTarget =
+            MarkdownEditorTextBox;
+        menu.Items.Add(
+            pasteItem);
 
-        if (!string.IsNullOrWhiteSpace(selected) &&
-            _glossaryScopes.Count > 0)
+        string glossaryTerm =
+            GetGlossaryCandidateTerm();
+
+        global::Nodalis.Core.Glossary.GlossaryScope? preferredGlossaryScope =
+            _glossaryScopes.FirstOrDefault(scope =>
+                scope.Kind ==
+                    GlossaryScopeKind.Project) ??
+            _glossaryScopes.FirstOrDefault(scope =>
+                scope.Kind ==
+                    GlossaryScopeKind.Application) ??
+            _glossaryScopes.FirstOrDefault(scope =>
+                scope.Kind ==
+                    GlossaryScopeKind.Global);
+
+        if (preferredGlossaryScope is not null)
         {
             menu.Items.Add(
-                new Separator());
+                CreateNodalisSeparator());
 
-            global::System.Windows.Controls.MenuItem addToGlossary = new MenuItem
+            bool targetsCurrentProject =
+                preferredGlossaryScope.Kind ==
+                    GlossaryScopeKind.Project;
+
+            string glossaryHeader =
+                string.IsNullOrWhiteSpace(
+                    glossaryTerm)
+                    ? targetsCurrentProject
+                        ? "Ajouter au glossaire du projet…"
+                        : "Ajouter au glossaire…"
+                    : targetsCurrentProject
+                        ? $"Ajouter « {FormatGlossaryMenuTerm(glossaryTerm)} » au glossaire du projet"
+                        : $"Ajouter « {FormatGlossaryMenuTerm(glossaryTerm)} » au glossaire";
+
+            global::Nodalis.Core.Glossary.GlossaryScope capturedPreferredScope =
+                preferredGlossaryScope;
+
+            global::System.Windows.Controls.MenuItem addToPreferredGlossary =
+                CreateNodalisMenuItem(
+                    glossaryHeader);
+
+            addToPreferredGlossary.Click += async (_, _) =>
+                await AddGlossaryEntryAsync(
+                    capturedPreferredScope,
+                    glossaryTerm);
+
+            menu.Items.Add(
+                addToPreferredGlossary);
+
+            global::Nodalis.Core.Glossary.GlossaryScope[] alternateScopes =
+                _glossaryScopes
+                    .Where(scope =>
+                        !ReferenceEquals(
+                            scope,
+                            preferredGlossaryScope))
+                    .ToArray();
+
+            if (alternateScopes.Length > 0)
             {
-                Header = "Ajouter au glossaire"
-            };
+                global::System.Windows.Controls.MenuItem otherGlossaries =
+                    CreateNodalisMenuItem(
+                        "Ajouter à un autre glossaire");
 
-            foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in _glossaryScopes)
-            {
-                global::Nodalis.Core.Glossary.GlossaryScope capturedScope = scope;
-
-                global::System.Windows.Controls.MenuItem scopeItem = new MenuItem
+                foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in alternateScopes)
                 {
-                    Header = scope.DisplayName,
-                    FontWeight =
-                        scope.Kind == GlossaryScopeKind.Project
-                            ? FontWeights.SemiBold
-                            : FontWeights.Normal
-                };
+                    global::Nodalis.Core.Glossary.GlossaryScope capturedScope =
+                        scope;
 
-                scopeItem.Click += async (_, _) =>
-                    await AddGlossaryEntryAsync(
-                        capturedScope,
-                        selected);
+                    global::System.Windows.Controls.MenuItem scopeItem =
+                        CreateNodalisMenuItem(
+                            scope.DisplayName);
 
-                addToGlossary.Items.Add(
-                    scopeItem);
+                    scopeItem.Click += async (_, _) =>
+                        await AddGlossaryEntryAsync(
+                            capturedScope,
+                            glossaryTerm);
+
+                    otherGlossaries.Items.Add(
+                        scopeItem);
+                }
+
+                menu.Items.Add(
+                    otherGlossaries);
             }
-
-            menu.Items.Add(
-                addToGlossary);
         }
 
         menu.Items.Add(
-            new Separator());
+            CreateNodalisSeparator());
 
-        menu.Items.Add(new MenuItem
+        global::System.Windows.Controls.MenuItem selectAllItem =
+            CreateNodalisMenuItem(
+                "Tout sélectionner");
+        selectAllItem.Command =
+            ApplicationCommands.SelectAll;
+        selectAllItem.CommandTarget =
+            MarkdownEditorTextBox;
+
+        menu.Items.Add(
+            selectAllItem);
+    }
+
+    /// <summary>
+    /// Gets the selected text or, when there is no selection, the word at the
+    /// current editor caret for use as a glossary term.
+    /// </summary>
+    /// <returns>The normalized glossary term, or an empty string.</returns>
+    private string GetGlossaryCandidateTerm()
+    {
+        string selected = NormalizeGlossarySelection(
+            MarkdownEditorTextBox.SelectedText);
+
+        if (!string.IsNullOrWhiteSpace(selected))
         {
-            Header = "Tout sélectionner",
-            Command = ApplicationCommands.SelectAll,
-            CommandTarget = MarkdownEditorTextBox
-        });
+            return selected;
+        }
 
-        MarkdownEditorTextBox.ContextMenu = menu;
+        return GetGlossaryWordAtPosition(
+            MarkdownEditorTextBox.Text,
+            MarkdownEditorTextBox.CaretIndex);
+    }
+
+    /// <summary>
+    /// Extracts a glossary-friendly word around a character position.
+    /// Letters, digits, apostrophes, underscores and hyphens are preserved.
+    /// </summary>
+    /// <param name="text">The source text.</param>
+    /// <param name="position">The caret position in the source text.</param>
+    /// <returns>The word around the position, or an empty string.</returns>
+    private static string GetGlossaryWordAtPosition(
+            string text,
+            int position)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        int index = Math.Clamp(
+            position,
+            0,
+            text.Length - 1);
+
+        if (!IsGlossaryWordCharacter(text[index]) &&
+            index > 0 &&
+            IsGlossaryWordCharacter(text[index - 1]))
+        {
+            index--;
+        }
+
+        if (!IsGlossaryWordCharacter(text[index]))
+        {
+            return string.Empty;
+        }
+
+        int start = index;
+        int end = index + 1;
+
+        while (start > 0 &&
+               IsGlossaryWordCharacter(text[start - 1]))
+        {
+            start--;
+        }
+
+        while (end < text.Length &&
+               IsGlossaryWordCharacter(text[end]))
+        {
+            end++;
+        }
+
+        return NormalizeGlossarySelection(
+            text[start..end]);
+    }
+
+    /// <summary>
+    /// Determines whether a character can belong to a glossary term detected
+    /// directly under the editor caret.
+    /// </summary>
+    /// <param name="value">The character to inspect.</param>
+    /// <returns><see langword="true"/> when the character belongs to a word.</returns>
+    private static bool IsGlossaryWordCharacter(
+            char value) =>
+            char.IsLetterOrDigit(value) ||
+            value == '-' ||
+            value == '_' ||
+            value == '\'' ||
+            value == '’';
+
+    /// <summary>
+    /// Produces a compact term label for the context-menu header.
+    /// </summary>
+    /// <param name="term">The glossary term.</param>
+    /// <returns>A term shortened for display when necessary.</returns>
+    private static string FormatGlossaryMenuTerm(
+            string term)
+    {
+        const int maximumLength = 48;
+
+        return term.Length <= maximumLength
+            ? term
+            : term[..(maximumLength - 1)] + "…";
     }
 
     /// <summary>
@@ -3381,13 +5502,18 @@ public partial class MainWindow : Window
             object sender,
             MouseButtonEventArgs e)
     {
-        if (UpcomingMilestonesList.SelectedItem is not MilestoneItem milestone)
-        {
-            return;
-        }
+        await RunUiActionAsync(
+            "Jalons · navigation dashboard",
+            async () =>
+            {
+                if (UpcomingMilestonesList.SelectedItem is not MilestoneItem milestone)
+                {
+                    return;
+                }
 
-        await NavigateToMilestoneAsync(
-            milestone);
+                await NavigateToMilestoneAsync(
+                    milestone);
+            });
     }
 
     /// <summary>
@@ -3451,6 +5577,93 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Opens the project structure manager for the current project context.
+    /// </summary>
+    /// <returns>A task representing the UI workflow.</returns>
+    private async Task ShowProjectStructureAsync()
+    {
+        string contextPath =
+            _selectedNode?.FullPath ??
+            _root.FullPath;
+
+        global::Nodalis.Infrastructure.Projects.WorkspaceProjectStructureService structure =
+            new WorkspaceProjectStructureService(
+                _root.FullPath);
+
+        string? projectDirectory =
+            structure.GetProjectDirectoryForContext(
+                contextPath);
+
+        if (projectDirectory is null)
+        {
+            MessageBox.Show(
+                this,
+                "Sélectionnez un projet, une section ou un document de projet pour gérer sa structure.",
+                "Structure du projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            if (_autosave is not null)
+            {
+                await _autosave.FlushAsync();
+
+                if (_documentDirty)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Le document courant contient des modifications non enregistrées. " +
+                        "Résolvez d'abord le conflit avant de déplacer ou renommer des sections.",
+                        "Structure du projet",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            global::Nodalis.App.Dialogs.ProjectStructureDialog dialog =
+                new ProjectStructureDialog(
+                    _root.FullPath,
+                    projectDirectory)
+                {
+                    Owner =
+                        this
+                };
+
+            dialog.ShowDialog();
+
+            if (!dialog.Changed)
+            {
+                return;
+            }
+
+            await RefreshNavigationAsync(
+                projectDirectory);
+            await RefreshDashboardTasksAsync();
+            await RefreshDashboardMilestonesAsync();
+
+            StatusText.Text =
+                "Structure du projet mise à jour.";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException)
+        {
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Structure du projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>
     /// Performs the <c>ShowMilestonesAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
@@ -3465,8 +5678,12 @@ public partial class MainWindow : Window
             string? projectDirectory =
                 await _milestoneService.GetProjectDirectoryForContextAsync(
                     contextPath);
+            string? milestoneFile =
+                await _milestoneService.GetMilestoneFileForContextAsync(
+                    contextPath);
 
-            if (projectDirectory is null)
+            if (projectDirectory is null ||
+                milestoneFile is null)
             {
                 MessageBox.Show(
                     this,
@@ -3508,6 +5725,91 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Opens the task creation dialog for the project containing the current selection.
+    /// </summary>
+    /// <returns>A task representing task creation.</returns>
+    private async Task CreateTaskFromPaletteAsync()
+    {
+        NavigationNodeViewModel? project =
+            ResolveSelectedProjectForHealthCheck();
+
+        if (project is null)
+        {
+            MessageBox.Show(
+                this,
+                "Sélectionnez d'abord un projet ou un document appartenant à un projet.",
+                "Nouvelle tâche",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        global::Nodalis.App.Dialogs.TaskCreationDialog dialog =
+            new TaskCreationDialog
+            {
+                Owner =
+                    this
+            };
+
+        if (dialog.ShowDialog() !=
+                true ||
+            dialog.Metadata is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await CreateTaskFromViewAsync(
+                project.FullPath,
+                dialog.TaskText,
+                dialog.Metadata);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            TaskSourceConflictException)
+        {
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Nouvelle tâche",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Creates a task from the grouped main-toolbar action.
+    /// </summary>
+    /// <param name="sender">The menu item.</param>
+    /// <param name="e">The routed event.</param>
+    private async void NewTask_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Créer une tâche",
+            CreateTaskFromPaletteAsync);
+    }
+
+    /// <summary>
+    /// Opens project milestones from the grouped main-toolbar action.
+    /// </summary>
+    /// <param name="sender">The menu item.</param>
+    /// <param name="e">The routed event.</param>
+    private async void ShowMilestones_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Jalons du projet",
+            ShowMilestonesAsync);
+    }
+
+    /// <summary>
     /// Performs the <c>ShowTasksAsync</c> operation.
     /// </summary>
     /// <param name="global">The <c>global</c> value.</param>
@@ -3526,7 +5828,14 @@ public partial class MainWindow : Window
             _root.FullPath,
             contextPath,
             scopeLabel,
-            ToggleTaskFromViewAsync)
+            (text, metadata) =>
+                CreateTaskFromViewAsync(
+                    contextPath,
+                    text,
+                    metadata),
+            ToggleTaskFromViewAsync,
+            UpdateTaskMetadataFromViewAsync,
+            PromoteMeetingActionFromViewAsync)
         {
             Owner = this
         };
@@ -3548,35 +5857,40 @@ public partial class MainWindow : Window
             object sender,
             RoutedEventArgs e)
     {
-        if (sender is not CheckBox checkBox ||
-            checkBox.DataContext is not TaskItem task)
-        {
-            return;
-        }
+        await RunUiActionAsync(
+            "Tâches · mise à jour dashboard",
+            async () =>
+            {
+                if (sender is not CheckBox checkBox ||
+                    checkBox.DataContext is not TaskItem task)
+                {
+                    return;
+                }
 
-        try
-        {
-            await ToggleTaskFromViewAsync(
-                task,
-                checkBox.IsChecked == true);
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            TaskSourceConflictException)
-        {
-            MessageBox.Show(
-                this,
-                exception.Message,
-                "Mettre à jour la tâche",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
-        finally
-        {
-            await RefreshDashboardTasksAsync();
-        }
+                try
+                {
+                    await ToggleTaskFromViewAsync(
+                        task,
+                        checkBox.IsChecked == true);
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException or
+                    TaskSourceConflictException)
+                {
+                    MessageBox.Show(
+                        this,
+                        exception.Message,
+                        "Mettre à jour la tâche",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+                finally
+                {
+                    await RefreshDashboardTasksAsync();
+                }
+            });
     }
 
     /// <summary>
@@ -3588,13 +5902,60 @@ public partial class MainWindow : Window
             object sender,
             MouseButtonEventArgs e)
     {
-        if (OpenTasksList.SelectedItem is not TaskItem task)
+        await RunUiActionAsync(
+            "Tâches · navigation dashboard",
+            async () =>
+            {
+                if (OpenTasksList.SelectedItem is not TaskItem task)
+                {
+                    return;
+                }
+
+                await NavigateToTaskAsync(
+                    task);
+            });
+    }
+
+
+    /// <summary>
+    /// Creates a project task from a consolidated view and refreshes navigation and dashboards.
+    /// </summary>
+    /// <param name="contextPath">The project context used to resolve the destination task document.</param>
+    /// <param name="text">The task text.</param>
+    /// <param name="metadata">The task metadata.</param>
+    /// <returns>The indexed task created in Markdown.</returns>
+    private async Task<TaskItem> CreateTaskFromViewAsync(
+            string contextPath,
+            string text,
+            TaskMetadataUpdate metadata)
+    {
+        string? selectedPath =
+            _selectedNode?.FullPath;
+
+        if (_autosave is not null)
         {
-            return;
+            await _autosave.FlushAsync();
+
+            if (_documentDirty)
+            {
+                throw new InvalidOperationException(
+                    "Le document courant contient des modifications non enregistrées. Résolvez d'abord le conflit avant de créer une tâche.");
+            }
         }
 
-        await NavigateToTaskAsync(
-            task);
+        TaskItem created = await _taskService.CreateTaskAsync(
+            contextPath,
+            text,
+            metadata);
+
+        await RefreshNavigationAsync(
+            selectedPath);
+        await RefreshDashboardTasksAsync();
+
+        StatusText.Text =
+            $"Tâche créée · {created.Text}";
+
+        return created;
     }
 
     /// <summary>
@@ -3675,6 +6036,176 @@ public partial class MainWindow : Window
         StatusText.Text = completed
             ? $"Tâche terminée · {task.Text}"
             : $"Tâche rouverte · {task.Text}";
+    }
+
+    /// <summary>
+    /// Updates readable task metadata from a consolidated view while keeping an open editor synchronized.
+    /// </summary>
+    /// <param name="task">The task to update.</param>
+    /// <param name="metadata">The complete metadata set to write.</param>
+    /// <returns>A task representing the local Markdown update.</returns>
+    private async Task UpdateTaskMetadataFromViewAsync(
+            TaskItem task,
+            TaskMetadataUpdate metadata)
+    {
+        string sourcePath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                task.SourceRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        bool isCurrentDocument =
+            _documentSession is not null &&
+            string.Equals(
+                Path.GetFullPath(
+                    _documentSession.Path),
+                sourcePath,
+                StringComparison.OrdinalIgnoreCase);
+
+        int caret =
+            MarkdownEditorTextBox.CaretIndex;
+
+        if (isCurrentDocument &&
+            _autosave is not null)
+        {
+            await _autosave.FlushAsync();
+
+            if (_documentDirty)
+            {
+                MessageBox.Show(
+                    this,
+                    "Le document source contient des modifications non enregistrées. " +
+                    "Résolvez d'abord le conflit avant de modifier les métadonnées depuis la vue consolidée.",
+                    "Tâche",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                return;
+            }
+        }
+
+        await _taskService.UpdateMetadataAsync(
+            task,
+            metadata);
+
+        if (isCurrentDocument &&
+            _documentSession is not null)
+        {
+            await _documentSession.ReloadAsync();
+
+            _suppressEditorChanges =
+                true;
+            MarkdownEditorTextBox.Text =
+                _documentSession.Content;
+            MarkdownEditorTextBox.CaretIndex =
+                Math.Min(
+                    caret,
+                    MarkdownEditorTextBox.Text.Length);
+            _suppressEditorChanges =
+                false;
+
+            _documentDirty =
+                false;
+            SaveStateText.Text =
+                "Enregistré";
+
+            await RefreshLinkIndexAndContextAsync();
+            await RefreshGlossaryContextAsync(
+                sourcePath);
+            UpdateGlossaryAnnotations();
+            RefreshDocumentPropertiesContext(
+                MarkdownEditorTextBox.Text);
+            RenderPreview();
+        }
+
+        await RefreshDashboardTasksAsync();
+
+        StatusText.Text =
+            $"Métadonnées de tâche mises à jour · {task.Text}";
+    }
+
+    /// <summary>
+    /// Promotes a meeting action to project task tracking while keeping an open source meeting synchronized.
+    /// </summary>
+    /// <param name="task">The meeting action to promote.</param>
+    /// <param name="metadata">The reviewed metadata to apply.</param>
+    /// <returns>The promotion result.</returns>
+    private async Task<MeetingActionPromotionResult> PromoteMeetingActionFromViewAsync(
+            TaskItem task,
+            TaskMetadataUpdate metadata)
+    {
+        string sourcePath = Path.GetFullPath(
+            Path.Combine(
+                _root.FullPath,
+                task.SourceRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)));
+
+        bool isCurrentDocument =
+            _documentSession is not null &&
+            string.Equals(
+                Path.GetFullPath(
+                    _documentSession.Path),
+                sourcePath,
+                StringComparison.OrdinalIgnoreCase);
+
+        int caret =
+            MarkdownEditorTextBox.CaretIndex;
+
+        if (isCurrentDocument &&
+            _autosave is not null)
+        {
+            await _autosave.FlushAsync();
+
+            if (_documentDirty)
+            {
+                throw new InvalidOperationException(
+                    "Le compte-rendu source contient des modifications non enregistrées. Résolvez d'abord le conflit avant de promouvoir cette action.");
+            }
+        }
+
+        MeetingActionPromotionResult result = await _taskService.PromoteMeetingActionAsync(
+            task,
+            metadata);
+
+        if (isCurrentDocument &&
+            _documentSession is not null)
+        {
+            await _documentSession.ReloadAsync();
+
+            _suppressEditorChanges =
+                true;
+            MarkdownEditorTextBox.Text =
+                _documentSession.Content;
+            MarkdownEditorTextBox.CaretIndex =
+                Math.Min(
+                    caret,
+                    MarkdownEditorTextBox.Text.Length);
+            _suppressEditorChanges =
+                false;
+
+            _documentDirty =
+                false;
+            SaveStateText.Text =
+                "Enregistré";
+
+            await RefreshGlossaryContextAsync(
+                sourcePath);
+            UpdateGlossaryAnnotations();
+            RefreshDocumentPropertiesContext(
+                MarkdownEditorTextBox.Text);
+            RenderPreview();
+        }
+
+        await RefreshLinkIndexAndContextAsync();
+        await RefreshDashboardTasksAsync();
+
+        StatusText.Text = result.Created
+            ? $"Action promue · {task.Text}"
+            : $"Action déjà promue · {task.Text}";
+
+        return result;
     }
 
     /// <summary>
@@ -3851,6 +6382,338 @@ public partial class MainWindow : Window
                     preview.StagedImport);
             }
         }
+    }
+
+    /// <summary>
+    /// Imports a Markdown folder or an explicit Markdown file selection after a read-only preview and write-plan validation.
+    /// </summary>
+    /// <returns>A task representing the import workflow.</returns>
+    private async Task ImportMarkdownAsync()
+    {
+        MessageBoxResult sourceMode =
+            MessageBox.Show(
+                this,
+                "Choisissez la source à analyser.\n\n" +
+                "Oui : un dossier complet, récursivement.\n" +
+                "Non : une sélection de fichiers Markdown.\n" +
+                "Annuler : fermer sans rien modifier.",
+                "Import Markdown massif",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+        if (sourceMode ==
+            MessageBoxResult.Cancel)
+        {
+            return;
+        }
+
+        try
+        {
+            MarkdownBulkImportPreview preview;
+
+            if (sourceMode ==
+                MessageBoxResult.Yes)
+            {
+                global::Microsoft.Win32.OpenFolderDialog picker =
+                    new OpenFolderDialog
+                    {
+                        Title =
+                            "Sélectionner le dossier Markdown à importer",
+                        Multiselect =
+                            false
+                    };
+
+                if (picker.ShowDialog(
+                        this) !=
+                    true)
+                {
+                    return;
+                }
+
+                StatusText.Text =
+                    "Import Markdown · analyse récursive du dossier…";
+
+                preview =
+                    await _markdownBulkImportService.PrepareFolderPreviewAsync(
+                        picker.FolderName);
+            }
+            else
+            {
+                global::Microsoft.Win32.OpenFileDialog picker =
+                    new OpenFileDialog
+                    {
+                        Title =
+                            "Sélectionner les fichiers Markdown à importer",
+                        Filter =
+                            "Markdown (*.md)|*.md|Tous les fichiers (*.*)|*.*",
+                        Multiselect =
+                            true,
+                        CheckFileExists =
+                            true
+                    };
+
+                if (picker.ShowDialog(
+                        this) !=
+                    true)
+                {
+                    return;
+                }
+
+                StatusText.Text =
+                    "Import Markdown · analyse des fichiers sélectionnés…";
+
+                preview =
+                    await _markdownBulkImportService.PrepareFilesPreviewAsync(
+                        picker.FileNames);
+            }
+
+            global::Nodalis.App.Dialogs.MarkdownBulkImportDialog dialog =
+                new MarkdownBulkImportDialog(
+                    preview,
+                    request =>
+                        _markdownBulkImportService.BuildPlanAsync(
+                            preview,
+                            request))
+                {
+                    Owner =
+                        this
+                };
+
+            if (dialog.ShowDialog() !=
+                    true ||
+                dialog.CommitRequest is null)
+            {
+                StatusText.Text =
+                    "Import Markdown annulé";
+                return;
+            }
+
+            StatusText.Text =
+                "Import Markdown · copie validée dans le workspace…";
+
+            MarkdownBulkImportCommitResult result =
+                await _markdownBulkImportService.CommitAsync(
+                    preview,
+                    dialog.CommitRequest);
+
+            try
+            {
+                await RefreshNavigationAsync(
+                    result.ProjectDirectory);
+                await RefreshLinkIndexAndContextAsync();
+                await RefreshDashboardTasksAsync();
+                await RefreshDashboardMilestonesAsync();
+            }
+            catch (Exception refreshException) when (
+                refreshException is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                MessageBox.Show(
+                    this,
+                    "L'import Markdown est terminé, mais l'interface n'a pas pu être " +
+                    "rafraîchie complètement.\n\n" +
+                    refreshException.Message,
+                    "Import Markdown",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                StatusText.Text =
+                    "Import Markdown terminé · rafraîchissement incomplet · " +
+                    result.ImportedFiles.Count +
+                    " fichier(s) importé(s)";
+                return;
+            }
+
+            StatusText.Text =
+                "Import Markdown terminé · " +
+                result.ImportedFiles.Count +
+                " fichier(s) importé(s)";
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            ArgumentException)
+        {
+            MessageBox.Show(
+                this,
+                "Le corpus Markdown n'a pas pu être importé.\n\n" +
+                exception.Message,
+                "Import Markdown",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            StatusText.Text =
+                "Import Markdown en échec";
+        }
+    }
+
+    /// <summary>
+    /// Exports the currently selected project to one or more external portable formats.
+    /// </summary>
+    /// <returns>A task representing the export workflow.</returns>
+    private async Task ExportProjectAsync()
+    {
+        string? projectDirectory =
+            FindSelectedProjectDirectory();
+
+        if (string.IsNullOrWhiteSpace(
+                projectDirectory))
+        {
+            MessageBox.Show(
+                this,
+                "Sélectionnez un projet, une section ou un document appartenant au projet à exporter.",
+                "Export projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            StatusText.Text =
+                "Export projet · analyse en lecture seule…";
+
+            ProjectExportPreview preview =
+                await _projectExportService.PreparePreviewAsync(
+                    projectDirectory);
+
+            ProjectExportDialog dialog =
+                new ProjectExportDialog(
+                    preview)
+                {
+                    Owner =
+                        this
+                };
+
+            if (dialog.ShowDialog() !=
+                    true ||
+                dialog.ExportRequest is null)
+            {
+                StatusText.Text =
+                    "Export projet annulé";
+                return;
+            }
+
+            StatusText.Text =
+                "Export projet · génération des formats…";
+
+            ProjectExportResult result =
+                await _projectExportService.ExportAsync(
+                    preview,
+                    dialog.ExportRequest);
+
+            StatusText.Text =
+                "Export projet terminé · " +
+                result.ExportedDocumentCount +
+                " document(s) · " +
+                result.OutputPaths.Count +
+                " sortie(s) créée(s)";
+
+            MessageBox.Show(
+                this,
+                "Export terminé.\n\n" +
+                string.Join(
+                    Environment.NewLine,
+                    result.OutputPaths),
+                "Export projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            ArgumentException)
+        {
+            MessageBox.Show(
+                this,
+                "Le projet n'a pas pu être exporté.\n\n" +
+                exception.Message,
+                "Export projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            StatusText.Text =
+                "Export projet en échec";
+        }
+    }
+
+    /// <summary>
+    /// Finds the closest project directory that owns the current navigation selection.
+    /// </summary>
+    /// <returns>The project directory, or <see langword="null"/> when the selection is outside a project.</returns>
+    private string? FindSelectedProjectDirectory()
+    {
+        if (_selectedNode is null)
+        {
+            return null;
+        }
+
+        string candidate =
+            File.Exists(
+                    _selectedNode.FullPath)
+                ? Path.GetDirectoryName(
+                      _selectedNode.FullPath) ??
+                  _selectedNode.FullPath
+                : _selectedNode.FullPath;
+
+        string workspaceRoot =
+            Path.GetFullPath(
+                _root.FullPath);
+
+        while (!string.IsNullOrWhiteSpace(
+                   candidate))
+        {
+            string fullCandidate =
+                Path.GetFullPath(
+                    candidate);
+
+            if (!fullCandidate.StartsWith(
+                    workspaceRoot,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (File.Exists(
+                    Path.Combine(
+                        fullCandidate,
+                        WorkspaceLayout.ProjectManifestFileName)))
+            {
+                return fullCandidate;
+            }
+
+            if (string.Equals(
+                    fullCandidate,
+                    workspaceRoot,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            string? parent =
+                Path.GetDirectoryName(
+                    fullCandidate);
+
+            if (string.IsNullOrWhiteSpace(
+                    parent) ||
+                string.Equals(
+                    parent,
+                    fullCandidate,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            candidate =
+                parent;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -4412,6 +7275,523 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Uses the explicitly enabled local AI provider to summarize the selected meeting and review every proposal before persistence.
+    /// </summary>
+    /// <returns>A task representing the local meeting-assistant workflow.</returns>
+    private async Task SummarizeMeetingWithAiAsync()
+    {
+        if (_selectedNode?.Kind !=
+                WorkspaceNodeKind.Document ||
+            !string.Equals(
+                Path.GetExtension(
+                    _selectedNode.FullPath),
+                ".md",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(
+                this,
+                "Sélectionnez d'abord un compte-rendu Markdown dans une section Réunions.",
+                "Résumé IA de réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        if (!_preferences.Ai.IsEnabled)
+        {
+            MessageBox.Show(
+                this,
+                "L'assistant IA local est désactivé. Activez-le et configurez un exécutable local dans Préférences.",
+                "Résumé IA de réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            if (_autosave is not null &&
+                _documentSession is not null &&
+                string.Equals(
+                    Path.GetFullPath(
+                        _documentSession.Path),
+                    Path.GetFullPath(
+                        _selectedNode.FullPath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await _autosave.FlushAsync();
+
+                if (_documentDirty)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Le compte-rendu contient encore des modifications non enregistrées. Enregistrez-les avant de lancer l'assistant.",
+                        "Résumé IA de réunion",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            string sourceContent =
+                await File.ReadAllTextAsync(
+                    _selectedNode.FullPath);
+
+            FileSystemAiPromptStore promptStore =
+                new FileSystemAiPromptStore(
+                    Path.Combine(
+                        AppContext.BaseDirectory,
+                        "Prompts"));
+            const string promptId =
+                "meeting-summary-v1";
+            string systemPrompt =
+                await promptStore.LoadAsync(
+                    promptId);
+
+            LocalAiRequest request =
+                new LocalAiRequest
+                {
+                    PromptId =
+                        promptId,
+                    SystemPrompt =
+                        systemPrompt,
+                    UserPrompt =
+                        "Analyse ce compte-rendu de réunion et retourne uniquement le format demandé par le prompt système.",
+                    Context =
+                    [
+                        new LocalAiContextItem
+                        {
+                            Label =
+                                Path.GetRelativePath(
+                                        _root.FullPath,
+                                        _selectedNode.FullPath)
+                                    .Replace(
+                                        '\\',
+                                        '/'),
+                            Content =
+                                sourceContent
+                        }
+                    ]
+                };
+
+            ProcessLocalAiProvider provider =
+                new ProcessLocalAiProvider(
+                    _preferences.Ai);
+            LocalAiExecutionService executionService =
+                new LocalAiExecutionService(
+                    _preferences.Ai,
+                    provider);
+
+            StatusText.Text =
+                "Assistant IA local · validation du payload";
+
+            LocalAiResponse? response =
+                await executionService.ExecuteWithApprovalAsync(
+                    request,
+                    ShowLocalAiPayloadApprovalAsync);
+
+            if (response is null)
+            {
+                StatusText.Text =
+                    "Résumé IA annulé avant exécution";
+                return;
+            }
+
+            MeetingAiDraft draft =
+                MeetingAiResponseParser.Parse(
+                    response.Content);
+
+            MeetingAiReviewDialog reviewDialog =
+                new MeetingAiReviewDialog(
+                    draft,
+                    _selectedNode.FullPath)
+                {
+                    Owner =
+                        this
+                };
+
+            if (reviewDialog.ShowDialog() !=
+                    true ||
+                reviewDialog.ApprovedDraft is null)
+            {
+                StatusText.Text =
+                    "Résumé IA rejeté · aucun fichier modifié";
+                return;
+            }
+
+            string outputPath =
+                await _meetingAiResultDocumentService.WriteAsync(
+                    _selectedNode.FullPath,
+                    promptId,
+                    reviewDialog.ApprovedDraft);
+
+            await RefreshNavigationAsync(
+                outputPath);
+            await RefreshLinkIndexAndContextAsync();
+
+            StatusText.Text =
+                "Synthèse IA créée · " +
+                Path.GetRelativePath(
+                    _root.FullPath,
+                    outputPath);
+
+            MessageBox.Show(
+                this,
+                "La synthèse validée a été créée dans une note séparée.\n\nLe compte-rendu source n'a pas été modifié.",
+                "Résumé IA de réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            ArgumentException or
+            TimeoutException)
+        {
+            MessageBox.Show(
+                this,
+                "Le résumé IA de la réunion a échoué.\n\n" +
+                exception.Message,
+                "Résumé IA de réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            StatusText.Text =
+                "Résumé IA en échec";
+        }
+    }
+
+    /// <summary>
+    /// Displays the exact local-AI payload and returns the user's explicit approval.
+    /// </summary>
+    /// <param name="preview">The exact payload preview.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>Whether the user approved execution.</returns>
+    private Task<bool> ShowLocalAiPayloadApprovalAsync(
+            LocalAiPayloadPreview preview,
+            CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        LocalAiPayloadPreviewDialog dialog =
+            new LocalAiPayloadPreviewDialog(
+                preview)
+            {
+                Owner =
+                    this
+            };
+
+        bool approved =
+            dialog.ShowDialog() ==
+            true;
+
+        return Task.FromResult(
+            approved);
+    }
+
+    /// <summary>
+    /// Creates a temporary, copy-ready prompt from the selected meeting's AI summary and the owning project's presentation.
+    /// </summary>
+    /// <returns>A task representing the prompt export workflow.</returns>
+    private async Task GenerateProjectUpdatePromptAsync()
+    {
+        string initialDirectory = _root.FullPath;
+
+        if (_selectedNode is not null)
+        {
+            string selectedPath = _selectedNode.FullPath;
+            string? selectedDirectory = Directory.Exists(selectedPath)
+                ? selectedPath
+                : Path.GetDirectoryName(selectedPath);
+
+            if (selectedDirectory is not null && Directory.Exists(selectedDirectory))
+            {
+                string meetingsDirectory = Path.Combine(
+                    selectedDirectory,
+                    WorkspaceMeetingService.MeetingsDirectoryName);
+                initialDirectory = Directory.Exists(meetingsDirectory)
+                    ? meetingsDirectory
+                    : selectedDirectory;
+            }
+        }
+
+        global::Microsoft.Win32.OpenFileDialog picker = new OpenFileDialog
+        {
+            Title = "Choisir le compte-rendu à analyser",
+            Filter = "Compte-rendu Markdown (*.md)|*.md",
+            InitialDirectory = initialDirectory,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (_selectedNode?.Kind == WorkspaceNodeKind.Document &&
+            File.Exists(_selectedNode.FullPath) &&
+            string.Equals(
+                Path.GetFileName(Path.GetDirectoryName(_selectedNode.FullPath)),
+                WorkspaceMeetingService.MeetingsDirectoryName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            picker.FileName = Path.GetFileName(_selectedNode.FullPath);
+        }
+
+        if (picker.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_autosave is not null && _documentSession is not null)
+            {
+                await _autosave.FlushAsync();
+
+                if (_documentDirty)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Le document en cours contient des modifications non enregistrées. Enregistrez-les avant de générer le prompt.",
+                        "Prompt de mise à jour du projet",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            ProjectMeetingPromptService promptService = new ProjectMeetingPromptService(
+                _root.FullPath);
+            (string FilePath, string Content) result = await promptService.GenerateAsync(
+                picker.FileName);
+
+            bool copied = false;
+            try
+            {
+                Clipboard.SetText(result.Content);
+                copied = true;
+            }
+            catch (System.Runtime.InteropServices.ExternalException)
+            {
+                // The temporary file remains available even when the clipboard is locked.
+            }
+
+            bool opened = false;
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "notepad.exe",
+                    ArgumentList = { result.FilePath },
+                    UseShellExecute = true
+                });
+                opened = true;
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                System.ComponentModel.Win32Exception or
+                InvalidOperationException)
+            {
+                // The exported file can still be opened manually from the displayed path.
+            }
+
+            StatusText.Text = copied
+                ? "Prompt projet copié · fichier temporaire : " + result.FilePath
+                : "Prompt projet généré · fichier temporaire : " + result.FilePath;
+
+            MessageBox.Show(
+                this,
+                (copied
+                    ? "Le prompt a été copié dans le presse-papiers."
+                    : "Le presse-papiers est indisponible : copiez le prompt depuis le fichier.") +
+                (opened ? "\nLe fichier est ouvert dans le Bloc-notes." : string.Empty) +
+                "\n\nFichier temporaire :\n" + result.FilePath +
+                "\n\nAucune note du projet n'a été modifiée.",
+                "Prompt de mise à jour du projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            ArgumentException)
+        {
+            StatusText.Text = "Échec de génération du prompt projet";
+            MessageBox.Show(
+                this,
+                "Impossible de préparer le prompt.\n\n" + exception.Message,
+                "Prompt de mise à jour du projet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// Handles the project-update prompt action in the application menu.
+    /// </summary>
+    /// <param name="sender">Event sender.</param>
+    /// <param name="e">Event arguments.</param>
+    private async void GenerateProjectUpdatePrompt_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "IA locale · prompt de mise à jour du projet",
+            GenerateProjectUpdatePromptAsync);
+    }
+
+    /// <summary>
+    /// Handles the local-AI meeting summary toolbar action.
+    /// </summary>
+    /// <param name="sender">Event sender.</param>
+    /// <param name="e">Event arguments.</param>
+    private async void SummarizeMeetingAi_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "IA locale · résumé de réunion",
+            SummarizeMeetingWithAiAsync);
+    }
+
+    /// <summary>
+    /// Opens a deterministic preview for actions and decisions detected in the selected meeting report.
+    /// </summary>
+    /// <returns>A task representing the extraction workflow.</returns>
+    private async Task ExtractMeetingItemsAsync()
+    {
+        if (_selectedNode?.Kind !=
+                WorkspaceNodeKind.Document ||
+            !string.Equals(
+                Path.GetExtension(
+                    _selectedNode.FullPath),
+                ".md",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(
+                this,
+                "Sélectionnez d'abord un compte-rendu Markdown dans une section Réunions.",
+                "Extraire la réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            if (_autosave is not null &&
+                _documentSession is not null &&
+                string.Equals(
+                    Path.GetFullPath(
+                        _documentSession.Path),
+                    Path.GetFullPath(
+                        _selectedNode.FullPath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await _autosave.FlushAsync();
+
+                if (_documentDirty)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Le compte-rendu contient encore des modifications non enregistrées. Enregistrez-les avant l'extraction.",
+                        "Extraire la réunion",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            MeetingExtractionPreview preview =
+                await _meetingExtractionService.PreparePreviewAsync(
+                    _selectedNode.FullPath);
+
+            MeetingExtractionDialog dialog =
+                new MeetingExtractionDialog(
+                    preview)
+                {
+                    Owner =
+                        this
+                };
+
+            if (dialog.ShowDialog() !=
+                    true ||
+                dialog.Request is null)
+            {
+                StatusText.Text =
+                    "Extraction réunion annulée";
+                return;
+            }
+
+            MeetingExtractionResult result =
+                await _meetingExtractionService.ApplyAsync(
+                    preview,
+                    dialog.Request);
+
+            await RefreshNavigationAsync(
+                _selectedNode.FullPath);
+            await RefreshDashboardTasksAsync();
+            await RefreshLinkIndexAndContextAsync();
+
+            StatusText.Text =
+                "Extraction réunion terminée · " +
+                result.PromotedActionCount +
+                " action(s) · " +
+                result.CreatedDecisionCount +
+                " décision(s)";
+
+            MessageBox.Show(
+                this,
+                "Extraction terminée.\n\n" +
+                result.PromotedActionCount +
+                " action(s) promue(s)\n" +
+                result.CreatedDecisionCount +
+                " décision(s) créée(s)\n" +
+                result.SkippedDuplicateCount +
+                " doublon(s) ignoré(s)",
+                "Extraire la réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException or
+            InvalidOperationException or
+            TaskSourceConflictException)
+        {
+            MessageBox.Show(
+                this,
+                "L'extraction de la réunion a échoué.\n\n" +
+                exception.Message,
+                "Extraire la réunion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            StatusText.Text =
+                "Extraction réunion en échec";
+        }
+    }
+
+    /// <summary>
+    /// Handles the meeting extraction toolbar action.
+    /// </summary>
+    /// <param name="sender">Event sender.</param>
+    /// <param name="e">Event arguments.</param>
+    private async void ExtractMeeting_Click(
+            object sender,
+            RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Réunion · extraction",
+            async () =>
+            {
+                await ExtractMeetingItemsAsync();
+            });
+    }
+
+    /// <summary>
     /// Performs the <c>CreateMeetingAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
@@ -4656,6 +8036,7 @@ public partial class MainWindow : Window
         NavigationTree.ItemsSource =
             new[] { _root };
 
+        RefreshDocumentTabsFromNavigation();
         await RefreshLinkIndexAsync();
 
         if (openPath is null)

@@ -25,6 +25,9 @@ public partial class NewProjectDialog : Window
 
         InitializeComponent();
 
+        ComplexityComboBox.SelectionChanged += (_, _) =>
+            UpdateComplexityLayout();
+
         TargetComboBox.ItemsSource = targets;
         if (targets.Count > 0)
         {
@@ -42,6 +45,8 @@ public partial class NewProjectDialog : Window
             ComplexityComboBox.SelectedIndex = 0;
         }
 
+        UpdateComplexityLayout();
+
         Loaded += (_, _) =>
         {
             ProjectNameTextBox.Focus();
@@ -58,12 +63,37 @@ public partial class NewProjectDialog : Window
         ((ComplexityChoice)ComplexityComboBox.SelectedItem).Complexity;
 
     public IReadOnlyList<string> BusinessLinks =>
-        BusinessLinksTextBox.Text
-            .Split(
-                ["\r\n", "\n", "\r"],
-                StringSplitOptions.TrimEntries |
-                StringSplitOptions.RemoveEmptyEntries)
-            .ToArray();
+        SelectedComplexity == ProjectComplexity.UltraSimple
+            ? Array.Empty<string>()
+            : BusinessLinksTextBox.Text
+                .Split(
+                    ["\r\n", "\n", "\r"],
+                    StringSplitOptions.TrimEntries |
+                    StringSplitOptions.RemoveEmptyEntries)
+                .ToArray();
+
+    /// <summary>
+    /// Hides irrelevant project metadata when creating a one-sheet
+    /// ultra-simple project, while retaining the project target selection.
+    /// </summary>
+    private void UpdateComplexityLayout()
+    {
+        if (ComplexityComboBox.SelectedItem is not ComplexityChoice selected)
+        {
+            return;
+        }
+
+        bool ultraSimple = selected.Complexity == ProjectComplexity.UltraSimple;
+        ProjectNameLabel.Text = ultraSimple ? "Référence / nom" : "Nom";
+        BusinessLinksPanel.Visibility = ultraSimple
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        BusinessLinksRow.Height = ultraSimple
+            ? GridLength.Auto
+            : new GridLength(1, GridUnitType.Star);
+        MinHeight = ultraSimple ? 295 : 480;
+        Height = ultraSimple ? 315 : 560;
+    }
 
     /// <summary>
     /// Performs the <c>Create_Click</c> operation.

@@ -1,0 +1,64 @@
+<Window x:Class="Nodalis.App.Dialogs.RelationDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Ajouter une relation"
+        Width="620"
+        Height="320"
+        MinWidth="520"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="18" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Type de relation"
+                   FontWeight="SemiBold" />
+
+        <ComboBox x:Name="RelationTypeComboBox"
+                  Grid.Row="1"
+                  Margin="0,7,0,0"
+                  Height="32"
+                  IsEditable="True"
+                  IsTextSearchEnabled="True"
+                  VerticalContentAlignment="Center" />
+
+        <TextBlock Grid.Row="3"
+                   Text="Cible"
+                   FontWeight="SemiBold" />
+
+        <ComboBox x:Name="TargetComboBox"
+                  Grid.Row="4"
+                  Margin="0,7,0,0"
+                  Height="32"
+                  DisplayMemberPath="QualifiedName"
+                  IsTextSearchEnabled="True"
+                  VerticalContentAlignment="Center" />
+
+        <TextBlock Grid.Row="5"
+                   Margin="0,12,0,0"
+                   Text="La relation sera écrite directement dans le Markdown avec l’ID stable de la cible."
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource SecondaryTextBrush}" />
+
+        <StackPanel Grid.Row="6"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Margin="0,0,8,0"
+                    MinWidth="90"
+                    IsCancel="True"
+                    Content="Annuler" />
+            <Button MinWidth="100"
+                    IsDefault="True"
+                    Click="Save_Click"
+                    Content="Ajouter" />
+        </StackPanel>
+    </Grid>
+</Window>

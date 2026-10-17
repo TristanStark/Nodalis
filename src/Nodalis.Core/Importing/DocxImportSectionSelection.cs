@@ -7,4 +7,6 @@ public sealed record DocxImportSectionSelection
     public bool Include { get; init; } = true;
 
     public required string TargetSection { get; init; }
+
+    public List<int>? SelectedBlockIndexes { get; init; }
 }

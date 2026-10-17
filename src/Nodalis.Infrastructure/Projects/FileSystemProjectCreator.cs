@@ -112,24 +112,67 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                 "# Notes rapides\n\n",
                 cancellationToken);
 
-            string overviewPath = Path.Combine(
+            bool ultraSimple = request.Complexity == ProjectComplexity.UltraSimple;
+            string initialDocumentName = ultraSimple
+                ? "Fiche de Maintenance.md"
+                : "Présentation.md";
+            string initialDocumentPath = Path.Combine(
                 stagingDirectory,
-                "Présentation.md");
+                initialDocumentName);
 
-            await AtomicFileWriter.WriteAllTextAsync(
-                overviewPath,
-                BuildOverview(request, project),
-                cancellationToken);
+            if (ultraSimple)
+            {
+                Dictionary<string, string> variables = MarkdownTemplateRenderer.CreateStandardVariables(
+                    name,
+                    projectId,
+                    DateTimeOffset.Now,
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["project.name"] = name,
+                        ["project.id"] = projectId.ToString("D"),
+                        ["application.name"] = request.Target.ApplicationName,
+                        ["module.name"] = request.Target.ModuleName ?? string.Empty
+                    });
+
+                string maintenanceContent = await _templateStore.RenderAsync(
+                    "maintenance",
+                    variables,
+                    cancellationToken);
+
+                await AtomicFileWriter.WriteAllTextAsync(
+                    initialDocumentPath,
+                    maintenanceContent,
+                    cancellationToken);
+            }
+            else
+            {
+                await AtomicFileWriter.WriteAllTextAsync(
+                    initialDocumentPath,
+                    BuildOverview(request, project),
+                    cancellationToken);
+            }
 
             foreach (global::Nodalis.Core.Domain.SectionManifest section in sections)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                string sectionDirectory = Path.Combine(
-                    stagingDirectory,
-                    WindowsPathRules.SanitizeSegment(section.Name));
+                string? rootDocumentFileName =
+                    ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                        section.TemplateKey);
 
-                Directory.CreateDirectory(sectionDirectory);
+                string sectionDirectory =
+                    rootDocumentFileName is null
+                        ? Path.Combine(
+                            stagingDirectory,
+                            WindowsPathRules.SanitizeSegment(
+                                section.Name))
+                        : stagingDirectory;
+
+                if (rootDocumentFileName is null)
+                {
+                    Directory.CreateDirectory(
+                        sectionDirectory);
+                }
 
                 if (section.TemplateKey is null)
                 {
@@ -153,10 +196,16 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                     variables,
                     cancellationToken);
 
+                string documentFileName =
+                    rootDocumentFileName ??
+                    WindowsPathRules.SanitizeSegment(
+                        section.Name) +
+                    ".md";
+
                 await AtomicFileWriter.WriteAllTextAsync(
                     Path.Combine(
                         sectionDirectory,
-                        WindowsPathRules.SanitizeSegment(section.Name) + ".md"),
+                        documentFileName),
                     content,
                     cancellationToken);
             }
@@ -171,7 +220,7 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                 ProjectDirectory = finalDirectory,
                 OverviewFilePath = Path.Combine(
                     finalDirectory,
-                    "Présentation.md"),
+                    initialDocumentName),
                 CreatedPaths = createdPaths
             };
         }

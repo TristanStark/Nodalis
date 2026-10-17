@@ -18,9 +18,21 @@ public sealed record UserPreferences
 
     public EditorPreferences Editor { get; init; } = new();
 
+    public BackupPreferences Backup { get; init; } = new();
+
+    public AiPreferences Ai { get; init; } = new();
+
     public List<RecentItemReference> RecentItems { get; init; } = [];
 
+    public List<RecentSearchReference> RecentSearches { get; init; } = [];
+
     public List<UserItemReference> Favorites { get; init; } = [];
+
+    public List<DocumentBookmarkReference> Bookmarks { get; init; } = [];
+
+    public List<OpenDocumentTabReference> OpenDocumentTabs { get; init; } = [];
+
+    public Guid? ActiveDocumentTabId { get; init; }
 
     public Dictionary<string, string> ShortcutOverrides { get; init; } =
         new(StringComparer.OrdinalIgnoreCase);

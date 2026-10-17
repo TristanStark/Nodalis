@@ -2,6 +2,7 @@ using System.Text;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Glossary;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.Glossary;
@@ -95,23 +96,31 @@ public sealed class GlossaryService
                         "glossary",
                         StringComparison.OrdinalIgnoreCase));
 
-            string glossaryDirectory = glossarySection is null
-                ? Path.Combine(
-                    projectDirectory,
-                    "Glossaire")
-                : Path.Combine(
-                    projectDirectory,
-                    WindowsPathRules.SanitizeSegment(
-                        glossarySection.Name));
+            string glossaryFile;
 
-            string glossaryFile = glossarySection is null
-                ? Path.Combine(
-                    glossaryDirectory,
-                    WorkspaceLayout.GlobalGlossaryFileName)
-                : Path.Combine(
-                    glossaryDirectory,
-                    WindowsPathRules.SanitizeSegment(
-                        glossarySection.Name) + ".md");
+            if (glossarySection is null)
+            {
+                glossaryFile =
+                    Path.Combine(
+                        projectDirectory,
+                        WorkspaceLayout.GlobalGlossaryFileName);
+            }
+            else
+            {
+                ProjectSingletonDocumentResolution resolution =
+                    ProjectSingletonDocumentLayout.Resolve(
+                        projectDirectory,
+                        glossarySection,
+                        migrateIfSafe: true);
+
+                glossaryFile =
+                    resolution.ActivePath;
+            }
+
+            string glossaryDirectory =
+                Path.GetDirectoryName(
+                    glossaryFile) ??
+                projectDirectory;
 
             scopes.Add(new GlossaryScope
             {

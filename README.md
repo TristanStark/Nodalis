@@ -14,6 +14,7 @@ Le socle actuellement disponible comprend :
 - création et navigation Applications / Modules / Projets / Sous-projets ;
 - profils de projets pilotés par configuration et templates Markdown ;
 - éditeur Markdown avec aperçu riche et autosave sûr ;
+- flowcharts Mermaid portables rendus localement avec WPF (sans Mermaid.js) ;
 - notes rapides aux scopes Global / Application / Projet ;
 - recherche exacte regroupée Projet / Application / Global ;
 - Command Palette avec ouverture rapide, actions métier et préférences locales ;
@@ -24,6 +25,8 @@ Le socle actuellement disponible comprend :
 - Decision Records reliés à leur source, consultables et recherchables par contexte ;
 - import DOCX local avec détection Application/Projet, remapping des sections, aperçu Markdown et plan exact des fichiers avant validation ;
 - persistance atomique et détection des modifications externes ;
+- corbeille Nodalis récupérable pour documents, projets, modules et applications ;
+- sauvegardes ZIP manuelles/automatiques avec rétention, validation et restauration assistée ;
 - zéro dépendance NuGet ;
 - zéro API réseau dans le produit.
 
@@ -69,7 +72,7 @@ Vérifier les contraintes :
 ./scripts/verify-constraints.ps1
 ```
 
-Smoke tests sans framework tiers :
+Suite de régression sans framework tiers (incluant les fixtures Small / Medium / Large) :
 
 ```powershell
 dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj -c Release
@@ -87,7 +90,7 @@ Le script produit :
 - `artifacts/Nodalis-win-x64.zip` ;
 - `artifacts/SHA256SUMS.txt` ;
 - un exécutable `Nodalis.exe` self-contained et single-file ;
-- le guide utilisateur et les informations de version dans l'archive.
+- le guide utilisateur, la documentation 1.0 complète et les informations de version dans l'archive.
 
 Le workflow `Portable Windows Release` réalise le même build sur GitHub Actions.
 Un tag `vX.Y.Z` publie automatiquement l'archive et son SHA-256 dans une GitHub Release.
@@ -96,5 +99,4 @@ Les données utilisateur sont séparées du dossier de l'application : remplacer
 version portable de Nodalis ne modifie pas le workspace. Voir
 `docs/README-UTILISATEUR.md` pour les instructions d'installation et de mise à jour.
 
-Voir `docs/architecture.md`, `docs/workspace-format.md` et
-`docs/project-profiles.md` pour les décisions de conception actuelles.
+Le sommaire complet de la documentation 1.0 se trouve dans `docs/README.md`.

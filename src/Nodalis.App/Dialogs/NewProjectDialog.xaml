@@ -13,7 +13,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition x:Name="BusinessLinksRow" Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -33,7 +33,8 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock VerticalAlignment="Center"
+            <TextBlock x:Name="ProjectNameLabel"
+                       VerticalAlignment="Center"
                        Text="Nom" />
             <TextBox x:Name="ProjectNameTextBox"
                      Grid.Column="1"
@@ -70,7 +71,7 @@
                       DisplayMemberPath="DisplayName" />
         </Grid>
 
-        <Grid Grid.Row="3">
+        <Grid x:Name="BusinessLinksPanel" Grid.Row="3">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />

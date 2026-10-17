@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Decisions;
+using Nodalis.Infrastructure.Decisions;
 
 namespace Nodalis.App.Dialogs;
 
@@ -28,7 +29,8 @@ public partial class DecisionDialog : Window
                 ? "Aucune"
                 : sourceDisplayName;
         DatePicker.SelectedDate = DateTime.Today;
-        StatusTextBox.Text = "Actée";
+        StatusComboBox.SelectedIndex =
+            0;
 
         string[] candidates = sourceCandidates?
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -107,7 +109,10 @@ public partial class DecisionDialog : Window
             Context = ContextTextBox.Text.Trim(),
             Justification = JustificationTextBox.Text.Trim(),
             Impacts = ImpactsTextBox.Text.Trim(),
-            Status = StatusTextBox.Text.Trim(),
+            Status = StatusComboBox.SelectedItem is ComboBoxItem statusItem &&
+                     statusItem.Tag is string status
+                ? status
+                : WorkspaceDecisionService.ActiveStatus,
             Links = LinksTextBox.Text.Trim()
         };
 

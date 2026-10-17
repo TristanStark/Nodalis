@@ -1,0 +1,144 @@
+<Window x:Class="Nodalis.App.Dialogs.DailyNotesDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Journal quotidien"
+        Width="760"
+        Height="620"
+        MinWidth="620"
+        MinHeight="460"
+        WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="18"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock Text="Journal quotidien"
+                               FontSize="18"
+                               FontWeight="SemiBold" />
+                    <TextBlock Margin="0,4,0,0"
+                               Text="Un fichier Markdown par jour. Le template « Journal quotidien » est modifiable depuis Templates."
+                               FontSize="11"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource SecondaryTextBrush}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Margin="16,0,0,0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button Width="116"
+                            Margin="0,0,8,0"
+                            Click="Today_Click"
+                            Content="Aujourd'hui" />
+                    <Button Width="176"
+                            Click="SyncOpenedItems_Click"
+                            Content="Actualiser éléments ouverts" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1"
+              Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="Jours récents"
+                       Margin="2,0,0,8"
+                       FontWeight="SemiBold" />
+
+            <ListBox x:Name="RecentNotesList"
+                     Grid.Row="1"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     MouseDoubleClick="RecentNotesList_MouseDoubleClick">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,0,0,7"
+                                Padding="12"
+                                CornerRadius="5"
+                                Background="{StaticResource PanelBackgroundBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Text="{Binding DisplayDate}"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               Text="{Binding RelativePath}"
+                                               FontSize="11"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Column="1"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Text="Aujourd'hui"
+                                           FontSize="11"
+                                           Foreground="{StaticResource AccentBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility"
+                                                    Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsToday}"
+                                                             Value="True">
+                                                    <Setter Property="Visibility"
+                                                            Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Padding="12,10"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid>
+                <TextBlock x:Name="StatusText"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+
+                <StackPanel HorizontalAlignment="Right"
+                            Orientation="Horizontal">
+                    <Button Width="90"
+                            Margin="0,0,8,0"
+                            IsCancel="True"
+                            Content="Fermer" />
+                    <Button Width="110"
+                            IsDefault="True"
+                            Click="OpenSelected_Click"
+                            Content="Ouvrir" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

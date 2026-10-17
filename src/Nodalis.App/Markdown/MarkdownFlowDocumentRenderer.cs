@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Nodalis.Core.Flowcharts;
 using Nodalis.Core.Markdown;
 
 namespace Nodalis.App.Markdown;
@@ -33,14 +34,44 @@ public static class MarkdownFlowDocumentRenderer
             Background = GetBrush("WindowBackgroundBrush", Brushes.Transparent)
         };
 
-        foreach (global::Nodalis.Core.Markdown.MarkdownBlock block in MarkdownDocumentParser.Parse(markdown))
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Markdown.MarkdownBlock> blocks =
+            MarkdownDocumentParser.Parse(markdown);
+
+        for (int index = 0;
+             index < blocks.Count;)
         {
+            global::Nodalis.Core.Markdown.MarkdownBlock block = blocks[index];
+
+            if (block.Kind == MarkdownBlockKind.OrderedListItem)
+            {
+                int listStart = index;
+
+                while (index < blocks.Count &&
+                       blocks[index].Kind == MarkdownBlockKind.OrderedListItem)
+                {
+                    index++;
+                }
+
+                document.Blocks.Add(
+                    CreateOrderedList(
+                        blocks,
+                        listStart,
+                        index - listStart,
+                        baseDirectory,
+                        internalLinkClicked,
+                        linkClicked));
+
+                continue;
+            }
+
             document.Blocks.Add(
                 CreateBlock(
                     block,
                     baseDirectory,
                     internalLinkClicked,
                     linkClicked));
+
+            index++;
         }
 
         return document;
@@ -79,7 +110,7 @@ public static class MarkdownFlowDocumentRenderer
 
             MarkdownBlockKind.OrderedListItem =>
                 CreatePrefixedParagraph(
-                    "1. ",
+                    $"{block.OrderedListNumber ?? 1}. ",
                     block.Text,
                     baseDirectory,
                     internalLinkClicked,
@@ -117,6 +148,72 @@ public static class MarkdownFlowDocumentRenderer
                     internalLinkClicked,
                     linkClicked)
         };
+    }
+
+    /// <summary>
+    /// Creates one WPF ordered list from a contiguous sequence of Markdown
+    /// ordered-list items so numbering advances naturally across items.
+    /// </summary>
+    /// <param name="blocks">The parsed Markdown blocks.</param>
+    /// <param name="startIndex">The first ordered-list block index.</param>
+    /// <param name="count">The number of contiguous ordered-list blocks.</param>
+    /// <param name="baseDirectory">The directory used to resolve relative links.</param>
+    /// <param name="internalLinkClicked">The internal-link callback.</param>
+    /// <param name="linkClicked">The regular-link callback.</param>
+    /// <returns>The rendered ordered list.</returns>
+    private static global::System.Windows.Documents.List CreateOrderedList(
+            IReadOnlyList<MarkdownBlock> blocks,
+            int startIndex,
+            int count,
+            string? baseDirectory,
+            Action<string>? internalLinkClicked,
+            Action<string>? linkClicked)
+    {
+        int firstNumber = blocks[startIndex].OrderedListNumber ?? 1;
+
+        global::System.Windows.Documents.List list =
+            new global::System.Windows.Documents.List
+            {
+                MarkerStyle = TextMarkerStyle.Decimal,
+                StartIndex = Math.Max(
+                    1,
+                    firstNumber),
+                Margin = new Thickness(
+                    16,
+                    2,
+                    0,
+                    6),
+                Padding = new Thickness(
+                    18,
+                    0,
+                    0,
+                    0)
+            };
+
+        for (int offset = 0;
+             offset < count;
+             offset++)
+        {
+            MarkdownBlock itemBlock =
+                blocks[startIndex + offset];
+
+            Paragraph paragraph = CreateParagraph(
+                itemBlock.Text,
+                baseDirectory,
+                internalLinkClicked,
+                linkClicked);
+
+            paragraph.Margin = new Thickness(
+                0,
+                2,
+                0,
+                4);
+
+            list.ListItems.Add(
+                new ListItem(paragraph));
+        }
+
+        return list;
     }
 
     /// <summary>
@@ -265,7 +362,117 @@ public static class MarkdownFlowDocumentRenderer
     /// </summary>
     /// <param name="block">The <c>block</c> value.</param>
     /// <returns>The result of the operation.</returns>
-    private static Paragraph CreateCodeBlock(
+    private static Block CreateCodeBlock(
+            MarkdownBlock block)
+    {
+        if (string.Equals(
+                block.Language,
+                "mermaid",
+                StringComparison.OrdinalIgnoreCase) &&
+            IsFlowchartSource(
+                block.Text))
+        {
+            return CreateFlowchartBlock(
+                block);
+        }
+
+        return CreatePlainCodeBlock(
+            block);
+    }
+
+    /// <summary>
+    /// Renders a Mermaid flowchart through the local parser and WPF primitives.
+    /// </summary>
+    /// <param name="block">The Mermaid fenced code block.</param>
+    /// <returns>The native diagram or a source-preserving error block.</returns>
+    private static Block CreateFlowchartBlock(
+            MarkdownBlock block)
+    {
+        FlowchartParseResult result =
+            MermaidFlowchartParser.Parse(
+                block.Text);
+
+        if (result.Success &&
+            result.Diagram is not null)
+        {
+            FlowchartLayout layout =
+                FlowchartLayoutEngine.Layout(
+                    result.Diagram);
+
+            return new BlockUIContainer(
+                new FlowchartPreviewSurface(
+                    layout,
+                    result.Diagnostics))
+            {
+                Margin =
+                    new Thickness(
+                        0,
+                        8,
+                        0,
+                        10)
+            };
+        }
+
+        Section section =
+            new Section
+            {
+                Margin =
+                    new Thickness(
+                        0,
+                        8,
+                        0,
+                        10)
+            };
+
+        string message =
+            result.Diagnostics.Count ==
+                    0
+                ? "Flowchart invalide."
+                : string.Join(
+                    Environment.NewLine,
+                    result.Diagnostics.Select(diagnostic =>
+                        $"Ligne {diagnostic.LineNumber} : {diagnostic.Message}"));
+
+        Paragraph diagnostic =
+            new Paragraph(
+                new Run(
+                    "Flowchart non rendu\n" +
+                    message))
+            {
+                Margin =
+                    new Thickness(
+                        0,
+                        0,
+                        0,
+                        6),
+                Padding =
+                    new Thickness(
+                        10),
+                Foreground =
+                    GetBrush(
+                        "PrimaryTextBrush",
+                        Brushes.White),
+                Background =
+                    GetBrush(
+                        "PanelElevatedBrush",
+                        Brushes.DimGray)
+            };
+
+        section.Blocks.Add(
+            diagnostic);
+        section.Blocks.Add(
+            CreatePlainCodeBlock(
+                block));
+
+        return section;
+    }
+
+    /// <summary>
+    /// Creates the normal source-code representation of a fenced block.
+    /// </summary>
+    /// <param name="block">The code block.</param>
+    /// <returns>The code paragraph.</returns>
+    private static Paragraph CreatePlainCodeBlock(
             MarkdownBlock block)
     {
         global::System.Windows.Documents.Paragraph paragraph = new Paragraph(
@@ -286,6 +493,50 @@ public static class MarkdownFlowDocumentRenderer
         }
 
         return paragraph;
+    }
+
+    /// <summary>
+    /// Determines whether a Mermaid block declares a flowchart or graph.
+    /// </summary>
+    /// <param name="source">The Mermaid source.</param>
+    /// <returns><see langword="true"/> when the first content line is a supported diagram header.</returns>
+    private static bool IsFlowchartSource(
+            string source)
+    {
+        string normalized =
+            source.Replace(
+                    "\r\n",
+                    "\n",
+                    StringComparison.Ordinal)
+                .Replace(
+                    '\r',
+                    '\n');
+
+        foreach (string sourceLine in
+                 normalized.Split(
+                     '\n'))
+        {
+            string line =
+                sourceLine.Trim();
+
+            if (line.Length ==
+                    0 ||
+                line.StartsWith(
+                    "%%",
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            return line.StartsWith(
+                       "flowchart ",
+                       StringComparison.OrdinalIgnoreCase) ||
+                   line.StartsWith(
+                       "graph ",
+                       StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
     }
 
     /// <summary>

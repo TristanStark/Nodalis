@@ -25,10 +25,40 @@ public sealed class WorkspaceNavigationBuilder
         global::Nodalis.Infrastructure.Persistence.FileSystemWorkspaceStore workspaceStore = new FileSystemWorkspaceStore(root);
         global::Nodalis.Core.Domain.WorkspaceManifest workspace = await workspaceStore.LoadAsync(cancellationToken);
 
-        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children = new List<WorkspaceNavigationNode>
+        global::Nodalis.Core.Navigation.WorkspaceNavigationNode globalNode =
+            BuildGlobalNode(
+                root);
+
+        string journalPath =
+            Path.Combine(
+                root,
+                WorkspaceLayout.JournalDirectoryName);
+
+        if (Directory.Exists(
+                journalPath))
         {
-            BuildGlobalNode(root)
-        };
+            global::Nodalis.Core.Navigation.WorkspaceNavigationNode journalNode =
+                await BuildGenericFolderAsync(
+                    root,
+                    journalPath,
+                    WorkspaceNodeKind.Folder,
+                    cancellationToken);
+
+            globalNode =
+                globalNode with
+                {
+                    Children =
+                        Sort(
+                            globalNode.Children.Append(
+                                journalNode))
+                };
+        }
+
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children =
+            new List<WorkspaceNavigationNode>
+            {
+                globalNode
+            };
 
         string applicationsPath = Path.Combine(
             root,
@@ -331,42 +361,124 @@ public sealed class WorkspaceNavigationBuilder
             manifestPath,
             cancellationToken);
 
-        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children = new List<WorkspaceNavigationNode>();
+        global::System.Collections.Generic.List<global::Nodalis.Core.Navigation.WorkspaceNavigationNode> children =
+            new List<WorkspaceNavigationNode>();
 
-        foreach (string file in EnumerateMarkdownFiles(directory))
+        global::System.Collections.Generic.HashSet<string> managedSectionPaths =
+            new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+
+        if (manifest is not null)
         {
-            children.Add(BuildDocumentNode(workspaceRoot, file));
+            foreach (global::Nodalis.Core.Domain.SectionManifest section in manifest.Sections
+                         .OrderBy(section =>
+                             section.Order)
+                         .ThenBy(
+                             section => section.Name,
+                             StringComparer.CurrentCultureIgnoreCase))
+            {
+                string sectionDirectory = Path.Combine(
+                    directory,
+                    WindowsPathRules.SanitizeSegment(
+                        section.Name));
+
+                if (!Directory.Exists(
+                        sectionDirectory))
+                {
+                    continue;
+                }
+
+                managedSectionPaths.Add(
+                    Path.GetFullPath(
+                        sectionDirectory));
+
+                global::Nodalis.Core.Navigation.WorkspaceNavigationNode sectionNode =
+                    await BuildGenericFolderAsync(
+                        workspaceRoot,
+                        sectionDirectory,
+                        WorkspaceNodeKind.Section,
+                        cancellationToken);
+
+                children.Add(
+                    sectionNode with
+                    {
+                        Id =
+                            section.Id,
+                        DisplayName =
+                            section.Name
+                    });
+            }
         }
 
-        foreach (string childDirectory in EnumerateDirectories(directory))
+        foreach (string childDirectory in EnumerateDirectories(
+                     directory))
         {
-            string name = Path.GetFileName(childDirectory);
+            string name =
+                Path.GetFileName(
+                    childDirectory);
 
             if (name.Equals(
                     WorkspaceLayout.SubProjectsDirectoryName,
                     StringComparison.OrdinalIgnoreCase))
             {
-                children.Add(await BuildSubProjectsRootAsync(
-                    workspaceRoot,
-                    childDirectory,
-                    cancellationToken));
                 continue;
             }
 
-            children.Add(await BuildGenericFolderAsync(
-                workspaceRoot,
-                childDirectory,
-                WorkspaceNodeKind.Section,
-                cancellationToken));
+            if (managedSectionPaths.Contains(
+                    Path.GetFullPath(
+                        childDirectory)))
+            {
+                continue;
+            }
+
+            children.Add(
+                await BuildGenericFolderAsync(
+                    workspaceRoot,
+                    childDirectory,
+                    WorkspaceNodeKind.Section,
+                    cancellationToken));
+        }
+
+        foreach (string file in EnumerateMarkdownFiles(
+                     directory))
+        {
+            children.Add(
+                BuildDocumentNode(
+                    workspaceRoot,
+                    file));
+        }
+
+        string subProjectsDirectory = Path.Combine(
+            directory,
+            WorkspaceLayout.SubProjectsDirectoryName);
+
+        if (Directory.Exists(
+                subProjectsDirectory))
+        {
+            children.Add(
+                await BuildSubProjectsRootAsync(
+                    workspaceRoot,
+                    subProjectsDirectory,
+                    cancellationToken));
         }
 
         return new WorkspaceNavigationNode
         {
-            Id = manifest?.Id ?? CreatePathId(workspaceRoot, directory),
-            DisplayName = manifest?.Name ?? Path.GetFileName(directory),
-            Kind = WorkspaceNodeKind.Project,
-            FullPath = directory,
-            Children = Sort(children)
+            Id =
+                manifest?.Id ??
+                CreatePathId(
+                    workspaceRoot,
+                    directory),
+            DisplayName =
+                manifest?.Name ??
+                Path.GetFileName(
+                    directory),
+            Kind =
+                WorkspaceNodeKind.Project,
+            FullPath =
+                directory,
+            Children =
+                children
         };
     }
 

@@ -411,6 +411,7 @@ public sealed class DocxImportAnalyzer
         unmappedBlocks = [];
 
         DocxMappedSection? current = null;
+        int? currentHeadingLevel = null;
 
         for (int index = 0;
              index < blocks.Count;
@@ -437,10 +438,20 @@ public sealed class DocxImportAnalyzer
                     };
 
                     result.Add(current);
+                    currentHeadingLevel = headingLevel;
+                    continue;
+                }
+
+                if (current is not null &&
+                    currentHeadingLevel is int sectionHeadingLevel &&
+                    headingLevel > sectionHeadingLevel)
+                {
+                    current.Blocks.Add(block);
                     continue;
                 }
 
                 current = null;
+                currentHeadingLevel = null;
                 unmappedBlocks.Add(block);
                 continue;
             }

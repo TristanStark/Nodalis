@@ -11,4 +11,6 @@ public sealed record MilestoneDraft
     public string Description { get; init; } = string.Empty;
 
     public string? Link { get; init; }
+
+    public IReadOnlyList<Guid> DependencyIds { get; init; } = Array.Empty<Guid>();
 }

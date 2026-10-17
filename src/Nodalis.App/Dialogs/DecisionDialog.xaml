@@ -92,11 +92,15 @@
                            Text="Source"
                            FontWeight="SemiBold" />
 
-                <TextBox x:Name="StatusTextBox"
-                         Grid.Row="4"
-                         Margin="0,6,0,12"
-                         MinHeight="30"
-                         Padding="6,4" />
+                <ComboBox x:Name="StatusComboBox"
+                          Grid.Row="4"
+                          Margin="0,6,0,12"
+                          MinHeight="30"
+                          Padding="6,3">
+                    <ComboBoxItem Tag="Active" Content="Active" />
+                    <ComboBoxItem Tag="Superseded" Content="Superseded" />
+                    <ComboBoxItem Tag="Deprecated" Content="Deprecated" />
+                </ComboBox>
                 <TextBlock x:Name="SourceText"
                            Grid.Row="4"
                            Grid.Column="2"

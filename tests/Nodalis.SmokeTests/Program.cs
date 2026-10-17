@@ -1,22 +1,31 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Nodalis.Core.Attachments;
+using Nodalis.Core.Backups;
 using Nodalis.Core.Decisions;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Glossary;
+using Nodalis.Core.Flowcharts;
 using Nodalis.Core.Importing;
 using Nodalis.Core.Links;
 using Nodalis.Core.Meetings;
 using Nodalis.Core.Milestones;
 using Nodalis.Core.Navigation;
+using Nodalis.Core.Notes;
 using Nodalis.Core.Tasks;
 using Nodalis.Core.Markdown;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Relations;
 using Nodalis.Core.Settings;
 using Nodalis.Core.Templates;
+using Nodalis.Core.Trash;
+using Nodalis.Core.Updates;
 using Nodalis.Core.Validation;
 using Nodalis.Infrastructure.Applications;
 using Nodalis.Infrastructure.Attachments;
+using Nodalis.Infrastructure.Backups;
 using Nodalis.Infrastructure.Decisions;
 using Nodalis.Infrastructure.Documents;
 using Nodalis.Infrastructure.Glossary;
@@ -33,6 +42,8 @@ using Nodalis.Infrastructure.Search;
 using Nodalis.Infrastructure.Settings;
 using Nodalis.Infrastructure.Tasks;
 using Nodalis.Infrastructure.Templates;
+using Nodalis.Infrastructure.Trash;
+using Nodalis.Infrastructure.Updates;
 
 string root = Path.Combine(
     Path.GetTempPath(),
@@ -45,24 +56,55 @@ try
     await VerifyWorkspaceNavigationAsync(root);
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
+    await VerifyProjectStructureAsync(root);
     await VerifyApplicationStructureAsync(root);
+    await VerifyTrashAsync(root);
+    await VerifyWorkspaceBackupsAsync(root);
+    await WorkspaceMigrationSmokeTests.RunAsync(root);
+    await WorkspaceCompatibilitySmokeTests.RunAsync(root);
+    await WorkspaceRegressionFixtureSmokeTests.RunAsync(root);
     await VerifyQuickNotesAsync(root);
+    await VerifyDailyNotesAsync(root);
     await VerifySearchAsync(root);
     await VerifyLinksAndBacklinksAsync(root);
+    await WorkspacePerformanceSmokeTests.RunAsync(root);
     await VerifyGlossaryAsync(root);
     await VerifyAttachmentsAsync(root);
     await VerifyTasksAsync(root);
     await VerifyMilestonesAsync(root);
     await VerifyMeetingsAsync(root);
+    await ProjectMeetingPromptSmokeTests.RunAsync(root);
     await VerifyDecisionsAsync(root);
     await VerifyDocxImportAsync(root);
     await VerifyDocxImportAnalysisAsync(root);
+    await DocxFineSelectionSmokeTests.RunAsync(root);
+    await MarkdownBulkImportSmokeTests.RunAsync(root);
+    await ProjectExportSmokeTests.RunAsync(root);
+    await MeetingExtractionSmokeTests.RunAsync(root);
     VerifyMarkdownParser();
+    VerifyFlowcharts();
+    VerifyMarkdownFrontMatter();
+    VerifyMarkdownOutlineParser();
+    VerifyTypedRelations();
+    VerifyDocumentBookmarks();
     await VerifyUserPreferencesAsync(root);
+    await VerifyLocalReleasePackageAsync(root);
+    await UpdaterRecoverySmokeTests.RunAsync(root);
+    CrashDiagnosticsSmokeTests.Run(root);
     await VerifyDocumentReliabilityAsync(root);
+    await WorkspaceIntegritySmokeTests.RunAsync(root);
+    await ProjectHealthSmokeTests.RunAsync(root);
+    await ProjectCoverageSmokeTests.RunAsync(root);
+    await WorkspaceCalendarSmokeTests.RunAsync(root);
+    await WorkspaceKanbanSmokeTests.RunAsync(root);
+    await LocalAiSmokeTests.RunAsync(root);
+    await MeetingAiSummarySmokeTests.RunAsync(root);
+    await ProjectAiChallengeSmokeTests.RunAsync(root);
+    await AiTestGenerationSmokeTests.RunAsync(root);
+    PersistenceContractSmokeTests.Run();
     VerifyDomainCatalog();
 
-    Console.WriteLine("Nodalis smoke tests passed.");
+    Console.WriteLine("Nodalis regression suite passed.");
     return;
 }
 finally
@@ -183,12 +225,15 @@ static async Task VerifyTemplatesAsync(string root)
         "The default note template must exist.");
     Assert(catalog.Templates.Any(template => template.Key == "meeting"),
         "The default meeting template must exist.");
+    Assert(catalog.Templates.Any(template => template.Key == "daily-note"),
+        "The configurable daily-note template must exist.");
 
     global::Nodalis.Core.Templates.ProjectProfileCatalog profiles = await store.LoadProjectProfilesAsync();
-    Assert(profiles.Profiles.Count == 3,
-        "Simple, Medium and Complex project profiles must exist.");
+    Assert(profiles.Profiles.Count == 4,
+        "Ultra-simple, Simple, Medium and Complex project profiles must exist.");
 
-    foreach (global::Nodalis.Core.Templates.ProjectProfileDefinition profile in profiles.Profiles)
+    foreach (global::Nodalis.Core.Templates.ProjectProfileDefinition profile in profiles.Profiles
+                 .Where(profile => profile.Complexity != ProjectComplexity.UltraSimple))
     {
         global::System.Collections.Generic.HashSet<string> sectionNames = profile.Sections
             .Select(section => section.Name)
@@ -201,6 +246,11 @@ static async Task VerifyTemplatesAsync(string root)
             sectionNames.Contains("Tests"),
             "Every initial project profile must contain the four mandatory sections.");
     }
+
+    global::Nodalis.Core.Templates.ProjectProfileDefinition ultraSimpleProfile = profiles.Profiles.Single(profile =>
+        profile.Complexity == ProjectComplexity.UltraSimple);
+    Assert(ultraSimpleProfile.Sections.Count == 0,
+        "Ultra-simple projects must have no automatically generated management sections.");
 
     global::Nodalis.Core.Templates.ProjectProfileDefinition simpleProfile = profiles.Profiles.Single(profile =>
         profile.Complexity == ProjectComplexity.Simple);
@@ -287,12 +337,127 @@ static async Task VerifyTemplatesAsync(string root)
         WorkspaceLayout.TemplatesDirectoryName,
         "note.md");
 
+    global::Nodalis.Core.Templates.MarkdownTemplateDefinition noteDefinition =
+        catalog.Templates.Single(template =>
+            template.Key == "note");
+    string editableContent =
+        "# {{title}}\n\nWorkspace : {{workspace.name}}\n";
+
+    await store.SaveTemplateAsync(
+        noteDefinition with
+        {
+            DisplayName = "Note personnalisée",
+            Category = "Personnalisé"
+        },
+        editableContent);
+
+    global::Nodalis.Core.Templates.TemplateCatalog editedCatalog =
+        await store.LoadTemplateCatalogAsync();
+    Assert(
+        editedCatalog.Templates.Single(template =>
+            template.Key == "note").DisplayName ==
+        "Note personnalisée",
+        "Template metadata edited from the UI contract must persist.");
+    Assert(
+        await store.LoadTemplateContentAsync("note") ==
+        editableContent,
+        "Template Markdown edited from the UI contract must persist.");
+
+    global::Nodalis.Core.Templates.MarkdownTemplateDefinition duplicate =
+        await store.DuplicateTemplateAsync(
+            "note",
+            "Note de suivi");
+
+    Assert(
+        duplicate.Key != "note" &&
+        await store.LoadTemplateContentAsync(
+            duplicate.Key) ==
+        editableContent,
+        "Duplicating a template must create a distinct editable Markdown source.");
+
+    global::System.Collections.Generic.List<global::Nodalis.Core.Templates.ProjectProfileDefinition> editedProfiles =
+        profiles.Profiles
+            .Select(profile =>
+                profile.Complexity ==
+                ProjectComplexity.Simple
+                    ? profile with
+                    {
+                        DisplayName =
+                            "Simple personnalisé"
+                    }
+                    : profile)
+            .ToList();
+
+    await store.SaveProjectProfilesAsync(
+        profiles with
+        {
+            Profiles =
+                editedProfiles
+        });
+
+    global::Nodalis.Core.Templates.ProjectProfileCatalog persistedProfiles =
+        await store.LoadProjectProfilesAsync();
+    Assert(
+        persistedProfiles.Profiles.Single(profile =>
+            profile.Complexity ==
+            ProjectComplexity.Simple).DisplayName ==
+        "Simple personnalisé",
+        "Project profile edits must persist in project-profiles.json.");
+
+    await store.RestoreTemplateDefaultAsync(
+        "note");
+    await store.RestoreProjectProfileDefaultAsync(
+        ProjectComplexity.Simple);
+
+    Assert(
+        (await store.LoadTemplateCatalogAsync()).Templates.Single(template =>
+            template.Key == "note").DisplayName ==
+        "Note" &&
+        (await store.LoadProjectProfilesAsync()).Profiles.Single(profile =>
+            profile.Complexity ==
+            ProjectComplexity.Simple).DisplayName ==
+        "Simple",
+        "Built-in templates and profiles must be individually restorable.");
+
     const string customized = "# Template personnalisé\n";
     await File.WriteAllTextAsync(templatePath, customized);
     await store.InitializeDefaultsAsync();
 
     Assert(await File.ReadAllTextAsync(templatePath) == customized,
         "Default initialization must never overwrite a customized template.");
+
+    // Simulate upgrading a workspace created before the Ultra-simple profile existed.
+    string profilesPath = Path.Combine(
+        root,
+        WorkspaceLayout.TemplatesDirectoryName,
+        FileSystemTemplateStore.ProjectProfilesFileName);
+    global::Nodalis.Core.Templates.ProjectProfileCatalog legacyProfiles = profiles with
+    {
+        Profiles = profiles.Profiles
+            .Where(profile => profile.Complexity != ProjectComplexity.UltraSimple)
+            .Select(profile => profile.Complexity == ProjectComplexity.Simple
+                ? profile with { DisplayName = "Simple hérité personnalisé" }
+                : profile)
+            .ToList()
+    };
+
+    await File.WriteAllTextAsync(
+        profilesPath,
+        JsonSerializer.Serialize(
+            legacyProfiles,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+
+    await store.InitializeDefaultsAsync();
+    global::Nodalis.Core.Templates.ProjectProfileCatalog migratedProfiles =
+        await store.LoadProjectProfilesAsync();
+    Assert(
+        migratedProfiles.Profiles.Count == 4 &&
+        migratedProfiles.Profiles.Single(profile =>
+            profile.Complexity == ProjectComplexity.Simple).DisplayName ==
+        "Simple hérité personnalisé" &&
+        migratedProfiles.Profiles.Single(profile =>
+            profile.Complexity == ProjectComplexity.UltraSimple).Sections.Count == 0,
+        "Upgrading an existing workspace must add Ultra-simple without overwriting customized profiles.");
 
     string duplicatePath = Path.Combine(root, "duplicate.md");
     await File.WriteAllTextAsync(duplicatePath, "existing");
@@ -373,11 +538,83 @@ static async Task VerifyProjectCreationAsync(string root)
         overview.Contains("RTC: WI-456", StringComparison.Ordinal),
         "Business links must be copied into the project overview.");
 
-    foreach (string requiredSection in new[] { "Jalons", "Technique", "Glossaire", "Tests" })
+    global::Nodalis.Core.Projects.ProjectCreationResult maintenanceProject = await creator.CreateAsync(
+        new ProjectCreationRequest
+        {
+            Name = "INC-1234",
+            Complexity = ProjectComplexity.UltraSimple,
+            Target = applicationTarget
+        });
+
+    Assert(
+        maintenanceProject.Project.InitialComplexity == ProjectComplexity.UltraSimple &&
+        maintenanceProject.Project.Sections.Count == 0,
+        "Ultra-simple project manifests must not require Jalons, Technique, Glossaire or Tests.");
+
+    string maintenanceSheetPath = Path.Combine(
+        maintenanceProject.ProjectDirectory,
+        "Fiche de Maintenance.md");
+    string quickNotesPath = Path.Combine(
+        maintenanceProject.ProjectDirectory,
+        WorkspaceLayout.GlobalQuickNotesFileName);
+    string[] maintenanceFiles = Directory.GetFiles(
+        maintenanceProject.ProjectDirectory,
+        "*",
+        SearchOption.TopDirectoryOnly);
+
+    Assert(
+        File.Exists(maintenanceSheetPath) &&
+        File.Exists(quickNotesPath) &&
+        !File.Exists(Path.Combine(maintenanceProject.ProjectDirectory, "Présentation.md")) &&
+        maintenanceFiles.Length == 3 &&
+        Directory.GetDirectories(maintenanceProject.ProjectDirectory).Length == 0 &&
+        string.Equals(maintenanceProject.OverviewFilePath, maintenanceSheetPath, StringComparison.OrdinalIgnoreCase),
+        "An ultra-simple project must create only its manifest, quick notes and maintenance sheet.");
+
+    Assert(
+        (await File.ReadAllTextAsync(maintenanceSheetPath)).Contains("INC-1234", StringComparison.Ordinal),
+        "Maintenance sheet must identify its project reference.");
+
+    global::Nodalis.Infrastructure.Projects.WorkspaceProjectStructureService minimalStructure =
+        new WorkspaceProjectStructureService(root);
+    global::Nodalis.Core.Projects.ProjectSectionState optionalSection =
+        await minimalStructure.AddSectionAsync(
+            maintenanceProject.ProjectDirectory,
+            "Compléments");
+    Assert(
+        Directory.Exists(optionalSection.DirectoryPath),
+        "Ultra-simple projects must allow manual addition of sections without compulsory ones.");
+    await minimalStructure.RemoveSectionAsync(
+        maintenanceProject.ProjectDirectory,
+        optionalSection.Id);
+
+    Assert(
+        File.Exists(
+            Path.Combine(
+                result.ProjectDirectory,
+                "Jalons.md")) &&
+        File.Exists(
+            Path.Combine(
+                result.ProjectDirectory,
+                WorkspaceLayout.GlobalGlossaryFileName)) &&
+        !Directory.Exists(
+            Path.Combine(
+                result.ProjectDirectory,
+                "Jalons")) &&
+        !Directory.Exists(
+            Path.Combine(
+                result.ProjectDirectory,
+                "Glossaire")),
+        "Jalons and project glossary must be root Markdown documents, never default section directories.");
+
+    foreach (string requiredDirectory in new[] { "Technique", "Tests" })
     {
         Assert(
-            Directory.Exists(Path.Combine(result.ProjectDirectory, requiredSection)),
-            $"Project profile must create the '{requiredSection}' section.");
+            Directory.Exists(
+                Path.Combine(
+                    result.ProjectDirectory,
+                    requiredDirectory)),
+            $"Project profile must create the '{requiredDirectory}' directory-backed section.");
     }
 
     global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Projects.ProjectCreationTarget> refreshedTargets = await discovery.DiscoverAsync(root);
@@ -399,6 +636,370 @@ static async Task VerifyProjectCreationAsync(string root)
                 result.ProjectDirectory,
                 WorkspaceLayout.SubProjectsDirectoryName),
         "Sub-projects must be created under the selected parent project.");
+
+    string childMilestonesRoot =
+        Path.Combine(
+            child.ProjectDirectory,
+            "Jalons.md");
+    string childMilestonesDirectory =
+        Path.Combine(
+            child.ProjectDirectory,
+            "Jalons");
+    string childMilestonesLegacy =
+        Path.Combine(
+            childMilestonesDirectory,
+            "Jalons.md");
+
+    Directory.CreateDirectory(
+        childMilestonesDirectory);
+    File.Move(
+        childMilestonesRoot,
+        childMilestonesLegacy);
+
+    global::Nodalis.Infrastructure.Projects.ProjectSingletonDocumentResolution migratedMilestones =
+        global::Nodalis.Infrastructure.Projects.ProjectSingletonDocumentLayout.Resolve(
+            child.ProjectDirectory,
+            "Jalons",
+            "milestones",
+            migrateIfSafe: true);
+
+    Assert(
+        migratedMilestones.Migrated &&
+        File.Exists(
+            childMilestonesRoot) &&
+        !Directory.Exists(
+            childMilestonesDirectory),
+        "A legacy singleton folder containing only its canonical document must migrate losslessly to the project root.");
+
+    string childGlossaryRoot =
+        Path.Combine(
+            child.ProjectDirectory,
+            WorkspaceLayout.GlobalGlossaryFileName);
+    string childGlossaryDirectory =
+        Path.Combine(
+            child.ProjectDirectory,
+            "Glossaire");
+    string childGlossaryLegacy =
+        Path.Combine(
+            childGlossaryDirectory,
+            WorkspaceLayout.GlobalGlossaryFileName);
+    string childGlossaryExtra =
+        Path.Combine(
+            childGlossaryDirectory,
+            "Conserver.md");
+
+    Directory.CreateDirectory(
+        childGlossaryDirectory);
+    File.Move(
+        childGlossaryRoot,
+        childGlossaryLegacy);
+    await File.WriteAllTextAsync(
+        childGlossaryExtra,
+        "# À conserver\n");
+
+    global::Nodalis.Infrastructure.Projects.ProjectSingletonDocumentResolution blockedGlossary =
+        global::Nodalis.Infrastructure.Projects.ProjectSingletonDocumentLayout.Resolve(
+            child.ProjectDirectory,
+            "Glossaire",
+            "glossary",
+            migrateIfSafe: true);
+
+    Assert(
+        blockedGlossary.RequiresManualMigration &&
+        File.Exists(
+            childGlossaryLegacy) &&
+        File.Exists(
+            childGlossaryExtra) &&
+        !File.Exists(
+            childGlossaryRoot),
+        "A legacy singleton folder with additional useful content must never be deleted or flattened silently.");
+
+    global::Nodalis.Infrastructure.Quality.ProjectHealthCheckService healthService =
+        new global::Nodalis.Infrastructure.Quality.ProjectHealthCheckService(
+            root);
+    global::Nodalis.Core.Quality.ProjectHealthReport healthReport =
+        await healthService.ScanAsync(
+            child.ProjectDirectory);
+
+    Assert(
+        healthReport.Issues.Any(issue =>
+            issue.Code ==
+            "ROOT_DOCUMENT_MIGRATION_BLOCKED"),
+        "Blocked legacy singleton migration must be surfaced as a project health warning.");
+}
+
+static async Task VerifyProjectStructureAsync(string root)
+{
+    string projectDirectory = Path.Combine(
+        root,
+        WorkspaceLayout.ApplicationsDirectoryName,
+        "Application Project Creator",
+        WorkspaceLayout.ProjectsDirectoryName,
+        "Projet Généré");
+
+    global::Nodalis.Infrastructure.Projects.WorkspaceProjectStructureService service =
+        new WorkspaceProjectStructureService(
+            root);
+
+    global::Nodalis.Core.Projects.ProjectStructureState initial =
+        await service.GetStructureAsync(
+            projectDirectory);
+
+    Assert(
+        initial.Sections.Count(section =>
+            section.IsRequired) >= 4 &&
+        global::Nodalis.Core.Projects.ProjectRequiredSectionPolicy.RequiredRoles.All(role =>
+            initial.Sections.Any(section =>
+                string.Equals(
+                    global::Nodalis.Core.Projects.ProjectRequiredSectionPolicy.GetRequiredRole(
+                        section.TemplateKey),
+                    role,
+                    StringComparison.OrdinalIgnoreCase))),
+        "Project structure management must recognize the four protected logical roles.");
+
+    global::Nodalis.Core.Projects.ProjectSectionState milestonesSection =
+        initial.Sections.Single(section =>
+            string.Equals(
+                section.TemplateKey,
+                "milestones",
+                StringComparison.OrdinalIgnoreCase));
+    global::Nodalis.Core.Projects.ProjectSectionState glossarySection =
+        initial.Sections.Single(section =>
+            string.Equals(
+                section.TemplateKey,
+                "glossary",
+                StringComparison.OrdinalIgnoreCase));
+
+    Assert(
+        string.Equals(
+            milestonesSection.DirectoryPath,
+            projectDirectory,
+            StringComparison.OrdinalIgnoreCase) &&
+        milestonesSection.Documents.SequenceEqual(
+            new[]
+            {
+                "Jalons.md"
+            }) &&
+        string.Equals(
+            glossarySection.DirectoryPath,
+            projectDirectory,
+            StringComparison.OrdinalIgnoreCase) &&
+        glossarySection.Documents.SequenceEqual(
+            new[]
+            {
+                WorkspaceLayout.GlobalGlossaryFileName
+            }),
+        "Project structure state must represent Jalons and Glossaire as root documents.");
+
+    global::Nodalis.Core.Projects.ProjectSectionState custom =
+        await service.AddSectionAsync(
+            projectDirectory,
+            "Support");
+
+    global::Nodalis.Core.Projects.ProjectSectionState fromTemplate =
+        await service.AddSectionAsync(
+            projectDirectory,
+            "Risques personnalisés",
+            "risks",
+            isSingleton: true);
+
+    Assert(
+        Directory.Exists(
+            custom.DirectoryPath) &&
+        File.Exists(
+            Path.Combine(
+                fromTemplate.DirectoryPath,
+                "Risques personnalisés.md")),
+        "Adding a section must materialize its directory and optional initial template document.");
+
+    global::Nodalis.Core.Projects.ProjectSectionState renamed =
+        await service.RenameSectionAsync(
+            projectDirectory,
+            custom.Id,
+            "Support interne");
+
+    Assert(
+        renamed.Id == custom.Id &&
+        Directory.Exists(
+            renamed.DirectoryPath) &&
+        !Directory.Exists(
+            custom.DirectoryPath),
+        "Renaming a section must preserve its stable ID and move its directory.");
+
+    global::Nodalis.Core.Projects.ProjectStructureState beforeReorder =
+        await service.GetStructureAsync(
+            projectDirectory);
+
+    global::System.Collections.Generic.List<Guid> reorderedIds =
+        beforeReorder.Sections
+            .Select(section =>
+                section.Id)
+            .ToList();
+
+    reorderedIds.Remove(
+        renamed.Id);
+    reorderedIds.Insert(
+        0,
+        renamed.Id);
+
+    await service.ReorderSectionsAsync(
+        projectDirectory,
+        reorderedIds);
+
+    global::Nodalis.Core.Projects.ProjectStructureState reordered =
+        await service.GetStructureAsync(
+            projectDirectory);
+
+    Assert(
+        reordered.Sections[0].Id == renamed.Id,
+        "Reordering project sections must persist deterministic manifest order.");
+
+    global::Nodalis.Infrastructure.Navigation.WorkspaceNavigationBuilder navigationBuilder =
+        new WorkspaceNavigationBuilder();
+
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode navigation =
+        await navigationBuilder.BuildAsync(
+            root);
+
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode? projectNode =
+        FindNavigationNodeByPath(
+            navigation,
+            projectDirectory);
+
+    Assert(
+        projectNode is not null &&
+        projectNode.Children.First(child =>
+            child.Kind == WorkspaceNodeKind.Section).Id == renamed.Id &&
+        projectNode.Children.First(child =>
+            child.Kind == WorkspaceNodeKind.Section).DisplayName == "Support interne",
+        "Workspace navigation must honor manifest section order and logical display names.");
+
+    Assert(
+        projectNode!.Children.Any(child =>
+            child.Kind ==
+                WorkspaceNodeKind.Document &&
+            string.Equals(
+                child.FullPath,
+                Path.Combine(
+                    projectDirectory,
+                    "Jalons.md"),
+                StringComparison.OrdinalIgnoreCase)) &&
+        projectNode.Children.Any(child =>
+            child.Kind ==
+                WorkspaceNodeKind.Document &&
+            string.Equals(
+                child.FullPath,
+                Path.Combine(
+                    projectDirectory,
+                    WorkspaceLayout.GlobalGlossaryFileName),
+                StringComparison.OrdinalIgnoreCase)) &&
+        !projectNode.Children.Any(child =>
+            child.Kind ==
+                WorkspaceNodeKind.Section &&
+            (string.Equals(
+                 child.DisplayName,
+                 "Jalons",
+                 StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(
+                 child.DisplayName,
+                 "Glossaire",
+                 StringComparison.OrdinalIgnoreCase))),
+        "Workspace navigation must expose Jalons.md and Glossaire.md as root documents rather than folders.");
+
+    string documentToMove =
+        Path.Combine(
+            renamed.DirectoryPath,
+            "À déplacer.md");
+
+    await File.WriteAllTextAsync(
+        documentToMove,
+        "# Document à déplacer\n");
+
+    string movedDocument =
+        await service.MoveDocumentAsync(
+            projectDirectory,
+            documentToMove,
+            fromTemplate.Id);
+
+    Assert(
+        !File.Exists(
+            documentToMove) &&
+        File.Exists(
+            movedDocument) &&
+        string.Equals(
+            service.GetProjectDirectoryForContext(
+                movedDocument),
+            projectDirectory,
+            StringComparison.OrdinalIgnoreCase),
+        "Moving a document between sections must preserve the file and project context.");
+
+    global::Nodalis.Core.Projects.ProjectSectionState temporary =
+        await service.AddSectionAsync(
+            projectDirectory,
+            "Temporaire");
+
+    string temporaryDocument =
+        Path.Combine(
+            temporary.DirectoryPath,
+            "Conserver.md");
+
+    await File.WriteAllTextAsync(
+        temporaryDocument,
+        "# À conserver\n");
+
+    await AssertThrowsAsync<global::Nodalis.Core.Projects.ProjectSectionNotEmptyException>(
+        () => service.RemoveSectionAsync(
+            projectDirectory,
+            temporary.Id),
+        "Deleting a non-empty section without an explicit destination must be rejected.");
+
+    await service.RemoveSectionAsync(
+        projectDirectory,
+        temporary.Id,
+        fromTemplate.Id);
+
+    Assert(
+        !Directory.Exists(
+            temporary.DirectoryPath) &&
+        File.Exists(
+            Path.Combine(
+                fromTemplate.DirectoryPath,
+                "Conserver.md")),
+        "Deleting a non-empty optional section with an explicit target must move content without loss.");
+
+    global::Nodalis.Core.Projects.ProjectStructureState beforeRequiredDelete =
+        await service.GetStructureAsync(
+            projectDirectory);
+
+    global::Nodalis.Core.Projects.ProjectSectionState requiredMilestones =
+        beforeRequiredDelete.Sections.First(section =>
+            string.Equals(
+                global::Nodalis.Core.Projects.ProjectRequiredSectionPolicy.GetRequiredRole(
+                    section.TemplateKey),
+                "Jalons",
+                StringComparison.OrdinalIgnoreCase));
+
+    await AssertThrowsAsync<InvalidOperationException>(
+        () => service.RemoveSectionAsync(
+            projectDirectory,
+            requiredMilestones.Id,
+            fromTemplate.Id),
+        "Removing the only section fulfilling a required logical role must be rejected.");
+
+    await service.RemoveSectionAsync(
+        projectDirectory,
+        renamed.Id);
+
+    global::Nodalis.Core.Projects.ProjectStructureState finalState =
+        await service.GetStructureAsync(
+            projectDirectory);
+
+    Assert(
+        finalState.Sections.All(section =>
+            section.Id != renamed.Id) &&
+        finalState.Sections.Any(section =>
+            section.Id == fromTemplate.Id),
+        "Removing an empty optional section must update the project manifest coherently.");
 }
 
 static async Task VerifyApplicationStructureAsync(string root)
@@ -518,6 +1119,275 @@ static async Task VerifyApplicationStructureAsync(string root)
         "An empty application must be deletable.");
 }
 
+static async Task VerifyTrashAsync(string root)
+{
+    global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
+    global::Nodalis.Infrastructure.Trash.WorkspaceTrashService trash = new WorkspaceTrashService(root);
+
+    string applicationPath = await structure.CreateApplicationAsync(
+        "Application Corbeille");
+    string applicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            applicationPath,
+            WorkspaceLayout.ApplicationManifestFileName));
+    global::Nodalis.Core.Domain.ApplicationManifest application = JsonSerializer.Deserialize<ApplicationManifest>(
+        applicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
+
+    string documentPath = Path.Combine(
+        applicationPath,
+        "Note supprimable.md");
+    await File.WriteAllTextAsync(
+        documentPath,
+        "# Note supprimable\n\nContenu conservé.\n");
+
+    Guid documentId = Guid.NewGuid();
+    global::Nodalis.Core.Trash.TrashEntry documentEntry = await trash.MoveToTrashAsync(
+        documentPath,
+        TrashItemKind.Document,
+        documentId);
+
+    Assert(
+        !File.Exists(documentPath),
+        "Moving a document to the trash must remove it from its original location.");
+
+    global::Nodalis.Infrastructure.Search.WorkspaceSearchService search = new WorkspaceSearchService();
+    global::Nodalis.Core.Search.SearchResultSet deletedSearch = await search.SearchAsync(
+        root,
+        root,
+        "Contenu conservé");
+
+    Assert(
+        deletedSearch.Project.Count == 0 &&
+        deletedSearch.Application.Count == 0 &&
+        deletedSearch.Global.Count == 0,
+        "Content moved to the trash must not remain visible in workspace search.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Trash.TrashEntry> entries = await trash.ListAsync();
+
+    Assert(
+        entries.Any(item =>
+            item.EntryId == documentEntry.EntryId &&
+            item.ItemId == documentId &&
+            item.Kind == TrashItemKind.Document),
+        "The trash must persist type, deletion metadata and the supplied item id.");
+
+    await File.WriteAllTextAsync(
+        documentPath,
+        "collision");
+
+    await AssertThrowsAsync<TrashRestoreCollisionException>(
+        () => trash.RestoreAsync(documentEntry.EntryId),
+        "Restore must refuse an occupied original path before moving the trash payload.");
+
+    Assert(
+        (await trash.ListAsync()).Any(item =>
+            item.EntryId == documentEntry.EntryId),
+        "A collision must leave the trash entry untouched.");
+
+    File.Delete(documentPath);
+
+    global::Nodalis.Core.Trash.TrashEntry applicationEntry = await trash.MoveToTrashAsync(
+        applicationPath,
+        TrashItemKind.Application,
+        application.Id);
+
+    Assert(
+        !Directory.Exists(applicationPath),
+        "Moving an application to the trash must move its complete subtree.");
+
+    await AssertThrowsAsync<DirectoryNotFoundException>(
+        () => trash.RestoreAsync(documentEntry.EntryId),
+        "A child item must not recreate a missing structured parent during restore.");
+
+    Assert(
+        (await trash.ListAsync()).Any(item =>
+            item.EntryId == documentEntry.EntryId),
+        "A missing restore parent must leave the child trash entry untouched.");
+
+    string restoredApplication = await trash.RestoreAsync(
+        applicationEntry.EntryId);
+
+    string restoredApplicationJson = await File.ReadAllTextAsync(
+        Path.Combine(
+            restoredApplication,
+            WorkspaceLayout.ApplicationManifestFileName));
+    global::Nodalis.Core.Domain.ApplicationManifest restoredManifest = JsonSerializer.Deserialize<ApplicationManifest>(
+        restoredApplicationJson,
+        new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        })!;
+
+    Assert(
+        restoredManifest.Id == application.Id,
+        "Restoring a structured item must preserve its stable manifest id.");
+
+    string restoredDocument = await trash.RestoreAsync(
+        documentEntry.EntryId);
+
+    Assert(
+        restoredDocument == documentPath &&
+        File.Exists(restoredDocument) &&
+        (await File.ReadAllTextAsync(restoredDocument)).Contains(
+            "Contenu conservé.",
+            StringComparison.Ordinal),
+        "Restoring a document after its parent must put the unchanged payload back at its original path.");
+
+    global::Nodalis.Core.Trash.TrashEntry finalEntry = await trash.MoveToTrashAsync(
+        restoredDocument,
+        TrashItemKind.Document,
+        documentId);
+
+    Assert(
+        (await trash.ListAsync()).Any(item =>
+            item.EntryId == finalEntry.EntryId),
+        "The final trash test entry must be visible before emptying the trash.");
+
+    await trash.EmptyAsync();
+
+    Assert(
+        (await trash.ListAsync()).Count == 0 &&
+        !File.Exists(restoredDocument),
+        "Emptying the trash must permanently remove all trash payloads.");
+}
+
+static async Task VerifyWorkspaceBackupsAsync(string root)
+{
+    string backupDirectory = root + "-Backups";
+    string restoreDirectory = root + "-Restored";
+    string occupiedRestoreDirectory = root + "-OccupiedRestore";
+
+    try
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(
+                root,
+                "Backup probe.md"),
+            "# Backup probe\n\nContenu sauvegardé.\n");
+
+        global::Nodalis.Infrastructure.Backups.WorkspaceBackupService service = new WorkspaceBackupService(root);
+
+        await AssertThrowsAsync<InvalidOperationException>(
+            () => service.CreateBackupAsync(
+                Path.Combine(
+                    root,
+                    "Backups"),
+                retentionCount: 2),
+            "Backup destinations inside the workspace must be rejected.");
+
+        global::Nodalis.Core.Backups.WorkspaceBackupInfo first = await service.CreateBackupAsync(
+            backupDirectory,
+            retentionCount: 2);
+
+        Assert(
+            first.Status == BackupValidationStatus.Valid &&
+            File.Exists(first.ArchivePath) &&
+            first.SizeBytes > 0,
+            "A manual workspace backup must produce a validated standard ZIP archive.");
+
+        using (global::System.IO.Compression.ZipArchive archive = ZipFile.OpenRead(first.ArchivePath))
+        {
+            Assert(
+                archive.Entries.Any(entry =>
+                    entry.FullName == ".workspace.json") &&
+                archive.Entries.Any(entry =>
+                    entry.FullName == "Backup probe.md"),
+                "The backup ZIP must remain readable with the standard ZIP API.");
+        }
+
+        global::Nodalis.Core.Backups.WorkspaceBackupInfo second = await service.CreateBackupAsync(
+            backupDirectory,
+            retentionCount: 2);
+        global::Nodalis.Core.Backups.WorkspaceBackupInfo third = await service.CreateBackupAsync(
+            backupDirectory,
+            retentionCount: 2);
+
+        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Backups.WorkspaceBackupInfo> retained = await service.ListBackupsAsync(
+            backupDirectory);
+
+        Assert(
+            retained.Count == 2 &&
+            retained.All(item =>
+                item.Status == BackupValidationStatus.Valid) &&
+            !File.Exists(first.ArchivePath),
+            "Retention must keep only the configured number of newest backups.");
+
+        bool dueImmediately = await service.IsBackupDueAsync(
+            backupDirectory,
+            intervalMinutes: 60,
+            nowUtc: DateTimeOffset.UtcNow);
+
+        Assert(
+            !dueImmediately,
+            "A recent backup must suppress an automatic backup until its cadence expires.");
+
+        string restored = await service.RestoreBackupAsync(
+            third.ArchivePath,
+            restoreDirectory);
+
+        Assert(
+            File.Exists(Path.Combine(
+                restored,
+                WorkspaceLayout.WorkspaceManifestFileName)) &&
+            (await File.ReadAllTextAsync(
+                Path.Combine(
+                    restored,
+                    "Backup probe.md"))).Contains(
+                "Contenu sauvegardé.",
+                StringComparison.Ordinal),
+            "A verified backup must restore into a separate directory.");
+
+        Directory.CreateDirectory(
+            occupiedRestoreDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(
+                occupiedRestoreDirectory,
+                "existing.txt"),
+            "do not overwrite");
+
+        await AssertThrowsAsync<BackupRestoreCollisionException>(
+            () => service.RestoreBackupAsync(
+                second.ArchivePath,
+                occupiedRestoreDirectory),
+            "Restore must refuse a non-empty destination without overwriting it.");
+
+        string corruptArchive = Path.Combine(
+            backupDirectory,
+            "corrupt.zip");
+        await File.WriteAllBytesAsync(
+            corruptArchive,
+            [0x50, 0x4B, 0x03, 0x04, 0x00]);
+
+        global::Nodalis.Core.Backups.WorkspaceBackupInfo corrupt = await service.ValidateBackupAsync(
+            corruptArchive);
+
+        Assert(
+            corrupt.Status == BackupValidationStatus.Invalid,
+            "A truncated ZIP must be reported as invalid before restoration.");
+    }
+    finally
+    {
+        foreach (string path in new[]
+                 {
+                     backupDirectory,
+                     restoreDirectory,
+                     occupiedRestoreDirectory
+                 })
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(
+                    path,
+                    recursive: true);
+            }
+        }
+    }
+}
+
 static async Task VerifyQuickNotesAsync(string root)
 {
     global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
@@ -620,6 +1490,176 @@ static async Task VerifyQuickNotesAsync(string root)
         "Modules must not create quick-note or glossary scopes.");
 }
 
+static async Task VerifyDailyNotesAsync(string root)
+{
+    global::Nodalis.Infrastructure.Templates.FileSystemTemplateStore templateStore =
+        new FileSystemTemplateStore(
+            root);
+    await templateStore.InitializeDefaultsAsync();
+
+    global::Nodalis.Infrastructure.Notes.WorkspaceDailyNoteService service =
+        new WorkspaceDailyNoteService(
+            root,
+            templateStore);
+
+    global::System.DateTimeOffset localNow =
+        new DateTimeOffset(
+            2026,
+            10,
+            5,
+            0,
+            30,
+            0,
+            TimeSpan.FromHours(2));
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.DailyNoteReference> opened =
+        new[]
+        {
+            new DailyNoteReference
+            {
+                QualifiedName = "Application Démo / Projet Démo / Spécification",
+                DisplayName = "Spécification",
+                RelativePath = "Applications/Application Démo/Projets/Projet Démo/Spécification.md",
+                Kind = "Document"
+            },
+            new DailyNoteReference
+            {
+                QualifiedName = "Application Démo / Projet Démo",
+                DisplayName = "Projet Démo",
+                RelativePath = "Applications/Application Démo/Projets/Projet Démo",
+                Kind = "Projet"
+            }
+        };
+
+    global::Nodalis.Core.Notes.DailyNoteItem today =
+        await service.GetOrCreateAsync(
+            localNow,
+            opened);
+    global::Nodalis.Core.Notes.DailyNoteItem duplicate =
+        await service.GetOrCreateAsync(
+            localNow.AddMinutes(15),
+            opened);
+
+    Assert(
+        string.Equals(
+            today.FullPath,
+            duplicate.FullPath,
+            StringComparison.OrdinalIgnoreCase) &&
+        Path.GetFileName(
+            today.FullPath) ==
+        "2026-10-05.md",
+        "A local calendar day must map to exactly one canonical daily-note path.");
+
+    string journalDirectory =
+        Path.Combine(
+            root,
+            WorkspaceLayout.JournalDirectoryName);
+
+    Assert(
+        Directory.GetFiles(
+            journalDirectory,
+            "2026-10-05.md",
+            SearchOption.TopDirectoryOnly).Length ==
+        1,
+        "Repeated daily-note creation must never duplicate the same day.");
+
+    string initial =
+        await File.ReadAllTextAsync(
+            today.FullPath);
+
+    Assert(
+        initial.Contains(
+            "# Journal — 2026-10-05",
+            StringComparison.Ordinal) &&
+        initial.Contains(
+            "[[Application Démo / Projet Démo / Spécification|Spécification]]",
+            StringComparison.Ordinal) &&
+        initial.Contains(
+            "[[Application Démo / Projet Démo|Projet Démo]]",
+            StringComparison.Ordinal),
+        "Daily-note creation must render the configurable template and opened-item links.");
+
+    await File.AppendAllTextAsync(
+        today.FullPath,
+        "\n\n## Manuel\n\nContenu utilisateur conservé.\n");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.DailyNoteReference> refreshedOpened =
+        new[]
+        {
+            new DailyNoteReference
+            {
+                QualifiedName = "Application Démo / Projet Démo / Architecture",
+                DisplayName = "Architecture",
+                RelativePath = "Applications/Application Démo/Projets/Projet Démo/Architecture.md",
+                Kind = "Document"
+            }
+        };
+
+    await service.SyncOpenedItemsAsync(
+        today.Date,
+        refreshedOpened);
+
+    string synchronized =
+        await File.ReadAllTextAsync(
+            today.FullPath);
+
+    Assert(
+        synchronized.Contains(
+            "Contenu utilisateur conservé.",
+            StringComparison.Ordinal) &&
+        synchronized.Contains(
+            "[[Application Démo / Projet Démo / Architecture|Architecture]]",
+            StringComparison.Ordinal) &&
+        !synchronized.Contains(
+            "[[Application Démo / Projet Démo / Spécification|Spécification]]",
+            StringComparison.Ordinal),
+        "Refreshing opened items must replace only the generated journal block.");
+
+    global::System.DateTimeOffset previousDay =
+        localNow.AddDays(-1);
+
+    await service.GetOrCreateAsync(
+        previousDay,
+        Array.Empty<DailyNoteReference>());
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Notes.DailyNoteItem> recent =
+        await service.GetRecentAsync(
+            localNow,
+            maximumCount: 10);
+
+    Assert(
+        recent.Count >= 2 &&
+        recent[0].Date ==
+        new DateOnly(2026, 10, 5) &&
+        recent[0].IsToday &&
+        recent.Any(item =>
+            item.Date ==
+            new DateOnly(2026, 10, 4)),
+        "Recent daily notes must be ordered newest-first and identify the local current day.");
+
+    global::Nodalis.Infrastructure.Navigation.WorkspaceNavigationBuilder navigationBuilder =
+        new WorkspaceNavigationBuilder();
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode navigationRoot =
+        await navigationBuilder.BuildAsync(
+            root);
+
+    global::Nodalis.Core.Navigation.WorkspaceNavigationNode globalNode =
+        navigationRoot.Children.Single(node =>
+            node.Kind ==
+            WorkspaceNodeKind.Global);
+
+    Assert(
+        globalNode.Children.Any(node =>
+            node.DisplayName ==
+            WorkspaceLayout.JournalDirectoryName &&
+            node.Kind ==
+            WorkspaceNodeKind.Folder &&
+            node.Children.Any(child =>
+                child.DisplayName ==
+                "2026-10-05")),
+        "The Journal folder and its daily Markdown files must be visible under Global navigation.");
+}
+
 static async Task VerifySearchAsync(string root)
 {
     global::Nodalis.Infrastructure.Applications.ApplicationStructureService structure = new ApplicationStructureService(root);
@@ -675,7 +1715,15 @@ static async Task VerifySearchAsync(string root)
 
     await File.WriteAllTextAsync(
         projectFile,
-        "# Projet\n\nsteak projet\n");
+        "---\n" +
+        "status: active\n" +
+        "owner: alice\n" +
+        "type: specification\n" +
+        "tags: api, urgent\n" +
+        "reviewer: Alice\n" +
+        "---\n" +
+        "# Projet\n\n" +
+        "steak projet\n");
 
     global::Nodalis.Infrastructure.Search.WorkspaceSearchService search = new WorkspaceSearchService();
     global::Nodalis.Core.Search.SearchResultSet results = await search.SearchAsync(
@@ -714,6 +1762,171 @@ static async Task VerifySearchAsync(string root)
                 result.LineNumber > 0 &&
                 !string.IsNullOrWhiteSpace(result.Excerpt)),
         "Search results must expose navigable line numbers and excerpts.");
+
+    global::Nodalis.Core.Search.SearchResultSet statusResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "status:active");
+
+    Assert(
+        statusResults.Project.Any(result =>
+            result.FilePath == projectFile),
+        "Standard front matter properties must be searchable.");
+
+    global::Nodalis.Core.Search.SearchResultSet tagResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "tag:api");
+
+    Assert(
+        tagResults.Project.Any(result =>
+            result.FilePath == projectFile),
+        "Front matter tags must be searchable individually.");
+
+    global::Nodalis.Core.Search.SearchResultSet customPropertyResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "@reviewer:alice");
+
+    Assert(
+        customPropertyResults.Project.Any(result =>
+            result.FilePath == projectFile),
+        "Custom front matter properties must be searchable with @key:value syntax.");
+
+    global::Nodalis.Core.Search.SearchResult projectBodyMatch = results.Project.First(result =>
+        result.FilePath == projectFile &&
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.Body);
+
+    global::Nodalis.Core.Search.SearchResult applicationBodyMatch = results.Application.First(result =>
+        result.FilePath == applicationFile &&
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.Body);
+
+    global::Nodalis.Core.Search.SearchResult globalBodyMatch = results.Global.First(result =>
+        result.FilePath == globalFile &&
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.Body);
+
+    Assert(
+        projectBodyMatch.Score > applicationBodyMatch.Score &&
+        applicationBodyMatch.Score > globalBodyMatch.Score,
+        "Equivalent matches must receive deterministic Project > Application > Global scope bonuses.");
+
+    string architectureFile = Path.Combine(
+        project.ProjectDirectory,
+        "Architecture centrale.md");
+
+    await File.WriteAllTextAsync(
+        architectureFile,
+        "---\n" +
+        "type: specification\n" +
+        "status: draft\n" +
+        "---\n" +
+        "# Architecture technique\n\n" +
+        "Le corps décrit l'architecture applicative et ses composants.\n");
+
+    File.SetLastWriteTimeUtc(
+        architectureFile,
+        new DateTime(
+            2024,
+            1,
+            2,
+            12,
+            0,
+            0,
+            DateTimeKind.Utc));
+
+    global::Nodalis.Core.Search.SearchResultSet weightedResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "architecture",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy);
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Search.SearchResult> architectureMatches =
+        weightedResults.Project
+            .Where(result =>
+                result.FilePath == architectureFile)
+            .ToArray();
+
+    global::Nodalis.Core.Search.SearchResult titleMatch = architectureMatches.First(result =>
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.FileName);
+
+    global::Nodalis.Core.Search.SearchResult headingMatch = architectureMatches.First(result =>
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.Heading);
+
+    global::Nodalis.Core.Search.SearchResult bodyMatch = architectureMatches.First(result =>
+        result.MatchKind == global::Nodalis.Core.Search.SearchMatchKind.Body);
+
+    Assert(
+        titleMatch.Score > headingMatch.Score &&
+        headingMatch.Score > bodyMatch.Score,
+        "Search ranking must deterministically weight title above headings and headings above body.");
+
+    global::Nodalis.Core.Search.SearchResultSet fuzzyTypoResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "archtecture",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy);
+
+    Assert(
+        fuzzyTypoResults.Project.Any(result =>
+            result.FilePath == architectureFile),
+        "Fuzzy search must recover a common one-character typo.");
+
+    global::Nodalis.Core.Search.SearchResultSet fuzzyPartialResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "archit",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy);
+
+    Assert(
+        fuzzyPartialResults.Project.Any(result =>
+            result.FilePath == architectureFile),
+        "Fuzzy search must recover incomplete words.");
+
+    global::Nodalis.Core.Search.SearchResultSet exactTypoResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "archtecture",
+        global::Nodalis.Core.Search.SearchMatchMode.Exact);
+
+    Assert(
+        !exactTypoResults.Project.Any(result =>
+            result.FilePath == architectureFile),
+        "Exact mode must preserve literal substring semantics.");
+
+    global::Nodalis.Core.Search.SearchResultSet typeAndProjectResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "architecture type:specification project:\"Projet Recherche\"",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy);
+
+    Assert(
+        typeAndProjectResults.Project.Any(result =>
+            result.FilePath == architectureFile) &&
+        typeAndProjectResults.Application.Count == 0 &&
+        typeAndProjectResults.Global.Count == 0,
+        "Type and project filters must compose with fuzzy text search.");
+
+    global::Nodalis.Core.Search.SearchResultSet dateResults = await search.SearchAsync(
+        root,
+        projectFile,
+        "architecture date:2024-01-02",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy);
+
+    Assert(
+        dateResults.Project.Any(result =>
+            result.FilePath == architectureFile),
+        "The date filter must use the local file's UTC modification date.");
+
+    bool scorerMatched = global::Nodalis.Core.Search.SearchTextScorer.TryScore(
+        "architecture",
+        "archtecture",
+        global::Nodalis.Core.Search.SearchMatchMode.Fuzzy,
+        out double typoQuality);
+
+    Assert(
+        scorerMatched &&
+        typoQuality > 0.8,
+        "The dependency-free fuzzy scorer must be deterministic and expose a strong score for a one-edit typo.");
 }
 
 static async Task VerifyLinksAndBacklinksAsync(string root)
@@ -779,6 +1992,60 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         candidate.Kind == LinkTargetKind.Document &&
         candidate.DisplayName == "Source");
 
+    await File.AppendAllTextAsync(
+        sourcePath,
+        "\n" +
+        MarkdownRelationParser.Format(
+            "dépend de",
+            target.Id,
+            target.DisplayName) +
+        "\n");
+
+    initial = await indexService.RefreshAsync();
+
+    global::Nodalis.Core.Relations.TypedRelationEntry typedRelation = initial.Relations.Single(relation =>
+        relation.SourceId == source.Id &&
+        relation.TargetId == target.Id);
+
+    Assert(
+        typedRelation.RelationType == "dépend de" &&
+        typedRelation.TargetLabel == "Cible",
+        "Typed relations must be indexed from readable Markdown using stable target ids.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Links.ReferenceSearchEntry> incomingReferences =
+        ReferenceIndexQuery.GetIncoming(
+            initial,
+            target.Id);
+
+    Assert(
+        incomingReferences.Count == 2 &&
+        incomingReferences.Any(entry => entry.TypeLabel == "Lien interne") &&
+        incomingReferences.Any(entry =>
+            entry.RelationType == "dépend de"),
+        "Reference exploration must combine backlinks and typed relations for the same target.");
+
+    global::Nodalis.Infrastructure.Links.SmartLinkRenameService smartRename =
+        new SmartLinkRenameService(
+            root);
+
+    global::Nodalis.Core.Links.RenameLinkRewritePlan rewritePlan =
+        await smartRename.AnalyzeAsync(
+            target.Id,
+            "Cible",
+            "Cible renommée");
+
+    Assert(
+        rewritePlan.Files.Count == 1 &&
+        rewritePlan.Files[0].SourceId == source.Id &&
+        rewritePlan.Files[0].Changes.Any(change =>
+            change.Before.Contains(
+                "[[Cible]]",
+                StringComparison.Ordinal) &&
+            change.After.Contains(
+                "[[Cible renommée]]",
+                StringComparison.Ordinal)),
+        "Smart rename must preview affected files and textual link diffs without changing Markdown.");
+
     global::Nodalis.Core.Links.LinkResolution resolved = WorkspaceLinkIndexService.Resolve(
         initial,
         "Cible");
@@ -825,6 +2092,14 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         renamed.Id == target.Id,
         "Renaming a document must preserve its immutable link target id.");
 
+    global::Nodalis.Core.Relations.TypedRelationEntry relationAfterRename = renamedIndex.Relations.Single(relation =>
+        relation.SourceId == source.Id &&
+        relation.TargetId == target.Id);
+
+    Assert(
+        relationAfterRename.TargetId == renamed.Id,
+        "Typed relations must survive target rename and move because the Markdown stores the stable id.");
+
     global::Nodalis.Core.Links.LinkResolution oldNameResolution = WorkspaceLinkIndexService.Resolve(
         renamedIndex,
         "Cible");
@@ -842,6 +2117,27 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
         renamedBacklinks.Count == 1 &&
         renamedBacklinks[0].RawTarget == "Cible",
         "Existing Markdown links must remain valid without rewriting after rename.");
+
+    int rewrittenFiles = await smartRename.ApplyAsync(
+        rewritePlan,
+        new[]
+        {
+            source.Id
+        });
+
+    Assert(
+        rewrittenFiles == 1,
+        "Smart rename must apply only explicitly selected source files.");
+
+    renamedIndex = await indexService.LoadAsync();
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Links.BacklinkEntry> rewrittenBacklinks = await indexService.GetBacklinksAsync(
+        target.Id);
+
+    Assert(
+        rewrittenBacklinks.Count == 1 &&
+        rewrittenBacklinks[0].RawTarget == "Cible renommée",
+        "Selected smart-rename rewrites must update the textual target after preview.");
 
     string renamedApplicationPath = await structure.RenameApplicationAsync(
         applicationPath,
@@ -866,6 +2162,41 @@ static async Task VerifyLinksAndBacklinksAsync(string root)
             afterParentRename,
             "Cible").Target?.Id == target.Id,
         "Historical aliases must survive parent folder renames.");
+
+    global::Nodalis.Core.Links.LinkTargetEntry sourceAfterParentRename = afterParentRename.Targets.Single(candidate =>
+        candidate.Id == source.Id);
+
+    string sourceAfterRenamePath = Path.Combine(
+        root,
+        sourceAfterParentRename.RelativePath.Replace(
+            '/',
+            Path.DirectorySeparatorChar));
+
+    string sourceContentBeforeDelete = await File.ReadAllTextAsync(
+        sourceAfterRenamePath);
+
+    File.Delete(
+        sourceAfterRenamePath);
+
+    global::Nodalis.Core.Links.LinkIndexCatalog afterSourceDelete = await indexService.RefreshAsync();
+
+    Assert(
+        ReferenceIndexQuery.GetIncoming(
+            afterSourceDelete,
+            target.Id).Count == 0,
+        "Reference exploration must not retain phantom backlinks or relations after source deletion.");
+
+    await File.WriteAllTextAsync(
+        sourceAfterRenamePath,
+        sourceContentBeforeDelete);
+
+    global::Nodalis.Core.Links.LinkIndexCatalog afterSourceRestore = await indexService.RefreshAsync();
+
+    Assert(
+        ReferenceIndexQuery.GetIncoming(
+            afterSourceRestore,
+            target.Id).Count == 2,
+        "Reference exploration must rediscover links and relations after the source is restored.");
 }
 
 static async Task VerifyGlossaryAsync(string root)
@@ -1263,7 +2594,7 @@ static async Task VerifyTasksAsync(string root)
     await File.WriteAllTextAsync(
         meetingPath,
         "# Réunion\n\n" +
-        "- [ ] Préparer recette | Responsable: Alice | Échéance: 2026-10-10\n" +
+        "- [ ] Préparer recette | Responsable: Alice | Échéance: 2026-10-10 | Priorité: Haute | Statut: En cours | Tags: api, recette\n" +
         "- [x] Action déjà terminée\n");
 
     string applicationTaskPath = Path.Combine(
@@ -1292,8 +2623,14 @@ static async Task VerifyTasksAsync(string root)
         projectTasks[0].Text == "Préparer recette" &&
         projectTasks[0].Owner == "Alice" &&
         projectTasks[0].DueDate == new DateOnly(2026, 10, 10) &&
+        projectTasks[0].Priority == "Haute" &&
+        projectTasks[0].Status == "En cours" &&
+        projectTasks[0].Tags.Count == 2 &&
+        projectTasks[0].Tags.Contains(
+            "api",
+            StringComparer.CurrentCultureIgnoreCase) &&
         projectTasks[0].ProjectId == project.Project.Id,
-        "Project task view must extract open checkboxes, metadata and project context.");
+        "Project task view must extract checkbox state, enriched metadata and project context.");
 
     global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> applicationTasks = await service.GetTasksAsync(
         applicationPath);
@@ -1326,7 +2663,66 @@ static async Task VerifyTasksAsync(string root)
             task.Text == "Action déjà terminée"),
         "Completed tasks must be available when explicitly requested.");
 
-    global::Nodalis.Core.Tasks.TaskItem taskToMove = projectTasks.Single();
+    global::Nodalis.Core.Tasks.TaskItem taskToEdit = projectTasks.Single();
+
+    await service.UpdateMetadataAsync(
+        taskToEdit,
+        new TaskMetadataUpdate
+        {
+            Owner = "Chloé",
+            DueDate = new DateOnly(2026, 10, 12),
+            Priority = "Critique",
+            Status = "Bloqué",
+            Tags =
+            [
+                "API",
+                "release",
+                "api"
+            ]
+        });
+
+    string metadataUpdatedContent = await File.ReadAllTextAsync(
+        meetingPath);
+
+    Assert(
+        metadataUpdatedContent.Contains(
+            "- [ ] Préparer recette | Responsable: Chloé | Échéance: 2026-10-12 | Priorité: Critique | Statut: Bloqué | Tags: API, release",
+            StringComparison.Ordinal),
+        "Task metadata editing must write a compact readable Markdown syntax and deduplicate tags.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> editedProjectTasks = await service.GetTasksAsync(
+        project.ProjectDirectory);
+
+    global::Nodalis.Core.Tasks.TaskItem editedTask = editedProjectTasks.Single(task =>
+        task.Text == "Préparer recette");
+
+    Assert(
+        editedTask.Owner == "Chloé" &&
+        editedTask.Priority == "Critique" &&
+        editedTask.Status == "Bloqué" &&
+        editedTask.Tags.Count == 2,
+        "Edited task metadata must round-trip through the parser.");
+
+    global::Nodalis.Core.Tasks.TaskItem overdueProbe = editedTask with
+    {
+        DueDate = new DateOnly(2020, 1, 1),
+        IsCompleted = false
+    };
+
+    Assert(
+        overdueProbe.IsOverdue,
+        "An open task past its due date must be exposed as overdue.");
+
+    global::Nodalis.Core.Tasks.TaskItem completedOverdueProbe = overdueProbe with
+    {
+        IsCompleted = true
+    };
+
+    Assert(
+        !completedOverdueProbe.IsOverdue,
+        "A completed task must never be reported as overdue.");
+
+    global::Nodalis.Core.Tasks.TaskItem taskToMove = editedTask;
 
     string originalContent = await File.ReadAllTextAsync(
         meetingPath);
@@ -1344,9 +2740,9 @@ static async Task VerifyTasksAsync(string root)
 
     Assert(
         updatedContent.Contains(
-            "- [x] Préparer recette | Responsable: Alice | Échéance: 2026-10-10",
+            "- [x] Préparer recette | Responsable: Chloé | Échéance: 2026-10-12 | Priorité: Critique | Statut: Bloqué | Tags: API, release",
             StringComparison.Ordinal),
-        "Task toggle must relocate a uniquely moved source line safely.");
+        "Task toggle must relocate a uniquely moved enriched source line safely.");
 
     string ambiguousPath = Path.Combine(
         project.ProjectDirectory,
@@ -1376,6 +2772,52 @@ static async Task VerifyTasksAsync(string root)
             ambiguous,
             completed: true),
         "Task toggle must refuse ambiguous moved source lines.");
+
+
+    global::Nodalis.Core.Tasks.TaskItem createdTask = await service.CreateTaskAsync(
+        project.ProjectDirectory,
+        "Documenter le déploiement",
+        new TaskMetadataUpdate
+        {
+            Owner = "Alice",
+            DueDate = new DateOnly(
+                2026,
+                10,
+                20),
+            Priority = "Normale",
+            Status = "À faire",
+            Tags =
+            [
+                "documentation"
+            ]
+        });
+
+    string createdTaskPath = Path.Combine(
+        root,
+        createdTask.SourceRelativePath.Replace(
+            '/',
+            Path.DirectorySeparatorChar));
+
+    string createdTaskContent = await File.ReadAllTextAsync(
+        createdTaskPath);
+
+    Assert(
+        Path.GetFileName(
+            createdTaskPath) == "Tâches.md" &&
+        createdTask.Text == "Documenter le déploiement" &&
+        createdTask.Owner == "Alice" &&
+        createdTaskContent.Contains(
+            "- [ ] Documenter le déploiement | Responsable: Alice | Échéance: 2026-10-20 | Priorité: Normale | Statut: À faire | Tags: documentation",
+            StringComparison.Ordinal),
+        "Task creation must persist a readable Markdown checkbox in the current project's dedicated task document.");
+
+    await AssertThrowsAsync<InvalidOperationException>(
+        () => service.CreateTaskAsync(
+            root,
+            "Tâche sans projet",
+            new TaskMetadataUpdate()),
+        "Task creation from global scope must require an explicit project context.");
+
 }
 
 static async Task VerifyMilestonesAsync(string root)
@@ -1413,6 +2855,92 @@ static async Task VerifyMilestonesAsync(string root)
 
     global::Nodalis.Infrastructure.Milestones.WorkspaceMilestoneService service = new WorkspaceMilestoneService(root);
 
+    string canonicalMilestonePath =
+        Path.Combine(
+            project.ProjectDirectory,
+            "Jalons.md");
+    string legacyMilestoneDirectory =
+        Path.Combine(
+            project.ProjectDirectory,
+            "Jalons");
+    string legacyMilestonePath =
+        Path.Combine(
+            legacyMilestoneDirectory,
+            "Jalons.md");
+
+    Directory.CreateDirectory(
+        legacyMilestoneDirectory);
+    File.Move(
+        canonicalMilestonePath,
+        legacyMilestonePath);
+
+    string? paletteMilestonePath =
+        await service.GetMilestoneFileForContextAsync(
+            project.ProjectDirectory);
+
+    Assert(
+        string.Equals(
+            paletteMilestonePath,
+            canonicalMilestonePath,
+            StringComparison.OrdinalIgnoreCase) &&
+        File.Exists(
+            canonicalMilestonePath) &&
+        !File.Exists(
+            legacyMilestonePath),
+        "Milestone palette resolution must migrate and use the canonical project-root Jalons.md.");
+
+    Guid templateMilestoneId =
+        Guid.NewGuid();
+
+    await File.WriteAllTextAsync(
+        canonicalMilestonePath,
+        "# Jalons personnalisés\n\n" +
+        "| Nom | Échéance | État | Commentaire | Référence | Identifiant | Prérequis |\n" +
+        "| --- | --- | --- | --- | --- | --- | --- |\n" +
+        $"| Validation template | 2026-10-08 | À faire | Ligne issue du template | [[Architecture]] | {templateMilestoneId:D} | |\n");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> templateMilestones =
+        await service.GetMilestonesAsync(
+            project.ProjectDirectory);
+
+    global::Nodalis.Core.Milestones.MilestoneItem templateMilestone =
+        templateMilestones.Single(item =>
+            item.Id ==
+                templateMilestoneId);
+
+    Assert(
+        templateMilestone.Name ==
+            "Validation template" &&
+        templateMilestone.TargetDate ==
+            new DateOnly(
+                2026,
+                10,
+                8) &&
+        templateMilestone.Status ==
+            "À faire" &&
+        templateMilestone.Description ==
+            "Ligne issue du template" &&
+        templateMilestone.SourceRelativePath.EndsWith(
+            "/Jalons.md",
+            StringComparison.OrdinalIgnoreCase),
+        "Compatible customized milestone template tables must be parsed directly from canonical Jalons.md.");
+
+    await service.DeleteAsync(
+        templateMilestone);
+
+    string normalizedTemplate =
+        await File.ReadAllTextAsync(
+            canonicalMilestonePath);
+
+    Assert(
+        normalizedTemplate.Contains(
+            "| Jalon | Date cible | Statut | Description | Lien | Id | Dépend de |",
+            StringComparison.Ordinal) &&
+        !normalizedTemplate.Contains(
+            "Validation template",
+            StringComparison.Ordinal),
+        "Editing a compatible customized milestone table must safely normalize its supported schema.");
+
     global::Nodalis.Core.Milestones.MilestoneItem first = await service.AddAsync(
         project.ProjectDirectory,
         new MilestoneDraft
@@ -1424,12 +2952,12 @@ static async Task VerifyMilestonesAsync(string root)
             Link = "outil://jalon/123"
         });
 
-    await service.AddAsync(
+    global::Nodalis.Core.Milestones.MilestoneItem prerequisite = await service.AddAsync(
         project.ProjectDirectory,
         new MilestoneDraft
         {
             Name = "Jalon terminé",
-            TargetDate = new DateOnly(2026, 10, 8),
+            TargetDate = new DateOnly(2026, 10, 15),
             Status = "Terminé",
             Description = "Déjà traité"
         });
@@ -1463,13 +2991,80 @@ static async Task VerifyMilestonesAsync(string root)
             TargetDate = new DateOnly(2026, 10, 12),
             Status = "En cours",
             Description = "Décalée après revue",
-            Link = "outil://jalon/123"
+            Link = "outil://jalon/123",
+            DependencyIds = new[] { prerequisite.Id }
         });
 
     Assert(
         updated.TargetDate == new DateOnly(2026, 10, 12) &&
-        updated.Status == "En cours",
-        "Editing a milestone must update local Markdown metadata.");
+        updated.Status == "En cours" &&
+        updated.DependencyIds.SequenceEqual(
+            new[] { prerequisite.Id }),
+        "Editing a milestone must update local Markdown metadata and dependency identifiers.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> dependencyView =
+        await service.GetMilestonesAsync(
+            project.ProjectDirectory);
+
+    global::Nodalis.Core.Milestones.MilestoneItem enrichedUpdated =
+        dependencyView.Single(item =>
+            item.Id == updated.Id);
+
+    Assert(
+        enrichedUpdated.DependencyNames.SequenceEqual(
+            new[] { "Jalon terminé" }) &&
+        enrichedUpdated.DependencyWarnings.Any(warning =>
+            warning.Contains(
+                "avant",
+                StringComparison.OrdinalIgnoreCase)),
+        "Milestone dependencies must resolve names and warn when a dependent milestone is dated before its prerequisite.");
+
+    await AssertThrowsAsync<InvalidDataException>(
+        () => service.UpdateAsync(
+            prerequisite,
+            new MilestoneDraft
+            {
+                Name = prerequisite.Name,
+                TargetDate = prerequisite.TargetDate,
+                Status = prerequisite.Status,
+                Description = prerequisite.Description,
+                Link = prerequisite.Link,
+                DependencyIds = new[] { updated.Id }
+            }),
+        "Milestone dependencies must reject cycles.");
+
+    global::Nodalis.Core.Milestones.MilestoneItem renamedPrerequisite =
+        await service.UpdateAsync(
+            prerequisite,
+            new MilestoneDraft
+            {
+                Name = "Jalon terminé renommé",
+                TargetDate = prerequisite.TargetDate,
+                Status = prerequisite.Status,
+                Description = prerequisite.Description,
+                Link = prerequisite.Link
+            });
+
+    Assert(
+        renamedPrerequisite.Id == prerequisite.Id,
+        "Renaming a milestone must preserve its stable identifier.");
+
+    dependencyView =
+        await service.GetMilestonesAsync(
+            project.ProjectDirectory);
+    enrichedUpdated =
+        dependencyView.Single(item =>
+            item.Id == updated.Id);
+
+    Assert(
+        enrichedUpdated.DependencyNames.SequenceEqual(
+            new[] { "Jalon terminé renommé" }),
+        "Dependencies must keep resolving after a prerequisite is renamed.");
+
+    await AssertThrowsAsync<MilestoneDependencyConflictException>(
+        () => service.DeleteAsync(
+            renamedPrerequisite),
+        "Deleting a milestone that is still referenced must be rejected.");
 
     global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> upcoming = await service.GetUpcomingAsync(
         new DateOnly(2026, 10, 4),
@@ -1493,6 +3088,15 @@ static async Task VerifyMilestonesAsync(string root)
 
     string current = await File.ReadAllTextAsync(
         sourcePath);
+
+    Assert(
+        current.Contains(
+            updated.Id.ToString("D"),
+            StringComparison.Ordinal) &&
+        current.Contains(
+            prerequisite.Id.ToString("D"),
+            StringComparison.Ordinal),
+        "Milestone Markdown must persist stable identifiers.");
 
     await File.WriteAllTextAsync(
         sourcePath,
@@ -1636,9 +3240,9 @@ static async Task VerifyMeetingsAsync(string root)
         scope.Value.ScopeName == "Projet Réunions",
         "Meeting context resolution must keep the meeting attached to its project.");
 
-    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> tasks = await new WorkspaceTaskService(root)
-        .GetTasksAsync(
-            project.ProjectDirectory);
+    global::Nodalis.Infrastructure.Tasks.WorkspaceTaskService taskService = new WorkspaceTaskService(root);
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> tasks = await taskService.GetTasksAsync(
+        project.ProjectDirectory);
 
     Assert(
         tasks.Any(task =>
@@ -1648,6 +3252,142 @@ static async Task VerifyMeetingsAsync(string root)
         tasks.Any(task =>
             task.Text == "Envoyer le compte-rendu"),
         "Meeting actions must immediately surface as project Markdown tasks.");
+
+    global::Nodalis.Core.Tasks.TaskItem meetingAction = tasks.Single(task =>
+        task.Text == "Préparer recette");
+
+    Assert(
+        meetingAction.CanPromoteMeetingAction,
+        "Tasks physically stored in the project meeting directory must be promotable.");
+
+    global::Nodalis.Core.Tasks.TaskMetadataUpdate promotionMetadata = new TaskMetadataUpdate
+    {
+        Owner = "Chloé",
+        DueDate = new DateOnly(2026, 10, 12),
+        Priority = "Critique",
+        Status = "En cours",
+        Tags =
+        [
+            "recette",
+            "lot-2"
+        ]
+    };
+
+    global::Nodalis.Core.Tasks.MeetingActionPromotionResult promotion = await taskService.PromoteMeetingActionAsync(
+        meetingAction,
+        promotionMetadata);
+
+    string projectTaskPath = Path.Combine(
+        root,
+        promotion.ProjectTaskRelativePath.Replace(
+            '/',
+            Path.DirectorySeparatorChar));
+
+    Assert(
+        promotion.Created &&
+        Path.GetFileName(projectTaskPath) == "Tâches.md" &&
+        File.Exists(projectTaskPath),
+        "Promoting a meeting action must create the project task document on first use.");
+
+    string promotedMeetingContent = await File.ReadAllTextAsync(
+        result.FilePath);
+    string promotedTaskContent = await File.ReadAllTextAsync(
+        projectTaskPath);
+    string sourceMarker =
+        $"nodalis:meeting-action-source:{promotion.PromotionId:D}";
+    string taskMarker =
+        $"nodalis:meeting-action-task:{promotion.PromotionId:D}";
+
+    Assert(
+        promotedMeetingContent.Contains(
+            sourceMarker,
+            StringComparison.Ordinal) &&
+        promotedMeetingContent.Contains(
+            "Tâche projet : [[",
+            StringComparison.Ordinal) &&
+        promotedTaskContent.Contains(
+            taskMarker,
+            StringComparison.Ordinal) &&
+        promotedTaskContent.Contains(
+            "Source : [[",
+            StringComparison.Ordinal) &&
+        promotedTaskContent.Contains(
+            "- [ ] Préparer recette | Responsable: Chloé | Échéance: 2026-10-12 | Priorité: Critique | Statut: En cours | Tags: recette, lot-2",
+            StringComparison.Ordinal),
+        "Promoted meeting actions must keep readable metadata and bidirectional Markdown links.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> promotedTasks = await taskService.GetTasksAsync(
+        project.ProjectDirectory);
+
+    global::Nodalis.Core.Tasks.TaskItem promotedTask = promotedTasks.Single(task =>
+        task.Text == "Préparer recette");
+
+    Assert(
+        promotedTask.SourceRelativePath.EndsWith(
+            "Tâches.md",
+            StringComparison.OrdinalIgnoreCase) &&
+        promotedTask.Owner == "Chloé" &&
+        promotedTask.Priority == "Critique" &&
+        promotedTask.Status == "En cours" &&
+        promotedTasks.Count(task =>
+            task.Text == "Préparer recette") == 1,
+        "A promoted action must appear once from project tracking rather than being duplicated from the meeting.");
+
+    global::Nodalis.Core.Tasks.MeetingActionPromotionResult repeatedPromotion = await taskService.PromoteMeetingActionAsync(
+        meetingAction,
+        promotionMetadata);
+
+    Assert(
+        !repeatedPromotion.Created &&
+        repeatedPromotion.PromotionId == promotion.PromotionId,
+        "Repeating the same meeting action promotion must be idempotent.");
+
+    promotedMeetingContent = await File.ReadAllTextAsync(
+        result.FilePath);
+    promotedTaskContent = await File.ReadAllTextAsync(
+        projectTaskPath);
+
+    Assert(
+        promotedMeetingContent.Split(
+            sourceMarker,
+            StringSplitOptions.None).Length == 2 &&
+        promotedTaskContent.Split(
+            taskMarker,
+            StringSplitOptions.None).Length == 2,
+        "Idempotent promotion must not duplicate hidden linkage markers.");
+
+    global::Nodalis.Core.Links.LinkIndexCatalog links = await new WorkspaceLinkIndexService(root)
+        .RefreshAsync();
+
+    string meetingRelativePath = Path.GetRelativePath(
+            root,
+            result.FilePath)
+        .Replace(
+            Path.DirectorySeparatorChar,
+            '/');
+
+    global::Nodalis.Core.Links.LinkTargetEntry meetingTarget = links.Targets.Single(target =>
+        target.Kind == LinkTargetKind.Document &&
+        string.Equals(
+            target.RelativePath,
+            meetingRelativePath,
+            StringComparison.OrdinalIgnoreCase));
+
+    global::Nodalis.Core.Links.LinkTargetEntry taskTarget = links.Targets.Single(target =>
+        target.Kind == LinkTargetKind.Document &&
+        string.Equals(
+            target.RelativePath,
+            promotion.ProjectTaskRelativePath,
+            StringComparison.OrdinalIgnoreCase));
+
+    Assert(
+        links.References.Any(reference =>
+            reference.SourceId == meetingTarget.Id &&
+            reference.TargetId == taskTarget.Id) &&
+        links.References.Any(reference =>
+            reference.SourceId == taskTarget.Id &&
+            reference.TargetId == meetingTarget.Id),
+        "Meeting and promoted task documents must expose navigable links in both directions.");
 }
 
 static async Task VerifyDecisionsAsync(string root)
@@ -1781,8 +3521,155 @@ static async Task VerifyDecisionsAsync(string root)
         searched.Count == 1,
         "Decision search must find text across Decision Record content.");
 
+    global::Nodalis.Core.Decisions.DecisionCreationResult replacementCreated = await decisionService.CreateAsync(
+        project.ProjectDirectory,
+        new DecisionDraft
+        {
+            Title = "Référentiel PostgreSQL v2",
+            Date = new DateOnly(2026, 10, 6),
+            Decision = "Conserver PostgreSQL et isoler le schéma de référentiel.",
+            Context = "Le premier choix doit être précisé.",
+            Justification = "Clarifier la frontière de responsabilité.",
+            Impacts = "Migration contrôlée du schéma.",
+            Status = WorkspaceDecisionService.ActiveStatus
+        });
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Decisions.DecisionRecord> beforeSupersede = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+
+    global::Nodalis.Core.Decisions.DecisionRecord previousDecision = beforeSupersede.Single(decision =>
+        decision.Title == "Référentiel PostgreSQL");
+    global::Nodalis.Core.Decisions.DecisionRecord replacementDecision = beforeSupersede.Single(decision =>
+        decision.Title == "Référentiel PostgreSQL v2");
+
+    await decisionService.SupersedeAsync(
+        previousDecision,
+        replacementDecision);
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Decisions.DecisionRecord> afterSupersede = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+
+    previousDecision = afterSupersede.Single(decision =>
+        decision.Title == "Référentiel PostgreSQL");
+    replacementDecision = afterSupersede.Single(decision =>
+        decision.Title == "Référentiel PostgreSQL v2");
+
+    Assert(
+        previousDecision.LifecycleState == DecisionLifecycleState.Superseded &&
+        replacementDecision.LifecycleState == DecisionLifecycleState.Active &&
+        !string.IsNullOrWhiteSpace(previousDecision.SupersededByReference) &&
+        !string.IsNullOrWhiteSpace(replacementDecision.SupersedesReference) &&
+        !previousDecision.HasLifecycleWarning &&
+        !replacementDecision.HasLifecycleWarning,
+        "Superseding a decision must preserve both records with reciprocal, consistent lifecycle metadata.");
+
+    string previousLifecycleContent = await File.ReadAllTextAsync(
+        created.FilePath);
+    string replacementLifecycleContent = await File.ReadAllTextAsync(
+        replacementCreated.FilePath);
+
+    Assert(
+        previousLifecycleContent.Contains(
+            "**Statut :** Superseded",
+            StringComparison.Ordinal) &&
+        previousLifecycleContent.Contains(
+            "**Remplacée par :** [[",
+            StringComparison.Ordinal) &&
+        replacementLifecycleContent.Contains(
+            "**Statut :** Active",
+            StringComparison.Ordinal) &&
+        replacementLifecycleContent.Contains(
+            "**Remplace :** [[",
+            StringComparison.Ordinal),
+        "Decision lifecycle transitions must remain human-readable Markdown metadata.");
+
+    global::Nodalis.Core.Decisions.DecisionCreationResult statusCreated = await decisionService.CreateAsync(
+        project.ProjectDirectory,
+        new DecisionDraft
+        {
+            Title = "Option de secours",
+            Date = new DateOnly(2026, 10, 7),
+            Decision = "Conserver une option indépendante.",
+            Status = WorkspaceDecisionService.ActiveStatus
+        });
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Decisions.DecisionRecord> statusRecords = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+    global::Nodalis.Core.Decisions.DecisionRecord statusDecision = statusRecords.Single(decision =>
+        decision.Title == "Option de secours");
+
+    await decisionService.SetLifecycleStatusAsync(
+        statusDecision,
+        WorkspaceDecisionService.DeprecatedStatus);
+
+    statusRecords = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+    statusDecision = statusRecords.Single(decision =>
+        decision.Title == "Option de secours");
+
+    Assert(
+        statusDecision.LifecycleState == DecisionLifecycleState.Deprecated,
+        "Decision lifecycle status updates must persist Deprecated.");
+
+    await decisionService.SetLifecycleStatusAsync(
+        statusDecision,
+        WorkspaceDecisionService.SupersededStatus);
+
+    statusRecords = await decisionService.GetDecisionsAsync(
+        project.ProjectDirectory);
+    statusDecision = statusRecords.Single(decision =>
+        decision.Title == "Option de secours");
+
+    Assert(
+        statusDecision.LifecycleState == DecisionLifecycleState.Superseded &&
+        statusDecision.HasLifecycleWarning &&
+        statusDecision.LifecycleWarning.Contains(
+            "Remplacée par",
+            StringComparison.CurrentCultureIgnoreCase),
+        "A Superseded decision without an explicit successor must be reported as an inconsistent lifecycle chain.");
+
+    await decisionService.SetLifecycleStatusAsync(
+        statusDecision,
+        WorkspaceDecisionService.ActiveStatus);
+
     global::Nodalis.Infrastructure.Links.WorkspaceLinkIndexService linkService = new WorkspaceLinkIndexService(root);
     global::Nodalis.Core.Links.LinkIndexCatalog catalogWithDecision = await linkService.RefreshAsync();
+
+    string previousDecisionRelative = Path.GetRelativePath(
+            root,
+            created.FilePath)
+        .Replace(
+            Path.DirectorySeparatorChar,
+            '/');
+    string replacementDecisionRelative = Path.GetRelativePath(
+            root,
+            replacementCreated.FilePath)
+        .Replace(
+            Path.DirectorySeparatorChar,
+            '/');
+
+    global::Nodalis.Core.Links.LinkTargetEntry previousDecisionTarget = catalogWithDecision.Targets.Single(target =>
+        target.Kind == LinkTargetKind.Document &&
+        string.Equals(
+            target.RelativePath,
+            previousDecisionRelative,
+            StringComparison.OrdinalIgnoreCase));
+    global::Nodalis.Core.Links.LinkTargetEntry replacementDecisionTarget = catalogWithDecision.Targets.Single(target =>
+        target.Kind == LinkTargetKind.Document &&
+        string.Equals(
+            target.RelativePath,
+            replacementDecisionRelative,
+            StringComparison.OrdinalIgnoreCase));
+
+    Assert(
+        catalogWithDecision.References.Any(reference =>
+            reference.SourceId == previousDecisionTarget.Id &&
+            reference.TargetId == replacementDecisionTarget.Id) &&
+        catalogWithDecision.References.Any(reference =>
+            reference.SourceId == replacementDecisionTarget.Id &&
+            reference.TargetId == previousDecisionTarget.Id),
+        "Superseded and replacement Decision Records must be navigable in both directions through the link index.");
+
     global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Links.BacklinkEntry> backlinks = await linkService.GetBacklinksAsync(
         meetingTarget.Id);
 
@@ -2213,6 +4100,19 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
             section.SuggestedTargetSection ==
             "Technique");
 
+        global::Nodalis.Core.Importing.DocxImportBlockPreview linkBlock = technicalPreview.Blocks.Single(block =>
+            block.Block.Paragraph?.Hyperlinks.Count > 0);
+        global::Nodalis.Core.Importing.DocxImportBlockPreview listBlock = technicalPreview.Blocks.Single(block =>
+            block.Block.Paragraph?.IsListItem == true);
+        global::Nodalis.Core.Importing.DocxImportBlockPreview tableBlock = technicalPreview.Blocks.Single(block =>
+            block.Block.Kind == DocxBlockKind.Table);
+
+        Assert(
+            technicalPreview.Blocks.Count == 3 &&
+            linkBlock.BlockIndex < listBlock.BlockIndex &&
+            listBlock.BlockIndex < tableBlock.BlockIndex,
+            "DOCX preview must expose selectable source blocks in their original order.");
+
         string manifestPath = Path.Combine(
             project.ProjectDirectory,
             WorkspaceLayout.ProjectManifestFileName);
@@ -2231,7 +4131,12 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                     SectionIndex =
                         technicalPreview.Index,
                     Include = true,
-                    TargetSection = "Section DOCX"
+                    TargetSection = "Section DOCX",
+                    SelectedBlockIndexes =
+                    [
+                        linkBlock.BlockIndex,
+                        tableBlock.BlockIndex
+                    ]
                 }
             ]
         };
@@ -2310,8 +4215,11 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                 StringComparison.OrdinalIgnoreCase) &&
             importedMarkdown.Contains(
                 "| Clé | Valeur |",
+                StringComparison.Ordinal) &&
+            !importedMarkdown.Contains(
+                "Premier point",
                 StringComparison.Ordinal),
-            "Validated DOCX imports must persist converted Markdown content without losing links or tables.");
+            "Validated DOCX imports must write only selected blocks while preserving links and complete tables.");
 
         global::Nodalis.Core.Importing.ParsedDocxDocument proposedDocument = new ParsedDocxDocument
         {
@@ -2435,7 +4343,9 @@ static void VerifyMarkdownParser()
         "Texte **gras** et *italique* avec [[Projet Patate|le projet]].\n\n" +
         "- [x] Action terminée\n" +
         "- Élément\n" +
-        "1. Premier\n\n" +
+        "1. Premier\n" +
+        "2. Deuxième\n" +
+        "3. Troisième\n\n" +
         "> Citation\n\n" +
         "| Col A | Col B |\n" +
         "| --- | --- |\n" +
@@ -2461,6 +4371,18 @@ static void VerifyMarkdownParser()
             block.Kind == MarkdownBlockKind.Table &&
             block.TableRows.Count == 2),
         "Markdown tables must be parsed.");
+
+    global::Nodalis.Core.Markdown.MarkdownBlock[] orderedItems = blocks
+        .Where(block =>
+            block.Kind == MarkdownBlockKind.OrderedListItem)
+        .ToArray();
+
+    Assert(
+        orderedItems.Length == 3 &&
+        orderedItems[0].OrderedListNumber == 1 &&
+        orderedItems[1].OrderedListNumber == 2 &&
+        orderedItems[2].OrderedListNumber == 3,
+        "Markdown ordered-list markers must preserve their numeric values.");
 
     Assert(blocks.Any(block =>
             block.Kind == MarkdownBlockKind.CodeBlock &&
@@ -2488,6 +4410,326 @@ static void VerifyMarkdownParser()
         "Standard Markdown links must be parsed.");
 }
 
+static void VerifyFlowcharts()
+{
+    string fence = new string(
+        (char)96,
+        3);
+    string markdown =
+        fence + "mermaid\n" +
+        "flowchart TD\n" +
+        "    A[Début] --> B{Condition}\n" +
+        "    B -->|Oui| C[Action]\n" +
+        "    B -->|Non| D[Fin]\n" +
+        fence + "\n";
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Markdown.MarkdownBlock> markdownBlocks =
+        MarkdownDocumentParser.Parse(
+            markdown);
+    global::Nodalis.Core.Markdown.MarkdownBlock mermaidBlock =
+        markdownBlocks.Single(block =>
+            block.Kind ==
+                MarkdownBlockKind.CodeBlock &&
+            string.Equals(
+                block.Language,
+                "mermaid",
+                StringComparison.OrdinalIgnoreCase));
+
+    global::Nodalis.Core.Flowcharts.FlowchartParseResult parsed =
+        MermaidFlowchartParser.Parse(
+            mermaidBlock.Text);
+
+    Assert(
+        parsed.Success &&
+        parsed.Diagram is not null,
+        "A supported Mermaid flowchart fence must parse locally.");
+
+    global::Nodalis.Core.Flowcharts.FlowchartDefinition parsedDiagram =
+        parsed.Diagram ??
+        throw new InvalidOperationException(
+            "Supported Mermaid flowchart did not produce a diagram.");
+
+    Assert(
+        parsedDiagram.Direction ==
+            FlowchartDirection.TopDown &&
+        parsedDiagram.Nodes.Count ==
+            4 &&
+        parsedDiagram.Edges.Count ==
+            3,
+        "The example flowchart must preserve direction, nodes and branches.");
+    Assert(
+        parsedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "B").Shape ==
+        FlowchartNodeShape.Decision,
+        "Curly-brace Mermaid nodes must become decision diamonds.");
+    Assert(
+        parsedDiagram.Edges.Any(edge =>
+            edge.Label ==
+            "Oui") &&
+        parsedDiagram.Edges.Any(edge =>
+            edge.Label ==
+            "Non"),
+        "Mermaid edge labels must be preserved.");
+
+    global::Nodalis.Core.Flowcharts.FlowchartLayout branchLayout =
+        FlowchartLayoutEngine.Layout(
+            parsedDiagram);
+    global::Nodalis.Core.Flowcharts.FlowchartLayoutNode actionNode =
+        branchLayout.Nodes.Single(node =>
+            node.Node.Id ==
+            "C");
+    global::Nodalis.Core.Flowcharts.FlowchartLayoutNode endNode =
+        branchLayout.Nodes.Single(node =>
+            node.Node.Id ==
+            "D");
+
+    Assert(
+        Math.Abs(
+            actionNode.Y -
+            endNode.Y) <
+        0.01 &&
+        Math.Abs(
+            actionNode.X -
+            endNode.X) >
+        1,
+        "Branches at the same rank must be laid out as distinct sibling nodes.");
+
+    global::System.Collections.Generic.Dictionary<string, global::Nodalis.Core.Flowcharts.FlowchartDirection> directions =
+        new Dictionary<string, FlowchartDirection>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["TD"] =
+                FlowchartDirection.TopDown,
+            ["TB"] =
+                FlowchartDirection.TopDown,
+            ["LR"] =
+                FlowchartDirection.LeftRight,
+            ["RL"] =
+                FlowchartDirection.RightLeft,
+            ["BT"] =
+                FlowchartDirection.BottomTop
+        };
+
+    foreach (global::System.Collections.Generic.KeyValuePair<string, global::Nodalis.Core.Flowcharts.FlowchartDirection> pair in
+             directions)
+    {
+        global::Nodalis.Core.Flowcharts.FlowchartParseResult orientationResult =
+            MermaidFlowchartParser.Parse(
+                $"flowchart {pair.Key}\nA[Source] --> B[Cible]");
+
+        Assert(
+            orientationResult.Success &&
+            orientationResult.Diagram is not null &&
+            orientationResult.Diagram.Direction ==
+                pair.Value,
+            $"Flowchart orientation {pair.Key} must parse.");
+
+        global::Nodalis.Core.Flowcharts.FlowchartDefinition orientationDiagram =
+            orientationResult.Diagram ??
+            throw new InvalidOperationException(
+                $"Flowchart orientation {pair.Key} did not produce a diagram.");
+
+        global::Nodalis.Core.Flowcharts.FlowchartLayout orientationLayout =
+            FlowchartLayoutEngine.Layout(
+                orientationDiagram);
+        global::Nodalis.Core.Flowcharts.FlowchartLayoutNode source =
+            orientationLayout.Nodes.Single(node =>
+                node.Node.Id ==
+                "A");
+        global::Nodalis.Core.Flowcharts.FlowchartLayoutNode target =
+            orientationLayout.Nodes.Single(node =>
+                node.Node.Id ==
+                "B");
+
+        bool directionIsCorrect =
+            pair.Key switch
+            {
+                "LR" =>
+                    source.CenterX <
+                    target.CenterX,
+                "RL" =>
+                    source.CenterX >
+                    target.CenterX,
+                "BT" =>
+                    source.CenterY >
+                    target.CenterY,
+                _ =>
+                    source.CenterY <
+                    target.CenterY
+            };
+
+        Assert(
+            directionIsCorrect,
+            $"Flowchart layout {pair.Key} must follow the requested orientation.");
+    }
+
+    global::Nodalis.Core.Flowcharts.FlowchartParseResult extended =
+        MermaidFlowchartParser.Parse(
+            "FLOWCHART LR\n" +
+            "Start@{ shape: stadium, label: \"Début\" }; Process[[Traitement]]\n" +
+            "Store[(Données)]\n" +
+            "Choice{{Choix}}\n" +
+            "Done((Fin))\n" +
+            "Start --> Process --> Store\n" +
+            "Store -.->|valide| Choice\n" +
+            "Choice --- Done");
+
+    Assert(
+        extended.Success &&
+        extended.Diagram is not null,
+        "Expanded Mermaid node definitions and chained links must parse locally.");
+
+    global::Nodalis.Core.Flowcharts.FlowchartDefinition extendedDiagram =
+        extended.Diagram ??
+        throw new InvalidOperationException(
+            "Expanded Mermaid syntax did not produce a diagram.");
+
+    Assert(
+        extendedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "Start").Shape ==
+            FlowchartNodeShape.Stadium &&
+        extendedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "Process").Shape ==
+            FlowchartNodeShape.Subroutine &&
+        extendedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "Store").Shape ==
+            FlowchartNodeShape.Database &&
+        extendedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "Choice").Shape ==
+            FlowchartNodeShape.Hexagon &&
+        extendedDiagram.Nodes.Single(node =>
+            node.Id ==
+            "Done").Shape ==
+            FlowchartNodeShape.Circle,
+        "Common Mermaid node definitions must retain their native shape.");
+
+    Assert(
+        extendedDiagram.Edges.Count ==
+            4 &&
+        extendedDiagram.Edges.Any(edge =>
+            edge.Label ==
+            "valide") &&
+        extendedDiagram.Edges.Any(edge =>
+            edge.SourceId ==
+                "Choice" &&
+            edge.TargetId ==
+                "Done" &&
+            !edge.HasArrow),
+        "Chained, dotted, labelled and undirected Mermaid links must remain connected.");
+
+    global::Nodalis.Core.Flowcharts.FlowchartParseResult invalid =
+        MermaidFlowchartParser.Parse(
+            "flowchart TD\nA -->|Libellé incomplet B");
+
+    Assert(
+        !invalid.Success &&
+        invalid.Diagnostics.Any(diagnostic =>
+            diagnostic.Severity ==
+            FlowchartDiagnosticSeverity.Error),
+        "Malformed supported flowchart syntax must return a diagnostic instead of throwing.");
+
+    global::Nodalis.Core.Flowcharts.FlowchartParseResult withUnsupportedSyntax =
+        MermaidFlowchartParser.Parse(
+            "graph LR\nA[Début] --> B[Fin]\nclassDef important fill:red");
+
+    Assert(
+        withUnsupportedSyntax.Success &&
+        withUnsupportedSyntax.Diagnostics.Any(diagnostic =>
+            diagnostic.Severity ==
+            FlowchartDiagnosticSeverity.Warning),
+        "Unsupported Mermaid statements must be ignored with a warning, not corrupt the diagram.");
+}
+
+static void VerifyTypedRelations()
+{
+    global::System.Guid targetId =
+        Guid.NewGuid();
+
+    string relationLine =
+        MarkdownRelationParser.Format(
+            "dépend de",
+            targetId,
+            "Architecture cible");
+
+    string markdown =
+        relationLine + "\n" +
+        "> Relation: relation expérimentale | Cible: Élément futur | ID: pas-un-guid\n" +
+        "```markdown\n" +
+        relationLine + "\n" +
+        "```\n";
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Relations.MarkdownRelationEntry> relations =
+        MarkdownRelationParser.Parse(
+            markdown);
+
+    Assert(
+        relations.Count == 2 &&
+        relations[0].RelationType == "dépend de" &&
+        relations[0].TargetId == targetId &&
+        relations[0].TargetLabel == "Architecture cible",
+        "Typed relation syntax must round-trip a readable label and stable target id.");
+
+    Assert(
+        relations[1].RelationType == "relation expérimentale" &&
+        relations[1].TargetId is null &&
+        relations[1].RawTargetId == "pas-un-guid",
+        "Unknown relation types and malformed target ids must remain inspectable instead of crashing the parser.");
+}
+
+static void VerifyDocumentBookmarks()
+{
+    global::System.Guid documentId =
+        Guid.NewGuid();
+
+    global::Nodalis.Core.Settings.DocumentBookmarkReference bookmark =
+        new DocumentBookmarkReference
+        {
+            Id = Guid.NewGuid(),
+            DocumentId = documentId,
+            DocumentRelativePath = "Applications/App/Projet/Technique.md",
+            DisplayName = "Architecture cible",
+            HeadingLevel = 2,
+            HeadingTitle = "Architecture",
+            HeadingOccurrence = 1,
+            OriginalOffset = 70,
+            OriginalLineNumber = 7
+        };
+
+    string shiftedMarkdown =
+        "# Document\n\n" +
+        "Texte ajouté avant les sections.\n\n" +
+        "## Architecture\n\n" +
+        "Première version.\n\n" +
+        "Texte intermédiaire beaucoup plus long.\n\n" +
+        "## Architecture\n\n" +
+        "Version cible.\n";
+
+    global::Nodalis.Core.Markdown.MarkdownOutlineEntry? resolved =
+        DocumentBookmarkResolver.Resolve(
+            bookmark,
+            shiftedMarkdown);
+
+    Assert(
+        resolved is not null &&
+        resolved.Title == "Architecture" &&
+        resolved.Level == 2,
+        "Document bookmarks must repair normal line/offset shifts by resolving the saved Markdown heading.");
+
+    global::Nodalis.Core.Markdown.MarkdownOutlineEntry? missing =
+        DocumentBookmarkResolver.Resolve(
+            bookmark,
+            "# Document\n\n## Autre section\n");
+
+    Assert(
+        missing is null,
+        "A removed bookmark heading must be reported as unresolved instead of redirecting silently.");
+}
+
 static async Task VerifyUserPreferencesAsync(string root)
 {
     string preferencesPath = Path.Combine(root, "User", "preferences.json");
@@ -2513,6 +4755,21 @@ static async Task VerifyUserPreferencesAsync(string root)
                 DisplayName = "Projet Patate"
             }
         ],
+        Bookmarks =
+        [
+            new DocumentBookmarkReference
+            {
+                Id = Guid.NewGuid(),
+                DocumentId = projectId,
+                DocumentRelativePath = " Applications\\Application A\\Notes rapides.md ",
+                DisplayName = " Section importante ",
+                HeadingLevel = 2,
+                HeadingTitle = " Décision ",
+                HeadingOccurrence = -4,
+                OriginalOffset = -2,
+                OriginalLineNumber = 0
+            }
+        ],
         RecentItems =
         [
             new RecentItemReference
@@ -2524,10 +4781,73 @@ static async Task VerifyUserPreferencesAsync(string root)
                 }
             }
         ],
+        RecentSearches =
+        [
+            new RecentSearchReference
+            {
+                Query = "  architecture  ",
+                ContextRelativePath = "Applications/Application A",
+                LastUsedUtc = new DateTimeOffset(
+                    2026,
+                    10,
+                    5,
+                    9,
+                    0,
+                    0,
+                    TimeSpan.Zero)
+            },
+            new RecentSearchReference
+            {
+                Query = "Architecture",
+                ContextRelativePath = "Applications/Application A",
+                LastUsedUtc = new DateTimeOffset(
+                    2026,
+                    10,
+                    5,
+                    10,
+                    0,
+                    0,
+                    TimeSpan.Zero)
+            },
+            new RecentSearchReference
+            {
+                Query = "   ",
+                LastUsedUtc = new DateTimeOffset(
+                    2026,
+                    10,
+                    5,
+                    11,
+                    0,
+                    0,
+                    TimeSpan.Zero)
+            }
+        ],
+        OpenDocumentTabs =
+        [
+            new OpenDocumentTabReference
+            {
+                DocumentId = projectId,
+                RelativePath = "Applications/Application A/Notes rapides.md",
+                CaretIndex = 42,
+                SelectionStart = 40,
+                SelectionLength = 2
+            }
+        ],
+        ActiveDocumentTabId = projectId,
         Editor = defaults.Editor with
         {
             FontSize = 100,
-            AutosaveDelayMilliseconds = 20
+            AutosaveDelayMilliseconds = 20,
+            SplitMode = EditorSplitMode.Horizontal,
+            SplitRatio = 0.95,
+            SecondaryDocumentTabId = projectId
+        },
+        Backup = defaults.Backup with
+        {
+            AutomaticEnabled = true,
+            DestinationDirectory = Path.Combine(root, "Backups"),
+            IntervalMinutes = 1,
+            RetentionCount = 500
         }
     };
 
@@ -2544,8 +4864,41 @@ static async Task VerifyUserPreferencesAsync(string root)
         "Editor font size must be normalized.");
     Assert(loaded.Editor.AutosaveDelayMilliseconds == 100,
         "Autosave delay must be normalized.");
+    Assert(
+        loaded.Editor.SplitMode == EditorSplitMode.Horizontal &&
+        loaded.Editor.SplitRatio == 0.8 &&
+        loaded.Editor.SecondaryDocumentTabId == projectId,
+        "Editor split layout must persist locally and normalize its ratio.");
+    Assert(
+        loaded.Backup.AutomaticEnabled &&
+        loaded.Backup.IntervalMinutes == 15 &&
+        loaded.Backup.RetentionCount == 100 &&
+        loaded.Backup.DestinationDirectory == Path.GetFullPath(Path.Combine(root, "Backups")),
+        "Backup preferences must persist and normalize their safe bounds.");
     Assert(loaded.Favorites.Count == 1 && loaded.ExpandedNodeIds.Contains(projectId),
         "Favorites and expanded nodes must survive persistence.");
+    Assert(
+        loaded.Bookmarks.Count == 1 &&
+        loaded.Bookmarks[0].DocumentRelativePath == "Applications/Application A/Notes rapides.md" &&
+        loaded.Bookmarks[0].DisplayName == "Section importante" &&
+        loaded.Bookmarks[0].HeadingTitle == "Décision" &&
+        loaded.Bookmarks[0].HeadingOccurrence == 0 &&
+        loaded.Bookmarks[0].OriginalOffset == 0 &&
+        loaded.Bookmarks[0].OriginalLineNumber == 1,
+        "Document bookmarks must persist locally and normalize safe bookmark metadata.");
+    Assert(
+        loaded.RecentSearches.Count == 1 &&
+        loaded.RecentSearches[0].Query == "Architecture" &&
+        loaded.RecentSearches[0].ContextRelativePath == "Applications/Application A",
+        "Recent searches must be trimmed, deduplicated and persisted locally.");
+    Assert(
+        loaded.OpenDocumentTabs.Count == 1 &&
+        loaded.OpenDocumentTabs[0].DocumentId == projectId &&
+        loaded.OpenDocumentTabs[0].CaretIndex == 42 &&
+        loaded.OpenDocumentTabs[0].SelectionStart == 40 &&
+        loaded.OpenDocumentTabs[0].SelectionLength == 2 &&
+        loaded.ActiveDocumentTabId == projectId,
+        "Open document tabs and their editor positions must survive preference persistence.");
 
     await File.WriteAllTextAsync(preferencesPath, "{ definitely not valid json");
     global::Nodalis.Core.Settings.UserPreferences recovered = await store.LoadAsync();
@@ -2553,9 +4906,201 @@ static async Task VerifyUserPreferencesAsync(string root)
     Assert(recovered.WorkspaceRootPath is null &&
            recovered.Favorites.Count == 0 &&
            recovered.RecentItems.Count == 0 &&
+           recovered.RecentSearches.Count == 0 &&
            recovered.NavigationPanelWidth == 280 &&
            recovered.ContextPanelWidth == 300,
         "Corrupted preferences must safely return defaults.");
+}
+
+static async Task VerifyLocalReleasePackageAsync(string root)
+{
+    string packageDirectory = Path.Combine(
+        root,
+        "LocalReleasePackage");
+    Directory.CreateDirectory(packageDirectory);
+
+    string archivePath = Path.Combine(
+        packageDirectory,
+        "Nodalis-win-x64.zip");
+    string installationDirectory = Path.Combine(
+        packageDirectory,
+        "Installed");
+
+    byte[] applicationBytes = Encoding.UTF8.GetBytes(
+        "fake nodalis executable");
+    byte[] updaterBytes = Encoding.UTF8.GetBytes(
+        "fake updater executable");
+
+    string applicationHash = Convert.ToHexString(
+            SHA256.HashData(applicationBytes))
+        .ToLowerInvariant();
+    string updaterHash = Convert.ToHexString(
+            SHA256.HashData(updaterBytes))
+        .ToLowerInvariant();
+
+    global::Nodalis.Core.Updates.ReleaseManifest manifest = new ReleaseManifest
+    {
+        Product = "Nodalis",
+        Version = "9.9.9",
+        TargetRid = "win-x64",
+        MinimumWorkspaceSchemaVersion = 2,
+        MaximumWorkspaceSchemaVersion = 2,
+        MigratableWorkspaceSchemaVersions =
+        [
+            WorkspaceManifest.CurrentSchemaVersion
+        ],
+        PayloadDirectory = "Nodalis-win-x64",
+        Files =
+        [
+            new ReleaseFileEntry
+            {
+                Path = "Nodalis.exe",
+                Sha256 = applicationHash,
+                Length = applicationBytes.LongLength
+            },
+            new ReleaseFileEntry
+            {
+                Path = "Nodalis.Updater.exe",
+                Sha256 = updaterHash,
+                Length = updaterBytes.LongLength
+            }
+        ]
+    };
+
+    using (FileStream stream = File.Create(archivePath))
+    using (ZipArchive archive = new ZipArchive(
+               stream,
+               ZipArchiveMode.Create,
+               leaveOpen: false))
+    {
+        ZipArchiveEntry appEntry = archive.CreateEntry(
+            "Nodalis-win-x64/Nodalis.exe");
+        await using (Stream entryStream = appEntry.Open())
+        {
+            await entryStream.WriteAsync(applicationBytes);
+        }
+
+        ZipArchiveEntry updaterEntry = archive.CreateEntry(
+            "Nodalis-win-x64/Nodalis.Updater.exe");
+        await using (Stream entryStream = updaterEntry.Open())
+        {
+            await entryStream.WriteAsync(updaterBytes);
+        }
+
+        ZipArchiveEntry manifestEntry = archive.CreateEntry(
+            "Nodalis-win-x64/release-manifest.json");
+        await using Stream manifestStream = manifestEntry.Open();
+        await JsonSerializer.SerializeAsync(
+            manifestStream,
+            manifest,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+    }
+
+    global::Nodalis.Infrastructure.Updates.LocalReleasePackageService service =
+        new LocalReleasePackageService();
+
+    global::Nodalis.Core.Updates.StagedReleasePackage staged =
+        await service.ValidateAndStageAsync(
+            archivePath,
+            installationDirectory,
+            "0.1.0",
+            WorkspaceManifest.CurrentSchemaVersion);
+
+    Assert(
+        staged.Manifest.Version == "9.9.9" &&
+        File.Exists(
+            Path.Combine(
+                staged.StagedApplicationDirectory,
+                "Nodalis.exe")) &&
+        File.Exists(
+            Path.Combine(
+                staged.StagedApplicationDirectory,
+                "Nodalis.Updater.exe")),
+        "A valid local release must be SHA-256 verified and staged.");
+
+    Directory.Delete(
+        staged.StagedApplicationDirectory,
+        recursive: true);
+
+    string invalidArchivePath = Path.Combine(
+        packageDirectory,
+        "Nodalis-invalid.zip");
+
+    global::Nodalis.Core.Updates.ReleaseManifest invalidManifest =
+        manifest with
+        {
+            Files =
+            [
+                manifest.Files[0] with
+                {
+                    Sha256 = new string(
+                        '0',
+                        64)
+                },
+                manifest.Files[1]
+            ]
+        };
+
+    using (FileStream stream = File.Create(invalidArchivePath))
+    using (ZipArchive archive = new ZipArchive(
+               stream,
+               ZipArchiveMode.Create,
+               leaveOpen: false))
+    {
+        ZipArchiveEntry appEntry = archive.CreateEntry(
+            "Nodalis-win-x64/Nodalis.exe");
+        await using (Stream entryStream = appEntry.Open())
+        {
+            await entryStream.WriteAsync(applicationBytes);
+        }
+
+        ZipArchiveEntry updaterEntry = archive.CreateEntry(
+            "Nodalis-win-x64/Nodalis.Updater.exe");
+        await using (Stream entryStream = updaterEntry.Open())
+        {
+            await entryStream.WriteAsync(updaterBytes);
+        }
+
+        ZipArchiveEntry manifestEntry = archive.CreateEntry(
+            "Nodalis-win-x64/release-manifest.json");
+        await using Stream manifestStream = manifestEntry.Open();
+        await JsonSerializer.SerializeAsync(
+            manifestStream,
+            invalidManifest,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+    }
+
+    bool rejectedInvalidHash = false;
+
+    try
+    {
+        await service.ValidateAndStageAsync(
+            invalidArchivePath,
+            installationDirectory,
+            "0.1.0",
+            WorkspaceManifest.CurrentSchemaVersion);
+    }
+    catch (InvalidDataException)
+    {
+        rejectedInvalidHash = true;
+    }
+
+    Assert(
+        rejectedInvalidHash,
+        "A local release with an invalid SHA-256 must be rejected before installation.");
+    Assert(
+        LocalReleasePackageService.PathsOverlap(
+            root,
+            Path.Combine(
+                root,
+                "Workspace")),
+        "Updater safety must detect application/workspace path overlap.");
 }
 
 static async Task VerifyDocumentReliabilityAsync(string root)
@@ -2691,6 +5236,36 @@ static void AssertThrows<TException>(Action action, string message)
     throw new InvalidOperationException(message);
 }
 
+static WorkspaceNavigationNode? FindNavigationNodeByPath(
+        WorkspaceNavigationNode node,
+        string path)
+{
+    if (string.Equals(
+            Path.GetFullPath(
+                node.FullPath),
+            Path.GetFullPath(
+                path),
+            StringComparison.OrdinalIgnoreCase))
+    {
+        return node;
+    }
+
+    foreach (WorkspaceNavigationNode child in node.Children)
+    {
+        WorkspaceNavigationNode? found =
+            FindNavigationNodeByPath(
+                child,
+                path);
+
+        if (found is not null)
+        {
+            return found;
+        }
+    }
+
+    return null;
+}
+
 static async Task AssertThrowsAsync<TException>(
     Func<Task> action,
     string message)
@@ -2720,4 +5295,134 @@ static IEnumerable<WorkspaceNavigationNode> DescendantsAndSelf(
             yield return descendant;
         }
     }
+}
+
+
+static void VerifyMarkdownFrontMatter()
+{
+    string source =
+        "---\r\n" +
+        "status: draft\r\n" +
+        "tags: [api, urgent, API]\r\n" +
+        "reviewer: Alice\r\n" +
+        "---\r\n" +
+        "# Titre\r\n\r\n" +
+        "Contenu.\r\n";
+
+    global::Nodalis.Core.Markdown.MarkdownFrontMatterDocument parsed =
+        MarkdownFrontMatterParser.Parse(
+            source);
+
+    Assert(
+        parsed.HasFrontMatter &&
+        parsed.Properties["status"] == "draft" &&
+        parsed.Properties["reviewer"] == "Alice" &&
+        parsed.Body.StartsWith(
+            "# Titre",
+            StringComparison.Ordinal),
+        "Front matter parsing must preserve standard, custom and body content.");
+
+    global::System.Collections.Generic.IReadOnlyList<string> tags =
+        MarkdownFrontMatterParser.ParseTags(
+            parsed.Properties["tags"]);
+
+    Assert(
+        tags.Count == 2 &&
+        tags.Contains(
+            "api",
+            StringComparer.CurrentCultureIgnoreCase) &&
+        tags.Contains(
+            "urgent",
+            StringComparer.CurrentCultureIgnoreCase),
+        "Front matter tags must be normalized and deduplicated.");
+
+    global::System.Collections.Generic.Dictionary<string, string> rewrittenProperties =
+        new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["owner"] = "Bob",
+            ["status"] = "active",
+            ["custom.flag"] = "yes",
+            ["tags"] = "backend, release"
+        };
+
+    string rewritten =
+        MarkdownFrontMatterParser.Apply(
+            source,
+            rewrittenProperties);
+
+    global::Nodalis.Core.Markdown.MarkdownFrontMatterDocument rewrittenParsed =
+        MarkdownFrontMatterParser.Parse(
+            rewritten);
+
+    Assert(
+        rewrittenParsed.Body == parsed.Body &&
+        rewrittenParsed.Properties["status"] == "active" &&
+        rewrittenParsed.Properties["owner"] == "Bob" &&
+        rewrittenParsed.Properties["custom.flag"] == "yes",
+        "Applying front matter must preserve the Markdown body and custom properties.");
+
+    string removed =
+        MarkdownFrontMatterParser.Apply(
+            rewritten,
+            new Dictionary<string, string>(
+                StringComparer.OrdinalIgnoreCase));
+
+    Assert(
+        removed == parsed.Body,
+        "Applying an empty property set must remove existing front matter without altering the body.");
+
+    global::Nodalis.Core.Markdown.MarkdownFrontMatterDocument plain =
+        MarkdownFrontMatterParser.Parse(
+            "# Libre\n\nSans métadonnées.\n");
+
+    Assert(
+        !plain.HasFrontMatter &&
+        plain.Properties.Count == 0 &&
+        plain.Body.StartsWith(
+            "# Libre",
+            StringComparison.Ordinal),
+        "Free-form notes must remain valid without any front matter.");
+}
+
+static void VerifyMarkdownOutlineParser()
+{
+    string markdown =
+        "# Introduction\r\n" +
+        "## Détails ##\r\n" +
+        "### Même titre\r\n" +
+        "## Même titre\r\n" +
+        "\u0060\u0060\u0060markdown\r\n" +
+        "# Ignoré dans le code\r\n" +
+        "\u0060\u0060\u0060\r\n" +
+        "###### Section profonde\r\n";
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Markdown.MarkdownOutlineEntry> outline =
+        MarkdownOutlineParser.Parse(markdown);
+
+    Assert(outline.Count == 5,
+        "Markdown outline must ignore headings inside fenced code blocks.");
+
+    Assert(
+        outline[0].Level == 1 &&
+        outline[0].Title == "Introduction" &&
+        outline[0].LineNumber == 1,
+        "Markdown outline must preserve heading level, title and line number.");
+
+    Assert(
+        outline[1].Title == "Détails" &&
+        outline[1].LineNumber == 2,
+        "Markdown outline must trim optional closing heading markers.");
+
+    Assert(
+        outline[2].Title == "Même titre" &&
+        outline[3].Title == "Même titre" &&
+        outline[2].Offset != outline[3].Offset,
+        "Duplicate heading titles must remain independently addressable by source offset.");
+
+    Assert(
+        markdown.AsSpan(outline[4].Offset).StartsWith(
+            "###### Section profonde",
+            StringComparison.Ordinal),
+        "Markdown outline offsets must point to the original source heading without rewriting it.");
 }

@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Jalons"
-        Width="980"
-        Height="720"
-        MinWidth="760"
-        MinHeight="520"
+        Width="1020"
+        Height="740"
+        MinWidth="800"
+        MinHeight="540"
         WindowStartupLocation="CenterOwner">
     <Grid>
         <Grid.RowDefinitions>
@@ -37,15 +37,19 @@
                 <StackPanel Grid.Column="1"
                             VerticalAlignment="Center"
                             Orientation="Horizontal">
-                    <Button Width="92"
+                    <Button Width="88"
                             Margin="0,0,8,0"
                             Click="Add_Click"
                             Content="Ajouter" />
-                    <Button Width="92"
+                    <Button Width="88"
                             Margin="0,0,8,0"
                             Click="Edit_Click"
                             Content="Modifier" />
-                    <Button Width="92"
+                    <Button Width="96"
+                            Margin="0,0,8,0"
+                            Click="NavigateDependency_Click"
+                            Content="Prérequis" />
+                    <Button Width="88"
                             Click="Delete_Click"
                             Content="Supprimer" />
                 </StackPanel>
@@ -89,6 +93,17 @@
                                                    FontSize="11"
                                                    TextWrapping="Wrap"
                                                    Foreground="{StaticResource SecondaryTextBrush}" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Text="{Binding DependencySummary}"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                                        <TextBlock Margin="0,3,0,0"
+                                                   Text="{Binding DependencyWarningSummary}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource AccentBrush}" />
                                         <TextBlock Margin="0,4,0,0"
                                                    Text="{Binding Link}"
                                                    FontSize="10"
@@ -158,6 +173,17 @@
                                                        Text="{Binding Description}"
                                                        TextWrapping="Wrap"
                                                        Foreground="{StaticResource SecondaryTextBrush}" />
+                                            <TextBlock Margin="0,5,0,0"
+                                                       Text="{Binding DependencySummary}"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{StaticResource SecondaryTextBrush}" />
+                                            <TextBlock Margin="0,3,0,0"
+                                                       Text="{Binding DependencyWarningSummary}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{StaticResource AccentBrush}" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>

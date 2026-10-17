@@ -26,6 +26,10 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-constraints.ps1
 
+      - name: Verify WPF accessibility baseline
+        shell: pwsh
+        run: ./scripts/verify-accessibility.ps1
+
       - name: Verify C# code style
         run: dotnet run --project tools/Nodalis.CodeStyle/Nodalis.CodeStyle.csproj --configuration Release -- --check
 
@@ -35,19 +39,29 @@ jobs:
       - name: Build
         run: dotnet build Nodalis.sln --configuration Release --no-restore
 
-      - name: Run zero-dependency smoke tests
+      - name: Run zero-dependency regression suite
         run: dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj --configuration Release
 
       - name: Verify portable package
         shell: pwsh
         run: ./scripts/publish-portable.ps1 -Version "0.0.0-ci"
 
-      - name: Start published portable binary
+      - name: Verify reproducible portable package
+        shell: pwsh
+        run: ./scripts/verify-release-reproducibility.ps1 -Version "0.0.0-ci" -BaselineArchive "artifacts/Nodalis-win-x64.zip"
+
+      - name: Start published portable binary against RC workspace
         shell: pwsh
         run: |
-          $process = Start-Process "artifacts/Nodalis-win-x64/Nodalis.exe" -ArgumentList "--smoke-test" -PassThru -Wait
+          $workspace = Join-Path $env:RUNNER_TEMP "Nodalis-RC-Workspace"
+          if (Test-Path $workspace) {
+            Remove-Item $workspace -Recurse -Force
+          }
+          Copy-Item "tests/ReleaseCandidateWorkspace" -Destination $workspace -Recurse -Force
+          $arguments = "--smoke-test --smoke-test-workspace `"$workspace`""
+          $process = Start-Process "artifacts/Nodalis-win-x64/Nodalis.exe" -ArgumentList $arguments -PassThru -Wait
           if ($process.ExitCode -ne 0) {
-            throw "Published Nodalis.exe failed startup smoke test with exit code $($process.ExitCode)."
+            throw "Published Nodalis.exe failed RC workspace smoke test with exit code $($process.ExitCode)."
           }
 
       - name: Upload portable CI artifact

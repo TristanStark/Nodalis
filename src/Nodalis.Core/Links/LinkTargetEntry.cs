@@ -18,5 +18,9 @@ public sealed record LinkTargetEntry
 
     public string? ContentHash { get; init; }
 
+    public long ContentLength { get; init; }
+
+    public long LastWriteUtcTicks { get; init; }
+
     public List<string> Aliases { get; init; } = [];
 }

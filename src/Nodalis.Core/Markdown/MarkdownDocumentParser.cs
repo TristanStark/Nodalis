@@ -16,7 +16,11 @@ public static partial class MarkdownDocumentParser
         string lineFeed = ((char)10).ToString();
         string carriageReturnLineFeed = string.Concat((char)13, (char)10);
 
-        string normalized = markdown
+        string content = MarkdownFrontMatterParser.Parse(
+                markdown)
+            .Body;
+
+        string normalized = content
             .Replace(
                 carriageReturnLineFeed,
                 lineFeed,
@@ -118,10 +122,19 @@ public static partial class MarkdownDocumentParser
             global::System.Text.RegularExpressions.Match ordered = OrderedListPattern().Match(line);
             if (ordered.Success)
             {
+                int orderedListNumber = int.TryParse(
+                        ordered.Groups["number"].Value,
+                        out int parsedOrderedListNumber)
+                    ? Math.Max(
+                        1,
+                        parsedOrderedListNumber)
+                    : 1;
+
                 blocks.Add(new MarkdownBlock
                 {
                     Kind = MarkdownBlockKind.OrderedListItem,
-                    Text = ordered.Groups["text"].Value
+                    Text = ordered.Groups["text"].Value,
+                    OrderedListNumber = orderedListNumber
                 });
 
                 index++;
@@ -245,7 +258,7 @@ public static partial class MarkdownDocumentParser
     /// </summary>
     /// <returns>The result of the operation.</returns>
     [GeneratedRegex(
-            @"^\s*\d+[.)]\s+(?<text>.+)$",
+            @"^\s*(?<number>\d+)[.)]\s+(?<text>.+)$",
             RegexOptions.CultureInvariant)]
     private static partial Regex OrderedListPattern();
 

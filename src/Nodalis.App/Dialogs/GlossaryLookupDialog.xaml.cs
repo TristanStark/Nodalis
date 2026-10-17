@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using Nodalis.Core.Glossary;
 using Nodalis.Infrastructure.Glossary;
+using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
 
@@ -49,95 +50,101 @@ public partial class GlossaryLookupDialog : Window
             object sender,
             System.Windows.Controls.TextChangedEventArgs e)
     {
-        _lookupCancellation?.Cancel();
-        _lookupCancellation?.Dispose();
-
-        string query = SearchTextBox.Text.Trim();
-
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            ClearResult(
-                "Saisissez un terme, synonyme ou acronyme.");
-            return;
-        }
-
-        global::System.Threading.CancellationTokenSource cancellation = new CancellationTokenSource();
-        _lookupCancellation = cancellation;
-
-        try
-        {
-            await Task.Delay(
-                150,
-                cancellation.Token);
-
-            global::Nodalis.Core.Glossary.GlossaryResolution resolution = await _glossary.ResolveAsync(
-                _workspaceRoot,
-                _contextPath,
-                query,
-                cancellation.Token);
-
-            if (cancellation.IsCancellationRequested)
+        await UiActionGuard.RunAsync(
+            this,
+            "Glossaire · rechercher",
+            async () =>
             {
-                return;
-            }
+                _lookupCancellation?.Cancel();
+                _lookupCancellation?.Dispose();
 
-            if (!resolution.Found)
-            {
-                ClearResult(
-                    $"Aucune définition pour « {query} ».");
-                return;
-            }
+                string query = SearchTextBox.Text.Trim();
 
-            _primary = resolution.Primary;
-            PrimaryCard.Visibility = Visibility.Visible;
-            NotFoundText.Visibility = Visibility.Collapsed;
+                if (string.IsNullOrWhiteSpace(query))
+                {
+                    ClearResult(
+                        "Saisissez un terme, synonyme ou acronyme.");
+                    return;
+                }
 
-            PrimaryScopeText.Text =
-                resolution.Primary!.Scope.DisplayName;
-            PrimaryTermText.Text =
-                resolution.Primary.Term;
-            PrimaryDefinitionText.Text =
-                resolution.Primary.Definition;
+                global::System.Threading.CancellationTokenSource cancellation = new CancellationTokenSource();
+                _lookupCancellation = cancellation;
 
-            string[] aliases = resolution.Primary.Synonyms
-                .Select(value => $"synonyme: {value}")
-                .Concat(
-                    resolution.Primary.Acronyms.Select(
-                        value => $"acronyme: {value}"))
-                .ToArray();
+                try
+                {
+                    await Task.Delay(
+                        150,
+                        cancellation.Token);
 
-            PrimaryAliasesText.Text =
-                aliases.Length == 0
-                    ? "Aucun synonyme ou acronyme."
-                    : string.Join(" · ", aliases);
+                    global::Nodalis.Core.Glossary.GlossaryResolution resolution = await _glossary.ResolveAsync(
+                        _workspaceRoot,
+                        _contextPath,
+                        query,
+                        cancellation.Token);
 
-            PrimaryLinksText.Text =
-                resolution.Primary.Links.Count == 0
-                    ? string.Empty
-                    : "Liens : " +
-                      string.Join(
-                          " · ",
-                          resolution.Primary.Links);
+                    if (cancellation.IsCancellationRequested)
+                    {
+                        return;
+                    }
 
-            AlternativesList.ItemsSource =
-                resolution.Alternatives;
+                    if (!resolution.Found)
+                    {
+                        ClearResult(
+                            $"Aucune définition pour « {query} ».");
+                        return;
+                    }
 
-            AlternativesHeader.Visibility =
-                resolution.Alternatives.Count > 0
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException)
-        {
-            ClearResult(
-                exception.Message);
-        }
+                    _primary = resolution.Primary;
+                    PrimaryCard.Visibility = Visibility.Visible;
+                    NotFoundText.Visibility = Visibility.Collapsed;
+
+                    PrimaryScopeText.Text =
+                        resolution.Primary!.Scope.DisplayName;
+                    PrimaryTermText.Text =
+                        resolution.Primary.Term;
+                    PrimaryDefinitionText.Text =
+                        resolution.Primary.Definition;
+
+                    string[] aliases = resolution.Primary.Synonyms
+                        .Select(value => $"synonyme: {value}")
+                        .Concat(
+                            resolution.Primary.Acronyms.Select(
+                                value => $"acronyme: {value}"))
+                        .ToArray();
+
+                    PrimaryAliasesText.Text =
+                        aliases.Length == 0
+                            ? "Aucun synonyme ou acronyme."
+                            : string.Join(" · ", aliases);
+
+                    PrimaryLinksText.Text =
+                        resolution.Primary.Links.Count == 0
+                            ? string.Empty
+                            : "Liens : " +
+                              string.Join(
+                                  " · ",
+                                  resolution.Primary.Links);
+
+                    AlternativesList.ItemsSource =
+                        resolution.Alternatives;
+
+                    AlternativesHeader.Visibility =
+                        resolution.Alternatives.Count > 0
+                            ? Visibility.Visible
+                            : Visibility.Collapsed;
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException)
+                {
+                    ClearResult(
+                        exception.Message);
+                }
+            });
     }
 
     /// <summary>

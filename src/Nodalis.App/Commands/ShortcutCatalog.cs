@@ -29,6 +29,9 @@ public static class ShortcutCatalog
     public static readonly AppShortcut CommandPalette =
         new("palette.open", "Ctrl+P", ModifierKeys.Control, Key.P);
 
+    public static readonly AppShortcut QuickOpen =
+        new("quick-open", "Ctrl+T", ModifierKeys.Control, Key.T);
+
     public static readonly AppShortcut QuickNote =
         new(
             "quick-note.capture",
@@ -55,6 +58,20 @@ public static class ShortcutCatalog
     public static readonly AppShortcut InlineCode =
         new("format.code", "Ctrl+`", ModifierKeys.Control, Key.Oem3);
 
+    public static readonly AppShortcut MoveToPrimaryPane =
+        new(
+            "editor.move-primary",
+            "Ctrl+Alt+←",
+            ModifierKeys.Control | ModifierKeys.Alt,
+            Key.Left);
+
+    public static readonly AppShortcut MoveToSecondaryPane =
+        new(
+            "editor.move-secondary",
+            "Ctrl+Alt+→",
+            ModifierKeys.Control | ModifierKeys.Alt,
+            Key.Right);
+
     public static IReadOnlyList<AppShortcut> All { get; } =
     [
         NewNote,
@@ -62,13 +79,52 @@ public static class ShortcutCatalog
         Search,
         InternalLink,
         CommandPalette,
+        QuickOpen,
         QuickNote,
         QuickNotesOverview,
         Save,
         Bold,
         Italic,
-        InlineCode
+        InlineCode,
+        MoveToPrimaryPane,
+        MoveToSecondaryPane
     ];
+
+    /// <summary>
+    /// Verifies that command identifiers and physical keyboard bindings are unique.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when two shortcuts use the same identifier or keyboard gesture.
+    /// </exception>
+    public static void ValidateUniqueBindings()
+    {
+        for (int leftIndex = 0; leftIndex < All.Count; leftIndex++)
+        {
+            AppShortcut left = All[leftIndex];
+
+            for (int rightIndex = leftIndex + 1; rightIndex < All.Count; rightIndex++)
+            {
+                AppShortcut right = All[rightIndex];
+
+                if (string.Equals(
+                        left.Id,
+                        right.Id,
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"Shortcut identifier collision: '{left.Id}'.");
+                }
+
+                if (left.Modifiers == right.Modifiers &&
+                    left.Key == right.Key)
+                {
+                    throw new InvalidOperationException(
+                        $"Keyboard shortcut collision: {left.Display} is assigned to " +
+                        $"'{left.Id}' and '{right.Id}'.");
+                }
+            }
+        }
+    }
 
     /// <summary>
     /// Performs the <c>Matches</c> operation.
