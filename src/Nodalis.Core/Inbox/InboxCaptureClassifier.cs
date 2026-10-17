@@ -41,7 +41,8 @@ public static class InboxCaptureClassifier
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        if (selected.Length is < 1 or > 10)
+        if (selected.Length < 1 ||
+            selected.Length > InboxAttachmentRules.MaximumFileCount)
         {
             throw new InvalidDataException(
                 "Sélectionnez entre un et dix fichiers.");
@@ -58,7 +59,9 @@ public static class InboxCaptureClassifier
                     Path.GetFileName(path));
             }
 
-            if (file.Length > 25L * 1024 * 1024)
+            InboxAttachmentRules.ValidateFileName(file.Name);
+
+            if (file.Length > InboxAttachmentRules.MaximumFileBytes)
             {
                 throw new IOException(
                     "Le fichier dépasse 25 Mio : " + file.Name);

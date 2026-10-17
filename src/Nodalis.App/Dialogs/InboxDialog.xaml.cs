@@ -207,7 +207,8 @@ public partial class InboxDialog : Window
     {
         await UiActionGuard.RunAsync(this, "Inbox · nouvelle capture", async () =>
         {
-            InboxCaptureDialog dialog = new InboxCaptureDialog { Owner = this };
+            InboxCaptureDialog dialog = new InboxCaptureDialog(
+                _workspaceRoot, "inbox-view") { Owner = this };
             try
             {
                 if (dialog.ShowDialog() != true)
@@ -215,13 +216,11 @@ public partial class InboxDialog : Window
                     return;
                 }
 
-                await _store.CaptureAsync(new InboxCaptureRequest
+                if (dialog.SavedEntry is null)
                 {
-                    Kind = dialog.CapturedKind,
-                    ContentMarkdown = dialog.CapturedMarkdown,
-                    AttachmentSourcePaths = dialog.CapturedFilePaths,
-                    Origin = "inbox-view"
-                });
+                    throw new InvalidOperationException(
+                        "Capture Inbox non enregistrée.");
+                }
 
                 WorkspaceChanged = true;
                 TrashModeCheckBox.IsChecked = false;

@@ -1,0 +1,82 @@
+# Inbox 1.1 — sécurité, doublons et récupération (#104)
+
+Le stockage Inbox reste **local**, sans surveillance permanente du presse-papiers.
+Le contenu n'est lu que par « Importer le presse-papiers » ou via le
+sélecteur de fichiers déclenché par l'utilisateur ; les comparaisons de
+doublons sont lancées **uniquement après « Enregistrer »**.
+
+## Doublons probables, sans blocage
+
+Les captures récentes (fenêtre standard **7 jours**, configurable en API
+entre >0 et 30 jours) sont comparées avec SHA-256. L'empreinte tient
+compte du type (Texte/Lien/Image/Fichier), du texte avec retours ligne
+normalisés et des noms/contenus des pièces jointes. L'ordre de sélection
+des pièces jointes et leur nom de stockage GUID n'influencent pas
+l'empreinte. La provenance n'influence pas la détection.
+
+- Les nouvelles captures stockent `fingerprintSha256` dans `item.json`.
+- Les anciennes captures dépourvues de champ sont comparées à la demande
+  à partir de `capture.md` et des pièces jointes encore accessibles.
+  Pas de migration silencieuse ni d'index réseau.
+- La recherche couvre la boîte de réception et la **corbeille récupérable**.
+- Un dialogue « Doublon probable » affiche le nombre de correspondances,
+  la dernière date et le statut ; **Oui** autorise explicitement une
+  seconde capture, **Non** laisse la fenêtre ouverte sans écriture.
+- Les empreintes seules ne suffisent pas pour supprimer automatiquement
+  une capture. L'utilisateur garde le contrôle et ses données.
+
+## Écriture, erreurs et reprise
+
+La fenêtre « Nouvelle capture » n'est plus fermée avant d'avoir terminé
+`CaptureAsync`. En cas de refus d'accès, espace insuffisant, disparition
+d'un fichier ou erreur de lecture, l'utilisateur voit un diagnostic et
+**garde tout le texte dans sa fenêtre**, afin de corriger et réessayer.
+L'action Enregistrer est désactivée pendant la vérification/l'écriture,
+évite deux clics simultanés et réactive les contrôles après échec.
+
+Comme dans #99–103 :
+- Le stockage passe par `Inbox/.staging/` et publie le dossier complet
+  par renommage. Une écriture interrompue est récupérée ou déplacée dans
+  `Inbox/Quarantaine/`, sans suppression silencieuse.
+- La corbeille Inbox conserve l'ID et les pièces jointes. La restauration
+  refuse les collisions, sans écraser l'ancienne entrée.
+- La conversion conserve son intention de destination et son marqueur
+  de provenance ; les tentatives identiques restent idempotentes.
+- Les exceptions récupérables sont affichées et journalisées avec
+  contexte (« Inbox · validation et détection de doublon »,
+  « Inbox · traitement par lot », capture globale, etc.).
+- Le raccourci Win32 global ne lit jamais de contenu. Si Windows
+  refuse le raccourci, l'erreur est signalée ; la capture depuis
+  l'interface reste accessible.
+
+## Pièces jointes
+
+Entre **1 et 10 fichiers**, **25 Mio par fichier** ; texte de capture
+limité à **2 Mio UTF-8**. Chemins des copies fondés sur des GUID dans le
+workspace. Sélection et copie rejettent les fichiers manquants ou les
+liens symboliques et les extensions exécutables, scripts et raccourcis
+(les fichiers Markdown, images, PDF, documents, JSON restent acceptés).
+Les références persistées ne peuvent pas utiliser de chemin absolu,
+traversée de répertoire ou sortie du dossier Inbox géré.
+
+## Qualification
+
+`InboxSafetySmokeTests` vérifie :
+- même contenu/type, autre type, contenu modifié et fenêtre courte ;
+- métadonnées héritées sans empreinte ;
+- détection en corbeille, restauration et sauvegarde volontaire du doublon ;
+- pièces jointes identiques réordonnées et contenu modifié ;
+- refus d'extension dangereuse et de fichier >25 Mio ;
+- disparition de pièce jointe : absence de publication partielle,
+  quarantaine récupérable ; annulation avant publication ;
+- erreur I/O contrôlée via collision avec un objet disque.
+
+La CI Windows couvre la compilation WPF, les régressions, le package
+portable et sa reproductibilité.
+
+**Recette Windows nécessaire avant fermeture** : simuler refus de
+raccourci `Ctrl+Shift+I` déjà utilisé, capture presse-papiers texte/image,
+fichier sélectionné supprimé, restauration avec collision, saturation
+disque, DPI 100/125/150 %, clavier et actions de confirmation. Vérifier
+que le contenu de l'utilisateur reste visible après une erreur et qu'une
+capture identique n'est jamais éliminée sans son consentement.

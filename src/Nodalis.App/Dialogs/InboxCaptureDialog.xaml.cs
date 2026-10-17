@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using Nodalis.Core.Inbox;
+using Nodalis.Infrastructure.Inbox;
 
 namespace Nodalis.App.Dialogs;
 
@@ -17,10 +18,20 @@ public partial class InboxCaptureDialog : Window
     private string[] _selectedFiles = [];
     private string? _temporaryImagePath;
     private bool _imageSelected;
+    private bool _saveInProgress;
+    private readonly WorkspaceInboxService? _duplicateStore;
+    private readonly string _origin;
 
     /// <summary>Initializes a keyboard-accessible explicit capture dialog.</summary>
-    public InboxCaptureDialog()
+    /// <param name="workspaceRoot">Optional workspace for explicit persistence and duplicate checks.</param>
+    /// <param name="origin">Voluntary capture entry point, for provenance.</param>
+    public InboxCaptureDialog(
+        string? workspaceRoot = null,
+        string origin = "explicit-user-capture")
     {
+        _origin = origin;
+        _duplicateStore = string.IsNullOrWhiteSpace(workspaceRoot)
+            ? null : new WorkspaceInboxService(workspaceRoot);
         InitializeComponent();
         Loaded += (_, _) => CaptureTextBox.Focus();
     }
@@ -31,6 +42,9 @@ public partial class InboxCaptureDialog : Window
         InboxCaptureKind.Text;
 
     public IReadOnlyList<string> CapturedFilePaths => _selectedFiles;
+
+    /// <summary>Fully persisted capture, or null until explicit Save succeeds.</summary>
+    public InboxEntry? SavedEntry { get; private set; }
 
     /// <summary>Reads the clipboard only after the user presses Import.</summary>
     /// <param name="sender">Import button.</param>
@@ -137,18 +151,18 @@ public partial class InboxCaptureDialog : Window
             Filter = "Tous les fichiers (*.*)|*.*"
         };
 
-        if (picker.ShowDialog(this) != true)
-        {
-            return;
-        }
-
         try
         {
+            if (picker.ShowDialog(this) != true)
+            {
+                return;
+            }
+
             ApplyFiles(picker.FileNames, isImage: false);
         }
         catch (Exception exception) when (
             exception is IOException or ArgumentException or InvalidDataException
-                or UnauthorizedAccessException)
+                or UnauthorizedAccessException or ExternalException)
         {
             ShowValidation("Fichier non importé : " + exception.Message);
         }
@@ -205,13 +219,20 @@ public partial class InboxCaptureDialog : Window
         }
     }
 
-    /// <summary>Finalizes the requested content type only on explicit Save.</summary>
+    /// <summary>
+    /// On explicit Save, validates content and compares probable duplicates.
+    /// The user decides whether to keep an intentional duplicate. A rejected
+    /// suggestion never persists the clipboard or attachment content.
+    /// </summary>
     /// <param name="sender">Save button.</param>
     /// <param name="e">Routed click event.</param>
-    private void Save_Click(
-            object sender,
-            RoutedEventArgs e)
+    private async void Save_Click(object sender, RoutedEventArgs e)
     {
+        if (_saveInProgress)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(CaptureTextBox.Text))
         {
             ShowValidation("Saisissez du contenu à capturer.");
@@ -219,6 +240,9 @@ public partial class InboxCaptureDialog : Window
             return;
         }
 
+        _saveInProgress = true;
+        SaveButton.IsEnabled = false;
+        CancelButton.IsEnabled = false;
         try
         {
             if (_selectedFiles.Length > 0)
@@ -233,16 +257,85 @@ public partial class InboxCaptureDialog : Window
             {
                 CapturedKind = InboxCaptureClassifier.ClassifyText(CaptureTextBox.Text);
             }
+
+            if (_duplicateStore is not null)
+            {
+                InboxCaptureRequest request = new InboxCaptureRequest
+                {
+                    Kind = CapturedKind,
+                    ContentMarkdown = CaptureTextBox.Text,
+                    AttachmentSourcePaths = _selectedFiles,
+                    Origin = _origin
+                };
+                IReadOnlyList<InboxDuplicateCandidate> matches =
+                    await _duplicateStore.FindProbableDuplicatesAsync(request);
+                if (matches.Count > 0)
+                {
+                    InboxDuplicateCandidate recent = matches[0];
+                    string location = recent.InTrash
+                        ? "en corbeille"
+                        : recent.State == InboxItemState.Archived
+                            ? "archivée" : "présente dans l'Inbox";
+                    MessageBoxResult confirmation = MessageBox.Show(
+                        this,
+                        "Une capture très similaire existe déjà (" +
+                        matches.Count + " correspondance(s) sur 7 jours).\n" +
+                        "Plus récente : " +
+                        recent.CreatedUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm") +
+                        ", " + location + ".\n\n" +
+                        "Enregistrer volontairement ce doublon ?",
+                        "Inbox · doublon probable",
+                        MessageBoxButton.YesNo, MessageBoxImage.Question,
+                        MessageBoxResult.No);
+                    if (confirmation != MessageBoxResult.Yes)
+                    {
+                        SelectionStatusText.Text =
+                            "Doublon non enregistré. Modifiez la capture ou annulez.";
+                        return;
+                    }
+                }
+            }
+
+            // Keep this dialog open on disk/permission/attachment errors: no
+            // captured text disappears if the workspace write fails.
+            if (_duplicateStore is not null)
+            {
+                SavedEntry = await _duplicateStore.CaptureAsync(
+                    new InboxCaptureRequest
+                    {
+                        Kind = CapturedKind,
+                        ContentMarkdown = CaptureTextBox.Text,
+                        AttachmentSourcePaths = _selectedFiles,
+                        Origin = _origin
+                    });
+            }
+
+            // No duplicate watcher or automatic clipboard polling: the only
+            // path to persistence is this explicit user confirmation.
+            DialogResult = true;
         }
         catch (Exception exception) when (
-            exception is IOException or ArgumentException or InvalidDataException
-                or UnauthorizedAccessException)
+            exception is IOException or ExternalException or InvalidDataException
+                or ArgumentException or UnauthorizedAccessException
+                or InvalidOperationException or NotSupportedException)
         {
-            ShowValidation(exception.Message);
-            return;
-        }
+            if (Application.Current is App application)
+            {
+                application.DiagnosticsService.LogRecoverableException(
+                    "Inbox · validation et détection de doublon", exception);
+            }
 
-        DialogResult = true;
+            ShowValidation("Capture impossible : " + exception.Message);
+        }
+        finally
+        {
+            _saveInProgress = false;
+            if (DialogResult != true)
+            {
+                SaveButton.IsEnabled = true;
+                CancelButton.IsEnabled = true;
+            }
+        }
     }
 
     /// <summary>Shows an accessible recovery message instead of closing the dialog.</summary>

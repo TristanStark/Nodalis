@@ -46,6 +46,9 @@ public sealed record InboxEntry
 
     public string? Origin { get; init; }
 
+    /// <summary>Optional SHA-256 kind/text/attachment digest, absent in legacy captures.</summary>
+    public string? FingerprintSha256 { get; init; }
+
     public string? ConvertedTargetRelativePath { get; init; }
 
     public IReadOnlyList<InboxAttachment> Attachments { get; init; } = [];
@@ -80,4 +83,17 @@ public sealed record InboxReadResult
     public required IReadOnlyList<InboxEntry> Entries { get; init; }
 
     public required IReadOnlyList<InboxWarning> Warnings { get; init; }
+}
+
+
+/// <summary>Probable prior capture for voluntary duplicate confirmation.</summary>
+public sealed record InboxDuplicateCandidate
+{
+    public required Guid Id { get; init; }
+
+    public required DateTimeOffset CreatedUtc { get; init; }
+
+    public required InboxItemState State { get; init; }
+
+    public required bool InTrash { get; init; }
 }

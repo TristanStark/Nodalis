@@ -13,8 +13,8 @@ public sealed class WorkspaceInboxService
 {
     private const string MetadataFileName = "item.json";
     private const string MarkdownFileName = "capture.md";
-    private const long MaximumAttachmentBytes = 25L * 1024 * 1024;
-    private const int MaximumAttachments = 10;
+    private static readonly TimeSpan MaximumDuplicateWindow = TimeSpan.FromDays(30);
+    private static readonly TimeSpan DefaultDuplicateWindow = TimeSpan.FromDays(7);
 
     private readonly string _workspaceRoot;
     private readonly string _inboxRoot;
@@ -54,7 +54,7 @@ public sealed class WorkspaceInboxService
         ArgumentNullException.ThrowIfNull(request.AttachmentSourcePaths);
 
         if (!Enum.IsDefined(request.Kind) ||
-            request.AttachmentSourcePaths.Count > MaximumAttachments)
+            request.AttachmentSourcePaths.Count > InboxAttachmentRules.MaximumFileCount)
         {
             throw new ArgumentException("Invalid capture type or too many attachments.", nameof(request));
         }
@@ -85,7 +85,10 @@ public sealed class WorkspaceInboxService
                 Kind = request.Kind,
                 Origin = request.Origin,
                 Attachments = attachments,
-                ContentMarkdown = request.ContentMarkdown
+                ContentMarkdown = request.ContentMarkdown,
+                FingerprintSha256 = await ComputeStoredFingerprintAsync(
+                    request.Kind, request.ContentMarkdown, stagedPath,
+                    attachments, cancellationToken)
             };
 
             await AtomicFileWriter.WriteAllTextAsync(
@@ -106,6 +109,108 @@ public sealed class WorkspaceInboxService
             _gate.Release();
         }
     }
+
+    /// <summary>
+    /// Finds recent probable duplicates by content, kind and attached file
+    /// SHA-256. Never blocks an explicit Save and never persists preview data.
+    /// Includes recoverable trash and supports pre-hash legacy captures.
+    /// </summary>
+    /// <param name="request">User-confirmed contents to compare.</param>
+    /// <param name="window">Optional window, 7 days by default and 30 maximum.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Recent matching IDs and states, newest first.</returns>
+    public async Task<IReadOnlyList<InboxDuplicateCandidate>> FindProbableDuplicatesAsync(
+        InboxCaptureRequest request,
+        TimeSpan? window = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.ContentMarkdown);
+        ArgumentNullException.ThrowIfNull(request.AttachmentSourcePaths);
+        TimeSpan horizon = window ?? DefaultDuplicateWindow;
+        if (horizon <= TimeSpan.Zero || horizon > MaximumDuplicateWindow)
+        {
+            throw new ArgumentOutOfRangeException(nameof(window),
+                "La fenêtre de doublons doit être comprise entre 0 et 30 jours.");
+        }
+
+        if (!Enum.IsDefined(request.Kind) ||
+            request.AttachmentSourcePaths.Count > InboxAttachmentRules.MaximumFileCount)
+        {
+            throw new ArgumentException("Capture Inbox non prise en charge.", nameof(request));
+        }
+
+        string fingerprint = await InboxDuplicateFingerprint.ComputeAsync(
+            request.Kind, request.ContentMarkdown,
+            request.AttachmentSourcePaths.Select(path =>
+                (Path.GetFileName(path), path)).ToArray(), cancellationToken);
+
+        InboxReadResult active = await ReadAllAsync(cancellationToken);
+        InboxReadResult trash = await ReadTrashAsync(cancellationToken);
+        DateTimeOffset cutoff = DateTimeOffset.UtcNow - horizon;
+        List<InboxDuplicateCandidate> matches = new List<InboxDuplicateCandidate>();
+        foreach ((InboxEntry entry, bool inTrash) in
+            active.Entries.Select(entry => (entry, false))
+                .Concat(trash.Entries.Select(entry => (entry, true))))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (entry.Kind != request.Kind || entry.CreatedUtc < cutoff)
+            {
+                continue;
+            }
+
+            string? previous = entry.FingerprintSha256;
+            if (previous is null)
+            {
+                string folder = Path.Combine(
+                    inTrash ? _trashRoot : _itemsRoot, entry.Id.ToString("N"));
+                try
+                {
+                    previous = await ComputeStoredFingerprintAsync(
+                        entry.Kind, entry.ContentMarkdown, folder,
+                        entry.Attachments, cancellationToken);
+                }
+                catch (Exception exception) when (
+                    exception is IOException or InvalidDataException or
+                        UnauthorizedAccessException)
+                {
+                    // Preserve older incomplete captures; missing attachments
+                    // cannot prove a match and are warned about by ReadAllAsync.
+                    continue;
+                }
+            }
+
+            if (string.Equals(previous, fingerprint, StringComparison.OrdinalIgnoreCase))
+            {
+                matches.Add(new InboxDuplicateCandidate
+                {
+                    Id = entry.Id,
+                    CreatedUtc = entry.CreatedUtc,
+                    State = entry.State,
+                    InTrash = inTrash
+                });
+            }
+        }
+
+        return matches.OrderByDescending(candidate => candidate.CreatedUtc).ToArray();
+    }
+
+    /// <summary>Hashes published or staged copies by original name and bytes.</summary>
+    /// <param name="kind">Capture kind.</param>
+    /// <param name="markdown">Explicit content.</param>
+    /// <param name="itemDirectory">Folder containing attachments.</param>
+    /// <param name="attachments">Validated attachment metadata.</param>
+    /// <param name="token">Cancellation.</param>
+    /// <returns>Canonical content digest.</returns>
+    private static Task<string> ComputeStoredFingerprintAsync(
+        InboxCaptureKind kind, string markdown, string itemDirectory,
+        IReadOnlyList<InboxAttachment> attachments, CancellationToken token) =>
+        InboxDuplicateFingerprint.ComputeAsync(kind, markdown,
+            attachments.Select(attachment =>
+                (attachment.OriginalFileName,
+                    Path.Combine(itemDirectory,
+                        attachment.RelativePath.Replace('/',
+                            Path.DirectorySeparatorChar)))).ToArray(), token);
 
     /// <summary>
     /// Loads captures, promotes complete interrupted writes and quarantines invalid entries.
@@ -337,17 +442,13 @@ public sealed class WorkspaceInboxService
             throw new IOException("Attachment does not exist or is a symbolic link.");
         }
 
-        if (source.Length > MaximumAttachmentBytes)
+        if (source.Length > InboxAttachmentRules.MaximumFileBytes)
         {
             throw new IOException("Attachment exceeds the 25 MiB limit.");
         }
 
+        InboxAttachmentRules.ValidateFileName(source.Name);
         string extension = source.Extension;
-        if (extension.Length > 16 ||
-            extension.IndexOfAny(['/', '\\', ':']) >= 0)
-        {
-            throw new InvalidDataException("Unsupported attachment file extension.");
-        }
 
         string relativePath = "attachments/" + Guid.NewGuid().ToString("N") + extension;
         string attachmentsDirectory = Path.Combine(stagedPath, "attachments");
@@ -364,7 +465,7 @@ public sealed class WorkspaceInboxService
         {
             await input.CopyToAsync(output, cancellationToken);
             await output.FlushAsync(cancellationToken);
-            if (output.Length > MaximumAttachmentBytes)
+            if (output.Length > InboxAttachmentRules.MaximumFileBytes)
             {
                 throw new IOException("Attachment grew beyond the 25 MiB limit during import.");
             }
@@ -447,7 +548,10 @@ public sealed class WorkspaceInboxService
             entry.Id == Guid.Empty || entry.Id != directoryId ||
             entry.CreatedUtc == default ||
             !Enum.IsDefined(entry.Kind) || !Enum.IsDefined(entry.State) ||
-            entry.Attachments is null)
+            entry.Attachments is null ||
+            (entry.FingerprintSha256 is not null &&
+             (entry.FingerprintSha256.Length != 64 ||
+              !entry.FingerprintSha256.All(char.IsAsciiHexDigit))))
         {
             throw new InvalidDataException("Invalid Inbox schema, identity or state.");
         }

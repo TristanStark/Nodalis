@@ -105,7 +105,7 @@ public partial class MainWindow
 
             Show();
             Activate();
-            dialog = new InboxCaptureDialog
+            dialog = new InboxCaptureDialog(_root.FullPath)
             {
                 Owner = this,
                 Topmost = true
@@ -116,14 +116,9 @@ public partial class MainWindow
                 return;
             }
 
-            WorkspaceInboxService inbox = new WorkspaceInboxService(_root.FullPath);
-            InboxEntry created = await inbox.CaptureAsync(new InboxCaptureRequest
-            {
-                Kind = dialog.CapturedKind,
-                ContentMarkdown = dialog.CapturedMarkdown,
-                AttachmentSourcePaths = dialog.CapturedFilePaths,
-                Origin = "explicit-user-capture"
-            });
+            InboxEntry created = dialog.SavedEntry ??
+                throw new InvalidOperationException(
+                    "La capture n'a pas été enregistrée par la fenêtre Inbox.");
 
             StatusText.Text = "Capture Inbox enregistrée · " +
                 created.CreatedUtc.ToLocalTime().ToString("HH:mm");

@@ -54,6 +54,7 @@ try
 {
     await VerifyWorkspacePersistenceAsync(root);
     await InboxPersistenceSmokeTests.RunAsync(root);
+    await InboxSafetySmokeTests.RunAsync(root);
     await InboxConversionSmokeTests.RunAsync(root);
     await VerifyWorkspaceNavigationAsync(root);
     NavigationWorktreeSmokeTests.Run();

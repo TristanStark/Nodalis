@@ -55,11 +55,13 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,16,0,0">
-            <Button Width="94"
+            <Button x:Name="CancelButton"
+                    Width="94"
                     Margin="0,0,8,0"
                     IsCancel="True"
                     Content="Annuler" />
-            <Button Width="125"
+            <Button x:Name="SaveButton"
+                    Width="125"
                     IsDefault="True"
                     Click="Save_Click"
                     Content="Enregistrer" />
