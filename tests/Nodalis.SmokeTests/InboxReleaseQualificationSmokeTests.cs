@@ -131,11 +131,15 @@ internal static class InboxReleaseQualificationSmokeTests
                     entry.State == InboxItemState.Archived),
                 size + ": archive must preserve converted task identity.");
 
-            Assert((await File.ReadAllTextAsync(globalNotesPath)) == globalBefore &&
-                (await File.ReadAllTextAsync(applicationNotesPath)) == appBefore &&
-                (await File.ReadAllTextAsync(projectNotesPath)) == projectBefore &&
-                manifestBefore.SequenceEqual(
-                    await File.ReadAllBytesAsync(workspaceManifestPath)),
+            byte[] manifestAfter = await File.ReadAllBytesAsync(
+                workspaceManifestPath);
+            string globalAfter = await File.ReadAllTextAsync(globalNotesPath);
+            string applicationAfter = await File.ReadAllTextAsync(applicationNotesPath);
+            string projectAfter = await File.ReadAllTextAsync(projectNotesPath);
+            Assert(globalAfter == globalBefore &&
+                applicationAfter == appBefore &&
+                projectAfter == projectBefore &&
+                manifestBefore.SequenceEqual(manifestAfter),
                 size + ": Inbox features must not change 1.0 notes or workspace schema.");
 
             // The Small profile exercises the 1.0 ultra-simple structure too.
