@@ -97,6 +97,10 @@ matrice ou disposer d'un document dédié avant la release stable.
   incident ou intervention structurés, pièces jointes, provenance, reprise sans doublon et projet Ultra-simple.
 - [Relations de maintenance](maintenance-relations-1.2-guide.md) :
   liens typés GUID, références cassées, renommage/restauration et contrat pour l'analyse d'impact.
+- [Notes de version 1.2](release-notes-1.2.md) :
+  nouveautés, compatibilité 1.0/1.1, récupération et limites avant publication.
+- [Checklist de qualification 1.2](release-checklist-1.2.md) :
+  fixtures CI, Windows 10/11, dark mode, DPI, clavier, sauvegardes et gate stable.
 
 ## Nodalis 1.1 — documentation de sortie
 
