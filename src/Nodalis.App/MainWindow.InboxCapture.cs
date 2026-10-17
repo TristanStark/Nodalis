@@ -173,7 +173,7 @@ public partial class MainWindow
         }
 
         InboxDialog dialog = new InboxDialog(
-            _root.FullPath, _selectedNode?.FullPath)
+            _root.FullPath, _selectedNode?.FullPath, FlushMaintenanceTabAsync)
         {
             Owner = this
         };
