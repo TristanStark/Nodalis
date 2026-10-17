@@ -156,13 +156,20 @@ public partial class MainWindow
             return;
         }
 
-        if (dialog.SelectedAction == MaintenanceHistoryAction.EditIntervention)
+        switch (dialog.SelectedAction)
         {
-            await EditMaintenanceHistoryAsync(editExisting: true, selected: entry);
-        }
-        else
-        {
-            await OpenMaintenanceHistorySourceAsync(entry);
+            case MaintenanceHistoryAction.EditIntervention:
+                await EditMaintenanceHistoryAsync(editExisting: true, selected: entry);
+                break;
+            case MaintenanceHistoryAction.AddDocumentRelation:
+                await AddMaintenanceDocumentRelationAsync(entry);
+                break;
+            case MaintenanceHistoryAction.BrowseDocumentReferences:
+                await BrowseMaintenanceDocumentReferencesAsync(entry);
+                break;
+            default:
+                await OpenMaintenanceHistorySourceAsync(entry);
+                break;
         }
     }
 
