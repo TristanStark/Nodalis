@@ -56,7 +56,8 @@ public sealed class WorkspaceInboxMaintenanceService
         CheckSafeFile(target);
         TextDocumentSession document = await TextDocumentSession.OpenAsync(target, token);
         MaintenanceRecord? incident = SelectIncident(document.Content, request);
-        return MaintenanceInboxMarkdown.Append(document.Content, entry, request, incident);
+        return MaintenanceInboxMarkdown.Append(
+            document.Content, entry, request, incident, OriginalCaptureLink(entry, target));
     }
 
     /// <summary>
@@ -125,7 +126,7 @@ public sealed class WorkspaceInboxMaintenanceService
         {
             MaintenanceRecord? incident = SelectIncident(session.Content, request);
             string updated = MaintenanceInboxMarkdown.Append(
-                session.Content, entry, request, incident);
+                session.Content, entry, request, incident, OriginalCaptureLink(entry, target));
             if (prepared is null)
             {
                 await AtomicJsonFile.WriteAsync(intentPath, request, token);
@@ -227,6 +228,18 @@ public sealed class WorkspaceInboxMaintenanceService
             string.Equals(item.Id, request.ExistingIncidentId,
                 StringComparison.OrdinalIgnoreCase)) ??
             throw new InvalidDataException("L'incident lié n'existe plus dans la fiche.");
+    }
+
+    /// <summary>Computes a navigable, URL-escaped relative link to the persisted capture Markdown.</summary>
+    /// <param name="entry">Canonical Inbox record.</param>
+    /// <param name="target">Destination maintenance sheet.</param>
+    /// <returns>Relative Markdown URL, anchored at the maintenance sheet.</returns>
+    private string OriginalCaptureLink(InboxEntry entry, string target)
+    {
+        string original = Path.Combine(ItemDirectory(entry.Id), "capture.md");
+        string relative = Path.GetRelativePath(Path.GetDirectoryName(target)!, original)
+            .Replace('\\', '/');
+        return string.Join("/", relative.Split('/').Select(Uri.EscapeDataString));
     }
 
     /// <summary>Returns the physical Inbox directory containing the capture's files.</summary>
