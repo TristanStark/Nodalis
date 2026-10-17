@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using Nodalis.App.Commands;
 using Nodalis.Core.Settings;
 
 namespace Nodalis.App.Dialogs;
@@ -14,10 +15,12 @@ public partial class PreferencesDialog : Window
     /// <param name="editor">The <c>editor</c> value.</param>
     /// <param name="contextPanelOpen">The <c>contextPanelOpen</c> value.</param>
     /// <param name="ai">The local AI preferences.</param>
+    /// <param name="inboxHotkeyGesture">Current Windows-global Inbox gesture.</param>
     public PreferencesDialog(
             EditorPreferences editor,
             bool contextPanelOpen,
-            AiPreferences ai)
+            AiPreferences ai,
+            string inboxHotkeyGesture)
     {
         ArgumentNullException.ThrowIfNull(editor);
         ArgumentNullException.ThrowIfNull(ai);
@@ -37,6 +40,7 @@ public partial class PreferencesDialog : Window
         AiArgumentsTextBox.Text = ai.Arguments;
         AiModelTextBox.Text = ai.ModelName;
         AiTimeoutTextBox.Text = ai.TimeoutSeconds.ToString();
+        InboxHotkeyTextBox.Text = inboxHotkeyGesture;
     }
 
     public EditorPreferences? Editor { get; private set; }
@@ -44,6 +48,9 @@ public partial class PreferencesDialog : Window
     public bool ContextPanelOpen { get; private set; }
 
     public AiPreferences? Ai { get; private set; }
+
+    public string InboxHotkeyGesture { get; private set; } =
+        GlobalInboxHotkey.DefaultGesture;
 
     /// <summary>
     /// Performs the <c>Save_Click</c> operation.
@@ -105,6 +112,16 @@ public partial class PreferencesDialog : Window
             AiExecutableTextBox.Focus();
             return;
         }
+
+        if (!GlobalInboxHotkey.TryValidateGesture(
+                InboxHotkeyTextBox.Text, out _, out _, out string hotkeyError))
+        {
+            ShowValidation(hotkeyError);
+            InboxHotkeyTextBox.Focus();
+            return;
+        }
+
+        InboxHotkeyGesture = InboxHotkeyTextBox.Text.Trim();
 
         Editor = _initial with
         {

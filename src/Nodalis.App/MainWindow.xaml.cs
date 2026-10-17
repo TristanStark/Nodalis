@@ -140,6 +140,7 @@ public partial class MainWindow : Window
         InitializeContextMenus();
         InitializeDocumentTabs();
         InitializeDocumentOutline();
+        InitializeInboxGlobalShortcut();
 
         _preferences = preferences;
         _preferencesStore = preferencesStore;
@@ -4493,7 +4494,8 @@ public partial class MainWindow : Window
         global::Nodalis.App.Dialogs.PreferencesDialog dialog = new PreferencesDialog(
             _preferences.Editor,
             _contextPanelOpen,
-            _preferences.Ai)
+            _preferences.Ai,
+            GetInboxGesture())
         {
             Owner = this
         };
@@ -4504,6 +4506,18 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        string oldInboxGesture = GetInboxGesture();
+        string newInboxGesture = dialog.InboxHotkeyGesture;
+        Dictionary<string, string> shortcutOverrides =
+            new Dictionary<string, string>(
+                _preferences.ShortcutOverrides ??
+                    new Dictionary<string, string>(),
+                StringComparer.OrdinalIgnoreCase);
+        shortcutOverrides[GlobalInboxHotkey.PreferenceKey] = newInboxGesture;
+
+        // Keep the old registration if Windows refuses the new combination.
+        _globalInboxHotkey?.Register(newInboxGesture);
 
         global::Nodalis.Core.Settings.EditorPreferences editor = dialog.Editor;
         bool autosaveDelayChanged =
@@ -4547,11 +4561,24 @@ public partial class MainWindow : Window
         {
             IsContextPanelOpen = _contextPanelOpen,
             Editor = editor,
-            Ai = dialog.Ai
+            Ai = dialog.Ai,
+            ShortcutOverrides = shortcutOverrides
         };
 
-        await _preferencesStore.SaveAsync(
-            _preferences);
+        try
+        {
+            await _preferencesStore.SaveAsync(_preferences);
+        }
+        catch
+        {
+            // A failed preference write must not strand a different native binding.
+            if (_globalInboxHotkey is not null)
+            {
+                _globalInboxHotkey.Register(oldInboxGesture);
+            }
+
+            throw;
+        }
 
         StatusText.Text =
             "Préférences enregistrées localement";
@@ -4724,6 +4751,14 @@ public partial class MainWindow : Window
                 Subtitle = "Projet → Application → Global",
                 Keywords = ["glossaire", "définition", "terme", "acronyme", "synonyme"],
                 ExecuteAsync = ShowGlossaryAsync
+            },
+            new()
+            {
+                Id = "inbox.capture",
+                Title = "Capturer dans Inbox",
+                Subtitle = "Capture Markdown volontaire, accessible par raccourci global",
+                Keywords = ["inbox", "boîte de réception", "capture"],
+                ExecuteAsync = ShowInboxCaptureAsync
             },
             new()
             {

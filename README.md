@@ -37,6 +37,7 @@ Le socle actuellement disponible comprend :
 | `Ctrl+N` | Nouvelle note depuis template / Libre |
 | `Ctrl+Shift+N` | Nouveau projet / sous-projet |
 | `Ctrl+Alt+N` | Capturer une note rapide |
+| `Ctrl+Shift+I` | Capturer du texte dans Inbox (1.1, raccourci global configurable) |
 | `Ctrl+Shift+Q` | Voir les notes rapides agrégées |
 | `Ctrl+F` | Recherche Projet / Application / Global |
 | `Ctrl+K` | Insérer ou ouvrir un lien interne |

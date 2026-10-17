@@ -70,3 +70,6 @@ matrice ou disposer d'un document dédié avant la release stable.
 
 - [Inbox 1.1 — format, sécurité et récupération](inbox-persistence-v1.md) :
   contrat de stockage des captures, indépendant des notes rapides historiques.
+
+- [Inbox 1.1 — raccourci Windows global configurable](global-inbox-hotkey.md) :
+  fonctionnement, raccourcis réservés, collisions et vérification interactive.

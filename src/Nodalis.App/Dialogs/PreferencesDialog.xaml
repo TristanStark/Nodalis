@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Préférences"
         Width="620"
-        Height="660"
+        Height="750"
         MinWidth="540"
         MinHeight="520"
         WindowStartupLocation="CenterOwner">
@@ -79,10 +79,30 @@
                        FontSize="11"
                        Foreground="{StaticResource SecondaryTextBrush}"
                        Text="Les préférences sont locales à ce PC et ne modifient jamais le contenu métier du workspace." />
+            <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="180" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Raccourci global Inbox"
+                           VerticalAlignment="Center" />
+                <TextBox x:Name="InboxHotkeyTextBox"
+                         Grid.Column="1"
+                         MinHeight="30"
+                         Padding="6,4"
+                         AutomationProperties.Name="Raccourci global Inbox" />
+            </Grid>
+            <TextBlock Margin="0,4,0,0"
+                       FontSize="10"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Par défaut Ctrl+Shift+I, actif seulement quand Nodalis tourne. Ctrl+Alt+N reste réservé aux notes rapides." />
         </StackPanel>
 
-        <StackPanel Grid.Row="6"
-                    Margin="0,20,0,0">
+        <ScrollViewer Grid.Row="6"
+                      Margin="0,12,0,0"
+                      VerticalScrollBarVisibility="Auto">
+        <StackPanel>
             <TextBlock Text="Assistant IA local"
                        FontSize="18"
                        FontWeight="SemiBold" />
@@ -127,6 +147,7 @@
                 <TextBox x:Name="AiTimeoutTextBox" Grid.Column="1" MinHeight="30" Padding="6,4" />
             </Grid>
         </StackPanel>
+        </ScrollViewer>
 
         <StackPanel Grid.Row="7"
                     Margin="0,20,0,0"
