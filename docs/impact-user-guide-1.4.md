@@ -132,7 +132,10 @@ présente au milieu d'un réseau de relations.
 - **Annuler le calcul** stoppe le parcours. Les changements de périmètre
   relancent un calcul asynchrone, sans écriture métier.
 - Un cache de graphe **en mémoire**, validé par empreinte du catalogue de
-  liens, évite une reconstruction identique à chaque ouverture. Le registre
+  liens, évite une reconstruction identique à chaque ouverture. Les changements de
+  relations n'invalident que les sources concernées, tandis qu'une suppression
+  ou restauration reconstruit les dépendances touchant le GUID affecté.
+  Le registre
   `.nodalis-links.json` reste la référence des identités ; le cache du
   graphe ne crée aucun nouveau fichier obligatoire.
 - **Aucune IA, aucun cloud et aucun package tiers** ne sont nécessaires.

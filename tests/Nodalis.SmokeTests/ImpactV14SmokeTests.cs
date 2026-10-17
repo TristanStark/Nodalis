@@ -13,6 +13,7 @@ internal static class ImpactV14SmokeTests
         VerifyDiagramBoundaries();
         VerifyMaintenanceProvenance();
         VerifyCacheAndInvalidation();
+        VerifyIncrementalRebuildEquivalence();
     }
 
     /// <summary>Checks arrow direction, graph bounds and context-only labeling.</summary>
@@ -158,6 +159,72 @@ internal static class ImpactV14SmokeTests
         Console.WriteLine("[Impact v1.4] warm graph snapshot x25: " +
             watch.Elapsed.TotalMilliseconds.ToString("F2",
                 System.Globalization.CultureInfo.InvariantCulture) + " ms");
+    }
+
+
+    /// <summary>
+    /// Compares source-targeted invalidation against full reconstruction after
+    /// changed relations, deleted/restored documents and unresolved references.
+    /// </summary>
+    private static void VerifyIncrementalRebuildEquivalence()
+    {
+        Guid a = Guid.NewGuid();
+        Guid b = Guid.NewGuid();
+        Guid c = Guid.NewGuid();
+        LinkIndexCatalog catalog = new()
+        {
+            Targets = [Target(a, "A"), Target(b, "B"), Target(c, "C")],
+            Relations =
+            [
+                Relation(a, b, "dépend de"),
+                Relation(c, b, "teste")
+            ]
+        };
+        ImpactGraphSnapshotCache cache = new();
+        cache.GetOrBuild(catalog);
+        catalog.Relations[0] = Relation(a, c, "implémente");
+        ImpactGraphIndex changed = cache.GetOrBuild(catalog);
+        Assert(cache.PartialRebuildCount == 1 &&
+            cache.LastReindexedSourceCount == 1,
+            "A single edited relation should only rebuild its declaring source.");
+        Equivalent(changed, ImpactGraphIndex.Build(catalog));
+
+        // Missing GUID destinations must be diagnosed without stale ghost edges.
+        catalog.Targets.RemoveAll(item => item.Id == c);
+        ImpactGraphIndex deleted = cache.GetOrBuild(catalog);
+        Equivalent(deleted, ImpactGraphIndex.Build(catalog));
+        Assert(deleted.Diagnostics.Any(item => item.SourceId == a),
+            "Deleting a referenced target must produce a broken-link diagnosis.");
+        catalog.Targets.Add(Target(c, "C restored"));
+        ImpactGraphIndex restored = cache.GetOrBuild(catalog);
+        Equivalent(restored, ImpactGraphIndex.Build(catalog));
+        Assert(!restored.Diagnostics.Any(item => item.SourceId == a),
+            "Restoring a target must recompute previously broken relations.");
+
+        catalog.References.Add(new LinkReferenceEntry
+        {
+            SourceId = a, TargetId = null, RawTarget = "Inconnu",
+            LineNumber = 11, Excerpt = "[[Inconnu]]"
+        });
+        Equivalent(cache.GetOrBuild(catalog), ImpactGraphIndex.Build(catalog));
+    }
+
+    /// <summary>Compares exact IDs, relation semantics and diagnostics for two projections.</summary>
+    /// <param name="actual">Incrementally updated result.</param>
+    /// <param name="expected">Fully rebuilt reference.</param>
+    private static void Equivalent(ImpactGraphIndex actual, ImpactGraphIndex expected)
+    {
+        Assert(actual.Targets.Keys.OrderBy(id => id)
+                .SequenceEqual(expected.Targets.Keys.OrderBy(id => id)) &&
+            actual.Edges.Select(item => (item.Id, item.SourceId, item.TargetId,
+                    item.RelationType, item.Evidence, item.Propagation))
+                .SequenceEqual(expected.Edges.Select(item => (item.Id, item.SourceId,
+                    item.TargetId, item.RelationType, item.Evidence, item.Propagation))) &&
+            actual.Diagnostics.Select(item => (item.SourceId, item.LineNumber,
+                    item.RawTarget, item.Message))
+                .SequenceEqual(expected.Diagnostics.Select(item =>
+                    (item.SourceId, item.LineNumber, item.RawTarget, item.Message))),
+            "Incremental graph differs from a complete reconstruction.");
     }
 
     /// <summary>Creates a stable document fixture.</summary>
