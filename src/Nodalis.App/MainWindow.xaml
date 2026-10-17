@@ -83,6 +83,8 @@
                         <Separator />
                         <MenuItem Header="Note rapide"
                                   Click="CaptureQuickNote_Click" />
+                        <MenuItem Header="Capture Inbox"
+                                  Click="CaptureInbox_Click" />
                         <MenuItem Header="Extraire une réunion"
                                   Click="ExtractMeeting_Click" />
                     </MenuItem>
@@ -106,6 +108,8 @@
                     <MenuItem Header="Connaissance">
                         <MenuItem Header="Notes rapides"
                                   Click="ShowQuickNotes_Click" />
+                        <MenuItem Header="Inbox"
+                                  Click="OpenInbox_Click" />
                         <MenuItem Header="Journal"
                                   Click="ShowDailyNotes_Click" />
                         <MenuItem Header="Panneau Contexte"
@@ -593,6 +597,14 @@
                                     VerticalAlignment="Top"
                                     Click="ClearRecentHistory_Click"
                                     Content="Effacer l'historique" />
+                            <Button x:Name="InboxDashboardButton"
+                                    DockPanel.Dock="Right"
+                                    Content="Inbox (0)"
+                                    Margin="8,0,0,0"
+                                    Padding="10,5"
+                                    VerticalAlignment="Top"
+                                    ToolTip="Ouvrir la boîte de réception"
+                                    Click="OpenInbox_Click" />
                             <StackPanel>
                                 <TextBlock Text="Reprendre le travail"
                                            FontSize="28"

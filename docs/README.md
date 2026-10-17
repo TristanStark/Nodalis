@@ -76,3 +76,6 @@ matrice ou disposer d'un document dédié avant la release stable.
 
 - [Inbox 1.1 — capture explicite du presse-papiers et des fichiers](inbox-capture.md) :
   formats pris en charge, limites, sélection et absence de capture silencieuse.
+
+- [Inbox 1.1 — vue de tri](inbox-triage.md) :
+  recherche, filtres, aperçu, actions par lot, corbeille et compteur de dashboard.

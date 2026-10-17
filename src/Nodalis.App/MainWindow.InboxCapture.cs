@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using Nodalis.App.Commands;
 using Nodalis.App.Dialogs;
@@ -126,6 +127,7 @@ public partial class MainWindow
 
             StatusText.Text = "Capture Inbox enregistrée · " +
                 created.CreatedUtc.ToLocalTime().ToString("HH:mm");
+            await RefreshInboxDashboardCountAsync();
         }
         finally
         {
@@ -147,5 +149,65 @@ public partial class MainWindow
 
             _inboxCaptureOpen = false;
         }
+    }
+
+    /// <summary>Opens the native Inbox triage window from workspace navigation.</summary>
+    /// <param name="sender">Clicked control.</param>
+    /// <param name="e">Routed click event.</param>
+    private async void OpenInbox_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync("Inbox · consulter", ShowInboxAsync);
+    }
+
+    /// <summary>Opens the Inbox capture dialog from a menu command.</summary>
+    /// <param name="sender">Clicked control.</param>
+    /// <param name="e">Routed click event.</param>
+    private async void CaptureInbox_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync("Inbox · capturer", ShowInboxCaptureAsync);
+    }
+
+    /// <summary>Shows the dedicated Inbox window without changing workspaces.</summary>
+    /// <returns>Task representing the user action.</returns>
+    private async Task ShowInboxAsync()
+    {
+        if (_workspaceReadOnly)
+        {
+            StatusText.Text = "Inbox indisponible dans le mode de secours en lecture seule.";
+            return;
+        }
+
+        InboxDialog dialog = new InboxDialog(_root.FullPath)
+        {
+            Owner = this
+        };
+
+        dialog.ShowDialog();
+        if (dialog.WorkspaceChanged)
+        {
+            StatusText.Text = "Inbox mise à jour.";
+        }
+
+        await RefreshInboxDashboardCountAsync();
+    }
+
+    /// <summary>Refreshes the discreet count of unprocessed captures.</summary>
+    /// <returns>Task for the asynchronous workspace-local count.</returns>
+    private async Task RefreshInboxDashboardCountAsync()
+    {
+        if (_workspaceReadOnly)
+        {
+            InboxDashboardButton.Content = "Inbox";
+            return;
+        }
+
+        WorkspaceInboxService service = new WorkspaceInboxService(_root.FullPath);
+        InboxReadResult result = await service.ReadAllAsync();
+        int pendingCount = result.Entries.Count(entry =>
+            entry.State == InboxItemState.Pending);
+        InboxDashboardButton.Content = "Inbox (" + pendingCount + ")";
+        InboxDashboardButton.ToolTip = result.Warnings.Count > 0
+            ? result.Warnings.Count + " avertissement(s), ouvrir Inbox pour détails."
+            : "Captures non traitées · ouvrir Inbox";
     }
 }

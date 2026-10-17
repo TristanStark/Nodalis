@@ -247,6 +247,7 @@ public partial class MainWindow : Window
                 UpdateGlossaryAnnotations();
                 await RefreshDashboardTasksAsync();
                 await RefreshDashboardMilestonesAsync();
+                await RefreshInboxDashboardCountAsync();
                 await RestoreDocumentTabsAsync();
                 await RestoreEditorSplitAsync();
                 _backupTimer.Start();
@@ -4751,6 +4752,14 @@ public partial class MainWindow : Window
                 Subtitle = "Projet → Application → Global",
                 Keywords = ["glossaire", "définition", "terme", "acronyme", "synonyme"],
                 ExecuteAsync = ShowGlossaryAsync
+            },
+            new()
+            {
+                Id = "inbox.view",
+                Title = "Ouvrir Inbox",
+                Subtitle = "Rechercher, classer et restaurer les captures",
+                Keywords = ["inbox", "boîte de réception", "trier", "captures"],
+                ExecuteAsync = ShowInboxAsync
             },
             new()
             {
