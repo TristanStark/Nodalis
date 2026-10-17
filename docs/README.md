@@ -87,6 +87,8 @@ matrice ou disposer d'un document dédié avant la release stable.
 
 - [Contrat Markdown des incidents et interventions](maintenance-markdown-1.2.md) :
   identité stable, lecture ancienne/nouvelle, liens, diagnostics et ajout non destructif.
+- [Saisie et modification des interventions](maintenance-interventions-1.2-guide.md) :
+  formulaire compact, liens vers incidents, Command Palette, sauvegarde et reprise des conflits.
 
 ## Nodalis 1.1 — documentation de sortie
 
