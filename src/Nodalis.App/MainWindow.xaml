@@ -465,14 +465,30 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="32" />
                         </Grid.ColumnDefinitions>
-                        <TextBox x:Name="WorktreeFilterBox"
-                                 Grid.Row="0" Grid.Column="0"
-                                 Margin="0,0,4,0"
-                                 Height="31" MinHeight="31"
-                                 VerticalContentAlignment="Center"
-                                 ToolTip="Filtrer instantanément les noms de l'explorateur"
-                                 AutomationProperties.Name="Filtrer les éléments de l'explorateur"
-                                 TextChanged="WorktreeFilterBox_TextChanged" />
+                        <Grid Grid.Row="0" Grid.Column="0" Margin="0,0,4,0">
+                            <TextBox x:Name="WorktreeFilterBox"
+                                     Height="31" MinHeight="31"
+                                     VerticalContentAlignment="Center"
+                                     ToolTip="Filtrer instantanément les noms de l'explorateur"
+                                     AutomationProperties.Name="Filtrer les éléments de l'explorateur"
+                                     TextChanged="WorktreeFilterBox_TextChanged" />
+                            <TextBlock Text="Filtrer…"
+                                       Margin="10,0,4,0"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Foreground="{StaticResource SecondaryTextBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=WorktreeFilterBox}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                         <Button Grid.Row="0" Grid.Column="1"
                                 Style="{StaticResource WorktreeHeaderButtonStyle}"
                                 Width="32" Height="31" MinHeight="31"
@@ -519,10 +535,26 @@
                             <ListBox x:Name="WorktreeFavoritesList"
                                      MaxHeight="135"
                                      FontSize="12"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      ToolTip="Double-cliquer ou appuyer sur Entrée pour ouvrir"
                                      MouseDoubleClick="WorktreeShortcutList_MouseDoubleClick"
-                                     KeyDown="WorktreeShortcutList_KeyDown"
-                                     DisplayMemberPath="DisplayName" />
+                                     KeyDown="WorktreeShortcutList_KeyDown">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type navigation:QuickOpenEntry}">
+                                        <StackPanel ToolTip="{Binding QualifiedPath}"
+                                                    Margin="2,2,2,3">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding QualifiedPath}"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       FontSize="10"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
                         </Expander>
                         <Expander x:Name="WorktreeRecentsExpander"
                                   Header="◷ Documents récents"
@@ -533,10 +565,26 @@
                             <ListBox x:Name="WorktreeRecentsList"
                                      MaxHeight="135"
                                      FontSize="12"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      ToolTip="Double-cliquer ou appuyer sur Entrée pour ouvrir"
                                      MouseDoubleClick="WorktreeShortcutList_MouseDoubleClick"
-                                     KeyDown="WorktreeShortcutList_KeyDown"
-                                     DisplayMemberPath="DisplayName" />
+                                     KeyDown="WorktreeShortcutList_KeyDown">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type navigation:QuickOpenEntry}">
+                                        <StackPanel ToolTip="{Binding QualifiedPath}"
+                                                    Margin="2,2,2,3">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding QualifiedPath}"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       FontSize="10"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
                         </Expander>
                     </StackPanel>
 

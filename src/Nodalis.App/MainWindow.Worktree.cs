@@ -72,8 +72,8 @@ public partial class MainWindow
             return;
         }
 
-        EnsureWorktreeNodeIsVisible(target);
         _selectedNode = target;
+        EnsureWorktreeNodeIsVisible(target);
         target.IsSelected = true;
         ScheduleRevealTreeItem(target);
         ScheduleWorktreeP1Refresh();
@@ -115,6 +115,7 @@ public partial class MainWindow
     /// <param name="node">Target item.</param>
     private void ScheduleRevealTreeItem(NavigationNodeViewModel node)
     {
+        EnsureWorktreeNodeIsVisible(node);
         Dispatcher.BeginInvoke(
             DispatcherPriority.Loaded,
             new Action(() => RunUiAction(

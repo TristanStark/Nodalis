@@ -379,7 +379,6 @@ public partial class MainWindow
             return;
         }
 
-        EnsureWorktreeNodeIsVisible(node);
         RevealNavigationNode(node);
         await DisplayNodeAsync(node);
     }
