@@ -33,6 +33,22 @@ internal static class InboxDuplicateFingerprint
         // but never strips meaningful internal whitespace from captured content.
         string normalized = markdown.Trim().Replace("\r\n", "\n")
             .Replace('\r', '\n');
+        if (kind == InboxCaptureKind.File && files.Count > 0)
+        {
+            // The file-picker automatically generates a Markdown summary in
+            // selection order. It must not defeat duplicate detection when
+            // the same files are selected in the opposite order.
+            string generated = InboxCaptureClassifier.FormatFileSummary(
+                files.Select(item => item.Name).ToArray()).Trim();
+            if (string.Equals(normalized, generated, StringComparison.Ordinal))
+            {
+                normalized = "Fichiers sélectionnés :\n\n" +
+                    string.Join("\n", files.Select(item =>
+                        item.Name.ToUpperInvariant())
+                        .OrderBy(name => name, StringComparer.Ordinal));
+            }
+        }
+
         if (Encoding.UTF8.GetByteCount(normalized) > 2 * 1024 * 1024)
         {
             throw new InvalidDataException("La capture texte dépasse 2 Mio.");
@@ -68,7 +84,11 @@ internal static class InboxDuplicateFingerprint
                 throw new IOException("Pièce jointe agrandie pendant la lecture.");
             }
 
-            digests.Add((fileName.ToUpperInvariant(), Convert.ToHexString(fileDigest)));
+            // Clipboard bitmaps are staged under a random Nodalis-Inbox GUID
+            // filename. Their bytes, not that temporary name, define duplicates.
+            string normalizedName = kind == InboxCaptureKind.Image
+                ? "CLIPBOARD-IMAGE.PNG" : fileName.ToUpperInvariant();
+            digests.Add((normalizedName, Convert.ToHexString(fileDigest)));
         }
 
         foreach ((string name, string digest) in digests

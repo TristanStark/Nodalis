@@ -10,9 +10,11 @@ doublons sont lancées **uniquement après « Enregistrer »**.
 Les captures récentes (fenêtre standard **7 jours**, configurable en API
 entre >0 et 30 jours) sont comparées avec SHA-256. L'empreinte tient
 compte du type (Texte/Lien/Image/Fichier), du texte avec retours ligne
-normalisés et des noms/contenus des pièces jointes. L'ordre de sélection
-des pièces jointes et leur nom de stockage GUID n'influencent pas
-l'empreinte. La provenance n'influence pas la détection.
+normalisés et des noms/contenus des pièces jointes. Les résumés Markdown produits
+automatiquement pour une sélection de fichiers sont normalisés afin que
+l'ordre de sélection n'influence pas l'empreinte. Pour les images du
+presse-papiers, le nom PNG temporaire aléatoire ne participe jamais à
+l'empreinte : seuls le type, le texte et les octets PNG comptent. La provenance n'influence pas la détection.
 
 - Les nouvelles captures stockent `fingerprintSha256` dans `item.json`.
 - Les anciennes captures dépourvues de champ sont comparées à la demande
@@ -67,7 +69,8 @@ et les liens symboliques imbriqués.
 - même contenu/type, autre type, contenu modifié et fenêtre courte ;
 - métadonnées héritées sans empreinte ;
 - détection en corbeille, restauration et sauvegarde volontaire du doublon ;
-- pièces jointes identiques réordonnées et contenu modifié ;
+- pièces jointes identiques réordonnées, résumés automatiques réordonnés,
+  noms PNG temporaires différents pour un même bitmap, et octets modifiés ;
 - refus d'extension dangereuse et de fichier >25 Mio ;
 - disparition de pièce jointe : absence de publication partielle,
   quarantaine récupérable ; annulation avant publication ;

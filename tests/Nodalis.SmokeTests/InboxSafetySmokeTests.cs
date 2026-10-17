@@ -91,6 +91,42 @@ internal static class InboxSafetySmokeTests
         Assert((await inbox.FindProbableDuplicatesAsync(reordered))
                 .Any(candidate => candidate.Id == withFiles.Id),
             "Attachment selection order and random stored names must not affect hash.");
+        InboxCaptureRequest generatedSummary = files with
+        {
+            ContentMarkdown = InboxCaptureClassifier.FormatFileSummary(
+                files.AttachmentSourcePaths)
+        };
+        InboxEntry summaryCapture = await inbox.CaptureAsync(generatedSummary);
+        InboxCaptureRequest generatedReordered = reordered with
+        {
+            ContentMarkdown = InboxCaptureClassifier.FormatFileSummary(
+                reordered.AttachmentSourcePaths)
+        };
+        Assert((await inbox.FindProbableDuplicatesAsync(generatedReordered))
+                .Any(candidate => candidate.Id == summaryCapture.Id),
+            "Automatically generated file summaries must normalize selection order.");
+
+        string bitmapA = Path.Combine(root,
+            "Nodalis-Inbox-" + Guid.NewGuid().ToString("N") + ".png");
+        string bitmapB = Path.Combine(root,
+            "Nodalis-Inbox-" + Guid.NewGuid().ToString("N") + ".png");
+        await File.WriteAllBytesAsync(bitmapA, [137, 80, 78, 71, 3, 5, 7]);
+        await File.WriteAllBytesAsync(bitmapB, [137, 80, 78, 71, 3, 5, 7]);
+        InboxCaptureRequest clipboardA = new InboxCaptureRequest
+        {
+            Kind = InboxCaptureKind.Image,
+            ContentMarkdown = "Image importée depuis le presse-papiers.",
+            AttachmentSourcePaths = [bitmapA]
+        };
+        InboxEntry imageCopy = await inbox.CaptureAsync(clipboardA);
+        InboxCaptureRequest clipboardB = clipboardA with
+        {
+            AttachmentSourcePaths = [bitmapB]
+        };
+        Assert((await inbox.FindProbableDuplicatesAsync(clipboardB))
+                .Any(candidate => candidate.Id == imageCopy.Id),
+            "Clipboard images must match by pixels/PNG bytes despite random temporary names.");
+
         await File.WriteAllTextAsync(attachmentB, "{\"ok\":false}");
         Assert(!(await inbox.FindProbableDuplicatesAsync(reordered))
                 .Any(candidate => candidate.Id == withFiles.Id),
@@ -145,7 +181,7 @@ internal static class InboxSafetySmokeTests
             importFailed = true;
         }
 
-        Assert(importFailed && (await inbox.ReadAllAsync()).Entries.Count == 3,
+        Assert(importFailed && (await inbox.ReadAllAsync()).Entries.Count == 5,
             "Failed import must not publish an incomplete capture.");
         Assert(Directory.GetDirectories(Path.Combine(root, "Inbox", "Quarantaine")).Length > 0,
             "Interrupted staging must be recoverable in quarantine.");
@@ -163,7 +199,7 @@ internal static class InboxSafetySmokeTests
         }
 
         Assert(cancellationCaught &&
-            (await inbox.ReadAllAsync()).Entries.Count == 3,
+            (await inbox.ReadAllAsync()).Entries.Count == 5,
             "Canceled capture cannot publish a duplicate or lose existing content.");
 
         // A malicious attachment path must never be followed outside its item.
