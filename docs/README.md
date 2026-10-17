@@ -65,3 +65,8 @@ des guides dédiés plus détaillés.
 
 Toute nouvelle fonctionnalité majeure destinée à 1.0 doit être ajoutée à cette
 matrice ou disposer d'un document dédié avant la release stable.
+
+## Extensions après 1.0 (en cours)
+
+- [Inbox 1.1 — format, sécurité et récupération](inbox-persistence-v1.md) :
+  contrat de stockage des captures, indépendant des notes rapides historiques.

@@ -53,6 +53,7 @@ string root = Path.Combine(
 try
 {
     await VerifyWorkspacePersistenceAsync(root);
+    await InboxPersistenceSmokeTests.RunAsync(root);
     await VerifyWorkspaceNavigationAsync(root);
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
