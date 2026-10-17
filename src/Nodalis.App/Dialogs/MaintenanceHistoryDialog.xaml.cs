@@ -24,6 +24,7 @@ public partial class MaintenanceHistoryDialog : Window
     private readonly IReadOnlyList<MaintenanceHistoryScope> _scopes;
     private readonly IReadOnlyList<string> _loadErrors;
     private bool _ready;
+    private IReadOnlyList<MaintenanceHistoryItem> _filteredInterventions = [];
 
     /// <summary>Builds the contextual history browser from already indexed Markdown.</summary>
     /// <param name="scopes">Available project/application scopes.</param>
@@ -59,10 +60,13 @@ public partial class MaintenanceHistoryDialog : Window
             {
                 InterventionsList.SelectedItem = null;
             }
+
+            UpdateRelatedInterventions();
         };
         InterventionsList.SelectionChanged += (_, _) =>
         {
-            if (InterventionsList.SelectedItem is not null)
+            if (InterventionsList.SelectedItem is not null &&
+                LinkedOnlyCheckBox.IsChecked != true)
             {
                 IncidentsList.SelectedItem = null;
             }
@@ -151,10 +155,17 @@ public partial class MaintenanceHistoryDialog : Window
             .Where(entry => entry.Kind == MaintenanceRecordKind.Incident).ToArray();
         MaintenanceHistoryItem[] interventions = filtered
             .Where(entry => entry.Kind == MaintenanceRecordKind.Intervention).ToArray();
+        string? incidentId = (IncidentsList.SelectedItem as MaintenanceHistoryItem)?.Id;
         IncidentsList.ItemsSource = incidents;
-        InterventionsList.ItemsSource = interventions;
+        if (incidentId is not null)
+        {
+            IncidentsList.SelectedItem = incidents.FirstOrDefault(item =>
+                string.Equals(item.Id, incidentId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        _filteredInterventions = interventions;
+        UpdateRelatedInterventions();
         IncidentTitleText.Text = "Incidents (" + incidents.Length + ")";
-        InterventionTitleText.Text = "Interventions (" + interventions.Length + ")";
         int missingDates = filtered.Count(entry => !entry.Date.HasValue);
         int incomplete = filtered.Count(entry => entry.IsIncomplete);
         SummaryText.Text = $"{filtered.Count} résultat(s) sur {scope.Entries.Count} entrée(s) · " +
@@ -164,6 +175,39 @@ public partial class MaintenanceHistoryDialog : Window
             (_loadErrors.Count > 0
                 ? $"{_loadErrors.Count} fichier(s) inaccessible(s) : " +
                     string.Join(" ; ", _loadErrors.Take(3)) : "");
+    }
+
+    /// <summary>Updates related records when the user enables or disables incident context filtering.</summary>
+    /// <param name="sender">Related-only checkbox.</param>
+    /// <param name="e">Checkbox event.</param>
+    private void RelatedFilterChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateRelatedInterventions();
+    }
+
+    /// <summary>
+    /// Narrows the intervention list to the selected incident without reloading files
+    /// or discarding unrelated results from the in-memory projection.
+    /// </summary>
+    private void UpdateRelatedInterventions()
+    {
+        if (!_ready)
+        {
+            return;
+        }
+
+        MaintenanceHistoryItem? incident = IncidentsList.SelectedItem as MaintenanceHistoryItem;
+        bool relatedOnly = LinkedOnlyCheckBox.IsChecked == true &&
+            !string.IsNullOrWhiteSpace(incident?.Id);
+        MaintenanceHistoryItem[] shown = relatedOnly
+            ? _filteredInterventions.Where(item =>
+                string.Equals(item.IncidentId, incident!.Id,
+                    StringComparison.OrdinalIgnoreCase)).ToArray()
+            : _filteredInterventions.ToArray();
+
+        InterventionsList.ItemsSource = shown;
+        InterventionTitleText.Text = "Interventions (" + shown.Length + ")" +
+            (relatedOnly ? " · incident sélectionné" : "");
     }
 
     /// <summary>Returns the selected entry from either list, never one from an old search.</summary>
