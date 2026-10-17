@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Nodalis.Core.Inbox;
 using Nodalis.Core.Maintenance;
+using Nodalis.Infrastructure.Inbox;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Reliability;
 
