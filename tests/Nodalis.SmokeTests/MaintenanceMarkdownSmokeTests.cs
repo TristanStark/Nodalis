@@ -101,7 +101,9 @@ internal static class MaintenanceMarkdownSmokeTests
                 .Any(item => item.Message.Contains("manquant", StringComparison.OrdinalIgnoreCase)),
             "An intervention referencing a deleted incident must remain visible as a diagnostic.");
 
-        string duplicate = updated + "\r\n" + updated[updated.IndexOf("### Incident", StringComparison.Ordinal)..];
+        int incidentStart = updated.LastIndexOf("### Incident\r\n", StringComparison.Ordinal);
+        int interventionStart = updated.LastIndexOf("### Intervention\r\n", StringComparison.Ordinal);
+        string duplicate = updated + "\r\n" + updated[incidentStart..interventionStart];
         Assert(MaintenanceMarkdownCodec.Parse(duplicate).Diagnostics
                 .Any(item => item.Message.Contains("double", StringComparison.OrdinalIgnoreCase)),
             "Duplicate incident IDs must be reported.");
