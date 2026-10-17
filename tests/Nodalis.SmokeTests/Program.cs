@@ -55,6 +55,7 @@ try
     await VerifyWorkspacePersistenceAsync(root);
     await InboxPersistenceSmokeTests.RunAsync(root);
     await VerifyWorkspaceNavigationAsync(root);
+    NavigationWorktreeSmokeTests.Run();
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
     await VerifyProjectStructureAsync(root);

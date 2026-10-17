@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:navigation="clr-namespace:Nodalis.App.Navigation"
+        xmlns:coreNavigation="clr-namespace:Nodalis.Core.Navigation;assembly=Nodalis.Core"
         xmlns:editor="clr-namespace:Nodalis.App.Editor"
         Title="Nodalis"
         Icon="Assets/Nodalis.ico"
@@ -12,18 +13,225 @@
         WindowStartupLocation="CenterScreen"
         PreviewKeyDown="MainWindow_PreviewKeyDown">
     <Window.Resources>
+        <!-- Purely presentational: hidden grouping nodes still exist in the canonical tree. -->
         <HierarchicalDataTemplate DataType="{x:Type navigation:NavigationNodeViewModel}"
-                                  ItemsSource="{Binding Children}">
-            <TextBlock Text="{Binding DisplayName}"
-                       TextTrimming="CharacterEllipsis" />
+                                  ItemsSource="{Binding VisibleChildren}">
+            <Grid HorizontalAlignment="Stretch"
+                  Margin="0,1"
+                  ToolTip="{Binding DisplayName}"
+                  ToolTipService.InitialShowDelay="250"
+                  ToolTipService.ShowDuration="20000">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="NodeIcon"
+                           Grid.Column="0"
+                           FontFamily="Segoe MDL2 Assets"
+                           FontSize="14"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="{Binding NavigationGlyph}" />
+                <TextBlock x:Name="NodeText"
+                           Grid.Column="1"
+                           MinHeight="19"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource PrimaryTextBrush}"
+                           Text="{Binding DisplayName}"
+                           TextTrimming="CharacterEllipsis"
+                           TextWrapping="NoWrap" />
+            </Grid>
+            <HierarchicalDataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Kind}"
+                             Value="{x:Static coreNavigation:WorkspaceNodeKind.Application}">
+                    <Setter TargetName="NodeIcon" Property="Foreground"
+                            Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="NodeText" Property="Foreground"
+                            Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="NodeText" Property="FontWeight"
+                            Value="SemiBold" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}"
+                             Value="{x:Static coreNavigation:WorkspaceNodeKind.Global}">
+                    <Setter TargetName="NodeIcon" Property="Foreground"
+                            Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="NodeText" Property="FontWeight"
+                            Value="SemiBold" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}"
+                             Value="{x:Static coreNavigation:WorkspaceNodeKind.Project}">
+                    <Setter TargetName="NodeIcon" Property="Foreground"
+                            Value="{StaticResource NavigationProjectBrush}" />
+                    <Setter TargetName="NodeText" Property="FontWeight"
+                            Value="SemiBold" />
+                    <Setter TargetName="NodeText" Property="TextWrapping" Value="Wrap" />
+                    <Setter TargetName="NodeText" Property="MaxHeight" Value="38" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}"
+                             Value="{x:Static coreNavigation:WorkspaceNodeKind.Document}">
+                    <Setter TargetName="NodeIcon" Property="Foreground"
+                            Value="{StaticResource NavigationDocumentBrush}" />
+                </DataTrigger>
+            </HierarchicalDataTemplate.Triggers>
         </HierarchicalDataTemplate>
 
-        <Style TargetType="TreeViewItem"
+        <!-- Native WPF row template: 11px indentation, persistent full-row selection,
+             visible project enclosure and connected guide, no stock white highlight. -->
+        <Style x:Key="WorktreeExpanderStyle" TargetType="ToggleButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Width" Value="15" />
+            <Setter Property="Height" Value="25" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid Background="Transparent">
+                            <Path x:Name="Chevron"
+                                  Width="6" Height="10"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Stroke="{StaticResource SecondaryTextBrush}"
+                                  StrokeThickness="1.7"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Data="M 1,1 L 5,5 L 1,9" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chevron" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <RotateTransform Angle="90" CenterX="3" CenterY="5" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chevron" Property="Stroke"
+                                        Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="{x:Type TreeViewItem}"
                BasedOn="{StaticResource {x:Type TreeViewItem}}">
-            <Setter Property="IsExpanded"
-                    Value="{Binding IsExpanded, Mode=TwoWay}" />
-            <Setter Property="IsSelected"
-                    Value="{Binding IsSelected, Mode=TwoWay}" />
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="5,3" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="3,0,0,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TreeViewItem}">
+                        <Border x:Name="ProjectFrame"
+                                BorderBrush="Transparent"
+                                BorderThickness="0"
+                                Background="Transparent"
+                                CornerRadius="7"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Border x:Name="RowSurface"
+                                        Grid.Row="0"
+                                        Padding="{TemplateBinding Padding}"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="4"
+                                        MinHeight="{TemplateBinding MinHeight}"
+                                        SnapsToDevicePixels="True">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="15" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ToggleButton x:Name="Expander"
+                                                      Grid.Column="0"
+                                                      Style="{StaticResource WorktreeExpanderStyle}"
+                                                      IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" />
+                                        <ContentPresenter x:Name="PART_Header"
+                                                          Grid.Column="1"
+                                                          ContentSource="Header"
+                                                          HorizontalAlignment="Stretch"
+                                                          VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                                <Border x:Name="ChildrenGuide"
+                                        Grid.Row="1"
+                                        Margin="11,0,0,0"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="1,0,0,0">
+                                    <ItemsPresenter x:Name="ItemsHost" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="HasItems" Value="False">
+                                <Setter TargetName="Expander" Property="Visibility" Value="Hidden" />
+                            </Trigger>
+                            <Trigger Property="IsExpanded" Value="False">
+                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed" />
+                            </Trigger>
+                            <Trigger SourceName="RowSurface" Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowSurface" Property="Background"
+                                        Value="{StaticResource PanelHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowSurface" Property="Background"
+                                        Value="{StaticResource AccentMutedBrush}" />
+                                <Setter TargetName="RowSurface" Property="BorderBrush"
+                                        Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="RowSurface" Property="BorderBrush"
+                                        Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="RowSurface" Property="BorderThickness"
+                                        Value="3,1,1,1" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding Kind}"
+                                         Value="{x:Static coreNavigation:WorkspaceNodeKind.Project}">
+                                <Setter TargetName="ProjectFrame" Property="Background"
+                                        Value="{StaticResource PanelElevatedBrush}" />
+                                <Setter TargetName="ProjectFrame" Property="BorderBrush"
+                                        Value="{StaticResource BorderBrush}" />
+                                <Setter TargetName="ProjectFrame" Property="BorderThickness"
+                                        Value="1" />
+                                <Setter TargetName="ChildrenGuide" Property="BorderBrush"
+                                        Value="{StaticResource NavigationGuideBrush}" />
+                                <Setter TargetName="RowSurface" Property="MinHeight"
+                                        Value="33" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Kind}"
+                             Value="{x:Static coreNavigation:WorkspaceNodeKind.Project}">
+                    <Setter Property="Margin" Value="2,5,2,5" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}"
+                             Value="{x:Static coreNavigation:WorkspaceNodeKind.Application}">
+                    <Setter Property="Margin" Value="0,7,0,2" />
+                    <Setter Property="MinHeight" Value="33" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}"
+                             Value="{x:Static coreNavigation:WorkspaceNodeKind.Global}">
+                    <Setter Property="MinHeight" Value="33" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
 
@@ -173,12 +381,25 @@
                     BorderThickness="0,0,1,0"
                     Padding="10">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top"
-                               Text="NAVIGATION"
-                               Margin="4,4,0,10"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource SecondaryTextBrush}" />
+                    <Grid DockPanel.Dock="Top" Margin="4,1,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="EXPLORATEUR" VerticalAlignment="Center"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                        <Button Grid.Column="1" Content="↗" Width="28" Height="27"
+                                Margin="0,0,4,0"
+                                Click="RevealActiveDocument_Click"
+                                ToolTip="Révéler le document actif dans l'arbre"
+                                AutomationProperties.Name="Révéler le document actif dans l'explorateur" />
+                        <Button Grid.Column="2" Content="+" Width="28" Height="27"
+                                Click="CreateApplication_Click"
+                                ToolTip="Nouvelle application"
+                                AutomationProperties.Name="Créer une application" />
+                    </Grid>
 
                     <StackPanel DockPanel.Dock="Bottom"
                                 Margin="0,10,0,0">

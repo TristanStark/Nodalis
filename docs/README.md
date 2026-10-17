@@ -79,3 +79,6 @@ matrice ou disposer d'un document dédié avant la release stable.
 
 - [Inbox 1.1 — vue de tri](inbox-triage.md) :
   recherche, filtres, aperçu, actions par lot, corbeille et compteur de dashboard.
+
+- [Refonte UX de l'explorateur (worktree) — #122](worktree-navigation.md) :
+  hiérarchie aplatie visuellement, cartes projets, sélection et contrôles de validation Windows.

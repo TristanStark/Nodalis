@@ -12,6 +12,10 @@
     <Color x:Key="DisabledTextColor">#747C89</Color>
     <Color x:Key="AccentColor">#7AA2F7</Color>
     <Color x:Key="AccentMutedColor">#31466F</Color>
+    <!-- Navigation semantic accents: consistent by node type, never project-specific. -->
+    <Color x:Key="NavigationProjectColor">#AF9BF1</Color>
+    <Color x:Key="NavigationDocumentColor">#C0C8D7</Color>
+    <Color x:Key="NavigationGuideColor">#665A88</Color>
 
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource WindowBackgroundColor}" />
     <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{StaticResource PanelBackgroundColor}" />
@@ -23,6 +27,9 @@
     <SolidColorBrush x:Key="DisabledTextBrush" Color="{StaticResource DisabledTextColor}" />
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
     <SolidColorBrush x:Key="AccentMutedBrush" Color="{StaticResource AccentMutedColor}" />
+    <SolidColorBrush x:Key="NavigationProjectBrush" Color="{StaticResource NavigationProjectColor}" />
+    <SolidColorBrush x:Key="NavigationDocumentBrush" Color="{StaticResource NavigationDocumentColor}" />
+    <SolidColorBrush x:Key="NavigationGuideBrush" Color="{StaticResource NavigationGuideColor}" />
 
     <!--
         Keyboard focus must remain obvious independently from the Windows theme.

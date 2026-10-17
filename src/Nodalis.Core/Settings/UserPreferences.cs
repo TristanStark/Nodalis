@@ -34,6 +34,9 @@ public sealed record UserPreferences
 
     public Guid? ActiveDocumentTabId { get; init; }
 
+    /// <summary>Last selected worktree node; optional and local to this PC.</summary>
+    public Guid? ActiveNavigationNodeId { get; init; }
+
     public Dictionary<string, string> ShortcutOverrides { get; init; } =
         new(StringComparer.OrdinalIgnoreCase);
 
