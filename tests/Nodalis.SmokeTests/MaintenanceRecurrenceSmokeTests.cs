@@ -56,7 +56,8 @@ internal static class MaintenanceRecurrenceSmokeTests
         ];
         string[] actual = suggestions.Select(item =>
             Pair(item.First.Id!, item.Second.Id!)).ToArray();
-        int truePositives = actual.Count(positives.Contains);
+        int truePositives = actual.Count(pair =>
+            positives.Contains(pair, StringComparer.OrdinalIgnoreCase));
         int falsePositives = actual.Length - truePositives;
         int falseNegatives = positives.Length - truePositives;
         Assert(truePositives == 2 && falsePositives == 0 && falseNegatives == 0,
