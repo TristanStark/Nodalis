@@ -9,7 +9,6 @@ using Nodalis.Infrastructure.Inbox;
 using Nodalis.Infrastructure.Maintenance;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
-using Nodalis.Infrastructure.Templates;
 
 /// <summary>
 /// Release-level safety and compatibility fixtures for maintenance 1.2:
@@ -24,7 +23,10 @@ internal static class MaintenanceReleaseQualificationSmokeTests
     public static async Task RunAsync(string root)
     {
         string workspace = Path.Combine(root, "maintenance-release-v12");
-        Directory.CreateDirectory(workspace);
+        // Create a real version-1 workspace, including the canonical manifest,
+        // while keeping this fixture isolated from all user workspaces.
+        await new FileSystemWorkspaceStore(workspace).InitializeAsync(
+            "Qualification maintenance 1.2");
         string appRoot = Path.Combine(workspace, "Applications", "Application Héritée");
         Directory.CreateDirectory(appRoot);
         Guid applicationId = Guid.NewGuid();
@@ -36,9 +38,6 @@ internal static class MaintenanceReleaseQualificationSmokeTests
                     Name = "Application Héritée"
                 }));
 
-        // Simulate the 1.0 workspace template registry required by the project creator.
-        // This setup affects only the workspace-level template catalog, not the project.
-        await new FileSystemTemplateStore(workspace).InitializeDefaultsAsync();
         FileSystemProjectCreator creator = new FileSystemProjectCreator(workspace);
         ProjectCreationResult created = await creator.CreateAsync(
             new ProjectCreationRequest
