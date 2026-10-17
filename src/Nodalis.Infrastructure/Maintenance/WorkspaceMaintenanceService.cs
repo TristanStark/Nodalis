@@ -83,4 +83,32 @@ public sealed class WorkspaceMaintenanceService
         return session.Content;
     }
 
+
+    /// <summary>
+    /// Inserts a declared typed relation using stable document identity, a checked
+    /// maintenance-block fingerprint, and atomic revision-controlled persistence.
+    /// </summary>
+    /// <param name="record">Snapshot of the selected source record.</param>
+    /// <param name="type">User-chosen relation type.</param>
+    /// <param name="targetId">Current document GUID.</param>
+    /// <param name="label">Human-readable target name.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Saved Markdown text, or unchanged text if this exact link already exists.</returns>
+    public async Task<string> AddRelationAsync(MaintenanceHistoryItem record,
+        string type, Guid targetId, string label,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        TextDocumentSession session = await TextDocumentSession.OpenAsync(
+            record.SourcePath, cancellationToken);
+        string updated = MaintenanceRelationEditor.Add(session.Content,
+            record, type, targetId, label);
+        if (!string.Equals(updated, session.Content, StringComparison.Ordinal))
+        {
+            await session.SaveAsync(updated, cancellationToken);
+        }
+
+        return session.Content;
+    }
+
 }
