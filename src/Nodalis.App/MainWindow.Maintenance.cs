@@ -72,8 +72,10 @@ public partial class MainWindow
 
     /// <summary>Creates or edits a structured block without ever bypassing autosave or conflicts.</summary>
     /// <param name="editExisting">Whether to select a current intervention first.</param>
+    /// <param name="selected">Optional exact history entry chosen from the timeline.</param>
     /// <returns>A task representing the user action.</returns>
-    private async Task EditMaintenanceHistoryAsync(bool editExisting)
+    private async Task EditMaintenanceHistoryAsync(
+        bool editExisting, MaintenanceHistoryItem? selected = null)
     {
         if (_workspaceReadOnly)
         {
@@ -82,7 +84,7 @@ public partial class MainWindow
             return;
         }
 
-        string? path = ResolveMaintenanceFilePath();
+        string? path = selected?.SourcePath ?? ResolveMaintenanceFilePath();
         if (path is null || !File.Exists(path))
         {
             MessageBox.Show(this,
@@ -119,14 +121,30 @@ public partial class MainWindow
                 return;
             }
 
-            MaintenanceInterventionPickerDialog picker =
-                new MaintenanceInterventionPickerDialog(interventions) { Owner = this };
-            if (picker.ShowDialog() != true || picker.SelectedIntervention is null)
+            if (selected is not null)
             {
-                return;
+                original = interventions.FirstOrDefault(item =>
+                    string.Equals(item.Id, selected.Id, StringComparison.OrdinalIgnoreCase));
+                if (original is null)
+                {
+                    MessageBox.Show(this,
+                        "L'intervention a été modifiée ou supprimée depuis la consultation de l'historique. " +
+                        "Rechargez l'historique ou ouvrez la source Markdown.",
+                        "Maintenance", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
             }
+            else
+            {
+                MaintenanceInterventionPickerDialog picker =
+                    new MaintenanceInterventionPickerDialog(interventions) { Owner = this };
+                if (picker.ShowDialog() != true || picker.SelectedIntervention is null)
+                {
+                    return;
+                }
 
-            original = picker.SelectedIntervention;
+                original = picker.SelectedIntervention;
+            }
         }
 
         IReadOnlyList<MaintenanceRecord> incidents = history.Records
