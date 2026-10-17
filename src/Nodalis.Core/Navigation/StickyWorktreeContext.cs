@@ -17,6 +17,48 @@ public readonly record struct StickyWorktreeHeading(
 public static class StickyWorktreeContext
 {
     /// <summary>
+    /// Retains the currently selected document's parent folder when the
+    /// viewport has scrolled past that folder into direct project children.
+    /// Never pins a folder from another project or duplicates a viewport folder.
+    /// </summary>
+    /// <param name="visibleScopeId">Project (or application) at the top of the scroll viewport.</param>
+    /// <param name="selectedScopeId">Project (or application) owning the selection.</param>
+    /// <param name="viewportAlreadyHasFolder">True when a scrolled folder ancestor is already pinned.</param>
+    /// <param name="folderPosition">Visible-tree sibling indices from the root to the selected folder.</param>
+    /// <param name="firstVisiblePosition">Visible-tree sibling indices from the root to the first visible row.</param>
+    /// <returns>True when the active folder is earlier than the viewport and belongs to its project.</returns>
+    public static bool ShouldPinSelectedFolder(
+        Guid? visibleScopeId,
+        Guid? selectedScopeId,
+        bool viewportAlreadyHasFolder,
+        IReadOnlyList<int> folderPosition,
+        IReadOnlyList<int> firstVisiblePosition)
+    {
+        ArgumentNullException.ThrowIfNull(folderPosition);
+        ArgumentNullException.ThrowIfNull(firstVisiblePosition);
+
+        if (visibleScopeId is null || selectedScopeId is null ||
+            visibleScopeId != selectedScopeId || viewportAlreadyHasFolder)
+        {
+            return false;
+        }
+
+        int commonLength = Math.Min(
+            folderPosition.Count, firstVisiblePosition.Count);
+        for (int index = 0; index < commonLength; index++)
+        {
+            if (folderPosition[index] != firstVisiblePosition[index])
+            {
+                return folderPosition[index] < firstVisiblePosition[index];
+            }
+        }
+
+        // The selected folder is an ancestor of the visible document:
+        // its title may have scrolled out while descendants stay visible.
+        return folderPosition.Count < firstVisiblePosition.Count;
+    }
+
+    /// <summary>
     /// Chooses the deepest project heading and deepest folder heading above
     /// the viewport. Without a project, an application or Global can anchor
     /// the current context. Indices refer to the input root-to-leaf lineage.

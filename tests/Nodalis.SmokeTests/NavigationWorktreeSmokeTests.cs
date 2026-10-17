@@ -154,6 +154,32 @@ internal static class NavigationWorktreeSmokeTests
         Assert(StickyWorktreeContext.SelectPinnedIndices(
                 new[] { document }).Count == 0,
             "A top-level document must not get a fabricated sticky heading.");
+        Guid projectId = Guid.NewGuid();
+        Guid otherProjectId = Guid.NewGuid();
+        Assert(StickyWorktreeContext.ShouldPinSelectedFolder(
+                projectId, projectId, false,
+                new[] { 1, 0, 2 }, new[] { 1, 0, 5 }),
+            "The open document folder remains pinned when scrolling past its siblings.");
+        Assert(StickyWorktreeContext.ShouldPinSelectedFolder(
+                projectId, projectId, false,
+                new[] { 1, 0, 2 }, new[] { 1, 0, 2, 3 }),
+            "The active folder remains pinned while viewing deep descendants.");
+        Assert(!StickyWorktreeContext.ShouldPinSelectedFolder(
+                projectId, projectId, false,
+                new[] { 1, 0, 5 }, new[] { 1, 0, 2 }),
+            "Do not show a folder whose heading is still below the viewport.");
+        Assert(!StickyWorktreeContext.ShouldPinSelectedFolder(
+                projectId, otherProjectId, false,
+                new[] { 1, 0, 2 }, new[] { 1, 1, 0 }),
+            "An open document from another project must not pollute sticky context.");
+        Assert(!StickyWorktreeContext.ShouldPinSelectedFolder(
+                projectId, projectId, true,
+                new[] { 1, 0, 2 }, new[] { 1, 0, 5 }),
+            "A viewport folder takes priority; never show two folder headings.");
+        Assert(!StickyWorktreeContext.ShouldPinSelectedFolder(
+                null, projectId, false,
+                new[] { 1, 0, 2 }, new[] { 1, 0, 5 }),
+            "A missing viewport scope may never pin a stale selected folder.");
     }
 
     /// <summary>Creates a canonical test node without relying on real workspaces.</summary>

@@ -48,6 +48,14 @@ visible ; elle se met à jour automatiquement quand le défilement atteint
 un autre dossier ou un autre projet. Hors projet, le repère d'application ou
 Global remplace le repère projet si son propre titre est masqué.
 
+Si le premier élément visible est désormais un **frère** du dossier contenant
+le document courant, la barre conserve néanmoins ce dossier : le contexte
+d'édition ne disparaît pas dès que la vue a dépassé son sous-arbre. Ce rappel
+n'apparaît que dans le **même projet** et seulement après le passage de
+l'en-tête réel du dossier. Un dossier qui contient effectivement le premier
+élément visible reste prioritaire et n'est pas dupliqué. Un changement
+d'onglet remet immédiatement à jour le contexte.
+
 Le repère est affiché dans une zone indépendante du ScrollViewer : aucun
 document ne se retrouve sous un bandeau transparent superposé. Chaque ligne
 est un bouton au thème sombre, navigable au clavier, avec infobulle du chemin
@@ -89,7 +97,9 @@ très longs.
       superposition ou fond blanc ; calendrier workspace accessible.
 - [ ] Scroller profondément dans chaque projet : son titre reste épinglé ;
       scroller dans un sous-dossier : le nom du dossier reste visible ;
-      changer de dossier/projet : les repères changent correctement.
+      changer de dossier/projet : les repères changent correctement ;
+      un document ouvert dans « Risques » conserve « Risques » même si la
+      première ligne visible est ensuite « Glossaire » dans le même projet.
 - [ ] Cliquer les en-têtes persistants pour retrouver le vrai nœud et
       vérifier navigation clavier, infobulles, longs titres et petit panneau.
 - [ ] Contrôler les cartes de projets, leur guide et les en-têtes de

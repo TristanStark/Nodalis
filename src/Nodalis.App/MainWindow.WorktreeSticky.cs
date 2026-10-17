@@ -162,7 +162,210 @@ public partial class MainWindow
             pinned.Add(lineage[index].Node);
         }
 
+        // The first visible row may now be a direct sibling of the folder
+        // containing the open document. Preserve that folder in the sticky
+        // path until navigation moves to another context.
+        AddSelectedFolderContext(
+            first.DataContext as NavigationNodeViewModel,
+            lineage.Select(item => item.Node).ToArray(),
+            pinned,
+            viewportTop,
+            _worktreeScrollViewport.ActualHeight);
+
         ApplyPinnedWorktreeHeadings(pinned);
+    }
+
+    /// <summary>
+    /// Retains the selected document's folder after the viewport advances
+    /// beyond its subtree. A folder visible in the viewport takes precedence.
+    /// </summary>
+    /// <param name="first">First realized worktree row in the viewport.</param>
+    /// <param name="lineage">Visual ancestors of the first row, root to leaf.</param>
+    /// <param name="pinned">Mutable result from viewport pinning.</param>
+    /// <param name="viewportTop">Top edge of worktree viewport.</param>
+    /// <param name="viewportHeight">Height of worktree viewport.</param>
+    private void AddSelectedFolderContext(
+        NavigationNodeViewModel? first,
+        IReadOnlyList<NavigationNodeViewModel> lineage,
+        List<NavigationNodeViewModel> pinned,
+        double viewportTop,
+        double viewportHeight)
+    {
+        if (first is null || _selectedNode is null ||
+            pinned.Any(node => IsWorktreeFolderKind(node.Kind)))
+        {
+            return;
+        }
+
+        NavigationNodeViewModel? selectedFolder =
+            FindClosestWorktreeFolder(_selectedNode);
+        NavigationNodeViewModel? selectedScope =
+            FindWorktreeScope(_selectedNode);
+        NavigationNodeViewModel? visibleScope = lineage
+            .Reverse()
+            .Select(FindWorktreeScope)
+            .FirstOrDefault(node => node is not null);
+
+        if (selectedFolder is null || selectedScope is null ||
+            visibleScope is null)
+        {
+            return;
+        }
+
+        if (!StickyWorktreeContext.ShouldPinSelectedFolder(
+                visibleScope.Id,
+                selectedScope.Id,
+                viewportAlreadyHasFolder: false,
+                BuildVisibleWorktreePosition(selectedFolder),
+                BuildVisibleWorktreePosition(first)) ||
+            IsWorktreeHeadingVisible(selectedFolder, viewportTop, viewportHeight))
+        {
+            return;
+        }
+
+        // This is a supplementary breadcrumb; do not synthesize project headers
+        // while the true project heading is still visible at the top.
+        pinned.Add(selectedFolder);
+    }
+
+    /// <summary>Returns the nearest real folder/section of a selected node.</summary>
+    /// <param name="node">Selected document or folder.</param>
+    /// <returns>Its deepest folder (or the selected folder itself).</returns>
+    private static NavigationNodeViewModel? FindClosestWorktreeFolder(
+        NavigationNodeViewModel node)
+    {
+        for (NavigationNodeViewModel? current = node;
+             current is not null;
+             current = current.DisplayParent)
+        {
+            if (IsWorktreeFolderKind(current.Kind))
+            {
+                return current;
+            }
+
+            if (current.Kind is WorkspaceNodeKind.Project or
+                WorkspaceNodeKind.Application or WorkspaceNodeKind.Global)
+            {
+                break;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Finds the owning project, or application/global when outside a project.</summary>
+    /// <param name="node">Navigation node.</param>
+    /// <returns>Owning scope.</returns>
+    private static NavigationNodeViewModel? FindWorktreeScope(
+        NavigationNodeViewModel node)
+    {
+        for (NavigationNodeViewModel? current = node;
+             current is not null;
+             current = current.DisplayParent)
+        {
+            if (current.Kind is WorkspaceNodeKind.Project or
+                WorkspaceNodeKind.Application or WorkspaceNodeKind.Global)
+            {
+                return current;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Identifies a navigable section, folder or module.</summary>
+    /// <param name="kind">Node kind.</param>
+    /// <returns>Whether it represents a folder context.</returns>
+    private static bool IsWorktreeFolderKind(WorkspaceNodeKind kind) =>
+        kind is WorkspaceNodeKind.Section or
+            WorkspaceNodeKind.Folder or
+            WorkspaceNodeKind.Module;
+
+    /// <summary>
+    /// Creates a lexicographic visible preorder position in O(depth × siblings).
+    /// Hidden grouping nodes do not appear in the visual position.
+    /// </summary>
+    /// <param name="node">Displayed worktree node.</param>
+    /// <returns>Visible sibling indices, from the root toward the node.</returns>
+    private static IReadOnlyList<int> BuildVisibleWorktreePosition(
+        NavigationNodeViewModel node)
+    {
+        Stack<int> indices = new Stack<int>();
+        NavigationNodeViewModel? current = node;
+        while (current?.DisplayParent is NavigationNodeViewModel parent)
+        {
+            int index = -1;
+            for (int candidateIndex = 0;
+                 candidateIndex < parent.VisibleChildren.Count;
+                 candidateIndex++)
+            {
+                if (ReferenceEquals(
+                        parent.VisibleChildren[candidateIndex], current))
+                {
+                    index = candidateIndex;
+                    break;
+                }
+            }
+
+            if (index < 0)
+            {
+                return Array.Empty<int>();
+            }
+
+            indices.Push(index);
+            current = parent;
+        }
+
+        return indices.ToArray();
+    }
+
+    /// <summary>
+    /// Avoids duplicating a folder header whose genuine WPF row remains visible.
+    /// Only traverses realized ancestors of the selected folder.
+    /// </summary>
+    /// <param name="node">Folder candidate.</param>
+    /// <param name="viewportTop">Top viewport edge.</param>
+    /// <param name="viewportHeight">Viewport height.</param>
+    /// <returns>True when the heading is actually inside the viewport.</returns>
+    private bool IsWorktreeHeadingVisible(
+        NavigationNodeViewModel node,
+        double viewportTop,
+        double viewportHeight)
+    {
+        Stack<NavigationNodeViewModel> chain =
+            new Stack<NavigationNodeViewModel>();
+        for (NavigationNodeViewModel? current = node;
+             current is not null && current.DisplayParent is not null;
+             current = current.DisplayParent)
+        {
+            chain.Push(current);
+        }
+
+        ItemsControl owner = NavigationTree;
+        TreeViewItem? item = null;
+        while (chain.Count > 0)
+        {
+            item = owner.ItemContainerGenerator.ContainerFromItem(chain.Pop())
+                as TreeViewItem;
+            if (item is null)
+            {
+                return false;
+            }
+
+            owner = item;
+        }
+
+        if (item is null)
+        {
+            return false;
+        }
+
+        FrameworkElement header = item.Template.FindName("RowSurface", item)
+            as FrameworkElement ?? item;
+        double top = header.TranslatePoint(
+            new Point(0, 0), NavigationTree).Y;
+        return top < viewportTop + viewportHeight &&
+            top + header.ActualHeight > viewportTop + 1;
     }
 
     /// <summary>
