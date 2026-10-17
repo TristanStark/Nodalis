@@ -105,6 +105,55 @@ internal static class NavigationWorktreeSmokeTests
         Assert(ultraSimple.Children.Count == 1 &&
             ultraSimple.Children[0].DisplayName == "Fiche de Maintenance",
             "Ultra-simple files must remain accessible.");
+        VerifyStickyHeaders();
+    }
+
+    /// <summary>
+    /// Tests project/folder pinning, switchovers and the absence of redundant
+    /// headers when the title is still within the scroll viewport.
+    /// </summary>
+    private static void VerifyStickyHeaders()
+    {
+        StickyWorktreeHeading app = new StickyWorktreeHeading(
+            WorkspaceNodeKind.Application, true);
+        StickyWorktreeHeading project = new StickyWorktreeHeading(
+            WorkspaceNodeKind.Project, true);
+        StickyWorktreeHeading visibleProject = new StickyWorktreeHeading(
+            WorkspaceNodeKind.Project, false);
+        StickyWorktreeHeading folder = new StickyWorktreeHeading(
+            WorkspaceNodeKind.Section, true);
+        StickyWorktreeHeading nestedFolder = new StickyWorktreeHeading(
+            WorkspaceNodeKind.Folder, true);
+        StickyWorktreeHeading document = new StickyWorktreeHeading(
+            WorkspaceNodeKind.Document, false);
+        StickyWorktreeHeading visibleFolder = new StickyWorktreeHeading(
+            WorkspaceNodeKind.Section, false);
+
+        Assert(StickyWorktreeContext.SelectPinnedIndices(
+                new[] { app, project, folder, document }).SequenceEqual(
+                new[] { 1, 2 }),
+            "A scrolled project and its scrolled folder must both stay pinned.");
+        Assert(StickyWorktreeContext.SelectPinnedIndices(
+                new[] { app, project, folder, nestedFolder, document })
+                .SequenceEqual(new[] { 1, 3 }),
+            "Nested folders must show the deepest active folder, not all levels.");
+        Assert(StickyWorktreeContext.SelectPinnedIndices(
+                new[] { app, project, visibleFolder, document })
+                .SequenceEqual(new[] { 1 }),
+            "Folder heading must not be duplicated while visible.");
+        Assert(StickyWorktreeContext.SelectPinnedIndices(
+                new[] { app, visibleProject, document }).Count == 0,
+            "When a new project heading is visible, no unrelated title is pinned.");
+        Assert(StickyWorktreeContext.SelectPinnedIndices(
+                new[] { app, folder, document })
+                .SequenceEqual(new[] { 0, 1 }),
+            "Standalone application folders keep their application context.");
+        Assert(StickyWorktreeContext.SelectPinnedIndices(
+                new[] { visibleProject, visibleFolder, document }).Count == 0,
+            "No sticky overlay is needed for fully visible headings.");
+        Assert(StickyWorktreeContext.SelectPinnedIndices(
+                new[] { document }).Count == 0,
+            "A top-level document must not get a fabricated sticky heading.");
     }
 
     /// <summary>Creates a canonical test node without relying on real workspaces.</summary>

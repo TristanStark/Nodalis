@@ -37,6 +37,28 @@ utilisent les vrais nœuds.
 Les couleurs sont définies dans `Themes/Dark.xaml`, pas dans les données.
 Les styles ne créent aucun objet métier ni fichier de projet supplémentaire.
 
+## En-têtes persistants lors du défilement
+
+Quand le titre d'un projet disparaît au-dessus de la fenêtre de défilement,
+le worktree affiche une **ligne projet épinglée** sous « EXPLORATEUR ».
+Si l'on défile à l'intérieur d'un sous-dossier ou d'une section dont le titre
+n'est plus visible, une **seconde ligne dossier** apparaît. Pour ne pas saturer
+le panneau, elle correspond au dossier le plus proche du premier élément
+visible ; elle se met à jour automatiquement quand le défilement atteint
+un autre dossier ou un autre projet. Hors projet, le repère d'application ou
+Global remplace le repère projet si son propre titre est masqué.
+
+Le repère est affiché dans une zone indépendante du ScrollViewer : aucun
+document ne se retrouve sous un bandeau transparent superposé. Chaque ligne
+est un bouton au thème sombre, navigable au clavier, avec infobulle du chemin
+complet ; un clic **révèle le vrai nœud** dans l'arborescence.
+
+Le calcul observe uniquement le premier conteneur WPF visible et ses ancêtres
+réalisés. Les événements de défilement sont regroupés et l'arbre n'est jamais
+reconstruit pour afficher l'en-tête. `StickyWorktreeContext` porte la règle
+pure de sélection des en-têtes, testée sur plusieurs contextes (projet,
+dossiers imbriqués, nouveau projet, absence de repère inutile).
+
 ## Commandes et mémoire
 
 - En haut du panneau : bouton **+** pour créer une application (l'ancien
@@ -65,6 +87,11 @@ très longs.
 - [ ] Panneau gauche à 240, 300 et 400 px (avec fenêtre étroite et large).
 - [ ] DPI Windows 100 %, 125 % et 150 % : aucune troncature de boutons,
       superposition ou fond blanc ; calendrier workspace accessible.
+- [ ] Scroller profondément dans chaque projet : son titre reste épinglé ;
+      scroller dans un sous-dossier : le nom du dossier reste visible ;
+      changer de dossier/projet : les repères changent correctement.
+- [ ] Cliquer les en-têtes persistants pour retrouver le vrai nœud et
+      vérifier navigation clavier, infobulles, longs titres et petit panneau.
 - [ ] Contrôler les cartes de projets, leur guide et les en-têtes de
       Global/Application ; fichiers/documents distincts des dossiers.
 - [ ] Développer/replier les niveaux par souris, clavier et chevron ; vérifier

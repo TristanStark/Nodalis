@@ -210,6 +210,7 @@ public partial class MainWindow : Window
 
         NavigationTree.ItemsSource =
             _root.VisibleChildren;
+        ScheduleStickyWorktreeRefresh();
 
         WorkspaceNameText.Text =
             _workspaceReadOnly
@@ -1517,6 +1518,7 @@ public partial class MainWindow : Window
 
         _selectedNode = node;
         ScheduleRevealTreeItem(node);
+        ScheduleStickyWorktreeRefresh();
         await RunUiActionAsync(
             "Navigation · " +
             node.DisplayName,
@@ -8096,6 +8098,7 @@ public partial class MainWindow : Window
 
         NavigationTree.ItemsSource =
             _root.VisibleChildren;
+        ScheduleStickyWorktreeRefresh();
 
         RefreshDocumentTabsFromNavigation();
         await RefreshLinkIndexAsync();
