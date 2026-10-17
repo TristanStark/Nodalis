@@ -89,6 +89,8 @@
                     <ContextMenu>
                         <MenuItem Header="Afficher le contenu"
                                   Click="Open_Click" />
+                        <MenuItem Header="Convertir vers note, document ou tâche"
+                                  Click="Convert_Click" />
                         <MenuItem Header="Marquer comme traité"
                                   Click="Processed_Click" />
                         <MenuItem Header="Marquer à traiter"
@@ -187,6 +189,12 @@
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Right"
                             Orientation="Horizontal">
+                    <Button x:Name="ConvertButton"
+                            Content="Convertir…"
+                            Click="Convert_Click"
+                            Padding="9,5"
+                            Margin="0,0,10,0"
+                            ToolTip="Convertir la capture sélectionnée en note, document ou tâche" />
                     <Button x:Name="PendingButton"
                             Content="À traiter"
                             Click="Pending_Click"

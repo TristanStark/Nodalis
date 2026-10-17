@@ -16,13 +16,18 @@ namespace Nodalis.App.Dialogs;
 public partial class InboxDialog : Window
 {
     private readonly WorkspaceInboxService _store;
+    private readonly string _workspaceRoot;
+    private readonly string? _preferredContextPath;
     private IReadOnlyList<InboxEntry> _entries = [];
     private IReadOnlyList<InboxItemRow> _filteredRows = [];
 
     /// <summary>Creates an Inbox view connected to the current workspace.</summary>
     /// <param name="workspaceRoot">Existing Nodalis workspace.</param>
-    public InboxDialog(string workspaceRoot)
+    /// <param name="preferredContextPath">Last selected project or document, if any.</param>
+    public InboxDialog(string workspaceRoot, string? preferredContextPath = null)
     {
+        _workspaceRoot = workspaceRoot;
+        _preferredContextPath = preferredContextPath;
         _store = new WorkspaceInboxService(workspaceRoot);
         InitializeComponent();
         Loaded += async (_, _) =>
@@ -162,6 +167,9 @@ public partial class InboxDialog : Window
 
         bool anySelected = EntriesList.SelectedItems.Count > 0;
         bool trash = TrashModeCheckBox.IsChecked == true;
+        ConvertButton.IsEnabled = !trash && EntriesList.SelectedItems.Count == 1 &&
+            EntriesList.SelectedItem is InboxItemRow selected &&
+            selected.Entry.ConvertedTargetRelativePath is null;
         PendingButton.IsEnabled = anySelected && !trash;
         ProcessedButton.IsEnabled = anySelected && !trash;
         ArchiveButton.IsEnabled = anySelected && !trash;
@@ -223,6 +231,43 @@ public partial class InboxDialog : Window
             {
                 dialog.CleanupTemporaryCapture();
             }
+        });
+    }
+
+    /// <summary>
+    /// Converts a single capture through the standard Markdown formats,
+    /// keeping the source item recoverable and refreshing workspace navigation.
+    /// </summary>
+    /// <param name="sender">Conversion button or context menu.</param>
+    /// <param name="e">Click event.</param>
+    private async void Convert_Click(object sender, RoutedEventArgs e)
+    {
+        if (TrashModeCheckBox.IsChecked == true ||
+            EntriesList.SelectedItems.Count != 1 ||
+            EntriesList.SelectedItem is not InboxItemRow selected ||
+            selected.Entry.ConvertedTargetRelativePath is not null)
+        {
+            return;
+        }
+
+        await UiActionGuard.RunAsync(this, "Inbox · choisir la conversion", async () =>
+        {
+            InboxConversionDialog dialog = new InboxConversionDialog(
+                _workspaceRoot, selected.Entry, _preferredContextPath)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true || dialog.Result is null)
+            {
+                return;
+            }
+
+            WorkspaceChanged = true;
+            await RefreshAsync();
+            StatusText.Text = dialog.Result.AlreadyConverted
+                ? "Conversion existante reprise sans doublon · " +
+                    dialog.Result.TargetRelativePath
+                : "Capture convertie · " + dialog.Result.TargetRelativePath;
         });
     }
 

@@ -177,7 +177,8 @@ public partial class MainWindow
             return;
         }
 
-        InboxDialog dialog = new InboxDialog(_root.FullPath)
+        InboxDialog dialog = new InboxDialog(
+            _root.FullPath, _selectedNode?.FullPath)
         {
             Owner = this
         };
@@ -185,7 +186,11 @@ public partial class MainWindow
         dialog.ShowDialog();
         if (dialog.WorkspaceChanged)
         {
-            StatusText.Text = "Inbox mise à jour.";
+            // A converted Markdown document/task must become immediately
+            // visible to existing navigation, link search and task readers.
+            await RefreshNavigationAsync();
+            await RefreshDashboardTasksAsync();
+            StatusText.Text = "Inbox mise à jour · navigation et tâches actualisées.";
         }
 
         await RefreshInboxDashboardCountAsync();
