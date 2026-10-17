@@ -16,6 +16,10 @@ public sealed record MaintenanceHistoryItem
     public required string Summary { get; init; }
     public string Problem { get; init; } = string.Empty;
     public string Resolution { get; init; } = string.Empty;
+    public string Reference { get; init; } = string.Empty;
+    public string Symptoms { get; init; } = string.Empty;
+    public string LinkedRecurrences { get; init; } = string.Empty;
+    public string IgnoredRecurrences { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
     public string Category { get; init; } = string.Empty;
     public string Tags { get; init; } = string.Empty;
@@ -113,6 +117,14 @@ public static class MaintenanceHistoryIndex
             properties.TryGetValue("Date", out string? dateText);
             properties.TryGetValue("Résumé", out string? summary);
             properties.TryGetValue("Résultat", out string? resolution);
+            properties.TryGetValue("Symptômes", out string? symptoms);
+            if (!properties.TryGetValue("Référence", out string? reference))
+            {
+                properties.TryGetValue("Référence projet", out reference);
+            }
+
+            properties.TryGetValue("Récurrences liées", out string? linkedRecurrences);
+            properties.TryGetValue("Récurrences ignorées", out string? ignoredRecurrences);
             properties.TryGetValue("Statut", out string? status);
             properties.TryGetValue("Catégorie", out string? category);
             properties.TryGetValue("Tags", out string? tags);
@@ -161,6 +173,10 @@ public static class MaintenanceHistoryIndex
                 Date = dateOk ? date : null,
                 Summary = summaryOk ? summary! : "(Résumé non renseigné)",
                 Resolution = resolution ?? string.Empty,
+                Reference = reference ?? string.Empty,
+                Symptoms = symptoms ?? string.Empty,
+                LinkedRecurrences = linkedRecurrences ?? string.Empty,
+                IgnoredRecurrences = ignoredRecurrences ?? string.Empty,
                 Status = status ?? string.Empty,
                 Category = category ?? string.Empty,
                 Tags = tags ?? string.Empty,
