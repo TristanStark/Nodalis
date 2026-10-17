@@ -51,8 +51,10 @@ public partial class InboxConversionDialog : Window
         List<ScopeChoice> scopes = new List<ScopeChoice>();
         CollectScopes(root, scopes);
 
+        InboxConversionRequest? resume =
+            await _converter.ReadPreparedConversionAsync(_entry.Id);
         ScopeComboBox.ItemsSource = scopes;
-        string? preferred = _preferredContextPath;
+        string? preferred = resume is null ? _preferredContextPath : null;
         if (!string.IsNullOrWhiteSpace(preferred))
         {
             string full = Path.GetFullPath(preferred);
@@ -64,13 +66,56 @@ public partial class InboxConversionDialog : Window
         }
         else
         {
-            ScopeComboBox.SelectedIndex = 0;
+            ScopeComboBox.SelectedItem = resume is null
+                ? scopes.FirstOrDefault()
+                : scopes.FirstOrDefault(candidate =>
+                    string.Equals(candidate.RelativeDirectory,
+                        resume.DestinationRelativeDirectory,
+                        StringComparison.OrdinalIgnoreCase));
         }
 
-        ModeComboBox.SelectedIndex = 0;
+        ModeComboBox.SelectedIndex = resume?.Mode switch
+        {
+            InboxConversionMode.NewDocument => 1,
+            InboxConversionMode.AppendDocument => 2,
+            InboxConversionMode.MarkdownTask => 3,
+            _ => 0
+        };
+        if (resume?.Mode == InboxConversionMode.NewDocument)
+        {
+            NewFileTextBox.Text = resume.NewDocumentName ?? string.Empty;
+        }
+
         _ready = true;
         RefreshTargetOptions();
+        if (resume?.Mode == InboxConversionMode.AppendDocument)
+        {
+            ExistingFileComboBox.SelectedItem =
+                ExistingFileComboBox.Items.OfType<TargetChoice>().FirstOrDefault(
+                    item => string.Equals(item.RelativePath,
+                        resume.ExistingDocumentRelativePath,
+                        StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (resume is not null)
+        {
+            // An interrupted intent can only be replayed to its original
+            // target. Locking these controls prevents accidental divergence.
+            ScopeComboBox.IsEnabled = false;
+            ModeComboBox.IsEnabled = false;
+            NewFileTextBox.IsEnabled = false;
+            ExistingFileComboBox.IsEnabled = false;
+        }
+
         await UpdatePreviewAsync();
+        if (resume is not null)
+        {
+            ValidationText.Text = ConvertButton.IsEnabled
+                ? "Reprise d'une conversion interrompue : destination verrouillée, " +
+                  "la cible existante sera vérifiée avant toute écriture."
+                : "Conversion interrompue : vérifier ou restaurer le document cible. " +
+                  "La capture reste conservée dans l'Inbox.";
+        }
     }
 
     /// <summary>Collects canonical scope nodes while avoiding grouping-row choices.</summary>

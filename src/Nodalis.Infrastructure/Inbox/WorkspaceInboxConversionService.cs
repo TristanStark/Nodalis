@@ -27,6 +27,53 @@ public sealed class WorkspaceInboxConversionService
     }
 
     /// <summary>
+    /// Reads a durable interrupted-conversion intent without creating files.
+    /// This lets the UI reopen the exact destination instead of asking users
+    /// to remember a mode or path after a crash.
+    /// </summary>
+    /// <param name="entryId">Capture identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Original conversion choices, or null if not yet attempted.</returns>
+    public async Task<InboxConversionRequest?> ReadPreparedConversionAsync(
+        Guid entryId,
+        CancellationToken cancellationToken = default)
+    {
+        if (entryId == Guid.Empty)
+        {
+            throw new ArgumentException("ID de capture Inbox invalide.", nameof(entryId));
+        }
+
+        string directory = Path.Combine(_root, WorkspaceLayout.InboxDirectoryName,
+            "Items", entryId.ToString("N"));
+        string intentFile = Path.Combine(directory, IntentFileName);
+        if (!File.Exists(intentFile))
+        {
+            return null;
+        }
+
+        CheckExistingDirectories(directory);
+        ConversionIntent intent = await AtomicJsonFile.ReadAsync<ConversionIntent>(
+            intentFile, cancellationToken);
+        if (intent.EntryId != entryId)
+        {
+            throw new InvalidDataException(
+                "L'intention de conversion ne correspond pas à cette capture.");
+        }
+
+        return new InboxConversionRequest
+        {
+            EntryId = entryId,
+            Mode = intent.Mode,
+            DestinationRelativeDirectory = intent.DestinationRelativeDirectory,
+            NewDocumentName = intent.Mode == InboxConversionMode.NewDocument
+                ? Path.GetFileName(intent.TargetRelativePath) : null,
+            ExistingDocumentRelativePath =
+                intent.Mode == InboxConversionMode.AppendDocument
+                    ? intent.TargetRelativePath : null
+        };
+    }
+
+    /// <summary>
     /// Converts or resumes one capture. Existing targets are only appended to
     /// with revision protection; a new filename is never silently replaced.
     /// </summary>

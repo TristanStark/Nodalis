@@ -35,6 +35,9 @@ dans le fichier de destination. Si le fichier a déjà été écrit,
 la conversion n'est **pas répétée** : les métadonnées Inbox peuvent être
 finalisées même après une interruption juste après le commit Markdown.
 Une tentative vers une autre cible est refusée, plutôt que dupliquée.
+À la réouverture du dialogue, le service recharge l'intention et
+**pré-sélectionne le même mode et la même cible**, verrouillés jusqu'à la
+fin de la reprise. Aucun choix antérieur n'est à mémoriser.
 
 La création d'un nouveau document est atomique **sans overwrite**.
 Pour l'ajout à un fichier, TextDocumentSession vérifie les modifications

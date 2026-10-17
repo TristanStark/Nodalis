@@ -232,8 +232,15 @@ internal static class InboxConversionSmokeTests
             (await inbox.ReadAllAsync()).Entries.Single(e => e.Id == attachment.Id)
                 .State == InboxItemState.Pending,
             "A failed partial conversion must retain a durable recoverable intent.");
+        InboxConversionRequest? prepared = await conversion.ReadPreparedConversionAsync(
+            attachment.Id);
+        Assert(prepared is not null &&
+            prepared.Mode == InboxConversionMode.AppendDocument &&
+            prepared.DestinationRelativeDirectory == relativeProject &&
+            prepared.ExistingDocumentRelativePath == Relative(root, maintenance),
+            "The interrupted mode, scope and exact file must be recoverable by the UI.");
         await File.WriteAllBytesAsync(capturedFile, capturedBytes);
-        await new WorkspaceInboxConversionService(root).ConvertAsync(attachmentRequest);
+        await new WorkspaceInboxConversionService(root).ConvertAsync(prepared!);
         string transferred = Path.Combine(project, "Attachments",
             "Inbox-" + attachment.Id.ToString("N"),
             Path.GetFileName(attachment.Attachments[0].RelativePath));
