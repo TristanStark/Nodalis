@@ -81,8 +81,12 @@ public partial class ImpactAnalysisDialog
             Brush stroke = edge.Evidence == ImpactEvidence.Explicit ? accent : lineBrush;
             Line line = new()
             {
-                X1 = x1, Y1 = y1, X2 = x2, Y2 = y2,
-                Stroke = stroke, StrokeThickness = 2,
+                X1 = x1,
+                Y1 = y1,
+                X2 = x2,
+                Y2 = y2,
+                Stroke = stroke,
+                StrokeThickness = 2,
                 StrokeDashArray = edge.Evidence == ImpactEvidence.Suggested
                     ? new DoubleCollection { 4, 4 } : null,
                 ToolTip = edge.RelationType + " · " +
