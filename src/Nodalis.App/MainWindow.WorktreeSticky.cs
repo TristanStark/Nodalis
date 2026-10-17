@@ -150,82 +150,77 @@ public partial class MainWindow
         }
 
         lineage.Reverse();
-        StickyWorktreeHeading[] headingStates = lineage
-            .Select(item => item.State)
-            .ToArray();
-        IReadOnlyList<int> indices =
-            StickyWorktreeContext.SelectPinnedIndices(headingStates);
         List<NavigationNodeViewModel> pinned =
-            new List<NavigationNodeViewModel>(indices.Count);
-        foreach (int index in indices)
-        {
-            pinned.Add(lineage[index].Node);
-        }
+            new List<NavigationNodeViewModel>(2);
+        NavigationNodeViewModel? activeScope = _selectedNode is null
+            ? null
+            : FindWorktreeScope(_selectedNode);
+        NavigationNodeViewModel? activeFolder = _selectedNode is null
+            ? null
+            : FindClosestWorktreeFolder(_selectedNode);
 
-        // The first visible row may now be a direct sibling of the folder
-        // containing the open document. Preserve that folder in the sticky
-        // path until navigation moves to another context.
-        AddSelectedFolderContext(
-            first.DataContext as NavigationNodeViewModel,
-            lineage.Select(item => item.Node).ToArray(),
-            pinned,
-            viewportTop,
-            _worktreeScrollViewport.ActualHeight);
+        if (activeScope is not null)
+        {
+            // The current editor/selection defines the context, not the
+            // application that happens to occupy the top of the scroll view.
+            // Both headings remain pinned even below the next application's
+            // first row, until the user changes the active document.
+            NavigationNodeViewModel? firstNode =
+                first.DataContext as NavigationNodeViewModel;
+            if (firstNode is not null)
+            {
+                IReadOnlyList<int> firstPosition =
+                    BuildVisibleWorktreePosition(firstNode);
+                TryPinActiveWorktreeHeading(
+                    activeScope, firstPosition, viewportTop,
+                    _worktreeScrollViewport.ActualHeight, pinned);
+                if (activeFolder is not null)
+                {
+                    TryPinActiveWorktreeHeading(
+                        activeFolder, firstPosition, viewportTop,
+                        _worktreeScrollViewport.ActualHeight, pinned);
+                }
+            }
+        }
+        else
+        {
+            // Before the first explicit selection, display whichever real
+            // context the viewport is currently browsing.
+            StickyWorktreeHeading[] states = lineage
+                .Select(item => item.State)
+                .ToArray();
+            foreach (int index in StickyWorktreeContext.SelectPinnedIndices(states))
+            {
+                pinned.Add(lineage[index].Node);
+            }
+        }
 
         ApplyPinnedWorktreeHeadings(pinned);
     }
 
     /// <summary>
-    /// Retains the selected document's folder after the viewport advances
-    /// beyond its subtree. A folder visible in the viewport takes precedence.
+    /// Pins a selected project/folder after its actual row has scrolled above
+    /// the viewport. Other applications visible below cannot replace it.
     /// </summary>
-    /// <param name="first">First realized worktree row in the viewport.</param>
-    /// <param name="lineage">Visual ancestors of the first row, root to leaf.</param>
-    /// <param name="pinned">Mutable result from viewport pinning.</param>
-    /// <param name="viewportTop">Top edge of worktree viewport.</param>
-    /// <param name="viewportHeight">Height of worktree viewport.</param>
-    private void AddSelectedFolderContext(
-        NavigationNodeViewModel? first,
-        IReadOnlyList<NavigationNodeViewModel> lineage,
-        List<NavigationNodeViewModel> pinned,
+    /// <param name="heading">Selected document's owning project or folder.</param>
+    /// <param name="firstPosition">Visible preorder position of the first row.</param>
+    /// <param name="viewportTop">Top of the scrollable viewport in tree coordinates.</param>
+    /// <param name="viewportHeight">Viewport height.</param>
+    /// <param name="pinned">Ordered pinned headings, project before folder.</param>
+    private void TryPinActiveWorktreeHeading(
+        NavigationNodeViewModel heading,
+        IReadOnlyList<int> firstPosition,
         double viewportTop,
-        double viewportHeight)
+        double viewportHeight,
+        List<NavigationNodeViewModel> pinned)
     {
-        if (first is null || _selectedNode is null ||
-            pinned.Any(node => IsWorktreeFolderKind(node.Kind)))
+        if (StickyWorktreeContext.ShouldPinCurrentHeading(
+                BuildVisibleWorktreePosition(heading),
+                firstPosition,
+                IsWorktreeHeadingVisible(heading, viewportTop, viewportHeight)))
         {
-            return;
+            pinned.Add(heading);
         }
-
-        NavigationNodeViewModel? selectedFolder =
-            FindClosestWorktreeFolder(_selectedNode);
-        NavigationNodeViewModel? selectedScope =
-            FindWorktreeScope(_selectedNode);
-        NavigationNodeViewModel? visibleScope = lineage
-            .Reverse()
-            .Select(FindWorktreeScope)
-            .FirstOrDefault(node => node is not null);
-
-        if (selectedFolder is null || selectedScope is null ||
-            visibleScope is null)
-        {
-            return;
-        }
-
-        if (!StickyWorktreeContext.ShouldPinSelectedFolder(
-                visibleScope.Id,
-                selectedScope.Id,
-                viewportAlreadyHasFolder: false,
-                BuildVisibleWorktreePosition(selectedFolder),
-                BuildVisibleWorktreePosition(first)) ||
-            IsWorktreeHeadingVisible(selectedFolder, viewportTop, viewportHeight))
-        {
-            return;
-        }
-
-        // This is a supplementary breadcrumb; do not synthesize project headers
-        // while the true project heading is still visible at the top.
-        pinned.Add(selectedFolder);
     }
 
     /// <summary>Returns the nearest real folder/section of a selected node.</summary>

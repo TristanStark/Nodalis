@@ -75,6 +75,20 @@
             </HierarchicalDataTemplate.Triggers>
         </HierarchicalDataTemplate>
 
+        <!-- Explicit 32px hit target with zero padding: the implicit theme Button
+             has 10px left/right padding and clips 28px header glyph buttons. -->
+        <Style x:Key="WorktreeHeaderButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+
         <!-- Native WPF row template: 11px indentation, persistent full-row selection,
              visible project enclosure and connected guide, no stock white highlight. -->
         <Style x:Key="WorktreeExpanderStyle" TargetType="ToggleButton">
@@ -394,18 +408,39 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="EXPLORATEUR" VerticalAlignment="Center"
+                        <TextBlock Text="EXPLORATEUR"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
                                    FontSize="11" FontWeight="SemiBold"
                                    Foreground="{StaticResource SecondaryTextBrush}" />
-                        <Button Grid.Column="1" Content="↗" Width="28" Height="27"
+                        <Button Grid.Column="1"
+                                Style="{StaticResource WorktreeHeaderButtonStyle}"
                                 Margin="0,0,4,0"
                                 Click="RevealActiveDocument_Click"
                                 ToolTip="Révéler le document actif dans l'arbre"
-                                AutomationProperties.Name="Révéler le document actif dans l'explorateur" />
-                        <Button Grid.Column="2" Content="+" Width="28" Height="27"
+                                AutomationProperties.Name="Révéler le document actif dans l'explorateur">
+                            <Path Width="16" Height="16"
+                                  Stretch="Uniform"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  Data="M 3,13 L 13,3 M 7,3 L 13,3 L 13,9" />
+                        </Button>
+                        <Button Grid.Column="2"
+                                Style="{StaticResource WorktreeHeaderButtonStyle}"
                                 Click="CreateApplication_Click"
                                 ToolTip="Nouvelle application"
-                                AutomationProperties.Name="Créer une application" />
+                                AutomationProperties.Name="Créer une application">
+                            <Path Width="16" Height="16"
+                                  Stretch="Uniform"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Data="M 8,2 L 8,14 M 2,8 L 14,8" />
+                        </Button>
                     </Grid>
 
                     <!-- Sticky context is OUTSIDE the ScrollViewer. Its layout never

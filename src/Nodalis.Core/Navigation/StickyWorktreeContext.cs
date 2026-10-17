@@ -17,45 +17,39 @@ public readonly record struct StickyWorktreeHeading(
 public static class StickyWorktreeContext
 {
     /// <summary>
-    /// Retains the currently selected document's parent folder when the
-    /// viewport has scrolled past that folder into direct project children.
-    /// Never pins a folder from another project or duplicates a viewport folder.
+    /// Determines whether the selected context heading has already scrolled above
+    /// the worktree viewport. Selection remains authoritative even when the
+    /// viewport reaches an unrelated application or another project.
     /// </summary>
-    /// <param name="visibleScopeId">Project (or application) at the top of the scroll viewport.</param>
-    /// <param name="selectedScopeId">Project (or application) owning the selection.</param>
-    /// <param name="viewportAlreadyHasFolder">True when a scrolled folder ancestor is already pinned.</param>
-    /// <param name="folderPosition">Visible-tree sibling indices from the root to the selected folder.</param>
-    /// <param name="firstVisiblePosition">Visible-tree sibling indices from the root to the first visible row.</param>
-    /// <returns>True when the active folder is earlier than the viewport and belongs to its project.</returns>
-    public static bool ShouldPinSelectedFolder(
-        Guid? visibleScopeId,
-        Guid? selectedScopeId,
-        bool viewportAlreadyHasFolder,
-        IReadOnlyList<int> folderPosition,
-        IReadOnlyList<int> firstVisiblePosition)
+    /// <param name="headingPosition">Visible-tree sibling indices of the selected project or folder.</param>
+    /// <param name="firstVisiblePosition">Visible-tree sibling indices of the first visible item.</param>
+    /// <param name="headingVisible">Whether the real heading is currently on screen.</param>
+    /// <returns>Whether to keep the selected heading in the sticky context.</returns>
+    public static bool ShouldPinCurrentHeading(
+        IReadOnlyList<int> headingPosition,
+        IReadOnlyList<int> firstVisiblePosition,
+        bool headingVisible)
     {
-        ArgumentNullException.ThrowIfNull(folderPosition);
+        ArgumentNullException.ThrowIfNull(headingPosition);
         ArgumentNullException.ThrowIfNull(firstVisiblePosition);
 
-        if (visibleScopeId is null || selectedScopeId is null ||
-            visibleScopeId != selectedScopeId || viewportAlreadyHasFolder)
+        if (headingVisible || headingPosition.Count == 0 ||
+            firstVisiblePosition.Count == 0)
         {
             return false;
         }
 
-        int commonLength = Math.Min(
-            folderPosition.Count, firstVisiblePosition.Count);
-        for (int index = 0; index < commonLength; index++)
+        int length = Math.Min(headingPosition.Count, firstVisiblePosition.Count);
+        for (int index = 0; index < length; index++)
         {
-            if (folderPosition[index] != firstVisiblePosition[index])
+            if (headingPosition[index] != firstVisiblePosition[index])
             {
-                return folderPosition[index] < firstVisiblePosition[index];
+                return headingPosition[index] < firstVisiblePosition[index];
             }
         }
 
-        // The selected folder is an ancestor of the visible document:
-        // its title may have scrolled out while descendants stay visible.
-        return folderPosition.Count < firstVisiblePosition.Count;
+        // The selected heading is a scrolled ancestor of the visible row.
+        return headingPosition.Count < firstVisiblePosition.Count;
     }
 
     /// <summary>

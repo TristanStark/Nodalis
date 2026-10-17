@@ -39,33 +39,36 @@ Les styles ne créent aucun objet métier ni fichier de projet supplémentaire.
 
 ## En-têtes persistants lors du défilement
 
-Quand le titre d'un projet disparaît au-dessus de la fenêtre de défilement,
-le worktree affiche une **ligne projet épinglée** sous « EXPLORATEUR ».
-Si l'on défile à l'intérieur d'un sous-dossier ou d'une section dont le titre
-n'est plus visible, une **seconde ligne dossier** apparaît. Pour ne pas saturer
-le panneau, elle correspond au dossier le plus proche du premier élément
-visible ; elle se met à jour automatiquement quand le défilement atteint
-un autre dossier ou un autre projet. Hors projet, le repère d'application ou
-Global remplace le repère projet si son propre titre est masqué.
+Le bandeau sous « EXPLORATEUR » suit **le contexte actif sélectionné**,
+pas le projet qui occupe momentanément le haut du panneau. Dès que
+l'en-tête réel du projet actuel sort vers le haut de la fenêtre de défilement,
+une **ligne projet épinglée** reste visible. Si le document actif appartient
+à un dossier (section ou module), une **seconde ligne dossier** reste visible
+dès que son titre réel est remonté hors de la fenêtre.
 
-Si le premier élément visible est désormais un **frère** du dossier contenant
-le document courant, la barre conserve néanmoins ce dossier : le contexte
-d'édition ne disparaît pas dès que la vue a dépassé son sous-arbre. Ce rappel
-n'apparaît que dans le **même projet** et seulement après le passage de
-l'en-tête réel du dossier. Un dossier qui contient effectivement le premier
-élément visible reste prioritaire et n'est pas dupliqué. Un changement
-d'onglet remet immédiatement à jour le contexte.
+Les deux en-têtes **restent en place même lorsque la molette fait défiler
+l'explorateur jusque dans une autre application**. Ils ne changent qu'en
+changeant de document ou de sélection dans l'arbre. Lorsque l'en-tête réel
+est encore visible (ou lorsque le défilement se situe avant lui), aucun
+doublon n'est affiché. Avant toute sélection explicite, le worktree peut
+montrer le contexte de la branche visible.
 
-Le repère est affiché dans une zone indépendante du ScrollViewer : aucun
-document ne se retrouve sous un bandeau transparent superposé. Chaque ligne
-est un bouton au thème sombre, navigable au clavier, avec infobulle du chemin
-complet ; un clic **révèle le vrai nœud** dans l'arborescence.
+Exemple fictif : un document actif `Projet A/Risques/Risques.md` maintient
+« Projet A » et « Risques » en haut lorsque le scroll atteint les documents
+de `Application B`. Les titres ne sont jamais confondus avec le projet
+affiché sous la souris. Un clic sur l'un de ces boutons révèle le vrai nœud.
 
-Le calcul observe uniquement le premier conteneur WPF visible et ses ancêtres
-réalisés. Les événements de défilement sont regroupés et l'arbre n'est jamais
-reconstruit pour afficher l'en-tête. `StickyWorktreeContext` porte la règle
-pure de sélection des en-têtes, testée sur plusieurs contextes (projet,
-dossiers imbriqués, nouveau projet, absence de repère inutile).
+Les repères occupent une zone indépendante du ScrollViewer : aucun document
+n'est masqué par un bandeau transparent. Ils restent navigables au clavier,
+possèdent une infobulle du chemin complet et n'entraînent **aucune
+reconstruction de l'arbre** pendant le défilement. La comparaison d'ordre
+visuel est isolée dans `StickyWorktreeContext` et testée, notamment en
+franchissant une limite d'application.
+
+Les deux boutons de l'en-tête principal utilisent désormais des pictogrammes
+vectoriels (révéler et créer une application) dans des cibles de **32 px**,
+sans le padding de 10 px du bouton générique. Cela évite le rognage des
+symboles à 240 px et sur les écrans haute densité.
 
 ## Commandes et mémoire
 
@@ -93,13 +96,15 @@ l'issue**. Utiliser un workspace de démonstration exclusivement fictif avec
 très longs.
 
 - [ ] Panneau gauche à 240, 300 et 400 px (avec fenêtre étroite et large).
+- [ ] Boutons d'en-tête : icônes **complètes** à 240 px et DPI 100/125/150 %,
+      raccourcis clavier, survol, infobulles et zones de clic non rognées.
 - [ ] DPI Windows 100 %, 125 % et 150 % : aucune troncature de boutons,
       superposition ou fond blanc ; calendrier workspace accessible.
 - [ ] Scroller profondément dans chaque projet : son titre reste épinglé ;
       scroller dans un sous-dossier : le nom du dossier reste visible ;
-      changer de dossier/projet : les repères changent correctement ;
-      un document ouvert dans « Risques » conserve « Risques » même si la
-      première ligne visible est ensuite « Glossaire » dans le même projet.
+      changer de sélection : les repères changent correctement ; un document
+      ouvert dans « Risques » conserve « Risques » après le dossier
+      « Glossaire » ET après le premier projet d'une autre application.
 - [ ] Cliquer les en-têtes persistants pour retrouver le vrai nœud et
       vérifier navigation clavier, infobulles, longs titres et petit panneau.
 - [ ] Contrôler les cartes de projets, leur guide et les en-têtes de
