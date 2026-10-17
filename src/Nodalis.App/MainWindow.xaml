@@ -334,6 +334,9 @@
                     </MenuItem>
 
                     <MenuItem Header="Pilotage">
+                        <MenuItem Header="Historique de maintenance"
+                                  Click="OpenMaintenanceHistory_Click" />
+                        <Separator />
                         <MenuItem Header="Tâches"
                                   Click="ShowAllTasks_Click" />
                         <MenuItem Header="Jalons"
@@ -799,6 +802,13 @@
                                     Orientation="Horizontal"
                                     VerticalAlignment="Center"
                                     Margin="12,0,0,0">
+                            <Button x:Name="MaintenanceHistoryButton"
+                                    Visibility="Collapsed"
+                                    Padding="10,6"
+                                    Margin="0,0,6,0"
+                                    Click="OpenMaintenanceHistory_Click"
+                                    ToolTip="Consulter les incidents et interventions avec recherche et filtres"
+                                    Content="Historique" />
                             <Button x:Name="NewMaintenanceInterventionButton"
                                     Visibility="Collapsed"
                                     Padding="10,6"
