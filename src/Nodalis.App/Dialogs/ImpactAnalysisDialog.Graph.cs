@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -127,12 +128,10 @@ public partial class ImpactAnalysisDialog
                 BorderBrush = node.Id == _origin.Id ? accent : border,
                 BorderThickness = node.Id == _origin.Id ? new Thickness(2) : new Thickness(1),
                 ToolTip = node.Group + " · " +
-                    (node.Evidence == ImpactEvidence.Explicit ? "relations explicites" : "suggestion"),
-                AutomationProperties =
-                {
-                    Name = node.Title + " · " + node.Group + " · niveau " + node.Depth
-                }
+                    (node.Evidence == ImpactEvidence.Explicit ? "relations explicites" : "suggestion")
             };
+            AutomationProperties.SetName(button,
+                node.Title + " · " + node.Group + " · niveau " + node.Depth);
             button.Click += GraphNode_Click;
             Canvas.SetLeft(button, point.X);
             Canvas.SetTop(button, point.Y);
