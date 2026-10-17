@@ -57,6 +57,10 @@
                                Foreground="{StaticResource SecondaryTextBrush}"/>
                     <TextBlock x:Name="AttachmentText" TextWrapping="Wrap" Margin="0,3,0,7"
                                Foreground="{StaticResource SecondaryTextBrush}"/>
+                    <Image x:Name="AttachmentImage" MaxHeight="155"
+                           Margin="0,3,0,10" HorizontalAlignment="Left"
+                           Stretch="Uniform" Visibility="Collapsed"
+                           AutomationProperties.Name="Aperçu de la première image jointe"/>
                     <TextBlock x:Name="StatusText" TextWrapping="Wrap"
                                Foreground="{StaticResource SecondaryTextBrush}"
                                AutomationProperties.LiveSetting="Polite"/>
