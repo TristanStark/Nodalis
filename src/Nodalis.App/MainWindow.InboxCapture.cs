@@ -82,8 +82,8 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Opens one modal user-initiated text capture and persists it as an Inbox entry.
-    /// No clipboard read or screenshot is performed on a hotkey press.
+    /// Opens one voluntary user-initiated capture and persists selected content.
+    /// The clipboard is read only after the user clicks its import button.
     /// </summary>
     /// <returns>A task representing the explicit capture.</returns>
     private async Task ShowInboxCaptureAsync()
@@ -94,6 +94,7 @@ public partial class MainWindow
         }
 
         _inboxCaptureOpen = true;
+        InboxCaptureDialog? dialog = null;
         try
         {
             if (WindowState == WindowState.Minimized)
@@ -103,7 +104,7 @@ public partial class MainWindow
 
             Show();
             Activate();
-            InboxCaptureDialog dialog = new InboxCaptureDialog
+            dialog = new InboxCaptureDialog
             {
                 Owner = this,
                 Topmost = true
@@ -117,9 +118,10 @@ public partial class MainWindow
             WorkspaceInboxService inbox = new WorkspaceInboxService(_root.FullPath);
             InboxEntry created = await inbox.CaptureAsync(new InboxCaptureRequest
             {
-                Kind = InboxCaptureKind.Text,
+                Kind = dialog.CapturedKind,
                 ContentMarkdown = dialog.CapturedMarkdown,
-                Origin = "global-shortcut"
+                AttachmentSourcePaths = dialog.CapturedFilePaths,
+                Origin = "explicit-user-capture"
             });
 
             StatusText.Text = "Capture Inbox enregistrée · " +
@@ -127,6 +129,22 @@ public partial class MainWindow
         }
         finally
         {
+            if (dialog is not null)
+            {
+                try
+                {
+                    dialog.CleanupTemporaryCapture();
+                }
+                catch (Exception exception) when (
+                    exception is IOException or UnauthorizedAccessException)
+                {
+                    ReportRecoverableUiError(
+                        "Nettoyage de la capture temporaire",
+                        exception,
+                        showDialog: false);
+                }
+            }
+
             _inboxCaptureOpen = false;
         }
     }

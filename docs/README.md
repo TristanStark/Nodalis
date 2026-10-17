@@ -73,3 +73,6 @@ matrice ou disposer d'un document dédié avant la release stable.
 
 - [Inbox 1.1 — raccourci Windows global configurable](global-inbox-hotkey.md) :
   fonctionnement, raccourcis réservés, collisions et vérification interactive.
+
+- [Inbox 1.1 — capture explicite du presse-papiers et des fichiers](inbox-capture.md) :
+  formats pris en charge, limites, sélection et absence de capture silencieuse.

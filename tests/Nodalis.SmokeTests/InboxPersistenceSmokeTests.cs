@@ -10,6 +10,18 @@ internal static class InboxPersistenceSmokeTests
     /// <returns>A task representing the smoke test.</returns>
     public static async Task RunAsync(string testRoot)
     {
+        Assert(InboxCaptureClassifier.ClassifyText(
+                "https://example.org/resource?q=1") == InboxCaptureKind.Link &&
+            InboxCaptureClassifier.ClassifyText("Texte ordinaire") ==
+                InboxCaptureKind.Text &&
+            InboxCaptureClassifier.ClassifyText(
+                "https://example.org/one\nhttps://example.org/two") ==
+                InboxCaptureKind.Text &&
+            InboxCaptureClassifier.ClassifyText(
+                "file:///C:/Windows/System32/cmd.exe") ==
+                InboxCaptureKind.Text,
+            "Only a single HTTP(S) URL may be classified as a link.");
+
         string root = Path.Combine(testRoot, "inbox-persistence");
         FileSystemWorkspaceStore workspace = new FileSystemWorkspaceStore(root);
         await workspace.InitializeAsync("Inbox smoke");
@@ -70,6 +82,25 @@ internal static class InboxPersistenceSmokeTests
 
         string sourceAttachment = Path.Combine(root, "source-image.png");
         await File.WriteAllBytesAsync(sourceAttachment, [1, 2, 3, 4]);
+        IReadOnlyList<string> selection = InboxCaptureClassifier.ValidateFiles(
+            [sourceAttachment, sourceAttachment]);
+        Assert(selection.Count == 1 &&
+            InboxCaptureClassifier.FormatFileSummary(selection).Contains(
+                "source-image.png", StringComparison.Ordinal),
+            "Explicit file selection must remain bounded, unique and readable.");
+        bool missingFileRejected = false;
+        try
+        {
+            InboxCaptureClassifier.ValidateFiles([
+                Path.Combine(root, "missing-image.png")]);
+        }
+        catch (IOException)
+        {
+            missingFileRejected = true;
+        }
+
+        Assert(missingFileRejected,
+            "Missing file selection must fail before publishing a capture.");
         InboxEntry image = await inbox.CaptureAsync(new InboxCaptureRequest
         {
             Kind = InboxCaptureKind.Image,
