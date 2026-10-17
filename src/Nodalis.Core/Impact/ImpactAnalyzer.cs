@@ -241,7 +241,9 @@ public static class ImpactAnalyzer
     /// <returns>Whether the two elements share the same scope identity.</returns>
     private static bool SameScope(LinkTargetEntry origin, LinkTargetEntry candidate)
     {
-        return string.Equals(origin.ScopeIdentity, candidate.ScopeIdentity,
-            StringComparison.OrdinalIgnoreCase);
+        return !string.IsNullOrWhiteSpace(origin.ScopeIdentity) &&
+            !string.IsNullOrWhiteSpace(candidate.ScopeIdentity) &&
+            string.Equals(origin.ScopeIdentity, candidate.ScopeIdentity,
+                StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -34,8 +34,8 @@ public partial class MainWindow
                     return;
                 }
 
-                // Index refresh reads the canonical Markdown and preserves existing stable IDs.
-                await RefreshLinkIndexAsync();
+                // Deliberately reuse the already loaded link-index snapshot: an impact
+                // analysis must never refresh or rewrite the canonical identity registry.
                 LinkTargetEntry? origin = FindIndexedTarget(_selectedNode);
                 if (origin is null)
                 {
