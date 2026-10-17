@@ -6,6 +6,7 @@ using Nodalis.App.Editor;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Maintenance;
 using Nodalis.Core.Navigation;
+using Nodalis.Core.Settings;
 
 namespace Nodalis.App;
 
@@ -88,11 +89,69 @@ public partial class MainWindow
             scopes.Add(new MaintenanceHistoryScope("Application · " + application.DisplayName, all));
         }
 
-        MaintenanceHistoryDialog dialog = new MaintenanceHistoryDialog(scopes, errors)
+        MaintenanceHistoryDialog dialog = new MaintenanceHistoryDialog(
+            scopes, errors, _preferences.ShowMaintenanceSuggestions)
         {
             Owner = this
         };
-        if (dialog.ShowDialog() != true || dialog.SelectedEntry is not MaintenanceHistoryItem entry)
+        bool accepted = dialog.ShowDialog() == true;
+
+        // The visibility switch is independent of the maintenance feature itself.
+        // Keep it even when the user closes the history window without a selection.
+        if (_preferences.ShowMaintenanceSuggestions != dialog.ShowSuggestionsEnabled)
+        {
+            UserPreferences before = _preferences;
+            _preferences = _preferences with
+            {
+                ShowMaintenanceSuggestions = dialog.ShowSuggestionsEnabled
+            };
+            try
+            {
+                await _preferencesStore.SaveAsync(_preferences);
+            }
+            catch
+            {
+                _preferences = before;
+                throw;
+            }
+        }
+
+        if (!accepted)
+        {
+            return;
+        }
+
+        if (dialog.SelectedRecurrence is MaintenanceRecurrenceSuggestion suggestion &&
+            dialog.SelectedAction is MaintenanceHistoryAction.LinkRecurrence or
+                MaintenanceHistoryAction.IgnoreRecurrence)
+        {
+            if (_workspaceReadOnly)
+            {
+                MessageBox.Show(this,
+                    "Les suggestions peuvent être consultées, mais ce workspace est en lecture seule.",
+                    "Rapprochements", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (!await FlushMaintenanceTabAsync(suggestion.First.SourcePath))
+            {
+                return;
+            }
+
+            MaintenanceRecurrenceDecision decision =
+                dialog.SelectedAction == MaintenanceHistoryAction.LinkRecurrence
+                    ? MaintenanceRecurrenceDecision.Link
+                    : MaintenanceRecurrenceDecision.Ignore;
+            await _maintenanceService.ReviewIncidentsAsync(
+                suggestion.First, suggestion.Second, decision);
+            await OpenMaintenanceHistorySourceAsync(suggestion.First);
+            StatusText.Text = decision == MaintenanceRecurrenceDecision.Link
+                ? "Lien de récurrence enregistré dans la fiche · aucune fusion"
+                : "Suggestion ignorée pour cette paire d'incidents";
+            return;
+        }
+
+        if (dialog.SelectedEntry is not MaintenanceHistoryItem entry)
         {
             return;
         }
