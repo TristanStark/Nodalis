@@ -57,6 +57,11 @@ internal static class MaintenanceInboxSmokeTests
                saved.Contains("> ### Ceci est un titre dans la capture", StringComparison.Ordinal) &&
                saved.Contains("Réunion technique", StringComparison.Ordinal),
             "All original content must be retained, without introducing false history headings.");
+        Assert(saved.Contains("- **Source Inbox :** [Capture originale](",
+                   StringComparison.Ordinal) &&
+               saved.Contains("Inbox/Items/" + text.Id.ToString("N") +
+                   "/capture.md", StringComparison.OrdinalIgnoreCase),
+            "Structured maintenance history must include a navigable link to the original Inbox capture.");
         InboxEntry stillThere = (await inbox.ReadAllAsync()).Entries.Single(e => e.Id == text.Id);
         Assert(stillThere.State == InboxItemState.Processed &&
                stillThere.ConvertedTargetRelativePath == created.TargetRelativePath,
