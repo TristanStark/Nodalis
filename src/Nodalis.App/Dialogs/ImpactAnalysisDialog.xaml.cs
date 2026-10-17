@@ -18,6 +18,7 @@ public partial class ImpactAnalysisDialog : Window
     private const string AllScopes = "Tous les niveaux";
     private readonly LinkTargetEntry _origin;
     private readonly ImpactGraphIndex _graph;
+    private readonly IReadOnlyList<ImpactMaintenanceContext> _maintenance;
     private ImpactAnalysisResult? _analysis;
     private CancellationTokenSource? _analysisCancellation;
 
@@ -26,12 +27,14 @@ public partial class ImpactAnalysisDialog : Window
     /// </summary>
     /// <param name="origin">The current indexed document.</param>
     /// <param name="graph">A reconstructed graph of the workspace.</param>
-    public ImpactAnalysisDialog(LinkTargetEntry origin, ImpactGraphIndex graph)
+    public ImpactAnalysisDialog(LinkTargetEntry origin, ImpactGraphIndex graph,
+        IReadOnlyList<ImpactMaintenanceContext>? maintenance = null)
     {
         ArgumentNullException.ThrowIfNull(origin);
         ArgumentNullException.ThrowIfNull(graph);
         _origin = origin;
         _graph = graph;
+        _maintenance = maintenance ?? [];
 
         InitializeComponent();
         OriginText.Text = origin.QualifiedName;
@@ -48,6 +51,9 @@ public partial class ImpactAnalysisDialog : Window
 
     /// <summary>Gets the Markdown line associated with the accepted destination, if available.</summary>
     public int? SelectedLineNumber { get; private set; }
+
+    /// <summary>Gets the selected explicit maintenance reference to navigate to its source block.</summary>
+    public ImpactMaintenanceContext? SelectedMaintenance { get; private set; }
 
     /// <summary>
     /// Starts the initial cancellable analysis after the dialog has been loaded.
@@ -195,6 +201,7 @@ public partial class ImpactAnalysisDialog : Window
 
         ResultsList.ItemsSource = rows;
         RenderGraph();
+        RefreshMaintenanceReferences();
         if (rows.Length > 0)
         {
             ResultsList.SelectedIndex = 0;

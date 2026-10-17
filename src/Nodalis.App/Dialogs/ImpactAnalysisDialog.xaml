@@ -189,6 +189,39 @@
                     </ScrollViewer>
                 </DockPanel>
             </TabItem>
+            <TabItem Header="Maintenance liée">
+                <DockPanel Margin="6">
+                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap"
+                               Margin="0,0,0,8"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               Text="Références explicites d'incidents ou d'interventions vers les documents affichés. Un historique n'est pas une preuve de dépendance métier." />
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <TextBlock x:Name="MaintenanceStatusText" Margin="0,0,0,8"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap" />
+                        <Button x:Name="OpenMaintenanceButton" Content="Ouvrir la fiche à la bonne ligne"
+                                HorizontalAlignment="Right" Padding="10,5"
+                                IsEnabled="False" Click="OpenMaintenanceButton_Click" />
+                    </StackPanel>
+                    <ListBox x:Name="MaintenanceList" BorderBrush="{StaticResource BorderBrush}"
+                             SelectionChanged="MaintenanceList_SelectionChanged"
+                             MouseDoubleClick="MaintenanceList_MouseDoubleClick"
+                             VirtualizingStackPanel.IsVirtualizing="True"
+                             AutomationProperties.Name="Incidents et interventions liés explicitement">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="8,7">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Subtitle}" FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </TabItem>
         </TabControl>
 
         <TextBlock x:Name="StatusText"

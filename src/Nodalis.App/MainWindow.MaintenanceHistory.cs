@@ -167,6 +167,9 @@ public partial class MainWindow
             case MaintenanceHistoryAction.BrowseDocumentReferences:
                 await BrowseMaintenanceDocumentReferencesAsync(entry);
                 break;
+            case MaintenanceHistoryAction.AnalyzeImpact:
+                await AnalyzeMaintenanceRecordAsync(entry);
+                break;
             default:
                 await OpenMaintenanceHistorySourceAsync(entry);
                 break;
