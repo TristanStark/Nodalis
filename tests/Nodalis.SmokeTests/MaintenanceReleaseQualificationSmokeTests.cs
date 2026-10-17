@@ -9,6 +9,7 @@ using Nodalis.Infrastructure.Inbox;
 using Nodalis.Infrastructure.Maintenance;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
+using Nodalis.Infrastructure.Templates;
 
 /// <summary>
 /// Release-level safety and compatibility fixtures for maintenance 1.2:
@@ -35,6 +36,9 @@ internal static class MaintenanceReleaseQualificationSmokeTests
                     Name = "Application Héritée"
                 }));
 
+        // Simulate the 1.0 workspace template registry required by the project creator.
+        // This setup affects only the workspace-level template catalog, not the project.
+        await new FileSystemTemplateStore(workspace).InitializeDefaultsAsync();
         FileSystemProjectCreator creator = new FileSystemProjectCreator(workspace);
         ProjectCreationResult created = await creator.CreateAsync(
             new ProjectCreationRequest
