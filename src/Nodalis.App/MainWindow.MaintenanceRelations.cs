@@ -1,10 +1,11 @@
 using System.IO;
 using System.Windows;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Editor;
+using Nodalis.App.Navigation;
 using Nodalis.Core.Links;
 using Nodalis.Core.Maintenance;
 using Nodalis.Core.Navigation;
-using Nodalis.Infrastructure.Links;
 
 namespace Nodalis.App;
 
