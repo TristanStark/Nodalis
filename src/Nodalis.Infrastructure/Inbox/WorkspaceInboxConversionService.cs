@@ -104,6 +104,13 @@ public sealed class WorkspaceInboxConversionService
             FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None,
             1, FileOptions.Asynchronous);
 
+        if (File.Exists(Path.Combine(itemDirectory, "maintenance-conversion.json")))
+        {
+            throw new InvalidOperationException(
+                "Cette capture possède une conversion maintenance préparée. " +
+                "Reprenez-la avec « Ajouter à une fiche de maintenance ».");
+        }
+
         string destinationDirectory = ResolveScope(request.DestinationRelativeDirectory);
         string target = ResolveTarget(request, destinationDirectory);
         string targetRelative = Relative(target);
