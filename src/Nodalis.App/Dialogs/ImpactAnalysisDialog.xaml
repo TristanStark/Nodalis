@@ -169,7 +169,7 @@
             </Border>
                 </Grid>
             </TabItem>
-            <TabItem Header="Graphe visuel">
+            <TabItem x:Name="GraphTab" Header="Graphe visuel" Selected="GraphTab_Selected">
                 <DockPanel Margin="6">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="Zoom" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -177,6 +177,10 @@
                                 TickFrequency="20" IsSnapToTickEnabled="True" Width="155"
                                 VerticalAlignment="Center" ValueChanged="GraphZoom_Changed"
                                 ToolTip="Zoom du graphe entre 40 et 180 pour cent" />
+                        <TextBlock Text="Regrouper" VerticalAlignment="Center" Margin="16,0,8,0" />
+                        <ComboBox x:Name="GraphGroupComboBox" Width="155" Height="29"
+                                  ToolTip="Regrouper les nœuds par profondeur, projet ou type"
+                                  SelectionChanged="GraphGroup_Changed" />
                         <Button Content="Recentrer" Margin="10,0,0,0" Padding="7,2"
                                 Click="GraphReset_Click" ToolTip="Remettre le zoom à 100 % et revenir à la source" />
                     </StackPanel>

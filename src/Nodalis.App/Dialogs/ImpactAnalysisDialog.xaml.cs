@@ -44,6 +44,8 @@ public partial class ImpactAnalysisDialog : Window
         ScopeComboBox.SelectedIndex = 0;
         DepthComboBox.ItemsSource = new[] { 1, 2, 3, 4, 6, 8 };
         DepthComboBox.SelectedItem = 6;
+        GraphGroupComboBox.ItemsSource = new[] { "Par profondeur", "Par projet", "Par type" };
+        GraphGroupComboBox.SelectedIndex = 0;
     }
 
     /// <summary>Gets the accepted navigation destination, if any.</summary>

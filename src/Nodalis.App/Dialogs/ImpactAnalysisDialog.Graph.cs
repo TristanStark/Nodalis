@@ -13,6 +13,7 @@ public partial class ImpactAnalysisDialog
 {
     private const int MaximumDiagramNodes = 90;
     private readonly Dictionary<Guid, Button> _graphNodeButtons = [];
+    private readonly List<(ImpactDiagramEdge Edge, Line Visual)> _graphLines = [];
 
     /// <summary>
     /// Draws only the bounded, already filtered evidence paths; large graphs fall back to the list.
@@ -26,6 +27,7 @@ public partial class ImpactAnalysisDialog
 
         GraphCanvas.Children.Clear();
         _graphNodeButtons.Clear();
+        _graphLines.Clear();
         if (_analysis is null)
         {
             GraphStatusText.Text = "Le calcul n'est pas terminé.";
@@ -51,7 +53,18 @@ public partial class ImpactAnalysisDialog
         foreach (IGrouping<int, ImpactDiagramNode> column in diagram.Nodes.GroupBy(node => node.Depth))
         {
             int lane = 0;
-            foreach (ImpactDiagramNode node in column)
+            string grouping = GraphGroupComboBox.SelectedItem as string ?? "Par profondeur";
+            IEnumerable<ImpactDiagramNode> ordered = grouping switch
+            {
+                "Par projet" => column.OrderBy(node => node.Group,
+                    StringComparer.OrdinalIgnoreCase).ThenBy(node => node.Title,
+                    StringComparer.OrdinalIgnoreCase),
+                "Par type" => column.OrderBy(node => node.Kind).ThenBy(node => node.Group,
+                    StringComparer.OrdinalIgnoreCase).ThenBy(node => node.Title,
+                    StringComparer.OrdinalIgnoreCase),
+                _ => column.OrderBy(node => node.Title, StringComparer.OrdinalIgnoreCase)
+            };
+            foreach (ImpactDiagramNode node in ordered)
             {
                 double x = margin + column.Key * (boxWidth + horizontalSpacing);
                 double y = margin + lane++ * (boxHeight + verticalSpacing);
@@ -93,6 +106,7 @@ public partial class ImpactAnalysisDialog
                     (edge.Evidence == ImpactEvidence.Explicit ? "relation explicite" : "simple contexte")
             };
             GraphCanvas.Children.Add(line);
+            _graphLines.Add((edge, line));
             if (x2 > x1 + 10)
             {
                 Polygon arrow = new()
@@ -148,6 +162,7 @@ public partial class ImpactAnalysisDialog
             (diagram.IsTruncated ? " · Graphe limité à 90 nœuds : vue liste complète disponible." : "") +
             (_analysis.IsTruncated ? " · Analyse source tronquée." : "") +
             " · Clic : sélectionner ; double-clic sur la liste : ouvrir.";
+        FocusGraphSelection();
     }
 
     /// <summary>
@@ -194,6 +209,59 @@ public partial class ImpactAnalysisDialog
         }
 
         button.BorderThickness = new Thickness(3);
+
+        // Highlight exactly the auditable dependency path to the selected node.
+        // Context-only edges keep their dashed styling and are never treated as causal.
+        HashSet<string> selectedArrows = new(StringComparer.Ordinal);
+        Guid cursor = _origin.Id;
+        foreach (ImpactGraphEdge edge in row.Finding.Path)
+        {
+            Guid next = row.Finding.Evidence == ImpactEvidence.Explicit ||
+                edge.TargetId == _origin.Id ? edge.SourceId : edge.TargetId;
+            selectedArrows.Add(cursor.ToString("D") + ":" + next.ToString("D") + ":" +
+                edge.RelationType + ":" + row.Finding.Evidence);
+            cursor = next;
+        }
+
+        foreach ((ImpactDiagramEdge edge, Line visual) in _graphLines)
+        {
+            string key = edge.FromId.ToString("D") + ":" + edge.ToId.ToString("D") + ":" +
+                edge.RelationType + ":" + edge.Evidence;
+            bool onPath = selectedArrows.Contains(key);
+            visual.StrokeThickness = onPath ? 4 : 2;
+            visual.Opacity = onPath ? 1 : 0.45;
+        }
+
+        if (GraphTab.IsSelected)
+        {
+            double zoom = GraphZoomSlider.Value / 100d;
+            GraphScrollViewer.ScrollToHorizontalOffset(Math.Max(0,
+                Canvas.GetLeft(button) * zoom - GraphScrollViewer.ViewportWidth / 2));
+            GraphScrollViewer.ScrollToVerticalOffset(Math.Max(0,
+                Canvas.GetTop(button) * zoom - GraphScrollViewer.ViewportHeight / 2));
+        }
+    }
+
+    /// <summary>Switches graph lane ordering between level, project and indexed target type.</summary>
+    /// <param name="sender">Group selector.</param>
+    /// <param name="e">Selection change.</param>
+    private void GraphGroup_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (IsLoaded)
+        {
+            RenderGraph();
+        }
+    }
+
+    /// <summary>Centers the selected result after switching to the diagram tab.</summary>
+    /// <param name="sender">Tab header.</param>
+    /// <param name="e">Routed selection event.</param>
+    private void GraphTab_Selected(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded && ReferenceEquals(e.OriginalSource, GraphTab))
+        {
+            FocusGraphSelection();
+        }
     }
 
     /// <summary>

@@ -67,7 +67,10 @@ pas un impact réel certain.
 - Traits continus : dépendance typée explicite. Traits pointillés :
   suggestion de contexte, **non propagée**.
 - Cliquez sur un nœud : il devient la sélection active de la liste et son
-  chemin apparaît dans **Pourquoi cet impact ?**.
+  chemin apparaît dans **Pourquoi cet impact ?**. Les traits du chemin sont
+  mis en évidence et le graphe peut se centrer sur le nœud sélectionné.
+- Le choix **Regrouper** ordonne les nœuds, à profondeur égale, par projet
+  ou type de cible.
 - Le curseur de zoom varie de 40 à 180 %. **Recentrer** réinitialise le zoom
   et le défilement ; les ascenseurs permettent le déplacement/panoramique.
 - Pour un grand graphe, seules **90 entités maximum** sont dessinées :
