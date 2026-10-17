@@ -60,6 +60,11 @@ internal static class MaintenanceMarkdownSmokeTests
                parsed.Records[1].Details["Équipe"] == "Exploitation",
             "Identity, cross-references and arbitrary readable fields must survive parsing.");
 
+        string withFencedExample = updated +
+            "~~~markdown\r\n- **Identifiant :** exemple\r\n- **Résumé :** faux champ\r\n~~~\r\n";
+        Assert(MaintenanceMarkdownCodec.Parse(withFencedExample).Diagnostics.Count == 0,
+            "Code examples inside a record must not be parsed as duplicate fields.");
+
         // Simulating a document rename or move does not alter inline record identities.
         string movedDocument = updated;
         Assert(MaintenanceMarkdownCodec.Parse(movedDocument).Records[0].Id == incidentId,
