@@ -574,6 +574,12 @@ public sealed class WorkspaceInboxService
             string relativePath = ValidateRelativePath(attachment.RelativePath, directory);
             string fullPath = Path.Combine(directory,
                 relativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (attachment.SizeBytes > InboxAttachmentRules.MaximumFileBytes)
+            {
+                throw new InvalidDataException(
+                    "Inbox attachment metadata exceeds the supported size limit.");
+            }
+            ValidateManagedAttachmentParents(directory, fullPath);
             if (!File.Exists(fullPath))
             {
                 warnings.Add(new InboxWarning
@@ -656,6 +662,46 @@ public sealed class WorkspaceInboxService
         }
 
         return relativePath;
+    }
+
+    /// <summary>
+    /// Validates EVERY attachment path component, not just its immediate parent.
+    /// Nested junctions must never redirect a stored relative path outside Inbox.
+    /// </summary>
+    /// <param name="itemRoot">Canonical GUID directory.</param>
+    /// <param name="filePath">Workspace-local expected attachment.</param>
+    private static void ValidateManagedAttachmentParents(
+        string itemRoot, string filePath)
+    {
+        string canonicalRoot = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(itemRoot));
+        string? cursor = Path.GetDirectoryName(Path.GetFullPath(filePath));
+        while (cursor is not null)
+        {
+            string canonical = Path.TrimEndingDirectorySeparator(cursor);
+            string allowedPrefix = canonicalRoot + Path.DirectorySeparatorChar;
+            if (!string.Equals(canonical, canonicalRoot,
+                    StringComparison.OrdinalIgnoreCase) &&
+                !canonical.StartsWith(allowedPrefix,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Inbox attachment directory escapes its source item.");
+            }
+
+            if (Directory.Exists(canonical))
+            {
+                CheckManagedDirectory(canonical);
+            }
+
+            if (string.Equals(canonical, canonicalRoot,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            cursor = Path.GetDirectoryName(canonical);
+        }
     }
 
     /// <summary>Validates the exact managed directory and rejects directory junctions.</summary>

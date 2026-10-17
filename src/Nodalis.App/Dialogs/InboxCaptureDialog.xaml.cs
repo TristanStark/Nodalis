@@ -132,6 +132,7 @@ public partial class InboxCaptureDialog : Window
                 or ArgumentException or UnauthorizedAccessException
                 or NotSupportedException)
         {
+            LogRecoverableImportError("Inbox · import presse-papiers", exception);
             ShowValidation("Import impossible : " + exception.Message);
         }
     }
@@ -164,6 +165,7 @@ public partial class InboxCaptureDialog : Window
             exception is IOException or ArgumentException or InvalidDataException
                 or UnauthorizedAccessException or ExternalException)
         {
+            LogRecoverableImportError("Inbox · sélection de fichiers", exception);
             ShowValidation("Fichier non importé : " + exception.Message);
         }
     }
@@ -335,6 +337,19 @@ public partial class InboxCaptureDialog : Window
                 SaveButton.IsEnabled = true;
                 CancelButton.IsEnabled = true;
             }
+        }
+    }
+
+    /// <summary>Records a recoverable import failure with its explicit action context.</summary>
+    /// <param name="context">User action that failed.</param>
+    /// <param name="exception">Original exception.</param>
+    private static void LogRecoverableImportError(
+        string context, Exception exception)
+    {
+        if (Application.Current is App application)
+        {
+            application.DiagnosticsService.LogRecoverableException(
+                context, exception);
         }
     }
 

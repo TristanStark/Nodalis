@@ -166,6 +166,33 @@ internal static class InboxSafetySmokeTests
             (await inbox.ReadAllAsync()).Entries.Count == 3,
             "Canceled capture cannot publish a duplicate or lose existing content.");
 
+        // A malicious attachment path must never be followed outside its item.
+        InboxEntry malicious = await inbox.CaptureAsync(new InboxCaptureRequest
+        {
+            Kind = InboxCaptureKind.File,
+            ContentMarkdown = "Chemin non fiable.",
+            AttachmentSourcePaths = [attachmentA]
+        });
+        string maliciousDirectory = Path.Combine(root, "Inbox", "Items",
+            malicious.Id.ToString("N"));
+        string maliciousMetadata = Path.Combine(maliciousDirectory, "item.json");
+        JsonNode untrusted = JsonNode.Parse(
+            await File.ReadAllTextAsync(maliciousMetadata))!;
+        untrusted["attachments"]![0]!["relativePath"] =
+            "attachments/../outside.txt";
+        await File.WriteAllTextAsync(maliciousMetadata, untrusted.ToJsonString());
+        InboxReadResult unsafeScan = await inbox.ReadAllAsync();
+        string quarantine = Path.Combine(root, "Inbox", "Quarantaine");
+        Assert(!unsafeScan.Entries.Any(entry => entry.Id == malicious.Id) &&
+            unsafeScan.Warnings.Any(warning =>
+                warning.Item == malicious.Id.ToString("N") &&
+                warning.Message.Contains("Quarantaine", StringComparison.Ordinal)) &&
+            Directory.EnumerateFiles(quarantine, "capture.md",
+                SearchOption.AllDirectories).Any(path =>
+                File.ReadAllText(path).Contains(
+                    "Chemin non fiable.", StringComparison.Ordinal)),
+            "Malicious attachment traversal must quarantine the item and preserve the source.");
+
         string failureRoot = Path.Combine(testRoot, "inbox-safety-iofailure");
         FileSystemWorkspaceStore failureWorkspace = new FileSystemWorkspaceStore(failureRoot);
         await failureWorkspace.InitializeAsync("Disk error demo");

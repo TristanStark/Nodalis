@@ -57,7 +57,9 @@ workspace. Sélection et copie rejettent les fichiers manquants ou les
 liens symboliques et les extensions exécutables, scripts et raccourcis
 (les fichiers Markdown, images, PDF, documents, JSON restent acceptés).
 Les références persistées ne peuvent pas utiliser de chemin absolu,
-traversée de répertoire ou sortie du dossier Inbox géré.
+traversée de répertoire ou sortie du dossier Inbox géré. Chaque composant
+de répertoire des pièces jointes est vérifié pour éviter les jonctions
+et les liens symboliques imbriqués.
 
 ## Qualification
 
@@ -69,6 +71,8 @@ traversée de répertoire ou sortie du dossier Inbox géré.
 - refus d'extension dangereuse et de fichier >25 Mio ;
 - disparition de pièce jointe : absence de publication partielle,
   quarantaine récupérable ; annulation avant publication ;
+- métadonnées de pièce jointe falsifiées avec traversal : quarantaine
+  sans lecture externe et conservation du Markdown source ;
 - erreur I/O contrôlée via collision avec un objet disque.
 
 La CI Windows couvre la compilation WPF, les régressions, le package
