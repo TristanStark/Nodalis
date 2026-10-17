@@ -89,6 +89,8 @@ matrice ou disposer d'un document dédié avant la release stable.
   identité stable, lecture ancienne/nouvelle, liens, diagnostics et ajout non destructif.
 - [Saisie et modification des interventions](maintenance-interventions-1.2-guide.md) :
   formulaire compact, liens vers incidents, Command Palette, sauvegarde et reprise des conflits.
+- [Historique chronologique et recherche](maintenance-history-1.2-guide.md) :
+  contextes projet/application, dates, filtres, sources Markdown et fiches partielles.
 
 ## Nodalis 1.1 — documentation de sortie
 
