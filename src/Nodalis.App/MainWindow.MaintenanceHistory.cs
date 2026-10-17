@@ -149,7 +149,30 @@ public partial class MainWindow
             return;
         }
 
-        // Do not discard in-memory unsaved Markdown: the editor tab owns its session.
+        // Keep unsaved in-memory edits. Otherwise refresh a clean tab if another
+        // program changed its file after the history window was opened.
+        DocumentTabViewModel? existing = _documentTabs.FirstOrDefault(tab =>
+            string.Equals(tab.FullPath, entry.SourcePath, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            if (ReferenceEquals(existing, _activeDocumentTab))
+            {
+                StoreActiveDocumentTabState();
+            }
+
+            if (ReferenceEquals(existing, _secondaryDocumentTab))
+            {
+                StoreSecondaryDocumentTabState();
+            }
+
+            if (!existing.IsDirty && !existing.HasConflict &&
+                await existing.Session.HasExternalChangesAsync())
+            {
+                await existing.Session.ReloadAsync();
+                existing.Content = existing.Session.Content;
+            }
+        }
+
         SetFocusedEditorPane(EditorPaneSlot.Primary);
         await OpenOrActivateDocumentTabAsync(node);
         string current = MarkdownEditorTextBox.Text;
