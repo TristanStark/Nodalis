@@ -24,6 +24,10 @@ son projet et sa ligne source. Les interventions affichent aussi le **Résultat*
 si ce champ est renseigné. Un double-clic, ou **Ouvrir la source**, place le
 curseur sur le titre du bloc Markdown correspondant.
 
+Sélectionner un incident puis cocher **Liées à l'incident sélectionné**
+réduit la liste de droite aux interventions rattachées à son identifiant,
+sans perdre la recherche en cours. Décocher revient à la chronologie entière.
+
 Les filtres se combinent :
 - champ de recherche libre : résumé, action, symptôme, cause, diagnostic,
   résultat, notes libres et autres propriétés ;
