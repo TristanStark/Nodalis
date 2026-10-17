@@ -124,3 +124,12 @@ cochée :
 4. laisser le workflow de release reconstruire et revérifier le package ;
 5. vérifier les artefacts `Nodalis-win-x64.zip` et `SHA256SUMS.txt` de la
    GitHub Release avant annonce de la stable.
+
+## Release 1.1
+
+La présente checklist reste l'historique de la 1.0. Pour la sortie
+de l'Inbox 1.1, utiliser la
+[checklist de qualification 1.1](release-checklist-1.1.md).
+Le workflow de release comporte désormais un contrôle supplémentaire
+sur la fermeture de l'EPIC #96 et des issues Inbox #99–#105 **uniquement**
+pour les tags stables 1.1.x ; les versions RC restent possibles.

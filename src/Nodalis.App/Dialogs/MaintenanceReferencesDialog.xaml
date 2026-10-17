@@ -1,0 +1,56 @@
+<Window x:Class="Nodalis.App.Dialogs.MaintenanceReferencesDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Références de maintenance"
+        Width="800" Height="570" MinWidth="560" MinHeight="390"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Text="Références déclarées" FontWeight="SemiBold"
+                   FontSize="20"/>
+        <TextBlock x:Name="SummaryText" Grid.Row="1"
+                   Margin="0,6,0,12" TextWrapping="Wrap"
+                   Foreground="{StaticResource SecondaryTextBrush}"/>
+        <ListBox x:Name="ReferencesList" Grid.Row="2"
+                 Background="{StaticResource PanelBackgroundBrush}"
+                 BorderBrush="{StaticResource BorderBrush}"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 ScrollViewer.CanContentScroll="True"
+                 MouseDoubleClick="References_DoubleClick"
+                 AutomationProperties.Name="Documents référencés et références cassées">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="9,7">
+                        <TextBlock Text="{Binding DisplayLabel}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding OriginLabel}"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   Margin="0,3,0,0" FontSize="11"/>
+                        <TextBlock Text="{Binding TargetRelativePath}"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap" FontSize="11"/>
+                        <TextBlock Text="{Binding RawTargetId}"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   FontSize="10"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        <DockPanel Grid.Row="3" Margin="0,13,0,0" LastChildFill="False">
+            <TextBlock DockPanel.Dock="Left"
+                       Text="Les références cassées restent visibles et ne peuvent pas être ouvertes."
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <Button DockPanel.Dock="Right" Content="Fermer" IsCancel="True"
+                    Padding="10,6" Margin="7,0,0,0"/>
+            <Button DockPanel.Dock="Right" Content="Ouvrir le document"
+                    IsDefault="True" Padding="10,6" Click="Open_Click"/>
+        </DockPanel>
+    </Grid>
+</Window>

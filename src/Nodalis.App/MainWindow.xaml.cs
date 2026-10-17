@@ -140,6 +140,7 @@ public partial class MainWindow : Window
         InitializeContextMenus();
         InitializeDocumentTabs();
         InitializeDocumentOutline();
+        InitializeInboxGlobalShortcut();
 
         _preferences = preferences;
         _preferencesStore = preferencesStore;
@@ -208,7 +209,9 @@ public partial class MainWindow : Window
             preferences.ExpandedNodeIds);
 
         NavigationTree.ItemsSource =
-            new[] { _root };
+            _root.VisibleChildren;
+        ApplyWorktreeDisplayFilter();
+        ScheduleStickyWorktreeRefresh();
 
         WorkspaceNameText.Text =
             _workspaceReadOnly
@@ -222,6 +225,7 @@ public partial class MainWindow : Window
         NavigationColumn.Width = new GridLength(
             preferences.NavigationPanelWidth);
 
+        InitializeWorktreeP1();
         ApplyContextPanelState();
         ApplyPreviewState();
 
@@ -246,8 +250,11 @@ public partial class MainWindow : Window
                 UpdateGlossaryAnnotations();
                 await RefreshDashboardTasksAsync();
                 await RefreshDashboardMilestonesAsync();
+                await RefreshInboxDashboardCountAsync();
                 await RestoreDocumentTabsAsync();
                 await RestoreEditorSplitAsync();
+                RestoreSavedWorktreeSelection();
+                ScheduleWorktreeP1Refresh();
                 _backupTimer.Start();
                 await TryRunAutomaticBackupAsync();
                 AppendDiagnosticsStatus();
@@ -306,7 +313,16 @@ public partial class MainWindow : Window
                 {
                     _preferences = _preferences with
                     {
-                        ExpandedNodeIds = GetExpandedNodeIds(),
+                        ExpandedNodeIds = _expansionBeforeWorktreeFilter ??
+                            GetExpandedNodeIds(),
+                        NavigationDensity = NavigationTree.Tag as string ??
+                            "Comfortable",
+                        NavigationCurrentApplicationOnly =
+                            WorktreeApplicationScopeCheck.IsChecked == true,
+                        NavigationFavoritesExpanded =
+                            WorktreeFavoritesExpander.IsExpanded,
+                        NavigationRecentsExpanded =
+                            WorktreeRecentsExpander.IsExpanded,
                         IsContextPanelOpen = _contextPanelOpen,
                         NavigationPanelWidth = Math.Max(
                             180,
@@ -330,7 +346,8 @@ public partial class MainWindow : Window
                                 _secondaryDocumentTab?.DocumentId
                         },
                         OpenDocumentTabs = openDocumentTabs,
-                        ActiveDocumentTabId = activeDocumentTabId
+                        ActiveDocumentTabId = activeDocumentTabId,
+                        ActiveNavigationNodeId = _selectedNode?.Id
                     };
 
                     await _preferencesStore.SaveAsync(_preferences);
@@ -533,6 +550,7 @@ public partial class MainWindow : Window
         switch (_selectedNode.Kind)
         {
             case WorkspaceNodeKind.ApplicationsRoot:
+            case WorkspaceNodeKind.Global:
                 AddItem(
                     "Nouvelle application",
                     async (_, _) => await CreateApplicationAsync());
@@ -571,6 +589,13 @@ public partial class MainWindow : Window
 
             case WorkspaceNodeKind.Project:
                 AddItem(
+                    "Replier les autres projets",
+                    (_, _) => CollapseOtherProjects(_selectedNode));
+                AddItem(
+                    "Révéler dans l'explorateur",
+                    (_, _) => RevealNavigationNode(_selectedNode));
+                menu.Items.Add(CreateNodalisSeparator());
+                AddItem(
                     IsFavorite(_selectedNode)
                         ? "Retirer des favoris"
                         : "Ajouter aux favoris",
@@ -583,6 +608,10 @@ public partial class MainWindow : Window
                 break;
 
             case WorkspaceNodeKind.Document:
+                AddItem(
+                    "Révéler dans l'explorateur",
+                    (_, _) => RevealNavigationNode(_selectedNode));
+                menu.Items.Add(CreateNodalisSeparator());
                 AddItem(
                     IsFavorite(_selectedNode)
                         ? "Retirer des favoris"
@@ -1493,13 +1522,16 @@ public partial class MainWindow : Window
             object sender,
             RoutedPropertyChangedEventArgs<object> e)
     {
-        if (_restoringSelection ||
+        if (_restoringSelection || _worktreeDisplayUpdating ||
             e.NewValue is not NavigationNodeViewModel node)
         {
             return;
         }
 
         _selectedNode = node;
+        ScheduleRevealTreeItem(node);
+        ScheduleStickyWorktreeRefresh();
+        ScheduleWorktreeP1Refresh();
         await RunUiActionAsync(
             "Navigation · " +
             node.DisplayName,
@@ -3482,6 +3514,7 @@ public partial class MainWindow : Window
             _preferences);
 
         RefreshDashboard();
+        RefreshWorktreeShortcutLists();
 
         StatusText.Text = removed
             ? $"Retiré des favoris · {target.DisplayName}"
@@ -3579,6 +3612,7 @@ public partial class MainWindow : Window
             _preferences);
 
         RefreshDashboard();
+        RefreshWorktreeShortcutLists();
     }
 
     /// <summary>
@@ -4493,7 +4527,8 @@ public partial class MainWindow : Window
         global::Nodalis.App.Dialogs.PreferencesDialog dialog = new PreferencesDialog(
             _preferences.Editor,
             _contextPanelOpen,
-            _preferences.Ai)
+            _preferences.Ai,
+            GetInboxGesture())
         {
             Owner = this
         };
@@ -4504,6 +4539,18 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        string oldInboxGesture = GetInboxGesture();
+        string newInboxGesture = dialog.InboxHotkeyGesture;
+        Dictionary<string, string> shortcutOverrides =
+            new Dictionary<string, string>(
+                _preferences.ShortcutOverrides ??
+                    new Dictionary<string, string>(),
+                StringComparer.OrdinalIgnoreCase);
+        shortcutOverrides[GlobalInboxHotkey.PreferenceKey] = newInboxGesture;
+
+        // Keep the old registration if Windows refuses the new combination.
+        _globalInboxHotkey?.Register(newInboxGesture);
 
         global::Nodalis.Core.Settings.EditorPreferences editor = dialog.Editor;
         bool autosaveDelayChanged =
@@ -4547,11 +4594,24 @@ public partial class MainWindow : Window
         {
             IsContextPanelOpen = _contextPanelOpen,
             Editor = editor,
-            Ai = dialog.Ai
+            Ai = dialog.Ai,
+            ShortcutOverrides = shortcutOverrides
         };
 
-        await _preferencesStore.SaveAsync(
-            _preferences);
+        try
+        {
+            await _preferencesStore.SaveAsync(_preferences);
+        }
+        catch
+        {
+            // A failed preference write must not strand a different native binding.
+            if (_globalInboxHotkey is not null)
+            {
+                _globalInboxHotkey.Register(oldInboxGesture);
+            }
+
+            throw;
+        }
 
         StatusText.Text =
             "Préférences enregistrées localement";
@@ -4687,6 +4747,30 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "maintenance.intervention.new",
+                Title = "Nouvelle intervention",
+                Subtitle = "Créer une intervention dans la fiche de maintenance du projet courant",
+                Keywords = ["maintenance", "intervention", "nouvelle", "incident", "fiche"],
+                ExecuteAsync = CreateMaintenanceInterventionAsync
+            },
+            new()
+            {
+                Id = "maintenance.intervention.edit",
+                Title = "Modifier une intervention",
+                Subtitle = "Sélectionner et modifier une intervention de la fiche Markdown",
+                Keywords = ["maintenance", "intervention", "modifier", "éditer", "historique"],
+                ExecuteAsync = EditMaintenanceInterventionAsync
+            },
+            new()
+            {
+                Id = "maintenance.history",
+                Title = "Historique de maintenance",
+                Subtitle = "Rechercher incidents et interventions par projet ou application",
+                Keywords = ["maintenance", "historique", "rechercher", "incident", "intervention", "filtrer"],
+                ExecuteAsync = ShowMaintenanceHistoryAsync
+            },
+            new()
+            {
                 Id = "tasks.context",
                 Title = "Tâches du contexte",
                 Subtitle = "Projet / Application / Global selon la sélection",
@@ -4724,6 +4808,22 @@ public partial class MainWindow : Window
                 Subtitle = "Projet → Application → Global",
                 Keywords = ["glossaire", "définition", "terme", "acronyme", "synonyme"],
                 ExecuteAsync = ShowGlossaryAsync
+            },
+            new()
+            {
+                Id = "inbox.view",
+                Title = "Ouvrir Inbox",
+                Subtitle = "Rechercher, classer et restaurer les captures",
+                Keywords = ["inbox", "boîte de réception", "trier", "captures"],
+                ExecuteAsync = ShowInboxAsync
+            },
+            new()
+            {
+                Id = "inbox.capture",
+                Title = "Capturer dans Inbox",
+                Subtitle = "Capture Markdown volontaire, accessible par raccourci global",
+                Keywords = ["inbox", "boîte de réception", "capture"],
+                ExecuteAsync = ShowInboxCaptureAsync
             },
             new()
             {
@@ -8024,6 +8124,8 @@ public partial class MainWindow : Window
     private async Task RefreshNavigationAsync(
             string? openPath = null)
     {
+        // Preserve the selected document/project when refreshing unrelated branches.
+        string? targetPath = openPath ?? _selectedNode?.FullPath;
         global::System.Collections.Generic.HashSet<global::System.Guid> expandedIds = GetExpandedNodeIds();
 
         global::Nodalis.Core.Navigation.WorkspaceNavigationNode root = await _navigationBuilder.BuildAsync(
@@ -8034,27 +8136,42 @@ public partial class MainWindow : Window
             expandedIds);
 
         NavigationTree.ItemsSource =
-            new[] { _root };
+            _root.VisibleChildren;
+        ScheduleStickyWorktreeRefresh();
 
         RefreshDocumentTabsFromNavigation();
         await RefreshLinkIndexAsync();
 
-        if (openPath is null)
+        if (targetPath is null)
         {
             return;
         }
 
-        global::Nodalis.App.Navigation.NavigationNodeViewModel? target = FindAndExpand(
+        // Restoring by ID matters for Global: its canonical path equals the root path.
+        global::Nodalis.App.Navigation.NavigationNodeViewModel? target =
+            openPath is null && _selectedNode is not null
+                ? _root.DescendantsAndSelf()
+                    .FirstOrDefault(node => node.Id == _selectedNode.Id)
+                : null;
+        target ??= FindAndExpand(
             _root,
-            Path.GetFullPath(openPath));
+            Path.GetFullPath(targetPath));
 
         if (target is null)
         {
+            _selectedNode = null;
             return;
+        }
+
+        if (target.Kind != WorkspaceNodeKind.Global)
+        {
+            FindAndExpand(_root, Path.GetFullPath(target.FullPath));
         }
 
         _selectedNode = target;
         target.IsSelected = true;
+        ScheduleRevealTreeItem(target);
+        ScheduleWorktreeP1Refresh();
         await DisplayNodeAsync(target);
     }
 

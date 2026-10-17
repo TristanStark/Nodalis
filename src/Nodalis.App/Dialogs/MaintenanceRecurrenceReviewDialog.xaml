@@ -1,0 +1,102 @@
+<Window x:Class="Nodalis.App.Dialogs.MaintenanceRecurrenceReviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Suggestions d'incidents récurrents"
+        Width="930" Height="685" MinWidth="660" MinHeight="490"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="170"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="Rapprochements possibles" FontSize="19" FontWeight="SemiBold"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,5,0,12"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Hypothèses déterministes : même référence, symptômes, tags ou mots clés. La similarité n'est jamais une preuve que deux incidents sont identiques."/>
+        </StackPanel>
+        <ListBox x:Name="SuggestionsList" Grid.Row="1"
+                 BorderBrush="{StaticResource BorderBrush}"
+                 Background="{StaticResource PanelBackgroundBrush}"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
+                 SelectionChanged="SuggestionsList_SelectionChanged"
+                 AutomationProperties.Name="Paires suggérées à examiner">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="7,5">
+                        <TextBlock Text="{Binding ListLabel}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding Explanation}" TextWrapping="Wrap"
+                                   Foreground="{StaticResource SecondaryTextBrush}" Margin="0,3,0,0"/>
+                        <TextBlock Text="{Binding ScoreLabel}" FontSize="11" Margin="0,3,0,0"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock x:Name="ExplanationText" Grid.Row="2" Margin="0,12,0,8"
+                   TextWrapping="Wrap" FontWeight="SemiBold"/>
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Padding="12"
+                    Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="6">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="Incident A" FontWeight="SemiBold" FontSize="14"/>
+                        <TextBlock x:Name="LeftSummaryText" FontSize="15" FontWeight="SemiBold"
+                                   Margin="0,8,0,4" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="LeftDateText" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="LeftReferenceText" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="LeftSymptomsText" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="LeftTagsText" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="LeftSourceText" TextWrapping="Wrap"
+                                   Foreground="{StaticResource SecondaryTextBrush}" FontSize="11"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+            <Border Grid.Column="2" Padding="12"
+                    Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="6">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="Incident B" FontWeight="SemiBold" FontSize="14"/>
+                        <TextBlock x:Name="RightSummaryText" FontSize="15" FontWeight="SemiBold"
+                                   Margin="0,8,0,4" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="RightDateText" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="RightReferenceText" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="RightSymptomsText" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="RightTagsText" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="RightSourceText" TextWrapping="Wrap"
+                                   Foreground="{StaticResource SecondaryTextBrush}" FontSize="11"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+        <Grid Grid.Row="4" Margin="0,13,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
+                       Text="Les deux choix sont réversibles en modifiant le Markdown. Rien n'est fusionné ou fermé."
+                       Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,12,0"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Fermer" IsCancel="True" MinWidth="75" Margin="0,0,8,0"/>
+                <Button Content="Ignorer cette paire" Click="Ignore_Click"
+                        MinWidth="115" Margin="0,0,8,0"/>
+                <Button Content="Lier les incidents" Click="Link_Click"
+                        MinWidth="120"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -14,9 +14,24 @@ public sealed record UserPreferences
 
     public double NavigationPanelWidth { get; init; } = 280;
 
+    /// <summary>Worktree row density: Comfortable (default) or Compact.</summary>
+    public string NavigationDensity { get; init; } = "Comfortable";
+
+    /// <summary>Only show the selected application's subtree when possible.</summary>
+    public bool NavigationCurrentApplicationOnly { get; init; }
+
+    /// <summary>Keep favorite shortcuts expanded in the explorer.</summary>
+    public bool NavigationFavoritesExpanded { get; init; }
+
+    /// <summary>Keep recent document shortcuts expanded in the explorer.</summary>
+    public bool NavigationRecentsExpanded { get; init; }
+
     public double ContextPanelWidth { get; init; } = 300;
 
     public EditorPreferences Editor { get; init; } = new();
+
+    /// <summary>Opt-in visibility of deterministic recurrence suggestions, independent of maintenance.</summary>
+    public bool ShowMaintenanceSuggestions { get; init; } = true;
 
     public BackupPreferences Backup { get; init; } = new();
 
@@ -33,6 +48,9 @@ public sealed record UserPreferences
     public List<OpenDocumentTabReference> OpenDocumentTabs { get; init; } = [];
 
     public Guid? ActiveDocumentTabId { get; init; }
+
+    /// <summary>Last selected worktree node; optional and local to this PC.</summary>
+    public Guid? ActiveNavigationNodeId { get; init; }
 
     public Dictionary<string, string> ShortcutOverrides { get; init; } =
         new(StringComparer.OrdinalIgnoreCase);

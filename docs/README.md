@@ -65,3 +65,47 @@ des guides dédiés plus détaillés.
 
 Toute nouvelle fonctionnalité majeure destinée à 1.0 doit être ajoutée à cette
 matrice ou disposer d'un document dédié avant la release stable.
+
+## Extensions après 1.0 (en cours)
+
+- [Inbox 1.1 — format, sécurité et récupération](inbox-persistence-v1.md) :
+  contrat de stockage des captures, indépendant des notes rapides historiques.
+
+- [Inbox 1.1 — raccourci Windows global configurable](global-inbox-hotkey.md) :
+  fonctionnement, raccourcis réservés, collisions et vérification interactive.
+
+- [Inbox 1.1 — capture explicite du presse-papiers et des fichiers](inbox-capture.md) :
+  formats pris en charge, limites, sélection et absence de capture silencieuse.
+
+- [Inbox 1.1 — vue de tri](inbox-triage.md) :
+  recherche, filtres, aperçu, actions par lot, corbeille et compteur de dashboard.
+
+- [Refonte UX de l'explorateur (worktree) — #122](worktree-navigation.md) :
+  hiérarchie aplatie visuellement, cartes projets, sélection et contrôles de validation Windows.
+
+## Nodalis 1.2 — maintenance avancée (en cours)
+
+- [Contrat Markdown des incidents et interventions](maintenance-markdown-1.2.md) :
+  identité stable, lecture ancienne/nouvelle, liens, diagnostics et ajout non destructif.
+- [Saisie et modification des interventions](maintenance-interventions-1.2-guide.md) :
+  formulaire compact, liens vers incidents, Command Palette, sauvegarde et reprise des conflits.
+- [Historique chronologique et recherche](maintenance-history-1.2-guide.md) :
+  contextes projet/application, dates, filtres, sources Markdown et fiches partielles.
+- [Suggestions d'incidents récurrents](maintenance-recurrence-1.2-guide.md) :
+  rapprochements explicables sans IA, comparaison, décisions lier/ignorer et prévention des faux positifs.
+- [Inbox vers fiche de maintenance](maintenance-inbox-1.2-guide.md) :
+  incident ou intervention structurés, pièces jointes, provenance, reprise sans doublon et projet Ultra-simple.
+- [Relations de maintenance](maintenance-relations-1.2-guide.md) :
+  liens typés GUID, références cassées, renommage/restauration et contrat pour l'analyse d'impact.
+- [Notes de version 1.2](release-notes-1.2.md) :
+  nouveautés, compatibilité 1.0/1.1, récupération et limites avant publication.
+- [Checklist de qualification 1.2](release-checklist-1.2.md) :
+  fixtures CI, Windows 10/11, dark mode, DPI, clavier, sauvegardes et gate stable.
+
+## Nodalis 1.1 — documentation de sortie
+
+- [Guide Inbox 1.1](inbox-1.1-guide.md) : capturer, trier, convertir, récupérer.
+- [Notes de version 1.1](release-notes-1.1.md) : nouveautés, compatibilité et limites.
+- [Checklist de qualification 1.1](release-checklist-1.1.md) : Small/Medium/Large, CI, Windows 10/11, DPI et gate stable.
+- [Conversion Markdown native](inbox-conversion.md) : formats, idempotence et provenance.
+- [Sécurité des captures](inbox-safety.md) : doublons, erreurs, pièces jointes, staging.

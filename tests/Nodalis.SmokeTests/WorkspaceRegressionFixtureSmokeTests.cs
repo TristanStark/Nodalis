@@ -340,6 +340,14 @@ internal static class WorkspaceRegressionFixtureSmokeTests
             matchedAfterDelete ==
                 definition.DocumentCount - 1,
             $"Regression fixture {definition.Name} must stop returning deleted documents.");
+
+        // Reuse the exact same 1.0 Small/Medium/Large fixture rather than
+        // constructing a smaller Inbox-only approximation.
+        await InboxReleaseQualificationSmokeTests.RunAsync(
+            fixtureRoot,
+            applicationPath,
+            project.ProjectDirectory,
+            definition.Name);
     }
 
     /// <summary>

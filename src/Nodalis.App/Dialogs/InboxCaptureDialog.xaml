@@ -1,0 +1,70 @@
+<Window x:Class="Nodalis.App.Dialogs.InboxCaptureDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Capturer dans Inbox"
+        Width="700"
+        Height="490"
+        MinWidth="520"
+        MinHeight="370"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock FontSize="20"
+                       FontWeight="SemiBold"
+                       Text="Nouvelle capture Inbox" />
+            <TextBlock Margin="0,5,0,12"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       TextWrapping="Wrap"
+                       Text="Saisissez un texte ou importez explicitement le presse-papiers (texte, URL, image, fichiers). Rien n'est lu automatiquement." />
+        </StackPanel>
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    Margin="0,0,0,12">
+            <Button Content="Importer le presse-papiers"
+                    Click="ImportClipboard_Click"
+                    Padding="12,7"
+                    Margin="0,0,8,0"
+                    AutomationProperties.Name="Importer le contenu du presse-papiers" />
+            <Button Content="Choisir des fichiers…"
+                    Click="ChooseFiles_Click"
+                    Padding="12,7"
+                    AutomationProperties.Name="Parcourir les fichiers à capturer" />
+        </StackPanel>
+        <TextBox x:Name="CaptureTextBox"
+                 Grid.Row="2"
+                 Padding="10"
+                 AcceptsReturn="True"
+                 VerticalScrollBarVisibility="Auto"
+                 TextWrapping="Wrap"
+                 AutomationProperties.Name="Contenu de la capture Inbox" />
+        <TextBlock x:Name="SelectionStatusText"
+                   Grid.Row="3"
+                   Margin="0,10,0,0"
+                   Foreground="{StaticResource SecondaryTextBrush}"
+                   TextWrapping="Wrap"
+                   Text="Capture texte, sans pièce jointe. Fichiers : 10 au maximum, 25 Mio chacun." />
+        <StackPanel Grid.Row="4"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,16,0,0">
+            <Button x:Name="CancelButton"
+                    Width="94"
+                    Margin="0,0,8,0"
+                    IsCancel="True"
+                    Content="Annuler" />
+            <Button x:Name="SaveButton"
+                    Width="125"
+                    IsDefault="True"
+                    Click="Save_Click"
+                    Content="Enregistrer" />
+        </StackPanel>
+    </Grid>
+</Window>

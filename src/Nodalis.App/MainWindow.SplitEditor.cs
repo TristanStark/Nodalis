@@ -847,6 +847,8 @@ public partial class MainWindow
                 _root.FullPath,
                 tab.FullPath);
 
+        UpdateMaintenanceActionVisibility();
+
         NavigationNodeViewModel? node =
             FindDocumentNavigationNode(
                 tab);

@@ -266,3 +266,25 @@ crash-diagnostics.md.
 ## 19. Documentation complémentaire
 
 Le sommaire complet des documents 1.0 est docs/README.md dans le dépôt et Documentation/README.md dans l'archive portable.
+
+## 20. Nouveauté 1.1 — Inbox (captures à trier)
+
+En version 1.1, utilisez **Ctrl+Shift+I** ou le menu **Capturer dans Inbox**
+pour conserver volontairement une idée, un lien, une image du presse-papiers
+ou des fichiers, sans devoir sélectionner d'abord un projet. L'Inbox n'est
+créée que lors de la première capture enregistrée. Aucun contenu n'est
+collecté silencieusement ni envoyé à un service réseau.
+
+Ouvrez ensuite **Inbox** pour consulter, filtrer, archiver, placer en
+corbeille ou restaurer des captures. **Convertir…** permet de créer une
+note rapide, un document Markdown, un ajout à une fiche existante ou une
+tâche native de Nodalis. Les conversions peuvent être reprises après
+interruption sans duplication.
+
+Limites : 10 pièces jointes, 25 Mio chacune, 2 Mio pour le texte.
+Un doublon probable provoque un avertissement mais peut être enregistré
+volontairement. Les raccourcis et extensions dangereuses sont refusés.
+
+Consultez **[le guide complet Inbox 1.1](inbox-1.1-guide.md)**, les
+[notes de version](release-notes-1.1.md) et le
+[guide de dépannage](troubleshooting.md).

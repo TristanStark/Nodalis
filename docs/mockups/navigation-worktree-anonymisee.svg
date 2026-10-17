@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="816" viewBox="0 0 420 816" role="img" aria-label="Maquette anonymisée de la navigation Nodalis avec projets clairement différenciés">
+<rect x="0" y="0" width="420" height="816" rx="18" fill="#1b1e27" />
+<rect x="1" y="1" width="418" height="814" rx="18" fill="none" stroke="#333746"/>
+<text x="22" y="36" font-size="11" font-weight="600" fill="#a9b3c6" >EXPLORATEUR</text>
+<g transform="translate(316 22)" stroke="#9faabd" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 4 4"/></g>
+<g transform="translate(344 22)" stroke="#9faabd" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="14" height="12" rx="1.5"/><path d="M6 2v12"/></g>
+<g transform="translate(372 22)" stroke="#9faabd" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="3" cy="8" r="1" fill="#9faabd" stroke="none"/><circle cx="8" cy="8" r="1" fill="#9faabd" stroke="none"/><circle cx="13" cy="8" r="1" fill="#9faabd" stroke="none"/></g>
+<line x1="22" y1="56" x2="398" y2="56" stroke="#3a3e4a" stroke-width="1.5" stroke-linecap="round"/>
+<g transform="translate(23 78)" stroke="#8fb9ff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M1.5 8h13M8 1.5c-4 3-4 10 0 13M8 1.5c4 3 4 10 0 13"/></g>
+<text x="51" y="91" font-size="15" font-weight="650" fill="#edf1fa" >Global</text>
+<g transform="translate(382 80)" stroke="#7e889d" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 5 5 5-5"/></g>
+<g transform="translate(43 112)" stroke="#95a0b2" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M6 6h4M6 9h4"/></g>
+<text x="68" y="125" font-size="13" font-weight="400" fill="#d9deea" >Notes rapides</text>
+<g transform="translate(23 159)" stroke="#8fb9ff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="12" height="9" rx="2"/><path d="M3.5 4V2.5h9V4M2 8h12"/></g>
+<text x="51" y="172" font-size="15" font-weight="650" fill="#8fb9ff" >Application A</text>
+<g transform="translate(382 161)" stroke="#7e889d" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 5 5 5-5"/></g>
+<g transform="translate(43 196)" stroke="#95a0b2" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 4h5l1.3 1.5h6.7v7.5h-13z"/></g>
+<text x="68" y="209" font-size="13" font-weight="400" fill="#d9deea" >Documentation</text>
+<rect x="22" y="240" width="376" height="432" rx="9" fill="#292c3a" />
+<g transform="translate(31 252)" stroke="#aa98f9" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 5 5 5-5"/></g>
+<g transform="translate(53 252)" stroke="#aa98f9" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="11" rx="2"/><path d="M5 3V1.5h5V3M5 7v3M8 7v3M11 7v3"/></g>
+<text x="80" y="266" font-size="13" font-weight="700" fill="#f2eefc" >PROJ-001 · Tests de validation</text>
+<text x="80" y="282" font-size="10" font-weight="400" fill="#b0afc8" >Projet standard</text>
+<line x1="45" y1="297" x2="45" y2="652" stroke="#7262a7" stroke-width="2" stroke-linecap="round"/>
+<g transform="translate(67 311)" stroke="#a2adbe" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M6 6h4M6 9h4"/></g>
+<text x="92" y="324" font-size="13" font-weight="400" fill="#dce0e9" >Présentation</text>
+<g transform="translate(67 348)" stroke="#a2adbe" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 4h5l1.3 1.5h6.7v7.5h-13z"/></g>
+<text x="92" y="361" font-size="13" font-weight="400" fill="#dce0e9" >Technique</text>
+<g transform="translate(67 385)" stroke="#a2adbe" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 4h5l1.3 1.5h6.7v7.5h-13z"/></g>
+<text x="92" y="398" font-size="13" font-weight="400" fill="#dce0e9" >Tests</text>
+<g transform="translate(67 422)" stroke="#a2adbe" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 4h5l1.3 1.5h6.7v7.5h-13z"/></g>
+<text x="92" y="435" font-size="13" font-weight="400" fill="#dce0e9" >Décisions</text>
+<rect x="58" y="451" width="323" height="31" rx="5" fill="#39527f" />
+<g transform="translate(67 459)" stroke="#bfd8ff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 4h5l1.3 1.5h6.7v7.5h-13z"/></g>
+<text x="92" y="472" font-size="13" font-weight="600" fill="#ffffff" >Réunions</text>
+<g transform="translate(67 496)" stroke="#a2adbe" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3C5 1 3 2 2 3v10c3-1 5-1 6 1m0-1V3c3-2 5-1 6 0v10c-3-1-5-1-6 1"/></g>
+<text x="92" y="509" font-size="13" font-weight="400" fill="#dce0e9" >Glossaire</text>
+<g transform="translate(67 533)" stroke="#a2adbe" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15V1.5M4 2c4-2 6 2 10 0v8c-4 2-6-2-10 0"/></g>
+<text x="92" y="546" font-size="13" font-weight="400" fill="#dce0e9" >Jalons</text>
+<g transform="translate(67 570)" stroke="#a2adbe" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M9 14V9h5"/></g>
+<text x="92" y="583" font-size="13" font-weight="400" fill="#dce0e9" >Notes rapides</text>
+<g transform="translate(67 607)" stroke="#a2adbe" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="m5 8 2 2 4-5"/></g>
+<text x="92" y="620" font-size="13" font-weight="400" fill="#dce0e9" >Tâches</text>
+<rect x="22" y="689" width="376" height="56" rx="9" fill="#262a35" />
+<g transform="translate(31 708)" stroke="#a998f9" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 5 5-5 5"/></g>
+<g transform="translate(53 708)" stroke="#a998f9" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="11" rx="2"/><path d="M5 3V1.5h5V3M5 7v3M8 7v3M11 7v3"/></g>
+<text x="80" y="722" font-size="14" font-weight="650" fill="#f0eefd" >Projet Bêta</text>
+<text x="80" y="737" font-size="10" font-weight="400" fill="#a9acbd" >Projet ultra-simple</text>
+<line x1="22" y1="757" x2="398" y2="757" stroke="#343947" stroke-width="1.5" stroke-linecap="round"/>
+<g transform="translate(28 774)" stroke="#9ca6b8" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6h12M5 1v4M11 1v4"/></g>
+<text x="53" y="787" font-size="13" font-weight="400" fill="#cfd4df" >Calendrier workspace</text>
+</svg>

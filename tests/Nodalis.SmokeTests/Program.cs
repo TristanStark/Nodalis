@@ -53,7 +53,11 @@ string root = Path.Combine(
 try
 {
     await VerifyWorkspacePersistenceAsync(root);
+    await InboxPersistenceSmokeTests.RunAsync(root);
+    await InboxSafetySmokeTests.RunAsync(root);
+    await InboxConversionSmokeTests.RunAsync(root);
     await VerifyWorkspaceNavigationAsync(root);
+    NavigationWorktreeSmokeTests.Run();
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
     await VerifyProjectStructureAsync(root);
@@ -102,6 +106,13 @@ try
     await ProjectAiChallengeSmokeTests.RunAsync(root);
     await AiTestGenerationSmokeTests.RunAsync(root);
     PersistenceContractSmokeTests.Run();
+    MaintenanceMarkdownSmokeTests.Run();
+    await MaintenanceInterventionSmokeTests.RunAsync(root);
+    MaintenanceHistorySmokeTests.Run();
+    await MaintenanceRecurrenceSmokeTests.RunAsync(root);
+    await MaintenanceInboxSmokeTests.RunAsync(root);
+    await MaintenanceRelationsSmokeTests.RunAsync(root);
+    await MaintenanceReleaseQualificationSmokeTests.RunAsync(root);
     VerifyDomainCatalog();
 
     Console.WriteLine("Nodalis regression suite passed.");

@@ -191,6 +191,10 @@ public partial class MainWindow
             }
         }
 
+        // A tab switch changes both the sticky context and optional app scope.
+        ScheduleStickyWorktreeRefresh();
+        ScheduleWorktreeP1Refresh();
+
         _suppressEditorChanges = true;
         MarkdownEditorTextBox.Text = tab.Content;
 
@@ -224,6 +228,7 @@ public partial class MainWindow
         DocumentEditorHost.Visibility = Visibility.Visible;
 
         DocumentTitleText.Text = tab.DisplayName;
+        UpdateMaintenanceActionVisibility();
         DocumentPathText.Text = Path.GetRelativePath(
             _root.FullPath,
             tab.FullPath);
@@ -342,6 +347,7 @@ public partial class MainWindow
         _activeDocumentTab = null;
         _documentSession = null;
         _autosave = null;
+        UpdateMaintenanceActionVisibility();
         _documentDirty = false;
         _conflictWarningShown = false;
 

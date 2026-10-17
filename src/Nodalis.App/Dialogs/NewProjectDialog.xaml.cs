@@ -88,11 +88,14 @@ public partial class NewProjectDialog : Window
         BusinessLinksPanel.Visibility = ultraSimple
             ? Visibility.Collapsed
             : Visibility.Visible;
+        // Do not reserve grid space for hidden business links.
         BusinessLinksRow.Height = ultraSimple
-            ? GridLength.Auto
+            ? new GridLength(0)
             : new GridLength(1, GridUnitType.Star);
-        MinHeight = ultraSimple ? 295 : 480;
-        Height = ultraSimple ? 315 : 560;
+
+        // Keep the dialog footer fully visible in the compact layout.
+        MinHeight = ultraSimple ? 360 : 480;
+        Height = ultraSimple ? 400 : 560;
     }
 
     /// <summary>

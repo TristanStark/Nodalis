@@ -139,3 +139,28 @@ peut proposer une consultation Markdown de secours en lecture seule.
 
 Oui. Les migrations disposent de leurs propres protections, mais une sauvegarde
 externe valide reste recommandée avant une opération structurelle importante.
+
+## Inbox 1.1 — dépannage rapide
+
+La fonction Inbox n'exige ni activation de l'IA ni connexion réseau.
+Un clic explicite reste obligatoire pour importer le presse-papiers
+ou enregistrer une capture.
+
+- **Raccourci Ctrl+Shift+I indisponible :** vérifiez qu'une autre
+  application ne l'utilise pas ; choisissez un autre raccourci dans
+  Préférences ou passez par le menu Inbox.
+- **Doublon probable :** choisissez Oui pour enregistrer une seconde
+  capture ou Non pour conserver le formulaire sans écriture.
+- **Capture inaccessible/disque plein :** libérez l'espace ou les droits
+  puis réessayez dans la fenêtre, qui conserve le contenu saisi.
+- **Pièce jointe absente, trop grande ou rejetée :** sélectionnez un
+  fichier régulier compatible de 25 Mio maximum.
+- **Conversion interrompue :** réouvrez Convertir et reprenez la cible
+  mémorisée ; ne supprimez pas `conversion.json`.
+- **Capture supprimée :** ouvrir la Corbeille Inbox et restaurer, sans
+  remplacer une entrée de même identité.
+- **Quarantaine :** consulter `Inbox/Quarantaine` et le fichier
+  `diagnostic.txt`, puis conserver une sauvegarde avant correction.
+
+Voir [Inbox 1.1 — guide](inbox-1.1-guide.md) et
+[sécurité / récupération](inbox-safety.md).
