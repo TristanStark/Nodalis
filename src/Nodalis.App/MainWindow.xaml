@@ -320,6 +320,10 @@
                                   Click="NewProject_Click" />
                         <MenuItem Header="Nouvelle tâche"
                                   Click="NewTask_Click" />
+                        <MenuItem Header="Nouvelle intervention"
+                                  Click="NewMaintenanceIntervention_Click" />
+                        <MenuItem Header="Modifier une intervention"
+                                  Click="EditMaintenanceIntervention_Click" />
                         <Separator />
                         <MenuItem Header="Note rapide"
                                   Click="CaptureQuickNote_Click" />
