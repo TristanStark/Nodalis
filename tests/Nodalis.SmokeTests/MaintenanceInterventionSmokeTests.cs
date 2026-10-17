@@ -61,6 +61,17 @@ internal static class MaintenanceInterventionSmokeTests
         Assert(beforeCancel == await File.ReadAllTextAsync(path),
             "Opening and canceling a form must not touch Markdown.");
 
+        // Arbitrary prose and fenced example metadata inside an intervention
+        // must survive editing, rather than being parsed as editable fields.
+        string nextEntry = "### Intervention\r\n- **Identifiant :** " + second.Id;
+        string freeInsideEntry = "Notes personnelles non structurées.\r\n\r\n" +
+            "~~~markdown\r\n- **Résultat :** ceci est un exemple\r\n~~~\r\n\r\n";
+        Assert(beforeCancel.Contains(nextEntry, StringComparison.Ordinal),
+            "Expected a second distinct intervention in the test fixture.");
+        beforeCancel = beforeCancel.Replace(nextEntry,
+            freeInsideEntry + nextEntry, StringComparison.Ordinal);
+        await File.WriteAllTextAsync(path, beforeCancel);
+
         // A different manual edit made after opening the form must be retained.
         string manuallyExtended = beforeCancel + "\r\n## Journal manuel\r\n\r\nImportant.\r\n";
         await File.WriteAllTextAsync(path, manuallyExtended);
@@ -78,8 +89,10 @@ internal static class MaintenanceInterventionSmokeTests
         string actual = await File.ReadAllTextAsync(path);
         Assert(actual.Contains("## Journal manuel\r\n\r\nImportant.", StringComparison.Ordinal) &&
                actual.Contains("Texte de l'utilisateur", StringComparison.Ordinal) &&
-               actual.Contains("Champ non standard", StringComparison.Ordinal),
-            "External Markdown and optional custom fields must survive an edit.");
+               actual.Contains("Champ non standard", StringComparison.Ordinal) &&
+               actual.Contains("Notes personnelles non structurées.", StringComparison.Ordinal) &&
+               actual.Contains("- **Résultat :** ceci est un exemple", StringComparison.Ordinal),
+            "External Markdown, fenced examples and custom fields must survive an edit.");
 
         entries = await service.ReadAsync(path);
         Assert(entries.Diagnostics.Count == 0 &&
