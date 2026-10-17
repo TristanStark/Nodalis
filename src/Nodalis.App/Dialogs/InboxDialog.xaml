@@ -91,6 +91,8 @@
                                   Click="Open_Click" />
                         <MenuItem Header="Convertir vers note, document ou tâche"
                                   Click="Convert_Click" />
+                        <MenuItem Header="Ajouter à une fiche de maintenance"
+                                  Click="ConvertMaintenance_Click" />
                         <MenuItem Header="Marquer comme traité"
                                   Click="Processed_Click" />
                         <MenuItem Header="Marquer à traiter"
@@ -195,6 +197,12 @@
                             Padding="9,5"
                             Margin="0,0,10,0"
                             ToolTip="Convertir la capture sélectionnée en note, document ou tâche" />
+                    <Button x:Name="MaintenanceConvertButton"
+                            Content="Maintenance…"
+                            Click="ConvertMaintenance_Click"
+                            Padding="9,5"
+                            Margin="0,0,10,0"
+                            ToolTip="Ajouter une capture à une fiche de maintenance existante" />
                     <Button x:Name="PendingButton"
                             Content="À traiter"
                             Click="Pending_Click"
