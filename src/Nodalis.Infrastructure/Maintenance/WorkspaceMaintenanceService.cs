@@ -54,4 +54,33 @@ public sealed class WorkspaceMaintenanceService
         await session.SaveAsync(updated, cancellationToken);
         return session.Content;
     }
+
+    /// <summary>
+    /// Applies a human link or ignore decision to the existing Markdown with
+    /// block fingerprints and atomic revision checking. Neither incident is merged.
+    /// </summary>
+    /// <param name="first">Original source incident snapshot.</param>
+    /// <param name="second">Compared incident snapshot in the same file.</param>
+    /// <param name="decision">Explicit user choice.</param>
+    /// <param name="cancellationToken">Operation cancellation.</param>
+    /// <returns>Contents written atomically to the source sheet.</returns>
+    public async Task<string> ReviewIncidentsAsync(
+        MaintenanceHistoryItem first, MaintenanceHistoryItem second,
+        MaintenanceRecurrenceDecision decision,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(first);
+        ArgumentNullException.ThrowIfNull(second);
+        TextDocumentSession session = await TextDocumentSession.OpenAsync(
+            first.SourcePath, cancellationToken);
+        string updated = MaintenanceIncidentReviewEditor.Apply(
+            session.Content, first, second, decision);
+        if (!string.Equals(updated, session.Content, StringComparison.Ordinal))
+        {
+            await session.SaveAsync(updated, cancellationToken);
+        }
+
+        return session.Content;
+    }
+
 }
