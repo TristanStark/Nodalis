@@ -23,6 +23,7 @@
 | Protéger et restaurer ses données | [[Sauvegardes-et-restauration]] |
 | Mettre à jour sans perdre son workspace | [[Mise-a-jour-et-compatibilite]] |
 | Résoudre un problème | [[Depannage-et-FAQ]] |
+| Analyser les impacts potentiels (develop) | [[Analyse-d-impact]] |
 
 ## Pour contribuer
 

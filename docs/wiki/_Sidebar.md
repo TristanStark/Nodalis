@@ -7,6 +7,7 @@
 - [[Organisation-du-workspace]]
 - [[Profils-de-projets]]
 - [[Editeur-et-liens]]
+- [[Analyse-d-impact]]
 - [[Recherche-et-commandes]]
 - [[Taches-Kanban-et-calendrier]]
 - [[Reunions-et-decisions]]

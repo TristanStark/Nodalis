@@ -101,3 +101,11 @@ version portable de Nodalis ne modifie pas le workspace. Voir
 `docs/README-UTILISATEUR.md` pour les instructions d'installation et de mise à jour.
 
 Le sommaire complet de la documentation 1.0 se trouve dans `docs/README.md`.
+
+## Analyse d'impact (develop, v1.3 / v1.4)
+
+L'analyse locale des relations dispose d'une vue liste et d'un graphe WPF,
+avec preuve, navigation vers la source et liens explicites aux incidents et
+interventions. Voir le [guide complet](docs/impact-user-guide-1.4.md).
+**Dernière release stable annoncée : v1.2.0.** Les nouveautés décrites
+sont pour l'instant sur `develop`.

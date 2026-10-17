@@ -55,3 +55,9 @@ Le rendu utilise WPF localement, **sans Mermaid.js, JavaScript ni réseau**. Les
 Les sous-graphes avancés, styles/classes Mermaid et actions `click` ne sont pas pleinement pris en charge : une construction non supportée doit afficher un avertissement, pas modifier le texte enregistré.
 
 **Références :** [Guide des flowcharts](https://github.com/TristanStark/Nodalis/blob/develop/docs/markdown-flowcharts.md) · [Format Markdown et relations](https://github.com/TristanStark/Nodalis/blob/develop/docs/workspace-format.md).
+
+## Analyse d'impact (v1.3 / v1.4 sur develop)
+
+Les relations `dépend de`, `implémente`, `teste` et `documente` alimentent
+l'analyse des impacts potentiels. Voir [[Analyse-d-impact]] pour la vue liste,
+le graphe WPF et les références aux incidents/interventions.
