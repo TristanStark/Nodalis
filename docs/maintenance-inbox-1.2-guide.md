@@ -43,6 +43,7 @@ Les nouveaux blocs conservent le contrat de maintenance :
 - **Résumé :** Résumé saisi par l'utilisateur
 - **Provenance Inbox :** <identifiant de capture>
 - **Origine :** <origine, si connue>
+- **Source Inbox :** [Capture originale](../../Inbox/Items/<identifiant>/capture.md)
 
 #### Capture Inbox
 
@@ -57,8 +58,10 @@ Pièces jointes conservées :
 
 Le texte issu de la capture est cité avec \`>\`, pour que ses titres Markdown
 n'introduisent pas accidentellement de nouveaux incidents.
-La provenance donne un retour vers l'ID Inbox, et l'origine d'origine est
-conservée si elle était présente dans la capture.
+La provenance comprend l'identifiant Inbox et un **lien Markdown
+relatif direct vers la capture d'origine** (`capture.md`). Le chemin est
+calculé depuis le projet et encodé comme URL. L'origine saisie lors de
+la capture est conservée si elle existe.
 
 L'entrée Inbox **n'est ni supprimée ni archivée** ; son statut devient
 « traité », avec le chemin de la fiche convertie.
