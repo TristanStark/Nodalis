@@ -58,6 +58,23 @@ jobs:
             throw "Release blocked by open blocker issue(s): $summary"
           }
 
+      - name: Gate stable maintenance 1.2 until human qualification
+        if: ${{ startsWith(steps.version.outputs.version, '1.2.') && !contains(steps.version.outputs.version, '-') }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $required = @(97, 106, 107, 108, 109, 110, 111, 112)
+          $openIssues = @(gh issue list --repo "${{ github.repository }}" --state open --limit 500 --json number | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to read issue states: maintenance 1.2 release is blocked."
+          }
+          $openIds = @($openIssues | ForEach-Object { [int]$_.number })
+          $pending = @($required | Where-Object { $openIds -contains $_ })
+          if ($pending.Count -gt 0) {
+            throw "Stable maintenance 1.2 release blocked: open EPIC / qualification issues #$($pending -join ', #'). Publish a release candidate for Windows validation instead."
+          }
+
       - name: Verify local-only constraints
         shell: pwsh
         run: ./scripts/verify-constraints.ps1
