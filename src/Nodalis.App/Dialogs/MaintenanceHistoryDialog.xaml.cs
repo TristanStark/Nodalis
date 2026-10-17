@@ -13,7 +13,9 @@ public sealed record MaintenanceHistoryScope(
 public enum MaintenanceHistoryAction
 {
     OpenSource,
-    EditIntervention
+    EditIntervention,
+    LinkRecurrence,
+    IgnoreRecurrence
 }
 
 /// <summary>
@@ -29,9 +31,11 @@ public partial class MaintenanceHistoryDialog : Window
     /// <summary>Builds the contextual history browser from already indexed Markdown.</summary>
     /// <param name="scopes">Available project/application scopes.</param>
     /// <param name="loadErrors">Files that could not be read (must never be hidden silently).</param>
+    /// <param name="showSuggestions">Current locally saved suggestion visibility preference.</param>
     public MaintenanceHistoryDialog(
         IReadOnlyList<MaintenanceHistoryScope> scopes,
-        IReadOnlyList<string>? loadErrors = null)
+        IReadOnlyList<string>? loadErrors = null,
+        bool showSuggestions = true)
     {
         ArgumentNullException.ThrowIfNull(scopes);
         if (scopes.Count == 0)
@@ -42,6 +46,9 @@ public partial class MaintenanceHistoryDialog : Window
         _scopes = scopes;
         _loadErrors = loadErrors ?? [];
         InitializeComponent();
+        ShowRecurrencesCheckBox.IsChecked = showSuggestions;
+        ReviewRecurrencesButton.Visibility = showSuggestions
+            ? Visibility.Visible : Visibility.Collapsed;
         ScopeComboBox.ItemsSource = _scopes;
         ScopeComboBox.DisplayMemberPath = nameof(MaintenanceHistoryScope.DisplayName);
         ScopeComboBox.SelectedIndex = 0;
@@ -91,6 +98,12 @@ public partial class MaintenanceHistoryDialog : Window
     /// <summary>Whether to edit the selected intervention or just navigate to its Markdown.</summary>
     public MaintenanceHistoryAction SelectedAction { get; private set; } =
         MaintenanceHistoryAction.OpenSource;
+
+    /// <summary>Whether the user wants recurrence suggestions shown in maintenance.</summary>
+    public bool ShowSuggestionsEnabled => ShowRecurrencesCheckBox.IsChecked == true;
+
+    /// <summary>The exact pair selected for an explicit recurrence decision.</summary>
+    public MaintenanceRecurrenceSuggestion? SelectedRecurrence { get; private set; }
 
     /// <summary>Prepares distinct filter dropdown values while keeping an all-items option.</summary>
     /// <param name="values">Values from the source Markdown.</param>
@@ -213,6 +226,59 @@ public partial class MaintenanceHistoryDialog : Window
         InterventionsList.ItemsSource = shown;
         InterventionTitleText.Text = "Interventions (" + shown.Length + ")" +
             (relatedOnly ? " · incident sélectionné" : "");
+    }
+
+    /// <summary>Lets users enable or disable only the recurrence feature.</summary>
+    /// <param name="sender">Visibility checkbox.</param>
+    /// <param name="e">Selection event.</param>
+    private void ShowRecurrencesChanged(object sender, RoutedEventArgs e)
+    {
+        if (ReviewRecurrencesButton is null)
+        {
+            return;
+        }
+
+        ReviewRecurrencesButton.Visibility = ShowSuggestionsEnabled
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Launches a human review of explainable suggestions for the chosen scope.</summary>
+    /// <param name="sender">Review button.</param>
+    /// <param name="e">WPF click.</param>
+    private void ReviewRecurrences_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ShowSuggestionsEnabled ||
+            ScopeComboBox.SelectedItem is not MaintenanceHistoryScope scope)
+        {
+            return;
+        }
+
+        IReadOnlyList<MaintenanceRecurrenceSuggestion> suggestions =
+            MaintenanceRecurrenceMatcher.Find(scope.Entries);
+        if (suggestions.Count == 0)
+        {
+            MessageBox.Show(this,
+                "Aucune paire d'incidents n'atteint le seuil de suggestion (" +
+                MaintenanceRecurrenceMatcher.MinimumScore +
+                "/100). Les incidents ne sont jamais rapprochés sur le seul texte similaire.",
+                "Suggestions d'incidents récurrents",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        MaintenanceRecurrenceReviewDialog review =
+            new MaintenanceRecurrenceReviewDialog(suggestions) { Owner = this };
+        if (review.ShowDialog() != true || review.SelectedSuggestion is null ||
+            review.SelectedDecision is null)
+        {
+            return;
+        }
+
+        SelectedRecurrence = review.SelectedSuggestion;
+        SelectedAction = review.SelectedDecision == MaintenanceRecurrenceDecision.Link
+            ? MaintenanceHistoryAction.LinkRecurrence
+            : MaintenanceHistoryAction.IgnoreRecurrence;
+        DialogResult = true;
     }
 
     /// <summary>Returns the selected entry from either list, never one from an old search.</summary>
