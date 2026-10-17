@@ -10,8 +10,10 @@ public partial class RelationDialog : Window
     /// Initializes the typed-relation editor.
     /// </summary>
     /// <param name="targets">The available stable workspace targets.</param>
+    /// <param name="preferredType">Optional default relation vocabulary; remains user-editable.</param>
     public RelationDialog(
-            IReadOnlyCollection<LinkTargetEntry> targets)
+            IReadOnlyCollection<LinkTargetEntry> targets,
+            string? preferredType = null)
     {
         ArgumentNullException.ThrowIfNull(targets);
 
@@ -19,8 +21,10 @@ public partial class RelationDialog : Window
 
         RelationTypeComboBox.ItemsSource =
             RelationTypeCatalog.KnownTypes;
-        RelationTypeComboBox.SelectedIndex =
-            0;
+        RelationTypeComboBox.SelectedItem =
+            RelationTypeCatalog.KnownTypes.FirstOrDefault(value =>
+                string.Equals(value, preferredType, StringComparison.OrdinalIgnoreCase)) ??
+            RelationTypeCatalog.KnownTypes[0];
 
         LinkTargetEntry[] orderedTargets =
             targets
