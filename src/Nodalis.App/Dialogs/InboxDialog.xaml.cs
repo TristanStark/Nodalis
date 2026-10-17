@@ -296,7 +296,8 @@ public partial class InboxDialog : Window
         {
             InboxMaintenanceConversionDialog dialog = new InboxMaintenanceConversionDialog(
                 _workspaceRoot, selected.Entry, _preferredContextPath,
-                _prepareMaintenanceDocument) { Owner = this };
+                _prepareMaintenanceDocument)
+            { Owner = this };
 
             if (dialog.ShowDialog() != true || dialog.Result is null)
             {
