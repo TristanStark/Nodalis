@@ -18,16 +18,20 @@ public partial class InboxDialog : Window
     private readonly WorkspaceInboxService _store;
     private readonly string _workspaceRoot;
     private readonly string? _preferredContextPath;
+    private readonly Func<string, Task<bool>>? _prepareMaintenanceDocument;
     private IReadOnlyList<InboxEntry> _entries = [];
     private IReadOnlyList<InboxItemRow> _filteredRows = [];
 
     /// <summary>Creates an Inbox view connected to the current workspace.</summary>
     /// <param name="workspaceRoot">Existing Nodalis workspace.</param>
     /// <param name="preferredContextPath">Last selected project or document, if any.</param>
-    public InboxDialog(string workspaceRoot, string? preferredContextPath = null)
+    /// <param name="prepareMaintenanceDocument">Safe editor autosave gate before maintenance writes.</param>
+    public InboxDialog(string workspaceRoot, string? preferredContextPath = null,
+        Func<string, Task<bool>>? prepareMaintenanceDocument = null)
     {
         _workspaceRoot = workspaceRoot;
         _preferredContextPath = preferredContextPath;
+        _prepareMaintenanceDocument = prepareMaintenanceDocument;
         _store = new WorkspaceInboxService(workspaceRoot);
         InitializeComponent();
         Loaded += async (_, _) =>
@@ -170,6 +174,7 @@ public partial class InboxDialog : Window
         ConvertButton.IsEnabled = !trash && EntriesList.SelectedItems.Count == 1 &&
             EntriesList.SelectedItem is InboxItemRow selected &&
             selected.Entry.ConvertedTargetRelativePath is null;
+        MaintenanceConvertButton.IsEnabled = ConvertButton.IsEnabled;
         PendingButton.IsEnabled = anySelected && !trash;
         ProcessedButton.IsEnabled = anySelected && !trash;
         ArchiveButton.IsEnabled = anySelected && !trash;
@@ -269,6 +274,42 @@ public partial class InboxDialog : Window
                     dialog.Result.TargetRelativePath
                 : "Capture convertie · " + dialog.Result.TargetRelativePath;
         });
+    }
+
+    /// <summary>
+    /// Converts an Inbox capture into one or two structured maintenance blocks,
+    /// preserving its original text, attachments and recoverable source.
+    /// </summary>
+    /// <param name="sender">Toolbar or contextual Inbox action.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void ConvertMaintenance_Click(object sender, RoutedEventArgs e)
+    {
+        if (TrashModeCheckBox.IsChecked == true ||
+            EntriesList.SelectedItems.Count != 1 ||
+            EntriesList.SelectedItem is not InboxItemRow selected ||
+            selected.Entry.ConvertedTargetRelativePath is not null)
+        {
+            return;
+        }
+
+        await UiActionGuard.RunAsync(this, "Inbox · maintenance", async () =>
+        {
+            InboxMaintenanceConversionDialog dialog = new InboxMaintenanceConversionDialog(
+                _workspaceRoot, selected.Entry, _preferredContextPath,
+                _prepareMaintenanceDocument) { Owner = this };
+
+            if (dialog.ShowDialog() != true || dialog.Result is null)
+            {
+                return;
+            }
+
+            WorkspaceChanged = true;
+            await RefreshAsync();
+            StatusText.Text = dialog.Result.AlreadyConverted
+                ? "Reprise de maintenance confirmée sans doublon · " +
+                    dialog.Result.TargetRelativePath
+                : "Historique de maintenance enrichi · " + dialog.Result.TargetRelativePath;
+        }, _workspaceRoot);
     }
 
     /// <summary>Marks selected captures as pending.</summary>
