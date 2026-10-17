@@ -91,6 +91,8 @@ matrice ou disposer d'un document dédié avant la release stable.
   formulaire compact, liens vers incidents, Command Palette, sauvegarde et reprise des conflits.
 - [Historique chronologique et recherche](maintenance-history-1.2-guide.md) :
   contextes projet/application, dates, filtres, sources Markdown et fiches partielles.
+- [Suggestions d'incidents récurrents](maintenance-recurrence-1.2-guide.md) :
+  rapprochements explicables sans IA, comparaison, décisions lier/ignorer et prévention des faux positifs.
 
 ## Nodalis 1.1 — documentation de sortie
 
