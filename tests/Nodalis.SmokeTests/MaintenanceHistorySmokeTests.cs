@@ -53,8 +53,9 @@ internal static class MaintenanceHistorySmokeTests
         Assert(linked.LineNumber > 0 &&
                linked.SourcePath == "C:/Projets/Fiche de Maintenance.md" &&
                linked.Resolution == "Service rétabli" &&
-               linked.IncidentId == incidentId,
-            "An intervention must expose its exact source and resolution.");
+               linked.IncidentId == incidentId &&
+               linked.Problem == "Échec de l'API",
+            "An intervention must expose its exact source, linked problem and resolution.");
         Assert(!entries.Any(e => e.Date == new DateOnly(2000, 1, 1)),
             "A fenced Markdown example is never a date or history record.");
 
@@ -68,6 +69,10 @@ internal static class MaintenanceHistorySmokeTests
                byDate[0].Id == interventionId &&
                byDate.Count(e => e.Date is null) == 2,
             "Date filtering must keep undated entries explicitly visible and sortable.");
+        IReadOnlyList<MaintenanceHistoryItem> byProblem = MaintenanceHistoryIndex.Search(
+            entries, new MaintenanceHistoryFilter { Search = "Échec de l'API" });
+        Assert(byProblem.Count == 2,
+            "Searching a problem must also find interventions related to that incident.");
         IReadOnlyList<MaintenanceHistoryItem> byText = MaintenanceHistoryIndex.Search(
             entries, new MaintenanceHistoryFilter { Search = "redémarrage" });
         Assert(byText.Count == 2, "Search must include narrative fields of incomplete records.");
