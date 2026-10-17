@@ -20,8 +20,9 @@ silencieusement l'absence d'une fiche.
 
 La fenêtre montre les **incidents** d'un côté et les **interventions** de l'autre,
 triés par date décroissante. Chaque entrée indique sa date, son résumé,
-son projet et sa ligne source. Les interventions affichent aussi le **Résultat**
-si ce champ est renseigné. Un double-clic, ou **Ouvrir la source**, place le
+son projet et sa ligne source. Les interventions affichent aussi le **Problème** (résumé de l'incident lié,
+si disponible) et le **Résultat** si ce champ est renseigné. La recherche
+d'un problème retrouve également les interventions qui lui sont liées. Un double-clic, ou **Ouvrir la source**, place le
 curseur sur le titre du bloc Markdown correspondant.
 
 Sélectionner un incident puis cocher **Liées à l'incident sélectionné**
