@@ -12,6 +12,8 @@ public sealed record MaintenanceHistoryItem
     public required int LineNumber { get; init; }
     public required MaintenanceRecordKind Kind { get; init; }
     public string? Id { get; init; }
+    /// <summary>Fingerprint of the original block, used to reject stale review actions.</summary>
+    public string SourceBlockHash { get; init; } = string.Empty;
     public DateOnly? Date { get; init; }
     public required string Summary { get; init; }
     public string Problem { get; init; } = string.Empty;
@@ -108,6 +110,7 @@ public static class MaintenanceHistoryIndex
                 }
             }
 
+            string block = markdown[heading.Offset..end];
             string body = markdown[(heading.Offset +
                 ReadHeadingLength(markdown, heading.Offset))..end];
             Dictionary<string, string> properties = new Dictionary<string, string>(
@@ -170,6 +173,9 @@ public static class MaintenanceHistoryIndex
                 LineNumber = heading.LineNumber,
                 Kind = kind.Value,
                 Id = id,
+                SourceBlockHash = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(
+                        Encoding.UTF8.GetBytes(block))),
                 Date = dateOk ? date : null,
                 Summary = summaryOk ? summary! : "(Résumé non renseigné)",
                 Resolution = resolution ?? string.Empty,
