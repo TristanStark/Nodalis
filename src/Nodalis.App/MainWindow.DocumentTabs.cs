@@ -191,8 +191,9 @@ public partial class MainWindow
             }
         }
 
-        // A tab switch changes the active folder even without tree scrolling.
+        // A tab switch changes both the sticky context and optional app scope.
         ScheduleStickyWorktreeRefresh();
+        ScheduleWorktreeP1Refresh();
 
         _suppressEditorChanges = true;
         MarkdownEditorTextBox.Text = tab.Content;

@@ -14,6 +14,18 @@ public sealed record UserPreferences
 
     public double NavigationPanelWidth { get; init; } = 280;
 
+    /// <summary>Worktree row density: Comfortable (default) or Compact.</summary>
+    public string NavigationDensity { get; init; } = "Comfortable";
+
+    /// <summary>Only show the selected application's subtree when possible.</summary>
+    public bool NavigationCurrentApplicationOnly { get; init; }
+
+    /// <summary>Keep favorite shortcuts expanded in the explorer.</summary>
+    public bool NavigationFavoritesExpanded { get; init; }
+
+    /// <summary>Keep recent document shortcuts expanded in the explorer.</summary>
+    public bool NavigationRecentsExpanded { get; init; }
+
     public double ContextPanelWidth { get; init; } = 300;
 
     public EditorPreferences Editor { get; init; } = new();

@@ -72,9 +72,11 @@ public partial class MainWindow
             return;
         }
 
+        EnsureWorktreeNodeIsVisible(target);
         _selectedNode = target;
         target.IsSelected = true;
         ScheduleRevealTreeItem(target);
+        ScheduleWorktreeP1Refresh();
         StatusText.Text = "Explorateur · " + target.DisplayName;
     }
 

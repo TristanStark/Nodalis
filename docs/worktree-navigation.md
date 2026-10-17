@@ -127,7 +127,40 @@ de la structure canonique. La CI valide style C#, build WPF, régressions,
 packaging et smoke-test de lancement, mais **ne remplace pas** les contrôles
 visuels Windows et leurs captures.
 
-## P1 optionnel (hors sortie P0)
+## P1 — outils supplémentaires (octobre 2026)
+
+Les améliorations sont intégrées **dans le panneau existant**, sans second
+workspace ni index de recherche externe :
+
+- **Filtre instantané** : saisie dans le champ en tête d'explorateur,
+  temporisation 170 ms pour les très gros arbres. Recherche insensible à la
+  casse sur les noms affichés. L'arbre conserve tous les ancêtres des
+  correspondances, et expose la descendance d'une section ou d'un projet dont
+  le propre nom correspond. La touche « × » restaure toute la vue. La recherche
+  ne modifie jamais les documents ni les dossiers ; les expansions provisoires
+  sont restaurées à la suppression du filtre.
+- **Densité** : choix « Confortable » (valeur historique, 28–33 px de
+  hauteur) ou « Compact » (~24–27 px, padding et interlignes réduits),
+  effectif sans reconstruction du TreeView. Choix mémorisé localement.
+- **Application courante** : case à cocher limitant la projection à
+  l'application du nœud sélectionné. Le workspace reste inchangé et la case
+  se désactive immédiatement pour revenir à Global et toutes les applications.
+  Un changement de projet/document depuis Quick Open ou une commande
+  existante restaure automatiquement une destination masquée par le filtre.
+- **Favoris / Documents récents** : deux blocs repliables, bornés à
+  20 entrées et 135 px chacun afin de conserver l'espace vertical du
+  worktree. Leur index utilise exactement les mêmes références de préférences,
+  liens et signets que Quick Open. Double-clic ou Entrée ouvre la cible ;
+  aucune seconde liste de favoris/récents n'est persistée. L'ouverture
+  des blocs et la densité sont mémorisées localement.
+
+Tests régressifs : cas fictifs sur un filtre ciblant un document profond,
+sur le nom d'un projet, les ancêtres conservés, la recherche avec scope,
+la restauration et l'immuabilité de la hiérarchie métier.
+Les contrôles visuels clavier, DPI et usages Windows restent à faire
+en session interactive avant clôture.
+
+
 
 Filtre instantané dans le worktree ; modes compact/confortable ;
 filtrage à l'application courante ; blocs favoris/récents repliables.

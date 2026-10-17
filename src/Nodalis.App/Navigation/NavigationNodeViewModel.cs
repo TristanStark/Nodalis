@@ -10,6 +10,7 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
 {
     private bool _isExpanded;
     private bool _isSelected;
+    private IReadOnlyList<NavigationNodeViewModel> _unfilteredVisualChildren = [];
 
     /// <summary>
     /// Initializes a new instance of <see cref="NavigationNodeViewModel"/>.
@@ -32,7 +33,8 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
             AppendVisible(child, visible, this);
         }
 
-        VisibleChildren = visible;
+        _unfilteredVisualChildren = visible;
+        VisibleChildren = new ObservableCollection<NavigationNodeViewModel>(visible);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -51,7 +53,7 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
     public ObservableCollection<NavigationNodeViewModel> Children { get; }
 
     /// <summary>Children projected for WPF, omitting only structural grouping rows.</summary>
-    public IReadOnlyList<NavigationNodeViewModel> VisibleChildren { get; }
+    public ObservableCollection<NavigationNodeViewModel> VisibleChildren { get; }
 
     /// <summary>Actual parent visible in the WPF TreeView.</summary>
     public NavigationNodeViewModel? DisplayParent { get; private set; }
@@ -123,6 +125,78 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
 
         node.DisplayParent = visualParent;
         result.Add(node);
+    }
+
+    /// <summary>
+    /// Applies a search/application projection while preserving every view
+    /// model identity and the canonical business hierarchy.
+    /// </summary>
+    /// <param name="searchText">Case-insensitive name fragment.</param>
+    /// <param name="applicationId">Optional application filter.</param>
+    public void ApplyDisplayFilter(string searchText, Guid? applicationId)
+    {
+        IReadOnlySet<Guid> visibleIds =
+            NavigationFilterProjection.GetVisibleIds(Node, searchText, applicationId);
+        ApplyDisplayedNodeIds(visibleIds, searchText.Trim().Length > 0);
+    }
+
+    /// <summary>Updates descendants and this VM's observable display collection.</summary>
+    /// <param name="visibleIds">Result IDs from the core projection.</param>
+    /// <param name="expandSearchMatches">Whether to expand ancestor rows for search.</param>
+    private void ApplyDisplayedNodeIds(
+        IReadOnlySet<Guid> visibleIds,
+        bool expandSearchMatches)
+    {
+        List<NavigationNodeViewModel> visible =
+            new List<NavigationNodeViewModel>();
+        foreach (NavigationNodeViewModel child in _unfilteredVisualChildren)
+        {
+            child.ApplyDisplayedNodeIds(visibleIds, expandSearchMatches);
+            if (visibleIds.Contains(child.Id))
+            {
+                visible.Add(child);
+            }
+        }
+
+        SynchronizeVisibleChildren(visible);
+        if (expandSearchMatches && visible.Count > 0 &&
+            Kind != WorkspaceNodeKind.Workspace)
+        {
+            IsExpanded = true;
+        }
+    }
+
+    /// <summary>
+    /// Applies only minimal inserts/moves/removals to the WPF collection;
+    /// avoids rebuilding the entire TreeView at each filter change.
+    /// </summary>
+    /// <param name="expected">Visible children in canonical display order.</param>
+    private void SynchronizeVisibleChildren(
+        IReadOnlyList<NavigationNodeViewModel> expected)
+    {
+        for (int index = 0; index < expected.Count; index++)
+        {
+            if (index < VisibleChildren.Count &&
+                ReferenceEquals(VisibleChildren[index], expected[index]))
+            {
+                continue;
+            }
+
+            int existingIndex = VisibleChildren.IndexOf(expected[index]);
+            if (existingIndex >= 0)
+            {
+                VisibleChildren.Move(existingIndex, index);
+            }
+            else
+            {
+                VisibleChildren.Insert(index, expected[index]);
+            }
+        }
+
+        while (VisibleChildren.Count > expected.Count)
+        {
+            VisibleChildren.RemoveAt(VisibleChildren.Count - 1);
+        }
     }
 
     public bool IsExpanded

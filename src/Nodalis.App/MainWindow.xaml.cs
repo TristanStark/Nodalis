@@ -210,6 +210,7 @@ public partial class MainWindow : Window
 
         NavigationTree.ItemsSource =
             _root.VisibleChildren;
+        ApplyWorktreeDisplayFilter();
         ScheduleStickyWorktreeRefresh();
 
         WorkspaceNameText.Text =
@@ -224,6 +225,7 @@ public partial class MainWindow : Window
         NavigationColumn.Width = new GridLength(
             preferences.NavigationPanelWidth);
 
+        InitializeWorktreeP1();
         ApplyContextPanelState();
         ApplyPreviewState();
 
@@ -252,6 +254,7 @@ public partial class MainWindow : Window
                 await RestoreDocumentTabsAsync();
                 await RestoreEditorSplitAsync();
                 RestoreSavedWorktreeSelection();
+                ScheduleWorktreeP1Refresh();
                 _backupTimer.Start();
                 await TryRunAutomaticBackupAsync();
                 AppendDiagnosticsStatus();
@@ -310,7 +313,16 @@ public partial class MainWindow : Window
                 {
                     _preferences = _preferences with
                     {
-                        ExpandedNodeIds = GetExpandedNodeIds(),
+                        ExpandedNodeIds = _expansionBeforeWorktreeFilter ??
+                            GetExpandedNodeIds(),
+                        NavigationDensity = NavigationTree.Tag as string ??
+                            "Comfortable",
+                        NavigationCurrentApplicationOnly =
+                            WorktreeApplicationScopeCheck.IsChecked == true,
+                        NavigationFavoritesExpanded =
+                            WorktreeFavoritesExpander.IsExpanded,
+                        NavigationRecentsExpanded =
+                            WorktreeRecentsExpander.IsExpanded,
                         IsContextPanelOpen = _contextPanelOpen,
                         NavigationPanelWidth = Math.Max(
                             180,
@@ -1510,7 +1522,7 @@ public partial class MainWindow : Window
             object sender,
             RoutedPropertyChangedEventArgs<object> e)
     {
-        if (_restoringSelection ||
+        if (_restoringSelection || _worktreeDisplayUpdating ||
             e.NewValue is not NavigationNodeViewModel node)
         {
             return;
@@ -1519,6 +1531,7 @@ public partial class MainWindow : Window
         _selectedNode = node;
         ScheduleRevealTreeItem(node);
         ScheduleStickyWorktreeRefresh();
+        ScheduleWorktreeP1Refresh();
         await RunUiActionAsync(
             "Navigation · " +
             node.DisplayName,
@@ -3501,6 +3514,7 @@ public partial class MainWindow : Window
             _preferences);
 
         RefreshDashboard();
+        RefreshWorktreeShortcutLists();
 
         StatusText.Text = removed
             ? $"Retiré des favoris · {target.DisplayName}"
@@ -3598,6 +3612,7 @@ public partial class MainWindow : Window
             _preferences);
 
         RefreshDashboard();
+        RefreshWorktreeShortcutLists();
     }
 
     /// <summary>
@@ -8132,6 +8147,7 @@ public partial class MainWindow : Window
         _selectedNode = target;
         target.IsSelected = true;
         ScheduleRevealTreeItem(target);
+        ScheduleWorktreeP1Refresh();
         await DisplayNodeAsync(target);
     }
 

@@ -106,6 +106,78 @@ internal static class NavigationWorktreeSmokeTests
             ultraSimple.Children[0].DisplayName == "Fiche de Maintenance",
             "Ultra-simple files must remain accessible.");
         VerifyStickyHeaders();
+        VerifyNavigationFilters(root, applicationA, applicationB,
+            projectA, projectFolder, deepest, document, ultraSimple);
+    }
+
+    /// <summary>
+    /// Verifies a case-insensitive search, preserved ancestors, branch match,
+    /// application-only scope and instant restoration without mutations.
+    /// </summary>
+    /// <param name="root">Fictional workspace.</param>
+    /// <param name="appA">First application.</param>
+    /// <param name="appB">Second application.</param>
+    /// <param name="project">One nested project.</param>
+    /// <param name="folder">A descendant folder.</param>
+    /// <param name="document">Its deep document.</param>
+    /// <param name="globalNote">Note outside applications.</param>
+    /// <param name="ultraSimple">A second project.</param>
+    private static void VerifyNavigationFilters(
+        WorkspaceNavigationNode root,
+        WorkspaceNavigationNode appA,
+        WorkspaceNavigationNode appB,
+        WorkspaceNavigationNode project,
+        WorkspaceNavigationNode folder,
+        WorkspaceNavigationNode document,
+        WorkspaceNavigationNode globalNote,
+        WorkspaceNavigationNode ultraSimple)
+    {
+        IReadOnlySet<Guid> exact =
+            NavigationFilterProjection.GetVisibleIds(root, "EXTRÊMEMENT", null);
+        Assert(exact.Contains(root.Id) &&
+            exact.Contains(appA.Id) &&
+            exact.Contains(project.Id) &&
+            exact.Contains(folder.Id) &&
+            exact.Contains(document.Id) &&
+            !exact.Contains(appB.Id) &&
+            !exact.Contains(ultraSimple.Id),
+            "Search preserves matching document ancestors only.");
+
+        IReadOnlySet<Guid> branch =
+            NavigationFilterProjection.GetVisibleIds(root, "proj-001", null);
+        Assert(branch.Contains(project.Id) &&
+            branch.Contains(document.Id) &&
+            !branch.Contains(ultraSimple.Id),
+            "Matching a project name includes its complete subtree.");
+
+        IReadOnlySet<Guid> scoped =
+            NavigationFilterProjection.GetVisibleIds(root, string.Empty, appA.Id);
+        Assert(scoped.Contains(appA.Id) &&
+            scoped.Contains(project.Id) &&
+            scoped.Contains(ultraSimple.Id) &&
+            !scoped.Contains(appB.Id) &&
+            !scoped.Contains(globalNote.Id),
+            "Application scope hides other applications and Global without mutation.");
+
+        IReadOnlySet<Guid> scopedSearch =
+            NavigationFilterProjection.GetVisibleIds(root, "technique", appA.Id);
+        Assert(scopedSearch.Contains(folder.Id) &&
+            !scopedSearch.Contains(appB.Id),
+            "Scoped search composes with ancestors preserved.");
+
+        IReadOnlySet<Guid> cleared =
+            NavigationFilterProjection.GetVisibleIds(root, "   ", null);
+        Assert(cleared.Contains(globalNote.Id) &&
+            cleared.Contains(appA.Id) &&
+            cleared.Contains(appB.Id) &&
+            cleared.Contains(ultraSimple.Id) &&
+            cleared.Contains(document.Id),
+            "Clearing the search restores all nodes.");
+
+        Assert(root.Children.Count == 2 &&
+            appA.Children[0].Kind == WorkspaceNodeKind.ProjectsRoot &&
+            project.Children[0].FullPath == folder.FullPath,
+            "P1 filtering never alters the canonical workspace hierarchy.");
     }
 
     /// <summary>

@@ -221,6 +221,11 @@
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.55" />
                             </Trigger>
+                            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}}"
+                                         Value="Compact">
+                                <Setter TargetName="RowSurface" Property="MinHeight" Value="27" />
+                                <Setter TargetName="ProjectFrame" Property="Margin" Value="0,1" />
+                            </DataTrigger>
                             <DataTrigger Binding="{Binding Kind}"
                                          Value="{x:Static coreNavigation:WorkspaceNodeKind.Project}">
                                 <Setter TargetName="ProjectFrame" Property="Background"
@@ -251,6 +256,12 @@
                 <DataTrigger Binding="{Binding Kind}"
                              Value="{x:Static coreNavigation:WorkspaceNodeKind.Global}">
                     <Setter Property="MinHeight" Value="33" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}}"
+                             Value="Compact">
+                    <Setter Property="Padding" Value="3,1" />
+                    <Setter Property="Margin" Value="0,0,0,0" />
+                    <Setter Property="MinHeight" Value="24" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -443,6 +454,92 @@
                         </Button>
                     </Grid>
 
+                    <!-- P1 filter and display modes; all operate on the existing tree VM. -->
+                    <Grid DockPanel.Dock="Top"
+                          Margin="0,0,0,6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="32" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="WorktreeFilterBox"
+                                 Grid.Row="0" Grid.Column="0"
+                                 Margin="0,0,4,0"
+                                 Height="31" MinHeight="31"
+                                 VerticalContentAlignment="Center"
+                                 ToolTip="Filtrer instantanément les noms de l'explorateur"
+                                 AutomationProperties.Name="Filtrer les éléments de l'explorateur"
+                                 TextChanged="WorktreeFilterBox_TextChanged" />
+                        <Button Grid.Row="0" Grid.Column="1"
+                                Style="{StaticResource WorktreeHeaderButtonStyle}"
+                                Width="32" Height="31" MinHeight="31"
+                                ToolTip="Effacer le filtre"
+                                AutomationProperties.Name="Effacer le filtre de l'explorateur"
+                                Content="×"
+                                Click="ClearWorktreeFilter_Click" />
+                        <Grid Grid.Row="1" Grid.ColumnSpan="2" Margin="0,5,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox x:Name="WorktreeApplicationScopeCheck"
+                                      Grid.Column="0"
+                                      Content="Application courante"
+                                      ToolTip="Limiter visuellement l'arbre à l'application du document ou projet actif"
+                                      VerticalAlignment="Center"
+                                      FontSize="11"
+                                      Checked="WorktreeApplicationScope_Changed"
+                                      Unchecked="WorktreeApplicationScope_Changed" />
+                            <ComboBox x:Name="WorktreeDensityComboBox"
+                                      Grid.Column="1"
+                                      Width="105" Height="30"
+                                      MinHeight="30"
+                                      ToolTip="Densité des lignes de l'explorateur"
+                                      AutomationProperties.Name="Densité de l'explorateur"
+                                      SelectionChanged="WorktreeDensityComboBox_SelectionChanged">
+                                <ComboBoxItem Content="Confortable" Tag="Comfortable" />
+                                <ComboBoxItem Content="Compact" Tag="Compact" />
+                            </ComboBox>
+                        </Grid>
+                    </Grid>
+
+                    <!-- Shortcuts are derived from Quick Open's existing favorites
+                         and recent history, never from duplicate local lists. -->
+                    <StackPanel DockPanel.Dock="Top"
+                                Margin="0,0,0,5">
+                        <Expander x:Name="WorktreeFavoritesExpander"
+                                  Header="★ Favoris"
+                                  Foreground="{StaticResource PrimaryTextBrush}"
+                                  Background="{StaticResource PanelBackgroundBrush}"
+                                  Expanded="WorktreeShortcuts_ExpandedChanged"
+                                  Collapsed="WorktreeShortcuts_ExpandedChanged">
+                            <ListBox x:Name="WorktreeFavoritesList"
+                                     MaxHeight="135"
+                                     FontSize="12"
+                                     ToolTip="Double-cliquer ou appuyer sur Entrée pour ouvrir"
+                                     MouseDoubleClick="WorktreeShortcutList_MouseDoubleClick"
+                                     KeyDown="WorktreeShortcutList_KeyDown"
+                                     DisplayMemberPath="DisplayName" />
+                        </Expander>
+                        <Expander x:Name="WorktreeRecentsExpander"
+                                  Header="◷ Documents récents"
+                                  Foreground="{StaticResource PrimaryTextBrush}"
+                                  Background="{StaticResource PanelBackgroundBrush}"
+                                  Expanded="WorktreeShortcuts_ExpandedChanged"
+                                  Collapsed="WorktreeShortcuts_ExpandedChanged">
+                            <ListBox x:Name="WorktreeRecentsList"
+                                     MaxHeight="135"
+                                     FontSize="12"
+                                     ToolTip="Double-cliquer ou appuyer sur Entrée pour ouvrir"
+                                     MouseDoubleClick="WorktreeShortcutList_MouseDoubleClick"
+                                     KeyDown="WorktreeShortcutList_KeyDown"
+                                     DisplayMemberPath="DisplayName" />
+                        </Expander>
+                    </StackPanel>
+
                     <!-- Sticky context is OUTSIDE the ScrollViewer. Its layout never
                          hides the first visible worktree row underneath an overlay. -->
                     <Border x:Name="WorktreeStickyHost"
@@ -547,6 +644,7 @@
                     </StackPanel>
 
                     <TreeView x:Name="NavigationTree"
+                              Tag="Comfortable"
                               ScrollViewer.CanContentScroll="True"
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                               ScrollViewer.VerticalScrollBarVisibility="Auto"
