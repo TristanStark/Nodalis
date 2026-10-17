@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Editor;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Maintenance;
 using Nodalis.Core.Navigation;
