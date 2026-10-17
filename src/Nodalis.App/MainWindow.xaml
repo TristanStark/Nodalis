@@ -123,6 +123,13 @@
             <Setter Property="Padding" Value="5,3" />
             <Setter Property="Margin" Value="0,1" />
             <Setter Property="MinHeight" Value="28" />
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="3,0,0,0" />
@@ -431,7 +438,13 @@
                               VirtualizingStackPanel.VirtualizationMode="Recycling"
                               SelectedItemChanged="NavigationTree_SelectedItemChanged"
                               PreviewMouseRightButtonDown="NavigationTree_PreviewMouseRightButtonDown"
-                              ContextMenuOpening="NavigationTree_ContextMenuOpening" />
+                              ContextMenuOpening="NavigationTree_ContextMenuOpening">
+                        <TreeView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </TreeView.ItemsPanel>
+                    </TreeView>
                 </DockPanel>
             </Border>
 

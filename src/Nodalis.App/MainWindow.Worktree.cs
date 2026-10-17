@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Navigation;
@@ -114,7 +115,10 @@ public partial class MainWindow
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Loaded,
-            new Action(() => RevealTreeItemContainer(node)));
+            new Action(() => RunUiAction(
+                "Explorateur · révéler la sélection",
+                () => RevealTreeItemContainer(node),
+                showDialog: false)));
     }
 
     /// <summary>
@@ -156,10 +160,23 @@ public partial class MainWindow
                     as TreeViewItem;
             if (item is null)
             {
-                // Recycling virtualization may not have materialized offscreen rows.
-                // Reveal the nearest known ancestor without recreating the tree.
-                last?.BringIntoView();
-                return;
+                // WPF recycling can leave an offscreen selection unmaterialized.
+                // Realize only its visual index rather than rebuilding the full tree.
+                VirtualizingPanel? panel = FindOwnedVirtualizingPanel(parent, parent);
+                int index = parent.Items.IndexOf(current);
+                if (index >= 0 && panel is not null)
+                {
+                    panel.BringIndexIntoViewPublic(index);
+                    parent.UpdateLayout();
+                    item = parent.ItemContainerGenerator.ContainerFromItem(current)
+                        as TreeViewItem;
+                }
+
+                if (item is null)
+                {
+                    last?.BringIntoView();
+                    return;
+                }
             }
 
             item.BringIntoView();
@@ -173,6 +190,36 @@ public partial class MainWindow
         }
 
         last?.BringIntoView();
+    }
+
+    /// <summary>
+    /// Finds the virtualizing items panel owned by the selected parent only;
+    /// panels belonging to a nested branch must never receive its item index.
+    /// </summary>
+    /// <param name="element">Visual subtree to inspect.</param>
+    /// <param name="owner">The ItemsControl owning the desired item.</param>
+    /// <returns>The owning panel or null if it has not been created.</returns>
+    private static VirtualizingPanel? FindOwnedVirtualizingPanel(
+        DependencyObject element,
+        ItemsControl owner)
+    {
+        if (element is VirtualizingPanel panel &&
+            ReferenceEquals(ItemsControl.GetItemsOwner(panel), owner))
+        {
+            return panel;
+        }
+
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(element); index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(element, index);
+            VirtualizingPanel? found = FindOwnedVirtualizingPanel(child, owner);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
