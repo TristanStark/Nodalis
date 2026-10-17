@@ -149,7 +149,10 @@ internal static class MaintenanceInboxSmokeTests
         };
         string itemDir = Path.Combine(root, WorkspaceLayout.InboxDirectoryName,
             "Items", interrupted.Id.ToString("N"));
-        await AtomicJsonFile.WriteAsync(Path.Combine(itemDir, "maintenance-conversion.json"), resume);
+        await File.WriteAllTextAsync(Path.Combine(itemDir, "maintenance-conversion.json"),
+            System.Text.Json.JsonSerializer.Serialize(resume,
+                new System.Text.Json.JsonSerializerOptions(
+                    System.Text.Json.JsonSerializerDefaults.Web)));
         string simulatedWrite = MaintenanceInboxMarkdown.Append(afterBoth, interrupted, resume);
         await File.WriteAllTextAsync(sheet, simulatedWrite);
         MaintenanceInboxResult recovered = await converter.ConvertAsync(resume);
