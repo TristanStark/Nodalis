@@ -165,16 +165,36 @@
                 </ListBox>
             </Grid>
         </Grid>
-        <DockPanel Grid.Row="3" Margin="0,13,0,0" LastChildFill="False">
-            <TextBlock DockPanel.Dock="Left" Text="Double-cliquez pour ouvrir la ligne Markdown."
-                       VerticalAlignment="Center" TextWrapping="Wrap"
-                       Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,12,0"/>
-            <Button DockPanel.Dock="Right" Content="Fermer" IsCancel="True"
-                    MinWidth="85" Margin="7,0,0,0"/>
-            <Button DockPanel.Dock="Right" Content="Modifier" MinWidth="90"
-                    Click="Edit_Click" Margin="7,0,0,0"/>
-            <Button DockPanel.Dock="Right" Content="Ouvrir la source" MinWidth="125"
-                    IsDefault="True" Click="Open_Click"/>
-        </DockPanel>
+        <Grid Grid.Row="3" Margin="0,13,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,10">
+                <Button x:Name="ReviewRecurrencesButton" DockPanel.Dock="Right"
+                        Padding="10,5" Content="Examiner les suggestions"
+                        Click="ReviewRecurrences_Click"
+                        ToolTip="Comparer les incidents rapprochés localement ; aucune liaison automatique"/>
+                <CheckBox x:Name="ShowRecurrencesCheckBox"
+                          VerticalAlignment="Center" Margin="0,0,16,0"
+                          Content="Afficher les suggestions d'incidents récurrents"
+                          Checked="ShowRecurrencesChanged"
+                          Unchecked="ShowRecurrencesChanged"
+                          AutomationProperties.Name="Afficher les suggestions de récurrence"/>
+            </DockPanel>
+            <DockPanel Grid.Row="1" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           Text="Double-cliquez pour ouvrir la ligne Markdown."
+                           VerticalAlignment="Center" TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Margin="0,0,12,0"/>
+                <Button DockPanel.Dock="Right" Content="Fermer" IsCancel="True"
+                        MinWidth="85" Margin="7,0,0,0"/>
+                <Button DockPanel.Dock="Right" Content="Modifier" MinWidth="90"
+                        Click="Edit_Click" Margin="7,0,0,0"/>
+                <Button DockPanel.Dock="Right" Content="Ouvrir la source" MinWidth="125"
+                        IsDefault="True" Click="Open_Click"/>
+            </DockPanel>
+        </Grid>
     </Grid>
 </Window>
