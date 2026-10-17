@@ -182,25 +182,25 @@
                           Unchecked="ShowRecurrencesChanged"
                           AutomationProperties.Name="Afficher les suggestions de récurrence"/>
             </DockPanel>
-            <DockPanel Grid.Row="1" LastChildFill="False">
-                <TextBlock DockPanel.Dock="Left"
-                           Text="Double-cliquez pour ouvrir la ligne Markdown."
-                           VerticalAlignment="Center" TextWrapping="Wrap"
-                           Foreground="{StaticResource SecondaryTextBrush}"
-                           Margin="0,0,12,0"/>
-                <Button DockPanel.Dock="Right" Content="Fermer" IsCancel="True"
-                        MinWidth="85" Margin="7,0,0,0"/>
-                <Button DockPanel.Dock="Right" Content="Références" MinWidth="95"
-                        Click="ShowReferences_Click" Margin="7,0,0,0"
-                        ToolTip="Consulter les relations explicitement déclarées pour ce bloc ou cet incident"/>
-                <Button DockPanel.Dock="Right" Content="Ajouter une relation" MinWidth="142"
-                        Click="AddMaintenanceRelation_Click" Margin="7,0,0,0"
-                        ToolTip="Insérer un lien typé avec le GUID stable d'un document"/>
-                <Button DockPanel.Dock="Right" Content="Modifier" MinWidth="90"
-                        Click="Edit_Click" Margin="7,0,0,0"/>
-                <Button DockPanel.Dock="Right" Content="Ouvrir la source" MinWidth="125"
-                        IsDefault="True" Click="Open_Click"/>
-            </DockPanel>
+            <StackPanel Grid.Row="1">
+                <TextBlock Text="Double-cliquez pour ouvrir la ligne Markdown."
+                           TextWrapping="Wrap" Foreground="{StaticResource SecondaryTextBrush}"
+                           Margin="0,0,0,8"/>
+                <WrapPanel HorizontalAlignment="Right">
+                    <Button Content="Références" MinWidth="95"
+                            Click="ShowReferences_Click" Margin="0,0,7,7"
+                            ToolTip="Voir les relations explicitement déclarées"/>
+                    <Button Content="Ajouter une relation" MinWidth="142"
+                            Click="AddMaintenanceRelation_Click" Margin="0,0,7,7"
+                            ToolTip="Insérer un lien typé avec le GUID stable du document"/>
+                    <Button Content="Modifier" MinWidth="90"
+                            Click="Edit_Click" Margin="0,0,7,7"/>
+                    <Button Content="Ouvrir la source" MinWidth="125"
+                            IsDefault="True" Click="Open_Click" Margin="0,0,7,7"/>
+                    <Button Content="Fermer" IsCancel="True" MinWidth="85"
+                            Margin="0,0,0,7"/>
+                </WrapPanel>
+            </StackPanel>
         </Grid>
     </Grid>
 </Window>
