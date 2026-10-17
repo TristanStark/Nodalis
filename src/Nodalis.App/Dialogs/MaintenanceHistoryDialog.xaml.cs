@@ -14,6 +14,8 @@ public enum MaintenanceHistoryAction
 {
     OpenSource,
     EditIntervention,
+    AddDocumentRelation,
+    BrowseDocumentReferences,
     LinkRecurrence,
     IgnoreRecurrence
 }
@@ -306,6 +308,46 @@ public partial class MaintenanceHistoryDialog : Window
         {
             Accept(MaintenanceHistoryAction.OpenSource);
         }
+    }
+
+    /// <summary>Requests an explicit typed relation on a saved maintenance record.</summary>
+    /// <param name="sender">Toolbar action.</param>
+    /// <param name="e">Click.</param>
+    private void AddMaintenanceRelation_Click(object sender, RoutedEventArgs e)
+    {
+        MaintenanceHistoryItem? selected = CurrentSelection();
+        if (selected is null)
+        {
+            MessageBox.Show(this, "Sélectionnez un incident ou une intervention.",
+                "Relations de maintenance", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (selected.IsIncomplete || string.IsNullOrWhiteSpace(selected.Id))
+        {
+            MessageBox.Show(this,
+                "Ce bloc ne possède pas un identifiant de maintenance valide. " +
+                "Corrigez d'abord sa structure dans le Markdown.",
+                "Relations de maintenance", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        Accept(MaintenanceHistoryAction.AddDocumentRelation);
+    }
+
+    /// <summary>Shows only references explicitly written on the selected record.</summary>
+    /// <param name="sender">Toolbar action.</param>
+    /// <param name="e">Click.</param>
+    private void ShowReferences_Click(object sender, RoutedEventArgs e)
+    {
+        if (CurrentSelection() is null)
+        {
+            MessageBox.Show(this, "Sélectionnez d'abord un incident ou une intervention.",
+                "Relations de maintenance", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        Accept(MaintenanceHistoryAction.BrowseDocumentReferences);
     }
 
     /// <summary>Requests form editing for a valid intervention or source editing otherwise.</summary>
