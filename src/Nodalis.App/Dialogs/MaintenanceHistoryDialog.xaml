@@ -122,8 +122,18 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <TextBlock x:Name="InterventionTitleText" Text="Interventions"
-                           FontWeight="SemiBold" Margin="0,0,0,7"/>
+                <DockPanel Grid.Row="0" Margin="0,0,0,7">
+                    <TextBlock x:Name="InterventionTitleText" Text="Interventions"
+                               DockPanel.Dock="Left" FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                    <CheckBox x:Name="LinkedOnlyCheckBox" DockPanel.Dock="Right"
+                              HorizontalAlignment="Right" Margin="12,0,0,0"
+                              VerticalAlignment="Center"
+                              Content="Liées à l'incident sélectionné"
+                              Checked="RelatedFilterChanged"
+                              Unchecked="RelatedFilterChanged"
+                              ToolTip="Afficher uniquement les interventions associées à l'incident choisi"/>
+                </DockPanel>
                 <ListBox x:Name="InterventionsList" Grid.Row="1"
                          BorderBrush="{StaticResource BorderBrush}"
                          Background="{StaticResource PanelBackgroundBrush}"
