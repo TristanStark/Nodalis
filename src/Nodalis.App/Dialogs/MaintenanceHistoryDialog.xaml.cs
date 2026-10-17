@@ -202,6 +202,8 @@ public partial class MaintenanceHistoryDialog : Window
         MaintenanceHistoryItem[] shown = relatedOnly
             ? _filteredInterventions.Where(item =>
                 string.Equals(item.IncidentId, incident!.Id,
+                    StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(item.SourcePath, incident.SourcePath,
                     StringComparison.OrdinalIgnoreCase)).ToArray()
             : _filteredInterventions.ToArray();
 
