@@ -61,7 +61,10 @@ public partial class MaintenanceHistoryDialog : Window
                 InterventionsList.SelectedItem = null;
             }
 
-            UpdateRelatedInterventions();
+            if (LinkedOnlyCheckBox.IsChecked == true)
+            {
+                UpdateRelatedInterventions();
+            }
         };
         InterventionsList.SelectionChanged += (_, _) =>
         {
