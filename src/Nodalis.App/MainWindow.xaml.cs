@@ -4747,6 +4747,22 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "maintenance.intervention.new",
+                Title = "Nouvelle intervention",
+                Subtitle = "Créer une intervention dans la fiche de maintenance du projet courant",
+                Keywords = ["maintenance", "intervention", "nouvelle", "incident", "fiche"],
+                ExecuteAsync = CreateMaintenanceInterventionAsync
+            },
+            new()
+            {
+                Id = "maintenance.intervention.edit",
+                Title = "Modifier une intervention",
+                Subtitle = "Sélectionner et modifier une intervention de la fiche Markdown",
+                Keywords = ["maintenance", "intervention", "modifier", "éditer", "historique"],
+                ExecuteAsync = EditMaintenanceInterventionAsync
+            },
+            new()
+            {
                 Id = "tasks.context",
                 Title = "Tâches du contexte",
                 Subtitle = "Projet / Application / Global selon la sélection",
