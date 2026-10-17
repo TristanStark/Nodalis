@@ -120,11 +120,12 @@ internal static class MaintenanceReleaseQualificationSmokeTests
                 Search = "Inspection numéro 128"
             }).Count == 1,
             "Full-text history search must work with 100+ saved maintenance interventions.");
+        byte[] projectManifestAfter = await File.ReadAllBytesAsync(manifest);
         Assert(!Directory.Exists(Path.Combine(project, "Réunions")) &&
                !File.Exists(Path.Combine(project, "Jalons.md")) &&
                !File.Exists(Path.Combine(project, "Présentation.md")) &&
                Directory.GetFiles(project, "*", SearchOption.AllDirectories).Length == 3 &&
-               projectManifestBefore.SequenceEqual(await File.ReadAllBytesAsync(manifest)) &&
+               projectManifestBefore.AsSpan().SequenceEqual(projectManifestAfter) &&
                quickNotesBefore == await File.ReadAllTextAsync(rapide),
             "Maintenance must not create optional project scaffolding or modify 1.0 manifests.");
 
@@ -157,8 +158,9 @@ internal static class MaintenanceReleaseQualificationSmokeTests
             refused = true;
         }
 
+        byte[] corruptedAfterFailure = await File.ReadAllBytesAsync(fiche);
         Assert(refused &&
-               corruptedBytes.SequenceEqual(await File.ReadAllBytesAsync(fiche)),
+               corruptedBytes.AsSpan().SequenceEqual(corruptedAfterFailure),
             "A partially damaged fiche must be byte-identical after a rejected write.");
 
         // A manual restoration from the untouched snapshot must be possible.
