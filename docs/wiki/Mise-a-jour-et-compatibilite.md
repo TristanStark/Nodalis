@@ -4,7 +4,7 @@
 
 Le dossier de Nodalis contient l'exécutable. Le **workspace** contient les données métier. Les conserver séparés permet de mettre à jour le programme sans remplacer vos documents.
 
-Avant toute migration importante, effectuez une [[Sauvegardes-et-restauration|sauvegarde du workspace]].
+Avant toute migration importante, effectuez une [[sauvegarde du workspace|Sauvegardes-et-restauration]].
 
 ## Mise à jour locale
 
