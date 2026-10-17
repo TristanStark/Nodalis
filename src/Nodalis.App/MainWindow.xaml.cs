@@ -4763,6 +4763,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "maintenance.history",
+                Title = "Historique de maintenance",
+                Subtitle = "Rechercher incidents et interventions par projet ou application",
+                Keywords = ["maintenance", "historique", "rechercher", "incident", "intervention", "filtrer"],
+                ExecuteAsync = ShowMaintenanceHistoryAsync
+            },
+            new()
+            {
                 Id = "tasks.context",
                 Title = "Tâches du contexte",
                 Subtitle = "Projet / Application / Global selon la sélection",
