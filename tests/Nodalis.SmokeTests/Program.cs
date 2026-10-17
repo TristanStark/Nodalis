@@ -109,6 +109,7 @@ try
     MaintenanceMarkdownSmokeTests.Run();
     await MaintenanceInterventionSmokeTests.RunAsync(root);
     MaintenanceHistorySmokeTests.Run();
+    await MaintenanceRecurrenceSmokeTests.RunAsync(root);
     VerifyDomainCatalog();
 
     Console.WriteLine("Nodalis regression suite passed.");
