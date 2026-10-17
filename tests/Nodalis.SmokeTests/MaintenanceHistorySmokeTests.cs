@@ -80,6 +80,11 @@ internal static class MaintenanceHistorySmokeTests
             });
         Assert(byFacets.Count == 1 && byFacets[0].Id == interventionId,
             "Status, category and tag facets must work together without changing source.");
+        Assert(MaintenanceHistoryIndex.Search(entries,
+                new MaintenanceHistoryFilter { Status = "miné" }).Count == 0 &&
+               MaintenanceHistoryIndex.Search(entries,
+                new MaintenanceHistoryFilter { Category = "App" }).Count == 0,
+            "Dropdown status and category filters must match a complete value, not a substring.");
 
         Assert(MaintenanceHistoryIndex.Search(entries,
                 new MaintenanceHistoryFilter { Search = "introuvable" }).Count == 0,
