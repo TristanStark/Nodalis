@@ -258,7 +258,7 @@ public partial class ImpactAnalysisDialog
     /// <param name="e">Routed selection event.</param>
     private void GraphTab_Selected(object sender, RoutedEventArgs e)
     {
-        if (IsLoaded && ReferenceEquals(e.OriginalSource, GraphTab))
+        if (IsLoaded && GraphTab.IsSelected)
         {
             FocusGraphSelection();
         }

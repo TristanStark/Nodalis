@@ -90,7 +90,7 @@
                       Unchecked="AnalysisSettings_Changed" />
         </Grid>
 
-        <TabControl Grid.Row="2" Margin="12,0,12,8" AutomationProperties.Name="Vues de l'analyse d'impact">
+        <TabControl Grid.Row="2" Margin="12,0,12,8" SelectionChanged="GraphTab_Selected" AutomationProperties.Name="Vues de l'analyse d'impact">
             <TabItem Header="Liste accessible">
                 <Grid Margin="2,8,2,2">
             <Grid.ColumnDefinitions>
@@ -169,7 +169,7 @@
             </Border>
                 </Grid>
             </TabItem>
-            <TabItem x:Name="GraphTab" Header="Graphe visuel" Selected="GraphTab_Selected">
+            <TabItem x:Name="GraphTab" Header="Graphe visuel">
                 <DockPanel Margin="6">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="Zoom" VerticalAlignment="Center" Margin="0,0,8,0" />
