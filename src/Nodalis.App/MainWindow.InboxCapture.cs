@@ -3,6 +3,8 @@ using System.IO;
 using System.Windows;
 using Nodalis.App.Commands;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Editor;
+using Nodalis.App.Navigation;
 using Nodalis.Core.Inbox;
 using Nodalis.Infrastructure.Inbox;
 
@@ -184,11 +186,48 @@ public partial class MainWindow
             // A converted Markdown document/task must become immediately
             // visible to existing navigation, link search and task readers.
             await RefreshNavigationAsync();
+            await ReloadCleanMaintenanceTabsAfterInboxAsync();
             await RefreshDashboardTasksAsync();
             StatusText.Text = "Inbox mise à jour · navigation et tâches actualisées.";
         }
 
         await RefreshInboxDashboardCountAsync();
+    }
+
+    /// <summary>
+    /// Reloads only clean maintenance tabs changed by Inbox conversions.
+    /// Unsaved editor changes and conflicts are never overwritten.
+    /// </summary>
+    /// <returns>Task for safe session/UI synchronization.</returns>
+    private async Task ReloadCleanMaintenanceTabsAfterInboxAsync()
+    {
+        StoreActiveDocumentTabState();
+        StoreSecondaryDocumentTabState();
+        DocumentTabViewModel? focused = GetFocusedDocumentTab();
+        bool focusedChanged = false;
+        foreach (DocumentTabViewModel tab in _documentTabs.Where(item =>
+                     IsMaintenanceDocument(item.FullPath)))
+        {
+            if (tab.IsDirty || tab.HasConflict ||
+                !await tab.Session.HasExternalChangesAsync())
+            {
+                continue;
+            }
+
+            await tab.Session.ReloadAsync();
+            tab.Content = tab.Session.Content;
+            tab.IsDirty = false;
+            focusedChanged |= ReferenceEquals(tab, focused);
+        }
+
+        if (focusedChanged && focused is not null)
+        {
+            NavigationNodeViewModel? node = FindAndExpand(_root, focused.FullPath);
+            if (node is not null)
+            {
+                await OpenOrActivateDocumentTabAsync(node);
+            }
+        }
     }
 
     /// <summary>Refreshes the discreet count of unprocessed captures.</summary>
