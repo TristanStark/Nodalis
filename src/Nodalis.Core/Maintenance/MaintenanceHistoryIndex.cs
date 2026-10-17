@@ -218,9 +218,9 @@ public static class MaintenanceHistoryIndex
                 (string.IsNullOrWhiteSpace(filter.Search) ||
                  item.SearchText.Contains(filter.Search.Trim(), StringComparison.OrdinalIgnoreCase)) &&
                 (string.IsNullOrWhiteSpace(filter.Status) ||
-                 item.Status.Contains(filter.Status.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+                 string.Equals(item.Status, filter.Status.Trim(), StringComparison.OrdinalIgnoreCase)) &&
                 (string.IsNullOrWhiteSpace(filter.Category) ||
-                 item.Category.Contains(filter.Category.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+                 string.Equals(item.Category, filter.Category.Trim(), StringComparison.OrdinalIgnoreCase)) &&
                 (string.IsNullOrWhiteSpace(filter.Tag) ||
                  item.Tags.Split(',', StringSplitOptions.TrimEntries |
                      StringSplitOptions.RemoveEmptyEntries)
