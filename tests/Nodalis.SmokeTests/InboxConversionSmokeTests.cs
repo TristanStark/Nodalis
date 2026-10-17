@@ -98,6 +98,23 @@ internal static class InboxConversionSmokeTests
                 .State == InboxItemState.Processed &&
             afterQuick == await File.ReadAllTextAsync(notesPath),
             "The durable intent and marker must recover interrupted metadata commits.");
+        string userEdited = afterQuick.Replace(
+            "<!-- nodalis-inbox:" + note.Id.ToString("N") + " -->",
+            "<!-- marker deliberately removed by external editor -->");
+        await File.WriteAllTextAsync(notesPath, userEdited);
+        bool missingMarkerRejected = false;
+        try
+        {
+            await conversion.ConvertAsync(quick);
+        }
+        catch (IOException)
+        {
+            missingMarkerRejected = true;
+        }
+        Assert(missingMarkerRejected &&
+            userEdited == await File.ReadAllTextAsync(notesPath),
+            "A completed conversion whose provenance marker was removed cannot be silently replayed.");
+        await File.WriteAllTextAsync(notesPath, afterQuick);
 
         InboxEntry existing = await inbox.CaptureAsync(new InboxCaptureRequest
         {
@@ -177,7 +194,8 @@ internal static class InboxConversionSmokeTests
         WorkspaceTaskService tasks = new WorkspaceTaskService(root);
         Assert((await tasks.GetTasksAsync(project, includeCompleted: true))
                 .Any(item => item.Text.Contains(
-                    "Vérifier les sauvegardes", StringComparison.Ordinal)),
+                    "Vérifier les sauvegardes", StringComparison.Ordinal) &&
+                    !item.Text.Contains("nodalis-inbox", StringComparison.Ordinal)),
             "Converted tasks must appear in the standard Nodalis task index.");
         string taskPath = Path.Combine(project, "Tâches.md");
         string taskSnapshot = await File.ReadAllTextAsync(taskPath);

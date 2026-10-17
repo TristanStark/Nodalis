@@ -117,6 +117,15 @@ public sealed class WorkspaceInboxConversionService
             alreadyWritten = existing.Contains(marker, StringComparison.Ordinal);
         }
 
+        if (!alreadyWritten && entry.ConvertedTargetRelativePath is not null)
+        {
+            // A previously completed target might have been edited externally
+            // and lost its origin marker. Never append a second copy silently.
+            throw new IOException(
+                "La cible d'une conversion terminée ne contient plus son marqueur " +
+                "de provenance. Vérifier le document manuellement avant toute reprise.");
+        }
+
         if (!alreadyWritten)
         {
             await CopyAttachmentsAsync(entry, itemDirectory,
@@ -225,7 +234,7 @@ public sealed class WorkspaceInboxConversionService
 
             // The standard task parser recognizes this checkbox in normal
             // project Markdown, without a second Inbox-specific task manager.
-            return "- [ ] " + first + " " + marker + "\n\n" +
+            return "- [ ] " + first + "\n\n" + marker + "\n\n" +
                 (content.Length == 0 ? "" : "> " +
                     content.Replace("\r\n", "\n").Replace("\n", "\n> ") + "\n") +
                 origin + links + "\n";
