@@ -174,6 +174,43 @@ public sealed class SemanticVectorCacheService
         }
     }
 
+    /// <summary>
+    /// Reconciles the disposable index with the full canonical workspace catalog.
+    /// This is called only after explicit user approval of a new indexing session.
+    /// </summary>
+    /// <param name="modelId">Configured local model.</param>
+    /// <param name="dimensions">Configured embedding dimensions.</param>
+    /// <param name="segmentationKey">Current chunker policy.</param>
+    /// <param name="knownDocuments">All currently eligible canonical document GUIDs.</param>
+    /// <param name="token">Cancellation for local reconciliation.</param>
+    /// <returns>Number of removed obsolete vector fragments.</returns>
+    public async Task<int> PruneUnlistedDocumentsAsync(string modelId, int dimensions,
+        string segmentationKey, IReadOnlySet<Guid> knownDocuments,
+        CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(knownDocuments);
+        await _gate.WaitAsync(token);
+        try
+        {
+            if (!File.Exists(_filePath)) return 0;
+            SemanticVectorIndex current = await ReadUnsafeAsync(
+                modelId, dimensions, segmentationKey, token);
+            if (current.Entries.Count == 0) return 0;
+            List<SemanticVectorEntry> kept = current.Entries
+                .Where(entry => knownDocuments.Contains(entry.DocumentId)).ToList();
+            int removed = current.Entries.Count - kept.Count;
+            if (removed == 0) return 0;
+            token.ThrowIfCancellationRequested();
+            await AtomicJsonFile.WriteAsync(_filePath,
+                current with { Entries = kept }, token);
+            return removed;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>Deletes the derived cache without accessing a workspace source.</summary>
     /// <param name="cancellationToken">Cancellation request.</param>
     /// <returns>Completed local purge.</returns>

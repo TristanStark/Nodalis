@@ -188,11 +188,16 @@ public sealed class SemanticSearchDialog : Window
             Progress<SemanticIndexProgress> progress = new(info =>
                 _status.Text = "Indexation : " + info.Completed + "/" + info.Total +
                     " fichiers · " + info.EmbeddedChunks + " nouveaux vecteurs");
+            // Catalog reconciliation uses ALL eligible workspace identities.
+            // The user-selected folder remains the only embedding scope.
+            int removed = await _service.PruneRemovedDocumentsAsync(
+                _documents.Select(source => source.DocumentId).ToHashSet(), true, token);
             SemanticIndexSummary summary = await _service.IndexAsync(
                 selection, true, progress, token);
             _status.Text = "Indexation terminée : " + summary.DocumentsChanged +
                 " fichier(s) actualisé(s), " + summary.EmbeddedChunks +
-                " vecteurs créés. Relancer reprend les fragments inchangés.";
+                " vecteurs créés, " + removed +
+                " fragments de documents supprimés nettoyés. Relancer reprend les fragments inchangés.";
             await RefreshIndexStatusAsync(token);
         }
         catch (OperationCanceledException)

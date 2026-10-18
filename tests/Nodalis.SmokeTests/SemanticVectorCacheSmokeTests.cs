@@ -41,6 +41,16 @@ internal static class SemanticVectorCacheSmokeTests
         loaded = await cache.LoadAsync("model-A", 3, "split-v1");
         Assert(loaded.Entries.Count == 1 && loaded.Entries[0].DocumentId == second,
             "Removing a canonical document also removes its old vector entries.");
+        await cache.ReplaceDocumentAsync("model-A", 3, "split-v1", first, [a]);
+        int obsolete = await cache.PruneUnlistedDocumentsAsync("model-A",
+            3, "split-v1", new HashSet<Guid> { second });
+        Assert(obsolete == 1 &&
+            (await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Single()
+                .DocumentId == second,
+            "Catalog reconciliation must delete stale vectors but keep known sources.");
+        Assert(await cache.PruneUnlistedDocumentsAsync("model-A", 3,
+                "split-v1", new HashSet<Guid> { second }) == 0,
+            "Repeated cleanup must be idempotent and avoid unnecessary writes.");
         Assert((await cache.LoadAsync("model-B", 3, "split-v1")).Entries.Count == 0 &&
             (await cache.LoadAsync("model-A", 4, "split-v1")).Entries.Count == 0 &&
             (await cache.LoadAsync("model-A", 3, "split-v2")).Entries.Count == 0,

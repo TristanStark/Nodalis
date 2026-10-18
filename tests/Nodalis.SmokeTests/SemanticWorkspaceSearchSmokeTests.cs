@@ -138,6 +138,17 @@ internal static class SemanticWorkspaceSearchSmokeTests
         Assert(continuation.EmbeddedChunks == 1 && interrupted.Calls == 3 &&
             (await resumed.InspectAsync()).DocumentCount == 2,
             "Resume must compute only incomplete passages after an interruption.");
+        int deniedPrune = await resumed.PruneRemovedDocumentsAsync(
+            new HashSet<Guid> { pair[0].DocumentId }, false);
+        Assert(deniedPrune == 0 && (await resumed.InspectAsync()).DocumentCount == 2,
+            "Catalog cleanup cannot run without an explicit approved operation.");
+        File.Delete(Path.Combine(resumedWorkspace, "second.md"));
+        int staleRemoved = await resumed.PruneRemovedDocumentsAsync(
+            new HashSet<Guid> { pair[0].DocumentId }, true);
+        Assert(staleRemoved == 1 &&
+            (await resumed.InspectAsync()).DocumentCount == 1 &&
+            File.Exists(Path.Combine(resumedWorkspace, "first.md")),
+            "Approved catalog reconciliation removes deleted documents' vectors only.");
 
         Console.WriteLine("[Semantic 1.7/1.8] consent, incremental resume, source navigation and deletion passed.");
     }

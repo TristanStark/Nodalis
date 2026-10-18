@@ -66,6 +66,23 @@ public sealed class SemanticWorkspaceSearchService
         _cache.InspectAsync(_preferences.ModelId, _preferences.Dimensions, _policyKey, token);
 
     /// <summary>
+    /// Discards vectors for removed canonical documents only after explicit
+    /// consent and against the full catalog, not a selected project subset.
+    /// </summary>
+    /// <param name="allEligibleDocumentIds">Current full set of indexable canonical GUIDs.</param>
+    /// <param name="approved">Whether the user approved this indexing operation.</param>
+    /// <param name="token">Cancellation request.</param>
+    /// <returns>Number of stale vector fragments removed from disk.</returns>
+    public Task<int> PruneRemovedDocumentsAsync(IReadOnlySet<Guid> allEligibleDocumentIds,
+        bool approved, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(allEligibleDocumentIds);
+        if (!_preferences.IsEnabled || !approved) return Task.FromResult(0);
+        return _cache.PruneUnlistedDocumentsAsync(_preferences.ModelId,
+            _preferences.Dimensions, _policyKey, allEligibleDocumentIds, token);
+    }
+
+    /// <summary>
     /// Indexes only the explicitly approved selected documents. Unchanged chunks
     /// reuse their vectors; modified or deleted files replace their own entries.
     /// </summary>
