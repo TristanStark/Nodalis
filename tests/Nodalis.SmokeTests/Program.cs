@@ -45,6 +45,14 @@ using Nodalis.Infrastructure.Templates;
 using Nodalis.Infrastructure.Trash;
 using Nodalis.Infrastructure.Updates;
 
+// This opt-in mode is used exclusively by the test suite to exercise the
+// exact local stdin/stdout child-process boundary without an Ollama server.
+if (args.Length == 2 && args[0] == "--embedding-protocol-fixture")
+{
+    await EmbeddingProtocolFixture.ServeAsync(args[1]);
+    return;
+}
+
 string root = Path.Combine(
     Path.GetTempPath(),
     "Nodalis-SmokeTests",

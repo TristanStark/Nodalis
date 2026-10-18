@@ -76,6 +76,8 @@ internal static class SemanticEmbeddingSmokeTests
 
         Assert(blockedDisabled, "Provider must reject requests without explicit activation.");
 
+        await VerifyRealLocalProcessProtocolAsync(approved);
+
         string preferencesFile = Path.Combine(root,
             "semantic-local-preferences-" + Guid.NewGuid().ToString("N") + ".json");
         UserPreferencesStore store = new(preferencesFile);
@@ -89,6 +91,95 @@ internal static class SemanticEmbeddingSmokeTests
             restored.SemanticSearch.Dimensions == 3,
             "Explicit preferences must survive local JSON persistence.");
         Console.WriteLine("[Semantic 1.7] opt-in, consent, model checks, remote refusal, local preferences passed.");
+    }
+
+    /// <summary>
+    /// Exercises real process startup, stdin/stdout JSON, safe failures and
+    /// cancellation using this same test executable as a deterministic child.
+    /// No Ollama process, HTTP endpoint, or real model is involved.
+    /// </summary>
+    /// <param name="approved">Synthetic local settings with explicit consent.</param>
+    private static async Task VerifyRealLocalProcessProtocolAsync(
+        SemanticSearchPreferences approved)
+    {
+        string executable = Environment.ProcessPath ??
+            throw new InvalidOperationException("The test executable path is unknown.");
+        Assert(Path.GetFileNameWithoutExtension(executable)
+                .StartsWith("Nodalis.SmokeTests", StringComparison.OrdinalIgnoreCase),
+            "Process-level protocol fixture must use the test executable, not dotnet host.");
+
+        SemanticSearchPreferences valid = approved with
+        {
+            ExecutablePath = executable,
+            Arguments = "--embedding-protocol-fixture valid",
+            TimeoutSeconds = 5
+        };
+        ProcessEmbeddingProvider child = new(valid);
+        EmbeddingBatch result = await child.EmbedAsync(
+            ["test du protocole", "seconde phrase"]);
+        Assert(result.Dimensions == 3 && result.Vectors.Count == 2 &&
+            result.Vectors.All(vector => vector.Length == 3 &&
+                vector[0] == 1f),
+            "The real local child process must return aligned finite embeddings.");
+
+        await AssertProcessFailureAsync(valid, "bad-json",
+            EmbeddingFailureKind.InvalidResponse);
+        await AssertProcessFailureAsync(valid, "bad-model",
+            EmbeddingFailureKind.IncompatibleModel);
+        await AssertProcessFailureAsync(valid, "short-batch",
+            EmbeddingFailureKind.InvalidResponse);
+        await AssertProcessFailureAsync(valid, "stderr-exit",
+            EmbeddingFailureKind.Unavailable);
+        await AssertProcessFailureAsync(valid with { TimeoutSeconds = 1 },
+            "wait", EmbeddingFailureKind.Timeout);
+
+        using CancellationTokenSource canceled = new(
+            TimeSpan.FromMilliseconds(150));
+        bool interrupted = false;
+        try
+        {
+            await new ProcessEmbeddingProvider(valid with
+            {
+                Arguments = "--embedding-protocol-fixture wait"
+            }).EmbedAsync(["cancel request"], canceled.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            interrupted = true;
+        }
+        Assert(interrupted,
+            "User cancellation must interrupt and terminate the local child process.");
+        Console.WriteLine(
+            "[Semantic 1.8] real local process JSON, malformed, model, exit, timeout and cancellation passed.");
+    }
+
+    /// <summary>Requires a sanitized failure from a real local fixture child process.</summary>
+    /// <param name="settings">Trusted synthetic executable configuration.</param>
+    /// <param name="scenario">Fixture behavior to trigger.</param>
+    /// <param name="expected">Expected provider failure classification.</param>
+    private static async Task AssertProcessFailureAsync(
+        SemanticSearchPreferences settings, string scenario,
+        EmbeddingFailureKind expected)
+    {
+        ProcessEmbeddingProvider process = new(settings with
+        {
+            Arguments = "--embedding-protocol-fixture " + scenario
+        });
+        bool expectedFailure = false;
+        try
+        {
+            await process.EmbedAsync(["texte médical privé à ne pas afficher"]);
+        }
+        catch (EmbeddingProviderException error)
+        {
+            expectedFailure = error.Kind == expected &&
+                !error.Message.Contains("texte médical", StringComparison.Ordinal) &&
+                !error.Message.Contains("PRIVATE_SOURCE", StringComparison.Ordinal);
+        }
+
+        Assert(expectedFailure,
+            "Local process scenario " + scenario +
+            " must classify failure safely without leaking source or stderr.");
     }
 
     private sealed class FakeEmbeddingProvider : IEmbeddingProvider
