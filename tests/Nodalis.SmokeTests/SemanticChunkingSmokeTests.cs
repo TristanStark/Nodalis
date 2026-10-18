@@ -19,7 +19,7 @@ internal static class SemanticChunkingSmokeTests
                 !chunk.Content.Contains("![[")),
             "Exclude YAML metadata, code examples and composite virtual content.");
         Assert(chunks[1].Heading == "Tests" && chunks[1].HeadingLine == 7 &&
-            chunks[2].Heading == "Tests" && chunks[2].HeadingLine == 13,
+            chunks[2].Heading == "Tests" && chunks[2].HeadingLine == 15,
             "Duplicated headings retain unambiguous numeric provenance.");
         IReadOnlyList<SemanticChunk> again = SemanticMarkdownChunker.Split(
             document, "Applications/Projet/notes.md", markdown);

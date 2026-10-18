@@ -54,7 +54,7 @@ public static class SemanticMarkdownChunker
         string[] segments = normalized.Split('/');
         if (!normalized.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
             segments.Any(segment => string.IsNullOrWhiteSpace(segment) ||
-                segment is "." or ".." || segment.StartsWith('.', StringComparison.Ordinal) ||
+                segment is "." or ".." || segment.StartsWith(".", StringComparison.Ordinal) ||
                 segment.Equals("node_modules", StringComparison.OrdinalIgnoreCase) ||
                 segment.Equals("secrets", StringComparison.OrdinalIgnoreCase) ||
                 segment.Equals("credentials", StringComparison.OrdinalIgnoreCase) ||
