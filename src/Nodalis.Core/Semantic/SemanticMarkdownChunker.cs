@@ -166,17 +166,21 @@ public static class SemanticMarkdownChunker
             if (text.Length == 0) return;
             int cursor = 0;
             int ordinal = 0;
+            int scannedUntil = 0;
+            int currentLine = firstLine;
             while (cursor < text.Length)
             {
                 int amount = Math.Min(max, text.Length - cursor);
                 string slice = text.Substring(cursor, amount).Trim();
                 if (slice.Length > 0)
                 {
-                    int line = firstLine;
-                    for (int i = 0; i < cursor; i++)
+                    while (scannedUntil < cursor)
                     {
-                        if (text[i] == '\n') line++;
+                        if (text[scannedUntil] == '\n') currentLine++;
+                        scannedUntil++;
                     }
+
+                    int line = currentLine;
 
                     string hash = Hex(slice);
                     string identity = documentId.ToString("D") + "|" +
