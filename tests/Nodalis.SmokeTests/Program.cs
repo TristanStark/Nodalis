@@ -111,6 +111,7 @@ try
     await WorkspaceKanbanSmokeTests.RunAsync(root);
     await SemanticEmbeddingSmokeTests.RunAsync(root);
     SemanticChunkingSmokeTests.Run();
+    await SemanticVectorCacheSmokeTests.RunAsync(root);
     await LocalAiSmokeTests.RunAsync(root);
     await MeetingAiSummarySmokeTests.RunAsync(root);
     await ProjectAiChallengeSmokeTests.RunAsync(root);
