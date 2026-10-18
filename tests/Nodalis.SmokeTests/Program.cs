@@ -113,6 +113,7 @@ try
     SemanticChunkingSmokeTests.Run();
     await SemanticVectorCacheSmokeTests.RunAsync(root);
     SemanticRetrievalSmokeTests.Run();
+    await SemanticWorkspaceSearchSmokeTests.RunAsync(root);
     await LocalAiSmokeTests.RunAsync(root);
     await MeetingAiSummarySmokeTests.RunAsync(root);
     await ProjectAiChallengeSmokeTests.RunAsync(root);
