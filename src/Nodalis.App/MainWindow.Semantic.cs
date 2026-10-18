@@ -20,11 +20,31 @@ public partial class MainWindow
             Owner = this
         };
         if (dialog.ShowDialog() != true || dialog.Preferences is null) return;
-        _preferences = _preferences with { SemanticSearch = dialog.Preferences };
+
+        SemanticSearchPreferences previous = _preferences.SemanticSearch;
+        SemanticSearchPreferences chosen = dialog.Preferences;
+        bool changedScope = !previous.ExcludedPathPatterns
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .SequenceEqual(chosen.ExcludedPathPatterns.Order(
+                StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase);
+        bool invalidatesIndex = !chosen.IsEnabled ||
+            changedScope ||
+            previous.Dimensions != chosen.Dimensions ||
+            !string.Equals(previous.ModelId, chosen.ModelId, StringComparison.Ordinal);
+        _preferences = _preferences with { SemanticSearch = chosen };
         await _preferencesStore.SaveAsync(_preferences);
-        StatusText.Text = dialog.Preferences.IsEnabled
-            ? "Recherche sémantique : autorisation locale enregistrée. Aucune indexation lancée."
-            : "Recherche sémantique désactivée ; recherche exacte/fuzzy inchangée.";
+        if (invalidatesIndex)
+        {
+            // A removed consent, newly excluded file or changed model must not
+            // leave an old derived index silently readable from local disk.
+            await cache.PurgeAsync();
+        }
+
+        StatusText.Text = chosen.IsEnabled
+            ? "Recherche sémantique : paramètres locaux enregistrés" +
+                (invalidatesIndex ? ", ancien cache effacé." : ", cache conservé.")
+            : "Recherche sémantique désactivée et cache effacé ; fuzzy/exacte inchangée.";
     }
 
     /// <summary>Searches an approved local vector index and opens a canonical source passage.</summary>
