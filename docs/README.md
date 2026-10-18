@@ -140,8 +140,14 @@ La documentation v1.4 est publiée dans le dépôt mais la version stable annonc
 
 EPIC [Documents composites #126](https://github.com/TristanStark/Nodalis/issues/126). Source Markdown conservée : pas de nouveau format de workspace obligatoire, ni de relations causales ajoutées à l'analyse d'impact.
 
-## Nodalis 1.7 — Recherche sémantique locale (develop)
+## Nodalis 1.7 — Recherche sémantique locale publiée
 
+- [Notes de version v1.7.0 et procédure de mise à jour](release-notes-1.7.md)
 - [Guide utilisateur : activer, indexer, rechercher, supprimer](semantic-1.7-guide.md)
 - [Fournisseur local et contrat d'embeddings](semantic-1.7-provider.md)
 - [Checklist de qualification et confidentialité](release-checklist-1.7.md)
+- [Premières mesures synthétiques et limites](semantic-1.7-benchmarks.md)
+
+## Nodalis 1.8 — Recherche hybride (en développement)
+
+Issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmarks et index incrémental), #150 (gestion de l'index, confidentialité et qualification).
