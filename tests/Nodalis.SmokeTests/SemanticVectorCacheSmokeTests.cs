@@ -59,6 +59,15 @@ internal static class SemanticVectorCacheSmokeTests
         Assert((await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Count == 0 &&
             !(await cache.InspectAsync("model-A", 3, "split-v1")).IsCompatible,
             "Corruption is reported and never destroys the canonical workspace.");
+        await File.WriteAllTextAsync(cache.CachePath, "null");
+        Assert(!(await cache.InspectAsync("model-A", 3, "split-v1")).IsCompatible &&
+            (await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Count == 0,
+            "Valid JSON null is not a valid cache and must not crash the status panel.");
+        await File.WriteAllTextAsync(cache.CachePath,
+            "{\"schemaVersion\":1,\"modelId\":\"model-A\",\"dimensions\":3," +
+            "\"segmentationKey\":\"split-v1\",\"entries\":[null]}");
+        Assert(!(await cache.InspectAsync("model-A", 3, "split-v1")).IsCompatible,
+            "Malformed null entries are rejected without exceptions.");
         await cache.ReplaceDocumentAsync("model-A", 3, "split-v1", second, [b]);
         Assert((await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Count == 1,
             "A corrupted index can be recreated with valid local embeddings.");
