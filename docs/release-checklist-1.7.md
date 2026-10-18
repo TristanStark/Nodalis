@@ -1,6 +1,6 @@
 # v1.7 — Gate de sortie de la recherche sémantique locale (#147)
 
-**En développement. Ne pas fusionner ou publier sans qualification complète.**
+**Validation utilisateur des issues #142–#147 acquise le 18 octobre 2026.** La release v1.7.0 peut être publiée après CI Windows verte et packaging reproductible. Les cases ci-dessous non vérifiées automatiquement demeurent des contrôles manuels à documenter et ne sont pas présentées comme réalisées.
 
 ## Validation automatique
 
