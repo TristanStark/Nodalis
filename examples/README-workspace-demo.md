@@ -6,10 +6,11 @@ Ce dossier contient un **workspace autonome directement ouvrable dans Nodalis**,
 
 1. Se placer sur la branche **develop** du dépôt GitHub et cloner le dépôt ou télécharger son ZIP (bouton **Code > Download ZIP**).
 2. Extraire le ZIP sur le disque local : une archive encore compressée n'est pas un workspace utilisable.
-3. Lancer Nodalis (1.6.0 ou une version plus récente compatible avec le schéma 1).
-4. Sélectionner **Ouvrir un workspace** / **Changer de workspace**, puis choisir exactement ce dossier :
-   `examples/Nodalis-Demo-Workspace`
-5. Ouvrir **DEPART.md** pour la visite guidée.
+3. Sur la branche `develop` incluant le sélecteur, ouvrir Nodalis puis utiliser **Système → Changer de workspace…** ou **Ctrl+P → Changer de workspace**. Choisir directement `examples/Nodalis-Demo-Workspace`.
+4. Confirmer le dossier, **fermer Nodalis normalement**, puis relancer l'application : le sélecteur programme le workspace pour le prochain démarrage, sans réinitialiser ni modifier le précédent.
+5. Ouvrir `DEPART.md` pour la visite guidée.
+
+Sur la version binaire **v1.6.0**, le changement de workspace n'est pas accessible dans l'interface : fermer Nodalis, ouvrir `%LOCALAPPDATA%\\Nodalis\\preferences.json`, remplacer uniquement `workspaceRootPath` par le chemin absolu de ce dossier, enregistrer puis relancer. Conserver l'ancienne valeur pour revenir facilement au workspace de travail.
 
 Ne pas choisir `examples` ou la racine du dépôt. Il ne faut pas non plus copier cette démonstration dans le workspace de travail réel. Faire une copie du dossier de démonstration avant d'y expérimenter suppressions, renommages et éditions.
 
