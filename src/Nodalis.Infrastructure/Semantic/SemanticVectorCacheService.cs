@@ -161,7 +161,7 @@ public sealed class SemanticVectorCacheService
             SemanticVectorIndex updated = current with { Entries = merged };
             // Reject an over-budget index BEFORE touching the existing atomic cache.
             // This also prevents a successful write that could not be loaded again.
-            int encodedSize = JsonSerializer.SerializeToUtf8Bytes(updated).Length;
+            int encodedSize = JsonSerializer.SerializeToUtf8Bytes(updated, JsonDefaults.Options).Length;
             if (encodedSize > MaxCacheFileBytes - 1024)
                 throw new InvalidDataException("Cache vectoriel trop volumineux (64 Mo maximum).");
             cancellationToken.ThrowIfCancellationRequested();
@@ -269,9 +269,9 @@ public sealed class SemanticVectorCacheService
     /// <param name="dimensions">Current dimension.</param>
     /// <param name="segmentationKey">Current segmentation policy.</param>
     /// <returns>Whether the cache can safely be used or reported as valid.</returns>
-    private static bool IsCompatible(SemanticVectorIndex index, string modelId,
+    private static bool IsCompatible(SemanticVectorIndex? index, string modelId,
         int dimensions, string segmentationKey) =>
-        index.SchemaVersion == SemanticVectorIndex.CurrentVersion &&
+        index is not null && index.SchemaVersion == SemanticVectorIndex.CurrentVersion &&
         string.Equals(index.ModelId, modelId, StringComparison.Ordinal) &&
         index.Dimensions == dimensions &&
         index.SegmentationKey == segmentationKey &&
@@ -282,10 +282,11 @@ public sealed class SemanticVectorCacheService
     /// <param name="entry">Candidate vector record.</param>
     /// <param name="dimension">Model dimensions.</param>
     /// <returns>Whether this index entry can be used for retrieval.</returns>
-    private static bool IsValid(SemanticVectorEntry entry, int dimension) =>
-        entry.DocumentId != Guid.Empty &&
-        entry.ChunkId.Length is > 0 and <= 128 &&
-        entry.ContentHash.Length is > 0 and <= 128 &&
+    private static bool IsValid(SemanticVectorEntry? entry, int dimension) =>
+        entry is not null && entry.DocumentId != Guid.Empty &&
+        entry.ChunkId is not null && entry.ChunkId.Length is > 0 and <= 128 &&
+        entry.ContentHash is not null && entry.ContentHash.Length is > 0 and <= 128 &&
+        entry.RelativePath is not null &&
         SemanticMarkdownChunker.IsEligiblePath(entry.RelativePath) &&
         entry.SourceLine > 0 && entry.Vector is not null &&
         entry.Vector.Length == dimension &&
