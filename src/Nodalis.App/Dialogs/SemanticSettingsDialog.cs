@@ -47,8 +47,12 @@ public sealed class SemanticSettingsDialog : Window
             Margin = new Thickness(0, 0, 0, 14)
         };
         form.Children.Add(_enabled);
+        string includedBridge = Path.Combine(AppContext.BaseDirectory,
+            "Nodalis.EmbeddingBridge.exe");
+        string defaultExecutable = string.IsNullOrWhiteSpace(initial.ExecutablePath) &&
+            File.Exists(includedBridge) ? includedBridge : initial.ExecutablePath;
         _executable = AddInput(form, "Exécutable d'embeddings local (*.exe)",
-            initial.ExecutablePath);
+            defaultExecutable);
         Button browse = new()
         {
             Content = "Parcourir…",
@@ -76,6 +80,33 @@ public sealed class SemanticSettingsDialog : Window
             initial.MaxBatchSize.ToString(System.Globalization.CultureInfo.InvariantCulture));
         _timeout = AddInput(form, "Délai maximum en secondes (1 à 300)",
             initial.TimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        Button preset = new()
+        {
+            Content = "Configurer Ollama local (embeddinggemma, 768 dimensions)",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 10, 0, 10),
+            MinHeight = 32
+        };
+        preset.Click += (_, _) =>
+        {
+            if (!File.Exists(includedBridge))
+            {
+                MessageBox.Show(this,
+                    "L'adaptateur local n'est pas présent dans ce package. " +
+                    "Sélectionnez un fournisseur CLI compatible.",
+                    "Embeddings Ollama", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            _executable.Text = includedBridge;
+            _arguments.Text = string.Empty;
+            _model.Text = "embeddinggemma";
+            _dimensions.Text = "768";
+            _batch.Text = "16";
+            _timeout.Text = "120";
+        };
+        form.Children.Add(preset);
         form.Children.Add(new TextBlock
         {
             Text = "Cache dérivé supprimable : " + cachePath,
