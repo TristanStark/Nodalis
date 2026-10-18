@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using Microsoft.Win32;
 using Nodalis.Core.Domain;
+using Nodalis.Core.Settings;
 using Nodalis.Infrastructure.Persistence;
 
 namespace Nodalis.App;
@@ -99,8 +100,7 @@ public partial class MainWindow
 
         // Persist before closing; the old window remains fully bound to its
         // original workspace until the ordinary shutdown path completes.
-        var previousPreferences = _preferences;
-        var nextPreferences = _preferences with { WorkspaceRootPath = targetPath };
+        UserPreferences nextPreferences = _preferences with { WorkspaceRootPath = targetPath };
         await _preferencesStore.SaveAsync(nextPreferences);
         _preferences = nextPreferences;
         _workspaceSwitchPending = true;
