@@ -109,6 +109,7 @@ try
     await ProjectCoverageSmokeTests.RunAsync(root);
     await WorkspaceCalendarSmokeTests.RunAsync(root);
     await WorkspaceKanbanSmokeTests.RunAsync(root);
+    await SemanticEmbeddingSmokeTests.RunAsync(root);
     await LocalAiSmokeTests.RunAsync(root);
     await MeetingAiSummarySmokeTests.RunAsync(root);
     await ProjectAiChallengeSmokeTests.RunAsync(root);
