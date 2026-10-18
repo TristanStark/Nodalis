@@ -116,7 +116,7 @@ jobs:
         run: dotnet build Nodalis.sln --configuration Release --no-restore
 
       - name: Run zero-dependency regression suite
-        run: dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj --configuration Release --no-build
+        run: dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj --configuration Release
 
       - name: Build portable package
         shell: pwsh
