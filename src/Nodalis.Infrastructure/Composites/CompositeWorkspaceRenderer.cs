@@ -239,7 +239,37 @@ public sealed class CompositeWorkspaceRenderer
     /// <summary>Prevents filesystem traversal outside this workspace.</summary>
     /// <param name="path">Fully resolved path.</param>
     /// <returns>True when path remains inside the workspace.</returns>
-    private bool IsSafePath(string path) =>
-        path.StartsWith(Path.TrimEndingDirectorySeparator(_root) +
-            Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    private bool IsSafePath(string path)
+    {
+        string prefix = Path.TrimEndingDirectorySeparator(_root) +
+            Path.DirectorySeparatorChar;
+        if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            DirectoryInfo? directory = Directory.GetParent(path);
+            while (directory is not null &&
+                (directory.FullName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(directory.FullName, _root, StringComparison.OrdinalIgnoreCase)))
+            {
+                if (directory.Exists &&
+                    (directory.Attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    return false;
+                }
+
+                directory = directory.Parent;
+            }
+
+            return !File.Exists(path) ||
+                (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 }
