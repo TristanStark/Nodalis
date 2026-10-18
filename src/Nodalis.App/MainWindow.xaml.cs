@@ -4887,6 +4887,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "workspace.change",
+                Title = "Changer de workspace",
+                Subtitle = "Choisir un dossier Nodalis existant pour le prochain lancement",
+                Keywords = ["workspace", "espace de travail", "ouvrir", "changer", "démo", "demo"],
+                ExecuteAsync = ChangeWorkspaceAsync
+            },
+            new()
+            {
                 Id = "backups",
                 Title = "Sauvegardes",
                 Subtitle = "Créer, vérifier ou restaurer un ZIP du workspace",
