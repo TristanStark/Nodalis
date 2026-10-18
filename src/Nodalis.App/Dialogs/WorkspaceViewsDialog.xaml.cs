@@ -95,7 +95,8 @@ public partial class WorkspaceViewsDialog : Window
             _loading = false;
         }
         catch (Exception exception) when (exception is IOException or
-            UnauthorizedAccessException or System.Text.Json.JsonException)
+            UnauthorizedAccessException or InvalidDataException or
+            System.Text.Json.JsonException)
         {
             WarningText.Text = "Erreur de chargement des vues : " + exception.Message;
         }
@@ -372,7 +373,7 @@ public partial class WorkspaceViewsDialog : Window
             WarningText.Text = "Vue enregistrée : " + proposed.Name;
         }
         catch (Exception exception) when (exception is IOException or
-            UnauthorizedAccessException or ArgumentException)
+            UnauthorizedAccessException or InvalidDataException or ArgumentException)
         {
             WarningText.Text = "Enregistrement impossible : " + exception.Message;
         }
@@ -430,7 +431,7 @@ public partial class WorkspaceViewsDialog : Window
             RefreshResults();
         }
         catch (Exception exception) when (exception is IOException or
-            UnauthorizedAccessException)
+            UnauthorizedAccessException or InvalidDataException)
         {
             WarningText.Text = "Suppression impossible : " + exception.Message;
         }

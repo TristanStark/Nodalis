@@ -38,15 +38,13 @@ public partial class MainWindow
 
             // The first 1.5 UI reads decisions of the current project/application.
             // The full cross-workspace decision collector is scheduled for #133.
-            NavigationNodeViewModel? scope = _selectedNode;
-            while (scope is not null &&
-                scope.Kind != WorkspaceNodeKind.Project &&
-                scope.Kind != WorkspaceNodeKind.Application)
-            {
-                scope = scope.Node.ParentId is Guid parentId
-                    ? _root.DescendantsAndSelf().FirstOrDefault(node => node.Id == parentId)
-                    : null;
-            }
+            NavigationNodeViewModel? scope = _selectedNode is null ? null :
+                _root.DescendantsAndSelf()
+                    .Where(node => node.Kind is WorkspaceNodeKind.Project or
+                        WorkspaceNodeKind.Application &&
+                        IsProjectPathAncestorOrEqual(node.FullPath, _selectedNode.FullPath))
+                    .OrderByDescending(node => node.FullPath.Length)
+                    .FirstOrDefault();
 
             if (scope is not null)
             {
