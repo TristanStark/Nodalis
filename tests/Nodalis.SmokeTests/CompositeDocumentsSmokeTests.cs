@@ -101,6 +101,18 @@ internal static class CompositeDocumentsSmokeTests
             Assert(graph.AffectedParents(childId).Count == 0,
                 "Deleting a derived cache must be safe and reconstructible.");
 
+            string graphics = Path.Combine(root, "graphics");
+            string reports = Path.Combine(root, "reports");
+            Directory.CreateDirectory(graphics);
+            Directory.CreateDirectory(reports);
+            await File.WriteAllTextAsync(child, "# Images\\n![Figure](graphics/diagram.png)\\n");
+            string nestedParent = Path.Combine(reports, "Report.md");
+            await File.WriteAllTextAsync(nestedParent, "# Rapport\\n");
+            CompositeRenderResult rebased = await renderer.RenderAsync(nestedParent,
+                CompositeMarkdownSyntax.Format(childId));
+            Assert(rebased.Markdown.Contains("![Figure](../graphics/diagram.png)"),
+                "Included relative image must resolve from its source directory.");
+
             using CancellationTokenSource cancelled = new();
             cancelled.Cancel();
             bool stopped = false;
