@@ -26,9 +26,12 @@ public sealed class SemanticSearchDialog : Window
     private readonly TextBox _scope = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) };
     private readonly ListBox _results = new() { HorizontalContentAlignment = HorizontalAlignment.Stretch };
-    private readonly Button _index = new() { Content = "Indexer ce périmètre", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
+    private readonly Button _index = new() { Content = "Indexer / reprendre ce périmètre", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
     private readonly Button _search = new() { Content = "Rechercher", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
-    private readonly Button _cancel = new() { Content = "Annuler", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
+    private readonly Button _cancel = new() { Content = "Pause / Annuler", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
+    private readonly Button _inspect = new() { Content = "Afficher l'état", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
+    private readonly Button _purge = new() { Content = "Purger les vecteurs…", MinHeight = 32 };
+    private readonly TextBlock _indexInfo = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) };
     private CancellationTokenSource? _request;
 
     /// <summary>Opened result, or null if the user closed the dialog.</summary>
@@ -117,13 +120,31 @@ public sealed class SemanticSearchDialog : Window
         actions.Children.Add(_cancel);
         actions.Children.Add(close);
         top.Children.Add(actions);
+        Expander indexPanel = new()
+        {
+            Header = "État et gestion de l'index local",
+            IsExpanded = false,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        StackPanel manager = new();
+        WrapPanel managerActions = new() { Margin = new Thickness(0, 6, 0, 6) };
+        _inspect.Click += InspectClicked;
+        _purge.Click += PurgeClicked;
+        managerActions.Children.Add(_inspect);
+        managerActions.Children.Add(_purge);
+        manager.Children.Add(managerActions);
+        manager.Children.Add(_indexInfo);
+        indexPanel.Content = manager;
+        top.Children.Add(indexPanel);
         top.Children.Add(_status);
         layout.Children.Add(_results);
         Content = layout;
         _search.IsEnabled = true;
         _index.IsEnabled = _enabled;
         _cancel.IsEnabled = false;
-        _status.Text = "Cache local effaçable : " + _service.CachePath;
+        _status.Text = "Mode texte sans modèle disponible · cache sémantique dérivé et effaçable.";
+        _indexInfo.Text = "Fichiers éligibles pour l'indexation locale : " + _documents.Count +
+            ". L'état est lu uniquement sur demande, sans démarrer le modèle.";
         _results.MouseDoubleClick += OpenSelected;
         _results.KeyDown += (sender, args) =>
         {
@@ -170,7 +191,9 @@ public sealed class SemanticSearchDialog : Window
             SemanticIndexSummary summary = await _service.IndexAsync(
                 selection, true, progress, token);
             _status.Text = "Indexation terminée : " + summary.DocumentsChanged +
-                " fichier(s) actualisé(s), " + summary.EmbeddedChunks + " vecteurs créés.";
+                " fichier(s) actualisé(s), " + summary.EmbeddedChunks +
+                " vecteurs créés. Relancer reprend les fragments inchangés.";
+            await RefreshIndexStatusAsync(token);
         }
         catch (OperationCanceledException)
         {
@@ -185,6 +208,85 @@ public sealed class SemanticSearchDialog : Window
         {
             End();
         }
+    }
+
+    /// <summary>Shows derived cache size, coverage and compatibility without a model call.</summary>
+    /// <param name="sender">Inspection button.</param>
+    /// <param name="args">Click gesture.</param>
+    private async void InspectClicked(object sender, RoutedEventArgs args)
+    {
+        _inspect.IsEnabled = false;
+        try
+        {
+            await RefreshIndexStatusAsync(CancellationToken.None);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            _indexInfo.Text = "État de l'index indisponible : " + error.Message;
+        }
+        finally
+        {
+            _inspect.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Permanently purges only derived vectors after user confirmation.</summary>
+    /// <param name="sender">Purge button.</param>
+    /// <param name="args">Click gesture.</param>
+    private async void PurgeClicked(object sender, RoutedEventArgs args)
+    {
+        if (MessageBox.Show(this,
+            "Purger définitivement les embeddings du workspace courant ? " +
+            "Les notes, projets et sources Markdown ne seront pas modifiés. " +
+            "Une indexation future exigera un nouveau consentement.",
+            "Confirmer la purge locale", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+            != MessageBoxResult.Yes) return;
+
+        _purge.IsEnabled = false;
+        _inspect.IsEnabled = false;
+        try
+        {
+            await _service.PurgeAsync();
+            _results.Items.Clear();
+            _status.Text = "Vecteurs supprimés. Le mode texte reste disponible sans modèle.";
+            await RefreshIndexStatusAsync(CancellationToken.None);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            _indexInfo.Text = "Échec de la purge locale : " + error.Message;
+        }
+        finally
+        {
+            _inspect.IsEnabled = true;
+            _purge.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Reads validated cache metadata and scope coverage without indexing.</summary>
+    /// <param name="token">Cancellation of the local read.</param>
+    /// <returns>Completed status display.</returns>
+    private async Task RefreshIndexStatusAsync(CancellationToken token)
+    {
+        SemanticIndexStatus status = await _service.InspectAsync(token);
+        string state = !status.FileExists ? "Absent (aucun vecteur)" :
+            !status.IsCompatible ? "Incompatible ou corrompu : réindexation nécessaire" :
+            "Valide";
+        string date = status.UpdatedAtUtc?.ToLocalTime().ToString("g") ?? "aucune";
+        string[] visible = status.IndexedPaths.Take(5).ToArray();
+        string sample = visible.Length == 0 ? "" :
+            " · Exemples : " + string.Join(", ", visible) +
+            (status.IndexedPaths.Count > visible.Length ? "…" : "");
+        _indexInfo.Text = "État : " + state +
+            " · Modèle : " + (string.IsNullOrWhiteSpace(status.ModelId) ? "non configuré" : status.ModelId) +
+            " (" + status.Dimensions + " dim.)" +
+            " · Documents : " + status.DocumentCount +
+            " · Passages : " + status.ChunkCount + "/10 000" +
+            " · Cache disque : " + (status.OnDiskBytes / 1024.0).ToString("0.0") + " Ko" +
+            " · RAM vecteurs estimée : " + (status.VectorBytes / 1024.0).ToString("0.0") + " Ko" +
+            " · Dernière modification : " + date +
+            " · Documents éligibles : " + _documents.Count +
+            " · Chemin : " + status.CachePath + sample;
     }
 
     /// <summary>
@@ -384,6 +486,8 @@ public sealed class SemanticSearchDialog : Window
         _search.IsEnabled = false;
         _cancel.IsEnabled = true;
         _mode.IsEnabled = false;
+        _purge.IsEnabled = false;
+        _inspect.IsEnabled = false;
         return _request.Token;
     }
 
@@ -396,6 +500,8 @@ public sealed class SemanticSearchDialog : Window
         _search.IsEnabled = true;
         _mode.IsEnabled = true;
         _cancel.IsEnabled = false;
+        _purge.IsEnabled = true;
+        _inspect.IsEnabled = true;
     }
 
     /// <summary>Closes the dialog only when an actual source result is selected.</summary>
