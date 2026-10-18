@@ -33,6 +33,10 @@ internal static class SemanticWorkspaceSearchSmokeTests
         SemanticIndexSummary created = await service.IndexAsync(selected, true);
         Assert(created.EmbeddedChunks == 1 && fake.Calls == 1,
             "Index a single canonical fragment with a real provider contract.");
+        SemanticIndexStatus indexed = await service.InspectAsync();
+        Assert(indexed.IsCompatible && indexed.DocumentCount == 1 &&
+            indexed.ChunkCount == 1 && indexed.VectorBytes == 12,
+            "User-facing status is accessible independently of provider execution.");
         SemanticIndexSummary unchanged = await service.IndexAsync(selected, true);
         Assert(unchanged.EmbeddedChunks == 0 && fake.Calls == 1,
             "Unchanged source does not call embeddings again.");

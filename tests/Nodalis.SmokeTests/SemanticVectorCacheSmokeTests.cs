@@ -14,6 +14,9 @@ internal static class SemanticVectorCacheSmokeTests
         SemanticVectorCacheService cache = new(root, sandbox);
         Guid first = Guid.NewGuid();
         Guid second = Guid.NewGuid();
+        SemanticIndexStatus absent = await cache.InspectAsync("model-A", 3, "split-v1");
+        Assert(!absent.FileExists && absent.ChunkCount == 0,
+            "Inspecting the cache must not create an index or contact a model.");
         SemanticVectorIndex zero = await cache.LoadAsync("model-A", 3, "split-v1");
         Assert(zero.Entries.Count == 0 &&
             cache.CachePath.StartsWith(sandbox, StringComparison.OrdinalIgnoreCase),
@@ -23,6 +26,14 @@ internal static class SemanticVectorCacheSmokeTests
         await cache.ReplaceDocumentAsync("model-A", 3, "split-v1", first, [a]);
         await cache.ReplaceDocumentAsync("model-A", 3, "split-v1", second, [b]);
         SemanticVectorIndex loaded = await cache.LoadAsync("model-A", 3, "split-v1");
+        SemanticIndexStatus observed = await cache.InspectAsync("model-A", 3, "split-v1");
+        Assert(observed.FileExists && observed.IsCompatible &&
+            observed.DocumentCount == 2 && observed.ChunkCount == 2 &&
+            observed.IndexedPaths.Count == 2 &&
+            observed.OnDiskBytes > 0 && observed.VectorBytes == 24,
+            "Cache inspection reports only valid vector metadata and disk/resource use.");
+        Assert(!(await cache.InspectAsync("model-B", 3, "split-v1")).IsCompatible,
+            "Wrong model is diagnosed instead of being silently reported valid.");
         Assert(loaded.Entries.Count == 2 &&
             !File.ReadAllText(cache.CachePath).Contains("secret text"),
             "Store only embeddings/provenance, no duplicated source text.");
@@ -35,8 +46,9 @@ internal static class SemanticVectorCacheSmokeTests
             (await cache.LoadAsync("model-A", 3, "split-v2")).Entries.Count == 0,
             "Changes to model, dimension or segmentation must invalidate the cache.");
         await File.WriteAllTextAsync(cache.CachePath, "{not json");
-        Assert((await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Count == 0,
-            "Corruption of a derived cache cannot destroy the workspace.");
+        Assert((await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Count == 0 &&
+            !(await cache.InspectAsync("model-A", 3, "split-v1")).IsCompatible,
+            "Corruption is reported and never destroys the canonical workspace.");
         await cache.ReplaceDocumentAsync("model-A", 3, "split-v1", second, [b]);
         Assert((await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Count == 1,
             "A corrupted index can be recreated with valid local embeddings.");

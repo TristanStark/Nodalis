@@ -59,6 +59,12 @@ public sealed class SemanticWorkspaceSearchService
     /// <summary>Human-visible location of the entirely disposable derived index.</summary>
     public string CachePath => _cache.CachePath;
 
+    /// <summary>Inspects model compatibility, vector counts, disk size and last update without running embeddings.</summary>
+    /// <param name="token">Cancellation of local file reading.</param>
+    /// <returns>Read-only derived index metadata for user controls.</returns>
+    public Task<SemanticIndexStatus> InspectAsync(CancellationToken token = default) =>
+        _cache.InspectAsync(_preferences.ModelId, _preferences.Dimensions, _policyKey, token);
+
     /// <summary>
     /// Indexes only the explicitly approved selected documents. Unchanged chunks
     /// reuse their vectors; modified or deleted files replace their own entries.
@@ -113,6 +119,11 @@ public sealed class SemanticWorkspaceSearchService
             Dictionary<string, SemanticVectorEntry> old = index.Entries
                 .Where(entry => entry.DocumentId == source.DocumentId)
                 .ToDictionary(entry => entry.ChunkId, StringComparer.Ordinal);
+            // Fail before invoking the model when this approved document cannot fit
+            // in the derived index. Earlier fully committed documents remain valid.
+            if (index.Entries.Count - old.Count + chunks.Count >
+                SemanticVectorCacheService.MaximumEntries)
+                throw new InvalidDataException("Limite de 10 000 fragments : réduisez le périmètre.");
             List<SemanticVectorEntry> replacement = [];
             List<SemanticChunk> pending = [];
             foreach (SemanticChunk chunk in chunks)
