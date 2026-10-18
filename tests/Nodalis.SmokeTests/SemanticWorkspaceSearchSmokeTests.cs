@@ -110,9 +110,9 @@ internal static class SemanticWorkspaceSearchSmokeTests
         string resumedWorkspace = Path.Combine(root, "semantic-resume-workspace");
         Directory.CreateDirectory(resumedWorkspace);
         await File.WriteAllTextAsync(Path.Combine(resumedWorkspace, "first.md"),
-            "# Premier\\nCompte rendu durable".Replace("\\\\n", "\\n"));
+            "# Premier\nCompte rendu durable");
         await File.WriteAllTextAsync(Path.Combine(resumedWorkspace, "second.md"),
-            "# Second\\nContrôle supplémentaire".Replace("\\\\n", "\\n"));
+            "# Second\nContrôle supplémentaire");
         FakeProvider interrupted = new() { CancelOnCall = 2 };
         SemanticWorkspaceSearchService resumed = new(resumedWorkspace, enabled,
             interrupted, cacheDirectory: Path.Combine(root, "vector-cache-resume"));
