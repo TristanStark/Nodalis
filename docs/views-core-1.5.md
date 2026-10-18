@@ -49,3 +49,19 @@ appartenance à un tag, et conditions groupées **ET/OU**.
 définitions sauvegardées portables, constructeur UI, dashboard et actualisation.
 La projection n'a pas d'interface grand public tant que ces étapes ne sont pas
 intégrées et qualifiées.
+
+## Première interface WPF (aperçu non qualifié)
+
+Depuis **Ctrl+P → Vues dynamiques (aperçu 1.5)**, ouvrir une fenêtre avec
+recherche, filtre de type, statut, tri et regroupement ; choisir les onglets
+**Liste / Tableau / Cartes**. Double-cliquer un résultat pour ouvrir le document
+canonique à sa ligne d'origine. Le constructeur de vues peut sauvegarder les
+définitions privées ou partagées, les dupliquer et les supprimer après action
+explicite. Aucune source Markdown n'est changée lors d'une consultation.
+
+**Limitation actuelle :** la collecte des décisions est limitée au contexte
+projet/application sélectionné, en attendant l'index transversal #133 ; la
+projection de la maintenance peut afficher des diagnostics pour les fichiers
+inaccessibles. Le contrôle des volumétriques et l'intégration dashboard #132
+restent des travaux ouverts. Il s'agit donc d'un **aperçu develop**, pas de la
+version 1.5 stable.

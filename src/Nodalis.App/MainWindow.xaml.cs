@@ -4691,6 +4691,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "views.dynamic",
+                Title = "Vues dynamiques (aperçu 1.5)",
+                Subtitle = "Filtres et regroupements, liste / tableau / cartes, vues sauvegardées",
+                Keywords = ["vues", "dynamique", "filtre", "dashboard", "tableau", "cartes", "tâches"],
+                ExecuteAsync = ShowWorkspaceViewsAsync
+            },
+            new()
+            {
                 Id = "impact.analyze",
                 Title = "Analyser les impacts",
                 Subtitle = "Documents potentiellement affectés, relations, chemins et preuves",
