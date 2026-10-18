@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Net;
 using System.Text;
 using System.Xml.Linq;
 using Nodalis.Core.Composites;
@@ -99,7 +98,7 @@ public sealed class CompositeDocumentExportService
         html.Append("td,th{border:1px solid #bbb;padding:5px}</style></head><body>");
         foreach (MarkdownBlock block in MarkdownDocumentParser.Parse(markdown))
         {
-            string value = WebUtility.HtmlEncode(block.Text);
+            string value = EscapeHtml(block.Text);
             switch (block.Kind)
             {
                 case MarkdownBlockKind.Heading:
@@ -126,7 +125,7 @@ public sealed class CompositeDocumentExportService
                         {
                             string tag = index == 0 ? "th" : "td";
                             html.Append('<').Append(tag).Append('>')
-                                .Append(WebUtility.HtmlEncode(cell))
+                                .Append(EscapeHtml(cell))
                                 .Append("</").Append(tag).Append('>');
                         }
 
@@ -144,6 +143,16 @@ public sealed class CompositeDocumentExportService
         html.Append("</body></html>");
         return html.ToString();
     }
+
+    /// <summary>Escapes user-authored content without any network-related dependency.</summary>
+    /// <param name="value">Raw user string.</param>
+    /// <returns>HTML-safe text.</returns>
+    private static string EscapeHtml(string value) =>
+        value.Replace("&", "&amp;", StringComparison.Ordinal)
+             .Replace("<", "&lt;", StringComparison.Ordinal)
+             .Replace(">", "&gt;", StringComparison.Ordinal)
+             .Replace("\"", "&quot;", StringComparison.Ordinal)
+             .Replace("'", "&#39;", StringComparison.Ordinal);
 
     /// <summary>Creates a valid minimal Open Packaging Convention DOCX with native Word paragraphs.</summary>
     /// <param name="path">Temporary DOCX output location.</param>
