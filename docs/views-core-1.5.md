@@ -59,9 +59,11 @@ canonique à sa ligne d'origine. Le constructeur de vues peut sauvegarder les
 définitions privées ou partagées, les dupliquer et les supprimer après action
 explicite. Aucune source Markdown n'est changée lors d'une consultation.
 
-**Limitation actuelle :** la collecte des décisions est limitée au contexte
-projet/application sélectionné, en attendant l'index transversal #133 ; la
-projection de la maintenance peut afficher des diagnostics pour les fichiers
-inaccessibles. Le contrôle des volumétriques et l'intégration dashboard #132
-restent des travaux ouverts. Il s'agit donc d'un **aperçu develop**, pas de la
+**Évolution de l'aperçu :** la collecte des décisions traverse désormais
+les projets et applications. Le dashboard, l'explorateur compact « Mes vues »,
+la palette et le champ `Pinned` sont intégrés. Les requêtes WPF utilisent
+annulation et pagination ; un cache en mémoire évite les rescans si aucune
+source n'a changé, et les événements du workspace déclenchent le rafraîchissement.
+Les collecteurs métiers nécessitent encore une granularité par document
+pour terminer entièrement #133. Une source illisible donne un diagnostic. Il s'agit donc d'un **aperçu develop**, pas de la
 version 1.5 stable.

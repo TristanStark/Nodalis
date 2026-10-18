@@ -1,15 +1,14 @@
 # Vues dynamiques — aperçu utilisateur 1.5 (develop)
 
-La v1.5 est **en cours de développement**. Le premier écran est accessible
+La v1.5 est **en cours de développement et de qualification**. Le premier écran est accessible
 par **Ctrl+P → Vues dynamiques (aperçu 1.5)**. La release stable actuelle
 est **v1.4.0** ; ne pas confondre cet aperçu avec une version livrée.
 
 ## Découvrir et filtrer
 
 L'écran rassemble les documents et les tâches, jalons et enregistrements
-de maintenance lus depuis les sources du workspace. Une collecte des décisions
-du projet ou de l'application sélectionnée est également disponible :
-l'indexation de *toutes* les décisions du workspace fait partie de #133.
+de maintenance lus depuis les sources du workspace. Les décisions sont maintenant collectées dans les projets et applications du
+workspace. La collecte peut être longue sur de très grands espaces de travail.
 
 1. Choisir le **type d'élément** ou conserver « Tous ».
 2. Saisir un mot du **titre** ou du **statut**.
@@ -32,6 +31,10 @@ Donner un nom à la vue et choisir où l'enregistrer :
 - **Privée** : préférences locales, séparées du workspace (et donc de
   ses sauvegardes/partages automatiques).
 
+Cocher **Épingler** pour retrouver la vue sur l'accueil et dans **Mes vues**,
+sans changer de workspace. Depuis **Ctrl+P**, rechercher « Vue · nom » pour
+l'ouvrir directement, ou « Vues dynamiques » pour créer une vue temporaire.
+
 Cliquer **Enregistrer** pour créer ou modifier la définition sélectionnée ;
 **Dupliquer** crée une autre identité GUID ; **Supprimer** retire uniquement
 la définition après confirmation, jamais les résultats ou les notes.
@@ -44,10 +47,18 @@ un conflit visible et un fichier d'une version future n'est jamais réécrit.
 - Le formulaire visuel expose les filtres simples. Le moteur accepte également
   des groupes ET/OU et des comparaisons typées de dates (voir documentation
   technique) ; l'édition graphique avancée reste à terminer.
-- Le rendu est borné à 200 éléments par page d'aperçu ; les grandes collections
-  et la pagination interactive relèvent encore de #131 et #133.
-- Les décisions multi-applications, l'actualisation incrémentale et les favoris
-  de dashboard sont encore en cours (#132/#133).
+- Le rendu est paginé, par défaut à 200 éléments, avec boutons
+  **Précédent / Suivant**. Les requêtes sont exécutées hors du fil WPF,
+  annulées lors du changement de filtre, puis seules les plus récentes
+  peuvent actualiser l'écran.
+- Les modifications externes des fichiers Markdown et métadonnées sont
+  détectées ; plusieurs notifications rapprochées sont regroupées avant
+  rechargement. Une projection en mémoire évite les scans lors des
+  simples réouvertures sans modification.
+- L'index des liens réutilise ses empreintes incrémentales existantes.
+  Le collecteur des tâches et jalons recalcule encore certaines données à
+  chaque modification détectée : optimisation granulaire #133 non terminée.
+  Les résultats ne sont jamais utilisés comme source canonique.
 - Le rendu dark mode, DPI 100/125/150 % et navigation complète au clavier
   font partie de la qualification finale #134.
 
