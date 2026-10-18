@@ -4695,6 +4695,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "composite.export",
+                Title = "Exporter le document composite",
+                Subtitle = "Markdown, HTML autonome, DOCX · références ou rendu figé",
+                Keywords = ["export", "composite", "html", "docx", "markdown"],
+                ExecuteAsync = ExportCompositeDocumentAsync
+            },
+            new()
+            {
                 Id = "composite.insert",
                 Title = "Insérer un document ou une section",
                 Subtitle = "Référence Markdown vivante vers une source locale",
