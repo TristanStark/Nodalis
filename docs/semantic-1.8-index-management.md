@@ -14,6 +14,12 @@ Ouvrir **Ctrl+P → Rechercher par le sens (local)**, puis la section repliable 
 
 La limite dure actuelle est de **10 000 fragments** ou **64 Mo** de JSON dérivé par workspace. Les passages source ont déjà une limite distincte (8 Mo par document). Une cache incompatible ne doit jamais être présentée comme valide : utiliser une nouvelle indexation après vérification du modèle/exclusions.
 
+## Prévisualiser les modifications sans modèle
+
+Le clic sur **Indexer / reprendre ce périmètre** lance d'abord un **diagnostic local annulable**, sans consentement d'envoi, sans démarrer de fournisseur et sans modifier les fichiers. Il compare les fragments Markdown canoniques sélectionnés aux vecteurs déjà présents : nouveaux passages à calculer, passages inchangés réutilisables, fragments obsolètes, fichiers manquants et vecteurs orphelins. Il affiche le nombre futur de fragments (quota 10 000) et une **estimation en Ko des seuls vecteurs numériques** ; cela n'est ni la taille exacte du JSON disque, ni la RAM du modèle Ollama.
+
+En cas de dépassement prévisible du quota de fragments, le bouton refuse l'indexation **avant** tout appel au modèle. En cas de taille JSON excessive, le contrôle d'écriture atomique reste la seconde barrière. Pour les autres périmètres, un second écran demande l'**autorisation explicite** de transmettre les passages nouveaux au processus d'embeddings local : refuser conserve l'index intact. Les coûts calculés sont indicatifs si des documents changent après le diagnostic.
+
 ## Indexer, reprendre, arrêter
 
 Le sélecteur **Global / Application / Projet** propose les dossiers existants à partir du catalogue local, sans lancer de recherche ni de modèle. Le champ de dossier relatif reste éditable pour un périmètre plus fin. Le bouton **Indexer / reprendre ce périmètre** demande une confirmation explicite avant de transmettre des passages au modèle local choisi. Le dossier relatif dans le champ *Périmètre* sélectionne uniquement les fichiers à traiter. Les fragments déjà inchangés sont réutilisés et ne sont pas renvoyés au modèle.

@@ -207,6 +207,54 @@ internal static class SemanticWorkspaceSearchSmokeTests
             "More than 100 stale chunks must never suppress a valid source.");
         Console.WriteLine("[Semantic 1.8] exhaustive stale-fragment validation passed.");
 
+        // Full 10 001 fragment fixture: reject the scope before invoking a
+        // provider, rather than consuming tokens and failing to persist.
+        string largeWorkspace = Path.Combine(root, "semantic-over-budget");
+        Directory.CreateDirectory(largeWorkspace);
+        await File.WriteAllTextAsync(Path.Combine(largeWorkspace, "large.md"),
+            "# Test de quota\n" + string.Join("\n\n",
+                Enumerable.Range(0, 10_001).Select(i =>
+                    "Passage unique de test " + i)));
+        FakeProvider quotaFake = new();
+        SemanticWorkspaceSearchService quotaService = new(
+            largeWorkspace, enabled, quotaFake,
+            cacheDirectory: Path.Combine(root, "vector-cache-budget"));
+        IReadOnlyList<SemanticSource> largeSelection =
+            [new(Guid.NewGuid(), "large.md")];
+        SemanticIndexPreview tooLarge = await quotaService.PreviewIndexAsync(
+            largeSelection);
+        Assert(tooLarge.ExceedsChunkBudget &&
+            tooLarge.ProjectedTotalChunks > SemanticVectorCacheService.MaximumEntries &&
+            tooLarge.PeakProjectedChunks == tooLarge.ProjectedTotalChunks &&
+            quotaFake.Calls == 0 && !File.Exists(quotaService.CachePath),
+            "Quota preview must reject 10 001 fragments without writing cache or calling a model.");
+
+        bool quotaFailed = false;
+        try
+        {
+            await quotaService.IndexAsync(largeSelection, true);
+        }
+        catch (InvalidDataException)
+        {
+            quotaFailed = true;
+        }
+        Assert(quotaFailed && quotaFake.Calls == 0,
+            "The real indexing boundary also blocks over-budget sources before embeddings.");
+
+        using CancellationTokenSource previewCancel = new();
+        previewCancel.Cancel();
+        bool previewCanceled = false;
+        try
+        {
+            await service.PreviewIndexAsync(selected, token: previewCancel.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            previewCanceled = true;
+        }
+        Assert(previewCanceled, "Read-only preview must respect cancellation.");
+        Console.WriteLine("[Semantic 1.8] local preflight quota, cancellation and model isolation passed.");
+
         Console.WriteLine("[Semantic 1.7/1.8] consent, incremental resume, source navigation and deletion passed.");
     }
 
