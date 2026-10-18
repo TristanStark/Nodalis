@@ -194,7 +194,8 @@ public sealed class CompositeWorkspaceRenderer
                     StringComparison.Ordinal).Replace("]", ")", StringComparison.Ordinal);
                 result.AppendLine();
                 result.AppendLine("> **Contenu inclus (lecture seule) : " +
-                    heading + "** — [[" + child.Id.ToString("D") + "]]");
+                    heading + "** — [[" + child.Id.ToString("D") +
+                    (include.Section is null ? "" : "#" + include.Section) + "]]");
                 result.AppendLine();
                 result.AppendLine(body.TrimEnd());
                 result.AppendLine();
