@@ -16,7 +16,7 @@ La limite dure actuelle est de **10 000 fragments** ou **64 Mo** de JSON dériv�
 
 ## Indexer, reprendre, arrêter
 
-Le bouton **Indexer / reprendre ce périmètre** demande une confirmation explicite avant de transmettre des passages au modèle local choisi. Le dossier relatif dans le champ *Périmètre* sélectionne uniquement les fichiers à traiter. Les fragments déjà inchangés sont réutilisés et ne sont pas renvoyés au modèle.
+Le sélecteur **Global / Application / Projet** propose les dossiers existants à partir du catalogue local, sans lancer de recherche ni de modèle. Le champ de dossier relatif reste éditable pour un périmètre plus fin. Le bouton **Indexer / reprendre ce périmètre** demande une confirmation explicite avant de transmettre des passages au modèle local choisi. Le dossier relatif dans le champ *Périmètre* sélectionne uniquement les fichiers à traiter. Les fragments déjà inchangés sont réutilisés et ne sont pas renvoyés au modèle.
 
 **Pause / Annuler** interrompt l'opération. Seuls les documents intégralement validés avant l'arrêt sont conservés ; lors d'une reprise volontaire avec le même périmètre, le modèle ne recalcule que les fragments absents ou modifiés. L'indexation n'a pas lieu en arrière-plan.
 
