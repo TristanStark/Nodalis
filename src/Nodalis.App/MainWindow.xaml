@@ -387,6 +387,9 @@
                     </MenuItem>
 
                     <MenuItem Header="Système">
+                        <MenuItem Header="Changer de workspace…"
+                                  Click="ChangeWorkspace_Click" />
+                        <Separator />
                         <MenuItem Header="Mise à jour"
                                   Click="OpenUpdate_Click" />
                         <MenuItem Header="Rollback"
