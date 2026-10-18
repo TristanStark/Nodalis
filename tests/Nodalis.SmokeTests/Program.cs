@@ -114,6 +114,7 @@ try
     await SemanticVectorCacheSmokeTests.RunAsync(root);
     SemanticRetrievalSmokeTests.Run();
     HybridSearchSmokeTests.Run();
+    await HybridSearchSmokeTests.RunFilterChecksAsync(root);
     await SemanticWorkspaceSearchSmokeTests.RunAsync(root);
     SemanticPerformanceSmokeTests.Run();
     await LocalAiSmokeTests.RunAsync(root);
