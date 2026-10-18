@@ -161,34 +161,34 @@ public partial class MainWindow
             }
 
             // The navigation tree can lag behind external moves/renames. Discover
-        // maintenance sheets from the refreshed canonical index instead.
-        catalog = await _linkIndexService.LoadAsync(cancellationToken);
-        string workspace = Path.GetFullPath(_root.FullPath);
-        string prefix = Path.TrimEndingDirectorySeparator(workspace) +
-            Path.DirectorySeparatorChar;
-        string[] maintenanceFiles = catalog.Targets
-            .Where(target => target.Kind == LinkTargetKind.Document &&
-                IsMaintenanceDocument(target.RelativePath))
-            .Select(target => Path.GetFullPath(Path.Combine(workspace,
-                target.RelativePath.Replace('/', Path.DirectorySeparatorChar))))
-            .Where(path => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        using (SemaphoreSlim throttle = new(4))
-        {
-            Task<(string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
-                string? Error)>[] loads = maintenanceFiles.Select(path =>
-                    LoadViewMaintenanceHistoryAsync(path, throttle, cancellationToken)).ToArray();
-            (string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
-                string? Error)[] results = await Task.WhenAll(loads);
-            cancellationToken.ThrowIfCancellationRequested();
-            maintenance = results.SelectMany(item => item.Rows).ToArray();
-            diagnostics.AddRange(results.Where(item => item.Error is not null)
-                .Select(item => new WorkspaceViewProjectionDiagnostic(item.Path,
-                    item.Error ?? "Fiche de maintenance inaccessible.")));
-        }
+            // maintenance sheets from the refreshed canonical index instead.
+            catalog = await _linkIndexService.LoadAsync(cancellationToken);
+            string workspace = Path.GetFullPath(_root.FullPath);
+            string prefix = Path.TrimEndingDirectorySeparator(workspace) +
+                Path.DirectorySeparatorChar;
+            string[] maintenanceFiles = catalog.Targets
+                .Where(target => target.Kind == LinkTargetKind.Document &&
+                    IsMaintenanceDocument(target.RelativePath))
+                .Select(target => Path.GetFullPath(Path.Combine(workspace,
+                    target.RelativePath.Replace('/', Path.DirectorySeparatorChar))))
+                .Where(path => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            using (SemaphoreSlim throttle = new(4))
+            {
+                Task<(string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
+                    string? Error)>[] loads = maintenanceFiles.Select(path =>
+                        LoadViewMaintenanceHistoryAsync(path, throttle, cancellationToken)).ToArray();
+                (string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
+                    string? Error)[] results = await Task.WhenAll(loads);
+                cancellationToken.ThrowIfCancellationRequested();
+                maintenance = results.SelectMany(item => item.Rows).ToArray();
+                diagnostics.AddRange(results.Where(item => item.Error is not null)
+                    .Select(item => new WorkspaceViewProjectionDiagnostic(item.Path,
+                        item.Error ?? "Fiche de maintenance inaccessible.")));
+            }
 
-        // A service refresh may have updated only the *derived* link index.
+            // A service refresh may have updated only the *derived* link index.
             // Use the latest load, not a manual guess or a newly minted identity.
             catalog = await _linkIndexService.LoadAsync(cancellationToken);
             WorkspaceViewProjection projection = WorkspaceViewProjector.Build(
