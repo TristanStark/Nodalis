@@ -1,0 +1,39 @@
+{
+  "id": "aa000000-0000-4000-8000-000000000006",
+  "name": "Recherche lexicale 1.7",
+  "applicationId": "aa000000-0000-4000-8000-000000000002",
+  "moduleId": null,
+  "parentProjectId": "aa000000-0000-4000-8000-000000000003",
+  "initialComplexity": "simple",
+  "createdUtc": "2026-10-18T12:30:00+00:00",
+  "sections": [
+    {
+      "id": "cc000000-0000-4000-8000-000000000011",
+      "name": "Jalons",
+      "order": 10,
+      "isSingleton": true,
+      "templateKey": "milestones"
+    },
+    {
+      "id": "cc000000-0000-4000-8000-000000000012",
+      "name": "Technique",
+      "order": 20,
+      "isSingleton": false,
+      "templateKey": null
+    },
+    {
+      "id": "cc000000-0000-4000-8000-000000000013",
+      "name": "Glossaire",
+      "order": 30,
+      "isSingleton": true,
+      "templateKey": "glossary"
+    },
+    {
+      "id": "cc000000-0000-4000-8000-000000000014",
+      "name": "Tests",
+      "order": 40,
+      "isSingleton": false,
+      "templateKey": null
+    }
+  ]
+}
