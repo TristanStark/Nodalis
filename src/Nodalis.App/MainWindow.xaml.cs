@@ -3276,6 +3276,7 @@ public partial class MainWindow : Window
             .ToArray();
 
         RefreshRecentSearchesDashboard();
+        _ = RefreshSavedViewsDashboardAsync();
     }
 
     /// <summary>
@@ -4499,7 +4500,8 @@ public partial class MainWindow : Window
     /// <returns>The result of the operation.</returns>
     private async Task ShowCommandPaletteAsync()
     {
-        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.App.Commands.PaletteCommand> commands = BuildPaletteCommands();
+        IReadOnlyList<PaletteCommand> commands = await BuildViewPaletteCommandsAsync(
+            BuildPaletteCommands());
 
         global::Nodalis.App.Dialogs.CommandPaletteDialog dialog = new CommandPaletteDialog(commands)
         {

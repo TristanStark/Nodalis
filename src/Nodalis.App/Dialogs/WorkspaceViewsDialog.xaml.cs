@@ -13,6 +13,8 @@ public partial class WorkspaceViewsDialog : Window
     private readonly WorkspaceViewProjection _projection;
     private readonly FileSystemWorkspaceViewStore _store;
     private readonly bool _readOnly;
+    private Guid? _preferredSavedId;
+    private WorkspaceViewVisibility? _preferredVisibility;
     private WorkspaceViewDefinitionSnapshot? _workspaceSaved;
     private WorkspaceViewDefinitionSnapshot? _privateSaved;
     private WorkspaceViewQuery? _loadedQuery;
@@ -32,14 +34,19 @@ public partial class WorkspaceViewsDialog : Window
     /// <param name="projection">Current immutable workspace projection.</param>
     /// <param name="store">Portable/private saved view definitions store.</param>
     /// <param name="readOnly">Whether writes to the workspace are disabled.</param>
+    /// <param name="initialViewId">Optional saved view selected from dashboard or palette.</param>
+    /// <param name="initialVisibility">Visibility of that saved view.</param>
     public WorkspaceViewsDialog(WorkspaceViewProjection projection,
-        FileSystemWorkspaceViewStore store, bool readOnly = false)
+        FileSystemWorkspaceViewStore store, bool readOnly = false,
+        Guid? initialViewId = null, WorkspaceViewVisibility? initialVisibility = null)
     {
         ArgumentNullException.ThrowIfNull(projection);
         ArgumentNullException.ThrowIfNull(store);
         _projection = projection;
         _store = store;
         _readOnly = readOnly;
+        _preferredSavedId = initialViewId;
+        _preferredVisibility = initialVisibility;
         InitializeComponent();
         _loading = true;
         KindComboBox.ItemsSource = new[]
@@ -92,8 +99,12 @@ public partial class WorkspaceViewsDialog : Window
                     WorkspaceViewVisibility.Private)));
             _loading = true;
             SavedViewsComboBox.ItemsSource = choices;
-            SavedViewsComboBox.SelectedIndex = 0;
+            SavedOption? selected = choices.FirstOrDefault(item =>
+                item.Definition?.Id == _preferredSavedId &&
+                item.Visibility == _preferredVisibility);
+            SavedViewsComboBox.SelectedItem = selected ?? choices[0];
             _loading = false;
+            ApplySavedSelection();
         }
         catch (Exception exception) when (exception is IOException or
             UnauthorizedAccessException or InvalidDataException or
@@ -238,16 +249,25 @@ public partial class WorkspaceViewsDialog : Window
     /// <param name="e">Selection event.</param>
     private void SavedView_Changed(object sender, SelectionChangedEventArgs e)
     {
+        ApplySavedSelection();
+    }
+
+    /// <summary>Loads the selected view even when the combo box was populated programmatically.</summary>
+    private void ApplySavedSelection()
+    {
         if (_loading || SavedViewsComboBox.SelectedItem is not SavedOption chosen)
         {
             return;
         }
 
+        _preferredSavedId = chosen.Definition?.Id;
+        _preferredVisibility = chosen.Visibility;
         _loading = true;
         WorkspaceViewDefinition? saved = chosen.Definition;
         _loadedQuery = saved?.Query;
         _queryEdited = saved is null;
         ViewNameTextBox.Text = saved?.Name ?? "Ma vue";
+        PinViewCheckBox.IsChecked = saved?.Pinned ?? false;
         VisibilityComboBox.SelectedIndex = chosen.Visibility == WorkspaceViewVisibility.Workspace ? 0 : 1;
         KindComboBox.SelectedItem = saved?.Query.Kinds.Count == 1
             ? saved.Query.Kinds[0].ToString() : "Tous";
@@ -365,7 +385,7 @@ public partial class WorkspaceViewsDialog : Window
             Query = CurrentQuery(),
             Layout = ChosenLayout(),
             Columns = original?.Columns ?? ["title", "kind", "date", "status"],
-            Pinned = original?.Pinned ?? false,
+            Pinned = PinViewCheckBox.IsChecked == true,
             Order = original?.Order ?? snapshot.Views.Count
         };
         List<WorkspaceViewDefinition> revised = snapshot.Views
@@ -374,6 +394,8 @@ public partial class WorkspaceViewsDialog : Window
         try
         {
             await _store.SaveAsync(visibility, revised, snapshot.Revision);
+            _preferredSavedId = proposed.Id;
+            _preferredVisibility = visibility;
             await LoadSavedAsync();
             WarningText.Text = "Vue enregistrée : " + proposed.Name;
         }
@@ -432,6 +454,8 @@ public partial class WorkspaceViewsDialog : Window
             await _store.SaveAsync(chosen.Visibility, snapshot.Views
                 .Where(item => item.Id != chosen.Definition.Id).ToArray(),
                 snapshot.Revision);
+            _preferredSavedId = null;
+            _preferredVisibility = null;
             await LoadSavedAsync();
             RefreshResults();
         }

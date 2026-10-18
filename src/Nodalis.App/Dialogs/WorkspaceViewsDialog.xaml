@@ -37,6 +37,9 @@
                     <ComboBox x:Name="VisibilityComboBox" Width="145" Height="30"
                               SelectionChanged="Filters_Changed" Margin="0,0,12,6"
                               AutomationProperties.Name="Stockage de la vue" />
+                    <CheckBox x:Name="PinViewCheckBox" Content="Épingler" VerticalAlignment="Center"
+                              Margin="0,0,12,6" ToolTip="Afficher cette vue sur l'accueil et dans Mes vues"
+                              AutomationProperties.Name="Épingler la vue enregistrée" />
                     <Button Content="Enregistrer" MinWidth="90" Padding="8,4"
                             Click="SaveView_Click" Margin="0,0,7,6" />
                     <Button Content="Dupliquer" MinWidth="78" Padding="8,4"

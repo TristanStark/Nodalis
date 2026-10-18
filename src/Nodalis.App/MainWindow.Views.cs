@@ -1,6 +1,9 @@
 using System.IO;
 using System.Windows;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Commands;
+using System.Windows.Controls;
+using System.Windows.Input;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Decisions;
 using Nodalis.Core.Links;
@@ -21,7 +24,15 @@ public partial class MainWindow
     /// Existing task/milestone services are reused; no view query changes a note.
     /// </summary>
     /// <returns>Browser and optional navigation to the selected Markdown source.</returns>
-    private async Task ShowWorkspaceViewsAsync()
+    private Task ShowWorkspaceViewsAsync() =>
+        ShowWorkspaceViewsAsync(null, null);
+
+    /// <summary>Opens a specific saved view without altering the current navigation scope.</summary>
+    /// <param name="id">Saved definition GUID, if supplied.</param>
+    /// <param name="visibility">Private or workspace definition collection.</param>
+    /// <returns>Navigation completion if a source is opened.</returns>
+    private async Task ShowWorkspaceViewsAsync(Guid? id,
+        WorkspaceViewVisibility? visibility)
     {
         LinkIndexCatalog catalog = await _linkIndexService.LoadAsync();
         IReadOnlyList<TaskItem> tasks = [];
@@ -89,7 +100,7 @@ public partial class MainWindow
 
         FileSystemWorkspaceViewStore store =
             new(_root.FullPath, _root.Id);
-        WorkspaceViewsDialog dialog = new(projection, store, _workspaceReadOnly)
+        WorkspaceViewsDialog dialog = new(projection, store, _workspaceReadOnly, id, visibility)
         {
             Owner = this
         };
@@ -116,4 +127,120 @@ public partial class MainWindow
         await NavigateToLinkTargetAsync(document, item.Source.LineNumber);
         StatusText.Text = "Vues dynamiques · source : " + document.QualifiedName;
     }
+
+    private sealed record SavedViewShortcut(
+        Guid Id, string Name, string Context, WorkspaceViewVisibility Visibility,
+        bool Pinned);
+
+    /// <summary>Loads portable and local shortcuts without ever persisting view results.</summary>
+    /// <returns>Saved views ordered with pinned entries first.</returns>
+    private async Task<IReadOnlyList<SavedViewShortcut>> ReadSavedViewShortcutsAsync()
+    {
+        FileSystemWorkspaceViewStore store = new(_root.FullPath, _root.Id);
+        WorkspaceViewDefinitionSnapshot workspace =
+            await store.LoadAsync(WorkspaceViewVisibility.Workspace);
+        WorkspaceViewDefinitionSnapshot local =
+            await store.LoadAsync(WorkspaceViewVisibility.Private);
+        return workspace.Views.Select(item => new SavedViewShortcut(item.Id, item.Name,
+                "Workspace", WorkspaceViewVisibility.Workspace, item.Pinned))
+            .Concat(local.Views.Select(item => new SavedViewShortcut(item.Id, item.Name,
+                "Privée", WorkspaceViewVisibility.Private, item.Pinned)))
+            .OrderByDescending(item => item.Pinned)
+            .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>Populates the existing dashboard and compact worktree shortcuts.</summary>
+    /// <returns>Completion of local definition reads.</returns>
+    private async Task RefreshSavedViewsDashboardAsync()
+    {
+        try
+        {
+            IReadOnlyList<SavedViewShortcut> shortcuts =
+                await ReadSavedViewShortcutsAsync();
+            SavedViewsDashboardList.ItemsSource = shortcuts;
+            WorktreeViewsList.ItemsSource = shortcuts;
+        }
+        catch (Exception exception) when (exception is IOException or
+            UnauthorizedAccessException or ArgumentException)
+        {
+            SavedViewsDashboardList.ItemsSource = Array.Empty<SavedViewShortcut>();
+            WorktreeViewsList.ItemsSource = Array.Empty<SavedViewShortcut>();
+            StatusText.Text = "Vues sauvegardées indisponibles : " + exception.Message;
+        }
+    }
+
+    /// <summary>Extends Command Palette with direct, identity-safe saved-view actions.</summary>
+    /// <param name="existing">All established palette commands.</param>
+    /// <returns>The existing commands plus one entry per saved view.</returns>
+    private async Task<IReadOnlyList<PaletteCommand>> BuildViewPaletteCommandsAsync(
+        IReadOnlyList<PaletteCommand> existing)
+    {
+        List<PaletteCommand> commands = [.. existing];
+        try
+        {
+            foreach (SavedViewShortcut shortcut in await ReadSavedViewShortcutsAsync())
+            {
+                SavedViewShortcut target = shortcut;
+                commands.Add(new PaletteCommand
+                {
+                    Id = "views.open:" + target.Visibility + ":" + target.Id.ToString("N"),
+                    Title = "Vue · " + target.Name,
+                    Subtitle = target.Context + (target.Pinned ? " · Épinglée" : ""),
+                    Keywords = ["vue", "ouvrir", "favoris", target.Name],
+                    ExecuteAsync = () => ShowWorkspaceViewsAsync(target.Id, target.Visibility)
+                });
+            }
+        }
+        catch (Exception exception) when (exception is IOException or
+            UnauthorizedAccessException or ArgumentException)
+        {
+            StatusText.Text = "Impossible de charger les vues : " + exception.Message;
+        }
+
+        return commands;
+    }
+
+    /// <summary>Opens a saved view from either dashboard or worktree in one gesture.</summary>
+    /// <param name="sender">Saved view list.</param>
+    /// <param name="e">Mouse gesture.</param>
+    private async void SavedViewsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        await OpenSavedViewSelectionAsync(sender);
+    }
+
+    /// <summary>Supports keyboard Enter without requiring the pointer.</summary>
+    /// <param name="sender">Saved view list.</param>
+    /// <param name="e">Keyboard event.</param>
+    private async void SavedViewsList_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            await OpenSavedViewSelectionAsync(sender);
+        }
+    }
+
+    /// <summary>Preserves source-tree selection and opens only the saved definition.</summary>
+    /// <param name="sender">A shortcut list.</param>
+    /// <returns>Completion of the requested navigation.</returns>
+    private async Task OpenSavedViewSelectionAsync(object sender)
+    {
+        if (sender is ListBox list && list.SelectedItem is SavedViewShortcut shortcut)
+        {
+            await RunUiActionAsync("Vue · " + shortcut.Name,
+                () => ShowWorkspaceViewsAsync(shortcut.Id, shortcut.Visibility));
+            await RefreshSavedViewsDashboardAsync();
+        }
+    }
+
+    /// <summary>Opens the views browser with a new temporary query.</summary>
+    /// <param name="sender">Dashboard button.</param>
+    /// <param name="e">Click event.</param>
+    private async void OpenAllViews_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync("Vues dynamiques", ShowWorkspaceViewsAsync);
+        await RefreshSavedViewsDashboardAsync();
+    }
+
 }
