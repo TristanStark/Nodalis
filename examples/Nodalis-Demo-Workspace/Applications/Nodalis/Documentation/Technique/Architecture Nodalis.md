@@ -10,7 +10,7 @@ tags: architecture, markdown, wpf
 
 Nodalis est une application locale **WPF / C# / .NET 10**, sans service cloud obligatoire et sans package NuGet tiers. Le workspace est constitué de Markdown et JSON ; les projections de tâches, liens et vues ne réécrivent pas les sources.
 
-![Schéma simplifié de la structure](../../../Attachments/architecture-workspace.svg)
+![Schéma simplifié de la structure](../../../../Attachments/architecture-workspace.bmp)
 
 ## Couches
 
