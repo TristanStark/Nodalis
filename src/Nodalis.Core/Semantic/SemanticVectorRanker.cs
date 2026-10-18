@@ -1,5 +1,3 @@
-using Nodalis.Infrastructure.Semantic;
-
 namespace Nodalis.Core.Semantic;
 
 /// <summary>A comparable, bounded cosine score: not a probability or truth confidence.</summary>
