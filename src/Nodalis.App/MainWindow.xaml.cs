@@ -4745,6 +4745,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "semantic.search",
+                Title = "Rechercher par le sens (local)",
+                Subtitle = "Indexer puis rechercher des passages avec source et similarité",
+                Keywords = ["recherche", "sémantique", "semantic", "embeddings", "vecteurs"],
+                ExecuteAsync = OpenSemanticSearchAsync
+            },
+            new()
+            {
                 Id = "semantic.settings",
                 Title = "Configurer la recherche sémantique locale",
                 Subtitle = "Activation explicite, modèle embeddings et cache",
