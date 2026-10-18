@@ -12,7 +12,10 @@
 - [x] Pause/annulation avec commit par document et reprise incrémentale ; tests avec provider simulé.
 - [x] Purge confirmée et suppression des vecteurs des GUIDs supprimés à la réindexation explicite.
 - [ ] Dernière CI `develop` verte pour **tous** les commits de v1.8 (build, style, smoke, archive reproductible, démarrage portable).
-- [ ] Rejouer le corpus de référence, cas de sécurité, suppression, corruption et rollback après derniers changements.
+- [x] Banc d'évaluation français annoté (14 documents/14 requêtes) disponible et exécutable en mode lexical, sans adapter.
+- [x] Chemin optionnel pour mesurer localement trois modes avec un véritable modèle et consentement CLI explicite.
+- [x] Vérification des passages obsolètes au-delà du top 100, avec réhydratation unique par document.
+- [ ] Rejouer le corpus en mode réel et les cas de sécurité, suppression, corruption et rollback après derniers changements.
 
 ## Recette réelle et représentativité
 

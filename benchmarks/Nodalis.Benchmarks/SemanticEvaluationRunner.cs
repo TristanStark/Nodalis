@@ -75,10 +75,10 @@ internal static class SemanticEvaluationRunner
         string? rawDimensions = GetOption(args, "--dimensions");
         bool configured = adapter is not null || model is not null ||
             rawDimensions is not null || approved;
+        bool validDimensions = int.TryParse(rawDimensions, out int dimensions);
         if (configured && (!approved || string.IsNullOrWhiteSpace(adapter) ||
             string.IsNullOrWhiteSpace(model) ||
-            !int.TryParse(rawDimensions, out int dimensions) ||
-            dimensions is < 1 or > 4096))
+            !validDimensions || dimensions is < 1 or > 4096))
         {
             Console.Error.WriteLine(
                 "Real semantic evaluation requires --approve-local --adapter ABSOLUTE_EXE " +
@@ -109,8 +109,6 @@ internal static class SemanticEvaluationRunner
             double warmIndexMs = 0;
             if (configured)
             {
-                int dimensions = int.Parse(rawDimensions!,
-                    System.Globalization.CultureInfo.InvariantCulture);
                 SemanticSearchPreferences preferences = new()
                 {
                     IsEnabled = true,

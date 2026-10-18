@@ -30,3 +30,28 @@ Contrat C# : `SearchEvaluationMetrics.Evaluate(IReadOnlyList<SearchEvaluationCas
 - Vérifier que le mode Texte seul n'instancie pas de process d'embeddings et conserve sa latence historique.
 
 Les critères de réussite chiffrés et leur budget mémoire doivent être décidés à partir de mesures reproductibles, pas d'estimations fabriquées.
+
+## Exécuter le comparatif reproductible en français
+
+Le dépôt inclut `benchmarks/Nodalis.Benchmarks/semantic-fr-corpus.json` (**14 fichiers fictifs et 14 questions annotées** : identifiants techniques, doublons, maintenance, SQL, décisions, jalons et paraphrases). Les sources sont copiées dans un dossier temporaire isolé, jamais dans un workspace utilisateur. Les mesures individuelles sont issues de ce corpus de test et ne constituent pas une estimation sur un projet réel.
+
+Sur Windows avec le SDK .NET 10 :
+
+```powershell
+# Sans modèle : recherche fuzzy/exacte réelle, contrôle CI de non-régression.
+dotnet run --project benchmarks/Nodalis.Benchmarks -- --semantic-eval
+
+# Avec un véritable modèle local installé et accepté par l'utilisateur.
+dotnet run --project benchmarks/Nodalis.Benchmarks -- --semantic-eval `
+  --approve-local `
+  --adapter "C:\CHEMIN\VERS\Nodalis.EmbeddingBridge.exe" `
+  --model embeddinggemma --dimensions 768
+```
+
+Le programme **ne démarre aucun processus d'embeddings sans `--approve-local`**. Si l'adaptateur est demandé, il faut fournir le chemin absolu d'un exécutable local de confiance, un modèle d'embeddings (non conversationnel) et le nombre correct de dimensions. Le bridge local demande un service Ollama déjà installé ; les configurations réseaux non locales sont refusées par le fournisseur Nodalis. Les données synthétiques utilisées sont visibles dans le JSON, le code et les logs ne recopient aucun document confidentiel.
+
+Le JSON peut être remplacé par un **corpus de test explicitement préparé** avec `--corpus-file FICHIER.json`, propriétés `documents` (`id`, `relativePath`, `markdown`) et `questions` (`name`, `query`, `relevantDocumentIds`). Les GUIDs attendus sont **annotés avant de lancer** un modèle. Le runner valide les identifiants, les chemins relatifs sûrs, la taille des sources et les documents référencés, puis efface sa copie temporaire à la fin. Pour éviter d'exposer des données professionnelles, ne transmettre ni corpus privé ni sortie brute à un service distant.
+
+Les résultats JSON exposent `lexical` seul hors IA, et `lexical` / `semantic` / `hybrid` avec fournisseur réel : P@5, P@10, R@10 et p50/p95 en millisecondes (relevées pour l'ensemble des requêtes), durée d'indexation initiale/chaude, nombre de vecteurs créés, taille locale et mémoire du **processus benchmark**. La mémoire du modèle lancé dans un processus distinct **n'est pas comptabilisée**, et le p95 sur 14 questions est informatif plutôt qu'une distribution de production. L'index initial est effacé avec le répertoire temporaire après exécution. Les benchmarks sur workspace confidentiel réel restent à effectuer séparément sur un environnement approuvé.
+
+La CI vérifie uniquement le parcours **lexical sans fournisseur** ; elle n'affiche jamais des scores simulés comme une preuve de qualité réelle. Le corpus français fournit le protocole pour effectuer une vraie comparaison locale en recette.

@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Update="semantic-fr-corpus.json" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="..\..\src\Nodalis.Core\Nodalis.Core.csproj" />
     <ProjectReference Include="..\..\src\Nodalis.Infrastructure\Nodalis.Infrastructure.csproj" />
   </ItemGroup>
