@@ -3,6 +3,8 @@ using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
 using Nodalis.Core.Settings;
+using Nodalis.Core.Semantic;
+using Nodalis.Infrastructure.AI;
 
 namespace Nodalis.App.Dialogs;
 
@@ -111,6 +113,22 @@ public sealed class SemanticSettingsDialog : Window
             _timeout.Text = "120";
         };
         form.Children.Add(preset);
+        Button probe = new()
+        {
+            Content = "Tester le modèle local (phrase factice, aucun document)",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 0, 6),
+            MinHeight = 32
+        };
+        TextBlock probeStatus = new()
+        {
+            Text = "Test facultatif : vérifie la disponibilité et les dimensions.",
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        probe.Click += async (_, _) => await ProbeProviderAsync(probe, probeStatus);
+        form.Children.Add(probe);
+        form.Children.Add(probeStatus);
         form.Children.Add(new TextBlock
         {
             Text = "Cache dérivé supprimable : " + cachePath,
@@ -180,6 +198,54 @@ public sealed class SemanticSettingsDialog : Window
         parent.Children.Add(heading);
         parent.Children.Add(field);
         return field;
+    }
+
+    /// <summary>Tests a configured model using synthetic text without indexing workspace data.</summary>
+    /// <param name="button">Button disabled while the local probe is active.</param>
+    /// <param name="status">Inline result or safe error diagnostic.</param>
+    /// <returns>Completed explicit local model check.</returns>
+    private async Task ProbeProviderAsync(Button button, TextBlock status)
+    {
+        if (!int.TryParse(_dimensions.Text, out int dimensions) ||
+            !int.TryParse(_timeout.Text, out int seconds) ||
+            dimensions is < 1 or > 4096 || seconds is < 1 or > 300)
+        {
+            status.Text = "Saisissez d'abord la dimension et le délai du modèle local.";
+            return;
+        }
+
+        SemanticSearchPreferences probeSettings = new()
+        {
+            IsEnabled = true,
+            ExecutablePath = _executable.Text.Trim(),
+            Arguments = _arguments.Text.Trim(),
+            ModelId = _model.Text.Trim(),
+            Dimensions = dimensions,
+            MaxBatchSize = 1,
+            TimeoutSeconds = seconds
+        };
+        button.IsEnabled = false;
+        status.Text = "Test volontaire en cours, aucune note du workspace n'est transmise…";
+        try
+        {
+            ProcessEmbeddingProvider provider = new(probeSettings);
+            EmbeddingBatch batch = await provider.EmbedAsync(
+                ["Nodalis vérifie ici un modèle d'embeddings local avec une phrase artificielle."]);
+            status.Text = "Modèle compatible : " + batch.ModelId + ", " +
+                batch.Dimensions + " dimensions. Aucun document n'a été indexé.";
+        }
+        catch (EmbeddingProviderException error)
+        {
+            status.Text = "Test local échoué : " + error.Message;
+        }
+        catch (OperationCanceledException)
+        {
+            status.Text = "Test local interrompu.";
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
     }
 
     /// <summary>Validates consent and ensures that no remote or missing executable is saved.</summary>
