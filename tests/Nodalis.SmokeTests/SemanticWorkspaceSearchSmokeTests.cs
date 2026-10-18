@@ -83,6 +83,23 @@ internal static class SemanticWorkspaceSearchSmokeTests
         Assert(validFallback.Count == 1 &&
             validFallback[0].Excerpt.Contains("Fragment encore valide"),
             "A stale first-ranked passage must not hide a valid second source passage.");
+        SemanticSearchPreferences excludedPrefs = enabled with
+        {
+            ExcludedPathPatterns = ["*.md"]
+        };
+        FakeProvider excludedFake = new();
+        SemanticWorkspaceSearchService excludedService = new(workspace, excludedPrefs,
+            excludedFake,
+            new SemanticChunkingOptions
+            {
+                ExcludedPathPatterns = excludedPrefs.ExcludedPathPatterns
+            }, Path.Combine(root, "vector-cache-excluded"));
+        SemanticIndexSummary excludedSummary = await excludedService.IndexAsync(
+            [new SemanticSource(Guid.NewGuid(), "multi.md")], true);
+        Assert(excludedSummary.EmbeddedChunks == 0 &&
+            excludedFake.Calls == 0 &&
+            (await excludedService.SearchAsync("indexation interdite", true)).Count == 0,
+            "Explicit exclusions prevent sending restricted Markdown to the provider.");
         Console.WriteLine("[Semantic 1.7] consent, incremental indexing, source navigation, deletion passed.");
     }
 

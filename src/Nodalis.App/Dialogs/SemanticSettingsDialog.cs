@@ -16,6 +16,7 @@ public sealed class SemanticSettingsDialog : Window
     private readonly TextBox _dimensions;
     private readonly TextBox _batch;
     private readonly TextBox _timeout;
+    private readonly TextBox _exclusions;
 
     /// <summary>Validated settings chosen by the user, when DialogResult is true.</summary>
     public SemanticSearchPreferences? Preferences { get; private set; }
@@ -80,6 +81,9 @@ public sealed class SemanticSettingsDialog : Window
             initial.MaxBatchSize.ToString(System.Globalization.CultureInfo.InvariantCulture));
         _timeout = AddInput(form, "Délai maximum en secondes (1 à 300)",
             initial.TimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        _exclusions = AddInput(form,
+            "Exclusions supplémentaires (chemins ou motifs *.md, séparés par ;)",
+            string.Join("; ", initial.ExcludedPathPatterns));
 
         Button preset = new()
         {
@@ -210,6 +214,20 @@ public sealed class SemanticSettingsDialog : Window
             return;
         }
 
+        string[] exclusions = _exclusions.Text.Split(
+            [';', ',', '\r', '\n'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (exclusions.Length > 20 ||
+            exclusions.Any(pattern => pattern.Length > 200 ||
+                pattern.Contains(':') || pattern.StartsWith('/') ||
+                pattern.StartsWith('\\') || pattern.Contains("..", StringComparison.Ordinal)))
+        {
+            MessageBox.Show(this,
+                "Exclusions invalides : 20 motifs relatifs au maximum, 200 caractères chacun.",
+                "Confidentialité sémantique", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         Preferences = new SemanticSearchPreferences
         {
             IsEnabled = enabled,
@@ -218,7 +236,8 @@ public sealed class SemanticSettingsDialog : Window
             ModelId = _model.Text.Trim(),
             Dimensions = dimensions,
             MaxBatchSize = batch,
-            TimeoutSeconds = timeout
+            TimeoutSeconds = timeout,
+            ExcludedPathPatterns = exclusions
         };
         DialogResult = true;
     }

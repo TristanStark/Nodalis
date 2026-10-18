@@ -89,7 +89,12 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
         {
             MaxBatchSize = Math.Clamp(value.MaxBatchSize, 1, 32),
             TimeoutSeconds = Math.Clamp(value.TimeoutSeconds, 1, 300),
-            Dimensions = Math.Clamp(value.Dimensions, 0, 4096)
+            Dimensions = Math.Clamp(value.Dimensions, 0, 4096),
+            ExcludedPathPatterns = (value.ExcludedPathPatterns ?? [])
+                .Where(pattern => !string.IsNullOrWhiteSpace(pattern) &&
+                    pattern.Length <= 200 && !pattern.Contains(':') &&
+                    !pattern.Contains("..", StringComparison.Ordinal))
+                .Take(20).ToArray()
         };
     }
 

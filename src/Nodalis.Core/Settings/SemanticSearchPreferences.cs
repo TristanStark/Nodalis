@@ -26,4 +26,7 @@ public sealed record SemanticSearchPreferences
 
     /// <summary>Maximum execution seconds, excluding process startup.</summary>
     public int TimeoutSeconds { get; init; } = 60;
+
+    /// <summary>Excluded workspace-relative Markdown path patterns (never embedded).</summary>
+    public IReadOnlyList<string> ExcludedPathPatterns { get; init; } = [];
 }

@@ -45,9 +45,15 @@ public sealed class SemanticSearchDialog : Window
         MinHeight = 400;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _enabled = preferences.IsEnabled;
+        SemanticChunkingOptions segmentation = new()
+        {
+            ExcludedPathPatterns = preferences.ExcludedPathPatterns
+        };
         _service = new SemanticWorkspaceSearchService(workspaceRoot, preferences,
-            new ProcessEmbeddingProvider(preferences));
-        _documents = catalog.Targets.Where(item => item.Kind == LinkTargetKind.Document)
+            new ProcessEmbeddingProvider(preferences), chunking: segmentation);
+        _documents = catalog.Targets.Where(item =>
+                item.Kind == LinkTargetKind.Document &&
+                SemanticMarkdownChunker.IsEligiblePath(item.RelativePath, segmentation))
             .Select(item => new SemanticSource(item.Id, item.RelativePath))
             .DistinctBy(item => item.DocumentId).ToArray();
 
