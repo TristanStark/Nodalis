@@ -130,7 +130,9 @@ public sealed class SemanticVectorCacheService
     {
         SemanticVectorIndex empty = new()
         {
-            ModelId = modelId, Dimensions = dimensions, SegmentationKey = segmentationKey
+            ModelId = modelId,
+            Dimensions = dimensions,
+            SegmentationKey = segmentationKey
         };
         if (!File.Exists(_filePath)) return empty;
         try
