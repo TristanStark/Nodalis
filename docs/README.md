@@ -139,3 +139,9 @@ La documentation v1.4 est publiée dans le dépôt mais la version stable annonc
 - [Checklist de qualification 1.6](release-checklist-1.6.md)
 
 EPIC [Documents composites #126](https://github.com/TristanStark/Nodalis/issues/126). Source Markdown conservée : pas de nouveau format de workspace obligatoire, ni de relations causales ajoutées à l'analyse d'impact.
+
+## Nodalis 1.7 — Recherche sémantique locale (develop)
+
+- [Guide utilisateur : activer, indexer, rechercher, supprimer](semantic-1.7-guide.md)
+- [Fournisseur local et contrat d'embeddings](semantic-1.7-provider.md)
+- [Checklist de qualification et confidentialité](release-checklist-1.7.md)

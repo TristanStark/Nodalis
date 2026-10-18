@@ -1,6 +1,6 @@
 # Recherche sémantique Nodalis 1.7 — adaptateur embeddings local (#142)
 
-**État : implémentation initiale sur `develop` ; la recherche sémantique n'est pas encore disponible dans l'interface.**
+**État : aperçu fonctionnel sur `develop` ; ni release 1.7 ni validation Windows/DPI définitive.**
 
 ## Confidentialité par défaut
 
@@ -9,7 +9,7 @@
 - Chaque lot exige également une approbation explicite avant de transmettre son contenu au moteur configuré.
 - Aucun fournisseur n'est sollicité au démarrage, aucun serveur distant n'est autorisé par la couche d'exécution Nodalis.
 - Si un moteur est absent, la recherche exacte/fuzzy historique continue de fonctionner sans modification.
-- La future interface #146 exposera clairement le modèle, les documents exclus et le cache avant d'autoriser l'indexation.
+- La palette donne accès à la configuration, à la recherche sémantique et à la suppression du cache. Une confirmation explicite précède chaque indexation de périmètre ; l'absence de modèle désactive les commandes actives de recherche.
 
 ## Contrat local sans dépendance NuGet
 
@@ -31,6 +31,6 @@ Les identifiants et dimensions doivent correspondre exactement à la configurati
 
 Un LLM conversationnel **n'est pas** automatiquement un modèle d'embeddings. Le fournisseur local doit générer des vecteurs pertinents pour des recherches sémantiques ; un adaptateur CLI compatible est à configurer explicitement. Les exécutables distants ou chemins UNC et URL sont refusés.
 
-## Prochaines étapes
+## État des développements
 
-Issue #143 : segmentation et provenance Markdown ; #144 cache vectoriel local dérivé ; #145 classement vectoriel réel ; #146 UX, puis #147 qualification. **Aucun faux résultat sémantique** n'est exposé tant que ces étapes ne sont pas en place.
+Les moteurs #143 (segmentation), #144 (cache local reconstructible), #145 (cosinus et provenance) et le premier écran #146 sont implémentés sur `develop`. L'indexation **n'est jamais automatique**. La qualification visuelle Windows et les benchmarks représentatifs (#147) restent à effectuer avant sortie stable.
