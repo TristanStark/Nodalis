@@ -28,7 +28,7 @@ Exercer une installation autonome du workspace, ses références stables, les pr
 - Les jalons du tableau sont chargés dans la timeline.
 - Les relations `teste` / `implémente` remontent dans l'analyse d'impact.
 - Le rapport composite affiche des sections, sans réécriture des originaux.
-- L'illustration SVG est fournie comme fichier local ouvrable hors Nodalis ; son rendu intégré dépend de la prise en charge SVG.
+- Les deux illustrations BMP sont stockées localement dans Attachments et peuvent être rendues par l'aperçu WPF hors ligne.
 
 > Relation: teste | Cible: Spécification des liens | ID: bb000000-0000-4000-8000-000000000005
 
