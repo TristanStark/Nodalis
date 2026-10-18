@@ -37,6 +37,14 @@ métier.
 
 Le détail du format se trouve dans workspace-format.md et data-contracts-v1.md.
 
+## 2 bis. Changer de workspace (depuis v1.7.0)
+
+Le changement de workspace existe dans **Système > Changer de workspace…** et dans **Ctrl+P > Changer de workspace**, depuis v1.7.0.
+
+Choisir un **dossier existant contenant `.workspace.json`**. Nodalis vérifie le manifeste sans créer ou migrer de dossier puis enregistre le chemin dans les préférences du poste. Fermer normalement Nodalis puis le relancer : la nouvelle fenêtre charge le nouveau workspace et revalide sa compatibilité. Les services du workspace en cours ne sont jamais échangés à chaud.
+
+La version antérieure **v1.6.0** ne dispose pas de cette commande. Dans cette version, fermer Nodalis puis modifier seulement `workspaceRootPath` dans `%LOCALAPPDATA%\\Nodalis\\preferences.json`, en conservant une copie de l'ancienne valeur, avant de relancer.
+
 ## 3. Organisation du workspace
 
 Nodalis utilise un workspace unique afin de voir tous les travaux sans changer
@@ -127,6 +135,12 @@ Filtres utiles :
 - @reviewer:alice pour une propriété personnalisée.
 
 Les valeurs contenant des espaces peuvent être placées entre guillemets.
+
+### Recherche par le sens (facultative, v1.7.0)
+
+La commande **Ctrl+P → Configurer la recherche sémantique locale** permet de définir un fournisseur d'embeddings installé localement et de consentir à son utilisation. **Ctrl+P → Rechercher par le sens (local)** indexe uniquement le périmètre approuvé et affiche des extraits reliés à leurs sources. Sans activation et fournisseur compatible, la recherche exacte/fuzzy reste disponible. La commande **Effacer le cache sémantique** supprime uniquement les vecteurs dérivés, pas les Markdown.
+
+Guide : [Recherche sémantique locale 1.7](semantic-1.7-guide.md). La recherche hybride combinée est prévue en 1.8.
 
 ## 8. Tâches, Kanban, jalons et calendrier
 

@@ -1,0 +1,10 @@
+{
+  "id": "aa000000-0000-4000-8000-000000000005",
+  "name": "Refonte explorateur 122",
+  "applicationId": "aa000000-0000-4000-8000-000000000002",
+  "moduleId": "aa000000-0000-4000-8000-000000000004",
+  "parentProjectId": null,
+  "initialComplexity": "ultraSimple",
+  "sections": [],
+  "createdUtc": "2026-10-18T12:20:00+00:00"
+}

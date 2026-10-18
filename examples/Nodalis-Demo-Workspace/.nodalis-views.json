@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "views": [
+    {
+      "id": "ee000000-0000-4000-8000-000000000001",
+      "name": "Tâches à suivre",
+      "query": {
+        "kinds": [
+          "Task"
+        ],
+        "sortBy": "date",
+        "descending": false,
+        "groupBy": "project",
+        "limit": 100
+      },
+      "layout": "Table",
+      "columns": [
+        "title",
+        "project",
+        "date",
+        "priority",
+        "status"
+      ],
+      "pinned": true,
+      "order": 0
+    },
+    {
+      "id": "ee000000-0000-4000-8000-000000000002",
+      "name": "Jalons produit",
+      "query": {
+        "kinds": [
+          "Milestone"
+        ],
+        "sortBy": "date",
+        "descending": false,
+        "groupBy": "project",
+        "limit": 100
+      },
+      "layout": "List",
+      "columns": [
+        "title",
+        "project",
+        "date",
+        "status"
+      ],
+      "pinned": true,
+      "order": 1
+    },
+    {
+      "id": "ee000000-0000-4000-8000-000000000003",
+      "name": "Maintenance et interventions",
+      "query": {
+        "kinds": [
+          "Incident",
+          "Intervention"
+        ],
+        "sortBy": "date",
+        "descending": true,
+        "groupBy": "kind",
+        "limit": 100
+      },
+      "layout": "Cards",
+      "columns": [
+        "title",
+        "kind",
+        "date",
+        "status",
+        "project"
+      ],
+      "pinned": true,
+      "order": 2
+    }
+  ]
+}

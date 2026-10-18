@@ -313,8 +313,9 @@ public partial class MainWindow : Window
                 {
                     _preferences = _preferences with
                     {
-                        ExpandedNodeIds = _expansionBeforeWorktreeFilter ??
-                            GetExpandedNodeIds(),
+                        ExpandedNodeIds = _workspaceSwitchPending
+                            ? []
+                            : _expansionBeforeWorktreeFilter ?? GetExpandedNodeIds(),
                         NavigationDensity = NavigationTree.Tag as string ??
                             "Comfortable",
                         NavigationCurrentApplicationOnly =
@@ -342,12 +343,13 @@ public partial class MainWindow : Window
                                 MarkdownEditorTextBox.FontSize),
                             SplitMode = _editorSplitMode,
                             SplitRatio = CaptureEditorSplitRatio(),
-                            SecondaryDocumentTabId =
-                                _secondaryDocumentTab?.DocumentId
+                            SecondaryDocumentTabId = _workspaceSwitchPending
+                                ? null
+                                : _secondaryDocumentTab?.DocumentId
                         },
-                        OpenDocumentTabs = openDocumentTabs,
-                        ActiveDocumentTabId = activeDocumentTabId,
-                        ActiveNavigationNodeId = _selectedNode?.Id
+                        OpenDocumentTabs = _workspaceSwitchPending ? [] : openDocumentTabs,
+                        ActiveDocumentTabId = _workspaceSwitchPending ? null : activeDocumentTabId,
+                        ActiveNavigationNodeId = _workspaceSwitchPending ? null : _selectedNode?.Id
                     };
 
                     await _preferencesStore.SaveAsync(_preferences);
@@ -4743,6 +4745,30 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "semantic.search",
+                Title = "Rechercher par le sens (local)",
+                Subtitle = "Indexer puis rechercher des passages avec source et similarité",
+                Keywords = ["recherche", "sémantique", "semantic", "embeddings", "vecteurs"],
+                ExecuteAsync = OpenSemanticSearchAsync
+            },
+            new()
+            {
+                Id = "semantic.settings",
+                Title = "Configurer la recherche sémantique locale",
+                Subtitle = "Activation explicite, modèle embeddings et cache",
+                Keywords = ["semantic", "sémantique", "embeddings", "configuration", "local"],
+                ExecuteAsync = ConfigureSemanticSearchAsync
+            },
+            new()
+            {
+                Id = "semantic.purge",
+                Title = "Effacer le cache sémantique",
+                Subtitle = "Supprimer les vecteurs dérivés sans toucher aux sources",
+                Keywords = ["semantic", "sémantique", "purger", "vecteurs", "cache"],
+                ExecuteAsync = PurgeSemanticIndexAsync
+            },
+            new()
+            {
                 Id = "search",
                 Title = "Rechercher",
                 Subtitle = "Résultats Projet / Application / Global",
@@ -4884,6 +4910,14 @@ public partial class MainWindow : Window
                 Subtitle = "Projet → Application → Global",
                 Keywords = ["rapide", "notes", "agrégé"],
                 ExecuteAsync = ShowQuickNotesAsync
+            },
+            new()
+            {
+                Id = "workspace.change",
+                Title = "Changer de workspace",
+                Subtitle = "Choisir un dossier Nodalis existant pour le prochain lancement",
+                Keywords = ["workspace", "espace de travail", "ouvrir", "changer", "démo", "demo"],
+                ExecuteAsync = ChangeWorkspaceAsync
             },
             new()
             {

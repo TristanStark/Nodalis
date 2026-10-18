@@ -18,7 +18,9 @@ $archivePath = Join-Path $OutputRoot "Nodalis-win-x64.zip"
 $checksumPath = Join-Path $OutputRoot "SHA256SUMS.txt"
 $projectPath = Join-Path $root "src\Nodalis.App\Nodalis.App.csproj"
 $updaterProjectPath = Join-Path $root "src\Nodalis.Updater\Nodalis.Updater.csproj"
+$embeddingBridgeProjectPath = Join-Path $root "tools\Nodalis.EmbeddingBridge\Nodalis.EmbeddingBridge.csproj"
 $updaterPublishDirectory = Join-Path $OutputRoot ".Nodalis.Updater-win-x64"
+$embeddingBridgePublishDirectory = Join-Path $OutputRoot ".Nodalis.EmbeddingBridge-win-x64"
 $docsPath = Join-Path $root "docs"
 $userGuidePath = Join-Path $docsPath "README-UTILISATEUR.md"
 
@@ -36,6 +38,10 @@ if (Test-Path $checksumPath) {
 
 if (Test-Path $updaterPublishDirectory) {
     Remove-Item $updaterPublishDirectory -Recurse -Force
+}
+
+if (Test-Path $embeddingBridgePublishDirectory) {
+    Remove-Item $embeddingBridgePublishDirectory -Recurse -Force
 }
 
 New-Item -ItemType Directory -Path $publishDirectory -Force | Out-Null
@@ -91,6 +97,43 @@ if (-not (Test-Path $updaterExecutablePath)) {
 }
 
 Copy-Item -Path $updaterExecutablePath -Destination (Join-Path $publishDirectory "Nodalis.Updater.exe") -Force
+
+# Self-contained optional bridge: the executable is inert until the user
+# explicitly enables embeddings and confirms indexing/search.
+Write-Host "Publishing optional local Ollama embedding bridge..."
+$embeddingBridgeArguments = @(
+    "publish",
+    $embeddingBridgeProjectPath,
+    "--configuration", "Release",
+    "--runtime", "win-x64",
+    "--self-contained", "true",
+    "-p:PublishSingleFile=true",
+    "-p:Version=$Version",
+    "--output", $embeddingBridgePublishDirectory
+)
+& dotnet @embeddingBridgeArguments
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish of the local embedding bridge failed with exit code $LASTEXITCODE."
+}
+
+$embeddingBridgeExecutable = Join-Path $embeddingBridgePublishDirectory "Nodalis.EmbeddingBridge.exe"
+if (-not (Test-Path $embeddingBridgeExecutable)) {
+    throw "Portable publish is missing the optional Ollama embedding bridge."
+}
+
+# This self-test creates synthetic data and NEVER contacts Ollama or any endpoint.
+$bridgeTest = & $embeddingBridgeExecutable "--self-test"
+if ($LASTEXITCODE -ne 0) {
+    throw "Embedding bridge offline self-test failed."
+}
+$bridgeSchema = $bridgeTest | ConvertFrom-Json
+if ($bridgeSchema.modelId -ne "bridge-self-test" -or
+    $bridgeSchema.dimensions -ne 3 -or
+    @($bridgeSchema.vectors).Count -ne 1) {
+    throw "Embedding bridge JSON contract verification failed."
+}
+Copy-Item -Path $embeddingBridgeExecutable -Destination (Join-Path $publishDirectory "Nodalis.EmbeddingBridge.exe") -Force
+
 Copy-Item -Path $userGuidePath -Destination (Join-Path $publishDirectory "README.md") -Force
 
 $documentationDirectory = Join-Path $publishDirectory "Documentation"
@@ -169,6 +212,9 @@ $releaseManifest |
 
 if (Test-Path $updaterPublishDirectory) {
     Remove-Item $updaterPublishDirectory -Recurse -Force
+}
+if (Test-Path $embeddingBridgePublishDirectory) {
+    Remove-Item $embeddingBridgePublishDirectory -Recurse -Force
 }
 
 # Build the ZIP with stable entry order and timestamps. This keeps archives
