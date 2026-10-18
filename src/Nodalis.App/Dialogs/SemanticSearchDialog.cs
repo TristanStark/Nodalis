@@ -3,10 +3,12 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.Core.Links;
+using Nodalis.Core.Search;
 using Nodalis.Core.Semantic;
 using Nodalis.Core.Settings;
 using Nodalis.Infrastructure.AI;
 using Nodalis.Infrastructure.Semantic;
+using Nodalis.Infrastructure.Search;
 
 namespace Nodalis.App.Dialogs;
 
@@ -14,8 +16,11 @@ namespace Nodalis.App.Dialogs;
 public sealed class SemanticSearchDialog : Window
 {
     private readonly SemanticWorkspaceSearchService _service;
+    private readonly WorkspaceSearchService _lexicalService = new();
     private readonly IReadOnlyList<SemanticSource> _documents;
+    private readonly string _workspaceRoot;
     private readonly bool _enabled;
+    private readonly ComboBox _mode = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly TextBox _query = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly TextBox _scope = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) };
@@ -38,13 +43,18 @@ public sealed class SemanticSearchDialog : Window
     public SemanticSearchDialog(string workspaceRoot, SemanticSearchPreferences preferences,
         LinkIndexCatalog catalog)
     {
-        Title = "Recherche par le sens — locale (1.7)";
+        Title = "Recherche hybride — locale (1.8)";
         Width = 800;
         Height = 640;
         MinWidth = 500;
         MinHeight = 400;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _enabled = preferences.IsEnabled;
+        _workspaceRoot = Path.GetFullPath(workspaceRoot);
+        _mode.Items.Add("Mixte : exacte/fuzzy + sémantique");
+        _mode.Items.Add("Texte seul : exacte/fuzzy (sans modèle)");
+        _mode.Items.Add("Sens seul : embeddings locaux");
+        _mode.SelectedIndex = _enabled ? 0 : 1;
         SemanticChunkingOptions segmentation = new()
         {
             ExcludedPathPatterns = preferences.ExcludedPathPatterns
@@ -71,6 +81,8 @@ public sealed class SemanticSearchDialog : Window
         });
         top.Children.Add(new TextBlock { Text = "Requête" });
         top.Children.Add(_query);
+        top.Children.Add(new TextBlock { Text = "Mode de classement" });
+        top.Children.Add(_mode);
         top.Children.Add(new TextBlock
         {
             Text = "Périmètre facultatif : dossier relatif (vide = workspace entier)",
@@ -105,7 +117,7 @@ public sealed class SemanticSearchDialog : Window
         top.Children.Add(_status);
         layout.Children.Add(_results);
         Content = layout;
-        _search.IsEnabled = _enabled;
+        _search.IsEnabled = true;
         _index.IsEnabled = _enabled;
         _cancel.IsEnabled = false;
         _status.Text = "Cache local effaçable : " + _service.CachePath;
@@ -172,7 +184,10 @@ public sealed class SemanticSearchDialog : Window
         }
     }
 
-    /// <summary>Ranks real embeddings, then loads each hit's current source excerpt.</summary>
+    /// <summary>
+    /// Searches locally in lexical, semantic or combined mode; an unavailable
+    /// embeddings provider never blocks the useful lexical fallback.
+    /// </summary>
     /// <param name="sender">Search button.</param>
     /// <param name="args">Click.</param>
     private async void SearchClicked(object sender, RoutedEventArgs args)
@@ -186,41 +201,86 @@ public sealed class SemanticSearchDialog : Window
             return;
         }
 
+        int mode = _mode.SelectedIndex;
+        if (!_enabled && mode != 1)
+        {
+            _status.Text = "Embeddings désactivés : choisissez Texte seul, ou activez le fournisseur dans Ctrl+P.";
+            return;
+        }
+
         CancellationToken token = Begin();
         try
         {
-            IReadOnlyList<SemanticSearchResult> hits = await _service.SearchAsync(
-                query, true, scope.Length == 0 ? null : scope, token);
-            _results.Items.Clear();
-            foreach (SemanticSearchResult hit in hits)
+            IReadOnlyList<HybridSearchCandidate> lexical = mode == 2
+                ? [] : await GetLexicalCandidatesAsync(query, scope, token);
+            IReadOnlyList<SemanticSearchResult> vector = [];
+            bool providerUnavailable = false;
+            if (mode != 1)
             {
+                try
+                {
+                    vector = await _service.SearchAsync(query, true,
+                        scope.Length == 0 ? null : scope, token);
+                }
+                catch (Exception error) when (mode == 0 && error is
+                    EmbeddingProviderException or InvalidDataException or
+                    IOException or UnauthorizedAccessException)
+                {
+                    // Hybrid search still has genuine legacy lexical results.
+                    // Never fabricate semantic hits or persist an error payload.
+                    providerUnavailable = true;
+                }
+            }
+
+            HybridSearchCandidate[] semantic = vector.Select(hit =>
+                new HybridSearchCandidate(hit.DocumentId, hit.RelativePath,
+                    hit.SourceLine, hit.Heading, hit.Excerpt,
+                    Similarity: hit.Similarity)).ToArray();
+            IReadOnlyList<HybridRankedHit> hits = HybridSearchRanker.Fuse(lexical, semantic);
+            _results.Items.Clear();
+            foreach (HybridRankedHit hit in hits)
+            {
+                HybridSearchCandidate candidate = hit.Candidate;
+                string explanation = hit.MatchSource switch
+                {
+                    HybridMatchSource.Combined => "mixte (lexical + sémantique)",
+                    HybridMatchSource.Semantic => "sémantique",
+                    _ => "lexical"
+                };
+                string score = hit.Similarity is double similarity
+                    ? " · similarité cosinus " + similarity.ToString("0.000",
+                        System.Globalization.CultureInfo.InvariantCulture)
+                    : "";
                 StackPanel display = new();
                 display.Children.Add(new TextBlock
                 {
-                    Text = hit.RelativePath + " · ligne " + hit.SourceLine +
-                        (hit.Heading is null ? "" : " · " + hit.Heading) +
-                        " · similarité " + hit.Similarity.ToString("0.000",
-                            System.Globalization.CultureInfo.InvariantCulture),
+                    Text = candidate.RelativePath + " · ligne " + candidate.SourceLine +
+                        (candidate.Heading is null ? "" : " · " + candidate.Heading) +
+                        " · " + explanation + score,
                     FontWeight = FontWeights.SemiBold,
                     TextWrapping = TextWrapping.Wrap
                 });
                 display.Children.Add(new TextBlock
                 {
-                    Text = hit.Excerpt,
+                    Text = candidate.Excerpt,
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 4, 0, 8)
                 });
                 _results.Items.Add(new ListBoxItem
                 {
                     Content = display,
-                    Tag = hit,
+                    Tag = new SemanticSearchResult(candidate.DocumentId,
+                        candidate.RelativePath, candidate.Heading, candidate.SourceLine,
+                        candidate.Excerpt, hit.Similarity ?? 0),
                     HorizontalContentAlignment = HorizontalAlignment.Stretch
                 });
             }
 
-            _status.Text = hits.Count == 0
-                ? "Aucun passage valide trouvé : réindexez ou utilisez la recherche fuzzy/exacte."
-                : hits.Count + " document(s) retrouvés par similarité (ce n'est pas une probabilité).";
+            _status.Text = providerUnavailable
+                ? "Fournisseur local indisponible : résultats exacts/fuzzy affichés sans IA."
+                : hits.Count == 0
+                    ? "Aucune correspondance. Essayez un autre terme ou réindexez les documents."
+                    : hits.Count + " document(s) · RRF = fusion des rangs, pas une probabilité.";
         }
         catch (OperationCanceledException)
         {
@@ -229,13 +289,61 @@ public sealed class SemanticSearchDialog : Window
         catch (Exception error) when (error is EmbeddingProviderException or
             InvalidDataException or IOException or UnauthorizedAccessException)
         {
-            _status.Text = "Modèle local indisponible : " + error.Message +
-                " · La recherche exacte/fuzzy reste accessible.";
+            _status.Text = "Recherche indisponible : " + error.Message +
+                " · Essayez le mode Texte seul.";
         }
         finally
         {
             End();
         }
+    }
+
+    /// <summary>
+    /// Resolves real legacy search occurrences to canonical GUID identities;
+    /// path scope and exclusions are enforced before merging the two rankings.
+    /// </summary>
+    /// <param name="query">User query submitted to the original fuzzy engine.</param>
+    /// <param name="scope">Validated workspace-relative directory prefix.</param>
+    /// <param name="token">Cancellation token.</param>
+    /// <returns>Best-first GUID-backed lexical candidates.</returns>
+    private async Task<IReadOnlyList<HybridSearchCandidate>> GetLexicalCandidatesAsync(
+        string query, string scope, CancellationToken token)
+    {
+        SearchResultSet results = await _lexicalService.SearchAsync(
+            _workspaceRoot, null, query, SearchMatchMode.Fuzzy, token);
+        List<HybridSearchCandidate> candidates = [];
+        HashSet<Guid> seen = [];
+        IEnumerable<SearchResult> ranked = results.Project
+            .Concat(results.Application).Concat(results.Global)
+            .OrderByDescending(item => item.Score)
+            .ThenBy(item => item.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.LineNumber);
+        foreach (SearchResult hit in ranked)
+        {
+            token.ThrowIfCancellationRequested();
+            string relative = Path.GetRelativePath(_workspaceRoot, hit.FilePath)
+                .Replace('\\', '/');
+            if (relative == ".." || relative.StartsWith("../", StringComparison.Ordinal) ||
+                Path.IsPathRooted(relative) ||
+                (scope.Length > 0 &&
+                 !relative.StartsWith(scope + "/", StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            SemanticSource? source = _documents.FirstOrDefault(document =>
+                string.Equals(document.RelativePath.Replace('\\', '/'), relative,
+                    StringComparison.OrdinalIgnoreCase));
+            if (source is null || !seen.Add(source.DocumentId)) continue;
+
+            bool exactReference = hit.MatchKind == SearchMatchKind.FileName &&
+                SearchTextScorer.TryScore(query, hit.DisplayName,
+                    SearchMatchMode.Exact, out double _);
+            candidates.Add(new HybridSearchCandidate(source.DocumentId,
+                source.RelativePath, hit.LineNumber, null, hit.Excerpt,
+                IsExactIdentifier: exactReference));
+            if (candidates.Count >= 200) break;
+        }
+
+        return candidates;
     }
 
     /// <summary>Returns a validated relative folder prefix.</summary>
@@ -261,6 +369,7 @@ public sealed class SemanticSearchDialog : Window
         _index.IsEnabled = false;
         _search.IsEnabled = false;
         _cancel.IsEnabled = true;
+        _mode.IsEnabled = false;
         return _request.Token;
     }
 
@@ -270,7 +379,8 @@ public sealed class SemanticSearchDialog : Window
         _request?.Dispose();
         _request = null;
         _index.IsEnabled = _enabled;
-        _search.IsEnabled = _enabled;
+        _search.IsEnabled = true;
+        _mode.IsEnabled = true;
         _cancel.IsEnabled = false;
     }
 
