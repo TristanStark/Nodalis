@@ -77,8 +77,19 @@ public sealed class SemanticSearchDialog : Window
 
         DockPanel layout = new() { Margin = new Thickness(16) };
         StackPanel top = new();
-        DockPanel.SetDock(top, Dock.Top);
-        layout.Children.Add(top);
+        ScrollViewer topScroll = new()
+        {
+            Content = top,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            MaxHeight = 330
+        };
+        // The expanded index inspector must never push the result list outside
+        // a small or high-DPI window. Both regions remain independently scrollable.
+        SizeChanged += (_, _) =>
+            topScroll.MaxHeight = Math.Max(210, ActualHeight * 0.62);
+        DockPanel.SetDock(topScroll, Dock.Top);
+        layout.Children.Add(topScroll);
         top.Children.Add(new TextBlock
         {
             Text = _enabled
