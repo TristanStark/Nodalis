@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Nodalis.Core.Composites;
 using Nodalis.Core.Links;
 using Nodalis.Infrastructure.Links;
@@ -57,7 +58,8 @@ public sealed class CompositeWorkspaceRenderer
         HashSet<Guid> ancestors = [];
         if (parent is not null) ancestors.Add(parent.Id);
         string expanded = await ExpandAsync(markdown, parent?.Id ?? Guid.Empty,
-            Path.GetRelativePath(_root, path), ancestors, state, 0, token);
+            Path.GetRelativePath(_root, path), Path.GetDirectoryName(path)!,
+            ancestors, state, 0, token);
         return new CompositeRenderResult(expanded,
             state.Edges.ToArray(), state.Diagnostics.ToArray());
     }
@@ -66,14 +68,15 @@ public sealed class CompositeWorkspaceRenderer
     /// <param name="markdown">Current Markdown.</param>
     /// <param name="parentId">Identity of the containing document.</param>
     /// <param name="origin">Source-relative diagnostics path.</param>
+    /// <param name="outputDirectory">Directory relative to which preview images resolve.</param>
     /// <param name="stack">Active recursive document GUID stack.</param>
     /// <param name="state">Shared safety limits and audit.</param>
     /// <param name="depth">Current nesting depth.</param>
     /// <param name="token">Cancellation request.</param>
     /// <returns>Expanded display-only Markdown.</returns>
     private async Task<string> ExpandAsync(string markdown, Guid parentId,
-        string origin, HashSet<Guid> stack, State state, int depth,
-        CancellationToken token)
+        string origin, string outputDirectory, HashSet<Guid> stack, State state,
+        int depth, CancellationToken token)
     {
         StringBuilder result = new();
         string[] lines = CompositeMarkdownSections.Normalize(markdown).Split('\n');
@@ -95,7 +98,8 @@ public sealed class CompositeWorkspaceRenderer
                 CompositeMarkdownSyntax.Parse(line, i + 1);
             if (include is null)
             {
-                result.AppendLine(line);
+                result.AppendLine(fenced ? line :
+                    RebaseLocalImages(line, origin, outputDirectory));
                 continue;
             }
 
@@ -183,7 +187,7 @@ public sealed class CompositeWorkspaceRenderer
                 try
                 {
                     body = await ExpandAsync(excerpt.Markdown, child.Id,
-                        child.RelativePath, stack, state, depth + 1, token);
+                        child.RelativePath, outputDirectory, stack, state, depth + 1, token);
                 }
                 finally
                 {
@@ -215,6 +219,56 @@ public sealed class CompositeWorkspaceRenderer
         }
 
         return result.ToString();
+    }
+
+    /// <summary>
+    /// Rewrites local images from each included document relative to the
+    /// top-level preview directory. External URLs, code fences and Markdown
+    /// sources are never changed.
+    /// </summary>
+    /// <param name="line">One Markdown source line.</param>
+    /// <param name="origin">Source-relative Markdown path.</param>
+    /// <param name="outputDirectory">Top-level preview directory.</param>
+    /// <returns>Image links adjusted only within the in-memory preview.</returns>
+    private string RebaseLocalImages(string line, string origin, string outputDirectory)
+    {
+        if (!line.Contains("![", StringComparison.Ordinal) ||
+            string.Equals(Path.GetDirectoryName(GetFullPath(origin)), outputDirectory,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return line;
+        }
+
+        return Regex.Replace(line, @"!\[[^\]\r\n]*\]\((?<target>[^)\r\n]+)\)",
+            match =>
+            {
+                string raw = match.Groups["target"].Value;
+                if (raw.Length == 0 || Path.IsPathRooted(raw) ||
+                    raw.Contains("://", StringComparison.Ordinal) ||
+                    raw.IndexOfAny(['?', '#', '\r', '\n']) >= 0)
+                {
+                    return match.Value;
+                }
+
+                try
+                {
+                    string sourceDirectory = Path.GetDirectoryName(GetFullPath(origin))!;
+                    string file = Path.GetFullPath(Path.Combine(sourceDirectory, raw));
+                    if (!IsSafePath(file))
+                    {
+                        return match.Value;
+                    }
+
+                    string relative = Path.GetRelativePath(outputDirectory, file)
+                        .Replace(Path.DirectorySeparatorChar, '/');
+                    return match.Value.Replace(raw, relative, StringComparison.Ordinal);
+                }
+                catch (Exception error) when (error is ArgumentException or
+                    IOException or NotSupportedException)
+                {
+                    return match.Value;
+                }
+            }, RegexOptions.CultureInvariant);
     }
 
     /// <summary>Emits a visible placeholder and associates it with the original source line.</summary>
