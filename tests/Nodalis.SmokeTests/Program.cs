@@ -93,6 +93,7 @@ try
     ImpactAnalysisSmokeTests.Run();
     ImpactReleaseQualificationSmokeTests.Run();
     ImpactV14SmokeTests.Run();
+    WorkspaceViewsSmokeTests.Run();
     VerifyDocumentBookmarks();
     await VerifyUserPreferencesAsync(root);
     await VerifyLocalReleasePackageAsync(root);
