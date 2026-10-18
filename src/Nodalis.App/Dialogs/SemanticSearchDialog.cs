@@ -249,16 +249,41 @@ public sealed class SemanticSearchDialog : Window
             return;
         }
 
-        if (MessageBox.Show(this,
-            "Autoriser l'envoi de passages provenant de " + selection.Length +
-            " fichiers Markdown au processus d'embeddings local de confiance ? " +
-            "Le cache vectoriel sera conservé sur cet ordinateur ; aucune source ne sera modifiée.",
-            "Confirmer l'indexation locale", MessageBoxButton.YesNo, MessageBoxImage.Question)
-            != MessageBoxResult.Yes) return;
-
         CancellationToken token = Begin();
         try
         {
+            _status.Text = "Préparation locale du périmètre, sans appel au modèle…";
+            HashSet<Guid> fullCatalog = _documents
+                .Select(source => source.DocumentId).ToHashSet();
+            SemanticIndexPreview preview = await _service.PreviewIndexAsync(
+                selection, fullCatalog, token);
+            string estimate = preview.DocumentsVisited + " fichier(s), " +
+                preview.ChunksToEmbed + " nouveau(x) vecteur(s), " +
+                preview.ReusedChunks + " passage(s) réutilisé(s), " +
+                preview.RemovedChunks + " passage(s) remplacé(s), " +
+                preview.OrphanedChunks + " orphelin(s) à nettoyer. " +
+                "Index projeté : " + preview.ProjectedTotalChunks + "/10 000 fragments, " +
+                (preview.EstimatedVectorBytes / 1024.0).ToString("0.0") +
+                " Ko de vecteurs bruts estimés (hors JSON et mémoire du modèle).";
+            if (preview.ExceedsChunkBudget)
+            {
+                _status.Text = estimate +
+                    " Périmètre trop volumineux : réduisez-le avant l'indexation.";
+                return;
+            }
+
+            if (MessageBox.Show(this,
+                estimate + "\n\nAutoriser maintenant l'envoi des nouveaux passages " +
+                "au processus d'embeddings local configuré ? " +
+                "Cette estimation n'a lancé aucun fournisseur. " +
+                "Les sources Markdown resteront intactes.",
+                "Confirmer l'indexation locale", MessageBoxButton.YesNo,
+                MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                _status.Text = "Indexation refusée : aucun passage transmis au modèle.";
+                return;
+            }
+
             Progress<SemanticIndexProgress> progress = new(info =>
                 _status.Text = "Indexation : " + info.Completed + "/" + info.Total +
                     " fichiers · " + info.EmbeddedChunks + " nouveaux vecteurs");

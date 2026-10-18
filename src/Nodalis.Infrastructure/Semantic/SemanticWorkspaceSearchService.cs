@@ -17,6 +17,23 @@ public sealed record SemanticIndexProgress(int Completed, int Total, int Embedde
 public sealed record SemanticIndexSummary(int DocumentsVisited, int DocumentsChanged,
     int EmbeddedChunks, bool WasApproved);
 
+/// <summary>Read-only preflight summary, computed without calling an embedding provider.</summary>
+/// <param name="DocumentsVisited">Distinct requested canonical documents.</param>
+/// <param name="DocumentsChanged">Documents requiring a cache replacement.</param>
+/// <param name="DocumentsSkipped">Missing, excluded, oversized or unsafe sources.</param>
+/// <param name="ChunksToEmbed">Passages that would require new model calls.</param>
+/// <param name="ReusedChunks">Passages that retain exactly matching cached vectors.</param>
+/// <param name="RemovedChunks">Obsolete fragments from requested documents.</param>
+/// <param name="OrphanedChunks">Cached fragments absent from the full eligible catalog.</param>
+/// <param name="ProjectedTotalChunks">Projected workspace fragment count after indexing.</param>
+/// <param name="PeakProjectedChunks">Peak fragment count during ordered per-file commits.</param>
+/// <param name="EstimatedVectorBytes">Approximate raw float[] payload after indexing, excluding JSON overhead.</param>
+/// <param name="ExceedsChunkBudget">Whether the projected index crosses its hard fragment quota.</param>
+public sealed record SemanticIndexPreview(int DocumentsVisited, int DocumentsChanged,
+    int DocumentsSkipped, int ChunksToEmbed, int ReusedChunks, int RemovedChunks,
+    int OrphanedChunks, long ProjectedTotalChunks, long PeakProjectedChunks,
+    long EstimatedVectorBytes, bool ExceedsChunkBudget);
+
 /// <summary>Search result with a fresh source excerpt and numeric similarity.</summary>
 public sealed record SemanticSearchResult(Guid DocumentId, string RelativePath,
     string? Heading, int SourceLine, string Excerpt, double Similarity);
@@ -64,6 +81,91 @@ public sealed class SemanticWorkspaceSearchService
     /// <returns>Read-only derived index metadata for user controls.</returns>
     public Task<SemanticIndexStatus> InspectAsync(CancellationToken token = default) =>
         _cache.InspectAsync(_preferences.ModelId, _preferences.Dimensions, _policyKey, token);
+
+    /// <summary>
+    /// Previews incremental indexing by inspecting canonical Markdown locally.
+    /// Never invokes the provider, modifies the source, or writes the cache.
+    /// Values are estimates if a file changes between preview and confirmation.
+    /// </summary>
+    /// <param name="sources">User-selected, not necessarily approved, canonical sources.</param>
+    /// <param name="allEligibleDocumentIds">Full workspace catalog; null omits orphan reconciliation.</param>
+    /// <param name="token">Cancellation of this read-only preparation.</param>
+    /// <returns>Estimated work and hard-budget status before consent.</returns>
+    public async Task<SemanticIndexPreview> PreviewIndexAsync(
+        IReadOnlyList<SemanticSource> sources,
+        IReadOnlySet<Guid>? allEligibleDocumentIds = null,
+        CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        token.ThrowIfCancellationRequested();
+        List<SemanticSource> distinct = sources.Where(source =>
+            source.DocumentId != Guid.Empty).DistinctBy(source => source.DocumentId).ToList();
+        SemanticVectorIndex index = await _cache.LoadAsync(_preferences.ModelId,
+            _preferences.Dimensions, _policyKey, token);
+
+        int orphaned = allEligibleDocumentIds is null ? 0 : index.Entries.Count(
+            entry => !allEligibleDocumentIds.Contains(entry.DocumentId));
+        ILookup<Guid, SemanticVectorEntry> previous = index.Entries
+            .Where(entry => allEligibleDocumentIds is null ||
+                allEligibleDocumentIds.Contains(entry.DocumentId))
+            .ToLookup(entry => entry.DocumentId);
+
+        long total = index.Entries.Count - orphaned;
+        long peak = total;
+        int changed = 0, skipped = 0, newChunks = 0, reused = 0, removed = 0;
+        foreach (SemanticSource source in distinct)
+        {
+            token.ThrowIfCancellationRequested();
+            SemanticVectorEntry[] old = previous[source.DocumentId].ToArray();
+            string? path = SafePath(source.RelativePath);
+            if (path is null || !File.Exists(path) ||
+                new FileInfo(path).Length > MaxSourceBytes)
+            {
+                skipped++;
+                if (old.Length > 0) changed++;
+                removed += old.Length;
+                total -= old.Length;
+                continue;
+            }
+
+            string markdown = await File.ReadAllTextAsync(path, token);
+            IReadOnlyList<SemanticChunk> chunks = await Task.Run(() =>
+                SemanticMarkdownChunker.Split(source.DocumentId,
+                    source.RelativePath, markdown, _chunking), token);
+            token.ThrowIfCancellationRequested();
+            Dictionary<string, SemanticVectorEntry> cached = old.ToDictionary(
+                entry => entry.ChunkId, StringComparer.Ordinal);
+            int retained = 0;
+            bool provenanceChanged = false;
+            foreach (SemanticChunk chunk in chunks)
+            {
+                if (cached.TryGetValue(chunk.ChunkId, out SemanticVectorEntry? entry) &&
+                    entry.ContentHash == chunk.ContentHash)
+                {
+                    retained++;
+                    if (!string.Equals(entry.RelativePath, chunk.RelativePath,
+                            StringComparison.Ordinal) ||
+                        entry.SourceLine != chunk.SourceLine ||
+                        entry.Heading != chunk.Heading)
+                        provenanceChanged = true;
+                }
+            }
+
+            int pending = chunks.Count - retained;
+            int vanished = old.Length - retained;
+            newChunks += pending;
+            reused += retained;
+            removed += vanished;
+            if (pending > 0 || vanished > 0 || provenanceChanged) changed++;
+            total += chunks.Count - old.Length;
+            peak = Math.Max(peak, total);
+        }
+
+        long bytes = total * Math.Max(0, _preferences.Dimensions) * sizeof(float);
+        return new SemanticIndexPreview(distinct.Count, changed, skipped,
+            newChunks, reused, removed, orphaned, total, peak, bytes,
+            peak > SemanticVectorCacheService.MaximumEntries);
+    }
 
     /// <summary>
     /// Discards vectors for removed canonical documents only after explicit

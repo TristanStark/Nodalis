@@ -30,6 +30,13 @@ internal static class SemanticWorkspaceSearchSmokeTests
             !File.Exists(service.CachePath),
             "Without explicit user approval, no source is indexed or processed.");
 
+        SemanticIndexPreview before = await service.PreviewIndexAsync(
+            selected, new HashSet<Guid> { guid });
+        Assert(before.DocumentsVisited == 1 && before.DocumentsChanged == 1 &&
+            before.ChunksToEmbed == 1 && before.ReusedChunks == 0 &&
+            before.ProjectedTotalChunks == 1 && !before.ExceedsChunkBudget &&
+            fake.Calls == 0 && !File.Exists(service.CachePath),
+            "Preflight must estimate incremental work without consent, provider calls or cache writes.");
         SemanticIndexSummary created = await service.IndexAsync(selected, true);
         Assert(created.EmbeddedChunks == 1 && fake.Calls == 1,
             "Index a single canonical fragment with a real provider contract.");
@@ -37,6 +44,10 @@ internal static class SemanticWorkspaceSearchSmokeTests
         Assert(indexed.IsCompatible && indexed.DocumentCount == 1 &&
             indexed.ChunkCount == 1 && indexed.VectorBytes == 12,
             "User-facing status is accessible independently of provider execution.");
+        SemanticIndexPreview warm = await service.PreviewIndexAsync(selected);
+        Assert(warm.DocumentsChanged == 0 && warm.ChunksToEmbed == 0 &&
+            warm.ReusedChunks == 1 && warm.RemovedChunks == 0 && fake.Calls == 1,
+            "Warm preview must recognize reused vectors without invoking embeddings.");
         SemanticIndexSummary unchanged = await service.IndexAsync(selected, true);
         Assert(unchanged.EmbeddedChunks == 0 && fake.Calls == 1,
             "Unchanged source does not call embeddings again.");
@@ -53,11 +64,20 @@ internal static class SemanticWorkspaceSearchSmokeTests
         hits = await service.SearchAsync("anomalie au nominatif", true);
         Assert(hits.Count == 0,
             "Stale cached content must never be returned after a source edit.");
+        SemanticIndexPreview modified = await service.PreviewIndexAsync(selected);
+        Assert(modified.DocumentsChanged == 1 && modified.ChunksToEmbed == 1 &&
+            modified.ReusedChunks == 0 && modified.RemovedChunks == 1,
+            "Edited-source preview must distinguish replacement from reuse.");
         SemanticIndexSummary updated = await service.IndexAsync(selected, true);
         Assert(updated.EmbeddedChunks == 1,
             "Editing one Markdown source reindexes its changed passage.");
         string moved = Path.Combine(workspace, "renamed-report.md");
         File.Move(source, moved);
+        SemanticIndexPreview movedPreview = await service.PreviewIndexAsync(
+            [new SemanticSource(guid, "renamed-report.md")]);
+        Assert(movedPreview.DocumentsChanged == 1 &&
+            movedPreview.ChunksToEmbed == 0 && movedPreview.ReusedChunks == 1,
+            "A moved document needs provenance refresh but no new embeddings.");
         SemanticIndexSummary renamed = await service.IndexAsync(
             [new SemanticSource(guid, "renamed-report.md")], true);
         Assert(renamed.DocumentsChanged == 1 && renamed.EmbeddedChunks == 0,
@@ -67,6 +87,11 @@ internal static class SemanticWorkspaceSearchSmokeTests
             "Results must navigate to the new canonical Markdown path.");
 
         File.Delete(moved);
+        SemanticIndexPreview deleted = await service.PreviewIndexAsync(
+            [new SemanticSource(guid, "renamed-report.md")]);
+        Assert(deleted.DocumentsSkipped == 1 && deleted.RemovedChunks == 1 &&
+            deleted.ProjectedTotalChunks == 0 && deleted.ChunksToEmbed == 0,
+            "Missing canonical sources appear as removable cached vectors without model calls.");
         await service.IndexAsync([new SemanticSource(guid, "renamed-report.md")], true);
         Assert((await service.SearchAsync("requête", true)).Count == 0,
             "Deleted sources must disappear from the derived cache.");
@@ -143,6 +168,12 @@ internal static class SemanticWorkspaceSearchSmokeTests
         Assert(deniedPrune == 0 && (await resumed.InspectAsync()).DocumentCount == 2,
             "Catalog cleanup cannot run without an explicit approved operation.");
         File.Delete(Path.Combine(resumedWorkspace, "second.md"));
+        SemanticIndexPreview orphanPlan = await resumed.PreviewIndexAsync(
+            [pair[0]], new HashSet<Guid> { pair[0].DocumentId });
+        Assert(orphanPlan.OrphanedChunks == 1 &&
+            orphanPlan.ProjectedTotalChunks == 1 && orphanPlan.ChunksToEmbed == 0 &&
+            interrupted.Calls == 3,
+            "Preview reconciliation uses the full catalog, not the selected project alone.");
         int staleRemoved = await resumed.PruneRemovedDocumentsAsync(
             new HashSet<Guid> { pair[0].DocumentId }, true);
         Assert(staleRemoved == 1 &&
