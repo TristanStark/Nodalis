@@ -63,6 +63,23 @@ foreach ($document in $markdowns) {
             Check ([regex]::IsMatch($body, "(?m)^#{1,6} $escaped\s*$")) "Section composite introuvable : $section"
         }
     }
+    # Les wikilinks lisibles doivent rester non ambigus après chargement.
+    $wikilinks = [regex]::Matches($text, '(?<!\!)\[\[([^\]]+)\]\]')
+    foreach ($link in $wikilinks) {
+        $key = $link.Groups[1].Value.Split('#')[0]
+        $candidates = @($links.targets | Where-Object {
+            ([string]$_.id) -eq $key -or
+            ([string]$_.displayName) -eq $key -or
+            ([string]$_.qualifiedName) -eq $key
+        })
+        Check ($candidates.Count -eq 1) "Lien Markdown introuvable ou ambigu dans $relative : $key"
+    }
+    foreach ($image in [regex]::Matches($text, '!\[[^\]]*\]\(([^)]+)\)')) {
+        $imageRel = $image.Groups[1].Value -replace '/', [IO.Path]::DirectorySeparatorChar
+        $imagePath = [IO.Path]::GetFullPath((Join-Path $document.DirectoryName $imageRel))
+        Check ($imagePath.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) "Image hors workspace : $relative"
+        Check (Test-Path -LiteralPath $imagePath -PathType Leaf) "Image introuvable dans $relative : $imageRel"
+    }
 }
 
 foreach ($path in @('Attachments/architecture-workspace.bmp','Attachments/worktree-navigation.bmp')) {
@@ -89,13 +106,14 @@ $ultra = ReadJson 'Applications/Nodalis/Modules/Expérience utilisateur/Projets/
 Check (([string]$ultra.initialComplexity) -eq 'ultraSimple') 'Profil Ultra-simple invalide'
 Check ($ultra.sections.Count -eq 0) 'Un projet Ultra-simple ne doit pas avoir de sections obligatoires'
 $milestones = @()
-foreach ($document in $markdowns | Where-Object { $_.Name -eq 'Jalons.md' }) {
+foreach ($document in ($markdowns | Where-Object { $_.Name -eq 'Jalons.md' })) {
     $raw = Get-Content -LiteralPath $document.FullName -Raw -Encoding UTF8
     foreach ($match in [regex]::Matches($raw, '(?m)^\|\s*[^|]+\|\s*(\d{4}-\d{2}-\d{2})\s*\|[^\r\n]+$')) {
         $cells = $match.Value.Trim('|').Split('|')
         if ($cells.Length -lt 7) { continue }
         $id = $cells[5].Trim()
-        Check ([guid]::TryParse($id, [ref]([guid]::Empty))) "GUID de jalon invalide : $id"
+        $parsedId = [guid]::Empty
+        Check ([guid]::TryParse($id, [ref]$parsedId)) "GUID de jalon invalide : $id"
         $milestones += $id
         try { [void][datetime]::ParseExact($cells[1].Trim(),'yyyy-MM-dd',[cultureinfo]::InvariantCulture) }
         catch { Check $false "Date jalon invalide : $($cells[1])" }
