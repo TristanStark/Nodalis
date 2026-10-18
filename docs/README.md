@@ -131,6 +131,9 @@ La documentation v1.4 est publiée dans le dépôt mais la version stable annonc
 - [Définitions sauvegardées JSON privées et portables](views-storage-1.5.md)
 - [Qualification et restauration 1.5](release-checklist-1.5.md)
 
-## Nodalis 1.6 (en développement)
+## Nodalis 1.6 — Documents composites (develop)
 
-EPIC [Documents composites #126](https://github.com/TristanStark/Nodalis/issues/126).
+- [Guide des inclusions, résolution, preview et exports](composite-documents-1.6.md)
+- [Checklist de qualification 1.6](release-checklist-1.6.md)
+
+EPIC [Documents composites #126](https://github.com/TristanStark/Nodalis/issues/126). Source Markdown conservée : pas de nouveau format de workspace obligatoire, ni de relations causales ajoutées à l'analyse d'impact.
