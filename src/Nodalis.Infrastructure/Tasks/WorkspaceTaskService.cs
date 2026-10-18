@@ -13,6 +13,20 @@ public sealed partial class WorkspaceTaskService
 {
     private readonly string _workspaceRoot;
     private readonly WorkspaceLinkIndexService _linkIndex;
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private Dictionary<Guid, CachedTaskDocument> _cachedDocuments = [];
+
+    private sealed record CachedTaskDocument(
+        string Fingerprint, string RelativePath,
+        Guid? ProjectId, string? ProjectName,
+        Guid? ApplicationId, string? ApplicationName,
+        IReadOnlyList<TaskItem> Items);
+
+    /// <summary>Number of unchanged task sources reused during the last completed refresh.</summary>
+    public int LastReusedDocumentCount { get; private set; }
+
+    /// <summary>Number of sources parsed on the last completed refresh.</summary>
+    public int LastParsedDocumentCount { get; private set; }
 
     /// <summary>
     /// Initializes a new instance of <see cref="WorkspaceTaskService"/>.
@@ -35,10 +49,16 @@ public sealed partial class WorkspaceTaskService
     public async Task<TaskCollection> RefreshAsync(
             CancellationToken cancellationToken = default)
     {
+        await _refreshGate.WaitAsync(cancellationToken);
+        try
+        {
         global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(
             cancellationToken);
 
         global::System.Collections.Generic.List<global::Nodalis.Core.Tasks.TaskItem> tasks = new List<TaskItem>();
+        Dictionary<Guid, CachedTaskDocument> nextCache = [];
+        int reused = 0;
+        int parsed = 0;
 
         foreach (global::Nodalis.Core.Links.LinkTargetEntry document in links.Targets.Where(target =>
                      target.Kind == LinkTargetKind.Document))
@@ -52,10 +72,6 @@ public sealed partial class WorkspaceTaskService
             {
                 continue;
             }
-
-            string[] lines = await File.ReadAllLinesAsync(
-                fullPath,
-                cancellationToken);
 
             global::Nodalis.Core.Links.LinkTargetEntry? project = links.Targets
                 .Where(target =>
@@ -77,6 +93,26 @@ public sealed partial class WorkspaceTaskService
                     target.RelativePath.Length)
                 .FirstOrDefault();
 
+            // The link index already tracks canonical content hashes. Reuse only
+            // if the source AND its project/application context are unchanged.
+            if (document.ContentHash is string fingerprint &&
+                _cachedDocuments.TryGetValue(document.Id, out CachedTaskDocument? cached) &&
+                cached.Fingerprint == fingerprint &&
+                cached.RelativePath == document.RelativePath &&
+                cached.ProjectId == project?.Id &&
+                cached.ProjectName == project?.DisplayName &&
+                cached.ApplicationId == application?.Id &&
+                cached.ApplicationName == application?.DisplayName)
+            {
+                tasks.AddRange(cached.Items);
+                nextCache[document.Id] = cached;
+                reused++;
+                continue;
+            }
+
+            string[] lines = await File.ReadAllLinesAsync(fullPath, cancellationToken);
+            List<TaskItem> documentTasks = [];
+            parsed++;
             for (int index = 0;
                  index < lines.Length;
                  index++)
@@ -109,7 +145,7 @@ public sealed partial class WorkspaceTaskService
                 ) metadata = ParseMetadata(
                     body);
 
-                tasks.Add(new TaskItem
+                documentTasks.Add(new TaskItem
                 {
                     Id = CreateTaskId(
                         document.Id,
@@ -134,8 +170,23 @@ public sealed partial class WorkspaceTaskService
                     ProjectName = project?.DisplayName
                 });
             }
+
+            tasks.AddRange(documentTasks);
+            if (document.ContentHash is string newFingerprint)
+            {
+                nextCache[document.Id] = new CachedTaskDocument(
+                    newFingerprint, document.RelativePath,
+                    project?.Id, project?.DisplayName,
+                    application?.Id, application?.DisplayName, documentTasks);
+            }
         }
 
+        // Publish an all-or-nothing derived snapshot only after a complete
+        // refresh. Deleted documents naturally disappear from the next cache.
+        cancellationToken.ThrowIfCancellationRequested();
+        _cachedDocuments = nextCache;
+        LastReusedDocumentCount = reused;
+        LastParsedDocumentCount = parsed;
         return new TaskCollection
         {
             UpdatedUtc = DateTimeOffset.UtcNow,
@@ -146,6 +197,11 @@ public sealed partial class WorkspaceTaskService
                 .ThenBy(task => task.Text, StringComparer.CurrentCultureIgnoreCase)
                 .ToList()
         };
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
     }
 
     /// <summary>

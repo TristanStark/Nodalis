@@ -68,7 +68,8 @@ d'augmentation mémoire à chaud, et aucune exception/corruption lors de
 ## Limite connue #133
 
 Le cache en mémoire invalide la projection lors des changements source, mais
-une invalidation peut encore lancer un scan complet du collecteur des tâches
-et jalons. L'index des liens, lui, réutilise les empreintes existantes. La
-granularité par source et la mesure réelle sous Windows restent indispensables
+une invalidation relance les collecteurs métiers. Les tâches réutilisent
+maintenant les sources inchangées via les empreintes de l'index des liens,
+mais jalons/décisions/maintenance restent à optimiser et les mesures réelles
+sous Windows restent indispensables
 avant de clore #133 et #134.

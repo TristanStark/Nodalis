@@ -93,6 +93,10 @@ internal static class Program
             WorkspaceTaskService taskService = new(root);
             Stopwatch projectionWatch = Stopwatch.StartNew();
             TaskCollection taskIndex = await taskService.RefreshAsync();
+            int taskColdParsed = taskService.LastParsedDocumentCount;
+            await taskService.RefreshAsync();
+            int taskWarmParsed = taskService.LastParsedDocumentCount;
+            int taskWarmReused = taskService.LastReusedDocumentCount;
             WorkspaceViewProjection viewProjection = WorkspaceViewProjector.Build(
                 warm.Catalog, tasks: taskIndex.Tasks, workspaceRoot: root);
             projectionWatch.Stop();
@@ -133,6 +137,9 @@ internal static class Program
                 views = new
                 {
                     projectedItems = viewProjection.Items.Count,
+                    taskDocumentsParsedCold = taskColdParsed,
+                    taskDocumentsParsedWarm = taskWarmParsed,
+                    taskDocumentsReusedWarm = taskWarmReused,
                     projectionMilliseconds = projectionWatch.ElapsedMilliseconds,
                     firstPageMilliseconds = queryWatch.ElapsedMilliseconds,
                     secondPageMilliseconds = repeatQueryWatch.ElapsedMilliseconds,

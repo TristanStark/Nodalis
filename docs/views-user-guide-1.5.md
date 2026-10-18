@@ -55,9 +55,11 @@ un conflit visible et un fichier d'une version future n'est jamais réécrit.
   détectées ; plusieurs notifications rapprochées sont regroupées avant
   rechargement. Une projection en mémoire évite les scans lors des
   simples réouvertures sans modification.
-- L'index des liens réutilise ses empreintes incrémentales existantes.
-  Le collecteur des tâches et jalons recalcule encore certaines données à
-  chaque modification détectée : optimisation granulaire #133 non terminée.
+- L'index des liens réutilise ses empreintes incrémentales existantes ;
+  le collecteur des tâches réutilise lui aussi les documents inchangés grâce
+  à ces empreintes et invalide ceux qui ont changé de contexte. Les jalons,
+  décisions et fiches maintenance peuvent encore être rescannés après une
+  modification : optimisation granulaire #133 à poursuivre.
   Les résultats ne sont jamais utilisés comme source canonique.
 - Le rendu dark mode, DPI 100/125/150 % et navigation complète au clavier
   font partie de la qualification finale #134.
