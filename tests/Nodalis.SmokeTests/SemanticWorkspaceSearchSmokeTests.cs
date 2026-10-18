@@ -207,6 +207,53 @@ internal static class SemanticWorkspaceSearchSmokeTests
             "More than 100 stale chunks must never suppress a valid source.");
         Console.WriteLine("[Semantic 1.8] exhaustive stale-fragment validation passed.");
 
+        // Adding a paragraph shifts source lines and chunk identities.
+        // Embeddings of unchanged content must survive this edit.
+        string shiftedRoot = Path.Combine(root, "semantic-shifted-lines");
+        Directory.CreateDirectory(shiftedRoot);
+        string shiftedPath = Path.Combine(shiftedRoot, "meeting.md");
+        await File.WriteAllTextAsync(shiftedPath,
+            "# Réunion\nDécision stable A.\n\nDécision stable B.\n");
+        Guid shiftedId = Guid.NewGuid();
+        FakeProvider shiftProvider = new();
+        SemanticWorkspaceSearchService shiftService = new(shiftedRoot, enabled,
+            shiftProvider, cacheDirectory: Path.Combine(root, "vector-cache-shift"));
+        IReadOnlyList<SemanticSource> shiftedSelection =
+            [new(shiftedId, "meeting.md")];
+        SemanticIndexSummary baseline = await shiftService.IndexAsync(
+            shiftedSelection, true);
+        Assert(baseline.EmbeddedChunks == 2 && shiftProvider.Calls == 1,
+            "Two stable passages must be embedded initially.");
+
+        await File.WriteAllTextAsync(shiftedPath,
+            "# Réunion\nNouvelle introduction.\n\nDécision stable A.\n\nDécision stable B.\n");
+        SemanticIndexPreview shiftedPreview = await shiftService.PreviewIndexAsync(
+            shiftedSelection);
+        Assert(shiftedPreview.ChunksToEmbed == 1 &&
+            shiftedPreview.ReusedChunks == 2 &&
+            shiftedPreview.RemovedChunks == 2 &&
+            shiftedPreview.ProjectedTotalChunks == 3 &&
+            shiftProvider.Calls == 1,
+            "Preflight must count content reuse and obsolete source positions.");
+        SemanticIndexSummary afterInsert = await shiftService.IndexAsync(
+            shiftedSelection, true);
+        Assert(afterInsert.EmbeddedChunks == 1 && shiftProvider.Calls == 2 &&
+            (await shiftService.InspectAsync()).ChunkCount == 3,
+            "A shifted Markdown document must only embed its new paragraph.");
+
+        await File.AppendAllTextAsync(shiftedPath, "\nDécision stable A.\n");
+        SemanticIndexPreview duplicatePreview = await shiftService.PreviewIndexAsync(
+            shiftedSelection);
+        Assert(duplicatePreview.ChunksToEmbed == 0 &&
+            duplicatePreview.ReusedChunks == 4 && shiftProvider.Calls == 2,
+            "A repeated identical source passage can reuse its vector.");
+        SemanticIndexSummary afterDuplicate = await shiftService.IndexAsync(
+            shiftedSelection, true);
+        Assert(afterDuplicate.EmbeddedChunks == 0 && shiftProvider.Calls == 2 &&
+            (await shiftService.InspectAsync()).ChunkCount == 4,
+            "Duplicate content in one document needs no new model calls.");
+        Console.WriteLine("[Semantic 1.8] shifted paragraphs reuse indexed content.");
+
         // Full 10 001 fragment fixture: reject the scope before invoking a
         // provider, rather than consuming tokens and failing to persist.
         string largeWorkspace = Path.Combine(root, "semantic-over-budget");
