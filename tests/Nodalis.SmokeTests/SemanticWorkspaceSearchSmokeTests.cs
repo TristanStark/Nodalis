@@ -52,8 +52,18 @@ internal static class SemanticWorkspaceSearchSmokeTests
         SemanticIndexSummary updated = await service.IndexAsync(selected, true);
         Assert(updated.EmbeddedChunks == 1,
             "Editing one Markdown source reindexes its changed passage.");
-        File.Delete(source);
-        await service.IndexAsync(selected, true);
+        string moved = Path.Combine(workspace, "renamed-report.md");
+        File.Move(source, moved);
+        SemanticIndexSummary renamed = await service.IndexAsync(
+            [new SemanticSource(guid, "renamed-report.md")], true);
+        Assert(renamed.DocumentsChanged == 1 && renamed.EmbeddedChunks == 0,
+            "Moving a canonical source must refresh provenance without new embeddings.");
+        hits = await service.SearchAsync("anomalie au nominatif", true);
+        Assert(hits.Count == 1 && hits[0].RelativePath == "renamed-report.md",
+            "Results must navigate to the new canonical Markdown path.");
+
+        File.Delete(moved);
+        await service.IndexAsync([new SemanticSource(guid, "renamed-report.md")], true);
         Assert((await service.SearchAsync("requête", true)).Count == 0,
             "Deleted sources must disappear from the derived cache.");
         await service.PurgeAsync();
