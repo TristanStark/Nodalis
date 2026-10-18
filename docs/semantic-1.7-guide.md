@@ -1,6 +1,6 @@
-# Nodalis 1.7 (develop) — Rechercher par le sens
+# Nodalis 1.7 — Rechercher par le sens
 
-**Aperçu à qualifier**, différent de la recherche exacte/fuzzy 1.0, qui reste disponible sans aucune IA.
+**Disponible depuis v1.7.0**, en option : la recherche exacte/fuzzy 1.0 reste disponible sans aucune IA. Un fournisseur local d'embeddings doit être installé et activé volontairement.
 
 ## Préparer le fournisseur
 
@@ -28,5 +28,5 @@ Le score cosinus décrit la proximité géométrique des embeddings. Il ne prouv
 
 ## Évolutions et qualification
 
-Les issues [#142 à #146](https://github.com/TristanStark/Nodalis/issues/142) couvrent le premier lot ; [#147](https://github.com/TristanStark/Nodalis/issues/147) comprend l'évaluation de pertinence sur corpus français, les tests de volume et les vérifications réelles clavier/dark mode/DPI 100–150 %. La 1.7 ne doit être taguée qu'après validation de sortie.
+Les issues [#142 à #146](https://github.com/TristanStark/Nodalis/issues/142) couvrent le premier lot ; [#147](https://github.com/TristanStark/Nodalis/issues/147) comprend l'évaluation de pertinence sur corpus français, les tests de volume et les vérifications réelles clavier/dark mode/DPI 100–150 %. La v1.7.0 a été acceptée et publiée ; les mesures de pertinence sur modèle réel et la recette exhaustive multi-DPI restent à compléter sur les postes cibles. Voir les [notes de version](release-notes-1.7.md).
 
