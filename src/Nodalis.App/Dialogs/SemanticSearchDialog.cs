@@ -21,6 +21,7 @@ public sealed class SemanticSearchDialog : Window
     private readonly IReadOnlyList<SemanticSource> _lexicalDocuments;
     private readonly string _workspaceRoot;
     private readonly bool _enabled;
+    private readonly int _exclusionCount;
     private readonly ComboBox _mode = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly TextBox _query = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly TextBox _scope = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
@@ -54,6 +55,7 @@ public sealed class SemanticSearchDialog : Window
         MinHeight = 400;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _enabled = preferences.IsEnabled;
+        _exclusionCount = preferences.ExcludedPathPatterns.Count;
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
         _mode.Items.Add("Mixte : exacte/fuzzy + sémantique");
         _mode.Items.Add("Texte seul : exacte/fuzzy (sans modèle)");
@@ -278,6 +280,17 @@ public sealed class SemanticSearchDialog : Window
             !status.IsCompatible ? "Incompatible ou corrompu : réindexation nécessaire" :
             "Valide";
         string date = status.UpdatedAtUtc?.ToLocalTime().ToString("g") ?? "aucune";
+        int projects = status.IndexedPaths.Count(path =>
+            path.Contains("/Projets/", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("/Sous-projets/", StringComparison.OrdinalIgnoreCase));
+        int applications = status.IndexedPaths.Count(path =>
+            path.StartsWith("Applications/", StringComparison.OrdinalIgnoreCase)) - projects;
+        applications = Math.Max(0, applications);
+        int global = Math.Max(0, status.IndexedPaths.Count - projects - applications);
+        string scope = _scope.Text.Trim().Replace('\\', '/').Trim('/');
+        int withinScope = scope.Length == 0 ? status.IndexedPaths.Count :
+            status.IndexedPaths.Count(path => path.StartsWith(scope + "/",
+                StringComparison.OrdinalIgnoreCase));
         string[] visible = status.IndexedPaths.Take(5).ToArray();
         string sample = visible.Length == 0 ? "" :
             " · Exemples : " + string.Join(", ", visible) +
@@ -290,7 +303,11 @@ public sealed class SemanticSearchDialog : Window
             " · Cache disque : " + (status.OnDiskBytes / 1024.0).ToString("0.0") + " Ko" +
             " · RAM vecteurs estimée : " + (status.VectorBytes / 1024.0).ToString("0.0") + " Ko" +
             " · Dernière modification : " + date +
+            " · Couverture : Global " + global + ", Application " + applications +
+            ", Projet " + projects +
+            " · Dans le périmètre choisi : " + withinScope +
             " · Documents éligibles : " + _documents.Count +
+            " · Motifs exclus : " + _exclusionCount +
             " · Chemin : " + status.CachePath + sample;
     }
 

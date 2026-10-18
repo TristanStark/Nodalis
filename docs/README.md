@@ -154,3 +154,5 @@ Issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmarks et index incr�
 
 - [Guide de développement : recherche hybride et RRF 1.8](hybrid-search-1.8.md) — fonctionnalités, paramètres, confidentialité, tests et limites avant qualification.
 - [Cadre de mesure de pertinence et latence 1.8](semantic-1.8-evaluation.md) — P@5/P@10, R@10, p50/p95, corpus et limites.
+- [Guide de gestion et confidentialité des index 1.8](semantic-1.8-index-management.md) — consultation, reprise, purge et quotas.
+- [Checklist de qualification 1.8](release-checklist-1.8.md) — tests, recette Windows/Ollama et conditions de sortie.
