@@ -120,6 +120,7 @@ public static class WorkspaceViewProjector
     /// <param name="decisions">Existing Decision Records.</param>
     /// <param name="maintenance">Already parsed maintenance incidents/interventions.</param>
     /// <param name="frontMatter">Optional previously parsed Markdown front matter by document GUID.</param>
+    /// <param name="workspaceRoot">Workspace root for safely resolving absolute maintenance source paths.</param>
     /// <param name="cancellationToken">Cancellation request.</param>
     /// <returns>Deterministic read-only items with explicit diagnostics.</returns>
     public static WorkspaceViewProjection Build(
@@ -129,6 +130,7 @@ public static class WorkspaceViewProjector
         IEnumerable<DecisionRecord>? decisions = null,
         IEnumerable<MaintenanceHistoryItem>? maintenance = null,
         IReadOnlyDictionary<Guid, MarkdownFrontMatterDocument>? frontMatter = null,
+        string? workspaceRoot = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(catalog);
@@ -281,9 +283,10 @@ public static class WorkspaceViewProjector
         foreach (MaintenanceHistoryItem record in maintenance ?? [])
         {
             cancellationToken.ThrowIfCancellationRequested();
+            string? maintenancePath = ResolveSourcePath(record.SourcePath, workspaceRoot);
             if (string.IsNullOrWhiteSpace(record.Id) ||
-                !byPath.TryGetValue(NormalizePath(record.SourcePath),
-                    out LinkTargetEntry? document))
+                maintenancePath is null ||
+                !byPath.TryGetValue(maintenancePath, out LinkTargetEntry? document))
             {
                 diagnostics.Add(new WorkspaceViewProjectionDiagnostic(
                     record.SourcePath, "Fiche ignorée : identifiant manquant ou document source introuvable."));
@@ -337,6 +340,43 @@ public static class WorkspaceViewProjector
     /// <returns>Comparable path key.</returns>
     private static string NormalizePath(string path) =>
         path.Replace('\\', '/').TrimStart('/');
+
+    /// <summary>
+    /// Converts a maintenance file path to a canonical workspace-relative path
+    /// without following paths outside the workspace. No disk access occurs.
+    /// </summary>
+    /// <param name="sourcePath">Source absolute or relative path.</param>
+    /// <param name="workspaceRoot">Root required for an absolute source path.</param>
+    /// <returns>Normalized relative path, or null if outside/ambiguous.</returns>
+    private static string? ResolveSourcePath(string sourcePath, string? workspaceRoot)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            return null;
+        }
+
+        string relative = sourcePath;
+        if (Path.IsPathRooted(sourcePath))
+        {
+            if (string.IsNullOrWhiteSpace(workspaceRoot))
+            {
+                return null;
+            }
+
+            relative = Path.GetRelativePath(
+                Path.GetFullPath(workspaceRoot), Path.GetFullPath(sourcePath));
+        }
+
+        string normalized = NormalizePath(relative);
+        if (normalized.Length == 0 ||
+            normalized.Split('/').Any(segment => segment == ".." || segment == ".") ||
+            Path.IsPathRooted(normalized))
+        {
+            return null;
+        }
+
+        return normalized;
+    }
 
     /// <summary>Stores one optional nonempty text field.</summary>
     /// <param name="fields">Mutable projection under construction.</param>
