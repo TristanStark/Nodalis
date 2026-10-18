@@ -73,6 +73,34 @@ internal static class CompositeDocumentsSmokeTests
             Assert(cycle.Diagnostics.Any(x => x.Message.Contains("Cycle")) &&
                 cycle.Markdown.Contains("Inclusion indisponible"),
                 "A recursive inclusion must terminate and visibly explain the cycle.");
+            await File.WriteAllTextAsync(child, childText);
+            string hundred = string.Join("\n", Enumerable.Repeat(
+                CompositeMarkdownSyntax.Format(childId), 120));
+            CompositeRenderResult volume = await renderer.RenderAsync(parent, hundred);
+            Assert(volume.Diagnostics.Count == 0 &&
+                volume.Edges.Count == 120 &&
+                volume.Markdown.Split("Contenu inclus", StringSplitOptions.None).Length > 120,
+                "More than 100 independent inclusions must render without recursive loops.");
+            CompositeRenderResult capped = await renderer.RenderAsync(parent,
+                string.Join("\n", Enumerable.Repeat(
+                    CompositeMarkdownSyntax.Format(childId), 300)));
+            Assert(capped.Diagnostics.Count > 0 &&
+                capped.Markdown.Contains("Limite de profondeur ou nombre de fragments"),
+                "Oversized composites must give visible bounded-work diagnostics.");
+
+            CompositeInclusionGraph graph = new();
+            graph.Replace([
+                new CompositeEdge(parentId, childId),
+                new CompositeEdge(anotherId, parentId)
+            ]);
+            IReadOnlyList<Guid> impacted = graph.AffectedParents(childId);
+            Assert(impacted.Count == 2 && impacted.Contains(parentId) &&
+                impacted.Contains(anotherId),
+                "Changed nested source must invalidate each transitive parent.");
+            graph.Clear();
+            Assert(graph.AffectedParents(childId).Count == 0,
+                "Deleting a derived cache must be safe and reconstructible.");
+
             using CancellationTokenSource cancelled = new();
             cancelled.Cancel();
             bool stopped = false;
