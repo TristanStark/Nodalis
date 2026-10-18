@@ -32,7 +32,7 @@ Un quota dépassé bloque la création des nouveaux vecteurs et laisse intactes 
 
 ## Purger et confidentialité
 
-**Purger les vecteurs…** affiche une confirmation : la purge efface le fichier d'index du workspace courant, jamais les fichiers `.md`, images, projets ni sauvegardes. La commande existante de palette **Effacer le cache sémantique** reste une alternative. Désactiver la recherche sémantique supprime aussi l'index dérivé.
+**Purger les vecteurs…** affiche une confirmation : la purge efface le fichier d'index du workspace courant, jamais les fichiers `.md`, images, projets ni sauvegardes. La commande existante de palette **Effacer le cache sémantique** reste une alternative. Les opérations sur le même fichier d'index sont sérialisées entre plusieurs services dans **une même instance de Nodalis** pour éviter de perdre des fragments lors de mises à jour concurrentes ; ce mécanisme ne garantit pas la coordination entre deux processus Nodalis distincts. Désactiver la recherche sémantique supprime aussi l'index dérivé.
 
 En mode **Texte seul**, le fournisseur d'embeddings n'est pas invoqué et la recherche d'origine reste disponible, même si le cache est absent ou corrompu. Un cache valide n'implique **pas** que ses résultats constituent des conclusions fiables.
 

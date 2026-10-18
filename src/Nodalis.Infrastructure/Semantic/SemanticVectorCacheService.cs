@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -29,8 +30,12 @@ public sealed class SemanticVectorCacheService
     /// <summary>Hard upper bound for local vector fragments across a workspace.</summary>
     public const int MaximumEntries = 10_000;
     private const long MaxCacheFileBytes = 64_000_000;
+    // Serialize all in-process reads, writes and purges of this same cache path,
+    // even when the app creates more than one index service for a workspace.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly string _filePath;
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly SemaphoreSlim _gate;
 
     /// <summary>Builds a machine-local cache key for one workspace, not a workspace file.</summary>
     /// <param name="workspaceRoot">Absolute root of the canonical workspace.</param>
@@ -45,6 +50,7 @@ public sealed class SemanticVectorCacheService
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Nodalis", "SemanticIndexes");
         _filePath = Path.Combine(Path.GetFullPath(directory), key + ".json");
+        _gate = Gates.GetOrAdd(_filePath, static _ => new SemaphoreSlim(1, 1));
     }
 
     /// <summary>Path to the derived cache, for user-visible purge information.</summary>

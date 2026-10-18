@@ -92,6 +92,29 @@ internal static class SemanticVectorCacheSmokeTests
         Assert(!File.Exists(cache.CachePath) &&
             !(await cache.InspectAsync("model-A", 3, "split-v1")).FileExists,
             "Purge removes only derived vectors and reports absence.");
+
+        string parallelDirectory = Path.Combine(root, "semantic-cache-concurrent");
+        SemanticVectorCacheService firstWriter = new(root, parallelDirectory);
+        SemanticVectorCacheService secondWriter = new(root, parallelDirectory);
+        Assert(firstWriter.CachePath == secondWriter.CachePath,
+            "Two cache instances for a workspace resolve to the same derived file.");
+        await Task.WhenAll(Enumerable.Range(0, 16).Select(async index =>
+        {
+            Guid document = Guid.NewGuid();
+            SemanticVectorCacheService writer = index % 2 == 0
+                ? firstWriter : secondWriter;
+            await writer.ReplaceDocumentAsync("model-A", 3, "split-v1",
+                document, [Entry(document, "application/note.md",
+                    "parallel-" + index)]);
+        }));
+        SemanticIndexStatus concurrent = await secondWriter.InspectAsync(
+            "model-A", 3, "split-v1");
+        Assert(concurrent.IsCompatible && concurrent.DocumentCount == 16 &&
+            concurrent.ChunkCount == 16,
+            "Concurrent service instances must serialize cache changes without lost documents.");
+        await firstWriter.PurgeAsync();
+        Assert(!File.Exists(firstWriter.CachePath),
+            "Shared locking must also cover explicit cache purge.");
         Console.WriteLine("[Semantic 1.7] vector cache persistence, invalidation, corruption and purge passed.");
     }
 
