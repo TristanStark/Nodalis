@@ -118,7 +118,12 @@ public sealed class SemanticWorkspaceSearchService
                 if (old.TryGetValue(chunk.ChunkId, out SemanticVectorEntry? entry) &&
                     entry.ContentHash == chunk.ContentHash)
                 {
-                    replacement.Add(entry);
+                    replacement.Add(entry with
+                    {
+                        RelativePath = chunk.RelativePath,
+                        Heading = chunk.Heading,
+                        SourceLine = chunk.SourceLine
+                    });
                 }
                 else
                 {
@@ -128,8 +133,12 @@ public sealed class SemanticWorkspaceSearchService
 
             bool equal = pending.Count == 0 &&
                 replacement.Count == old.Count &&
-                replacement.All(entry => string.Equals(
-                    entry.RelativePath, source.RelativePath, StringComparison.Ordinal));
+                replacement.All(entry =>
+                    old.TryGetValue(entry.ChunkId, out SemanticVectorEntry? previous) &&
+                    string.Equals(previous.RelativePath, entry.RelativePath,
+                        StringComparison.Ordinal) &&
+                    previous.SourceLine == entry.SourceLine &&
+                    previous.Heading == entry.Heading);
             if (equal)
             {
                 progress?.Report(new SemanticIndexProgress(visited, distinct.Count, embedded));
