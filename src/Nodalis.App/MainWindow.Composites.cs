@@ -7,6 +7,7 @@ using Nodalis.Core.Composites;
 using Nodalis.Core.Links;
 using Nodalis.Infrastructure.Composites;
 using Nodalis.Infrastructure.Links;
+using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.App;
 
@@ -15,6 +16,60 @@ public partial class MainWindow
 {
     private CancellationTokenSource? _compositePreviewRequest;
     private int _compositePreviewGeneration;
+    private WorkspaceFileChangeMonitor? _compositeMonitor;
+    private readonly CompositeInclusionGraph _compositeGraph = new();
+    private readonly HashSet<string> _compositeSourcePaths =
+        new(StringComparer.OrdinalIgnoreCase);
+    private bool _compositeIndexDirty;
+
+    /// <summary>Subscribes once to source changes; only included documents invalidate preview.</summary>
+    private void EnsureCompositeFileMonitor()
+    {
+        if (_compositeMonitor is not null)
+        {
+            return;
+        }
+
+        _compositeMonitor = new WorkspaceFileChangeMonitor(_root.FullPath);
+        _compositeMonitor.FileChanged += CompositeSource_Changed;
+        Closed += (_, _) =>
+        {
+            _compositeMonitor?.Dispose();
+            _compositeMonitor = null;
+        };
+    }
+
+    /// <summary>Handles changed and renamed sources without triggering unrelated previews.</summary>
+    /// <param name="sender">Workspace watcher.</param>
+    /// <param name="change">Changed source and original path when moved.</param>
+    private void CompositeSource_Changed(object? sender,
+        WorkspaceFileChangedEventArgs change)
+    {
+        lock (_compositeSourcePaths)
+        {
+            if (!_compositeSourcePaths.Contains(change.FullPath) &&
+                (change.OldFullPath is null ||
+                 !_compositeSourcePaths.Contains(change.OldFullPath)))
+            {
+                return;
+            }
+        }
+
+        _compositeIndexDirty = true;
+        if (Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _ = Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_previewVisible && _activeDocumentTab is not null)
+            {
+                _previewTimer.Stop();
+                _previewTimer.Start();
+            }
+        }));
+    }
 
     /// <summary>Starts a cancellable render only when the current Markdown includes directives.</summary>
     /// <param name="path">Current active tab path.</param>
@@ -28,6 +83,7 @@ public partial class MainWindow
             return;
         }
 
+        EnsureCompositeFileMonitor();
         CancellationTokenSource request = new();
         _compositePreviewRequest = request;
         _ = RenderCompositePreviewAsync(path, markdown, request, generation);
@@ -44,7 +100,9 @@ public partial class MainWindow
     {
         try
         {
-            LinkIndexCatalog index = await _linkIndexService.LoadAsync(request.Token);
+            LinkIndexCatalog index = _compositeIndexDirty
+                ? await _linkIndexService.RefreshAsync(request.Token)
+                : await _linkIndexService.LoadAsync(request.Token);
             CompositeWorkspaceRenderer renderer = new(_root.FullPath, index);
             CompositeRenderResult result = await renderer.RenderAsync(
                 path, markdown, request.Token);
@@ -54,6 +112,21 @@ public partial class MainWindow
                     StringComparison.OrdinalIgnoreCase) || !_previewVisible)
             {
                 return;
+            }
+
+            _compositeIndexDirty = false;
+            _compositeGraph.Replace(result.Edges);
+            HashSet<Guid> includedIds = result.Edges.Select(edge => edge.TargetId).ToHashSet();
+            HashSet<string> paths = index.Targets
+                .Where(entry => entry.Kind == LinkTargetKind.Document &&
+                    includedIds.Contains(entry.Id))
+                .Select(entry => Path.GetFullPath(Path.Combine(_root.FullPath,
+                    entry.RelativePath.Replace('/', Path.DirectorySeparatorChar))))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            lock (_compositeSourcePaths)
+            {
+                _compositeSourcePaths.Clear();
+                _compositeSourcePaths.UnionWith(paths);
             }
 
             MarkdownPreview.Document = MarkdownFlowDocumentRenderer.Render(
