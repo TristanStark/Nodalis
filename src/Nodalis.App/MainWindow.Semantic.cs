@@ -36,8 +36,14 @@ public partial class MainWindow
         {
             Owner = this
         };
-        if (dialog.ShowDialog() != true ||
-            dialog.SelectedResult is not SemanticSearchResult result) return;
+        if (dialog.ShowDialog() != true) return;
+        if (dialog.SwitchToClassicSearch)
+        {
+            await SearchAsync();
+            return;
+        }
+
+        if (dialog.SelectedResult is not SemanticSearchResult result) return;
 
         LinkTargetEntry? target = catalog.Targets.FirstOrDefault(item =>
             item.Kind == LinkTargetKind.Document && item.Id == result.DocumentId);

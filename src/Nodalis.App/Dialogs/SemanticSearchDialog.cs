@@ -28,6 +28,9 @@ public sealed class SemanticSearchDialog : Window
     /// <summary>Opened result, or null if the user closed the dialog.</summary>
     public SemanticSearchResult? SelectedResult { get; private set; }
 
+    /// <summary>Whether the user explicitly requested the existing exact/fuzzy search.</summary>
+    public bool SwitchToClassicSearch { get; private set; }
+
     /// <summary>Creates a modal local search without running the provider on opening.</summary>
     /// <param name="workspaceRoot">Current workspace root.</param>
     /// <param name="preferences">Saved explicit opt-in settings.</param>
@@ -77,6 +80,18 @@ public sealed class SemanticSearchDialog : Window
         close.Click += (_, _) => Close();
         actions.Children.Add(_search);
         actions.Children.Add(_index);
+        Button classical = new()
+        {
+            Content = "Recherche exacte / fuzzy", MinHeight = 32,
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        classical.Click += (_, _) =>
+        {
+            _request?.Cancel();
+            SwitchToClassicSearch = true;
+            DialogResult = true;
+        };
+        actions.Children.Add(classical);
         actions.Children.Add(_cancel);
         actions.Children.Add(close);
         top.Children.Add(actions);
