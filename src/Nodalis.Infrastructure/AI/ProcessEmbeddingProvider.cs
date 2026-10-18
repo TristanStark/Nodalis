@@ -211,7 +211,8 @@ public sealed class ProcessEmbeddingProvider : IEmbeddingProvider
             path.Contains("://", StringComparison.Ordinal) ||
             _options.Arguments.Contains("://", StringComparison.Ordinal) ||
             !Path.IsPathFullyQualified(path) ||
-            !File.Exists(path))
+            !File.Exists(path) ||
+            !IsLocalExecutable(path))
         {
             throw new EmbeddingProviderException(
                 EmbeddingFailureKind.InvalidConfiguration,
@@ -229,6 +230,43 @@ public sealed class ProcessEmbeddingProvider : IEmbeddingProvider
             throw new EmbeddingProviderException(
                 EmbeddingFailureKind.InvalidConfiguration,
                 "Paramètres ou lot d'embeddings invalides.");
+        }
+    }
+
+    /// <summary>Rejects mapped network drives, junctions and symlinked executables.</summary>
+    /// <param name="path">Explicitly configured absolute process path.</param>
+    /// <returns>True only for a local ordinary executable path.</returns>
+    private static bool IsLocalExecutable(string path)
+    {
+        try
+        {
+            string full = Path.GetFullPath(path);
+            string? driveRoot = Path.GetPathRoot(full);
+            if (string.IsNullOrWhiteSpace(driveRoot) ||
+                new DriveInfo(driveRoot).DriveType == DriveType.Network ||
+                (File.GetAttributes(full) & FileAttributes.ReparsePoint) != 0)
+            {
+                return false;
+            }
+
+            DirectoryInfo? directory = Directory.GetParent(full);
+            while (directory is not null)
+            {
+                if (directory.Exists &&
+                    (directory.Attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    return false;
+                }
+
+                directory = directory.Parent;
+            }
+
+            return true;
+        }
+        catch (Exception error) when (error is IOException or
+            ArgumentException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return false;
         }
     }
 
