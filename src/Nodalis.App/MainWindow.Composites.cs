@@ -20,8 +20,8 @@ public partial class MainWindow
     private readonly CompositeInclusionGraph _compositeGraph = new();
     private readonly HashSet<string> _compositeSourcePaths =
         new(StringComparer.OrdinalIgnoreCase);
-    private bool _compositeIndexDirty;
-    private bool _compositeHasMissingSources;
+    private volatile bool _compositeIndexDirty;
+    private volatile bool _compositeHasMissingSources;
 
     /// <summary>Subscribes once to source changes; only included documents invalidate preview.</summary>
     private void EnsureCompositeFileMonitor()
