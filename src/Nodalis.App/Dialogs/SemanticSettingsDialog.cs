@@ -37,7 +37,8 @@ public sealed class SemanticSettingsDialog : Window
         form.Children.Add(new TextBlock
         {
             Text = "Les embeddings sont optionnels. Un modèle conversationnel ne suffit pas.",
-            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12)
         });
         _enabled = new CheckBox
         {
@@ -50,8 +51,10 @@ public sealed class SemanticSettingsDialog : Window
             initial.ExecutablePath);
         Button browse = new()
         {
-            Content = "Parcourir…", Margin = new Thickness(0, 2, 0, 12),
-            HorizontalAlignment = HorizontalAlignment.Left, MinHeight = 30
+            Content = "Parcourir…",
+            Margin = new Thickness(0, 2, 0, 12),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            MinHeight = 30
         };
         browse.Click += (_, _) =>
         {
@@ -76,14 +79,16 @@ public sealed class SemanticSettingsDialog : Window
         form.Children.Add(new TextBlock
         {
             Text = "Cache dérivé supprimable : " + cachePath,
-            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 12)
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 8, 0, 12)
         });
         form.Children.Add(new TextBlock
         {
             Text = "Un exécutable tiers peut avoir ses propres capacités réseau. " +
                 "Utilisez seulement un outil local de confiance. Nodalis ne l'active " +
                 "jamais au démarrage ; les opérations demandent une nouvelle confirmation.",
-            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14)
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 14)
         });
 
         StackPanel actions = new()
@@ -93,12 +98,17 @@ public sealed class SemanticSettingsDialog : Window
         };
         Button cancel = new()
         {
-            Content = "Annuler", MinWidth = 92, MinHeight = 34,
-            Margin = new Thickness(0, 0, 12, 0), IsCancel = true
+            Content = "Annuler",
+            MinWidth = 92,
+            MinHeight = 34,
+            Margin = new Thickness(0, 0, 12, 0),
+            IsCancel = true
         };
         Button save = new()
         {
-            Content = "Enregistrer", MinWidth = 115, MinHeight = 34,
+            Content = "Enregistrer",
+            MinWidth = 115,
+            MinHeight = 34,
             IsDefault = true
         };
         cancel.Click += (_, _) => DialogResult = false;
@@ -122,11 +132,14 @@ public sealed class SemanticSettingsDialog : Window
     {
         TextBlock heading = new()
         {
-            Text = label, Margin = new Thickness(0, 7, 0, 4)
+            Text = label,
+            Margin = new Thickness(0, 7, 0, 4)
         };
         TextBox field = new()
         {
-            Text = value, MinHeight = 30, Padding = new Thickness(7, 4, 7, 4),
+            Text = value,
+            MinHeight = 30,
+            Padding = new Thickness(7, 4, 7, 4),
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         parent.Children.Add(heading);
@@ -168,9 +181,12 @@ public sealed class SemanticSettingsDialog : Window
 
         Preferences = new SemanticSearchPreferences
         {
-            IsEnabled = enabled, ExecutablePath = path,
-            Arguments = _arguments.Text.Trim(), ModelId = _model.Text.Trim(),
-            Dimensions = dimensions, MaxBatchSize = batch,
+            IsEnabled = enabled,
+            ExecutablePath = path,
+            Arguments = _arguments.Text.Trim(),
+            ModelId = _model.Text.Trim(),
+            Dimensions = dimensions,
+            MaxBatchSize = batch,
             TimeoutSeconds = timeout
         };
         DialogResult = true;
