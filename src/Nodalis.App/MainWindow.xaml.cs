@@ -4695,6 +4695,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "composite.print",
+                Title = "Imprimer le document composite",
+                Subtitle = "Impression locale d'un instantané résolu",
+                Keywords = ["imprimer", "impression", "papier", "composite"],
+                ExecuteAsync = PrintCompositeDocumentAsync
+            },
+            new()
+            {
                 Id = "composite.export",
                 Title = "Exporter le document composite",
                 Subtitle = "Markdown, HTML autonome, DOCX · références ou rendu figé",

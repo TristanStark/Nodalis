@@ -62,6 +62,18 @@ internal static class CompositeExportsSmokeTests
                 document.GetEntry("_rels/.rels") is not null &&
                 document.GetEntry("word/document.xml") is not null,
                 "DOCX must contain all required OPC parts.");
+            bool blockedSourceOverwrite = false;
+            try
+            {
+                await exporter.ExportAsync(parent, markdown, child,
+                    CompositeExportFormat.Markdown, CompositeExportMode.Resolved);
+            }
+            catch (InvalidOperationException)
+            {
+                blockedSourceOverwrite = true;
+            }
+
+            Assert(blockedSourceOverwrite, "Export must refuse overwriting a canonical source.");
             Assert(await File.ReadAllTextAsync(child) == "# Recette\nRésultat <validé> & signé\n",
                 "Exports must not modify canonical source documents.");
             Console.WriteLine("[Composites 1.6] Markdown reference/resolved, HTML and DOCX exports passed.");

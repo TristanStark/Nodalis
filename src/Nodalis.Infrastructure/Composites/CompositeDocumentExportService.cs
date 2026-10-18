@@ -17,12 +17,18 @@ public enum CompositeExportMode { References, Resolved }
 public sealed class CompositeDocumentExportService
 {
     private readonly CompositeWorkspaceRenderer _renderer;
+    private readonly string _workspaceRoot;
+    private readonly LinkIndexCatalog _catalog;
 
     /// <summary>Creates a renderer-backed exporter using the canonical workspace index.</summary>
     /// <param name="workspaceRoot">Workspace folder.</param>
     /// <param name="catalog">Canonical references.</param>
     public CompositeDocumentExportService(string workspaceRoot, LinkIndexCatalog catalog)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+        ArgumentNullException.ThrowIfNull(catalog);
+        _workspaceRoot = Path.GetFullPath(workspaceRoot);
+        _catalog = catalog;
         _renderer = new CompositeWorkspaceRenderer(workspaceRoot, catalog);
     }
 
@@ -46,6 +52,19 @@ public sealed class CompositeDocumentExportService
             : new CompositeRenderResult(parentMarkdown, [], []);
         string text = result.Markdown;
         string full = Path.GetFullPath(destination);
+        if (string.Equals(full, Path.GetFullPath(parentPath),
+                StringComparison.OrdinalIgnoreCase) ||
+            _catalog.Targets.Any(source =>
+                source.Kind == LinkTargetKind.Document &&
+                string.Equals(full,
+                    Path.GetFullPath(Path.Combine(_workspaceRoot,
+                        source.RelativePath.Replace('/', Path.DirectorySeparatorChar))),
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException(
+                "L'export ne peut pas écraser un document source du workspace.");
+        }
+
         string directory = Path.GetDirectoryName(full)!;
         Directory.CreateDirectory(directory);
         string temporary = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
