@@ -77,7 +77,8 @@ public sealed class CompositeDocumentExportService
                         cancellationToken);
                     break;
                 case CompositeExportFormat.Html:
-                    await File.WriteAllTextAsync(temporary, RenderHtml(text),
+                    await File.WriteAllTextAsync(temporary,
+                        RenderHtml(text, Path.GetDirectoryName(parentPath), _workspaceRoot),
                         Encoding.UTF8, cancellationToken);
                     break;
                 case CompositeExportFormat.Docx:
@@ -105,8 +106,10 @@ public sealed class CompositeDocumentExportService
     /// <summary>Renders a standalone escaped HTML document without network resources.</summary>
     /// <param name="markdown">Resolved or reference-preserving Markdown.</param>
     /// <returns>Self-contained HTML markup.</returns>
-    public static string RenderHtml(string markdown)
+    public static string RenderHtml(string markdown, string? baseDirectory = null,
+        string? workspaceRoot = null)
     {
+        int embeddedBytes = 0;
         StringBuilder html = new();
         html.Append("<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\">");
         html.Append("<title>Document composite Nodalis</title>");
@@ -117,7 +120,8 @@ public sealed class CompositeDocumentExportService
         html.Append("td,th{border:1px solid #bbb;padding:5px}</style></head><body>");
         foreach (MarkdownBlock block in MarkdownDocumentParser.Parse(markdown))
         {
-            string value = EscapeHtml(block.Text);
+            string value = RenderInlineHtml(block.Text, baseDirectory, workspaceRoot,
+                ref embeddedBytes);
             switch (block.Kind)
             {
                 case MarkdownBlockKind.Heading:
@@ -144,7 +148,8 @@ public sealed class CompositeDocumentExportService
                         {
                             string tag = index == 0 ? "th" : "td";
                             html.Append('<').Append(tag).Append('>')
-                                .Append(EscapeHtml(cell))
+                                .Append(RenderInlineHtml(cell, baseDirectory,
+                                    workspaceRoot, ref embeddedBytes))
                                 .Append("</").Append(tag).Append('>');
                         }
 
@@ -161,6 +166,122 @@ public sealed class CompositeDocumentExportService
 
         html.Append("</body></html>");
         return html.ToString();
+    }
+
+    /// <summary>Formats inline Markdown safely and embeds small workspace-local images.</summary>
+    /// <param name="source">Inline Markdown text.</param>
+    /// <param name="baseDirectory">Directory of the parent document.</param>
+    /// <param name="workspaceRoot">Optional canonical root restricting images.</param>
+    /// <param name="embeddedBytes">Total bytes embedded into this export.</param>
+    /// <returns>Safe HTML with no external script resources.</returns>
+    private static string RenderInlineHtml(string source, string? baseDirectory,
+        string? workspaceRoot, ref int embeddedBytes)
+    {
+        StringBuilder output = new();
+        foreach (MarkdownInline item in MarkdownInlineParser.Parse(source))
+        {
+            string label = EscapeHtml(item.Text);
+            switch (item.Kind)
+            {
+                case MarkdownInlineKind.Bold:
+                    output.Append("<strong>").Append(label).Append("</strong>");
+                    break;
+                case MarkdownInlineKind.Italic:
+                    output.Append("<em>").Append(label).Append("</em>");
+                    break;
+                case MarkdownInlineKind.Code:
+                    output.Append("<code>").Append(label).Append("</code>");
+                    break;
+                case MarkdownInlineKind.Image:
+                    output.Append(RenderImage(item, baseDirectory, workspaceRoot,
+                        ref embeddedBytes));
+                    break;
+                case MarkdownInlineKind.Link:
+                    string href = item.Target ?? "";
+                    if ((href.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                         href.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                         href.StartsWith('#') ||
+                         href.StartsWith("./", StringComparison.Ordinal)) &&
+                        href.IndexOfAny(['"', '\r', '\n', '<', '>']) < 0)
+                    {
+                        output.Append("<a href=\"").Append(EscapeHtml(href))
+                            .Append("\">").Append(label).Append("</a>");
+                    }
+                    else
+                    {
+                        output.Append(label);
+                    }
+
+                    break;
+                case MarkdownInlineKind.InternalLink:
+                    output.Append("<code>").Append(label).Append("</code>");
+                    break;
+                default:
+                    output.Append(label);
+                    break;
+            }
+        }
+
+        return output.ToString();
+    }
+
+    /// <summary>Embeds one safe local PNG/JPEG/GIF/WebP asset with a bounded byte budget.</summary>
+    /// <param name="image">Parsed Markdown image.</param>
+    /// <param name="baseDirectory">Relative image origin.</param>
+    /// <param name="workspaceRoot">Permitted filesystem boundary.</param>
+    /// <param name="embeddedBytes">Bytes already included in this export.</param>
+    /// <returns>Inlined image or harmless descriptive placeholder.</returns>
+    private static string RenderImage(MarkdownInline image, string? baseDirectory,
+        string? workspaceRoot, ref int embeddedBytes)
+    {
+        string label = EscapeHtml(image.Text);
+        string? target = image.Target;
+        if (string.IsNullOrWhiteSpace(target) || string.IsNullOrWhiteSpace(baseDirectory) ||
+            string.IsNullOrWhiteSpace(workspaceRoot) ||
+            Path.IsPathRooted(target) || target.Contains("://", StringComparison.Ordinal))
+        {
+            return "<span>[image : " + label + "]</span>";
+        }
+
+        try
+        {
+            string root = Path.TrimEndingDirectorySeparator(
+                Path.GetFullPath(workspaceRoot)) + Path.DirectorySeparatorChar;
+            string path = Path.GetFullPath(Path.Combine(baseDirectory, target));
+            if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase) ||
+                !File.Exists(path) ||
+                (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            {
+                return "<span>[image indisponible : " + label + "]</span>";
+            }
+
+            string extension = Path.GetExtension(path).ToLowerInvariant();
+            string? mime = extension switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".gif" => "image/gif",
+                ".webp" => "image/webp",
+                _ => null
+            };
+            FileInfo info = new(path);
+            if (mime is null || info.Length > 2_000_000 ||
+                info.Length > 20_000_000 - embeddedBytes)
+            {
+                return "<span>[image trop volumineuse ou non prise en charge : " +
+                    label + "]</span>";
+            }
+
+            byte[] bytes = File.ReadAllBytes(path);
+            embeddedBytes += bytes.Length;
+            return "<img alt=\"" + label + "\" src=\"data:" + mime +
+                ";base64," + Convert.ToBase64String(bytes) + "\">";
+        }
+        catch (Exception exception) when (exception is IOException or
+            UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return "<span>[image inaccessible : " + label + "]</span>";
+        }
     }
 
     /// <summary>Escapes user-authored content without any network-related dependency.</summary>
