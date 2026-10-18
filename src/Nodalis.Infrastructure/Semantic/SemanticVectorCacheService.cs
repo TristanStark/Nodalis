@@ -282,7 +282,9 @@ public sealed class SemanticVectorCacheService
         index.Dimensions == dimensions &&
         index.SegmentationKey == segmentationKey &&
         index.Entries is not null && index.Entries.Count <= MaximumEntries &&
-        index.Entries.All(entry => IsValid(entry, dimensions));
+        index.Entries.All(entry => IsValid(entry, dimensions)) &&
+        index.Entries.Select(entry => (entry.DocumentId, entry.ChunkId))
+            .Distinct().Count() == index.Entries.Count;
 
     /// <summary>Validates one safe canonical source reference and its finite vector.</summary>
     /// <param name="entry">Candidate vector record.</param>

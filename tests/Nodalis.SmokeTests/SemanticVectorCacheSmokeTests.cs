@@ -68,6 +68,16 @@ internal static class SemanticVectorCacheSmokeTests
             "\"segmentationKey\":\"split-v1\",\"entries\":[null]}");
         Assert(!(await cache.InspectAsync("model-A", 3, "split-v1")).IsCompatible,
             "Malformed null entries are rejected without exceptions.");
+        SemanticVectorIndex duplicate = new()
+        {
+            ModelId = "model-A", Dimensions = 3, SegmentationKey = "split-v1",
+            Entries = [a, a]
+        };
+        await File.WriteAllTextAsync(cache.CachePath,
+            System.Text.Json.JsonSerializer.Serialize(duplicate));
+        Assert(!(await cache.InspectAsync("model-A", 3, "split-v1")).IsCompatible &&
+            (await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Count == 0,
+            "Duplicated chunk identities must be rejected before indexing dictionaries are built.");
         await cache.ReplaceDocumentAsync("model-A", 3, "split-v1", second, [b]);
         Assert((await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Count == 1,
             "A corrupted index can be recreated with valid local embeddings.");
