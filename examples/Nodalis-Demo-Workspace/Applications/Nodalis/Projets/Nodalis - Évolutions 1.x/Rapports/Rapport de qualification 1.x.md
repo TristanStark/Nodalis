@@ -24,6 +24,6 @@ Ce **document composite** sert de démonstration à Nodalis 1.6. Les sections su
 
 - [[Non régression]]
 - [[Réunion de planification]]
-- [[Jalons]]
+- [[Nodalis / Nodalis - Évolutions 1.x / Jalons]]
 
 > Rapport construit sur des exemples documentaires ; il ne certifie pas une qualification sur un poste Windows réel.
