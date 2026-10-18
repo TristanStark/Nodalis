@@ -58,7 +58,10 @@ public static class SemanticMarkdownChunker
                 segment.Equals("node_modules", StringComparison.OrdinalIgnoreCase) ||
                 segment.Equals("secrets", StringComparison.OrdinalIgnoreCase) ||
                 segment.Equals("credentials", StringComparison.OrdinalIgnoreCase) ||
-                segment.Equals("private", StringComparison.OrdinalIgnoreCase)))
+                segment.Equals("private", StringComparison.OrdinalIgnoreCase) ||
+                segment.Equals("private.md", StringComparison.OrdinalIgnoreCase) ||
+                segment.Equals("secret.md", StringComparison.OrdinalIgnoreCase) ||
+                segment.Equals("credentials.md", StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }
