@@ -10,7 +10,8 @@
 - [x] Cosinus réel : score borné, NaN/Inf/zéro, scope, dédoublonnage par GUID et tie-breaking.
 - [x] Test de bout en bout fake : autorisation explicite, incrémentalité, suppression, sources modifiées et comparaison de requête sémantique.
 - [ ] Dernière CI Windows Release vérifiée pour l'ensemble des modifications UI, publication portable reproductible et démarrage RC.
-- [ ] Provider local *réel* compatible testé avec des embeddings multidimensionnels et des requêtes synonymiques françaises.
+- [ ] Exécutable `Nodalis.EmbeddingBridge.exe` présent dans le package Windows ; `--self-test` JSON exécuté pendant le packaging sans connexion.
+- [ ] Provider local *réel* Ollama compatible testé avec des embeddings multidimensionnels et des requêtes synonymiques françaises.
 
 ## Qualification UI et confidentialité
 

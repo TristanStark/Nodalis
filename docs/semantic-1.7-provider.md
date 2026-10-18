@@ -11,6 +11,21 @@
 - Si un moteur est absent, la recherche exacte/fuzzy historique continue de fonctionner sans modification.
 - La palette donne accès à la configuration, à la recherche sémantique et à la suppression du cache. Une confirmation explicite précède chaque indexation de périmètre ; l'absence de modèle désactive les commandes actives de recherche.
 
+## Adaptateur Ollama fourni dans l'archive portable
+
+Depuis `develop`, `Nodalis.EmbeddingBridge.exe` est livré à côté de `Nodalis.exe`. Il est entièrement facultatif. Le pont n'autorise **que** l'API `http://127.0.0.1:11434/api/embed` d'Ollama installé localement : aucune URL ni redirection configurable, proxy désactivé, pas de téléchargement de modèle depuis Nodalis.
+
+Pour l'utiliser :
+
+1. Installer **Ollama** sur la machine, puis installer explicitement un modèle d'embeddings, par exemple `ollama pull embeddinggemma` (modèle avec sortie standard de **768 dimensions**).
+2. Dans Nodalis, **Ctrl+P → Configurer la recherche sémantique locale → Configurer Ollama local**. Ce bouton renseigne le pont, le modèle et ses dimensions, mais **n'active pas** la case de consentement. Cocher et enregistrer seulement si vous le souhaitez.
+3. **Ctrl+P → Rechercher par le sens (local)** : choisir le périmètre, confirmer chaque indexation, puis saisir la requête. L'application démarre le pont uniquement pendant la demande et attend sa réponse JSON.
+4. En cas de modèle absent, Ollama arrêté, dimension incorrecte ou expiration du délai : un diagnostic s'affiche sans texte source, et la recherche fuzzy/exacte historique reste disponible.
+
+Le pont a un test hors ligne `Nodalis.EmbeddingBridge.exe --self-test`, utilisé pendant le packaging Windows. Ce test ne contacte pas Ollama ; il vérifie seulement le contrat JSON. Il **ne valide pas la qualité des embeddings**. Le pont est un projet .NET natif isolé sous `tools/`, distinct du cœur de Nodalis et sans aucune dépendance NuGet. Les capacités réseau sont confinées au pont et à une adresse IPv4 de boucle locale : aucun code réseau n'est ajouté dans `src/`.
+
+Il reste nécessaire de faire une recette avec une installation réelle d'Ollama et un modèle chargé, notamment pour la latence et la pertinence en français.
+
 ## Contrat local sans dépendance NuGet
 
 Le modèle d'embeddings doit être exposé par un exécutable installé **localement**, parlant JSON sur son stdin/stdout (pas de requête HTTP réalisée par Nodalis).

@@ -4,8 +4,8 @@
 
 ## Préparer le fournisseur
 
-1. Installer un modèle **d'embeddings**, pas un LLM de génération de texte. Disposer d'un adaptateur `*.exe` local compatible avec [le contrat stdin/stdout JSON](semantic-1.7-provider.md).
-2. Ouvrir **Ctrl+P → Configurer la recherche sémantique locale**. Cocher l'activation explicite, choisir le programme local, le `ModelId` exact, les dimensions et limites. Enregistrer. Cette étape ne transmet aucun document ni ne lance de processus.
+1. Avec Ollama déjà installé localement, installer volontairement un **modèle d'embeddings** comme `embeddinggemma` : `ollama pull embeddinggemma`. Aucun modèle n'est téléchargé automatiquement par Nodalis.
+2. Ouvrir **Ctrl+P → Configurer la recherche sémantique locale**. Cliquer sur **Configurer Ollama local** pour remplir le chemin du pont livré dans l'archive, `embeddinggemma` et `768` dimensions. Cocher séparément l'activation explicite, puis enregistrer. Cette étape ne transmet aucun document ni ne lance de processus. Pour un autre modèle ou un fournisseur CLI autonome, saisir ses véritables paramètres conformément au [contrat](semantic-1.7-provider.md).
 3. Ouvrir **Ctrl+P → Rechercher par le sens (local)**. Saisir un chemin relatif de dossier si seul un projet doit être indexé, puis sélectionner **Indexer ce périmètre**. Nodalis affiche le nombre de documents et demande une deuxième confirmation avant tout envoi de texte au moteur local.
 4. Après indexation, entrer une requête en langage naturel et lancer **Rechercher**. Les résultats affichent le titre de section éventuel, un extrait actuel, le fichier, le numéro de ligne et une **similarité cosinus** (pas une probabilité de vérité). Double-cliquer pour ouvrir le document source au bon endroit.
 5. **Annuler** arrête l'opération en cours ; les fichiers déjà indexés sont conservés. **Ctrl+P → Effacer le cache sémantique** efface tous les embeddings dérivés du workspace courant, sans modifier les notes.
@@ -21,7 +21,7 @@
 
 ## Confidentialité et limites
 
-Nodalis n'envoie directement aucune requête HTTP ; il exécute **un programme local explicitement choisi** via stdin/stdout. Ce programme peut avoir ses propres capacités réseau : ne configurer qu'un fournisseur dont les garanties vous conviennent. Aucun index ni processus n'est créé au démarrage sans consentement. Le fonctionnement réel est impossible en l'absence de programme compatible.
+Nodalis ne fait pas de requêtes HTTP dans son cœur applicatif. Le **pont Ollama facultatif** effectue uniquement des appels locaux à `127.0.0.1:11434`, sans proxy ni redirection. Un autre programme CLI choisi manuellement pourrait avoir des capacités réseau propres : vérifier sa provenance et ses garanties. Aucun index ni processus n'est créé au démarrage sans consentement. Le fonctionnement réel est impossible en l'absence de programme compatible.
 
 Le score cosinus décrit la proximité géométrique des embeddings. Il ne prouve ni la justesse ni un lien de causalité. Sans modèle disponible ou avec index vide, revenir à la recherche exacte/fuzzy. Les résultats sont actuellement plafonnés aux 20 meilleurs documents, avec un fragment par document.
 

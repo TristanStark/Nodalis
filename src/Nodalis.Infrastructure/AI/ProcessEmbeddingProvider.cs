@@ -82,7 +82,7 @@ public sealed class ProcessEmbeddingProvider : IEmbeddingProvider
             // Bound both pipes while the process is running: a broken model must
             // never allocate unbounded stdout/stderr before post-hoc validation.
             Task<string> stdout = ReadBoundedAsync(
-                process.StandardOutput, 2_000_000, linked.Token);
+                process.StandardOutput, 8_000_000, linked.Token);
             Task<string> stderr = ReadBoundedAsync(
                 process.StandardError, 16_384, linked.Token);
             string payload = JsonSerializer.Serialize(
