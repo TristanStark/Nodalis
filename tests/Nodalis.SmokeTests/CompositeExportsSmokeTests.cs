@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Xml.Linq;
 using Nodalis.Core.Links;
 using Nodalis.Infrastructure.Composites;
 
@@ -62,6 +63,17 @@ internal static class CompositeExportsSmokeTests
                 document.GetEntry("_rels/.rels") is not null &&
                 document.GetEntry("word/document.xml") is not null,
                 "DOCX must contain all required OPC parts.");
+            ZipArchiveEntry wordPart = document.GetEntry("word/document.xml")!;
+            using (Stream input = wordPart.Open())
+            {
+                XDocument word = XDocument.Load(input);
+                XNamespace wordNamespace =
+                    "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+                Assert(word.Root?.Name == wordNamespace + "document" &&
+                    word.Descendants(wordNamespace + "t")
+                        .Any(node => node.Value.Contains("Résultat <validé>")),
+                    "DOCX must preserve resolved source content as valid WordprocessingML.");
+            }
             bool blockedSourceOverwrite = false;
             try
             {
