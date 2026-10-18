@@ -37,6 +37,14 @@ métier.
 
 Le détail du format se trouve dans workspace-format.md et data-contracts-v1.md.
 
+## 2 bis. Changer de workspace (branche develop)
+
+Le changement de workspace existe dans **Système > Changer de workspace…** et dans **Ctrl+P > Changer de workspace**, sur la branche `develop` à partir de l'ajout du sélecteur.
+
+Choisir un **dossier existant contenant `.workspace.json`**. Nodalis vérifie le manifeste sans créer ou migrer de dossier puis enregistre le chemin dans les préférences du poste. Fermer normalement Nodalis puis le relancer : la nouvelle fenêtre charge le nouveau workspace et revalide sa compatibilité. Les services du workspace en cours ne sont jamais échangés à chaud.
+
+La version publiée **v1.6.0** ne dispose pas encore de cette commande. Dans cette version, fermer Nodalis puis modifier seulement `workspaceRootPath` dans `%LOCALAPPDATA%\\Nodalis\\preferences.json`, en conservant une copie de l'ancienne valeur, avant de relancer.
+
 ## 3. Organisation du workspace
 
 Nodalis utilise un workspace unique afin de voir tous les travaux sans changer
