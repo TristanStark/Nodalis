@@ -25,6 +25,9 @@
 
 ## Performances et pertinence
 
+Premier relevé synthétique et limites : [mesures CI 1.7](semantic-1.7-benchmarks.md).
+
+
 - [ ] Corpus de référence français avec paires de synonymes et requêtes sans mot commun.
 - [ ] Mesurer precision@5, recall@10 et latence, sans présenter les cosinus comme des probabilités.
 - [ ] Benchmarks Small/Medium/Large : durée, mémoire, nombre de fragments, stabilité d'annulation.
