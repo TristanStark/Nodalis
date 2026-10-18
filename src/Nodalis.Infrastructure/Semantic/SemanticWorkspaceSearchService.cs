@@ -212,11 +212,16 @@ public sealed class SemanticWorkspaceSearchService
             approved, token);
         if (embedding is null || embedding.Vectors.Count != 1) return [];
 
+        // Validate each canonical fragment before choosing one winner per document.
+        // Otherwise a stale high-scoring fragment can hide a valid lower-scoring one.
         IReadOnlyList<SemanticRankedHit> hits = SemanticVectorRanker.Rank(index,
-            embedding.Vectors[0], topK: 100, threshold: 0.2, scope: scope);
+            embedding.Vectors[0], topK: 100, threshold: 0.2, scope: scope,
+            deduplicateDocuments: false);
         List<SemanticSearchResult> output = [];
+        HashSet<Guid> delivered = [];
         foreach (SemanticRankedHit hit in hits)
         {
+            if (delivered.Contains(hit.DocumentId)) continue;
             token.ThrowIfCancellationRequested();
             string? file = SafePath(hit.RelativePath);
             if (file is null || !File.Exists(file) ||
@@ -228,6 +233,7 @@ public sealed class SemanticWorkspaceSearchService
                 hit.DocumentId, hit.RelativePath, content, _chunking)
                 .FirstOrDefault(candidate => candidate.ChunkId == hit.ChunkId);
             if (chunk is null) continue;
+            delivered.Add(hit.DocumentId);
 
             output.Add(new SemanticSearchResult(hit.DocumentId, hit.RelativePath,
                 hit.Heading, chunk.SourceLine,

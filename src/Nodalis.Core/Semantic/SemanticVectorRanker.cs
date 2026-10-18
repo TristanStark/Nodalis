@@ -17,10 +17,11 @@ public static class SemanticVectorRanker
     /// <param name="topK">Maximum distinct source documents to return.</param>
     /// <param name="threshold">Minimum cosine similarity in [-1, 1].</param>
     /// <param name="scope">Optional canonical relative path prefix.</param>
+    /// <param name="deduplicateDocuments">False lets callers verify successive source passages before deduplication.</param>
     /// <returns>One highest-scoring source passage per eligible document.</returns>
     public static IReadOnlyList<SemanticRankedHit> Rank(SemanticVectorIndex index,
         float[] queryVector, int topK = 20, double threshold = 0.2,
-        string? scope = null)
+        string? scope = null, bool deduplicateDocuments = true)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(queryVector);
@@ -56,13 +57,14 @@ public static class SemanticVectorRanker
                 entry.Heading, similarity));
         }
 
-        return candidates
+        IEnumerable<SemanticRankedHit> ordered = candidates
             .OrderByDescending(hit => hit.Similarity)
             .ThenBy(hit => hit.RelativePath, StringComparer.OrdinalIgnoreCase)
             .ThenBy(hit => hit.SourceLine)
-            .ThenBy(hit => hit.ChunkId, StringComparer.Ordinal)
-            .DistinctBy(hit => hit.DocumentId)
-            .Take(limit).ToArray();
+            .ThenBy(hit => hit.ChunkId, StringComparer.Ordinal);
+        return (deduplicateDocuments
+                ? ordered.DistinctBy(hit => hit.DocumentId)
+                : ordered).Take(limit).ToArray();
     }
 
     /// <summary>Computes cosine with double accumulators and checks for invalid vectors.</summary>

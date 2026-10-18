@@ -68,6 +68,21 @@ internal static class SemanticWorkspaceSearchSmokeTests
             "Deleted sources must disappear from the derived cache.");
         await service.PurgeAsync();
         Assert(!File.Exists(service.CachePath), "Purge must delete only local vectors.");
+
+        // A changed top-scoring passage must not mask an unchanged second
+        // fragment in the same document until the next explicit reindex.
+        string multi = Path.Combine(workspace, "multi.md");
+        Guid multiId = Guid.NewGuid();
+        await File.WriteAllTextAsync(multi,
+            "# Banque\nPassage périmé\n\nFragment encore valide\n");
+        await service.IndexAsync([new SemanticSource(multiId, "multi.md")], true);
+        await File.WriteAllTextAsync(multi,
+            "# Banque\nPassage modifié\n\nFragment encore valide\n");
+        IReadOnlyList<SemanticSearchResult> validFallback =
+            await service.SearchAsync("anomalies de paiements", true);
+        Assert(validFallback.Count == 1 &&
+            validFallback[0].Excerpt.Contains("Fragment encore valide"),
+            "A stale first-ranked passage must not hide a valid second source passage.");
         Console.WriteLine("[Semantic 1.7] consent, incremental indexing, source navigation, deletion passed.");
     }
 
