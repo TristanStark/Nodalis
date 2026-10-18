@@ -127,68 +127,68 @@ public partial class MainWindow
                 return _viewsCache;
             }
 
-        LinkIndexCatalog catalog = await _linkIndexService.LoadAsync(cancellationToken);
-        IReadOnlyList<TaskItem> tasks = [];
-        IReadOnlyList<MilestoneItem> milestones = [];
-        IReadOnlyList<DecisionRecord> decisions = [];
-        IReadOnlyList<MaintenanceHistoryItem> maintenance = [];
-        List<WorkspaceViewProjectionDiagnostic> diagnostics = [];
+            LinkIndexCatalog catalog = await _linkIndexService.LoadAsync(cancellationToken);
+            IReadOnlyList<TaskItem> tasks = [];
+            IReadOnlyList<MilestoneItem> milestones = [];
+            IReadOnlyList<DecisionRecord> decisions = [];
+            IReadOnlyList<MaintenanceHistoryItem> maintenance = [];
+            List<WorkspaceViewProjectionDiagnostic> diagnostics = [];
 
-        if (!_workspaceReadOnly)
-        {
-            // Services are sequential because some rebuild the same derived link index.
-            tasks = await _taskService.GetTasksAsync(null, includeCompleted: true,
-                cancellationToken: cancellationToken);
-            milestones = await _milestoneService.GetMilestonesAsync(null, cancellationToken);
-
-            // Resolve each canonical decision folder once, across applications/projects.
-            List<DecisionRecord> allDecisions = [];
-            foreach (NavigationNodeViewModel scope in _root.DescendantsAndSelf()
-                .Where(node => node.Kind is WorkspaceNodeKind.Project or WorkspaceNodeKind.Application))
+            if (!_workspaceReadOnly)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                allDecisions.AddRange(await _decisionService.GetDecisionsAsync(
-                    scope.FullPath, cancellationToken));
+                // Services are sequential because some rebuild the same derived link index.
+                tasks = await _taskService.GetTasksAsync(null, includeCompleted: true,
+                    cancellationToken: cancellationToken);
+                milestones = await _milestoneService.GetMilestonesAsync(null, cancellationToken);
+
+                // Resolve each canonical decision folder once, across applications/projects.
+                List<DecisionRecord> allDecisions = [];
+                foreach (NavigationNodeViewModel scope in _root.DescendantsAndSelf()
+                    .Where(node => node.Kind is WorkspaceNodeKind.Project or WorkspaceNodeKind.Application))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    allDecisions.AddRange(await _decisionService.GetDecisionsAsync(
+                        scope.FullPath, cancellationToken));
+                }
+
+                decisions = allDecisions;
+            }
+            else
+            {
+                diagnostics.Add(new WorkspaceViewProjectionDiagnostic(
+                    "workspace", "Mode lecture seule : projections métier non rafraîchies."));
             }
 
-            decisions = allDecisions;
-        }
-        else
-        {
-            diagnostics.Add(new WorkspaceViewProjectionDiagnostic(
-                "workspace", "Mode lecture seule : projections métier non rafraîchies."));
-        }
-
-        NavigationNodeViewModel[] maintenanceFiles = _root.DescendantsAndSelf()
-            .Where(node => node.Kind == WorkspaceNodeKind.Document &&
-                IsMaintenanceDocument(node.FullPath)).ToArray();
-        using (SemaphoreSlim throttle = new(4))
-        {
-            Task<(string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
-                string? Error)>[] loads = maintenanceFiles.Select(node =>
-                    LoadMaintenanceHistoryFileAsync(node, throttle)).ToArray();
-            (string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
-                string? Error)[] results = await Task.WhenAll(loads);
-            cancellationToken.ThrowIfCancellationRequested();
-            maintenance = results.SelectMany(item => item.Rows).ToArray();
-            diagnostics.AddRange(results.Where(item => item.Error is not null)
-                .Select(item => new WorkspaceViewProjectionDiagnostic(item.Path,
-                    item.Error ?? "Fiche de maintenance inaccessible.")));
-        }
-
-        // A service refresh may have updated only the *derived* link index.
-        // Use the latest load, not a manual guess or a newly minted identity.
-        catalog = await _linkIndexService.LoadAsync(cancellationToken);
-        WorkspaceViewProjection projection = WorkspaceViewProjector.Build(
-            catalog, tasks, milestones, decisions, maintenance,
-            workspaceRoot: _root.FullPath, cancellationToken: cancellationToken);
-        if (diagnostics.Count > 0)
-        {
-            projection = projection with
+            NavigationNodeViewModel[] maintenanceFiles = _root.DescendantsAndSelf()
+                .Where(node => node.Kind == WorkspaceNodeKind.Document &&
+                    IsMaintenanceDocument(node.FullPath)).ToArray();
+            using (SemaphoreSlim throttle = new(4))
             {
-                Diagnostics = [.. projection.Diagnostics, .. diagnostics]
-            };
-        }
+                Task<(string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
+                    string? Error)>[] loads = maintenanceFiles.Select(node =>
+                        LoadMaintenanceHistoryFileAsync(node, throttle)).ToArray();
+                (string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
+                    string? Error)[] results = await Task.WhenAll(loads);
+                cancellationToken.ThrowIfCancellationRequested();
+                maintenance = results.SelectMany(item => item.Rows).ToArray();
+                diagnostics.AddRange(results.Where(item => item.Error is not null)
+                    .Select(item => new WorkspaceViewProjectionDiagnostic(item.Path,
+                        item.Error ?? "Fiche de maintenance inaccessible.")));
+            }
+
+            // A service refresh may have updated only the *derived* link index.
+            // Use the latest load, not a manual guess or a newly minted identity.
+            catalog = await _linkIndexService.LoadAsync(cancellationToken);
+            WorkspaceViewProjection projection = WorkspaceViewProjector.Build(
+                catalog, tasks, milestones, decisions, maintenance,
+                workspaceRoot: _root.FullPath, cancellationToken: cancellationToken);
+            if (diagnostics.Count > 0)
+            {
+                projection = projection with
+                {
+                    Diagnostics = [.. projection.Diagnostics, .. diagnostics]
+                };
+            }
 
 
             cancellationToken.ThrowIfCancellationRequested();
