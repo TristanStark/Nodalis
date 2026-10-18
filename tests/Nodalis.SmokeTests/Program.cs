@@ -94,6 +94,8 @@ try
     ImpactReleaseQualificationSmokeTests.Run();
     ImpactV14SmokeTests.Run();
     WorkspaceViewsSmokeTests.Run();
+    await CompositeDocumentsSmokeTests.RunAsync();
+    await CompositeExportsSmokeTests.RunAsync();
     await WorkspaceViewStoreSmokeTests.RunAsync(root);
     await WorkspaceViewsV15ReleaseSmokeTests.RunAsync();
     VerifyDocumentBookmarks();

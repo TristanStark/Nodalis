@@ -19,14 +19,15 @@ permissions:
 
 jobs:
   package:
-    # Stable 1.4/1.5 releases are published only from an explicitly approved
+    # Stable 1.4/1.5/1.6 releases are published only from an explicitly approved
     # main merge commit; regular pushes never publish a release.
     if: >-
       startsWith(github.ref, 'refs/tags/v') ||
       github.event_name == 'workflow_dispatch' ||
       (github.ref == 'refs/heads/main' &&
        (contains(github.event.head_commit.message, '[publish v1.4.0]') ||
-        contains(github.event.head_commit.message, '[publish v1.5.0]')))
+        contains(github.event.head_commit.message, '[publish v1.5.0]') ||
+        contains(github.event.head_commit.message, '[publish v1.6.0]')))
     runs-on: windows-latest
 
     steps:
@@ -43,7 +44,10 @@ jobs:
         shell: pwsh
         run: |
           if ("${{ github.ref }}" -eq "refs/heads/main") {
-            if ("${{ contains(github.event.head_commit.message, '[publish v1.5.0]') }}" -eq "true") {
+            if ("${{ contains(github.event.head_commit.message, '[publish v1.6.0]') }}" -eq "true") {
+              $version = "1.6.0"
+            }
+            elseif ("${{ contains(github.event.head_commit.message, '[publish v1.5.0]') }}" -eq "true") {
               $version = "1.5.0"
             }
             else {
@@ -121,6 +125,20 @@ jobs:
             }
           }
 
+      - name: Gate stable composite documents 1.6 against accepted issues
+        if: ${{ steps.version.outputs.version == '1.6.0' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $required = @(126, 135, 136, 137, 138, 139, 140, 141)
+          foreach ($number in $required) {
+            $issue = gh api "repos/${{ github.repository }}/issues/$number" | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or $issue.state -ne 'closed') {
+              throw "Nodalis 1.6.0 release blocked: issue #$number is not closed."
+            }
+          }
+
       - name: Verify local-only constraints
         shell: pwsh
         run: ./scripts/verify-constraints.ps1
@@ -170,7 +188,7 @@ jobs:
           if-no-files-found: error
 
       - name: Create annotated stable tag from the accepted main commit
-        if: ${{ github.ref == 'refs/heads/main' && (contains(github.event.head_commit.message, '[publish v1.4.0]') || contains(github.event.head_commit.message, '[publish v1.5.0]')) }}
+        if: ${{ github.ref == 'refs/heads/main' && (contains(github.event.head_commit.message, '[publish v1.4.0]') || contains(github.event.head_commit.message, '[publish v1.5.0]') || contains(github.event.head_commit.message, '[publish v1.6.0]')) }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -182,7 +200,9 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Tag $tag already exists: refusing to move or duplicate a release tag."
           }
-          $message = if ($tag -eq "v1.5.0") {
+          $message = if ($tag -eq "v1.6.0") {
+            "Nodalis 1.6.0 - Documents composites Markdown : inclusions et sections canoniques, preview, impression, exports locaux, securite et regressions verifiees."
+          } elseif ($tag -eq "v1.5.0") {
             "Nodalis v1.5.0 - Vues dynamiques : requetes typees, favoris, dashboard, pagination, mise a jour incrementale et sources canoniques. Release qualifiee."
           } else {
             "Nodalis 1.4.0 - Analyse d'impact : graphe WPF navigable, liens aux incidents et interventions, index incrémental et documentation utilisateur. CI et recette validées."
@@ -197,7 +217,7 @@ jobs:
           }
 
       - name: Publish GitHub release with detailed notes
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && (contains(github.event.head_commit.message, '[publish v1.4.0]') || contains(github.event.head_commit.message, '[publish v1.5.0]'))) }}
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && (contains(github.event.head_commit.message, '[publish v1.4.0]') || contains(github.event.head_commit.message, '[publish v1.5.0]') || contains(github.event.head_commit.message, '[publish v1.6.0]'))) }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -209,6 +229,9 @@ jobs:
           }
           elseif ($version -eq "1.5.0") {
             gh release create $tag "artifacts/Nodalis-win-x64.zip" "artifacts/SHA256SUMS.txt" --title "Nodalis v1.5.0 — Vues dynamiques" --notes-file "docs/release-notes-1.5.md" --verify-tag
+          }
+          elseif ($version -eq "1.6.0") {
+            gh release create $tag "artifacts/Nodalis-win-x64.zip" "artifacts/SHA256SUMS.txt" --title "Nodalis v1.6.0 — Documents composites" --notes-file "docs/release-notes-1.6.md" --verify-tag
           }
           else {
             gh release create $tag "artifacts/Nodalis-win-x64.zip" "artifacts/SHA256SUMS.txt" --title "Nodalis $version" --generate-notes

@@ -2610,6 +2610,8 @@ public partial class MainWindow : Window
                     baseDirectory,
                     OnInternalLinkClicked,
                     OnMarkdownLinkClicked);
+            ScheduleCompositePreview(_activeDocumentTab.FullPath,
+                MarkdownEditorTextBox.Text);
         }
 
         RenderSecondaryPreview();
@@ -4690,6 +4692,30 @@ public partial class MainWindow : Window
                 Subtitle = "Créer une application dans le workspace",
                 Keywords = ["application", "créer"],
                 ExecuteAsync = CreateApplicationAsync
+            },
+            new()
+            {
+                Id = "composite.print",
+                Title = "Imprimer le document composite",
+                Subtitle = "Impression locale d'un instantané résolu",
+                Keywords = ["imprimer", "impression", "papier", "composite"],
+                ExecuteAsync = PrintCompositeDocumentAsync
+            },
+            new()
+            {
+                Id = "composite.export",
+                Title = "Exporter le document composite",
+                Subtitle = "Markdown, HTML autonome, DOCX · références ou rendu figé",
+                Keywords = ["export", "composite", "html", "docx", "markdown"],
+                ExecuteAsync = ExportCompositeDocumentAsync
+            },
+            new()
+            {
+                Id = "composite.insert",
+                Title = "Insérer un document ou une section",
+                Subtitle = "Référence Markdown vivante vers une source locale",
+                Keywords = ["inclusion", "document composite", "section", "transclusion"],
+                ExecuteAsync = InsertCompositeReferenceAsync
             },
             new()
             {
