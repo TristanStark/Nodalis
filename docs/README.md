@@ -117,3 +117,16 @@ matrice ou disposer d'un document dédié avant la release stable.
 - [Qualification v1.4](release-checklist-1.4.md).
 
 La documentation v1.4 est publiée dans le dépôt mais la version stable annoncée reste v1.2.0 jusqu'au tag officiel.
+
+## Nodalis 1.4 publiée
+
+- [Nodalis 1.4.0 — notes de version](release-notes-1.4.md)
+- [Guide complet d'analyse d'impact](impact-user-guide-1.4.md)
+
+## Nodalis 1.5 (aperçu en cours sur develop)
+
+- [Projection et requêtes des vues dynamiques](views-core-1.5.md)
+- [Définitions sauvegardées JSON privées et portables](views-storage-1.5.md)
+
+La v1.5 ne doit pas être considérée stable avant clôture de l'EPIC #125,
+qualification Windows et publication d'une release officielle.

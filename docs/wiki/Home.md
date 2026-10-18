@@ -2,9 +2,9 @@
 
 **Nodalis** est une application Windows de prise de notes, documentation et suivi de projets, entièrement locale. Elle réunit des applications, modules, projets et sous-projets dans **un seul workspace**. Les documents restent lisibles en **Markdown** et les données structurelles en **JSON**.
 
-> La dernière release stable annoncée est **v1.2.0**.
-> Les fonctionnalités d'analyse d'impact des versions 1.3 et 1.4 sont
-> documentées sur `develop`, en attente de qualification et de publication.
+> Dernière release stable : **[v1.4.0](https://github.com/TristanStark/Nodalis/releases/tag/v1.4.0)**.
+> L'analyse d'impact est disponible en stable. Les vues dynamiques 1.5 sont
+> actuellement en développement.
 > La [[Roadmap]] distingue ce qui est livré de ce qui reste en développement.
 
 ## Pour commencer
@@ -41,4 +41,4 @@ Voir [[Architecture-et-contribution]] et la [[Roadmap]]. Le code évolue d'abord
 - **Résilient** : écritures atomiques, corbeille, sauvegardes, diagnostics et mises à jour réversibles.
 - **Sans dépendances tierces** : application C# / WPF / .NET 10.
 
-**Liens :** [Code source](https://github.com/TristanStark/Nodalis) · [Version stable v1.2.0](https://github.com/TristanStark/Nodalis/releases/tag/v1.2.0) · [Signaler un problème](https://github.com/TristanStark/Nodalis/issues)
+**Liens :** [Code source](https://github.com/TristanStark/Nodalis) · [Version stable v1.4.0](https://github.com/TristanStark/Nodalis/releases/tag/v1.4.0) · [Signaler un problème](https://github.com/TristanStark/Nodalis/issues)

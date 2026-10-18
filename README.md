@@ -109,3 +109,13 @@ avec preuve, navigation vers la source et liens explicites aux incidents et
 interventions. Voir le [guide complet](docs/impact-user-guide-1.4.md).
 **Dernière release stable annoncée : v1.2.0.** Les nouveautés décrites
 sont pour l'instant sur `develop`.
+
+## Après la 1.4 : vues dynamiques (aperçu sur develop)
+
+La version stable [Nodalis v1.4.0](https://github.com/TristanStark/Nodalis/releases/tag/v1.4.0)
+est publiée. La branche `develop` héberge désormais le début de la v1.5 :
+projections en lecture seule, requêtes typées, définitions portables/privées et
+premier écran Liste / Tableau / Cartes via **Ctrl+P → Vues dynamiques (aperçu 1.5)**.
+L'ensemble n'est **pas encore une release stable** ; voir
+[documentation technique](docs/views-core-1.5.md) et
+[format de sauvegarde](docs/views-storage-1.5.md).
