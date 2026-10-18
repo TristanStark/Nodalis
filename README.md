@@ -104,6 +104,7 @@ Le sommaire complet de la documentation 1.0 se trouve dans `docs/README.md`.
 
 ## Versions stables
 
+- **v1.7.0 — Recherche sémantique locale** : indexation volontaire, pont Ollama facultatif, passages Markdown, extraits et purge des vecteurs. Voir [notes de version](docs/release-notes-1.7.md) et [guide](docs/semantic-1.7-guide.md).
 - **v1.6.0 — Documents composites** : inclusion de documents Markdown et de sections,
   aperçu vivant, liens de provenance, exports et impression hors ligne.
   Voir [notes de version](docs/release-notes-1.6.md).
@@ -113,10 +114,10 @@ Le sommaire complet de la documentation 1.0 se trouve dans `docs/README.md`.
 - **v1.4.0 — Analyse d'impact** :
   [guide et graphe des dépendances](docs/impact-user-guide-1.4.md).
 
-La prochaine version sur `develop` est **1.7 — Recherche sémantique locale facultative** (EPIC #127).
+La prochaine version en cours sur `develop` est **1.8 — Recherche hybride lexicale/sémantique et contrôle de l'index** (EPIC #127 ; #148–#150).
 
 ## Workspace de démonstration
 
-Un [workspace de démonstration autonome](examples/Nodalis-Demo-Workspace/) illustre les fonctionnalités Nodalis jusqu'à la v1.6.0 : documents Markdown liés, tâches, jalons, réunions et Decision Records, incidents et interventions, analyse d'impact, vues dynamiques, documents composites et illustrations locales. Il comprend un projet Ultra-simple et un sous-projet 1.7 préparatoire.
+Un [workspace de démonstration autonome](examples/Nodalis-Demo-Workspace/) illustre les fonctionnalités Nodalis jusqu'à la v1.7.0 : documents Markdown liés, tâches, jalons, réunions et Decision Records, incidents et interventions, analyse d'impact, vues dynamiques, documents composites et illustrations locales. Il comprend un projet Ultra-simple et un sous-projet 1.7 préparatoire.
 
 Voir le [guide d'ouverture et les limites des données fictives](examples/README-workspace-demo.md). Vérifier les identités et liens sous Windows avec `./examples/verify-demo-workspace.ps1` avant une démonstration publique.
