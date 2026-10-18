@@ -52,7 +52,7 @@ internal static class SemanticWorkspaceSearchSmokeTests
         SemanticIndexSummary updated = await service.IndexAsync(selected, true);
         Assert(updated.EmbeddedChunks == 1,
             "Editing one Markdown source reindexes its changed passage.");
-        await File.DeleteAsync(source);
+        File.Delete(source);
         await service.IndexAsync(selected, true);
         Assert((await service.SearchAsync("requête", true)).Count == 0,
             "Deleted sources must disappear from the derived cache.");
