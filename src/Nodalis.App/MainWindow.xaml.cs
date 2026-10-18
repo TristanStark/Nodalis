@@ -4745,6 +4745,22 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "semantic.settings",
+                Title = "Configurer la recherche sémantique locale",
+                Subtitle = "Activation explicite, modèle embeddings et cache",
+                Keywords = ["semantic", "sémantique", "embeddings", "configuration", "local"],
+                ExecuteAsync = ConfigureSemanticSearchAsync
+            },
+            new()
+            {
+                Id = "semantic.purge",
+                Title = "Effacer le cache sémantique",
+                Subtitle = "Supprimer les vecteurs dérivés sans toucher aux sources",
+                Keywords = ["semantic", "sémantique", "purger", "vecteurs", "cache"],
+                ExecuteAsync = PurgeSemanticIndexAsync
+            },
+            new()
+            {
                 Id = "search",
                 Title = "Rechercher",
                 Subtitle = "Résultats Projet / Application / Global",
