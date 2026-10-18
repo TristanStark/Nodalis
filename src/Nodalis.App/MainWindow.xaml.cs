@@ -3276,6 +3276,7 @@ public partial class MainWindow : Window
             .ToArray();
 
         RefreshRecentSearchesDashboard();
+        _ = RefreshSavedViewsDashboardAsync();
     }
 
     /// <summary>
@@ -4499,7 +4500,8 @@ public partial class MainWindow : Window
     /// <returns>The result of the operation.</returns>
     private async Task ShowCommandPaletteAsync()
     {
-        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.App.Commands.PaletteCommand> commands = BuildPaletteCommands();
+        IReadOnlyList<PaletteCommand> commands = await BuildViewPaletteCommandsAsync(
+            BuildPaletteCommands());
 
         global::Nodalis.App.Dialogs.CommandPaletteDialog dialog = new CommandPaletteDialog(commands)
         {
@@ -4688,6 +4690,14 @@ public partial class MainWindow : Window
                 Subtitle = "Créer une application dans le workspace",
                 Keywords = ["application", "créer"],
                 ExecuteAsync = CreateApplicationAsync
+            },
+            new()
+            {
+                Id = "views.dynamic",
+                Title = "Vues dynamiques (aperçu 1.5)",
+                Subtitle = "Filtres et regroupements, liste / tableau / cartes, vues sauvegardées",
+                Keywords = ["vues", "dynamique", "filtre", "dashboard", "tableau", "cartes", "tâches"],
+                ExecuteAsync = ShowWorkspaceViewsAsync
             },
             new()
             {

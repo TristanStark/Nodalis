@@ -1,9 +1,8 @@
 # Roadmap — après Nodalis 1.0
 
-**Dernière release stable annoncée : v1.2.0.** La boîte de réception (1.1) et
-la maintenance avancée (1.2) sont publiées. L'analyse d'impact (1.3/1.4) est
-implémentée progressivement sur `develop`, mais elle n'est pas encore
-une release stable ; suivre les issues GitHub pour la qualification.
+**Dernière release stable : [v1.4.0](https://github.com/TristanStark/Nodalis/releases/tag/v1.4.0).**
+Les évolutions 1.1/1.2 et 1.3/1.4 sont publiées. La v1.5
+(vues dynamiques) est en cours sur `develop` et n'est pas encore stable.
 
 ## 1.1 — Inbox universelle
 

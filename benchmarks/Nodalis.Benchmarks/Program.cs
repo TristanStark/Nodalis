@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Nodalis.Core.Links;
+using Nodalis.Core.Views;
+using Nodalis.Core.Tasks;
+using Nodalis.Infrastructure.Tasks;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
@@ -87,6 +90,32 @@ internal static class Program
             await integrity.ScanAsync();
             integrityWatch.Stop();
 
+            WorkspaceTaskService taskService = new(root);
+            Stopwatch projectionWatch = Stopwatch.StartNew();
+            TaskCollection taskIndex = await taskService.RefreshAsync();
+            int taskColdParsed = taskService.LastParsedDocumentCount;
+            await taskService.RefreshAsync();
+            int taskWarmParsed = taskService.LastParsedDocumentCount;
+            int taskWarmReused = taskService.LastReusedDocumentCount;
+            WorkspaceViewProjection viewProjection = WorkspaceViewProjector.Build(
+                warm.Catalog, tasks: taskIndex.Tasks, workspaceRoot: root);
+            projectionWatch.Stop();
+            WorkspaceViewQuery viewQuery = new()
+            {
+                Kinds = [WorkspaceViewItemKind.Task],
+                SortBy = "date",
+                Limit = 100,
+                MaxScannedItems = 100000
+            };
+            Stopwatch queryWatch = Stopwatch.StartNew();
+            WorkspaceViewQueryResult viewFirstPage = WorkspaceViewQueryEngine.Execute(
+                viewProjection.Items, viewQuery);
+            queryWatch.Stop();
+            Stopwatch repeatQueryWatch = Stopwatch.StartNew();
+            WorkspaceViewQueryResult viewRepeatPage = WorkspaceViewQueryEngine.Execute(
+                viewProjection.Items, viewQuery with { Offset = 100 });
+            repeatQueryWatch.Stop();
+
             object report = new
             {
                 generatedUtc =
@@ -104,7 +133,21 @@ internal static class Program
                 searchMilliseconds =
                     searchWatch.ElapsedMilliseconds,
                 integrityDiagnosticMilliseconds =
-                    integrityWatch.ElapsedMilliseconds
+                    integrityWatch.ElapsedMilliseconds,
+                views = new
+                {
+                    projectedItems = viewProjection.Items.Count,
+                    taskDocumentsParsedCold = taskColdParsed,
+                    taskDocumentsParsedWarm = taskWarmParsed,
+                    taskDocumentsReusedWarm = taskWarmReused,
+                    projectionMilliseconds = projectionWatch.ElapsedMilliseconds,
+                    firstPageMilliseconds = queryWatch.ElapsedMilliseconds,
+                    secondPageMilliseconds = repeatQueryWatch.ElapsedMilliseconds,
+                    totalMatches = viewFirstPage.TotalMatches,
+                    secondPageCount = viewRepeatPage.Items.Count,
+                    managedMemoryBytes = GC.GetTotalMemory(forceFullCollection: false),
+                    processWorkingSetBytes = Environment.WorkingSet
+                }
             };
 
             Console.WriteLine(

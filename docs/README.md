@@ -117,3 +117,20 @@ matrice ou disposer d'un document dédié avant la release stable.
 - [Qualification v1.4](release-checklist-1.4.md).
 
 La documentation v1.4 est publiée dans le dépôt mais la version stable annoncée reste v1.2.0 jusqu'au tag officiel.
+
+## Nodalis 1.4 publiée
+
+- [Nodalis 1.4.0 — notes de version](release-notes-1.4.md)
+- [Guide complet d'analyse d'impact](impact-user-guide-1.4.md)
+
+## Nodalis 1.5 — Vues dynamiques
+
+- [Notes de version 1.5](release-notes-1.5.md)
+- [Guide utilisateur des vues](views-user-guide-1.5.md)
+- [Projection et requêtes des vues dynamiques](views-core-1.5.md)
+- [Définitions sauvegardées JSON privées et portables](views-storage-1.5.md)
+- [Qualification et restauration 1.5](release-checklist-1.5.md)
+
+## Nodalis 1.6 (en développement)
+
+EPIC [Documents composites #126](https://github.com/TristanStark/Nodalis/issues/126).
