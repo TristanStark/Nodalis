@@ -153,3 +153,4 @@ EPIC [Documents composites #126](https://github.com/TristanStark/Nodalis/issues/
 Issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmarks et index incrémental), #150 (gestion de l'index, confidentialité et qualification).
 
 - [Guide de développement : recherche hybride et RRF 1.8](hybrid-search-1.8.md) — fonctionnalités, paramètres, confidentialité, tests et limites avant qualification.
+- [Cadre de mesure de pertinence et latence 1.8](semantic-1.8-evaluation.md) — P@5/P@10, R@10, p50/p95, corpus et limites.
