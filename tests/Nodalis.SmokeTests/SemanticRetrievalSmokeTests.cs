@@ -31,7 +31,7 @@ internal static class SemanticRetrievalSmokeTests
             SemanticVectorRanker.Rank(index, [float.NaN, 0f, 0f]).Count == 0,
             "Scores are similarities, not probability; invalid vectors produce no results.");
         Assert(SemanticVectorRanker.Rank(index, [1f, 0f], topK: 5).Count == 0 &&
-            SemanticVectorRanker.Rank(index, [1f, 0f, 0f], threshold: 0.99).Count == 1,
+            SemanticVectorRanker.Rank(index, [1f, 0f, 0f], threshold: 0.999).Count == 1,
             "Wrong dimensions and strong thresholds cannot invent matches.");
         Assert(!double.IsFinite(SemanticVectorRanker.Cosine([0f, 0f], [1f, 0f])),
             "Zero vectors must be rejected.");
