@@ -104,11 +104,14 @@ Le sommaire complet de la documentation 1.0 se trouve dans `docs/README.md`.
 
 ## Versions stables
 
+- **v1.6.0 — Documents composites** : inclusion de documents Markdown et de sections,
+  aperçu vivant, liens de provenance, exports et impression hors ligne.
+  Voir [notes de version](docs/release-notes-1.6.md).
 - **v1.5.0 — Vues dynamiques** : liste/tableau/cartes, filtres sûrs,
   vues privées ou portables, épingles, dashboard, palette et actualisation
   incrémentale. Voir [notes de version](docs/release-notes-1.5.md).
 - **v1.4.0 — Analyse d'impact** :
   [guide et graphe des dépendances](docs/impact-user-guide-1.4.md).
 
-La prochaine version sur `develop` est **1.6 — Documents composites** (EPIC #126).
+La prochaine version sur `develop` est **1.7 — Recherche sémantique locale facultative** (EPIC #127).
 

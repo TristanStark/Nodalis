@@ -131,7 +131,9 @@ La documentation v1.4 est publiée dans le dépôt mais la version stable annonc
 - [Définitions sauvegardées JSON privées et portables](views-storage-1.5.md)
 - [Qualification et restauration 1.5](release-checklist-1.5.md)
 
-## Nodalis 1.6 — Documents composites (develop)
+## Nodalis 1.6 — Documents composites
+
+- [Nouveautés et notes de version](release-notes-1.6.md)
 
 - [Guide des inclusions, résolution, preview et exports](composite-documents-1.6.md)
 - [Checklist de qualification 1.6](release-checklist-1.6.md)
