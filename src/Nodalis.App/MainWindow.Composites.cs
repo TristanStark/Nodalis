@@ -80,6 +80,12 @@ public partial class MainWindow
         int generation = ++_compositePreviewGeneration;
         if (!markdown.Contains("![[", StringComparison.Ordinal))
         {
+            _compositeGraph.Clear();
+            lock (_compositeSourcePaths)
+            {
+                _compositeSourcePaths.Clear();
+            }
+
             return;
         }
 
