@@ -25,6 +25,11 @@ public sealed class SemanticSearchDialog : Window
     private readonly ComboBox _mode = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly TextBox _query = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly TextBox _scope = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
+    private readonly ComboBox _scopePicker = new()
+    {
+        MinHeight = 32, Margin = new Thickness(0, 5, 0, 9),
+        MaxDropDownHeight = 300
+    };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) };
     private readonly ListBox _results = new() { HorizontalContentAlignment = HorizontalAlignment.Stretch };
     private readonly Button _index = new() { Content = "Indexer / reprendre ce périmètre", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
@@ -74,6 +79,7 @@ public sealed class SemanticSearchDialog : Window
         _documents = _lexicalDocuments.Where(item =>
                 SemanticMarkdownChunker.IsEligiblePath(item.RelativePath, segmentation))
             .ToArray();
+        PopulateScopes();
 
         DockPanel layout = new() { Margin = new Thickness(16) };
         StackPanel top = new();
@@ -104,7 +110,13 @@ public sealed class SemanticSearchDialog : Window
         top.Children.Add(_mode);
         top.Children.Add(new TextBlock
         {
-            Text = "Périmètre facultatif : dossier relatif (vide = workspace entier)",
+            Text = "Choisir un périmètre rapide : Global, Application ou Projet",
+            TextWrapping = TextWrapping.Wrap
+        });
+        top.Children.Add(_scopePicker);
+        top.Children.Add(new TextBlock
+        {
+            Text = "Dossier relatif facultatif (modifiable ; vide = workspace entier)",
             TextWrapping = TextWrapping.Wrap
         });
         top.Children.Add(_scope);
@@ -169,6 +181,52 @@ public sealed class SemanticSearchDialog : Window
         };
         Closing += (_, _) => _request?.Cancel();
         Loaded += (_, _) => _query.Focus();
+    }
+
+    /// <summary>Offers existing application/project scopes without scanning or indexing files.</summary>
+    private void PopulateScopes()
+    {
+        SortedDictionary<string, string> scopes = new(StringComparer.OrdinalIgnoreCase);
+        foreach (SemanticSource source in _lexicalDocuments)
+        {
+            string[] parts = source.RelativePath.Replace('\\', '/').Split('/');
+            if (parts.Length < 3 || !parts[0].Equals("Applications",
+                StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string application = string.Join("/", parts.Take(2));
+            scopes.TryAdd("Application · " + parts[1], application);
+            for (int i = 2; i < parts.Length - 1; i++)
+            {
+                if ((parts[i].Equals("Projets", StringComparison.OrdinalIgnoreCase) ||
+                     parts[i].Equals("Sous-projets", StringComparison.OrdinalIgnoreCase)) &&
+                    i + 1 < parts.Length - 1)
+                {
+                    string project = string.Join("/", parts.Take(i + 2));
+                    scopes.TryAdd("Projet · " + project, project);
+                }
+            }
+        }
+
+        _scopePicker.Items.Add(new ComboBoxItem
+        {
+            Content = "Global · Tout le workspace", Tag = string.Empty
+        });
+        foreach (KeyValuePair<string, string> entry in scopes)
+        {
+            _scopePicker.Items.Add(new ComboBoxItem
+            {
+                Content = entry.Key, Tag = entry.Value
+            });
+        }
+
+        _scopePicker.SelectionChanged += (_, _) =>
+        {
+            if (_scopePicker.SelectedItem is ComboBoxItem selected &&
+                selected.Tag is string selectedPath)
+                _scope.Text = selectedPath;
+        };
+        _scopePicker.SelectedIndex = 0;
     }
 
     /// <summary>Indices only user-approved canonical documents in the selected scope.</summary>
@@ -519,6 +577,8 @@ public sealed class SemanticSearchDialog : Window
         _search.IsEnabled = false;
         _cancel.IsEnabled = true;
         _mode.IsEnabled = false;
+        _scopePicker.IsEnabled = false;
+        _scope.IsEnabled = false;
         _purge.IsEnabled = false;
         _inspect.IsEnabled = false;
         return _request.Token;
@@ -532,6 +592,8 @@ public sealed class SemanticSearchDialog : Window
         _index.IsEnabled = _enabled;
         _search.IsEnabled = true;
         _mode.IsEnabled = true;
+        _scopePicker.IsEnabled = true;
+        _scope.IsEnabled = true;
         _cancel.IsEnabled = false;
         _purge.IsEnabled = true;
         _inspect.IsEnabled = true;
