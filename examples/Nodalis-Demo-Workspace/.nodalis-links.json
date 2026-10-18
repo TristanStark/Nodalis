@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 3,
+  "updatedUtc": "2026-10-18T12:00:00+00:00",
+  "targets": [
+    {
+      "id": "aa000000-0000-4000-8000-000000000002",
+      "kind": "application",
+      "displayName": "Nodalis",
+      "qualifiedName": "Nodalis",
+      "relativePath": "Applications/Nodalis",
+      "scopeIdentity": "application:aa000000-0000-4000-8000-000000000002",
+      "localRelativePath": ".",
+      "aliases": []
+    },
+    {
+      "id": "aa000000-0000-4000-8000-000000000003",
+      "kind": "project",
+      "displayName": "Nodalis - Évolutions 1.x",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": ".",
+      "aliases": []
+    },
+    {
+      "id": "aa000000-0000-4000-8000-000000000004",
+      "kind": "module",
+      "displayName": "Expérience utilisateur",
+      "qualifiedName": "Nodalis / Expérience utilisateur",
+      "relativePath": "Applications/Nodalis/Modules/Expérience utilisateur",
+      "scopeIdentity": "module:aa000000-0000-4000-8000-000000000004",
+      "localRelativePath": ".",
+      "aliases": []
+    },
+    {
+      "id": "aa000000-0000-4000-8000-000000000005",
+      "kind": "project",
+      "displayName": "Refonte explorateur 122",
+      "qualifiedName": "Nodalis / Expérience utilisateur / Refonte explorateur 122",
+      "relativePath": "Applications/Nodalis/Modules/Expérience utilisateur/Projets/Refonte explorateur 122",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000005",
+      "localRelativePath": ".",
+      "aliases": []
+    },
+    {
+      "id": "aa000000-0000-4000-8000-000000000006",
+      "kind": "project",
+      "displayName": "Recherche lexicale 1.7",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Recherche lexicale 1.7",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Sous-projets/Recherche lexicale 1.7",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000006",
+      "localRelativePath": ".",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000021",
+      "kind": "document",
+      "displayName": "Notes rapides",
+      "qualifiedName": "Global / Notes rapides",
+      "relativePath": "Notes rapides.md",
+      "scopeIdentity": "workspace:aa000000-0000-4000-8000-000000000001",
+      "localRelativePath": "Notes rapides.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000022",
+      "kind": "document",
+      "displayName": "Glossaire",
+      "qualifiedName": "Global / Glossaire",
+      "relativePath": "Glossaire.md",
+      "scopeIdentity": "workspace:aa000000-0000-4000-8000-000000000001",
+      "localRelativePath": "Glossaire.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000015",
+      "kind": "document",
+      "displayName": "DEPART",
+      "qualifiedName": "Global / DEPART",
+      "relativePath": "DEPART.md",
+      "scopeIdentity": "workspace:aa000000-0000-4000-8000-000000000001",
+      "localRelativePath": "DEPART.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000023",
+      "kind": "document",
+      "displayName": "Notes rapides",
+      "qualifiedName": "Nodalis / Notes rapides",
+      "relativePath": "Applications/Nodalis/Notes rapides.md",
+      "scopeIdentity": "application:aa000000-0000-4000-8000-000000000002",
+      "localRelativePath": "Notes rapides.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000024",
+      "kind": "document",
+      "displayName": "Glossaire",
+      "qualifiedName": "Nodalis / Glossaire",
+      "relativePath": "Applications/Nodalis/Glossaire.md",
+      "scopeIdentity": "application:aa000000-0000-4000-8000-000000000002",
+      "localRelativePath": "Glossaire.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000001",
+      "kind": "document",
+      "displayName": "Architecture Nodalis",
+      "qualifiedName": "Nodalis / Documentation / Technique / Architecture Nodalis",
+      "relativePath": "Applications/Nodalis/Documentation/Technique/Architecture Nodalis.md",
+      "scopeIdentity": "application:aa000000-0000-4000-8000-000000000002",
+      "localRelativePath": "Documentation/Technique/Architecture Nodalis.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000002",
+      "kind": "document",
+      "displayName": "Parcours utilisateur",
+      "qualifiedName": "Nodalis / Documentation / Fonctionnelle / Parcours utilisateur",
+      "relativePath": "Applications/Nodalis/Documentation/Fonctionnelle/Parcours utilisateur.md",
+      "scopeIdentity": "application:aa000000-0000-4000-8000-000000000002",
+      "localRelativePath": "Documentation/Fonctionnelle/Parcours utilisateur.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000003",
+      "kind": "document",
+      "displayName": "Présentation 1.x",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Présentation 1.x",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Présentation 1.x.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Présentation 1.x.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000025",
+      "kind": "document",
+      "displayName": "Notes rapides",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Notes rapides",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Notes rapides.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Notes rapides.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000019",
+      "kind": "document",
+      "displayName": "Jalons",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Jalons",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Jalons.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Jalons.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000026",
+      "kind": "document",
+      "displayName": "Glossaire",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Glossaire",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Glossaire.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Glossaire.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000004",
+      "kind": "document",
+      "displayName": "Architecture des évolutions",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Technique / Architecture des évolutions",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Technique/Architecture des évolutions.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Technique/Architecture des évolutions.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000005",
+      "kind": "document",
+      "displayName": "Spécification des liens",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Technique / Spécification des liens",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Technique/Spécification des liens.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Technique/Spécification des liens.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000006",
+      "kind": "document",
+      "displayName": "Vues dynamiques 1.5",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Documentation / Vues dynamiques 1.5",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Documentation/Vues dynamiques 1.5.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Documentation/Vues dynamiques 1.5.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000007",
+      "kind": "document",
+      "displayName": "Documents composites 1.6",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Documentation / Documents composites 1.6",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Documentation/Documents composites 1.6.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Documentation/Documents composites 1.6.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000008",
+      "kind": "document",
+      "displayName": "Plan de recette",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Tests / Plan de recette",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Tests/Plan de recette.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Tests/Plan de recette.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000009",
+      "kind": "document",
+      "displayName": "Non régression",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Tests / Non régression",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Tests/Non régression.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Tests/Non régression.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000010",
+      "kind": "document",
+      "displayName": "Réunion de planification",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Réunions / Réunion de planification",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Réunions/Réunion de planification.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Réunions/Réunion de planification.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000011",
+      "kind": "document",
+      "displayName": "Décision - Liens stables",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Décisions / Décision - Liens stables",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Décisions/Décision - Liens stables.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Décisions/Décision - Liens stables.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000012",
+      "kind": "document",
+      "displayName": "Décision - Markdown canonique",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Décisions / Décision - Markdown canonique",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Décisions/Décision - Markdown canonique.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Décisions/Décision - Markdown canonique.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000013",
+      "kind": "document",
+      "displayName": "Rapport de qualification 1.x",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Rapports / Rapport de qualification 1.x",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Rapports/Rapport de qualification 1.x.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Rapports/Rapport de qualification 1.x.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000014",
+      "kind": "document",
+      "displayName": "Risques et arbitrages",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Risques / Risques et arbitrages",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Risques/Risques et arbitrages.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Risques/Risques et arbitrages.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000027",
+      "kind": "document",
+      "displayName": "Notes rapides",
+      "qualifiedName": "Nodalis / Expérience utilisateur / Refonte explorateur 122 / Notes rapides",
+      "relativePath": "Applications/Nodalis/Modules/Expérience utilisateur/Projets/Refonte explorateur 122/Notes rapides.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000005",
+      "localRelativePath": "Notes rapides.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000016",
+      "kind": "document",
+      "displayName": "Fiche de Maintenance",
+      "qualifiedName": "Nodalis / Expérience utilisateur / Refonte explorateur 122 / Fiche de Maintenance",
+      "relativePath": "Applications/Nodalis/Modules/Expérience utilisateur/Projets/Refonte explorateur 122/Fiche de Maintenance.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000005",
+      "localRelativePath": "Fiche de Maintenance.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000028",
+      "kind": "document",
+      "displayName": "Notes rapides",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Recherche lexicale 1.7 / Notes rapides",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Sous-projets/Recherche lexicale 1.7/Notes rapides.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000006",
+      "localRelativePath": "Notes rapides.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000029",
+      "kind": "document",
+      "displayName": "Glossaire",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Recherche lexicale 1.7 / Glossaire",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Sous-projets/Recherche lexicale 1.7/Glossaire.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000006",
+      "localRelativePath": "Glossaire.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000020",
+      "kind": "document",
+      "displayName": "Jalons",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Recherche lexicale 1.7 / Jalons",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Sous-projets/Recherche lexicale 1.7/Jalons.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000006",
+      "localRelativePath": "Jalons.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000017",
+      "kind": "document",
+      "displayName": "Approche lexicale 1.7",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Recherche lexicale 1.7 / Technique / Approche lexicale 1.7",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Sous-projets/Recherche lexicale 1.7/Technique/Approche lexicale 1.7.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000006",
+      "localRelativePath": "Technique/Approche lexicale 1.7.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000018",
+      "kind": "document",
+      "displayName": "Scénarios recherche 1.7",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Recherche lexicale 1.7 / Tests / Scénarios recherche 1.7",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Sous-projets/Recherche lexicale 1.7/Tests/Scénarios recherche 1.7.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000006",
+      "localRelativePath": "Tests/Scénarios recherche 1.7.md",
+      "aliases": []
+    }
+  ],
+  "references": [],
+  "relations": []
+}
