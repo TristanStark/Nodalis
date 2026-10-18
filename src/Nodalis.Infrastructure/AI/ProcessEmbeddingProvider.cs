@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using Nodalis.Core.Semantic;
 using Nodalis.Core.Settings;
@@ -78,17 +79,21 @@ public sealed class ProcessEmbeddingProvider : IEmbeddingProvider
                     "Le fournisseur d'embeddings local n'a pas pu démarrer.");
             }
 
-            Task<string> stdout = process.StandardOutput.ReadToEndAsync(linked.Token);
-            Task<string> stderr = process.StandardError.ReadToEndAsync(linked.Token);
+            // Bound both pipes while the process is running: a broken model must
+            // never allocate unbounded stdout/stderr before post-hoc validation.
+            Task<string> stdout = ReadBoundedAsync(
+                process.StandardOutput, 2_000_000, linked.Token);
+            Task<string> stderr = ReadBoundedAsync(
+                process.StandardError, 16_384, linked.Token);
             string payload = JsonSerializer.Serialize(
                 new EmbeddingProcessRequest(_options.ModelId, texts),
                 new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             await process.StandardInput.WriteAsync(
                 payload.AsMemory(), linked.Token);
             process.StandardInput.Close();
-            await process.WaitForExitAsync(linked.Token);
+            await Task.WhenAll(
+                process.WaitForExitAsync(linked.Token), stdout, stderr);
             string responseText = await stdout;
-            _ = await stderr;
 
             if (process.ExitCode != 0)
             {
@@ -141,6 +146,13 @@ public sealed class ProcessEmbeddingProvider : IEmbeddingProvider
                 EmbeddingFailureKind.InvalidResponse,
                 "Réponse du fournisseur d'embeddings illisible.");
         }
+        catch (Exception error) when (error is IOException or
+            UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            throw new EmbeddingProviderException(
+                EmbeddingFailureKind.Unavailable,
+                "Impossible de communiquer avec le processus d'embeddings local.");
+        }
         finally
         {
             try
@@ -154,6 +166,31 @@ public sealed class ProcessEmbeddingProvider : IEmbeddingProvider
             {
                 // Process never started, or it exited between the status read and kill.
             }
+        }
+    }
+
+    /// <summary>Reads a child-process stream with a hard character budget.</summary>
+    /// <param name="reader">Standard output or standard error of the local process.</param>
+    /// <param name="limit">Maximum accepted characters.</param>
+    /// <param name="token">Cancellation token.</param>
+    /// <returns>Bounded stream contents, never logged.</returns>
+    private static async Task<string> ReadBoundedAsync(
+        StreamReader reader, int limit, CancellationToken token)
+    {
+        StringBuilder content = new();
+        char[] buffer = new char[4096];
+        while (true)
+        {
+            int received = await reader.ReadAsync(buffer.AsMemory(), token);
+            if (received == 0) return content.ToString();
+            if (content.Length + received > limit)
+            {
+                throw new EmbeddingProviderException(
+                    EmbeddingFailureKind.InvalidResponse,
+                    "Le fournisseur d'embeddings a dépassé la taille de sortie autorisée.");
+            }
+
+            content.Append(buffer, 0, received);
         }
     }
 
