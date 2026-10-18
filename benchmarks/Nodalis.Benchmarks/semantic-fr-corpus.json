@@ -1,0 +1,182 @@
+{
+  "description": "Corpus public purement synthétique : tests financiers/IT en français, références exactes et paraphrases. Les labels ne garantissent pas le jugement d'un modèle réel.",
+  "documents": [
+    {
+      "id": "10000000-0000-0000-0000-000000000001",
+      "relativePath": "Applications/Orion/Projets/Règlement/Incident-12100.md",
+      "markdown": "# Incident 12100\n\nDes doublons d'inscription de titres au nominatif ont été confirmés lors d'un transfert de compte vers le registre. La transition 12100 vers 1210 est attendue, mais pas la répétition de l'ordre."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000002",
+      "relativePath": "Applications/Orion/Projets/Règlement/Recette-doublons.md",
+      "markdown": "# Recette inscriptions\n\nScénario de recette : vérifier l'absence de mouvements bancaires répétés et contrôler la référence 12100 sans faux positif.\n\nLe test doit signaler chaque double enregistrement réel."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000003",
+      "relativePath": "Applications/Orion/Projets/Règlement/Diagnostic-1210.md",
+      "markdown": "# Diagnostic 1210\n\nL'équipe contrôle les écritures en provenance du compte technique 1210. Une réconciliation des mouvements est effectuée en fin de journée."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000004",
+      "relativePath": "Applications/Orion/Projets/Règlement/Decision-rollback.md",
+      "markdown": "# Décision de retour arrière\n\nLe comité a décidé un rollback du déploiement si le nombre d'anomalies critiques augmente. La restauration de la version précédente est prioritaire."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000005",
+      "relativePath": "Applications/Orion/Projets/Règlement/Reunion-qualite.md",
+      "markdown": "# Réunion qualité\n\nCompte rendu : le responsable QA demande une nouvelle campagne de vérification et un suivi des anomalies bloquantes lors de la recette."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000006",
+      "relativePath": "Applications/Orion/Projets/Règlement/Performance.md",
+      "markdown": "# Performances SQL\n\nL'analyse du plan d'exécution Oracle montre une requête lente avec jointure non sélective et lecture complète de table. Un index composé a été proposé."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000007",
+      "relativePath": "Applications/Orion/Projets/Règlement/Technique-architecture.md",
+      "markdown": "# Architecture\n\nL'application utilise un service d'intégration avec une base Oracle. Les flux métiers passent par une file locale et sont traités de manière asynchrone."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000008",
+      "relativePath": "Applications/Orion/Projets/Règlement/Deploiement.md",
+      "markdown": "# Déploiement\n\nLe passage en production suit les environnements DEV, RECETTE et PROD. Le jalon de livraison requiert une approbation du comité de changement."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000009",
+      "relativePath": "Applications/Orion/Projets/Règlement/Maintenance.md",
+      "markdown": "# Maintenance applicative\n\nUne intervention corrective est demandée pour réparer une panne intermittente du système de traitement. Le technicien consignera l'opération et sa cause."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000010",
+      "relativePath": "Applications/Orion/Projets/Règlement/Glossaire.md",
+      "markdown": "# Glossaire\n\nBRN : bordereau de remise au nominatif.\n\nRecette : contrôle des fonctions avant passage en production.\n\nRollback : retour à la version précédente."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000011",
+      "relativePath": "Applications/Orion/Projets/Règlement/Jalons.md",
+      "markdown": "# Jalons\n\nLa réunion de lancement est prévue avant la recette utilisateur. La livraison finale sera décidée après validation des tests de non-régression."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000012",
+      "relativePath": "Applications/Atlas/Projets/Facturation/Anomalie-prix.md",
+      "markdown": "# Facturation\n\nLes arrondis de montants ont créé un écart comptable de quelques centimes sur certaines factures. Un test de calcul décimal est ajouté."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000013",
+      "relativePath": "Applications/Atlas/Projets/Facturation/Suivi-reglement.md",
+      "markdown": "# Suivi de règlement\n\nLa facture impayée est relancée au bout de trente jours. La procédure de recouvrement est différente du traitement des titres nominatifs."
+    },
+    {
+      "id": "10000000-0000-0000-0000-000000000014",
+      "relativePath": "Notes rapides.md",
+      "markdown": "# Notes générales\n\nUne synthèse hebdomadaire des activités contient les prochaines étapes, les décisions du comité et une liste de questions ouvertes."
+    }
+  ],
+  "questions": [
+    {
+      "name": "reference exacte incident 12100",
+      "query": "Incident-12100",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000001"
+      ]
+    },
+    {
+      "name": "référence du compte 1210",
+      "query": "1210",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000003",
+        "10000000-0000-0000-0000-000000000001"
+      ]
+    },
+    {
+      "name": "doublons de mouvements",
+      "query": "mouvements de titres enregistrés deux fois",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000001",
+        "10000000-0000-0000-0000-000000000002"
+      ]
+    },
+    {
+      "name": "retour arrière mise en production",
+      "query": "annuler une mise en service et revenir à la version précédente",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000004"
+      ]
+    },
+    {
+      "name": "réunion recette qualité",
+      "query": "contrôle qualité et anomalies bloquantes",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000005",
+        "10000000-0000-0000-0000-000000000002"
+      ]
+    },
+    {
+      "name": "optimiser requête Oracle",
+      "query": "améliorer les performances d'une requête SQL avec jointures lentes",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000006"
+      ]
+    },
+    {
+      "name": "description architecture technique",
+      "query": "architecture des échanges asynchrones avec Oracle",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000007"
+      ]
+    },
+    {
+      "name": "date et validation de livraison",
+      "query": "étapes pour autoriser le passage en production",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000008",
+        "10000000-0000-0000-0000-000000000011"
+      ]
+    },
+    {
+      "name": "panne maintenance",
+      "query": "comment réparer une panne intermittente du traitement",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000009"
+      ]
+    },
+    {
+      "name": "définition BRN",
+      "query": "que signifie BRN et remise au nominatif",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000010"
+      ]
+    },
+    {
+      "name": "anomalie arrondi facture",
+      "query": "écart de centimes dans les calculs de facturation",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000012"
+      ]
+    },
+    {
+      "name": "recouvrement impayés",
+      "query": "procédure de relance pour un paiement de facture non reçu",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000013"
+      ]
+    },
+    {
+      "name": "glossaire recette",
+      "query": "définition de recette et tests avant production",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000010",
+        "10000000-0000-0000-0000-000000000011"
+      ]
+    },
+    {
+      "name": "décision comité",
+      "query": "que décide le comité sur les modifications et risques",
+      "relevantDocumentIds": [
+        "10000000-0000-0000-0000-000000000004",
+        "10000000-0000-0000-0000-000000000008",
+        "10000000-0000-0000-0000-000000000014"
+      ]
+    }
+  ]
+}
