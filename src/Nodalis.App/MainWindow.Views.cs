@@ -13,12 +13,54 @@ using Nodalis.Core.Navigation;
 using Nodalis.Core.Tasks;
 using Nodalis.Core.Views;
 using Nodalis.Infrastructure.Views;
+using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.App;
 
 /// <summary>Hosts the evolving v1.5 dynamic views without creating a second workspace.</summary>
 public partial class MainWindow
 {
+    private WorkspaceFileChangeMonitor? _viewsMonitor;
+    private readonly SemaphoreSlim _viewsLoadGate = new(1, 1);
+    private WorkspaceViewProjection? _viewsCache;
+    private long _viewsChangeVersion;
+    private long _viewsCachedVersion = -1;
+
+    /// <summary>Watches canonical sources; saved definitions do not invalidate read projections.</summary>
+    private void EnsureViewsMonitor()
+    {
+        if (_viewsMonitor is not null)
+        {
+            return;
+        }
+
+        _viewsMonitor = new WorkspaceFileChangeMonitor(_root.FullPath);
+        _viewsMonitor.FileChanged += (_, change) =>
+        {
+            string file = change.FullPath;
+            string oldFile = change.OldFullPath ?? "";
+            if (IsViewsCanonicalChange(file) || IsViewsCanonicalChange(oldFile))
+            {
+                Interlocked.Increment(ref _viewsChangeVersion);
+            }
+        };
+        Closed += (_, _) =>
+        {
+            _viewsMonitor?.Dispose();
+            _viewsMonitor = null;
+        };
+    }
+
+    /// <summary>Recognizes changes capable of affecting canonical projections.</summary>
+    /// <param name="path">Changed or previous source path.</param>
+    /// <returns>True for Markdown, structural metadata, and folder moves.</returns>
+    private static bool IsViewsCanonicalChange(string path)
+    {
+        string file = Path.GetFileName(path);
+        return file.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+            file is ".project.json" or ".application.json" or ".workspace.json" ||
+            !Path.HasExtension(path);
+    }
     /// <summary>
     /// Reads existing canonical projections and displays the local views browser.
     /// Existing task/milestone services are reused; no view query changes a note.
@@ -34,73 +76,14 @@ public partial class MainWindow
     private async Task ShowWorkspaceViewsAsync(Guid? id,
         WorkspaceViewVisibility? visibility)
     {
-        LinkIndexCatalog catalog = await _linkIndexService.LoadAsync();
-        IReadOnlyList<TaskItem> tasks = [];
-        IReadOnlyList<MilestoneItem> milestones = [];
-        IReadOnlyList<DecisionRecord> decisions = [];
-        IReadOnlyList<MaintenanceHistoryItem> maintenance = [];
-        List<WorkspaceViewProjectionDiagnostic> diagnostics = [];
-
-        if (!_workspaceReadOnly)
-        {
-            // Services are sequential because some rebuild the same derived link index.
-            tasks = await _taskService.GetTasksAsync(null, includeCompleted: true);
-            milestones = await _milestoneService.GetMilestonesAsync(null);
-
-            // The first 1.5 UI reads decisions of the current project/application.
-            // The full cross-workspace decision collector is scheduled for #133.
-            NavigationNodeViewModel? scope = _selectedNode is null ? null :
-                _root.DescendantsAndSelf()
-                    .Where(node => node.Kind is WorkspaceNodeKind.Project or
-                        WorkspaceNodeKind.Application &&
-                        IsProjectPathAncestorOrEqual(node.FullPath, _selectedNode.FullPath))
-                    .OrderByDescending(node => node.FullPath.Length)
-                    .FirstOrDefault();
-
-            if (scope is not null)
-            {
-                decisions = await _decisionService.GetDecisionsAsync(scope.FullPath);
-            }
-        }
-        else
-        {
-            diagnostics.Add(new WorkspaceViewProjectionDiagnostic(
-                "workspace", "Mode lecture seule : projections métier non rafraîchies."));
-        }
-
-        NavigationNodeViewModel[] maintenanceFiles = _root.DescendantsAndSelf()
-            .Where(node => node.Kind == WorkspaceNodeKind.Document &&
-                IsMaintenanceDocument(node.FullPath)).ToArray();
-        using (SemaphoreSlim throttle = new(4))
-        {
-            Task<(string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
-                string? Error)>[] loads = maintenanceFiles.Select(node =>
-                    LoadMaintenanceHistoryFileAsync(node, throttle)).ToArray();
-            (string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
-                string? Error)[] results = await Task.WhenAll(loads);
-            maintenance = results.SelectMany(item => item.Rows).ToArray();
-            diagnostics.AddRange(results.Where(item => item.Error is not null)
-                .Select(item => new WorkspaceViewProjectionDiagnostic(item.Path,
-                    item.Error ?? "Fiche de maintenance inaccessible.")));
-        }
-
-        // A service refresh may have updated only the *derived* link index.
-        // Use the latest load, not a manual guess or a newly minted identity.
-        catalog = await _linkIndexService.LoadAsync();
-        WorkspaceViewProjection projection = WorkspaceViewProjector.Build(
-            catalog, tasks, milestones, decisions, maintenance,
-            workspaceRoot: _root.FullPath);
-        if (diagnostics.Count > 0)
-        {
-            projection = projection with
-            {
-                Diagnostics = [.. projection.Diagnostics, .. diagnostics]
-            };
-        }
+        EnsureViewsMonitor();
+        WorkspaceViewProjection projection =
+            await LoadWorkspaceViewsProjectionAsync(CancellationToken.None);
 
         FileSystemWorkspaceViewStore store =
             new(_root.FullPath, _root.Id);
-        WorkspaceViewsDialog dialog = new(projection, store, _workspaceReadOnly, id, visibility)
+        WorkspaceViewsDialog dialog = new(projection, store, _workspaceReadOnly, id, visibility,
+            LoadWorkspaceViewsProjectionAsync, _viewsMonitor)
         {
             Owner = this
         };
@@ -126,6 +109,97 @@ public partial class MainWindow
 
         await NavigateToLinkTargetAsync(document, item.Source.LineNumber);
         StatusText.Text = "Vues dynamiques · source : " + document.QualifiedName;
+    }
+
+
+    /// <summary>Reuses the in-memory read index until a canonical filesystem change invalidates it.</summary>
+    /// <param name="cancellationToken">Cancels ongoing source collection.</param>
+    /// <returns>Current immutable view projection; no cached results are persisted.</returns>
+    private async Task<WorkspaceViewProjection> LoadWorkspaceViewsProjectionAsync(
+        CancellationToken cancellationToken)
+    {
+        await _viewsLoadGate.WaitAsync(cancellationToken);
+        try
+        {
+            long version = Interlocked.Read(ref _viewsChangeVersion);
+            if (_viewsCache is not null && _viewsCachedVersion == version)
+            {
+                return _viewsCache;
+            }
+
+        LinkIndexCatalog catalog = await _linkIndexService.LoadAsync(cancellationToken);
+        IReadOnlyList<TaskItem> tasks = [];
+        IReadOnlyList<MilestoneItem> milestones = [];
+        IReadOnlyList<DecisionRecord> decisions = [];
+        IReadOnlyList<MaintenanceHistoryItem> maintenance = [];
+        List<WorkspaceViewProjectionDiagnostic> diagnostics = [];
+
+        if (!_workspaceReadOnly)
+        {
+            // Services are sequential because some rebuild the same derived link index.
+            tasks = await _taskService.GetTasksAsync(null, includeCompleted: true,
+                cancellationToken: cancellationToken);
+            milestones = await _milestoneService.GetMilestonesAsync(null, cancellationToken);
+
+            // Resolve each canonical decision folder once, across applications/projects.
+            List<DecisionRecord> allDecisions = [];
+            foreach (NavigationNodeViewModel scope in _root.DescendantsAndSelf()
+                .Where(node => node.Kind is WorkspaceNodeKind.Project or WorkspaceNodeKind.Application))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                allDecisions.AddRange(await _decisionService.GetDecisionsAsync(
+                    scope.FullPath, cancellationToken));
+            }
+
+            decisions = allDecisions;
+        }
+        else
+        {
+            diagnostics.Add(new WorkspaceViewProjectionDiagnostic(
+                "workspace", "Mode lecture seule : projections métier non rafraîchies."));
+        }
+
+        NavigationNodeViewModel[] maintenanceFiles = _root.DescendantsAndSelf()
+            .Where(node => node.Kind == WorkspaceNodeKind.Document &&
+                IsMaintenanceDocument(node.FullPath)).ToArray();
+        using (SemaphoreSlim throttle = new(4))
+        {
+            Task<(string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
+                string? Error)>[] loads = maintenanceFiles.Select(node =>
+                    LoadMaintenanceHistoryFileAsync(node, throttle)).ToArray();
+            (string Path, string Project, IReadOnlyList<MaintenanceHistoryItem> Rows,
+                string? Error)[] results = await Task.WhenAll(loads);
+            cancellationToken.ThrowIfCancellationRequested();
+            maintenance = results.SelectMany(item => item.Rows).ToArray();
+            diagnostics.AddRange(results.Where(item => item.Error is not null)
+                .Select(item => new WorkspaceViewProjectionDiagnostic(item.Path,
+                    item.Error ?? "Fiche de maintenance inaccessible.")));
+        }
+
+        // A service refresh may have updated only the *derived* link index.
+        // Use the latest load, not a manual guess or a newly minted identity.
+        catalog = await _linkIndexService.LoadAsync(cancellationToken);
+        WorkspaceViewProjection projection = WorkspaceViewProjector.Build(
+            catalog, tasks, milestones, decisions, maintenance,
+            workspaceRoot: _root.FullPath, cancellationToken: cancellationToken);
+        if (diagnostics.Count > 0)
+        {
+            projection = projection with
+            {
+                Diagnostics = [.. projection.Diagnostics, .. diagnostics]
+            };
+        }
+
+
+            cancellationToken.ThrowIfCancellationRequested();
+            _viewsCache = projection;
+            _viewsCachedVersion = version;
+            return projection;
+        }
+        finally
+        {
+            _viewsLoadGate.Release();
+        }
     }
 
     private sealed record SavedViewShortcut(

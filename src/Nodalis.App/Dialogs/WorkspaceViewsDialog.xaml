@@ -153,6 +153,12 @@
             </TabItem>
         </TabControl>
         <DockPanel Grid.Row="4" Margin="0,6,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="PreviousPageButton" Content="← Précédent" IsEnabled="False"
+                        Padding="8,5" Margin="8,0,4,0" Click="PreviousPage_Click" />
+                <Button x:Name="NextPageButton" Content="Suivant →" IsEnabled="False"
+                        Padding="8,5" Margin="4,0,8,0" Click="NextPage_Click" />
+            </StackPanel>
             <StackPanel DockPanel.Dock="Left">
                 <TextBlock x:Name="SummaryText" TextWrapping="Wrap"
                            Foreground="{StaticResource SecondaryTextBrush}" />

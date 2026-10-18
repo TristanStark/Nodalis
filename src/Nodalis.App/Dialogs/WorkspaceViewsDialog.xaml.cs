@@ -4,13 +4,23 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.Core.Views;
 using Nodalis.Infrastructure.Views;
+using Nodalis.Infrastructure.Reliability;
+using System.Windows.Threading;
 
 namespace Nodalis.App.Dialogs;
 
 /// <summary>A compact, offline and keyboard-accessible first UI for dynamic workspace views.</summary>
 public partial class WorkspaceViewsDialog : Window
 {
-    private readonly WorkspaceViewProjection _projection;
+    private WorkspaceViewProjection _projection;
+    private readonly Func<CancellationToken, Task<WorkspaceViewProjection>>? _reloadProjection;
+    private readonly WorkspaceFileChangeMonitor? _monitor;
+    private readonly DispatcherTimer _refreshTimer;
+    private CancellationTokenSource? _reloadCancellation;
+    private CancellationTokenSource? _queryCancellation;
+    private int _querySequence;
+    private int _pageIndex;
+    private bool _closed;
     private readonly FileSystemWorkspaceViewStore _store;
     private readonly bool _readOnly;
     private Guid? _preferredSavedId;
@@ -36,15 +46,29 @@ public partial class WorkspaceViewsDialog : Window
     /// <param name="readOnly">Whether writes to the workspace are disabled.</param>
     /// <param name="initialViewId">Optional saved view selected from dashboard or palette.</param>
     /// <param name="initialVisibility">Visibility of that saved view.</param>
+    /// <param name="reloadProjection">Optional cancellable canonical projection refresh.</param>
+    /// <param name="monitor">Optional shared workspace change monitor.</param>
     public WorkspaceViewsDialog(WorkspaceViewProjection projection,
         FileSystemWorkspaceViewStore store, bool readOnly = false,
-        Guid? initialViewId = null, WorkspaceViewVisibility? initialVisibility = null)
+        Guid? initialViewId = null, WorkspaceViewVisibility? initialVisibility = null,
+        Func<CancellationToken, Task<WorkspaceViewProjection>>? reloadProjection = null,
+        WorkspaceFileChangeMonitor? monitor = null)
     {
         ArgumentNullException.ThrowIfNull(projection);
         ArgumentNullException.ThrowIfNull(store);
         _projection = projection;
         _store = store;
         _readOnly = readOnly;
+        _reloadProjection = reloadProjection;
+        _monitor = monitor;
+        _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+        _refreshTimer.Tick += RefreshTimer_Tick;
+        if (_monitor is not null)
+        {
+            _monitor.FileChanged += Monitor_FileChanged;
+        }
+
+        Closed += Window_Closed;
         _preferredSavedId = initialViewId;
         _preferredVisibility = initialVisibility;
         InitializeComponent();
@@ -164,18 +188,40 @@ public partial class WorkspaceViewsDialog : Window
     private WorkspaceViewQuery CurrentQuery() =>
         !_queryEdited && _loadedQuery is not null ? _loadedQuery : BuildVisualQuery();
 
-    /// <summary>Renders the same typed, bounded result set in all three layouts.</summary>
+    /// <summary>Starts a cancelable query; only the most recent request can render.</summary>
     private void RefreshResults()
     {
-        if (_loading || !IsLoaded)
+        _ = RefreshResultsAsync();
+    }
+
+    /// <summary>Runs bounded filtering off the WPF UI thread and discards stale results.</summary>
+    /// <returns>Completion of the latest query or a silent cancellation.</returns>
+    private async Task RefreshResultsAsync()
+    {
+        if (_loading || !IsLoaded || _closed)
         {
             return;
         }
 
+        _queryCancellation?.Cancel();
+        CancellationTokenSource request = new();
+        _queryCancellation = request;
+        int sequence = ++_querySequence;
         try
         {
-            WorkspaceViewQueryResult result = WorkspaceViewQueryEngine.Execute(
-                _projection.Items, CurrentQuery());
+            WorkspaceViewQuery query = CurrentQuery() with
+            {
+                Offset = _pageIndex * CurrentQuery().Limit
+            };
+            WorkspaceViewProjection projection = _projection;
+            WorkspaceViewQueryResult result = await Task.Run(() =>
+                WorkspaceViewQueryEngine.Execute(projection.Items, query, request.Token),
+                request.Token);
+            if (request.IsCancellationRequested || sequence != _querySequence || _closed)
+            {
+                return;
+            }
+
             ResultRow[] rows = result.Items.Select(item =>
             {
                 string date = item.Fields.TryGetValue("date", out WorkspaceViewField? value)
@@ -202,22 +248,156 @@ public partial class WorkspaceViewsDialog : Window
             ListResults.ItemsSource = rows;
             TableResults.ItemsSource = rows;
             CardResults.ItemsSource = rows;
+            PreviousPageButton.IsEnabled = _pageIndex > 0;
+            NextPageButton.IsEnabled = (_pageIndex + 1) * query.Limit < result.TotalMatches;
             SummaryText.Text = rows.Length + " résultat(s) affiché(s) sur " +
-                result.TotalMatches + " correspondance(s)" +
+                result.TotalMatches + " correspondance(s) · page " +
+                (_pageIndex + 1) +
                 (result.IsTruncated ? " · ANALYSE LIMITÉE" : "") + ".";
             WarningText.Text = _projection.Diagnostics.Count + " référence(s) non projetée(s)" +
                 (_readOnly ? " · workspace en lecture seule" : "") +
                 (!_queryEdited && _loadedQuery?.Filter is not null
                     ? " · filtres de la vue sauvegardée appliqués" : "");
+
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when a user edits a filter or closes the window.
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
-            SummaryText.Text = "Filtre invalide : " + exception.Message;
-            ListResults.ItemsSource = null;
-            TableResults.ItemsSource = null;
-            CardResults.ItemsSource = null;
-            OpenSourceButton.IsEnabled = false;
+            if (sequence == _querySequence && !_closed)
+            {
+                SummaryText.Text = "Filtre invalide : " + exception.Message;
+                ListResults.ItemsSource = null;
+                TableResults.ItemsSource = null;
+                CardResults.ItemsSource = null;
+                PreviousPageButton.IsEnabled = false;
+                NextPageButton.IsEnabled = false;
+                OpenSourceButton.IsEnabled = false;
+            }
         }
+        finally
+        {
+            if (ReferenceEquals(_queryCancellation, request))
+            {
+                _queryCancellation = null;
+            }
+
+            request.Dispose();
+        }
+    }
+
+    /// <summary>Browses the previous bounded page without rescanning canonical sources.</summary>
+    /// <param name="sender">Navigation button.</param>
+    /// <param name="e">Click.</param>
+    private void PreviousPage_Click(object sender, RoutedEventArgs e)
+    {
+        _pageIndex = Math.Max(0, _pageIndex - 1);
+        RefreshResults();
+    }
+
+    /// <summary>Browses the next bounded page with stable query ordering.</summary>
+    /// <param name="sender">Navigation button.</param>
+    /// <param name="e">Click.</param>
+    private void NextPage_Click(object sender, RoutedEventArgs e)
+    {
+        _pageIndex++;
+        RefreshResults();
+    }
+
+    /// <summary>Coalesces filesystem bursts onto the UI dispatcher.</summary>
+    /// <param name="sender">Shared monitor.</param>
+    /// <param name="change">Filesystem change notification.</param>
+    private void Monitor_FileChanged(object? sender, WorkspaceFileChangedEventArgs change)
+    {
+        string name = Path.GetFileName(change.FullPath);
+        if (!name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) &&
+            name is not ".project.json" and not ".application.json" and not ".workspace.json" &&
+            Path.HasExtension(change.FullPath))
+        {
+            return;
+        }
+
+        if (_closed || Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _ = Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_closed)
+            {
+                return;
+            }
+
+            _refreshTimer.Stop();
+            _refreshTimer.Start();
+        }));
+    }
+
+    /// <summary>Rebuilds the changed read projection, never edits the source itself.</summary>
+    /// <param name="sender">Refresh timer.</param>
+    /// <param name="e">Timer event.</param>
+    private async void RefreshTimer_Tick(object? sender, EventArgs e)
+    {
+        _refreshTimer.Stop();
+        if (_reloadProjection is null || _closed)
+        {
+            return;
+        }
+
+        _reloadCancellation?.Cancel();
+        CancellationTokenSource request = new();
+        _reloadCancellation = request;
+        try
+        {
+            WarningText.Text = "Actualisation des sources…";
+            WorkspaceViewProjection updated = await _reloadProjection(request.Token);
+            if (_closed || request.IsCancellationRequested ||
+                !ReferenceEquals(_reloadCancellation, request))
+            {
+                return;
+            }
+
+            _projection = updated;
+            _pageIndex = 0;
+            RefreshResults();
+            WarningText.Text = updated.Diagnostics.Count + " référence(s) non projetée(s)";
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded request, including when the dialog closes.
+        }
+        catch (Exception exception)
+        {
+            if (!_closed)
+            {
+                WarningText.Text = "Actualisation impossible : " + exception.Message;
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_reloadCancellation, request))
+            {
+                _reloadCancellation = null;
+            }
+
+            request.Dispose();
+        }
+    }
+
+    /// <summary>Detaches event listeners and cancels pending work on closing.</summary>
+    /// <param name="sender">Window.</param>
+    /// <param name="e">Closed event.</param>
+    private void Window_Closed(object? sender, EventArgs e)
+    {
+        _closed = true;
+        _monitor?.FileChanged -= Monitor_FileChanged;
+        _refreshTimer.Stop();
+        _refreshTimer.Tick -= RefreshTimer_Tick;
+        _queryCancellation?.Cancel();
+        _reloadCancellation?.Cancel();
     }
 
     /// <summary>Marks the simple form as edited and reruns its projection.</summary>
@@ -228,6 +408,7 @@ public partial class WorkspaceViewsDialog : Window
         if (!_loading)
         {
             _queryEdited = true;
+            _pageIndex = 0;
             RefreshResults();
         }
     }
@@ -240,6 +421,7 @@ public partial class WorkspaceViewsDialog : Window
         if (!_loading)
         {
             _queryEdited = true;
+            _pageIndex = 0;
             RefreshResults();
         }
     }
@@ -260,6 +442,7 @@ public partial class WorkspaceViewsDialog : Window
             return;
         }
 
+        _pageIndex = 0;
         _preferredSavedId = chosen.Definition?.Id;
         _preferredVisibility = chosen.Visibility;
         _loading = true;
