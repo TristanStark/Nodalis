@@ -21,6 +21,7 @@ public partial class MainWindow
     private readonly HashSet<string> _compositeSourcePaths =
         new(StringComparer.OrdinalIgnoreCase);
     private bool _compositeIndexDirty;
+    private bool _compositeHasMissingSources;
 
     /// <summary>Subscribes once to source changes; only included documents invalidate preview.</summary>
     private void EnsureCompositeFileMonitor()
@@ -47,9 +48,13 @@ public partial class MainWindow
     {
         lock (_compositeSourcePaths)
         {
-            if (!_compositeSourcePaths.Contains(change.FullPath) &&
-                (change.OldFullPath is null ||
-                 !_compositeSourcePaths.Contains(change.OldFullPath)))
+            bool tracked = _compositeSourcePaths.Contains(change.FullPath) ||
+                change.OldFullPath is not null &&
+                _compositeSourcePaths.Contains(change.OldFullPath);
+            bool mayRestoreMissing = _compositeHasMissingSources &&
+                change.ChangeType is WatcherChangeTypes.Created or WatcherChangeTypes.Renamed &&
+                change.FullPath.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
+            if (!tracked && !mayRestoreMissing)
             {
                 return;
             }
@@ -81,6 +86,7 @@ public partial class MainWindow
         if (!markdown.Contains("![[", StringComparison.Ordinal))
         {
             _compositeGraph.Clear();
+            _compositeHasMissingSources = false;
             lock (_compositeSourcePaths)
             {
                 _compositeSourcePaths.Clear();
@@ -121,6 +127,7 @@ public partial class MainWindow
             }
 
             _compositeIndexDirty = false;
+            _compositeHasMissingSources = result.Diagnostics.Count > 0;
             _compositeGraph.Replace(result.Edges);
             HashSet<Guid> includedIds = result.Edges.Select(edge => edge.TargetId).ToHashSet();
             HashSet<string> paths = index.Targets
