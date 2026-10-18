@@ -58,6 +58,22 @@ internal static class CompositeExportsSmokeTests
             Assert(htmlText.Contains("&lt;validé&gt; &amp; signé") &&
                 !htmlText.Contains("Résultat <validé>"),
                 "Standalone HTML must escape document content.");
+            string figure = Path.Combine(root, "figure.png");
+            await File.WriteAllBytesAsync(figure, Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y3c5H0AAAAASUVORK5CYII="));
+            string htmlRich = CompositeDocumentExportService.RenderHtml(
+                "**Fort** et ![Figure](figure.png) avec <danger>",
+                root, root);
+            Assert(htmlRich.Contains("<strong>Fort</strong>") &&
+                htmlRich.Contains("data:image/png;base64,") &&
+                htmlRich.Contains("&lt;danger&gt;") &&
+                !htmlRich.Contains("<danger>"),
+                "Standalone HTML must preserve bold, embed safe local images and escape markup.");
+            string outside = CompositeDocumentExportService.RenderHtml(
+                "![Interdit](../private.png)", root, root);
+            Assert(!outside.Contains("data:image/"),
+                "Assets outside workspace must never be embedded.");
+
             using ZipArchive document = ZipFile.OpenRead(docx);
             Assert(document.GetEntry("[Content_Types].xml") is not null &&
                 document.GetEntry("_rels/.rels") is not null &&
