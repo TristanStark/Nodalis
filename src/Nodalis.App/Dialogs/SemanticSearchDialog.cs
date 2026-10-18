@@ -218,12 +218,23 @@ public sealed class SemanticSearchDialog : Window
                 ? [] : await GetLexicalCandidatesAsync(query, scope, token);
             IReadOnlyList<SemanticSearchResult> vector = [];
             bool providerUnavailable = false;
-            if (mode != 1)
+            string semanticQuery = WorkspaceSearchService.GetFreeTextQuery(query);
+            if (mode != 1 && semanticQuery.Length > 0)
             {
                 try
                 {
-                    vector = await _service.SearchAsync(query, true,
+                    vector = await _service.SearchAsync(semanticQuery, true,
                         scope.Length == 0 ? null : scope, token);
+                    if (WorkspaceSearchService.HasStructuredFilters(query))
+                    {
+                        // Reuse the original engine's exact front matter, project
+                        // and modification-date predicates before displaying vectors.
+                        IReadOnlySet<string> permitted =
+                            await _lexicalService.GetFilteredRelativePathsAsync(
+                                _workspaceRoot, query, token);
+                        vector = vector.Where(hit => permitted.Contains(
+                            hit.RelativePath.Replace('\\', '/'))).ToArray();
+                    }
                 }
                 catch (Exception error) when (mode == 0 && error is
                     EmbeddingProviderException or InvalidDataException or
