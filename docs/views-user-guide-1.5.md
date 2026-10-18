@@ -53,7 +53,8 @@ un conflit visible et un fichier d'une version future n'est jamais réécrit.
   peuvent actualiser l'écran.
 - Les modifications externes des fichiers Markdown et métadonnées sont
   détectées ; plusieurs notifications rapprochées sont regroupées avant
-  rechargement. Une projection en mémoire évite les scans lors des
+  rechargement. La collecte de maintenance utilise l'index de liens actualisé
+  pour retrouver les fiches déplacées. Une projection en mémoire évite les scans lors des
   simples réouvertures sans modification.
 - L'index des liens réutilise ses empreintes incrémentales existantes ;
   le collecteur des tâches réutilise lui aussi les documents inchangés grâce
