@@ -123,10 +123,14 @@ La documentation v1.4 est publiée dans le dépôt mais la version stable annonc
 - [Nodalis 1.4.0 — notes de version](release-notes-1.4.md)
 - [Guide complet d'analyse d'impact](impact-user-guide-1.4.md)
 
-## Nodalis 1.5 (aperçu en cours sur develop)
+## Nodalis 1.5 — Vues dynamiques
 
+- [Notes de version 1.5](release-notes-1.5.md)
+- [Guide utilisateur des vues](views-user-guide-1.5.md)
 - [Projection et requêtes des vues dynamiques](views-core-1.5.md)
 - [Définitions sauvegardées JSON privées et portables](views-storage-1.5.md)
+- [Qualification et restauration 1.5](release-checklist-1.5.md)
 
-La v1.5 ne doit pas être considérée stable avant clôture de l'EPIC #125,
-qualification Windows et publication d'une release officielle.
+## Nodalis 1.6 (en développement)
+
+EPIC [Documents composites #126](https://github.com/TristanStark/Nodalis/issues/126).

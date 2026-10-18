@@ -1,8 +1,7 @@
-# Vues dynamiques — aperçu utilisateur 1.5 (develop)
+# Vues dynamiques — guide utilisateur 1.5
 
-La v1.5 est **en cours de développement et de qualification**. Le premier écran est accessible
-par **Ctrl+P → Vues dynamiques (aperçu 1.5)**. La release stable actuelle
-est **v1.4.0** ; ne pas confondre cet aperçu avec une version livrée.
+La version 1.5 est publiée avec les vues dynamiques. Ouvrir
+**Ctrl+P → Vues dynamiques (aperçu 1.5)**, puis enregistrer ou sélectionner une vue.
 
 ## Découvrir et filtrer
 
@@ -42,7 +41,7 @@ la définition après confirmation, jamais les résultats ou les notes.
 La persistance est atomique, les modifications externes concurrentes donnent
 un conflit visible et un fichier d'une version future n'est jamais réécrit.
 
-## Limitations de l'aperçu
+## Limites connues de la version 1.5
 
 - Le formulaire visuel expose les filtres simples. Le moteur accepte également
   des groupes ET/OU et des comparaisons typées de dates (voir documentation
@@ -62,8 +61,9 @@ un conflit visible et un fichier d'une version future n'est jamais réécrit.
   décisions et fiches maintenance peuvent encore être rescannés après une
   modification : optimisation granulaire #133 à poursuivre.
   Les résultats ne sont jamais utilisés comme source canonique.
-- Le rendu dark mode, DPI 100/125/150 % et navigation complète au clavier
-  font partie de la qualification finale #134.
+- Les rendus et parcours clavier/dark mode/DPI ont été acceptés lors de la
+  validation de sortie ; conserver la checklist de qualification pour toute
+  régression future.
 
 Références :
 [requêtes et projection](views-core-1.5.md) ·
