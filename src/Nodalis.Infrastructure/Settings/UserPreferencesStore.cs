@@ -80,6 +80,19 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
             cancellationToken);
     }
 
+    /// <summary>Bounds optional semantic settings while keeping indexing disabled by default.</summary>
+    /// <param name="value">Loaded semantic settings.</param>
+    /// <returns>Safe, bounded settings preserving explicit opt-in.</returns>
+    private static SemanticSearchPreferences NormalizeSemantic(SemanticSearchPreferences value)
+    {
+        return value with
+        {
+            MaxBatchSize = Math.Clamp(value.MaxBatchSize, 1, 32),
+            TimeoutSeconds = Math.Clamp(value.TimeoutSeconds, 1, 300),
+            Dimensions = Math.Clamp(value.Dimensions, 0, 4096)
+        };
+    }
+
     /// <summary>
     /// Performs the <c>Normalize</c> operation.
     /// </summary>
@@ -134,6 +147,7 @@ public sealed class UserPreferencesStore : IUserPreferencesStore
                 800),
             Editor = editor,
             Backup = backup,
+            SemanticSearch = NormalizeSemantic(preferences.SemanticSearch ?? new()),
             ExpandedNodeIds = preferences.ExpandedNodeIds ?? [],
             RecentItems = (preferences.RecentItems ?? [])
                 .Where(item => item?.Item is not null)

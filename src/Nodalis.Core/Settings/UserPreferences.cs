@@ -37,6 +37,9 @@ public sealed record UserPreferences
 
     public AiPreferences Ai { get; init; } = new();
 
+    /// <summary>Independent opt-in settings for future local semantic indexing.</summary>
+    public SemanticSearchPreferences SemanticSearch { get; init; } = new();
+
     public List<RecentItemReference> RecentItems { get; init; } = [];
 
     public List<RecentSearchReference> RecentSearches { get; init; } = [];
