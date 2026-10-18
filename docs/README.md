@@ -151,3 +151,5 @@ EPIC [Documents composites #126](https://github.com/TristanStark/Nodalis/issues/
 ## Nodalis 1.8 — Recherche hybride (en développement)
 
 Issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmarks et index incrémental), #150 (gestion de l'index, confidentialité et qualification).
+
+- [Guide de développement : recherche hybride et RRF 1.8](hybrid-search-1.8.md) — fonctionnalités, paramètres, confidentialité, tests et limites avant qualification.
