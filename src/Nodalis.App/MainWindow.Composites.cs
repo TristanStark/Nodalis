@@ -52,7 +52,7 @@ public partial class MainWindow
                 change.OldFullPath is not null &&
                 _compositeSourcePaths.Contains(change.OldFullPath);
             bool mayRestoreMissing = _compositeHasMissingSources &&
-                change.ChangeType is WatcherChangeTypes.Created or WatcherChangeTypes.Renamed &&
+                (change.ChangeType is WatcherChangeTypes.Created or WatcherChangeTypes.Renamed) &&
                 change.FullPath.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
             if (!tracked && !mayRestoreMissing)
             {
