@@ -135,24 +135,36 @@ public sealed class SemanticWorkspaceSearchService
             token.ThrowIfCancellationRequested();
             Dictionary<string, SemanticVectorEntry> cached = old.ToDictionary(
                 entry => entry.ChunkId, StringComparer.Ordinal);
+            Dictionary<string, SemanticVectorEntry> byContent = old
+                .GroupBy(entry => entry.ContentHash, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(),
+                    StringComparer.Ordinal);
             int retained = 0;
+            int unchangedIdentities = 0;
             bool provenanceChanged = false;
             foreach (SemanticChunk chunk in chunks)
             {
-                if (cached.TryGetValue(chunk.ChunkId, out SemanticVectorEntry? entry) &&
-                    entry.ContentHash == chunk.ContentHash)
-                {
-                    retained++;
-                    if (!string.Equals(entry.RelativePath, chunk.RelativePath,
-                            StringComparison.Ordinal) ||
-                        entry.SourceLine != chunk.SourceLine ||
-                        entry.Heading != chunk.Heading)
-                        provenanceChanged = true;
-                }
+                bool sameIdentity = cached.TryGetValue(chunk.ChunkId,
+                    out SemanticVectorEntry? entry) &&
+                    entry.ContentHash == chunk.ContentHash;
+                if (sameIdentity)
+                    unchangedIdentities++;
+                else
+                    byContent.TryGetValue(chunk.ContentHash, out entry);
+                if (entry is null) continue;
+                retained++;
+                if (!sameIdentity ||
+                    !string.Equals(entry.RelativePath, chunk.RelativePath,
+                        StringComparison.Ordinal) ||
+                    entry.SourceLine != chunk.SourceLine ||
+                    entry.Heading != chunk.Heading)
+                    provenanceChanged = true;
             }
 
             int pending = chunks.Count - retained;
-            int vanished = old.Length - retained;
+            // Obsolete identities are removed even when their vector is
+            // recycled for the same content at a different canonical position.
+            int vanished = old.Length - unchangedIdentities;
             newChunks += pending;
             reused += retained;
             removed += vanished;
@@ -243,15 +255,28 @@ public sealed class SemanticWorkspaceSearchService
             if (index.Entries.Count - old.Count + chunks.Count >
                 SemanticVectorCacheService.MaximumEntries)
                 throw new InvalidDataException("Limite de 10 000 fragments : réduisez le périmètre.");
+            // Chunk identifiers include their source position. A paragraph
+            // inserted earlier changes those identities but must not force a
+            // model call for byte-for-byte identical later passages.
+            Dictionary<string, SemanticVectorEntry> byContent = old.Values
+                .GroupBy(entry => entry.ContentHash, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(),
+                    StringComparer.Ordinal);
             List<SemanticVectorEntry> replacement = [];
             List<SemanticChunk> pending = [];
             foreach (SemanticChunk chunk in chunks)
             {
-                if (old.TryGetValue(chunk.ChunkId, out SemanticVectorEntry? entry) &&
-                    entry.ContentHash == chunk.ContentHash)
+                bool exact = old.TryGetValue(chunk.ChunkId,
+                    out SemanticVectorEntry? entry) &&
+                    entry.ContentHash == chunk.ContentHash;
+                if (!exact)
+                    byContent.TryGetValue(chunk.ContentHash, out entry);
+                if (entry is not null)
                 {
                     replacement.Add(entry with
                     {
+                        ChunkId = chunk.ChunkId,
+                        ContentHash = chunk.ContentHash,
                         RelativePath = chunk.RelativePath,
                         Heading = chunk.Heading,
                         SourceLine = chunk.SourceLine
