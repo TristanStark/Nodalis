@@ -105,9 +105,9 @@ internal static class CompositeDocumentsSmokeTests
             string reports = Path.Combine(root, "reports");
             Directory.CreateDirectory(graphics);
             Directory.CreateDirectory(reports);
-            await File.WriteAllTextAsync(child, "# Images\\n![Figure](graphics/diagram.png)\\n");
+            await File.WriteAllTextAsync(child, "# Images\n![Figure](graphics/diagram.png)\n");
             string nestedParent = Path.Combine(reports, "Report.md");
-            await File.WriteAllTextAsync(nestedParent, "# Rapport\\n");
+            await File.WriteAllTextAsync(nestedParent, "# Rapport\n");
             CompositeRenderResult rebased = await renderer.RenderAsync(nestedParent,
                 CompositeMarkdownSyntax.Format(childId));
             Assert(rebased.Markdown.Contains("![Figure](../graphics/diagram.png)"),
