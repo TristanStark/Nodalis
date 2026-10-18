@@ -27,7 +27,8 @@ public sealed class SemanticSearchDialog : Window
     private readonly TextBox _scope = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly ComboBox _scopePicker = new()
     {
-        MinHeight = 32, Margin = new Thickness(0, 5, 0, 9),
+        MinHeight = 32,
+        Margin = new Thickness(0, 5, 0, 9),
         MaxDropDownHeight = 300
     };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) };
@@ -210,13 +211,15 @@ public sealed class SemanticSearchDialog : Window
 
         _scopePicker.Items.Add(new ComboBoxItem
         {
-            Content = "Global · Tout le workspace", Tag = string.Empty
+            Content = "Global · Tout le workspace",
+            Tag = string.Empty
         });
         foreach (KeyValuePair<string, string> entry in scopes)
         {
             _scopePicker.Items.Add(new ComboBoxItem
             {
-                Content = entry.Key, Tag = entry.Value
+                Content = entry.Key,
+                Tag = entry.Value
             });
         }
 
