@@ -249,8 +249,7 @@ public sealed class CompositeDocumentExportService
                 Path.GetFullPath(workspaceRoot)) + Path.DirectorySeparatorChar;
             string path = Path.GetFullPath(Path.Combine(baseDirectory, target));
             if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase) ||
-                !File.Exists(path) ||
-                (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                !File.Exists(path) || !IsSafeLocalAssetPath(path, root))
             {
                 return "<span>[image indisponible : " + label + "]</span>";
             }
@@ -273,6 +272,12 @@ public sealed class CompositeDocumentExportService
             }
 
             byte[] bytes = File.ReadAllBytes(path);
+            if (bytes.Length > 2_000_000 ||
+                bytes.Length > 20_000_000 - embeddedBytes)
+            {
+                return "<span>[image trop volumineuse : " + label + "]</span>";
+            }
+
             embeddedBytes += bytes.Length;
             return "<img alt=\"" + label + "\" src=\"data:" + mime +
                 ";base64," + Convert.ToBase64String(bytes) + "\">";
@@ -282,6 +287,32 @@ public sealed class CompositeDocumentExportService
         {
             return "<span>[image inaccessible : " + label + "]</span>";
         }
+    }
+
+    /// <summary>Rejects reparse points in a local asset or its workspace-relative parents.</summary>
+    /// <param name="path">Candidate image path.</param>
+    /// <param name="root">Canonical workspace root with trailing separator.</param>
+    /// <returns>True only for non-reparse local assets.</returns>
+    private static bool IsSafeLocalAssetPath(string path, string root)
+    {
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        {
+            return false;
+        }
+
+        DirectoryInfo? parent = Directory.GetParent(path);
+        while (parent is not null &&
+            parent.FullName.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+            if ((parent.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                return false;
+            }
+
+            parent = parent.Parent;
+        }
+
+        return true;
     }
 
     /// <summary>Escapes user-authored content without any network-related dependency.</summary>
