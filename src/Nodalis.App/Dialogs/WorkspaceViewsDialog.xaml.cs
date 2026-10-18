@@ -112,7 +112,8 @@ public partial class WorkspaceViewsDialog : Window
         {
             predicates.Add(new WorkspaceViewPredicate
             {
-                Field = "title", Operator = WorkspaceViewOperator.Contains,
+                Field = "title",
+                Operator = WorkspaceViewOperator.Contains,
                 Text = SearchTextBox.Text.Trim()
             });
         }
@@ -121,7 +122,8 @@ public partial class WorkspaceViewsDialog : Window
         {
             predicates.Add(new WorkspaceViewPredicate
             {
-                Field = "status", Operator = WorkspaceViewOperator.Contains,
+                Field = "status",
+                Operator = WorkspaceViewOperator.Contains,
                 Text = StatusTextBox.Text.Trim()
             });
         }
@@ -358,7 +360,9 @@ public partial class WorkspaceViewsDialog : Window
             ? original.Id : Guid.NewGuid();
         WorkspaceViewDefinition proposed = new()
         {
-            Id = id, Name = name, Query = CurrentQuery(),
+            Id = id,
+            Name = name,
+            Query = CurrentQuery(),
             Layout = ChosenLayout(),
             Columns = original?.Columns ?? ["title", "kind", "date", "status"],
             Pinned = original?.Pinned ?? false,
