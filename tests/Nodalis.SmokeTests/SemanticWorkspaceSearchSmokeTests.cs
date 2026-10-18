@@ -104,12 +104,50 @@ internal static class SemanticWorkspaceSearchSmokeTests
             excludedFake.Calls == 0 &&
             (await excludedService.SearchAsync("indexation interdite", true)).Count == 0,
             "Explicit exclusions prevent sending restricted Markdown to the provider.");
-        Console.WriteLine("[Semantic 1.7] consent, incremental indexing, source navigation, deletion passed.");
+        // Emulate a user interruption during the next provider batch.
+        // A whole document is committed atomically; a second explicit run resumes
+        // by reusing it rather than embedding the same passage again.
+        string resumedWorkspace = Path.Combine(root, "semantic-resume-workspace");
+        Directory.CreateDirectory(resumedWorkspace);
+        await File.WriteAllTextAsync(Path.Combine(resumedWorkspace, "first.md"),
+            "# Premier\\nCompte rendu durable".Replace("\\\\n", "\\n"));
+        await File.WriteAllTextAsync(Path.Combine(resumedWorkspace, "second.md"),
+            "# Second\\nContrôle supplémentaire".Replace("\\\\n", "\\n"));
+        FakeProvider interrupted = new() { CancelOnCall = 2 };
+        SemanticWorkspaceSearchService resumed = new(resumedWorkspace, enabled,
+            interrupted, cacheDirectory: Path.Combine(root, "vector-cache-resume"));
+        IReadOnlyList<SemanticSource> pair =
+        [
+            new(Guid.NewGuid(), "first.md"), new(Guid.NewGuid(), "second.md")
+        ];
+        bool canceled = false;
+        try
+        {
+            await resumed.IndexAsync(pair, true);
+        }
+        catch (OperationCanceledException)
+        {
+            canceled = true;
+        }
+        SemanticIndexStatus afterStop = await resumed.InspectAsync();
+        Assert(canceled && afterStop.IsCompatible && afterStop.DocumentCount == 1 &&
+            afterStop.ChunkCount == 1,
+            "Interrupted indexing must keep previously committed documents intact.");
+        interrupted.CancelOnCall = 0;
+        SemanticIndexSummary continuation = await resumed.IndexAsync(pair, true);
+        Assert(continuation.EmbeddedChunks == 1 && interrupted.Calls == 3 &&
+            (await resumed.InspectAsync()).DocumentCount == 2,
+            "Resume must compute only incomplete passages after an interruption.");
+
+        Console.WriteLine("[Semantic 1.7/1.8] consent, incremental resume, source navigation and deletion passed.");
     }
 
     private sealed class FakeProvider : IEmbeddingProvider
     {
         public int Calls { get; private set; }
+
+        /// <summary>Optional synthetic interruption on a specific provider invocation.</summary>
+        public int CancelOnCall { get; set; }
 
         public EmbeddingCapabilities Capabilities { get; } =
             new("fake-vector-model", 3, 4);
@@ -123,6 +161,8 @@ internal static class SemanticWorkspaceSearchSmokeTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             Calls++;
+            if (CancelOnCall == Calls)
+                throw new OperationCanceledException("Synthetic user interruption.", cancellationToken);
             return Task.FromResult(new EmbeddingBatch("fake-vector-model", 3,
                 texts.Select(_ => new[] { 1f, 0.2f, 0.1f }).ToArray()));
         }

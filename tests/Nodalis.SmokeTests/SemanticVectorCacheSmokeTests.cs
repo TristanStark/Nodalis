@@ -52,8 +52,27 @@ internal static class SemanticVectorCacheSmokeTests
         await cache.ReplaceDocumentAsync("model-A", 3, "split-v1", second, [b]);
         Assert((await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Count == 1,
             "A corrupted index can be recreated with valid local embeddings.");
+        SemanticVectorEntry[] overBudget = Enumerable.Range(0,
+            SemanticVectorCacheService.MaximumEntries + 1)
+            .Select(i => Entry(first, "application/dev.md", "candidate-" + i))
+            .ToArray();
+        bool budgetRejected = false;
+        try
+        {
+            await cache.ReplaceDocumentAsync("model-A", 3, "split-v1",
+                first, overBudget);
+        }
+        catch (InvalidDataException)
+        {
+            budgetRejected = true;
+        }
+        Assert(budgetRejected &&
+            (await cache.LoadAsync("model-A", 3, "split-v1")).Entries.Count == 1,
+            "An over-limit write must fail without corrupting the previous cache.");
         await cache.PurgeAsync();
-        Assert(!File.Exists(cache.CachePath), "Purge removes only derived vectors.");
+        Assert(!File.Exists(cache.CachePath) &&
+            !(await cache.InspectAsync("model-A", 3, "split-v1")).FileExists,
+            "Purge removes only derived vectors and reports absence.");
         Console.WriteLine("[Semantic 1.7] vector cache persistence, invalidation, corruption and purge passed.");
     }
 
