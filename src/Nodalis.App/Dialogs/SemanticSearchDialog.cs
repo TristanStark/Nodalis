@@ -18,6 +18,7 @@ public sealed class SemanticSearchDialog : Window
     private readonly SemanticWorkspaceSearchService _service;
     private readonly WorkspaceSearchService _lexicalService = new();
     private readonly IReadOnlyList<SemanticSource> _documents;
+    private readonly IReadOnlyList<SemanticSource> _lexicalDocuments;
     private readonly string _workspaceRoot;
     private readonly bool _enabled;
     private readonly ComboBox _mode = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
@@ -61,11 +62,13 @@ public sealed class SemanticSearchDialog : Window
         };
         _service = new SemanticWorkspaceSearchService(workspaceRoot, preferences,
             new ProcessEmbeddingProvider(preferences), chunking: segmentation);
-        _documents = catalog.Targets.Where(item =>
-                item.Kind == LinkTargetKind.Document &&
-                SemanticMarkdownChunker.IsEligiblePath(item.RelativePath, segmentation))
+        _lexicalDocuments = catalog.Targets.Where(item =>
+                item.Kind == LinkTargetKind.Document)
             .Select(item => new SemanticSource(item.Id, item.RelativePath))
             .DistinctBy(item => item.DocumentId).ToArray();
+        _documents = _lexicalDocuments.Where(item =>
+                SemanticMarkdownChunker.IsEligiblePath(item.RelativePath, segmentation))
+            .ToArray();
 
         DockPanel layout = new() { Margin = new Thickness(16) };
         StackPanel top = new();
@@ -329,7 +332,7 @@ public sealed class SemanticSearchDialog : Window
                  !relative.StartsWith(scope + "/", StringComparison.OrdinalIgnoreCase)))
                 continue;
 
-            SemanticSource? source = _documents.FirstOrDefault(document =>
+            SemanticSource? source = _lexicalDocuments.FirstOrDefault(document =>
                 string.Equals(document.RelativePath.Replace('\\', '/'), relative,
                     StringComparison.OrdinalIgnoreCase));
             if (source is null || !seen.Add(source.DocumentId)) continue;
