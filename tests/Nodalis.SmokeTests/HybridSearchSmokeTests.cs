@@ -1,4 +1,5 @@
 using Nodalis.Core.Search;
+using Nodalis.Infrastructure.Search;
 
 /// <summary>Deterministic ranking tests for the optional 1.8 hybrid search.</summary>
 internal static class HybridSearchSmokeTests
@@ -47,6 +48,36 @@ internal static class HybridSearchSmokeTests
             HybridSearchRanker.Fuse([textAndVector], [], 1).Count == 1,
             "Semantic-only, empty and truncated rankings must be deterministic.");
         Console.WriteLine("[Semantic 1.8] weighted RRF, exact identifiers, provenance and offline fallback passed.");
+    }
+
+    /// <summary>Confirms that hybrid matching uses the classic query filter rules.</summary>
+    /// <param name="root">Smoke-test parent path.</param>
+    /// <returns>Completed on-disk filter checks without invoking an embedding provider.</returns>
+    public static async Task RunFilterChecksAsync(string root)
+    {
+        string workspace = Path.Combine(root, "HybridFilterFixture");
+        Directory.CreateDirectory(workspace);
+        await File.WriteAllTextAsync(Path.Combine(workspace, "Source.md"),
+            "---\ntags: api\nstatus: active\n---\n# Source\nDoublons au nominatif");
+        await File.WriteAllTextAsync(Path.Combine(workspace, "Other.md"),
+            "---\ntags: archive\nstatus: closed\n---\n# Source\nDoublons au nominatif");
+
+        Assert(WorkspaceSearchService.HasStructuredFilters("tag:api doublons") &&
+            !WorkspaceSearchService.HasStructuredFilters("doublons inscription") &&
+            WorkspaceSearchService.GetFreeTextQuery("tag:api doublons inscription") ==
+                "doublons inscription",
+            "Semantic embeddings must receive only genuine free text, not filter syntax.");
+
+        WorkspaceSearchService service = new();
+        IReadOnlySet<string> accepted = await service.GetFilteredRelativePathsAsync(
+            workspace, "tag:api status:active doublons inscription");
+        Assert(accepted.Count == 1 && accepted.Contains("Source.md"),
+            "Vector results must share the exact legacy metadata predicates.");
+        IReadOnlySet<string> noMatch = await service.GetFilteredRelativePathsAsync(
+            workspace, "tag:inexistant doublons");
+        Assert(noMatch.Count == 0,
+            "Structured filters may reject every vector hit; none should be invented.");
+        Console.WriteLine("[Semantic 1.8] shared metadata filters and free-text query passed.");
     }
 
     /// <summary>Rejects an invalid deterministic ranking expectation.</summary>
