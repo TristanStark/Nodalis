@@ -11,6 +11,8 @@
 - [x] Quotas de fragments et de stockage avant écriture, sans destruction des anciennes données.
 - [x] Diagnostic de réindexation sans modèle avant le consentement : passages nouveaux/réutilisés/supprimés, quota prévisionnel, interruption testée sur plus de 10 000 fragments.
 - [x] Pause/annulation avec commit par document et reprise incrémentale ; tests avec provider simulé.
+- [x] Réutilisation SHA-256 des passages inchangés après déplacement/ajout de lignes dans un même Markdown ; provenance corrigée, répétitions de paragraphe testées.
+- [x] Tests de protocole JSON via un **vrai processus enfant local** (fournisseur simulé seulement) : réponse valide/malformée, modèle incompatible, lot tronqué, échec, timeout et annulation ; aucun serveur Ollama ni requête réseau.
 - [x] Purge confirmée et suppression des vecteurs des GUIDs supprimés à la réindexation explicite.
 - [ ] Dernière CI `develop` verte pour **tous** les commits de v1.8 (build, style, smoke, archive reproductible, démarrage portable).
 - [x] Banc d'évaluation français annoté (14 documents/14 requêtes) disponible et exécutable en mode lexical, sans adapter.

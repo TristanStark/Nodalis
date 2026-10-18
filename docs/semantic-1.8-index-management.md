@@ -26,6 +26,8 @@ Le sélecteur **Global / Application / Projet** propose les dossiers existants �
 
 **Pause / Annuler** interrompt l'opération. Seuls les documents intégralement validés avant l'arrêt sont conservés ; lors d'une reprise volontaire avec le même périmètre, le modèle ne recalcule que les fragments absents ou modifiés. L'indexation n'a pas lieu en arrière-plan.
 
+La v1.8 reconnaît désormais un **passage identique déplacé dans le même document** : l'insertion de lignes, le déplacement d'une section ou la répétition d'un texte existant n'obligent plus à redemander son embedding. Nodalis compare d'abord l'identité exacte du passage, puis la **signature SHA-256 de son contenu** quand sa position ou son titre a changé. Il recopie uniquement le vecteur déjà calculé pour le **même GUID source**, le même modèle, les mêmes dimensions et la même politique de segmentation, tout en recalculant l'identifiant du fragment et sa provenance (chemin, section, numéro de ligne). Cette réutilisation n'est pas une détection de synonymes et ne traverse pas les documents.
+
 Pendant une indexation approuvée, Nodalis compare aussi le catalogue complet des documents éligibles aux GUIDs de l'index, puis supprime les vecteurs orphelins de documents réellement supprimés. Cette réconciliation ne porte **pas** sur les seules sources du dossier sélectionné : elle préserve les vecteurs des documents encore connus hors du périmètre choisi. Toute modification du modèle, des dimensions ou des exclusions invalide et efface le cache dérivé conformément au réglage de confidentialité.
 
 Un quota dépassé bloque la création des nouveaux vecteurs et laisse intactes les données sources et les documents déjà indexés. Réduire le périmètre ou purger explicitement l'index.
