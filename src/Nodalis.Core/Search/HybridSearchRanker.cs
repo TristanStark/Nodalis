@@ -103,7 +103,7 @@ public static class HybridSearchRanker
             {
                 RankingState state = entry.Value;
                 HybridSearchCandidate candidate = state.Lexical is
-                    { IsExactIdentifier: true } exact ? exact :
+                { IsExactIdentifier: true } exact ? exact :
                     state.Semantic ?? state.Lexical!;
                 HybridMatchSource source = state.Lexical is not null &&
                     state.Semantic is not null ? HybridMatchSource.Combined :
