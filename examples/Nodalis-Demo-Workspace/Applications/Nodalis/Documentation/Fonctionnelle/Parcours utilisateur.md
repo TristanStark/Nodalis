@@ -11,6 +11,8 @@ Un seul workspace regroupant plusieurs applications et projets, avec accès imm�
 
 ## Navigation
 
+![Maquette de worktree locale](../../../../Attachments/worktree-navigation.bmp)
+
 1. Naviguer dans le worktree et sélectionner un projet.
 2. Ouvrir un document Markdown avec les liens `[[...]]`.
 3. Chercher via Ctrl+F ou utiliser Ctrl+P pour une action métier.
