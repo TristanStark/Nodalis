@@ -19,6 +19,7 @@ public sealed class SemanticSettingsDialog : Window
     private readonly TextBox _batch;
     private readonly TextBox _timeout;
     private readonly TextBox _exclusions;
+    private CancellationTokenSource? _probeRequest;
 
     /// <summary>Validated settings chosen by the user, when DialogResult is true.</summary>
     public SemanticSearchPreferences? Preferences { get; private set; }
@@ -174,6 +175,7 @@ public sealed class SemanticSettingsDialog : Window
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = form
         };
+        Closing += (_, _) => _probeRequest?.Cancel();
     }
 
     /// <summary>Creates a labeled, text-selectable settings entry.</summary>
@@ -224,13 +226,17 @@ public sealed class SemanticSettingsDialog : Window
             MaxBatchSize = 1,
             TimeoutSeconds = seconds
         };
+        _probeRequest?.Cancel();
+        CancellationTokenSource request = new();
+        _probeRequest = request;
         button.IsEnabled = false;
         status.Text = "Test volontaire en cours, aucune note du workspace n'est transmise…";
         try
         {
             ProcessEmbeddingProvider provider = new(probeSettings);
             EmbeddingBatch batch = await provider.EmbedAsync(
-                ["Nodalis vérifie ici un modèle d'embeddings local avec une phrase artificielle."]);
+                ["Nodalis vérifie ici un modèle d'embeddings local avec une phrase artificielle."],
+                request.Token);
             status.Text = "Modèle compatible : " + batch.ModelId + ", " +
                 batch.Dimensions + " dimensions. Aucun document n'a été indexé.";
         }
@@ -244,6 +250,12 @@ public sealed class SemanticSettingsDialog : Window
         }
         finally
         {
+            if (ReferenceEquals(_probeRequest, request))
+            {
+                _probeRequest = null;
+            }
+
+            request.Dispose();
             button.IsEnabled = true;
         }
     }
