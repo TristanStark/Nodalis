@@ -1,6 +1,6 @@
 # Recherche sémantique Nodalis 1.7 — adaptateur embeddings local (#142)
 
-**État : aperçu fonctionnel sur `develop` ; ni release 1.7 ni validation Windows/DPI définitive.**
+**État : fonctionnalité facultative disponible depuis v1.7.0.** Les tests automatisés ne garantissent pas la qualité d'un modèle Ollama réel ni toutes les combinaisons Windows/DPI.
 
 ## Confidentialité par défaut
 
@@ -13,7 +13,7 @@
 
 ## Adaptateur Ollama fourni dans l'archive portable
 
-Depuis `develop`, `Nodalis.EmbeddingBridge.exe` est livré à côté de `Nodalis.exe`. Il est entièrement facultatif. Le pont n'autorise **que** l'API `http://127.0.0.1:11434/api/embed` d'Ollama installé localement : aucune URL ni redirection configurable, proxy désactivé, pas de téléchargement de modèle depuis Nodalis.
+Depuis v1.7.0, `Nodalis.EmbeddingBridge.exe` est livré à côté de `Nodalis.exe`. Il est entièrement facultatif. Le pont n'autorise **que** l'API `http://127.0.0.1:11434/api/embed` d'Ollama installé localement : aucune URL ni redirection configurable, proxy désactivé, pas de téléchargement de modèle depuis Nodalis.
 
 Pour l'utiliser :
 
@@ -48,4 +48,4 @@ Un LLM conversationnel **n'est pas** automatiquement un modèle d'embeddings. Le
 
 ## État des développements
 
-Les moteurs #143 (segmentation), #144 (cache local reconstructible), #145 (cosinus et provenance) et le premier écran #146 sont implémentés sur `develop`. L'indexation **n'est jamais automatique**. La qualification visuelle Windows et les benchmarks représentatifs (#147) restent à effectuer avant sortie stable.
+Les moteurs #143 (segmentation), #144 (cache local reconstructible), #145 (cosinus et provenance) et l'interface #146 sont livrés dans v1.7.0. L'indexation **n'est jamais automatique**. Les mesures utilisateur avec un modèle local réel et les vérifications visuelles complémentaires restent décrites dans la [checklist](release-checklist-1.7.md).
