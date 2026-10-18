@@ -1,7 +1,10 @@
 # Checklist de qualification — Analyse d'impact v1.4
 
-**Base actuelle :** dernière release publique v1.2.0. Changement sur `develop`
-uniquement. Aucun tag v1.4 tant que les gates manuelles ne sont pas fermées.
+**Qualification approuvée par l'utilisateur le 18 octobre 2026.**
+Issues #118–#121 et EPIC #98 clôturées ; fusion de l'implémentation par la PR #151.
+Les cases manuelles ci-dessous détaillent la recette, mais leur résultat spécifique
+n'est pas attesté par le seul résultat CI. La publication v1.4.0 fait l'objet
+d'une validation autonome du package Windows dans GitHub Actions.
 
 ## Automatique (GitHub Actions / CI)
 
@@ -39,3 +42,10 @@ uniquement. Aucun tag v1.4 tant que les gates manuelles ne sont pas fermées.
 L'index métier `.nodalis-links.json` contient le registre d'identités ;
 ne jamais purger sa collection `targets` en pensant supprimer un cache.
 L'analyse est strictement en lecture seule.
+
+## Décision de sortie
+
+Validation utilisateur explicite reçue le 18 octobre 2026 pour les issues
+#118 à #121 et la publication v1.4.0. Vérification CI sur main :
+https://github.com/TristanStark/Nodalis/actions/runs/39072327843.
+Les mesures manuelles détaillées restent distinctes des preuves automatiques.
