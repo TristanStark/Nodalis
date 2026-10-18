@@ -11,7 +11,7 @@ Ce workspace est un **jeu de démonstration autonome** qui s'appuie sur l'histoi
 ## Parcours conseillé
 
 1. Ouvrir [[Présentation 1.x]] pour l'organisation du projet et les tâches.
-2. Ouvrir [[Jalons]] depuis le projet **Nodalis - Évolutions 1.x** pour la timeline et le calendrier.
+2. Ouvrir [[Nodalis / Nodalis - Évolutions 1.x / Jalons]] depuis le projet **Nodalis - Évolutions 1.x** pour la timeline et le calendrier.
 3. Parcourir [[Architecture Nodalis]] et [[Architecture des évolutions]] pour les documents et le flowchart Mermaid.
 4. Depuis [[Spécification des liens]], examiner les relations typées, les backlinks puis l'analyse d'impact.
 5. Lire [[Réunion de planification]] puis [[Décision - Markdown canonique]] pour les décisions.
