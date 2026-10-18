@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using Nodalis.Core.Views;
 using Nodalis.Infrastructure.Views;
+using Nodalis.Infrastructure.Tasks;
+using Nodalis.Infrastructure.Persistence;
+using Nodalis.Core.Tasks;
 
 /// <summary>Protects the release gate for cross-project views, recovery and repeated cancellation.</summary>
 internal static class WorkspaceViewsV15ReleaseSmokeTests
@@ -149,6 +152,7 @@ internal static class WorkspaceViewsV15ReleaseSmokeTests
 
             Assert(await File.ReadAllTextAsync(source) == "# Ancienne note\n\n- [ ] À faire",
                 "Query and cancellation must never write to the original source.");
+            await VerifyTaskSourceIncrementalityAsync();
             Console.WriteLine("[Views 1.5 release] portability, backup restore, 12k items, " +
                 "pagination, edits, deletion and 50 cancellations passed (" +
                 watch.ElapsedMilliseconds + " ms initial query).");
@@ -163,6 +167,48 @@ internal static class WorkspaceViewsV15ReleaseSmokeTests
             if (Directory.Exists(privateRoot))
             {
                 Directory.Delete(privateRoot, recursive: true);
+            }
+        }
+    }
+
+
+    /// <summary>Checks actual Markdown parsing cache reuse, editing and deletion.</summary>
+    /// <returns>Completion of an isolated disk-backed incremental fixture.</returns>
+    private static async Task VerifyTaskSourceIncrementalityAsync()
+    {
+        string root = Path.Combine(Path.GetTempPath(),
+            "Nodalis-Views-Incremental-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            FileSystemWorkspaceStore store = new(root);
+            await store.InitializeAsync("Incremental views fixture");
+            string source = Path.Combine(root, "Tasks.md");
+            await File.WriteAllTextAsync(source, "# Tasks\n\n- [ ] Première tâche\n");
+            WorkspaceTaskService service = new(root);
+            TaskCollection first = await service.RefreshAsync();
+            Assert(first.Tasks.Count == 1 && service.LastParsedDocumentCount >= 1,
+                "Initial source collection must parse the Markdown file.");
+            TaskCollection warm = await service.RefreshAsync();
+            Assert(warm.Tasks.Count == 1 && service.LastReusedDocumentCount >= 1 &&
+                service.LastParsedDocumentCount == 0,
+                "Unchanged task documents must reuse the canonical indexed fingerprint.");
+
+            await File.AppendAllTextAsync(source, "- [x] Deuxième tâche\n");
+            File.SetLastWriteTimeUtc(source, DateTime.UtcNow.AddSeconds(3));
+            TaskCollection changed = await service.RefreshAsync();
+            Assert(changed.Tasks.Count == 2 && changed.Tasks.Count(item =>
+                    item.IsCompleted) == 1 && service.LastParsedDocumentCount >= 1,
+                "Changed source must be re-parsed and completed state reflected.");
+            File.Delete(source);
+            TaskCollection removed = await service.RefreshAsync();
+            Assert(removed.Tasks.Count == 0,
+                "Deleted sources must be removed from the incremental task read cache.");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
             }
         }
     }

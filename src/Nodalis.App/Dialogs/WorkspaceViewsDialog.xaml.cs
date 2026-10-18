@@ -257,7 +257,11 @@ public partial class WorkspaceViewsDialog : Window
             WarningText.Text = _projection.Diagnostics.Count + " référence(s) non projetée(s)" +
                 (_readOnly ? " · workspace en lecture seule" : "") +
                 (!_queryEdited && _loadedQuery?.Filter is not null
-                    ? " · filtres de la vue sauvegardée appliqués" : "");
+                    ? " · filtres de la vue sauvegardée appliqués" : "") +
+                (query.ScopeIdentity is string scope &&
+                 !projection.Items.Any(item => string.Equals(
+                     item.ScopeIdentity, scope, StringComparison.OrdinalIgnoreCase))
+                    ? " · périmètre introuvable : " + scope + " (aucune redirection)" : "");
 
         }
         catch (OperationCanceledException)

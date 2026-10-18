@@ -224,6 +224,41 @@ public partial class MainWindow
             .ToArray();
     }
 
+
+    /// <summary>Duplicates one definition using the same optimistic revision as the normal editor.</summary>
+    /// <param name="id">Stable original view identity.</param>
+    /// <param name="visibility">Storage location of the selected view.</param>
+    /// <returns>Opens the copied view if saving succeeds.</returns>
+    private async Task DuplicateSavedViewAsync(Guid id, WorkspaceViewVisibility visibility)
+    {
+        if (_workspaceReadOnly)
+        {
+            MessageBox.Show(this, "Les modifications sont désactivées en lecture seule.",
+                "Vues dynamiques", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        FileSystemWorkspaceViewStore store = new(_root.FullPath, _root.Id);
+        WorkspaceViewDefinitionSnapshot saved = await store.LoadAsync(visibility);
+        if (saved.IsReadOnly)
+        {
+            throw new InvalidDataException("Version future de définitions : duplication interdite.");
+        }
+
+        WorkspaceViewDefinition original = saved.Views.FirstOrDefault(item => item.Id == id)
+            ?? throw new InvalidDataException("La vue source a disparu : rechargez les vues.");
+        WorkspaceViewDefinition duplicate = original with
+        {
+            Id = Guid.NewGuid(),
+            Name = original.Name + " (copie)",
+            Order = saved.Views.Count,
+            Pinned = false
+        };
+        await store.SaveAsync(visibility, [.. saved.Views, duplicate], saved.Revision);
+        await ShowWorkspaceViewsAsync(duplicate.Id, visibility);
+        await RefreshSavedViewsDashboardAsync();
+    }
+
     /// <summary>Populates the existing dashboard and compact worktree shortcuts.</summary>
     /// <returns>Completion of local definition reads.</returns>
     private async Task RefreshSavedViewsDashboardAsync()
@@ -251,6 +286,14 @@ public partial class MainWindow
         IReadOnlyList<PaletteCommand> existing)
     {
         List<PaletteCommand> commands = [.. existing];
+        commands.Add(new PaletteCommand
+        {
+            Id = "views.create",
+            Title = "Créer une vue dynamique",
+            Subtitle = "Ouvrir une nouvelle définition de vue",
+            Keywords = ["vue", "nouvelle", "créer", "filtre"],
+            ExecuteAsync = ShowWorkspaceViewsAsync
+        });
         try
         {
             foreach (SavedViewShortcut shortcut in await ReadSavedViewShortcutsAsync())
@@ -263,6 +306,14 @@ public partial class MainWindow
                     Subtitle = target.Context + (target.Pinned ? " · Épinglée" : ""),
                     Keywords = ["vue", "ouvrir", "favoris", target.Name],
                     ExecuteAsync = () => ShowWorkspaceViewsAsync(target.Id, target.Visibility)
+                });
+                commands.Add(new PaletteCommand
+                {
+                    Id = "views.duplicate:" + target.Visibility + ":" + target.Id.ToString("N"),
+                    Title = "Dupliquer la vue · " + target.Name,
+                    Subtitle = target.Context + " · nouvelle identité GUID",
+                    Keywords = ["vue", "dupliquer", target.Name],
+                    ExecuteAsync = () => DuplicateSavedViewAsync(target.Id, target.Visibility)
                 });
             }
         }
