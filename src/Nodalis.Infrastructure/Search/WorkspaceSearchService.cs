@@ -172,6 +172,71 @@ public sealed class WorkspaceSearchService
         return results;
     }
 
+    /// <summary>Extracts the ordinary query text while retaining classic filter semantics.</summary>
+    /// <param name="query">Original query, including any structured filters.</param>
+    /// <returns>Text suitable for an approved local embedding request.</returns>
+    public static string GetFreeTextQuery(string query)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        return ParseQuery(query).TextQuery;
+    }
+
+    /// <summary>Reports whether the original query contains recognized metadata/path filters.</summary>
+    /// <param name="query">Classic search syntax.</param>
+    /// <returns>True when metadata, project or date filtering is active.</returns>
+    public static bool HasStructuredFilters(string query)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        SearchQueryPlan plan = ParseQuery(query);
+        return plan.ProjectFilter is not null ||
+            plan.ModifiedDateFilter is not null ||
+            plan.PropertyFilters.Count > 0;
+    }
+
+    /// <summary>
+    /// Applies the exact same project/date/front-matter predicates as classical
+    /// search, independently of whether the document contains query text.
+    /// This allows semantic hits to honor lexical filters without inventing matches.
+    /// </summary>
+    /// <param name="workspaceRoot">Canonical local workspace.</param>
+    /// <param name="query">Original user query with structured filters.</param>
+    /// <param name="cancellationToken">Abort the explicit search.</param>
+    /// <returns>Permitted workspace-relative Markdown paths, compared case-insensitively.</returns>
+    public async Task<IReadOnlySet<string>> GetFilteredRelativePathsAsync(
+        string workspaceRoot, string query, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        string root = Path.GetFullPath(workspaceRoot);
+        SearchQueryPlan plan = ParseQuery(query);
+        HashSet<string> included = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string?> projectNames = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string file in EnumerateMarkdownFiles(root))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string directory = Path.GetDirectoryName(file) ?? root;
+            string? projectDirectory = FindAncestorContaining(directory, root,
+                WorkspaceLayout.ProjectManifestFileName);
+            string? projectName = GetProjectName(projectDirectory, projectNames);
+            if (!MatchesProjectFilter(projectName, plan.ProjectFilter) ||
+                !MatchesDateFilter(file, plan.ModifiedDateFilter))
+                continue;
+
+            if (plan.PropertyFilters.Count > 0)
+            {
+                string markdown = await File.ReadAllTextAsync(file, cancellationToken);
+                MarkdownFrontMatterDocument frontMatter = MarkdownFrontMatterParser.Parse(markdown);
+                if (!MatchesPropertyFilters(frontMatter.Properties, plan.PropertyFilters))
+                    continue;
+            }
+
+            included.Add(Path.GetRelativePath(root, file).Replace('\\', '/'));
+        }
+
+        return included;
+    }
+
     /// <summary>
     /// Searches one Markdown file after path-level filters have matched.
     /// </summary>
