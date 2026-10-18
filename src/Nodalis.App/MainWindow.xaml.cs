@@ -313,8 +313,9 @@ public partial class MainWindow : Window
                 {
                     _preferences = _preferences with
                     {
-                        ExpandedNodeIds = _expansionBeforeWorktreeFilter ??
-                            GetExpandedNodeIds(),
+                        ExpandedNodeIds = _workspaceSwitchPending
+                            ? []
+                            : _expansionBeforeWorktreeFilter ?? GetExpandedNodeIds(),
                         NavigationDensity = NavigationTree.Tag as string ??
                             "Comfortable",
                         NavigationCurrentApplicationOnly =
@@ -342,12 +343,13 @@ public partial class MainWindow : Window
                                 MarkdownEditorTextBox.FontSize),
                             SplitMode = _editorSplitMode,
                             SplitRatio = CaptureEditorSplitRatio(),
-                            SecondaryDocumentTabId =
-                                _secondaryDocumentTab?.DocumentId
+                            SecondaryDocumentTabId = _workspaceSwitchPending
+                                ? null
+                                : _secondaryDocumentTab?.DocumentId
                         },
-                        OpenDocumentTabs = openDocumentTabs,
-                        ActiveDocumentTabId = activeDocumentTabId,
-                        ActiveNavigationNodeId = _selectedNode?.Id
+                        OpenDocumentTabs = _workspaceSwitchPending ? [] : openDocumentTabs,
+                        ActiveDocumentTabId = _workspaceSwitchPending ? null : activeDocumentTabId,
+                        ActiveNavigationNodeId = _workspaceSwitchPending ? null : _selectedNode?.Id
                     };
 
                     await _preferencesStore.SaveAsync(_preferences);
