@@ -106,8 +106,10 @@ public sealed class SemanticWorkspaceSearchService
             }
 
             string markdown = await File.ReadAllTextAsync(path, token);
-            IReadOnlyList<SemanticChunk> chunks = SemanticMarkdownChunker.Split(
-                source.DocumentId, source.RelativePath, markdown, _chunking);
+            IReadOnlyList<SemanticChunk> chunks = await Task.Run(
+                () => SemanticMarkdownChunker.Split(
+                    source.DocumentId, source.RelativePath, markdown, _chunking), token);
+            token.ThrowIfCancellationRequested();
             Dictionary<string, SemanticVectorEntry> old = index.Entries
                 .Where(entry => entry.DocumentId == source.DocumentId)
                 .ToDictionary(entry => entry.ChunkId, StringComparer.Ordinal);
@@ -214,9 +216,11 @@ public sealed class SemanticWorkspaceSearchService
 
         // Validate each canonical fragment before choosing one winner per document.
         // Otherwise a stale high-scoring fragment can hide a valid lower-scoring one.
-        IReadOnlyList<SemanticRankedHit> hits = SemanticVectorRanker.Rank(index,
-            embedding.Vectors[0], topK: 100, threshold: 0.2, scope: scope,
-            deduplicateDocuments: false);
+        IReadOnlyList<SemanticRankedHit> hits = await Task.Run(
+            () => SemanticVectorRanker.Rank(index,
+                embedding.Vectors[0], topK: 100, threshold: 0.2, scope: scope,
+                deduplicateDocuments: false), token);
+        token.ThrowIfCancellationRequested();
         List<SemanticSearchResult> output = [];
         HashSet<Guid> delivered = [];
         foreach (SemanticRankedHit hit in hits)
@@ -229,9 +233,12 @@ public sealed class SemanticWorkspaceSearchService
                 continue;
 
             string content = await File.ReadAllTextAsync(file, token);
-            SemanticChunk? chunk = SemanticMarkdownChunker.Split(
-                hit.DocumentId, hit.RelativePath, content, _chunking)
-                .FirstOrDefault(candidate => candidate.ChunkId == hit.ChunkId);
+            SemanticChunk? chunk = await Task.Run(
+                () => SemanticMarkdownChunker.Split(
+                    hit.DocumentId, hit.RelativePath, content, _chunking)
+                    .FirstOrDefault(candidate => candidate.ChunkId == hit.ChunkId),
+                token);
+            token.ThrowIfCancellationRequested();
             if (chunk is null) continue;
             delivered.Add(hit.DocumentId);
 
