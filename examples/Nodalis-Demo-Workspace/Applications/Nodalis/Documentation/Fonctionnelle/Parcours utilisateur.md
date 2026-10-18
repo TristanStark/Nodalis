@@ -14,7 +14,7 @@ Un seul workspace regroupant plusieurs applications et projets, avec accès imm�
 ![Maquette de worktree locale](../../../../Attachments/worktree-navigation.bmp)
 
 1. Naviguer dans le worktree et sélectionner un projet.
-2. Ouvrir un document Markdown avec les liens `[[...]]`.
+2. Ouvrir un document Markdown avec les liens `[[Architecture Nodalis]]`.
 3. Chercher via Ctrl+F ou utiliser Ctrl+P pour une action métier.
 4. Consulter l'accueil, les tâches consolidées, le calendrier et les vues transversales.
 5. Relire les documents sources après avoir utilisé les projections.
