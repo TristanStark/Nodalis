@@ -57,7 +57,8 @@ public sealed class SemanticSearchDialog : Window
             Text = _enabled
                 ? "Modèle local : " + preferences.ModelId + " (" + preferences.Dimensions + " dimensions)"
                 : "Désactivé : utilisez Ctrl+P → Configurer la recherche sémantique locale.",
-            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12)
         });
         top.Children.Add(new TextBlock { Text = "Requête" });
         top.Children.Add(_query);
@@ -178,16 +179,19 @@ public sealed class SemanticSearchDialog : Window
                         (hit.Heading is null ? "" : " · " + hit.Heading) +
                         " · similarité " + hit.Similarity.ToString("0.000",
                             System.Globalization.CultureInfo.InvariantCulture),
-                    FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap
+                    FontWeight = FontWeights.SemiBold,
+                    TextWrapping = TextWrapping.Wrap
                 });
                 display.Children.Add(new TextBlock
                 {
-                    Text = hit.Excerpt, TextWrapping = TextWrapping.Wrap,
+                    Text = hit.Excerpt,
+                    TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 4, 0, 8)
                 });
                 _results.Items.Add(new ListBoxItem
                 {
-                    Content = display, Tag = hit,
+                    Content = display,
+                    Tag = hit,
                     HorizontalContentAlignment = HorizontalAlignment.Stretch
                 });
             }
