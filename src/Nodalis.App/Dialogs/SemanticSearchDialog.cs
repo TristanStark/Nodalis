@@ -82,7 +82,8 @@ public sealed class SemanticSearchDialog : Window
         actions.Children.Add(_index);
         Button classical = new()
         {
-            Content = "Recherche exacte / fuzzy", MinHeight = 32,
+            Content = "Recherche exacte / fuzzy",
+            MinHeight = 32,
             Margin = new Thickness(0, 0, 8, 0)
         };
         classical.Click += (_, _) =>
