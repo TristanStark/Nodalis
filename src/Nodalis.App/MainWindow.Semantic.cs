@@ -1,6 +1,8 @@
 using System.Windows;
 using Nodalis.App.Dialogs;
 using Nodalis.Core.Settings;
+using Nodalis.Core.Links;
+using Nodalis.Core.Semantic;
 using Nodalis.Infrastructure.Semantic;
 
 namespace Nodalis.App;
@@ -23,6 +25,29 @@ public partial class MainWindow
         StatusText.Text = dialog.Preferences.IsEnabled
             ? "Recherche sémantique : autorisation locale enregistrée. Aucune indexation lancée."
             : "Recherche sémantique désactivée ; recherche exacte/fuzzy inchangée.";
+    }
+
+    /// <summary>Searches an approved local vector index and opens a canonical source passage.</summary>
+    /// <returns>Selected document navigation, or a cancelled dialog.</returns>
+    private async Task OpenSemanticSearchAsync()
+    {
+        LinkIndexCatalog catalog = await _linkIndexService.LoadAsync();
+        SemanticSearchDialog dialog = new(_root.FullPath, _preferences.SemanticSearch, catalog)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true ||
+            dialog.SelectedResult is not SemanticSearchResult result) return;
+
+        LinkTargetEntry? target = catalog.Targets.FirstOrDefault(item =>
+            item.Kind == LinkTargetKind.Document && item.Id == result.DocumentId);
+        if (target is null)
+        {
+            StatusText.Text = "Source sémantique introuvable : rafraîchissez les liens.";
+            return;
+        }
+
+        await NavigateToLinkTargetAsync(target, result.SourceLine);
     }
 
     /// <summary>Removes the disposable embedding cache, never the Markdown documents.</summary>
