@@ -87,10 +87,11 @@ public static class CompositeMarkdownSections
     {
         string[] lines = Normalize(markdown).Split('\n');
         List<(int Index, int Level)> matches = [];
+        int bodyStart = FrontMatterEnd(lines);
         bool fenced = false;
         char marker = '\0';
         int count = 0;
-        for (int i = 0; i < lines.Length; i++)
+        for (int i = bodyStart; i < lines.Length; i++)
         {
             if (ToggleFence(lines[i], ref fenced, ref marker, ref count))
             {
@@ -141,11 +142,13 @@ public static class CompositeMarkdownSections
     {
         string[] lines = Normalize(markdown).Split('\n');
         List<string> all = [];
+        int bodyStart = FrontMatterEnd(lines);
         bool fenced = false;
         char marker = '\0';
         int count = 0;
-        foreach (string line in lines)
+        for (int lineNumber = bodyStart; lineNumber < lines.Length; lineNumber++)
         {
+            string line = lines[lineNumber];
             if (ToggleFence(line, ref fenced, ref marker, ref count))
             {
                 continue;
@@ -228,6 +231,27 @@ public static class CompositeMarkdownSections
             !char.IsWhiteSpace(text[level])) return false;
         title = text[(level + 1)..].Trim().TrimEnd('#').Trim();
         return title.Length > 0;
+    }
+
+    /// <summary>Skips a leading YAML front matter block without losing original line numbers.</summary>
+    /// <param name="lines">Normalized source lines.</param>
+    /// <returns>First line after a complete front matter block, or zero.</returns>
+    private static int FrontMatterEnd(IReadOnlyList<string> lines)
+    {
+        if (lines.Count == 0 || lines[0].Trim() != "---")
+        {
+            return 0;
+        }
+
+        for (int i = 1; i < Math.Min(lines.Count, 1024); i++)
+        {
+            if (lines[i].Trim() == "---")
+            {
+                return i + 1;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>Normalizes line endings for reading while preserving disk bytes.</summary>
