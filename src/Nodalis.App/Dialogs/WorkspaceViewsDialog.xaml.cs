@@ -316,9 +316,14 @@ public partial class WorkspaceViewsDialog : Window
     private void Monitor_FileChanged(object? sender, WorkspaceFileChangedEventArgs change)
     {
         string name = Path.GetFileName(change.FullPath);
-        if (!name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) &&
-            name is not ".project.json" and not ".application.json" and not ".workspace.json" &&
-            Path.HasExtension(change.FullPath))
+        string previous = Path.GetFileName(change.OldFullPath ?? string.Empty);
+        bool currentSource = name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+            name is ".project.json" or ".application.json" or ".workspace.json" ||
+            !Path.HasExtension(change.FullPath);
+        bool oldSource = previous.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+            previous is ".project.json" or ".application.json" or ".workspace.json" ||
+            (change.OldFullPath is not null && !Path.HasExtension(change.OldFullPath));
+        if (!currentSource && !oldSource)
         {
             return;
         }
