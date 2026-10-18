@@ -242,32 +242,47 @@ public sealed class SemanticWorkspaceSearchService
             approved, token);
         if (embedding is null || embedding.Vectors.Count != 1) return [];
 
-        // Validate each canonical fragment before choosing one winner per document.
-        // Otherwise a stale high-scoring fragment can hide a valid lower-scoring one.
+        // Validate every possible canonical fragment BEFORE deduplicating documents.
+        // Limiting to the top 100 raw passages lets a modified long document
+        // hide a valid document entirely. Maximum cache capacity is 10 000.
         IReadOnlyList<SemanticRankedHit> hits = await Task.Run(
             () => SemanticVectorRanker.Rank(index,
-                embedding.Vectors[0], topK: 100, threshold: 0.2, scope: scope,
+                embedding.Vectors[0], topK: SemanticVectorCacheService.MaximumEntries,
+                threshold: 0.2, scope: scope,
                 deduplicateDocuments: false), token);
         token.ThrowIfCancellationRequested();
         List<SemanticSearchResult> output = [];
         HashSet<Guid> delivered = [];
+        // Each document may have hundreds of ranked chunks. Rehydrate its
+        // canonical source at most once per query, even for stale candidates.
+        Dictionary<Guid, IReadOnlyDictionary<string, SemanticChunk>?> sourceCache = [];
         foreach (SemanticRankedHit hit in hits)
         {
             if (delivered.Contains(hit.DocumentId)) continue;
             token.ThrowIfCancellationRequested();
-            string? file = SafePath(hit.RelativePath);
-            if (file is null || !File.Exists(file) ||
-                new FileInfo(file).Length > MaxSourceBytes)
-                continue;
+            if (!sourceCache.TryGetValue(hit.DocumentId, out
+                IReadOnlyDictionary<string, SemanticChunk>? chunks))
+            {
+                chunks = null;
+                string? file = SafePath(hit.RelativePath);
+                if (file is not null && File.Exists(file) &&
+                    new FileInfo(file).Length <= MaxSourceBytes)
+                {
+                    string content = await File.ReadAllTextAsync(file, token);
+                    IReadOnlyList<SemanticChunk> source = await Task.Run(
+                        () => SemanticMarkdownChunker.Split(
+                            hit.DocumentId, hit.RelativePath, content, _chunking), token);
+                    chunks = source.ToDictionary(
+                        candidate => candidate.ChunkId, StringComparer.Ordinal);
+                }
 
-            string content = await File.ReadAllTextAsync(file, token);
-            SemanticChunk? chunk = await Task.Run(
-                () => SemanticMarkdownChunker.Split(
-                    hit.DocumentId, hit.RelativePath, content, _chunking)
-                    .FirstOrDefault(candidate => candidate.ChunkId == hit.ChunkId),
-                token);
+                sourceCache.Add(hit.DocumentId, chunks);
+            }
+
+            if (chunks is null || !chunks.TryGetValue(hit.ChunkId,
+                out SemanticChunk? chunk))
+                continue;
             token.ThrowIfCancellationRequested();
-            if (chunk is null) continue;
             delivered.Add(hit.DocumentId);
 
             output.Add(new SemanticSearchResult(hit.DocumentId, hit.RelativePath,

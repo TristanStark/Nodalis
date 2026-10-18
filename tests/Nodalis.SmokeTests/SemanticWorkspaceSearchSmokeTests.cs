@@ -150,6 +150,32 @@ internal static class SemanticWorkspaceSearchSmokeTests
             File.Exists(Path.Combine(resumedWorkspace, "first.md")),
             "Approved catalog reconciliation removes deleted documents' vectors only.");
 
+        // Regression: more than 100 stale chunks in one document may score
+        // above a valid document. Exhaustive candidate validation must still
+        // return the valid canonical source without leaking stale excerpts.
+        string staleMarkdown = string.Join("\n\n", Enumerable.Range(0, 130)
+            .Select(i => "Fragment périmé " + i + " : opération en attente."));
+        string stalePath = Path.Combine(workspace, "AAA-stale.md");
+        string freshPath = Path.Combine(workspace, "ZZZ-fresh.md");
+        await File.WriteAllTextAsync(stalePath, "# Historique\n" + staleMarkdown);
+        await File.WriteAllTextAsync(freshPath,
+            "# Recette\nContrôle valide des inscriptions nominatives.");
+        Guid staleId = Guid.NewGuid();
+        Guid freshId = Guid.NewGuid();
+        await service.IndexAsync(
+        [
+            new SemanticSource(staleId, "AAA-stale.md"),
+            new SemanticSource(freshId, "ZZZ-fresh.md")
+        ], true);
+        await File.WriteAllTextAsync(stalePath,
+            "# Historique\nArchives remplacées après validation.");
+        IReadOnlyList<SemanticSearchResult> beyondFirstHundred =
+            await service.SearchAsync("contrôle nominatif", true);
+        Assert(beyondFirstHundred.Any(hit => hit.DocumentId == freshId) &&
+            beyondFirstHundred.All(hit => hit.DocumentId != staleId),
+            "More than 100 stale chunks must never suppress a valid source.");
+        Console.WriteLine("[Semantic 1.8] exhaustive stale-fragment validation passed.");
+
         Console.WriteLine("[Semantic 1.7/1.8] consent, incremental resume, source navigation and deletion passed.");
     }
 
