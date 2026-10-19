@@ -77,8 +77,21 @@ public sealed class DocxReimportTransactionService
         string project = ProjectPath(projectDirectory);
         string transactions = TransactionsDirectory(project);
         Directory.CreateDirectory(transactions);
+        EnsureNoLinks(transactions);
         await using FileStream guard = AcquireLock(transactions);
         await VerifyProjectAsync(project, plan.ProjectId, cancellationToken);
+        foreach (string directory in Directory.EnumerateDirectories(transactions))
+        {
+            EnsureNoLinks(directory);
+            DocxReimportTransactionJournal prior = await ReadJournalAsync(
+                Path.Combine(directory, JournalName), cancellationToken);
+            ValidateJournalDirectory(directory, prior);
+            if (prior.State == DocxReimportTransactionState.Prepared)
+            {
+                throw new InvalidOperationException(
+                    "Une transaction DOCX interrompue doit être restaurée avant tout nouvel import.");
+            }
+        }
 
         string operationDirectory = Path.Combine(transactions,
             operationId.ToString("N"));
@@ -101,6 +114,12 @@ public sealed class DocxReimportTransactionService
             {
                 throw new InvalidOperationException(
                     "Transaction DOCX interrompue : lancez d'abord la récupération.");
+            }
+
+            ValidateJournalDirectory(operationDirectory, existing);
+            if (existing.Entries.Count != plan.Writes.Count)
+            {
+                throw new InvalidDataException("Journal DOCX incompatible avec le plan.");
             }
 
             foreach (DocxReimportTransactionEntry entry in existing.Entries)
@@ -220,6 +239,17 @@ public sealed class DocxReimportTransactionService
             {
                 PreparedWrite item = prepared[index];
                 cancellationToken.ThrowIfCancellationRequested();
+                // Check immediately before each write as well as before
+                // beginning the operation, to detect intermediate edits.
+                if (!File.Exists(item.Path) ||
+                    !string.Equals(DocxImportManifestStore.ComputeSha256(
+                            await File.ReadAllTextAsync(item.Path, cancellationToken)),
+                        item.Write.ExpectedCurrentSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Destination modifiée pendant le réimport : rollback requis.");
+                }
+
                 await AtomicFileWriter.WriteAllTextAsync(item.Path,
                     item.Write.ProjectedMarkdown, cancellationToken);
                 _afterWriteCheckpoint?.Invoke(index + 1);
@@ -268,6 +298,7 @@ public sealed class DocxReimportTransactionService
             return 0;
         }
 
+        EnsureNoLinks(transactions);
         await using FileStream guard = AcquireLock(transactions);
         int recovered = 0;
         foreach (string directory in Directory.EnumerateDirectories(transactions)
@@ -275,8 +306,10 @@ public sealed class DocxReimportTransactionService
         {
             cancellationToken.ThrowIfCancellationRequested();
             string journalPath = Path.Combine(directory, JournalName);
+            EnsureNoLinks(directory);
             DocxReimportTransactionJournal journal =
                 await ReadJournalAsync(journalPath, cancellationToken);
+            ValidateJournalDirectory(directory, journal);
             await VerifyProjectAsync(project, journal.ProjectId, cancellationToken);
             if (journal.State == DocxReimportTransactionState.Prepared)
             {
@@ -295,6 +328,7 @@ public sealed class DocxReimportTransactionService
         string journalPath = Path.Combine(directory, JournalName);
         DocxReimportTransactionJournal journal =
             await ReadJournalAsync(journalPath, cancellationToken);
+        ValidateJournalDirectory(directory, journal);
         if (journal.State != DocxReimportTransactionState.Prepared)
         {
             return;
@@ -308,8 +342,11 @@ public sealed class DocxReimportTransactionService
             string destination = Destination(project, entry.DestinationRelativePath);
             string backup = Path.Combine(directory, entry.BackupFileName);
             if (!destinations.Add(destination) ||
-                Path.GetFileName(entry.BackupFileName) != entry.BackupFileName ||
+                entry.BackupFileName.Length != 9 ||
+                !entry.BackupFileName[..5].All(char.IsAsciiDigit) ||
+                !entry.BackupFileName.EndsWith(".bak", StringComparison.Ordinal) ||
                 !File.Exists(backup) ||
+                (File.GetAttributes(backup) & FileAttributes.ReparsePoint) != 0 ||
                 !string.Equals(ShaBytes(await File.ReadAllBytesAsync(backup, cancellationToken)),
                     entry.BackupBytesSha256, StringComparison.OrdinalIgnoreCase) ||
                 !File.Exists(destination))
@@ -365,26 +402,7 @@ public sealed class DocxReimportTransactionService
             throw new InvalidDataException("Destination de réimport hors du projet.");
         }
 
-        string? current = destination;
-        while (current is not null)
-        {
-            if (File.Exists(current) || Directory.Exists(current))
-            {
-                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
-                {
-                    throw new InvalidDataException(
-                        "Réimport interdit sur un lien symbolique ou jonction.");
-                }
-            }
-
-            if (string.Equals(current, _workspaceRoot, StringComparison.OrdinalIgnoreCase))
-            {
-                break;
-            }
-
-            current = Path.GetDirectoryName(current);
-        }
-
+        EnsureNoLinks(destination);
         return destination;
     }
 
@@ -401,7 +419,43 @@ public sealed class DocxReimportTransactionService
             throw new InvalidDataException("Projet de réimport inexistant ou hors du workspace.");
         }
 
+        EnsureNoLinks(path);
         return path;
+    }
+
+    /// <summary>Rejects symlinks and junctions between the workspace and a file.</summary>
+    private void EnsureNoLinks(string path)
+    {
+        string? current = Path.GetFullPath(path);
+        while (current is not null)
+        {
+            if ((File.Exists(current) || Directory.Exists(current)) &&
+                (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException(
+                    "Réimport interdit sur un lien symbolique ou une jonction.");
+            }
+
+            if (string.Equals(current, _workspaceRoot,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            current = Path.GetDirectoryName(current);
+        }
+    }
+
+    /// <summary>Validates the journal ID against its path.</summary>
+    private static void ValidateJournalDirectory(string directory,
+        DocxReimportTransactionJournal journal)
+    {
+        if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out Guid id) ||
+            id != journal.OperationId)
+        {
+            throw new InvalidDataException(
+                "Journal DOCX déplacé ou identifiant de transaction invalide.");
+        }
     }
 
     /// <summary>Returns the isolated journal root of a project.</summary>
@@ -440,8 +494,15 @@ public sealed class DocxReimportTransactionService
                 journalPath, cancellationToken);
         if (journal.OperationId == Guid.Empty || journal.ProjectId == Guid.Empty ||
             journal.PreviousImportId == Guid.Empty ||
-            journal.Fingerprint.Length != 64 ||
-            journal.Entries.Count == 0 ||
+            journal.Fingerprint is not { Length: 64 } ||
+            journal.Entries is not { Count: > 0 and <= 200 } ||
+            journal.Entries.Any(entry =>
+                entry is null ||
+                entry.BeforeSha256 is not { Length: 64 } ||
+                entry.AfterSha256 is not { Length: 64 } ||
+                entry.BackupBytesSha256 is not { Length: 64 } ||
+                string.IsNullOrWhiteSpace(entry.DestinationRelativePath) ||
+                string.IsNullOrWhiteSpace(entry.BackupFileName)) ||
             !Enum.IsDefined(journal.State))
         {
             throw new InvalidDataException("Journal de réimport invalide.");
