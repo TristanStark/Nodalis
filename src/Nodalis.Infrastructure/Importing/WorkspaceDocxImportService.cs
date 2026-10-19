@@ -231,17 +231,6 @@ public sealed class WorkspaceDocxImportService
             preview,
             request);
 
-        if (request.ExpectedPlanFingerprint is string approved)
-        {
-            DocxImportPlan current = await BuildPlanAsync(preview, request, cancellationToken);
-            if (approved.Length != 64 ||
-                !string.Equals(approved, current.Fingerprint, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException(
-                    "Le plan DOCX a changé depuis la prévisualisation. Recalculez et validez le plan avant d'importer.");
-            }
-        }
-
         global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection[] selected = request.Sections
             .Where(section => section.Include)
             .Select(section =>
@@ -538,6 +527,17 @@ public sealed class WorkspaceDocxImportService
         ValidateCommitRequest(
             preview,
             request);
+
+        if (request.ExpectedPlanFingerprint is string approved)
+        {
+            DocxImportPlan current = await BuildPlanAsync(preview, request, cancellationToken);
+            if (approved.Length != 64 ||
+                !string.Equals(approved, current.Fingerprint, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Le plan DOCX a changé depuis la prévisualisation. Recalculez et validez le plan avant d'importer.");
+            }
+        }
 
         global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection[] selected = request.Sections
             .Where(section => section.Include)
