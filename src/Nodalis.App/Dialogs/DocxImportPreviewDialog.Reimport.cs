@@ -281,6 +281,10 @@ public partial class DocxImportPreviewDialog
             ReimportDecisionComboBox.Items.Cast<ReimportDecisionChoice>()
                 .FirstOrDefault(option => option.Action == saved?.Action);
         ReimportManualMergeBox.Text = saved?.ManualMarkdown ?? string.Empty;
+        ReimportDecisionStatus.Text = saved is null
+            ? "Aucune décision enregistrée pour cette section."
+            : "Décision conservée dans cet aperçu : " + saved.Action +
+              ". Aucun fichier modifié.";
     }
 
     /// <summary>Clears stale previews after switching projects or comparing another history.</summary>
