@@ -265,6 +265,10 @@ public static class DocxMappingProfileEngine
         return result.ToString();
     }
 
+    /// <summary>Checks each bounded predicate against a single Word heading.</summary>
+    /// <param name="rule">The candidate rule.</param>
+    /// <param name="source">The document section metadata.</param>
+    /// <returns>True if all explicitly supplied predicates match.</returns>
     private static bool Matches(DocxMappingProfileRule rule, DocxMappingSourceSection source)
     {
         if (!string.IsNullOrWhiteSpace(rule.HeadingText) &&
@@ -308,9 +312,16 @@ public static class DocxMappingProfileEngine
         }
     }
 
+    /// <summary>Creates a normalized key from source heading and parent context.</summary>
+    /// <param name="heading">Source section heading.</param>
+    /// <param name="parent">Source parent path.</param>
+    /// <returns>The stable heading/context key.</returns>
     private static string MakeOverrideKey(string heading, string parent) =>
         Normalize(parent) + "|" + Normalize(heading);
 
+    /// <summary>Rejects invalid rule actions and unsafe destination section names.</summary>
+    /// <param name="action">Mapping operation.</param>
+    /// <param name="destination">Optional destination name.</param>
     private static void ValidateAction(DocxMappingAction action, string? destination)
     {
         if (!Enum.IsDefined(action))

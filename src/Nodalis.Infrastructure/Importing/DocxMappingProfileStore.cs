@@ -13,6 +13,8 @@ public sealed class DocxMappingProfileStore
 
     private readonly string _path;
 
+    /// <summary>Creates a workspace-local profile store without writing files.</summary>
+    /// <param name="workspaceRoot">Root of the Nodalis workspace.</param>
     public DocxMappingProfileStore(string workspaceRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
