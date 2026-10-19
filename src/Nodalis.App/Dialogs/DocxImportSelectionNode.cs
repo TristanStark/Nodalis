@@ -10,6 +10,7 @@ namespace Nodalis.App.Dialogs;
 public sealed class DocxImportSelectionNode : INotifyPropertyChanged
 {
     private bool? _isSelected = true;
+    private bool _selfSelected = true;
 
     /// <summary>
     /// Raised once at the root whenever selection changes anywhere in the subtree.
@@ -166,8 +167,10 @@ public sealed class DocxImportSelectionNode : INotifyPropertyChanged
                 return;
             }
 
-            bool all = node.Children.All(child => child._isSelected == true);
-            bool none = node.Children.All(child => child._isSelected == false);
+            bool all = node._selfSelected &&
+                node.Children.All(child => child._isSelected == true);
+            bool none = !node._selfSelected &&
+                node.Children.All(child => child._isSelected == false);
             node.SetSelectionValue(all ? true : none ? false : null);
         }
     }
@@ -194,6 +197,7 @@ public sealed class DocxImportSelectionNode : INotifyPropertyChanged
     private void SetSubtreeSelection(
             bool selected)
     {
+        _selfSelected = selected;
         SetSelectionValue(
             selected);
 
@@ -215,13 +219,11 @@ public sealed class DocxImportSelectionNode : INotifyPropertyChanged
         while (current is not null)
         {
             bool allSelected =
-                current.Children.Count == 0 ||
-                current.Children.All(child =>
-                    child._isSelected == true);
+                current._selfSelected &&
+                current.Children.All(child => child._isSelected == true);
             bool allDeselected =
-                current.Children.Count > 0 &&
-                current.Children.All(child =>
-                    child._isSelected == false);
+                !current._selfSelected &&
+                current.Children.All(child => child._isSelected == false);
 
             current.SetSelectionValue(
                 allSelected
@@ -280,7 +282,7 @@ public sealed class DocxImportSelectionNode : INotifyPropertyChanged
             ICollection<int> destination)
     {
         if (BlockIndex is int blockIndex &&
-            _isSelected != false)
+            _selfSelected)
         {
             destination.Add(
                 blockIndex);
