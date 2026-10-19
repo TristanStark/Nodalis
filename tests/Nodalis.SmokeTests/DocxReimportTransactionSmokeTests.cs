@@ -258,6 +258,27 @@ internal static class DocxReimportTransactionSmokeTests
                    DocxReimportTransactionState.RolledBack,
             "Interrupted source-copy creation must be recoverable with no orphaned artifacts.");
 
+        // Process crash before journal creation can leave backup-only files.
+        // No Markdown has been touched at this phase, so a confirmed
+        // backup-only orphan can be cleaned without deleting project notes.
+        Guid orphanId = Guid.NewGuid();
+        string orphanDirectory = Path.Combine(transactions, orphanId.ToString("N"));
+        Directory.CreateDirectory(orphanDirectory);
+        await File.WriteAllTextAsync(Path.Combine(orphanDirectory, "00000.bak"),
+            "Backup saved before the journal was committed");
+        IReadOnlyList<DocxReimportPendingOperation> orphanInspection =
+            await service.InspectAsync(project);
+        Assert(orphanInspection.Any(operation =>
+                   operation.OperationId == orphanId &&
+                   operation.State == DocxReimportTransactionState.Prepared &&
+                   operation.MissingJournal),
+            "An interrupted pre-journal operation must be visible as recoverable.");
+        int cleanedOrphans = await service.RecoverPendingAsync(project);
+        Assert(cleanedOrphans == 1 &&
+               !Directory.Exists(orphanDirectory) &&
+               await File.ReadAllTextAsync(tests) == originalOne,
+            "Backup-only pre-journal directories must be cleaned without touching Markdown.");
+
         // A third-party edit after a crash must never be overwritten by recovery.
         Guid conflictId = Guid.NewGuid();
         string conflictDir = Path.Combine(transactions, conflictId.ToString("N"));
