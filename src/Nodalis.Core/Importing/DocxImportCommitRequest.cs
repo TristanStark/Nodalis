@@ -14,4 +14,7 @@ public sealed record DocxImportCommitRequest
         ProjectComplexity.Medium;
 
     public List<DocxImportSectionSelection> Sections { get; init; } = [];
+
+    /// <summary>Optional fingerprint of the user's last explicitly approved dry-run.</summary>
+    public string? ExpectedPlanFingerprint { get; init; }
 }

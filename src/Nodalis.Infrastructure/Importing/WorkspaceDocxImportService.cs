@@ -231,6 +231,17 @@ public sealed class WorkspaceDocxImportService
             preview,
             request);
 
+        if (request.ExpectedPlanFingerprint is string approved)
+        {
+            DocxImportPlan current = await BuildPlanAsync(preview, request, cancellationToken);
+            if (approved.Length != 64 ||
+                !string.Equals(approved, current.Fingerprint, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Le plan DOCX a changé depuis la prévisualisation. Recalculez et validez le plan avant d'importer.");
+            }
+        }
+
         global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection[] selected = request.Sections
             .Where(section => section.Include)
             .Select(section =>
@@ -480,8 +491,18 @@ public sealed class WorkspaceDocxImportService
                 sourceCopyPath,
                 "Copie locale du DOCX original ; le fichier source reste intact"));
 
-        return new DocxImportPlan
+        string contentBeforeCommit = string.Join(
+            "\n--TARGET--\n",
+            selected.GroupBy(item => item.TargetSection, StringComparer.CurrentCultureIgnoreCase)
+                .Select(group =>
+                    group.Key + "\n" + BuildImportedMarkdown(
+                        Path.GetFileName(preview.StagedImport.OriginalSourcePath), group)));
+
+        DocxImportPlan plan = new DocxImportPlan
         {
+            ProjectedContentSha256 = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(contentBeforeCommit))).ToLowerInvariant(),
             TargetProjectDisplayName =
                 projectDisplayName,
             TargetProjectRelativePath =
@@ -495,6 +516,8 @@ public sealed class WorkspaceDocxImportService
                     StringComparer.CurrentCultureIgnoreCase)
                 .ToList()
         };
+
+        return plan with { Fingerprint = DocxImportPlanFingerprint.Compute(plan) };
     }
 
     /// <summary>

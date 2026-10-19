@@ -482,7 +482,10 @@ public partial class DocxImportPreviewDialog : Window
                     return;
                 }
 
-                CommitRequest = request;
+                CommitRequest = request with
+                {
+                    ExpectedPlanFingerprint = _lastPlan.Fingerprint
+                };
                 DialogResult = true;
             });
     }
