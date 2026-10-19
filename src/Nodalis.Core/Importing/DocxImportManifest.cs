@@ -15,6 +15,12 @@ public sealed record DocxImportManifest
 
     public required Guid ProjectId { get; init; }
 
+    /// <summary>Previous immutable DOCX history, if this is a reimport.</summary>
+    public Guid? PreviousImportId { get; init; }
+
+    /// <summary>Durable reimport operation ID for idempotent lineage.</summary>
+    public Guid? ReimportOperationId { get; init; }
+
     public required DateTimeOffset ImportedAtUtc { get; init; }
 
     /// <summary>The leaf name only; the original external absolute path is not stored.</summary>
@@ -73,6 +79,18 @@ public sealed record DocxImportManifestFragment
 
     /// <summary>Original source block indexes selected in this fragment.</summary>
     public List<int> SelectedBlockIndexes { get; init; } = [];
+
+    /// <summary>
+    /// The Word text observed at reimport, even when the user retained Nodalis
+    /// or supplied a manual merge. Missing for historical v1 imports.
+    /// </summary>
+    public string? LatestWordMarkdownSnapshot { get; init; }
+
+    /// <summary>
+    /// Explicit action used to construct the new baseline: Word, Manual or
+    /// Nodalis. Missing for original imports.
+    /// </summary>
+    public string? ReimportResolution { get; init; }
 
     /// <summary>SHA-256 of this fragment's Markdown snapshot.</summary>
     public required string FragmentSha256 { get; init; }
