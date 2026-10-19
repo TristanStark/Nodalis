@@ -22,6 +22,7 @@ confirmation.
 | `sourceFileName`, `sourceSha256` | Nom lisible et empreinte **du contenu** du DOCX |
 | `sourceCopyRelativePath` | Copie locale portable, sans chemin absolu d'origine |
 | `approvedPlanFingerprint` | Empreinte du plan explicitement approuvé, si fournie |
+| `appliedMappingProfile` | Snapshot du profil réellement appliqué, y compris les règles et overrides, si présent |
 | `excludedSectionIndexes` | Sections exclues volontairement |
 | `fragments[]` | Une entrée par section Word retenue, même après fusion vers un même fichier |
 | `fragments[].sourceSectionIndex`, `headingBlockIndex` | Position structurelle d'origine |
