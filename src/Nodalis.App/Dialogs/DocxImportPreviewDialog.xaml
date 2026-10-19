@@ -527,6 +527,67 @@
                 </ScrollViewer>
             </TabItem>
 
+            <TabItem Header="Comparateur">
+                <Grid Margin="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Original Word interprété et Markdown projeté"
+                               FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Grid.Row="1" Margin="0,4,0,10"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               TextWrapping="Wrap"
+                               Text="L'original présente tous les blocs (même exclus) ; la sortie reflète exactement la sélection et son affectation. Ce n'est pas un rendu pixel-perfect de Microsoft Word." />
+                    <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                        <ComboBox x:Name="CompareSectionsListBox" MinHeight="30"
+                                  DisplayMemberPath="SourceHeading"
+                                  AutomationProperties.Name="Section Word à comparer" />
+                        <TextBlock Margin="0,6,0,0"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding SelectedItem.TargetStatus, ElementName=CompareSectionsListBox}" />
+                    </StackPanel>
+                    <Grid Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="150" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" MinWidth="150" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Word · contenu original"
+                                       FontWeight="SemiBold" Margin="0,0,0,7" />
+                            <TextBox Grid.Row="1" Padding="9" MinHeight="100"
+                                     FontFamily="Consolas" IsReadOnly="True"
+                                     AcceptsReturn="True" TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     Text="{Binding SelectedItem.OriginalPreview, ElementName=CompareSectionsListBox, Mode=OneWay}" />
+                        </Grid>
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Markdown · sélection courante"
+                                       FontWeight="SemiBold" Margin="0,0,0,7" />
+                            <TextBox Grid.Row="1" Padding="9" MinHeight="100"
+                                     FontFamily="Consolas" IsReadOnly="True"
+                                     AcceptsReturn="True" TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     Text="{Binding SelectedItem.MarkdownPreview, ElementName=CompareSectionsListBox, Mode=OneWay}" />
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
             <TabItem x:Name="FilesTab"
                      Header="Fichiers">
                 <Grid Margin="14">

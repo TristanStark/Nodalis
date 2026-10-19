@@ -96,6 +96,7 @@ try
     await DocxMappingProfilesSmokeTests.RunAsync(root);
     await DocxTableV19SmokeTests.RunAsync(root);
     await DocxMediaV19SmokeTests.RunAsync(root);
+    DocxPreviewComparatorSmokeTests.Run();
     await MarkdownBulkImportSmokeTests.RunAsync(root);
     await ProjectExportSmokeTests.RunAsync(root);
     await MeetingExtractionSmokeTests.RunAsync(root);

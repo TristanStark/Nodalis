@@ -107,6 +107,11 @@ public partial class DocxImportPreviewDialog : Window
         SectionsListBox.ItemsSource =
             new System.Windows.Data.ListCollectionView(_sections);
         MappingSourceList.ItemsSource = _sections;
+        CompareSectionsListBox.ItemsSource = _sections;
+        if (_sections.Count > 0)
+        {
+            CompareSectionsListBox.SelectedIndex = 0;
+        }
 
         HeadingLevelComboBox.ItemsSource =
             Enumerable.Range(0, 10)
@@ -820,6 +825,23 @@ public partial class DocxImportPreviewDialog : Window
     {
         private string _targetSection = string.Empty;
         private string _markdownPreview = string.Empty;
+        private string _originalPreview = string.Empty;
+
+        /// <summary>Full read-only Word text, including excluded blocks.</summary>
+        public string OriginalPreview => _originalPreview;
+
+        /// <summary>Current explicit inclusion and destination visible in the comparison view.</summary>
+        public string TargetStatus =>
+            !Include ? "Ignorée : aucun bloc ne sera importé." :
+            string.IsNullOrWhiteSpace(TargetSection) ?
+                "Destination manquante : sélection à corriger." :
+                "Incluse → " + TargetSection + " · " +
+                SelectionRoot.GetSelectedBlockIndexes().Count + "/" + BlockCount +
+                " blocs Word retenus.";
+
+        /// <summary>Initializes the unedited Word source view once.</summary>
+        public void InitializeOriginalPreview(string original) =>
+            _originalPreview = original;
 
         public required int Index { get; init; }
 
@@ -873,6 +895,10 @@ public partial class DocxImportPreviewDialog : Window
                     this,
                     new PropertyChangedEventArgs(
                         nameof(TargetSection)));
+                PropertyChanged?.Invoke(
+                    this,
+                    new PropertyChangedEventArgs(
+                        nameof(TargetStatus)));
             }
         }
 
@@ -892,6 +918,10 @@ public partial class DocxImportPreviewDialog : Window
                 this,
                 new PropertyChangedEventArgs(
                     nameof(Include)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(
+                    nameof(TargetStatus)));
         }
 
         /// <summary>

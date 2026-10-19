@@ -83,6 +83,8 @@ public partial class DocxImportPreviewDialog
 
         row.InitializeMarkdownPreview(
             section.MarkdownPreview);
+        row.InitializeOriginalPreview(
+            DocxOriginalSectionRenderer.Render(section));
 
         return row;
     }

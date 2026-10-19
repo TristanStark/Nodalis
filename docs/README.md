@@ -172,5 +172,6 @@ Version v1.8.0 : issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmar
 - [Profils DOCX déterministes, édition, import/export et arbitrages (#159)](docx-1.9-mapping-profiles.md)
 - [Conversion des tableaux Word, HTML de secours et limites (#160)](docx-1.9-tables.md)
 - [Images et objets Word, sélection et stockage local (#161)](docx-1.9-media.md)
+- [Comparateur Word/Markdown et état des sections (#162)](docx-1.9-preview-comparator.md)
 
 Ces documents décrivent des incréments de développement, pas une release 1.9. Les scénarios multi-projets, le mapping par fichier, le réimport différentiel et la transaction globale ne sont pas encore qualifiés.
