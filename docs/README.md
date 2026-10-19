@@ -169,5 +169,7 @@ Version v1.8.0 : issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmar
 - [Détection de titres Word et heuristiques explicables (#156)](docx-1.9-heading-detection.md)
 - [Recherche, correction et annulation des niveaux de titres dans l'assistant (#157)](docx-1.9-structure-editor.md)
 - [Affectation visuelle des sections Word, ordre de fusion et limites actuelles (#158)](docx-1.9-mapping.md)
+- [Profils DOCX déterministes, édition, import/export et arbitrages (#159)](docx-1.9-mapping-profiles.md)
+- [Conversion des tableaux Word, HTML de secours et limites (#160)](docx-1.9-tables.md)
 
 Ces documents décrivent des incréments de développement, pas une release 1.9. Les scénarios multi-projets, le mapping par fichier, le réimport différentiel et la transaction globale ne sont pas encore qualifiés.
