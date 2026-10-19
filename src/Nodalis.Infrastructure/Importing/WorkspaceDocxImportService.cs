@@ -727,8 +727,14 @@ public sealed class WorkspaceDocxImportService
                     string snapshot = DocxImportSelectionRenderer.Render(
                         sourceSection.Preview, indexes).TrimEnd();
 
+                    DocxMappingSourceSection wordContext =
+                        DocxMappingSourceBuilder.Build(
+                            sourceSection.Preview, preview.StagedImport.Document);
                     provenanceFragments.Add(new DocxImportManifestFragment
                     {
+                        SourceParentPath = wordContext.ParentPath,
+                        SourceWordStyleId = wordContext.WordStyleId,
+                        SourceHeadingLevel = wordContext.HeadingLevel,
                         FragmentId = Guid.NewGuid(),
                         SourceSectionIndex = sourceSection.Preview.Index,
                         HeadingBlockIndex = sourceSection.Preview.HeadingBlockIndex,
