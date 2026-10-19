@@ -495,6 +495,10 @@ public sealed class WorkspaceDocxImportService
 
         DocxImportPlan plan = new DocxImportPlan
         {
+            MappingProfileSha256 = request.AppliedMappingProfile is null
+                ? string.Empty
+                : DocxImportManifestStore.ComputeSha256(
+                    System.Text.Json.JsonSerializer.Serialize(request.AppliedMappingProfile)),
             ProjectedContentSha256 = Convert.ToHexString(
                 System.Security.Cryptography.SHA256.HashData(
                     System.Text.Encoding.UTF8.GetBytes(contentBeforeCommit))).ToLowerInvariant(),
@@ -754,6 +758,7 @@ public sealed class WorkspaceDocxImportService
                     sourceCopyPath, cancellationToken),
                 SourceCopyRelativePath = provenanceStore.ToWorkspaceRelativePath(sourceCopyPath),
                 ApprovedPlanFingerprint = request.ExpectedPlanFingerprint,
+                AppliedMappingProfile = request.AppliedMappingProfile,
                 ExcludedSectionIndexes = request.Sections
                     .Where(section => !section.Include)
                     .Select(section => section.SectionIndex)
