@@ -588,7 +588,7 @@
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Réimport · comparer">
+            <TabItem x:Name="ReimportTab" Header="Réimport · comparer">
                 <Grid Margin="14">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
