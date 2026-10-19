@@ -52,6 +52,17 @@ public sealed class DocxReimportProvenanceBuilder
                 "Provenance de réimport incomplète, non approuvée ou mal ciblée.");
         }
 
+        // A deterministic per-operation source path makes replay safe and
+        // lets recovery distinguish a new Word copy from unrelated files.
+        string requiredSourcePath =
+            "Imports/Sources/reimport-" + operationId.ToString("N") + ".docx";
+        if (!string.Equals(newSourceCopyRelativePath, requiredSourcePath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "La nouvelle copie DOCX doit utiliser le chemin immuable de cette opération.");
+        }
+
         string sourceCopy = _paths.ResolveWorkspaceRelativePath(
             newSourceCopyRelativePath);
         string oldCopy = _paths.ResolveWorkspaceRelativePath(
