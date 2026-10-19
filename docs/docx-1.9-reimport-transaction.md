@@ -76,11 +76,20 @@ Une même opération `Completed`, rejouée avec son GUID et le même plan,
 ne réécrit rien : elle renvoie `AlreadyApplied` après contrôle des
 empreintes de destination. Un GUID déjà utilisé avec un autre plan est rejeté.
 
+Un arrêt **avant** la création du journal peut laisser un répertoire ne
+contenant que des sauvegardes `.bak` ou le temporaire d'écriture JSON :
+aucune destination n'a encore été modifiée à ce moment-là. Ces opérations
+sans journal sont visibles dans `InspectAsync`, puis nettoyées par
+`RecoverPendingAsync` après vérification des noms, de l'identifiant
+d'opération et de l'absence de fichiers inconnus. Une arborescence suspecte
+est conservée pour inspection humaine.
+
 **Rétention** : pour cette première étape, les journaux et sauvegardes
 restent locaux et ne sont pas purgés automatiquement. Leur nettoyage, la
 réconciliation des imports et la reprise guidée constituent des étapes
 ultérieures. Les sauvegardes peuvent contenir des informations sensibles et
-doivent être protégées au même titre que le workspace.
+doivent être protégées au même titre que le workspace. Les snapshots Word récents disposent également d'un
+SHA-256 indépendant pour détecter toute altération de l'historique.
 
 ## Limites et prochaine intégration
 
