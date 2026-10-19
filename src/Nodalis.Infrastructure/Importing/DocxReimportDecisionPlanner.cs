@@ -1,0 +1,289 @@
+using Nodalis.Core.Importing;
+
+namespace Nodalis.Infrastructure.Importing;
+
+/// <summary>
+/// Pure dry-run of explicit DOCX reimport decisions. No file-system mutation.
+/// Only a uniquely located imported fragment can be replaced in a destination:
+/// its surroundings are preserved byte-for-byte as .NET text.
+/// </summary>
+public static class DocxReimportDecisionPlanner
+{
+    private const int MaxManualMarkdownLength = 1_000_000;
+
+    /// <summary>
+    /// Validates every decision and returns per-fragment diagnostics plus
+    /// projected writes. This is NOT authorization to commit: a writer must
+    /// recheck source/destination hashes under its own transaction boundary.
+    /// </summary>
+    public static DocxReimportDecisionPlan Build(
+        DocxReimportReview review,
+        DocxImportManifest baseline,
+        IReadOnlyCollection<DocxReimportResolution> decisions)
+    {
+        ArgumentNullException.ThrowIfNull(review);
+        ArgumentNullException.ThrowIfNull(baseline);
+        ArgumentNullException.ThrowIfNull(decisions);
+
+        if (review.PreviousImportId != baseline.ImportId ||
+            review.ProjectId != baseline.ProjectId)
+        {
+            throw new InvalidDataException(
+                "Le plan de résolution ne correspond pas à cet historique DOCX.");
+        }
+
+        Dictionary<Guid, DocxReimportReviewedFragment> reviewed = [];
+        foreach (DocxReimportReviewedFragment fragment in review.Fragments)
+        {
+            if (!reviewed.TryAdd(fragment.Association.FragmentId, fragment))
+            {
+                throw new InvalidDataException("Fragments du rapport DOCX en doublon.");
+            }
+        }
+
+        Dictionary<Guid, DocxImportManifestFragment> originals = [];
+        foreach (DocxImportManifestFragment fragment in baseline.Fragments)
+        {
+            if (!originals.TryAdd(fragment.FragmentId, fragment))
+            {
+                throw new InvalidDataException("Fragments du manifeste DOCX en doublon.");
+            }
+        }
+
+        if (reviewed.Count != originals.Count ||
+            reviewed.Keys.Any(id => !originals.ContainsKey(id)))
+        {
+            throw new InvalidDataException(
+                "L'historique et le rapport ne décrivent plus les mêmes fragments.");
+        }
+
+        Dictionary<Guid, DocxReimportResolution> choices = [];
+        foreach (DocxReimportResolution decision in decisions)
+        {
+            if (!originals.ContainsKey(decision.FragmentId) ||
+                !choices.TryAdd(decision.FragmentId, decision) ||
+                !Enum.IsDefined(decision.Action))
+            {
+                throw new InvalidDataException("Décision DOCX inconnue, dupliquée ou invalide.");
+            }
+        }
+
+        List<DocxReimportDecisionLine> lines = [];
+        List<DocxReimportProposedWrite> writes = [];
+        foreach (DocxImportManifestFragment fragment in baseline.Fragments)
+        {
+            DocxReimportReviewedFragment current = reviewed[fragment.FragmentId];
+            DocxReimportResolution? choice = choices.GetValueOrDefault(fragment.FragmentId);
+            if (choice is null)
+            {
+                bool unchanged = current.Change?.Kind == DocxReimportChangeKind.Unchanged &&
+                    !current.RequiresExplicitResolution;
+                lines.Add(new DocxReimportDecisionLine
+                {
+                    FragmentId = fragment.FragmentId,
+                    Action = null,
+                    Resolved = unchanged,
+                    Diagnostic = unchanged
+                        ? "Aucun changement : aucune écriture proposée."
+                        : "Choisissez explicitement comment traiter cette section."
+                });
+                continue;
+            }
+
+            if (choice.Action is DocxReimportResolutionAction.KeepNodalis or
+                DocxReimportResolutionAction.KeepHistorical)
+            {
+                lines.Add(new DocxReimportDecisionLine
+                {
+                    FragmentId = fragment.FragmentId,
+                    Action = choice.Action,
+                    Resolved = true,
+                    Diagnostic = "Markdown Nodalis conservé ; aucune écriture."
+                });
+                continue;
+            }
+
+            string? replacement = choice.Action switch
+            {
+                DocxReimportResolutionAction.UseWord => current.LatestWordMarkdown,
+                DocxReimportResolutionAction.ManualMerge => choice.ManualMarkdown,
+                _ => null
+            };
+
+            string? error = null;
+            if (current.Association.CurrentSectionIndex is null ||
+                current.Association.Kind is DocxReimportAssociationKind.Ambiguous or
+                    DocxReimportAssociationKind.ConfirmedMissingFromWord or
+                    DocxReimportAssociationKind.MissingFromWord)
+            {
+                error = "La correspondance Word doit d'abord être confirmée.";
+            }
+            else if (current.CurrentNodalisMarkdown is null)
+            {
+                error = "La destination Nodalis est absente : aucune recréation implicite.";
+            }
+            else if (replacement is null || string.IsNullOrWhiteSpace(replacement) ||
+                     replacement.Length > MaxManualMarkdownLength)
+            {
+                error = "Le contenu Word ou la fusion manuelle est vide ou trop volumineux.";
+            }
+            else if (baseline.Fragments.Count(other =>
+                         string.Equals(other.DestinationRelativePath,
+                             fragment.DestinationRelativePath,
+                             StringComparison.OrdinalIgnoreCase)) != 1)
+            {
+                error = "Plusieurs sections Word partagent ce Markdown : remplacement direct bloqué.";
+            }
+            else if (string.IsNullOrEmpty(fragment.BaseMarkdown))
+            {
+                error = "Le fragment source initial n'a pas de délimiteur fiable.";
+            }
+            else
+            {
+                string local = current.CurrentNodalisMarkdown;
+                int first = local.IndexOf(fragment.BaseMarkdown, StringComparison.Ordinal);
+                if (first < 0 || local.IndexOf(fragment.BaseMarkdown,
+                        first + fragment.BaseMarkdown.Length,
+                        StringComparison.Ordinal) >= 0)
+                {
+                    error = "Le fragment initial est absent ou répété dans Nodalis ; " +
+                            "préservez les modifications locales et fusionnez dans l'éditeur.";
+                }
+                else
+                {
+                    string result = string.Concat(local.AsSpan(0, first),
+                        replacement.AsSpan(),
+                        local.AsSpan(first + fragment.BaseMarkdown.Length));
+                    bool modified = !string.Equals(local, result, StringComparison.Ordinal);
+                    if (modified)
+                    {
+                        writes.Add(new DocxReimportProposedWrite
+                        {
+                            FragmentId = fragment.FragmentId,
+                            DestinationRelativePath = fragment.DestinationRelativePath,
+                            ExpectedCurrentSha256 =
+                                DocxImportManifestStore.ComputeSha256(local),
+                            ProjectedSha256 = DocxImportManifestStore.ComputeSha256(result),
+                            ProjectedMarkdown = result
+                        });
+                    }
+
+                    lines.Add(new DocxReimportDecisionLine
+                    {
+                        FragmentId = fragment.FragmentId,
+                        Action = choice.Action,
+                        Resolved = true,
+                        Diagnostic = modified
+                            ? "Remplacement borné au fragment d'origine ; contexte Nodalis conservé."
+                            : "Aucun changement de contenu : écriture évitée."
+                    });
+                    continue;
+                }
+            }
+
+            lines.Add(new DocxReimportDecisionLine
+            {
+                FragmentId = fragment.FragmentId,
+                Action = choice.Action,
+                Resolved = false,
+                Diagnostic = error ?? "Résolution impossible."
+            });
+        }
+
+        return new DocxReimportDecisionPlan
+        {
+            PreviousImportId = baseline.ImportId,
+            ProjectId = baseline.ProjectId,
+            Lines = lines,
+            Writes = writes,
+            Warnings = review.Warnings.ToList(),
+            // New Word sections are not silently included in the old import.
+            UnmatchedNewSections = review.Matching.AddedSectionIndexes.ToList(),
+            AmbiguousNewSections = review.Matching.UnresolvedNewSectionIndexes.ToList()
+        };
+    }
+}
+
+/// <summary>User-controlled treatment of one historical section.</summary>
+public enum DocxReimportResolutionAction
+{
+    KeepNodalis,
+    UseWord,
+    ManualMerge,
+    KeepHistorical
+}
+
+/// <summary>
+/// One explicit treatment; ManualMarkdown is used only with ManualMerge.
+/// Decisions are not persisted by the read-only inspector.
+/// </summary>
+public sealed record DocxReimportResolution
+{
+    public required Guid FragmentId { get; init; }
+
+    public required DocxReimportResolutionAction Action { get; init; }
+
+    public string? ManualMarkdown { get; init; }
+}
+
+/// <summary>Explainable resolution status for one previous import fragment.</summary>
+public sealed record DocxReimportDecisionLine
+{
+    public required Guid FragmentId { get; init; }
+
+    public DocxReimportResolutionAction? Action { get; init; }
+
+    public bool Resolved { get; init; }
+
+    public required string Diagnostic { get; init; }
+}
+
+/// <summary>
+/// Projected local Markdown bytes and an optimistic hash of the original
+/// destination; these are inspectable data, not an executable write command.
+/// </summary>
+public sealed record DocxReimportProposedWrite
+{
+    public required Guid FragmentId { get; init; }
+
+    public required string DestinationRelativePath { get; init; }
+
+    public required string ExpectedCurrentSha256 { get; init; }
+
+    public required string ProjectedSha256 { get; init; }
+
+    public required string ProjectedMarkdown { get; init; }
+}
+
+/// <summary>
+/// Dry-run report of all explicit decisions. No method on this type writes.
+/// Even a complete report still requires a separate transaction implementation.
+/// </summary>
+public sealed record DocxReimportDecisionPlan
+{
+    public required Guid PreviousImportId { get; init; }
+
+    public required Guid ProjectId { get; init; }
+
+    public List<DocxReimportDecisionLine> Lines { get; init; } = [];
+
+    public List<DocxReimportProposedWrite> Writes { get; init; } = [];
+
+    public List<string> Warnings { get; init; } = [];
+
+    public List<int> UnmatchedNewSections { get; init; } = [];
+
+    public List<int> AmbiguousNewSections { get; init; } = [];
+
+    /// <summary>Whether all historical fragments have an explicit safe treatment.</summary>
+    public bool AllFragmentsResolved => Lines.All(line => line.Resolved);
+
+    /// <summary>
+    /// Every old fragment resolved, no unreviewed additions or source warnings.
+    /// This is a review-status flag, NOT an authorization to write.
+    /// </summary>
+    public bool ReviewComplete => AllFragmentsResolved &&
+        Warnings.Count == 0 &&
+        UnmatchedNewSections.Count == 0 &&
+        AmbiguousNewSections.Count == 0;
+}
