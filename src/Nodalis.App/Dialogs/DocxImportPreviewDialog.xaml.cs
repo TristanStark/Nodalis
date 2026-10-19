@@ -83,8 +83,11 @@ public partial class DocxImportPreviewDialog : Window
             new ComplexityChoice[]
             {
                 new ComplexityChoice(
-                ProjectComplexity.Simple,
-                "Simple"),
+                    ProjectComplexity.UltraSimple,
+                    "Ultra-simple"),
+                new ComplexityChoice(
+                    ProjectComplexity.Simple,
+                    "Simple"),
                 new ComplexityChoice(
                     ProjectComplexity.Medium,
                     "Moyen"),
@@ -93,7 +96,7 @@ public partial class DocxImportPreviewDialog : Window
                     "Complexe")
             };
 
-        ComplexityComboBox.SelectedIndex = 1;
+        ComplexityComboBox.SelectedIndex = 2;
 
         SectionsListBox.ItemsSource =
             new System.Windows.Data.ListCollectionView(_sections);
