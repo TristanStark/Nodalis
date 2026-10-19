@@ -285,6 +285,9 @@ public partial class DocxImportPreviewDialog
         };
     }
 
+    /// <summary>Returns a trimmed optional rule field or null for empty input.</summary>
+    /// <param name="text">Raw editor text.</param>
+    /// <returns>The normalized optional value.</returns>
     private static string? NullableText(string? text) =>
         string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
