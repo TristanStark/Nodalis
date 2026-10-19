@@ -168,11 +168,36 @@ internal static class DocxReimportReviewSmokeTests
                newHistory.Fragments.Single().BaseMarkdown.Replace("\r\n", "\n") == latestWord &&
                newHistory.Fragments.Single().LatestWordMarkdownSnapshot?.Replace("\r\n", "\n") == latestWord &&
                newHistory.Fragments.Single().ReimportResolution == "Word" &&
+               newHistory.Fragments.Single().LatestWordSnapshotSha256 ==
+                   DocxImportManifestStore.ComputeSha256(
+                       newHistory.Fragments.Single().LatestWordMarkdownSnapshot!) &&
                newHistory.Fragments.Single().DestinationSha256 ==
                    appliedWord.Writes.Single().ProjectedSha256 &&
                !File.Exists(store.ResolveWorkspaceRelativePath(
                    newHistory.SourceCopyRelativePath)),
             "Versioned provenance must record approved Word baseline and lineage without writing.");
+
+        bool forgedSnapshotRejected = false;
+        try
+        {
+            store.Validate(newHistory with
+            {
+                Fragments =
+                [
+                    newHistory.Fragments.Single() with
+                    {
+                        LatestWordMarkdownSnapshot = "corrupted observed Word"
+                    }
+                ]
+            });
+        }
+        catch (InvalidDataException)
+        {
+            forgedSnapshotRejected = true;
+        }
+
+        Assert(forgedSnapshotRejected,
+            "Changing the observed Word snapshot without its SHA must fail validation.");
 
         DocxReimportTransactionService transaction =
             new DocxReimportTransactionService(root);
