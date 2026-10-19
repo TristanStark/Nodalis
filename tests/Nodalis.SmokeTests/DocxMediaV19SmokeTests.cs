@@ -44,10 +44,15 @@ internal static class DocxMediaV19SmokeTests
         {
             WriteXml(archive, "word/document.xml", document);
             WriteXml(archive, "word/_rels/document.xml.rels", relationships);
-            using Stream one = archive.CreateEntry("word/media/image1.png").Open();
-            one.Write(image);
-            using Stream two = archive.CreateEntry("word/media/image2.png").Open();
-            two.Write(image);
+            using (Stream one = archive.CreateEntry("word/media/image1.png").Open())
+            {
+                one.Write(image);
+            }
+
+            using (Stream two = archive.CreateEntry("word/media/image2.png").Open())
+            {
+                two.Write(image);
+            }
         }
 
         ParsedDocxDocument parsed = await new DocxParser().ParseAsync(path);
@@ -81,8 +86,7 @@ internal static class DocxMediaV19SmokeTests
         Assert(DocxSelectedMediaAssets.Select(parsed.Blocks.Skip(2)).Count == 0,
             "Excluded images may not result in attachment copies.");
 
-        string before = File.ReadAllText(path).Length.ToString();
-        Assert(before.Length > 0, "Staged package must remain accessible.");
+        Assert(File.Exists(path), "Original DOCX must remain available after media copy.");
     }
 
     /// <summary>Writes XML fixture content to an in-memory ZIP entry.</summary>
