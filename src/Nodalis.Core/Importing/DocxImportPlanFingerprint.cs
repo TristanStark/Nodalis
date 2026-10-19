@@ -20,6 +20,7 @@ public static class DocxImportPlanFingerprint
         Append(buffer, plan.TargetProjectDisplayName);
         Append(buffer, plan.TargetProjectRelativePath);
         Append(buffer, plan.ProjectedContentSha256);
+        Append(buffer, plan.MappingProfileSha256);
         foreach (DocxImportPlannedChange change in plan.Changes)
         {
             Append(buffer, change.Action);
