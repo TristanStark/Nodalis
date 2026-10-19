@@ -54,6 +54,15 @@ public sealed record DocxImportManifestFragment
 
     public required string SourceHeading { get; init; }
 
+    /// <summary>Word heading hierarchy at import; null for older v1 provenance records.</summary>
+    public string? SourceParentPath { get; init; }
+
+    /// <summary>Original Word heading style; null when unavailable.</summary>
+    public string? SourceWordStyleId { get; init; }
+
+    /// <summary>Original Word heading level; null when unavailable.</summary>
+    public int? SourceHeadingLevel { get; init; }
+
     public required string TargetSection { get; init; }
 
     /// <summary>Canonical Nodalis section GUID, independent of subsequent renames.</summary>
