@@ -162,3 +162,12 @@ Version v1.8.0 : issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmar
 ## Nodalis 1.9 — Import DOCX avancé (en développement)
 
 [EPIC #154](https://github.com/TristanStark/Nodalis/issues/154) : arbre Word hiérarchique, mapping manuel des sections vers Technique/Tests/Recette, prévisualisation, provenance et réimport sans écrasement silencieux. Le socle doit être extensible, mais l'import XLSX/VSDX n'est pas livré en 1.9.
+
+### Incréments disponibles sur `develop` (avant qualification v1.9)
+
+- [Contrat d'arbre documentaire et plan sans effet de bord (#155)](docx-1.9-import-tree.md)
+- [Détection de titres Word et heuristiques explicables (#156)](docx-1.9-heading-detection.md)
+- [Recherche, correction et annulation des niveaux de titres dans l'assistant (#157)](docx-1.9-structure-editor.md)
+- [Affectation visuelle des sections Word, ordre de fusion et limites actuelles (#158)](docx-1.9-mapping.md)
+
+Ces documents décrivent des incréments de développement, pas une release 1.9. Les scénarios multi-projets, le mapping par fichier, le réimport différentiel et la transaction globale ne sont pas encore qualifiés.
