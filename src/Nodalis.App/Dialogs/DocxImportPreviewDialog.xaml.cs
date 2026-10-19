@@ -734,6 +734,7 @@ public partial class DocxImportPreviewDialog : Window
                 ? NewProjectNameTextBox.Text.Trim()
                 : null,
             NewProjectComplexity = complexity,
+            AppliedMappingProfile = _appliedMappingProfile,
             Sections = _sections
                 .Select(section =>
                     new DocxImportSectionSelection
@@ -769,6 +770,7 @@ public partial class DocxImportPreviewDialog : Window
                 StringComparison.CurrentCulture) ||
             left.NewProjectComplexity !=
             right.NewProjectComplexity ||
+            left.AppliedMappingProfile?.Id != right.AppliedMappingProfile?.Id ||
             left.Sections.Count !=
             right.Sections.Count)
         {
