@@ -204,7 +204,11 @@ public enum DocxReimportAssociationKind
     HeadingAndAncestry,
     UniqueHeading,
     Ambiguous,
-    MissingFromWord
+    MissingFromWord,
+    /// <summary>An explicit one-to-one manual association.</summary>
+    Manual,
+    /// <summary>The user explicitly confirmed that Word no longer has this section.</summary>
+    ConfirmedMissingFromWord
 }
 
 /// <summary>One baseline fragment and its proposed current section association.</summary>
