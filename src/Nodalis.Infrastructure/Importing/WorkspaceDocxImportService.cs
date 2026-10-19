@@ -734,6 +734,9 @@ public sealed class WorkspaceDocxImportService
                         HeadingBlockIndex = sourceSection.Preview.HeadingBlockIndex,
                         SourceHeading = sourceSection.Preview.SourceHeading,
                         TargetSection = sectionName,
+                        TargetSectionId = updatedProject.Sections.First(section =>
+                            string.Equals(section.Name, sectionName,
+                                StringComparison.CurrentCultureIgnoreCase)).Id,
                         DestinationRelativePath = provenanceStore.ToWorkspaceRelativePath(destination),
                         SelectedBlockIndexes = indexes.ToList(),
                         FragmentSha256 = DocxImportManifestStore.ComputeSha256(snapshot),
