@@ -602,7 +602,12 @@
                     <TextBlock Grid.Row="1" Margin="0,4,0,10" TextWrapping="Wrap"
                                Foreground="{StaticResource SecondaryTextBrush}"
                                Text="Lecture seule : sélectionnez un projet existant et son ancien import. Aucune action de cet onglet ne remplace ou supprime les notes. Les conflits exigent une résolution explicite lors d'un futur réimport." />
-                    <StackPanel Grid.Row="2" Orientation="Vertical" Margin="0,0,0,10">
+                    <ScrollViewer Grid.Row="2" Margin="0,0,0,10"
+                                  MaxHeight="250"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  CanContentScroll="True">
+                        <StackPanel Orientation="Vertical">
                         <StackPanel Orientation="Horizontal">
                             <Button Content="Rechercher les historiques"
                                     Margin="0,0,8,0" Padding="10,5"
@@ -732,7 +737,8 @@
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource SecondaryTextBrush}"
                                    Text="Choisissez un projet dans l'onglet Cible, puis recherchez ses historiques d'import DOCX." />
-                    </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
                     <ListBox x:Name="ReimportFragmentsList" Grid.Row="3"
                              MinHeight="75" Margin="0,0,0,10"
                              DisplayMemberPath="Label"
