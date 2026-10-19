@@ -611,11 +611,24 @@
                             <ComboBox x:Name="ReimportHistoryComboBox"
                                       MinWidth="250" MaxWidth="520"
                                       DisplayMemberPath="Label"
+                                      SelectionChanged="ReimportHistory_SelectionChanged"
                                       Margin="0,0,8,0"
                                       AutomationProperties.Name="Historique d'import DOCX à comparer" />
                             <Button Content="Comparer" Padding="10,5"
                                     Click="ReimportCompare_Click"
                                     AutomationProperties.Name="Comparer cet import DOCX avec la version courante" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="Associer la section sélectionnée :"
+                                       VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox x:Name="ReimportMatchComboBox"
+                                      DisplayMemberPath="Label"
+                                      MinWidth="210" MaxWidth="460"
+                                      Margin="0,0,8,0"
+                                      AutomationProperties.Name="Section du nouveau Word correspondante ou section disparue" />
+                            <Button Content="Confirmer l'association"
+                                    Padding="10,5" Click="ReimportAssignSection_Click"
+                                    AutomationProperties.Name="Confirmer manuellement l'association de cette section Word" />
                         </StackPanel>
                         <TextBlock x:Name="ReimportStatusText" Margin="0,7,0,0"
                                    TextWrapping="Wrap"
