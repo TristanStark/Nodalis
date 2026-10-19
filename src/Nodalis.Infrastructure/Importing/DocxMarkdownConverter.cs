@@ -183,14 +183,36 @@ public static class DocxMarkdownConverter
                 }
 
                 builder.Append('>');
-                builder.Append(EscapeHtml(cell.Text)
-                    .Replace("\r\n", "\n", StringComparison.Ordinal)
-                    .Replace('\r', '\n')
-                    .Replace("\n", "<br>", StringComparison.Ordinal));
-
-                foreach (DocxTable nested in cell.NestedTables)
+                if (cell.Parts.Count == 0)
                 {
-                    AppendHtmlTable(builder, nested);
+                    // Compatibility with fixture tables constructed without ordered parts.
+                    AppendEscapedHtmlText(builder, cell.Text);
+                    foreach (DocxTable nested in cell.NestedTables)
+                    {
+                        AppendHtmlTable(builder, nested);
+                    }
+                }
+                else
+                {
+                    bool precedingParagraph = false;
+                    foreach (DocxTableCellPart part in cell.Parts)
+                    {
+                        if (part.Text is string text)
+                        {
+                            if (precedingParagraph)
+                            {
+                                builder.Append("<br>");
+                            }
+
+                            AppendEscapedHtmlText(builder, text);
+                            precedingParagraph = true;
+                        }
+                        else if (part.NestedTable is DocxTable childTable)
+                        {
+                            AppendHtmlTable(builder, childTable);
+                            precedingParagraph = false;
+                        }
+                    }
                 }
 
                 builder.Append("</").Append(element).AppendLine(">");
@@ -200,6 +222,19 @@ public static class DocxMarkdownConverter
         }
 
         builder.AppendLine("</table>");
+    }
+
+    /// <summary>
+    /// Appends safe text content while retaining all paragraph line breaks.
+    /// </summary>
+    /// <param name="builder">Destination HTML buffer.</param>
+    /// <param name="text">Source Word cell text.</param>
+    private static void AppendEscapedHtmlText(StringBuilder builder, string text)
+    {
+        builder.Append(EscapeHtml(text)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Replace("\n", "<br>", StringComparison.Ordinal));
     }
 
     /// <summary>Escapes arbitrary source Word text from HTML execution or injection.</summary>

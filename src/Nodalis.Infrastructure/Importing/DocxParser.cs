@@ -357,13 +357,31 @@ public sealed class DocxParser
                         ? DocxVerticalMerge.Start
                         : DocxVerticalMerge.Continue;
 
-                List<string> paragraphs = cell.Elements(WordNamespace + "p")
-                    .Select(ExtractText)
+                List<DocxTableCellPart> ordered = [];
+                foreach (XElement child in cell.Elements())
+                {
+                    if (child.Name == WordNamespace + "p")
+                    {
+                        ordered.Add(new DocxTableCellPart { Text = ExtractText(child) });
+                    }
+                    else if (child.Name == WordNamespace + "tbl")
+                    {
+                        ordered.Add(new DocxTableCellPart
+                        {
+                            NestedTable = ParseTable(child, nestingDepth + 1)
+                        });
+                    }
+                }
+
+                List<string> paragraphs = ordered
+                    .Where(part => part.Text is not null)
+                    .Select(part => part.Text!)
                     .Where(text => !string.IsNullOrWhiteSpace(text))
                     .ToList();
 
-                List<DocxTable> nested = cell.Elements(WordNamespace + "tbl")
-                    .Select(child => ParseTable(child, nestingDepth + 1))
+                List<DocxTable> nested = ordered
+                    .Where(part => part.NestedTable is not null)
+                    .Select(part => part.NestedTable!)
                     .ToList();
 
                 if (columnSpan > 1)
@@ -386,7 +404,8 @@ public sealed class DocxParser
                     Text = string.Join(Environment.NewLine, paragraphs),
                     ColumnSpan = columnSpan,
                     VerticalMerge = vertical,
-                    NestedTables = nested
+                    NestedTables = nested,
+                    Parts = ordered
                 });
             }
 

@@ -34,4 +34,15 @@ public sealed record DocxTableCell
     public DocxVerticalMerge VerticalMerge { get; init; }
 
     public List<DocxTable> NestedTables { get; init; } = [];
+
+    /// <summary>Ordered paragraphs and nested tables, preserving the Word cell reading order.</summary>
+    public List<DocxTableCellPart> Parts { get; init; } = [];
+}
+
+/// <summary>An ordered text fragment or nested Word table inside a cell.</summary>
+public sealed record DocxTableCellPart
+{
+    public string? Text { get; init; }
+
+    public DocxTable? NestedTable { get; init; }
 }

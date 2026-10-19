@@ -32,6 +32,7 @@ internal static class DocxTableV19SmokeTests
                       <w:tbl>
                         <w:tr><w:tc><w:p><w:r><w:t>Nested value</w:t></w:r></w:p></w:tc></w:tr>
                       </w:tbl>
+                      <w:p><w:r><w:t>Post nested note</w:t></w:r></w:p>
                     </w:tc>
                   </w:tr>
                 </w:tbl>
@@ -64,6 +65,9 @@ internal static class DocxTableV19SmokeTests
                rendered.Contains("data-word-vmerge=\"continue\"", StringComparison.Ordinal) &&
                rendered.Contains("Nested value", StringComparison.Ordinal),
             "Complex layout must retain nested content and merge metadata in local HTML.");
+        Assert(rendered.IndexOf("Nested value", StringComparison.Ordinal) <
+               rendered.IndexOf("Post nested note", StringComparison.Ordinal),
+            "A paragraph after a nested Word table must stay after the nested table.");
         Assert(rendered.Contains("&lt;script&gt;", StringComparison.Ordinal) &&
                !rendered.Contains("<script>", StringComparison.Ordinal),
             "Word text must not be executable HTML in fallback markup.");
