@@ -102,6 +102,7 @@ try
     DocxReimportDiffSmokeTests.Run();
     DocxReimportSectionMatcherSmokeTests.Run();
     await DocxReimportReviewSmokeTests.RunAsync(root);
+    DocxReimportDecisionPlannerSmokeTests.Run();
     await MarkdownBulkImportSmokeTests.RunAsync(root);
     await ProjectExportSmokeTests.RunAsync(root);
     await MeetingExtractionSmokeTests.RunAsync(root);
