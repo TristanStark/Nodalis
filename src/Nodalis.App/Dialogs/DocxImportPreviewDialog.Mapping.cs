@@ -9,6 +9,8 @@ namespace Nodalis.App.Dialogs;
 
 public partial class DocxImportPreviewDialog
 {
+    private Point? _mappingDragOrigin;
+
     private readonly HashSet<string> _customMappingSections =
         new HashSet<string>(StringComparer.CurrentCultureIgnoreCase);
 
@@ -70,16 +72,38 @@ public partial class DocxImportPreviewDialog
     }
 
     /// <summary>
-    /// Starts a local drag operation for a Word section, without touching the source document.
+    /// Records the starting position so an ordinary mouse click never starts a drag.
+    /// </summary>
+    private void MappingSource_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _mappingDragOrigin = e.GetPosition(MappingSourceList);
+    }
+
+    /// <summary>
+    /// Starts a drag only after the Windows movement threshold is crossed.
     /// </summary>
     private void MappingSource_MouseMove(object sender, MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed ||
+            _mappingDragOrigin is not Point origin ||
             MappingSourceList.SelectedItem is not SectionRow row)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed)
+            {
+                _mappingDragOrigin = null;
+            }
+
+            return;
+        }
+
+        Point current = e.GetPosition(MappingSourceList);
+        if (Math.Abs(current.X - origin.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - origin.Y) < SystemParameters.MinimumVerticalDragDistance)
         {
             return;
         }
 
+        _mappingDragOrigin = null;
         DataObject dragData = new DataObject(typeof(SectionRow), row);
         DragDrop.DoDragDrop(MappingSourceList, dragData, DragDropEffects.Move);
     }
@@ -217,6 +241,15 @@ public partial class DocxImportPreviewDialog
         try
         {
             string name = destination.Trim();
+            if (string.IsNullOrWhiteSpace(name) ||
+                name.Length > 120 ||
+                name.StartsWith('.') ||
+                name.Contains('/') ||
+                name.Contains('\\'))
+            {
+                throw new InvalidDataException("Choisissez un nom de section simple et non vide.");
+            }
+
             ImportDocumentPlanBuilder.ValidateDestination(name + ".md");
             source.TargetSection = name;
             source.SelectionRoot.IsSelected = true;

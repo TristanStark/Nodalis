@@ -350,6 +350,7 @@
                             <TextBlock Margin="0,0,0,8" FontWeight="SemiBold" Text="Sections Word (ordre de fusion)" />
                             <ListBox x:Name="MappingSourceList"
                                      Grid.Row="1"
+                                     PreviewMouseLeftButtonDown="MappingSource_MouseDown"
                                      PreviewMouseMove="MappingSource_MouseMove"
                                      MinHeight="180">
                                 <ListBox.ItemTemplate>
