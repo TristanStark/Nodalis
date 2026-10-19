@@ -378,53 +378,9 @@ public partial class DocxImportPreviewDialog
         }
     }
 
-    /// <summary>Gets the source heading, style and ancestor path for matching.</summary>
-    private DocxMappingSourceSection DescribeSourceSection(SectionRow row)
-    {
-        int? sourceIndex = row.Preview.HeadingBlockIndex;
-        if (sourceIndex is not int current ||
-            current < 0 || current >= _preview.StagedImport.Document.Blocks.Count)
-        {
-            return new DocxMappingSourceSection { Heading = row.SourceHeading };
-        }
-
-        IReadOnlyList<DocxBlock> blocks = _preview.StagedImport.Document.Blocks;
-        DocxParagraph? heading = blocks[current].Paragraph;
-        if (heading is null)
-        {
-            return new DocxMappingSourceSection { Heading = row.SourceHeading };
-        }
-
-        List<(int Level, string Text)> ancestry = [];
-        for (int index = 0; index < current; index++)
-        {
-            DocxParagraph? earlier = blocks[index].Paragraph;
-            if (earlier?.HeadingLevel is not int level || string.IsNullOrWhiteSpace(earlier.Text))
-            {
-                continue;
-            }
-
-            while (ancestry.Count > 0 && ancestry[^1].Level >= level)
-            {
-                ancestry.RemoveAt(ancestry.Count - 1);
-            }
-
-            ancestry.Add((level, earlier.Text));
-        }
-
-        if (heading.HeadingLevel is int ownLevel)
-        {
-            ancestry.RemoveAll(entry => entry.Level >= ownLevel);
-        }
-
-        return new DocxMappingSourceSection
-        {
-            Heading = row.SourceHeading,
-            WordStyleId = heading.StyleId,
-            HeadingLevel = heading.HeadingLevel,
-            ParentPath = string.Join(" / ", ancestry.Select(entry => entry.Text))
-        };
-    }
+    /// <summary>Gets reliable source context using the testable DOCX structure reader.</summary>
+    private DocxMappingSourceSection DescribeSourceSection(SectionRow row) =>
+        DocxMappingSourceBuilder.Build(row.Preview, _preview.StagedImport.Document);
 
     /// <summary>Evaluates and displays every source section with explainable reasons.</summary>
     private List<(SectionRow Row, DocxMappingDecision Decision)> EvaluateMappingProfile()

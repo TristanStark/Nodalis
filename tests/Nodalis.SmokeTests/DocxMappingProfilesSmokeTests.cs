@@ -88,6 +88,59 @@ internal static class DocxMappingProfilesSmokeTests
 
         Assert(badRuleRejected, "Traversal in profile destinations must be refused.");
 
+        DocxMappingProfileRule contextRule = new DocxMappingProfileRule
+        {
+            Id = Guid.NewGuid(),
+            WordStyleId = "TitreCustom",
+            HeadingLevel = 2,
+            ParentPathContains = "architecture",
+            TextPattern = "^Tests$",
+            Action = DocxMappingAction.Map,
+            TargetSection = "Tests"
+        };
+        ParsedDocxDocument nestedDocument = new ParsedDocxDocument
+        {
+            Blocks =
+            [
+                new DocxBlock
+                {
+                    Kind = DocxBlockKind.Paragraph,
+                    Paragraph = new DocxParagraph { Text = "Architecture", HeadingLevel = 1 }
+                },
+                new DocxBlock
+                {
+                    Kind = DocxBlockKind.Paragraph,
+                    Paragraph = new DocxParagraph
+                    {
+                        Text = "Tests", StyleId = "TitreCustom", HeadingLevel = 2
+                    }
+                }
+            ]
+        };
+        DocxImportSectionPreview nestedSection = new DocxImportSectionPreview
+        {
+            Index = 0,
+            SourceHeading = "Tests",
+            SuggestedTargetSection = "Tests",
+            BlockCount = 1,
+            HeadingBlockIndex = 1,
+            MarkdownPreview = string.Empty
+        };
+        DocxMappingSourceSection structured = DocxMappingSourceBuilder.Build(
+            nestedSection, nestedDocument);
+        Assert(structured.ParentPath == "Architecture" &&
+               structured.HeadingLevel == 2 &&
+               structured.WordStyleId == "TitreCustom",
+            "DOCX profile context must preserve source style, nesting and heading level.");
+        DocxMappingProfile contextualProfile = profile with { Rules = [contextRule] };
+        Assert(DocxMappingProfileEngine.Evaluate(contextualProfile, structured).Matched,
+            "Style, heading level, parent path and bounded regex predicates must work together.");
+        Assert(!DocxMappingProfileEngine.Evaluate(contextualProfile, structured with
+        {
+            ParentPath = "Exploitation"
+        }).Matched,
+            "A different ancestor section must not reuse the previous mapping.");
+
         string workspace = Path.Combine(root, "docx-profile-smoke");
         Directory.CreateDirectory(workspace);
         DocxMappingProfileStore store = new DocxMappingProfileStore(workspace);
