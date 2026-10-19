@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Nodalis.Core.Domain;
+using Nodalis.Core.Importing;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Reliability;
 
@@ -52,19 +53,48 @@ public sealed class DocxReimportTransactionService
     /// fails, all destinations are restored or retained in a recovery journal.
     /// No new Word sections, destinations or DOCX copies are created.
     /// </summary>
-    public async Task<DocxReimportTransactionResult> CommitAsync(
+    public Task<DocxReimportTransactionResult> CommitAsync(
         string projectDirectory,
         DocxReimportDecisionPlan plan,
         Guid operationId,
         string approvedFingerprint,
+        CancellationToken cancellationToken = default) =>
+        CommitCoreAsync(projectDirectory, plan, operationId, approvedFingerprint,
+            null, cancellationToken);
+
+    /// <summary>
+    /// Includes a new immutable Word copy and chained provenance in the same
+    /// recoverable operation as Markdown changes. No UI calls this until the
+    /// end-to-end workflow has been qualified.
+    /// </summary>
+    public Task<DocxReimportTransactionResult> CommitWithProvenanceAsync(
+        string projectDirectory,
+        DocxReimportDecisionPlan plan,
+        Guid operationId,
+        string approvedFingerprint,
+        DocxReimportProvenancePackage provenance,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(provenance);
+        return CommitCoreAsync(projectDirectory, plan, operationId,
+            approvedFingerprint, provenance, cancellationToken);
+    }
+
+    /// <summary>Runs the shared validated and journaled local commit workflow.</summary>
+    private async Task<DocxReimportTransactionResult> CommitCoreAsync(
+        string projectDirectory,
+        DocxReimportDecisionPlan plan,
+        Guid operationId,
+        string approvedFingerprint,
+        DocxReimportProvenancePackage? provenance,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(plan);
         if (operationId == Guid.Empty ||
             !string.Equals(approvedFingerprint, Fingerprint(plan),
                 StringComparison.OrdinalIgnoreCase) ||
             !plan.ReviewComplete || plan.Lines.Count == 0 ||
-            plan.Writes.Count == 0 ||
+            (plan.Writes.Count == 0 && provenance is null) ||
             plan.Lines.Any(line => !line.Resolved) ||
             plan.Warnings.Count != 0 ||
             plan.UnmatchedNewSections.Count != 0 ||
@@ -611,6 +641,25 @@ public sealed record DocxReimportTransactionJournal
     public required DocxReimportTransactionState State { get; init; }
 
     public List<DocxReimportTransactionEntry> Entries { get; init; } = [];
+
+    /// <summary>New immutable files to remove when recovery rolls back.</summary>
+    public List<DocxReimportCreatedFile> CreatedFiles { get; init; } = [];
+}
+
+/// <summary>One newly created file tracked by its exact byte checksum.</summary>
+public sealed record DocxReimportCreatedFile
+{
+    public required string RelativePath { get; init; }
+
+    public required string Sha256 { get; init; }
+}
+
+/// <summary>Optional provenance artifacts committed with the Markdown changes.</summary>
+public sealed record DocxReimportProvenancePackage
+{
+    public required DocxImportManifest Manifest { get; init; }
+
+    public required string StagedDocxPath { get; init; }
 }
 
 /// <summary>Result of a fully committed or already recorded operation.</summary>
@@ -621,4 +670,7 @@ public sealed record DocxReimportTransactionResult
     public int WrittenFiles { get; init; }
 
     public bool AlreadyApplied { get; init; }
+
+    /// <summary>New chained provenance manifest, when committed with the source.</summary>
+    public string? ManifestPath { get; init; }
 }
