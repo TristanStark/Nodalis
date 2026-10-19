@@ -193,6 +193,71 @@ internal static class DocxReimportTransactionSmokeTests
                await service.RecoverPendingAsync(project) == 0,
             "Recovery after simulated process termination must restore all sources once.");
 
+        // Simulate a crash after creating the new Word copy, but before
+        // writing the new provenance manifest. Recovery must remove only
+        // operation-scoped new artifacts and restore existing Markdown.
+        Guid metadataCrashId = Guid.NewGuid();
+        string metadataDir = Path.Combine(transactions, metadataCrashId.ToString("N"));
+        Directory.CreateDirectory(metadataDir);
+        string metadataBackup = Path.Combine(metadataDir, "00000.bak");
+        byte[] originalTestBytes = Encoding.UTF8.GetBytes(originalOne);
+        await File.WriteAllBytesAsync(metadataBackup, originalTestBytes);
+        string newCopy = Path.Combine(workspace, "Imports", "Sources",
+            "reimport-" + metadataCrashId.ToString("N") + ".docx");
+        Directory.CreateDirectory(Path.GetDirectoryName(newCopy)!);
+        byte[] sourceBytes = Encoding.UTF8.GetBytes("crash-test-docx-content");
+        await File.WriteAllBytesAsync(newCopy, sourceBytes);
+        string metadataManifest = Path.Combine(project, ".nodalis-imports",
+            metadataCrashId.ToString("N") + ".json");
+        DocxReimportTransactionJournal metadataCrash = pending with
+        {
+            OperationId = metadataCrashId,
+            Entries =
+            [
+                Entry(workspace, tests, "00000.bak",
+                    originalTestBytes, originalOne, revisedOne)
+            ],
+            CreatedFiles =
+            [
+                new DocxReimportCreatedFile
+                {
+                    RelativePath = Path.GetRelativePath(workspace, newCopy)
+                        .Replace('\\', '/'),
+                    Sha256 = Convert.ToHexString(
+                        System.Security.Cryptography.SHA256.HashData(
+                            sourceBytes)).ToLowerInvariant()
+                },
+                new DocxReimportCreatedFile
+                {
+                    RelativePath = Path.GetRelativePath(workspace, metadataManifest)
+                        .Replace('\\', '/'),
+                    Sha256 = new string('a', 64)
+                }
+            ]
+        };
+        await File.WriteAllTextAsync(Path.Combine(metadataDir, "journal.json"),
+            JsonSerializer.Serialize(metadataCrash,
+                new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                }));
+        await File.WriteAllTextAsync(tests, revisedOne);
+        IReadOnlyList<DocxReimportPendingOperation> pendingInspection =
+            await service.InspectAsync(project);
+        Assert(pendingInspection.Any(item =>
+                   item.OperationId == metadataCrashId &&
+                   item.State == DocxReimportTransactionState.Prepared &&
+                   item.CreatedArtifactCount == 2),
+            "Read-only inspection must identify pending metadata transactions.");
+        int recoveredMetadata = await service.RecoverPendingAsync(project);
+        Assert(recoveredMetadata == 1 &&
+               !File.Exists(newCopy) &&
+               !File.Exists(metadataManifest) &&
+               await File.ReadAllTextAsync(tests) == originalOne &&
+               (await ReadJournalAsync(Path.Combine(metadataDir, "journal.json"))).State ==
+                   DocxReimportTransactionState.RolledBack,
+            "Interrupted source-copy creation must be recoverable with no orphaned artifacts.");
+
         // A third-party edit after a crash must never be overwritten by recovery.
         Guid conflictId = Guid.NewGuid();
         string conflictDir = Path.Combine(transactions, conflictId.ToString("N"));
