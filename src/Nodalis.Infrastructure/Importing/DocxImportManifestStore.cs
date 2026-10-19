@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text;
 using Nodalis.Core.Importing;
 using Nodalis.Infrastructure.Persistence;
@@ -84,14 +85,41 @@ public sealed class DocxImportManifestStore
     {
         Validate(manifest);
         string path = GetManifestPath(projectDirectory, manifest.ImportId);
-        if (File.Exists(path))
+        string directory = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(directory);
+        string temporaryPath = Path.Combine(directory,
+            "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
+        try
         {
-            throw new IOException("Un manifeste DOCX existe déjà pour cet import.");
-        }
+            await using (FileStream stream = new FileStream(temporaryPath,
+                FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096,
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await JsonSerializer.SerializeAsync(stream, manifest,
+                    JsonDefaults.Options, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                if (stream.Length > MaxManifestBytes)
+                {
+                    throw new InvalidDataException(
+                        "Manifeste DOCX trop volumineux pour être enregistré.");
+                }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await AtomicJsonFile.WriteAsync(path, manifest, cancellationToken);
-        return path;
+                stream.Flush(flushToDisk: true);
+            }
+
+            // File.Move without overwrite is a single atomic create in the
+            // same directory. An existing import is NEVER replaced, even if
+            // another process created it after this operation started.
+            File.Move(temporaryPath, path);
+            return path;
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
     }
 
     /// <summary>Reads and validates a previously written manifest, failing closed on corruption.</summary>
