@@ -90,6 +90,7 @@ try
     await VerifyDocxImportAsync(root);
     await VerifyDocxImportAnalysisAsync(root);
     await DocxFineSelectionSmokeTests.RunAsync(root);
+    StructuredImportSmokeTests.Run();
     await MarkdownBulkImportSmokeTests.RunAsync(root);
     await ProjectExportSmokeTests.RunAsync(root);
     await MeetingExtractionSmokeTests.RunAsync(root);
