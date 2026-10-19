@@ -93,6 +93,7 @@ try
     StructuredImportSmokeTests.Run();
     await DocxHeadingHierarchySmokeTests.RunAsync(root);
     DocxImportStructureEditorSmokeTests.Run();
+    await DocxMappingProfilesSmokeTests.RunAsync(root);
     await MarkdownBulkImportSmokeTests.RunAsync(root);
     await ProjectExportSmokeTests.RunAsync(root);
     await MeetingExtractionSmokeTests.RunAsync(root);
