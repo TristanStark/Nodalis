@@ -630,6 +630,33 @@
                                     Padding="10,5" Click="ReimportAssignSection_Click"
                                     AutomationProperties.Name="Confirmer manuellement l'association de cette section Word" />
                         </StackPanel>
+                        <Expander Header="Décisions de réimport · aperçu sans écriture"
+                                  Margin="0,7,0,0" IsExpanded="False">
+                            <StackPanel Margin="8,5">
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="ReimportDecisionComboBox"
+                                              DisplayMemberPath="Label"
+                                              Width="200" Margin="0,0,8,0"
+                                              AutomationProperties.Name="Action explicite de réimport pour la section" />
+                                    <Button Content="Prévisualiser cette décision"
+                                            Click="ReimportDecisionPreview_Click"
+                                            Padding="10,5"
+                                            AutomationProperties.Name="Prévisualiser la résolution sans écrire" />
+                                </StackPanel>
+                                <TextBlock Text="Fusion manuelle (fragment complet) :"
+                                           Margin="0,7,0,4"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+                                <TextBox x:Name="ReimportManualMergeBox" AcceptsReturn="True"
+                                         TextWrapping="Wrap" MinHeight="58" MaxHeight="90"
+                                         VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas"
+                                         AutomationProperties.Name="Markdown du fragment fusionné manuellement" />
+                                <TextBlock x:Name="ReimportDecisionStatus"
+                                           Margin="0,7,0,0" TextWrapping="Wrap"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           Text="Aucune décision. Les modifications Nodalis restent intactes." />
+                            </StackPanel>
+                        </Expander>
                         <TextBlock x:Name="ReimportStatusText" Margin="0,7,0,0"
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource SecondaryTextBrush}"
