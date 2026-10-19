@@ -29,12 +29,26 @@ public sealed class DocxReimportReviewService
     /// valid implicit identity. Corrupt manifests and cross-project references
     /// fail closed.
     /// </summary>
-    public async Task<DocxReimportReview> BuildAsync(
+    public Task<DocxReimportReview> BuildAsync(
         string projectDirectory,
         DocxImportManifest previous,
         DocxImportPreview latest,
+        CancellationToken cancellationToken = default) =>
+        BuildWithOverridesAsync(projectDirectory, previous, latest, [],
+            cancellationToken);
+
+    /// <summary>
+    /// Recalculates a three-way review with manual section identity choices.
+    /// Invalid, duplicate or stale choices cause a hard failure before reads.
+    /// </summary>
+    public async Task<DocxReimportReview> BuildWithOverridesAsync(
+        string projectDirectory,
+        DocxImportManifest previous,
+        DocxImportPreview latest,
+        IReadOnlyCollection<DocxReimportSectionMatchOverride> overrides,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(overrides);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
         ArgumentNullException.ThrowIfNull(previous);
         ArgumentNullException.ThrowIfNull(latest);
@@ -59,8 +73,10 @@ public sealed class DocxReimportReviewService
                 "Ce manifeste DOCX n'appartient pas au projet Nodalis choisi.");
         }
 
-        DocxReimportMatchReport matching =
+        DocxReimportMatchReport proposal =
             DocxReimportSectionMatcher.Match(previous, latest);
+        DocxReimportMatchReport matching =
+            DocxReimportMatchResolver.Resolve(proposal, latest, overrides);
         List<DocxReimportReviewedFragment> reviewed = [];
         foreach (DocxReimportSectionAssociation association in matching.Associations)
         {
