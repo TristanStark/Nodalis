@@ -242,6 +242,12 @@ public sealed class DocxImportManifestStore
         ArgumentNullException.ThrowIfNull(manifest);
         if (manifest.SchemaVersion != DocxImportManifest.CurrentSchemaVersion ||
             manifest.ImportId == Guid.Empty || manifest.ProjectId == Guid.Empty ||
+            (manifest.PreviousImportId.HasValue &&
+             (manifest.PreviousImportId.Value == Guid.Empty ||
+              manifest.PreviousImportId.Value == manifest.ImportId)) ||
+            (manifest.ReimportOperationId.HasValue &&
+             (manifest.ReimportOperationId.Value == Guid.Empty ||
+              manifest.PreviousImportId is null)) ||
             manifest.ImportedAtUtc == default ||
             string.IsNullOrWhiteSpace(manifest.SourceFileName) ||
             manifest.SourceFileName != Path.GetFileName(manifest.SourceFileName) ||
@@ -277,6 +283,11 @@ public sealed class DocxImportManifestStore
                 string.IsNullOrWhiteSpace(fragment.SourceHeading) ||
                 string.IsNullOrWhiteSpace(fragment.TargetSection) ||
                 fragment.BaseMarkdown is null ||
+                (fragment.LatestWordMarkdownSnapshot is not null &&
+                 fragment.ReimportResolution is not ("Word" or "Manual" or "Nodalis")) ||
+                (fragment.ReimportResolution is not null &&
+                 (fragment.LatestWordMarkdownSnapshot is null ||
+                  fragment.ReimportResolution is not ("Word" or "Manual" or "Nodalis"))) ||
                 !IsSha256(fragment.FragmentSha256) ||
                 !IsSha256(fragment.DestinationSha256) ||
                 !string.Equals(fragment.FragmentSha256,
