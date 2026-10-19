@@ -232,6 +232,7 @@ public sealed class DocxReimportProvenanceBuilder
                 FragmentSha256 = DocxImportManifestStore.ComputeSha256(baseline),
                 DestinationSha256 = DocxImportManifestStore.ComputeSha256(result),
                 LatestWordMarkdownSnapshot = wordText,
+                LatestWordSnapshotSha256 = DocxImportManifestStore.ComputeSha256(wordText),
                 ReimportResolution = action switch
                 {
                     DocxReimportResolutionAction.UseWord => "Word",
