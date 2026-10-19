@@ -4230,9 +4230,25 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                     "Section DOCX")),
             "Building a DOCX plan must not perform any business write.");
 
+        Assert(
+            plan.Fingerprint.Length == 64 &&
+            plan.Fingerprint == DocxImportPlanFingerprint.Compute(plan),
+            "The documented DOCX dry-run must have a stable content-and-file fingerprint.");
+
+        await AssertThrowsAsync<InvalidDataException>(
+            () => previewService.CommitAsync(
+                preview,
+                request with { ExpectedPlanFingerprint = new string('0', 64) }),
+            "A mismatching approved DOCX dry-run must block all workspace writes.");
+
+        Assert(
+            File.Exists(preview.StagedImport.StagedCopyPath) &&
+            !Directory.Exists(Path.Combine(project.ProjectDirectory, "Section DOCX")),
+            "Rejected DOCX approval must preserve the stage and leave the project untouched.");
+
         global::Nodalis.Core.Importing.DocxImportCommitResult committed = await previewService.CommitAsync(
             preview,
-            request);
+            request with { ExpectedPlanFingerprint = plan.Fingerprint });
 
         Assert(
             !File.Exists(
