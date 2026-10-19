@@ -391,6 +391,14 @@ public sealed class WorkspaceDocxImportService
                          StringComparer.CurrentCultureIgnoreCase))
         {
             string sectionName = group.Key.Trim();
+            if (group.Count() > 1)
+            {
+                warnings.Add(
+                    "Fusion ordonnée : " + group.Count() +
+                    " sections Word rejoignent « " + sectionName +
+                    " » dans l'ordre choisi dans l'onglet Affectation.");
+            }
+
             string sectionDirectory = Path.Combine(
                 projectDirectory,
                 WindowsPathRules.SanitizeSegment(
