@@ -139,6 +139,10 @@ public static class DocxReimportDecisionPlanner
             {
                 error = "La correspondance Word doit d'abord être confirmée.";
             }
+            else if (current.Association.RequiresConfirmation)
+            {
+                error = "Confirmez manuellement l'identité de la section Word avant de remplacer Nodalis.";
+            }
             else if (current.CurrentNodalisMarkdown is null)
             {
                 error = "La destination Nodalis est absente : aucune recréation implicite.";
