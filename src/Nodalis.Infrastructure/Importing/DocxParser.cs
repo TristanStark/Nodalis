@@ -409,10 +409,21 @@ public sealed class DocxParser
                 });
             }
 
+            if (cells.Sum(cell => cell.ColumnSpan) > 512)
+            {
+                throw new InvalidDataException("La largeur d'une table DOCX dépasse la limite de sécurité.");
+            }
+
             bool header = row.Element(WordNamespace + "trPr")?
                 .Element(WordNamespace + "tblHeader") is not null;
 
             rows.Add(new DocxTableRow { Cells = cells, IsHeader = header });
+        }
+
+        if (rows.Select(row => row.Cells.Sum(cell => cell.ColumnSpan))
+                .Distinct().Count() > 1)
+        {
+            warnings.Add("Largeurs de lignes Word différentes : rendu HTML de secours.");
         }
 
         return new DocxTable
