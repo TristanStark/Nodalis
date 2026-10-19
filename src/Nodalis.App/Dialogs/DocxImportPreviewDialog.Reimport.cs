@@ -48,6 +48,8 @@ public partial class DocxImportPreviewDialog
             _activeReimportReview = null;
             _activeReimportProjectDirectory = null;
             ReimportMatchComboBox.ItemsSource = null;
+            ReimportNewSectionsComboBox.ItemsSource = null;
+            ReimportNewSectionsStatus.Text = string.Empty;
             ReimportFragmentsList.ItemsSource = null;
             ClearReimportText();
 
@@ -126,6 +128,12 @@ public partial class DocxImportPreviewDialog
         if (ReimportMatchComboBox is not null)
         {
             ReimportMatchComboBox.ItemsSource = null;
+        }
+
+        if (ReimportNewSectionsComboBox is not null)
+        {
+            ReimportNewSectionsComboBox.ItemsSource = null;
+            ReimportNewSectionsStatus.Text = string.Empty;
         }
 
         if (ReimportBaseBox is not null)
