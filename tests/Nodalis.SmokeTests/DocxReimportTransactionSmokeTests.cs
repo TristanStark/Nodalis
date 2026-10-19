@@ -278,7 +278,15 @@ internal static class DocxReimportTransactionSmokeTests
         string path) =>
         System.Text.Json.JsonSerializer.Deserialize<DocxReimportTransactionJournal>(
             await File.ReadAllTextAsync(path),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters =
+                {
+                    new System.Text.Json.Serialization.JsonStringEnumConverter(
+                        JsonNamingPolicy.CamelCase)
+                }
+            })
         ?? throw new InvalidDataException("Missing test journal.");
 
     /// <summary>Fails the smoke suite when any transactional safety invariant is broken.</summary>
