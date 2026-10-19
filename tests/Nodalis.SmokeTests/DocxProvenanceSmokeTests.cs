@@ -32,7 +32,8 @@ internal static class DocxProvenanceSmokeTests
             "Two identically named but different DOCX sources require separate manifests.");
         DocxImportManifest loaded = await store.LoadAsync(firstPath);
         Assert(loaded.ImportId == first.ImportId &&
-               loaded.Fragments[0].BaseMarkdown == first.Fragments[0].BaseMarkdown,
+               loaded.Fragments[0].BaseMarkdown == first.Fragments[0].BaseMarkdown &&
+               loaded.AppliedMappingProfile?.Rules.Count == 1,
             "The atomic JSON round-trip must preserve source and fragment identities.");
 
         IReadOnlyList<DocxImportManifestMatch> candidates =
@@ -131,6 +132,7 @@ internal static class DocxProvenanceSmokeTests
         {
             ApplicationId = preview.Applications[0].Id,
             NewProjectName = "Provenance " + Guid.NewGuid().ToString("N"),
+            AppliedMappingProfile = first.AppliedMappingProfile,
             Sections = preview.Sections.Select(section => new DocxImportSectionSelection
             {
                 SectionIndex = section.Index,
@@ -142,7 +144,8 @@ internal static class DocxProvenanceSmokeTests
         string expectedManifestPath = plan.Changes.Single(change =>
             change.RelativePath.EndsWith(preview.ImportId.ToString("N") + ".json",
                 StringComparison.OrdinalIgnoreCase)).RelativePath;
-        Assert(expectedManifestPath.Contains(DocxImportManifestStore.DirectoryName,
+        Assert(plan.MappingProfileSha256.Length == 64 &&
+               expectedManifestPath.Contains(DocxImportManifestStore.DirectoryName,
                 StringComparison.Ordinal),
             "An approved dry-run must include the provenance destination.");
 
@@ -158,6 +161,7 @@ internal static class DocxProvenanceSmokeTests
         Assert(actual.ImportId == preview.ImportId &&
                actual.ProjectId == committed.ProjectId &&
                actual.Fragments.Count == preview.Sections.Count &&
+               actual.AppliedMappingProfile?.Id == request.AppliedMappingProfile?.Id &&
                actual.SourceSha256 == await DocxImportManifestStore.ComputeFileSha256Async(
                    committed.SourceCopyPath) &&
                actual.Fragments.All(fragment =>
@@ -185,6 +189,21 @@ internal static class DocxProvenanceSmokeTests
             SourceFileName = "spec.docx",
             SourceSha256 = sourceHash,
             SourceCopyRelativePath = "Imports/Sources/spec.docx",
+            AppliedMappingProfile = new DocxMappingProfile
+            {
+                Id = Guid.NewGuid(),
+                Name = "Profil des spécifications",
+                Rules =
+                [
+                    new DocxMappingProfileRule
+                    {
+                        Id = Guid.NewGuid(),
+                        HeadingText = "Tests",
+                        Action = DocxMappingAction.Map,
+                        TargetSection = "Tests"
+                    }
+                ]
+            },
             ExcludedSectionIndexes = [sectionIndex + 2],
             Fragments =
             [
