@@ -197,8 +197,8 @@ public sealed class DocxReimportProvenanceBuilder
 
                 result = expected;
             }
-            else if (action is DocxReimportResolutionAction.UseWord or
-                DocxReimportResolutionAction.ManualMerge &&
+            else if ((action is DocxReimportResolutionAction.UseWord or
+                DocxReimportResolutionAction.ManualMerge) &&
                 !string.Equals(original.BaseMarkdown, baseline, StringComparison.Ordinal))
             {
                 throw new InvalidDataException(
