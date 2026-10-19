@@ -19,7 +19,8 @@ public static class DocxReimportDecisionPlanner
     public static DocxReimportDecisionPlan Build(
         DocxReimportReview review,
         DocxImportManifest baseline,
-        IReadOnlyCollection<DocxReimportResolution> decisions)
+        IReadOnlyCollection<DocxReimportResolution> decisions,
+        IReadOnlyCollection<int>? excludedNewSectionIndexes = null)
     {
         ArgumentNullException.ThrowIfNull(review);
         ArgumentNullException.ThrowIfNull(baseline);
@@ -65,6 +66,26 @@ public static class DocxReimportDecisionPlanner
                 !Enum.IsDefined(decision.Action))
             {
                 throw new InvalidDataException("Décision DOCX inconnue, dupliquée ou invalide.");
+            }
+        }
+
+        // New Word sections never have a previous fragment to overwrite.
+        // They may only be explicitly excluded from THIS proposed reimport.
+        // An ambiguous section is not a genuine new section and cannot be
+        // excluded through this shortcut; its identity must be adjudicated.
+        HashSet<int> newlyAdded = review.Matching.AddedSectionIndexes.ToHashSet();
+        if (newlyAdded.Count != review.Matching.AddedSectionIndexes.Count)
+        {
+            throw new InvalidDataException("Nouvelles sections Word en doublon.");
+        }
+
+        HashSet<int> excludedNew = [];
+        foreach (int index in excludedNewSectionIndexes ?? [])
+        {
+            if (!newlyAdded.Contains(index) || !excludedNew.Add(index))
+            {
+                throw new InvalidDataException(
+                    "Exclusion de nouvelle section Word invalide ou répétée.");
             }
         }
 
@@ -198,7 +219,8 @@ public static class DocxReimportDecisionPlanner
             Writes = writes,
             Warnings = review.Warnings.ToList(),
             // New Word sections are not silently included in the old import.
-            UnmatchedNewSections = review.Matching.AddedSectionIndexes.ToList(),
+            UnmatchedNewSections = newlyAdded.Except(excludedNew).OrderBy(index => index).ToList(),
+            ExcludedNewSectionIndexes = excludedNew.OrderBy(index => index).ToList(),
             AmbiguousNewSections = review.Matching.UnresolvedNewSectionIndexes.ToList()
         };
     }
@@ -272,6 +294,9 @@ public sealed record DocxReimportDecisionPlan
     public List<string> Warnings { get; init; } = [];
 
     public List<int> UnmatchedNewSections { get; init; } = [];
+
+    /// <summary>New Word sections explicitly excluded from this dry-run.</summary>
+    public List<int> ExcludedNewSectionIndexes { get; init; } = [];
 
     public List<int> AmbiguousNewSections { get; init; } = [];
 
