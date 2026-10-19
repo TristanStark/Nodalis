@@ -36,6 +36,106 @@ public partial class DocxImportPreviewDialog
         };
     }
 
+    /// <summary>Lists durable transaction states without touching workspace files.</summary>
+    private async void ReimportInspectRecovery_Click(object sender, RoutedEventArgs e)
+    {
+        await UiActionGuard.RunAsync(this, "Réimport DOCX · inspecter la reprise",
+            async () =>
+            {
+                if (!TryGetRecoveryProject(out string projectDirectory))
+                {
+                    return;
+                }
+
+                DocxReimportTransactionService service =
+                    new DocxReimportTransactionService(_reimportWorkspaceRoot);
+                IReadOnlyList<DocxReimportPendingOperation> operations =
+                    await service.InspectAsync(projectDirectory);
+                int pending = operations.Count(operation =>
+                    operation.State == DocxReimportTransactionState.Prepared);
+                ReimportRecoveryStatus.Text = pending + " opération(s) interrompue(s) · " +
+                    operations.Count(operation =>
+                        operation.State == DocxReimportTransactionState.Completed) +
+                    " terminée(s) · " +
+                    operations.Count(operation =>
+                        operation.State == DocxReimportTransactionState.RolledBack) +
+                    " restaurée(s).";
+            });
+    }
+
+    /// <summary>
+    /// Runs explicit recovery only after an affirmative user confirmation.
+    /// Recovery restores exact backups, refuses unknown external edits and
+    /// invalidates all stale read-only comparisons.
+    /// </summary>
+    private async void ReimportRecover_Click(object sender, RoutedEventArgs e)
+    {
+        await UiActionGuard.RunAsync(this, "Réimport DOCX · restaurer", async () =>
+        {
+            if (!TryGetRecoveryProject(out string projectDirectory))
+            {
+                return;
+            }
+
+            DocxReimportTransactionService service =
+                new DocxReimportTransactionService(_reimportWorkspaceRoot);
+            IReadOnlyList<DocxReimportPendingOperation> operations =
+                await service.InspectAsync(projectDirectory);
+            int pending = operations.Count(operation =>
+                operation.State == DocxReimportTransactionState.Prepared);
+            if (pending == 0)
+            {
+                ReimportRecoveryStatus.Text =
+                    "Aucune opération de réimport interrompue à restaurer.";
+                return;
+            }
+
+            MessageBoxResult confirmation = MessageBox.Show(this,
+                pending + " opération(s) interrompue(s) seront restaurée(s) " +
+                "à partir de leurs sauvegardes locales. " +
+                "Une modification extérieure non reconnue bloquera la récupération. " +
+                "Confirmez-vous cette restauration ?",
+                "Restaurer les réimports DOCX",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            int restored = await service.RecoverPendingAsync(projectDirectory);
+            _reimportOverrideChoices.Clear();
+            _reimportDecisions.Clear();
+            _reimportExcludedNewSections.Clear();
+            _activeReimportReview = null;
+            _activeReimportProjectDirectory = null;
+            ReimportHistoryComboBox.ItemsSource = null;
+            ReimportFragmentsList.ItemsSource = null;
+            ReimportNewSectionsComboBox.ItemsSource = null;
+            ClearReimportText();
+            ReimportRecoveryStatus.Text = restored +
+                " opération(s) restaurée(s), comparaison invalidée.";
+            ReimportStatusText.Text =
+                "Rechargez les historiques et relancez la comparaison avant toute décision.";
+        });
+    }
+
+    /// <summary>Locates a selected existing project for recovery inspection.</summary>
+    private bool TryGetRecoveryProject(out string projectDirectory)
+    {
+        projectDirectory = string.Empty;
+        if (CreateNewProjectCheckBox.IsChecked == true ||
+            ProjectComboBox.SelectedItem is not DocxImportTargetOption project)
+        {
+            ReimportRecoveryStatus.Text =
+                "Choisissez d'abord un projet Nodalis existant.";
+            return false;
+        }
+
+        projectDirectory = _reimportStore.ResolveWorkspaceRelativePath(
+            project.RelativePath);
+        return true;
+    }
+
     /// <summary>Discovers only matching historical sources in the selected project.</summary>
     private async void ReimportLoadHistory_Click(object sender, RoutedEventArgs e)
     {
