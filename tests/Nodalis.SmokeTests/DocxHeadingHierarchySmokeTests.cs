@@ -26,6 +26,11 @@ internal static class DocxHeadingHierarchySmokeTests
                 <w:name w:val="Sous-partie personnalisée"/>
                 <w:basedOn w:val="CustomA"/>
               </w:style>
+              <w:style w:type="paragraph" w:styleId="Suppressed">
+                <w:name w:val="Heading 1"/>
+                <w:basedOn w:val="Heading2"/>
+                <w:pPr><w:outlineLvl w:val="9"/></w:pPr>
+              </w:style>
               <w:style w:type="paragraph" w:styleId="CycleA">
                 <w:basedOn w:val="CycleB"/>
               </w:style>
@@ -44,6 +49,7 @@ internal static class DocxHeadingHierarchySmokeTests
                 <w:p><w:pPr><w:pStyle w:val="Heading2"/><w:outlineLvl w:val="9"/></w:pPr><w:r><w:t>Corps forcé</w:t></w:r></w:p>
                 <w:p><w:r><w:rPr><w:b/><w:sz w:val="36"/></w:rPr><w:t>Recette candidats</w:t></w:r></w:p>
                 <w:p><w:pPr><w:pStyle w:val="CycleA"/></w:pPr><w:r><w:t>Style cyclique</w:t></w:r></w:p>
+                <w:p><w:pPr><w:pStyle w:val="Suppressed"/></w:pPr><w:r><w:t>Style explicitement non-titre</w:t></w:r></w:p>
               </w:body>
             </w:document>
             """;
@@ -56,7 +62,7 @@ internal static class DocxHeadingHierarchySmokeTests
 
         ParsedDocxDocument parsed = await new DocxParser().ParseAsync(path);
         IReadOnlyList<DocxBlock> blocks = parsed.Blocks;
-        Assert(blocks.Count == 6, "Source paragraphs must not disappear.");
+        Assert(blocks.Count == 7, "Source paragraphs must not disappear.");
         Assert(blocks[0].Paragraph?.HeadingLevel == 2,
             "Custom Word styles must inherit outline levels through basedOn chains.");
         Assert(blocks[2].Paragraph?.HeadingLevel == 1,
@@ -69,6 +75,8 @@ internal static class DocxHeadingHierarchySmokeTests
             "An unstyled bold/large paragraph may only be suggested, not promoted.");
         Assert(blocks[5].Paragraph?.HeadingLevel is null,
             "Cyclic basedOn references must not introduce invalid headings.");
+        Assert(blocks[6].Paragraph?.HeadingLevel is null,
+            "An explicit style outlineLvl=9 must suppress even a Heading-style name.");
 
         ImportDocumentTree tree = DocxStructuredImportReader.FromParsed(
             parsed, Path.GetFileName(path), new string('C', 64));
