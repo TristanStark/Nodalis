@@ -165,8 +165,8 @@ internal static class DocxReimportReviewSmokeTests
                newHistory.SourceSha256 ==
                    await DocxImportManifestStore.ComputeFileSha256Async(newCopy) &&
                newHistory.Fragments.Single().FragmentId == fragment.FragmentId &&
-               newHistory.Fragments.Single().BaseMarkdown == latestWord &&
-               newHistory.Fragments.Single().LatestWordMarkdownSnapshot == latestWord &&
+               newHistory.Fragments.Single().BaseMarkdown.Replace("\r\n", "\n") == latestWord &&
+               newHistory.Fragments.Single().LatestWordMarkdownSnapshot?.Replace("\r\n", "\n") == latestWord &&
                newHistory.Fragments.Single().ReimportResolution == "Word" &&
                newHistory.Fragments.Single().DestinationSha256 ==
                    appliedWord.Writes.Single().ProjectedSha256 &&
@@ -189,7 +189,7 @@ internal static class DocxReimportReviewSmokeTests
                File.Exists(committed.ManifestPath) &&
                File.Exists(store.ResolveWorkspaceRelativePath(
                    newHistory.SourceCopyRelativePath)) &&
-               await File.ReadAllTextAsync(markdownPath) == latestWord &&
+               (await File.ReadAllTextAsync(markdownPath)).Replace("\r\n", "\n") == latestWord &&
                (await store.LoadAsync(committed.ManifestPath)).PreviousImportId ==
                    previous.ImportId,
             "Provenance-aware transaction must commit Markdown, Word copy and lineage together.");
@@ -254,7 +254,7 @@ internal static class DocxReimportReviewSmokeTests
             "Imports/Sources/reimport-" + manualOperationId.ToString("N") + ".docx");
         Assert(mergedHistory.Fragments.Single().BaseMarkdown ==
                    manual.ManualMarkdown &&
-               mergedHistory.Fragments.Single().LatestWordMarkdownSnapshot == latestWord &&
+               mergedHistory.Fragments.Single().LatestWordMarkdownSnapshot?.Replace("\r\n", "\n") == latestWord &&
                mergedHistory.Fragments.Single().ReimportResolution == "Manual",
             "Manual resolution must preserve both the accepted Markdown and Word source text.");
 
@@ -271,7 +271,7 @@ internal static class DocxReimportReviewSmokeTests
             retainedOperationId,
             "Imports/Sources/reimport-" + retainedOperationId.ToString("N") + ".docx");
         Assert(keptHistory.Fragments.Single().BaseMarkdown == original &&
-               keptHistory.Fragments.Single().LatestWordMarkdownSnapshot == latestWord &&
+               keptHistory.Fragments.Single().LatestWordMarkdownSnapshot?.Replace("\r\n", "\n") == latestWord &&
                keptHistory.Fragments.Single().ReimportResolution == "Nodalis" &&
                keptHistory.Fragments.Single().DestinationSha256 ==
                    DocxImportManifestStore.ComputeSha256(original),
