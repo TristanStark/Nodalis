@@ -56,6 +56,9 @@ public sealed record DocxImportManifestFragment
 
     public required string TargetSection { get; init; }
 
+    /// <summary>Canonical Nodalis section GUID, independent of subsequent renames.</summary>
+    public Guid? TargetSectionId { get; init; }
+
     /// <summary>The exact Markdown file written to Nodalis, workspace-relative.</summary>
     public required string DestinationRelativePath { get; init; }
 
