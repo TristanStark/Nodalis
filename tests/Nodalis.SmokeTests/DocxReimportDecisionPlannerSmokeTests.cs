@@ -77,6 +77,27 @@ internal static class DocxReimportDecisionPlannerSmokeTests
                    "correction manuelle", StringComparison.Ordinal),
             "A complete manual fragment can be previewed before any write.");
 
+        DocxReimportReview unconfirmedHeading = Review(history,
+        [
+            candidate with
+            {
+                Association = candidate.Association with
+                {
+                    Kind = DocxReimportAssociationKind.UniqueHeading,
+                    RequiresConfirmation = true
+                },
+                RequiresExplicitResolution = true
+            }
+        ]);
+        DocxReimportDecisionPlan refuseTentative =
+            DocxReimportDecisionPlanner.Build(unconfirmedHeading, history,
+                [acceptWord]);
+        Assert(!refuseTentative.AllFragmentsResolved &&
+               refuseTentative.Writes.Count == 0 &&
+               refuseTentative.Lines[0].Diagnostic.Contains(
+                   "Confirmez", StringComparison.Ordinal),
+            "An unconfirmed heading match must never authorize Word overwrite.");
+
         DocxReimportDecisionPlan keep = DocxReimportDecisionPlanner.Build(
             review, history,
             [
