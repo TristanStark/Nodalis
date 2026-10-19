@@ -1,12 +1,13 @@
-# DOCX v1.9 — Réimport différentiel : socle de comparaison (#164)
+# DOCX v1.9 — Réimport différentiel, paragraphes et arbitrages sans écriture (#164)
 
 ## État du développement
 
-Le premier incrément de #164 ajoute `DocxReimportDiffEngine`, un moteur
-**purement consultatif et sans écritures**. Il s'appuie sur le manifeste
-de provenance de l'import précédent (#163). La sélection du manifeste et la
-correspondance entre anciennes et nouvelles sections Word devront être
-confirmées explicitement dans l'assistant de réimport.
+L'issue #164 dispose d'un comparateur **à trois voies, en lecture seule**,
+d'un rapprochement des sections Word, d'arbitrages manuels, d'un différentiel
+par paragraphe et d'un plan projetant les modifications sans les appliquer.
+Le comparateur utilise les manifestes locaux issus de #163 et oblige à
+sélectionner un historique d'import précis. Aucun chemin d'écriture de
+réimport n'est activé à ce stade.
 
 ## Matrice de classification
 
@@ -120,16 +121,52 @@ l'onglet de réimport en lecture seule est actif. Un plan indiqué comme
 le traitement des sections nouvelles et le rollback transactionnel restent
 à implémenter avant que le réimport puisse écrire.
 
+## Différentiel visuel des paragraphes
+
+Le panneau **Différentiel par paragraphe · lecture seule** affiche deux
+comparaisons indépendantes : **base ↔ nouveau Word** et
+**base ↔ Markdown Nodalis**. Les lignes portent les marqueurs
+`=` inchangé, `+` ajouté, `−` supprimé et `±` modifié, ainsi que les
+numéros de ligne des blocs dans chaque version. Le survol révèle le texte
+complet d'origine et d'arrivée.
+
+Le moteur `DocxReimportParagraphDiffEngine` utilise un appariement
+déterministe par plus longue sous-séquence commune de paragraphes. Les
+fins de ligne LF/CRLF sont neutralisées **uniquement pour la présentation**,
+sans toucher aux fichiers ; les lignes vides au sein des blocs Markdown
+`~~~` ou `\`\`\`` sont conservées ensemble. Il ne s'agit pas d'une
+fusion automatique ni d'un diff sémantique.
+
+Si le fragment d'origine est localisable **une seule fois** dans le fichier
+Nodalis, les notes situées hors de ce fragment ne sont pas comptabilisées
+comme des modifications de celui-ci. Sinon, le panneau indique qu'il compare
+le **fichier Markdown entier**, faute de délimiteur sûr. Les comparaisons
+au-delà de 300 paragraphes ou 256 000 caractères par côté affichent
+un avertissement de limitation plutôt que de bloquer la fenêtre.
+
+## Nouvelles sections Word et exclusion explicite
+
+Le panneau **Nouvelles sections Word · décision explicite** affiche les
+sections qui ne correspondent à aucun fragment de l'ancien import.
+Une action **Exclure de ce réimport** les marque explicitement comme ignorées
+dans le plan en mémoire. Les sections non traitées empêchent l'état
+`ReviewComplete`; les correspondances encore ambiguës ne peuvent pas être
+contournées avec cette exclusion. Aucun fichier n'est créé ni modifié.
+
+Ce dispositif ne permet pas encore **d'importer réellement une nouvelle
+section** dans Nodalis. Cette opération nécessitera un plan d'affectation
+et une transaction avec rollback.
+
 ## Sécurité
 
 Ce moteur n'enregistre **aucune décision**, n'écrase aucun Markdown et
 n'efface aucun document. Les résultats indiquent quelles sections sont
 éligibles à une proposition de mise à jour ou nécessitent un arbitrage.
 
-**Restent à développer dans #164 :** diff visuel à la ligne/paragraphe,
-traitement explicite des nouvelles sections, fusion assistée lorsque l'ancrage
-initial a été modifié dans Nodalis, opérations idempotentes et commit de
-réimport transactionnel. Cette étape ne constitue donc **pas** une fonctionnalité de
+**Restent à développer dans #164 :** l'affectation et l'import effectif de
+nouvelles sections, une fusion assistée lorsque l'ancrage initial a été
+modifié dans Nodalis, les opérations idempotentes et un commit de réimport
+transactionnel avec rollback et reprise. Cette étape ne constitue donc **pas** une fonctionnalité de
 réimport prête à l'emploi.
 
 La suite smoke vérifie les sept classifications, les conflits entre Word et
