@@ -300,6 +300,18 @@ public partial class DocxImportPreviewDialog
             ReimportDecisionComboBox.Items.Cast<ReimportDecisionChoice>()
                 .FirstOrDefault(option => option.Action == saved?.Action);
         ReimportManualMergeBox.Text = saved?.ManualMarkdown ?? string.Empty;
+        DocxReimportParagraphDiff paragraphDiff =
+            DocxReimportParagraphDiffEngine.Compare(selected.Fragment);
+        ReimportWordParagraphItems.ItemsSource = BuildDiffRows(paragraphDiff.Word);
+        ReimportNodalisParagraphItems.ItemsSource = BuildDiffRows(paragraphDiff.Nodalis);
+        ReimportDiffStatusText.Text =
+            "Word : " + DiffSummary(paragraphDiff.Word) +
+            " · Nodalis : " + DiffSummary(paragraphDiff.Nodalis) +
+            (paragraphDiff.LocalIncludesSurroundings
+                ? "\n⚠ Le fragment initial n'est plus repérable sans ambiguïté. " +
+                  "La comparaison Nodalis présente le fichier complet : aucun remplacement automatique."
+                : "\nLes notes situées hors du fragment importé sont conservées.");
+
         ReimportDecisionStatus.Text = saved is null
             ? "Aucune décision enregistrée pour cette section."
             : "Décision conservée dans cet aperçu : " + saved.Action +
@@ -315,6 +327,9 @@ public partial class DocxImportPreviewDialog
         ReimportMatchComboBox.ItemsSource = null;
         ReimportDecisionComboBox.SelectedItem = null;
         ReimportManualMergeBox.Text = string.Empty;
+        ReimportWordParagraphItems.ItemsSource = null;
+        ReimportNodalisParagraphItems.ItemsSource = null;
+        ReimportDiffStatusText.Text = string.Empty;
     }
 
     /// <summary>
@@ -388,6 +403,59 @@ public partial class DocxImportPreviewDialog
             return Task.CompletedTask;
         });
     }
+
+    /// <summary>Explains availability, truncation and changed paragraph counts.</summary>
+    private static string DiffSummary(DocxReimportParagraphComparison comparison)
+    {
+        if (!comparison.Available)
+        {
+            return "source absente ou non associée";
+        }
+
+        return comparison.Truncated
+            ? "aperçu limité (document volumineux)"
+            : comparison.ChangedCount + " paragraphe(s) modifié(s)";
+    }
+
+    /// <summary>Formats short navigable labels and complete tooltips for visual comparison.</summary>
+    private static IReadOnlyList<ReimportParagraphDisplayRow> BuildDiffRows(
+        DocxReimportParagraphComparison comparison)
+    {
+        if (!comparison.Available || comparison.Truncated)
+        {
+            return [];
+        }
+
+        return comparison.Rows
+            .Select(row =>
+            {
+                string text = row.CurrentText ?? row.PreviousText ?? string.Empty;
+                string firstLine = text.Split('\n')[0].Trim();
+                if (firstLine.Length > 95)
+                {
+                    firstLine = firstLine[..95] + "…";
+                }
+
+                string symbol = row.Kind switch
+                {
+                    DocxReimportParagraphChangeKind.Added => "+",
+                    DocxReimportParagraphChangeKind.Removed => "−",
+                    DocxReimportParagraphChangeKind.Modified => "±",
+                    _ => "="
+                };
+                string position = "L" +
+                    (row.PreviousLine?.ToString() ?? "—") +
+                    "→L" + (row.CurrentLine?.ToString() ?? "—");
+                return new ReimportParagraphDisplayRow(
+                    symbol + " " + position + " · " + firstLine,
+                    "Base :\n" + (row.PreviousText ?? "[absent]") +
+                    "\n\nActuel :\n" + (row.CurrentText ?? "[absent]"));
+            })
+            .ToArray();
+    }
+
+    /// <summary>One read-only paragraph diff entry with its complete tooltip.</summary>
+    private sealed record ReimportParagraphDisplayRow(string Label, string Details);
 
     /// <summary>One explicit historical import selection in the current project.</summary>
     private sealed record ReimportHistoryChoice(
