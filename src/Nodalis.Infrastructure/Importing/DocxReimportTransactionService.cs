@@ -413,6 +413,44 @@ public sealed class DocxReimportTransactionService
     }
 
     /// <summary>
+    /// Inspects project-local reimport journals without writing or recovering
+    /// anything. A malformed journal is reported as an explicit error rather
+    /// than silently regarded as completed.
+    /// </summary>
+    public async Task<IReadOnlyList<DocxReimportPendingOperation>> InspectAsync(
+        string projectDirectory, CancellationToken cancellationToken = default)
+    {
+        string project = ProjectPath(projectDirectory);
+        string transactions = TransactionsDirectory(project);
+        if (!Directory.Exists(transactions))
+        {
+            return [];
+        }
+
+        EnsureNoLinks(transactions);
+        List<DocxReimportPendingOperation> operations = [];
+        foreach (string directory in Directory.EnumerateDirectories(transactions)
+                     .OrderBy(path => path, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureNoLinks(directory);
+            DocxReimportTransactionJournal journal = await ReadJournalAsync(
+                Path.Combine(directory, JournalName), cancellationToken);
+            ValidateJournalDirectory(directory, journal);
+            await VerifyProjectAsync(project, journal.ProjectId, cancellationToken);
+            operations.Add(new DocxReimportPendingOperation
+            {
+                OperationId = journal.OperationId,
+                State = journal.State,
+                MarkdownFileCount = journal.Entries.Count,
+                CreatedArtifactCount = journal.CreatedFiles.Count
+            });
+        }
+
+        return operations;
+    }
+
+    /// <summary>
     /// Restores every incomplete transaction for a project. After a crash,
     /// call before starting another reimport. Conflicting external changes
     /// are rejected and the original backup files are preserved.
@@ -957,6 +995,18 @@ public sealed record DocxReimportProvenancePackage
     public required DocxImportManifest Manifest { get; init; }
 
     public required string StagedDocxPath { get; init; }
+}
+
+/// <summary>Read-only status of one durable project-local reimport journal.</summary>
+public sealed record DocxReimportPendingOperation
+{
+    public required Guid OperationId { get; init; }
+
+    public required DocxReimportTransactionState State { get; init; }
+
+    public int MarkdownFileCount { get; init; }
+
+    public int CreatedArtifactCount { get; init; }
 }
 
 /// <summary>Result of a fully committed or already recorded operation.</summary>
