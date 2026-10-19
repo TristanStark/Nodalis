@@ -8,7 +8,7 @@ namespace Nodalis.App.Dialogs;
 
 public partial class DocxImportPreviewDialog
 {
-    private readonly Stack<(int SectionIndex, int BlockIndex, int? PreviousLevel)> _headingEdits = [];
+    private readonly Stack<(int SectionIndex, int BlockIndex, int? PreviousLevel)> _headingEdits = new Stack<(int SectionIndex, int BlockIndex, int? PreviousLevel)>();
 
     public sealed record HeadingChoice(int? Level, string Label);
 
