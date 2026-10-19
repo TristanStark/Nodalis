@@ -155,7 +155,7 @@ public static class DocxReimportSectionMatcher
                     ? DocxReimportAssociationKind.Ambiguous
                     : DocxReimportAssociationKind.MissingFromWord,
                 RequiresConfirmation = true,
-                CandidateSectionIndexes = candidates
+                CandidateSectionIndexes = candidates.ToList()
             });
         }
 
