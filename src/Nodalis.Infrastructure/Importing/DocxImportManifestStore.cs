@@ -213,7 +213,7 @@ public sealed class DocxImportManifestStore
     {
         if (string.IsNullOrWhiteSpace(relativePath) ||
             Path.IsPathRooted(relativePath) ||
-            relativePath.Contains(':', StringComparison.Ordinal))
+            relativePath.Contains(':'))
         {
             throw new InvalidDataException("Chemin de manifeste DOCX non relatif.");
         }
