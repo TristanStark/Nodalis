@@ -174,6 +174,71 @@ internal static class DocxReimportReviewSmokeTests
                    newHistory.SourceCopyRelativePath)),
             "Versioned provenance must record approved Word baseline and lineage without writing.");
 
+        DocxReimportTransactionService transaction =
+            new DocxReimportTransactionService(root);
+        DocxReimportProvenancePackage package = new DocxReimportProvenancePackage
+        {
+            Manifest = newHistory,
+            StagedDocxPath = newCopy
+        };
+        string fingerprint = DocxReimportTransactionService.Fingerprint(appliedWord);
+        DocxReimportTransactionResult committed = await transaction.CommitWithProvenanceAsync(
+            projectDirectory, appliedWord, wordOperationId, fingerprint, package);
+        Assert(!committed.AlreadyApplied && committed.WrittenFiles == 1 &&
+               committed.ManifestPath is not null &&
+               File.Exists(committed.ManifestPath) &&
+               File.Exists(store.ResolveWorkspaceRelativePath(
+                   newHistory.SourceCopyRelativePath)) &&
+               await File.ReadAllTextAsync(markdownPath) == latestWord &&
+               (await store.LoadAsync(committed.ManifestPath)).PreviousImportId ==
+                   previous.ImportId,
+            "Provenance-aware transaction must commit Markdown, Word copy and lineage together.");
+
+        DocxReimportTransactionResult repeated = await transaction.CommitWithProvenanceAsync(
+            projectDirectory, appliedWord, wordOperationId, fingerprint, package);
+        Assert(repeated.AlreadyApplied && repeated.WrittenFiles == 1,
+            "Repeating a completed provenance operation must be idempotent.");
+
+        // Restore the original fixture before the remaining independent
+        // resolution tests. The immutable new history and audit remain on disk.
+        await File.WriteAllTextAsync(markdownPath, original);
+        Guid interruptedOperation = Guid.NewGuid();
+        DocxImportManifest interruptedHistory = await provenance.BuildAsync(
+            previous, wordOnly, appliedWord, preview, [useWord], interruptedOperation,
+            "Imports/Sources/reimport-" + interruptedOperation.ToString("N") + ".docx");
+        DocxReimportTransactionService injectedFailure =
+            new DocxReimportTransactionService(root, checkpoint =>
+            {
+                if (checkpoint == 2)
+                {
+                    throw new InvalidOperationException("Injected metadata failure");
+                }
+            });
+        bool rolledBackArtifacts = false;
+        try
+        {
+            await injectedFailure.CommitWithProvenanceAsync(
+                projectDirectory, appliedWord, interruptedOperation, fingerprint,
+                new DocxReimportProvenancePackage
+                {
+                    Manifest = interruptedHistory,
+                    StagedDocxPath = newCopy
+                });
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message.Contains("Injected", StringComparison.Ordinal))
+        {
+            rolledBackArtifacts = true;
+        }
+
+        Assert(rolledBackArtifacts &&
+               await File.ReadAllTextAsync(markdownPath) == original &&
+               !File.Exists(store.ResolveWorkspaceRelativePath(
+                   interruptedHistory.SourceCopyRelativePath)) &&
+               !File.Exists(store.GetManifestPath(projectDirectory,
+                   interruptedOperation)),
+            "Metadata failure must remove both new artifacts and restore existing Markdown.");
+
         DocxReimportResolution manual = new DocxReimportResolution
         {
             FragmentId = fragment.FragmentId,
