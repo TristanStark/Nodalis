@@ -588,6 +588,93 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="Réimport · comparer">
+                <Grid Margin="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="2*" />
+                        <RowDefinition Height="3*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Comparer les versions Word et Nodalis"
+                               FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Grid.Row="1" Margin="0,4,0,10" TextWrapping="Wrap"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               Text="Lecture seule : sélectionnez un projet existant et son ancien import. Aucune action de cet onglet ne remplace ou supprime les notes. Les conflits exigent une résolution explicite lors d'un futur réimport." />
+                    <StackPanel Grid.Row="2" Orientation="Vertical" Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Rechercher les historiques"
+                                    Margin="0,0,8,0" Padding="10,5"
+                                    Click="ReimportLoadHistory_Click"
+                                    AutomationProperties.Name="Rechercher les historiques DOCX du projet" />
+                            <ComboBox x:Name="ReimportHistoryComboBox"
+                                      MinWidth="250" MaxWidth="520"
+                                      DisplayMemberPath="Label"
+                                      Margin="0,0,8,0"
+                                      AutomationProperties.Name="Historique d'import DOCX à comparer" />
+                            <Button Content="Comparer" Padding="10,5"
+                                    Click="ReimportCompare_Click"
+                                    AutomationProperties.Name="Comparer cet import DOCX avec la version courante" />
+                        </StackPanel>
+                        <TextBlock x:Name="ReimportStatusText" Margin="0,7,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   Text="Choisissez un projet dans l'onglet Cible, puis recherchez ses historiques d'import DOCX." />
+                    </StackPanel>
+                    <ListBox x:Name="ReimportFragmentsList" Grid.Row="3"
+                             MinHeight="75" Margin="0,0,0,10"
+                             DisplayMemberPath="Label"
+                             SelectionChanged="ReimportFragment_SelectionChanged"
+                             AutomationProperties.Name="Sections comparées entre les versions Word et Nodalis" />
+                    <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="130" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" MinWidth="130" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" MinWidth="130" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Base du précédent import"
+                                       FontWeight="SemiBold" Margin="0,0,0,5" />
+                            <TextBox x:Name="ReimportBaseBox" Grid.Row="1"
+                                     IsReadOnly="True" FontFamily="Consolas" Padding="7"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto" />
+                        </Grid>
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Nouvelle version Word"
+                                       FontWeight="SemiBold" Margin="0,0,0,5" />
+                            <TextBox x:Name="ReimportWordBox" Grid.Row="1"
+                                     IsReadOnly="True" FontFamily="Consolas" Padding="7"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto" />
+                        </Grid>
+                        <Grid Grid.Column="4">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Markdown actuel Nodalis"
+                                       FontWeight="SemiBold" Margin="0,0,0,5" />
+                            <TextBox x:Name="ReimportLocalBox" Grid.Row="1"
+                                     IsReadOnly="True" FontFamily="Consolas" Padding="7"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto" />
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
             <TabItem x:Name="FilesTab"
                      Header="Fichiers">
                 <Grid Margin="14">
