@@ -74,15 +74,56 @@ d'application ou de fusion automatique**. Il prépare l'arbitrage sans prendre
 de décision d'écriture. Une section affichée comme ambiguë n'est jamais
 automatiquement considérée comme supprimée.
 
+## Résolution manuelle et plan des décisions (#164, nouvel incrément)
+
+Dans l'onglet **Réimport · comparer**, vous pouvez désormais sélectionner une
+ancienne section, choisir **Associer la section sélectionnée** à une section
+du nouveau Word, puis confirmer. Vous pouvez aussi indiquer explicitement
+que la section a disparu du Word. Ces arbitrages sont conservés **uniquement
+en mémoire** pendant cette comparaison. Changer d'historique les efface.
+
+Le moteur `DocxReimportMatchResolver` impose des identités de section uniques.
+Une ancienne section ne peut pas être associée deux fois et deux anciennes
+sections ne peuvent pas revendiquer une même section Word. Les index devenus
+invalides sont refusés ; les correspondances ambiguës non arbitrées restent
+signalées.
+
+Le panneau repliable **Décisions de réimport · aperçu sans écriture** permet
+de prévisualiser un choix individuel :
+
+- **Conserver Nodalis** : aucun Markdown modifié ;
+- **Utiliser Word** : proposition de remplacer uniquement le fragment
+  précédemment importé, à condition de le retrouver exactement une fois ;
+- **Fusion manuelle** : proposer un fragment Markdown relu et corrigé
+  manuellement, avec la même contrainte d'ancrage ;
+- **Garder comme historique** : le contenu Nodalis est préservé, y compris
+  si le Word ne contient plus cette section.
+
+Le plan refusé explique son motif : identités non résolues, fragment initial
+introuvable ou présent plusieurs fois, destination absente, contenu vide ou
+trop volumineux, ou plusieurs sections Word réunies dans le même Markdown.
+Quand le fragment initial est localisé sans ambiguïté, le Markdown
+**situé avant et après** est préservé par la proposition de remplacement.
+Le plan conserve l'empreinte SHA-256 de la destination actuelle pour une
+future vérification de concurrence avant commit. Les décisions ne sont pas
+persistées ni appliquées.
+
+**Attention :** le bouton d'import standard est désactivé tant que
+l'onglet de réimport en lecture seule est actif. Un plan indiqué comme
+« complet » n'est **pas** un commit : l'application des modifications,
+le traitement des sections nouvelles et le rollback transactionnel restent
+à implémenter avant que le réimport puisse écrire.
+
 ## Sécurité
 
 Ce moteur n'enregistre **aucune décision**, n'écrase aucun Markdown et
 n'efface aucun document. Les résultats indiquent quelles sections sont
 éligibles à une proposition de mise à jour ou nécessitent un arbitrage.
 
-**Restent à développer dans #164 :** arbitrage d'identité pour les sections ambiguës, diff à la ligne/paragraphe, interface de résolution,
-fusion manuelle, opérations idempotentes et commit de réimport
-transactionnel. Cette étape ne constitue donc **pas** une fonctionnalité de
+**Restent à développer dans #164 :** diff visuel à la ligne/paragraphe,
+traitement explicite des nouvelles sections, fusion assistée lorsque l'ancrage
+initial a été modifié dans Nodalis, opérations idempotentes et commit de
+réimport transactionnel. Cette étape ne constitue donc **pas** une fonctionnalité de
 réimport prête à l'emploi.
 
 La suite smoke vérifie les sept classifications, les conflits entre Word et
