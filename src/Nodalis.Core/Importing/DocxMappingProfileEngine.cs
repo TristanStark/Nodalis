@@ -54,7 +54,9 @@ public static class DocxMappingProfileEngine
             {
                 try
                 {
-                    Regex.ValidatePattern(rule.TextPattern);
+                    Regex pattern = new Regex(rule.TextPattern,
+                        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase,
+                        PatternTimeout);
                 }
                 catch (ArgumentException exception)
                 {
