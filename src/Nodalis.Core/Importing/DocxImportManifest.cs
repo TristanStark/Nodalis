@@ -87,6 +87,12 @@ public sealed record DocxImportManifestFragment
     public string? LatestWordMarkdownSnapshot { get; init; }
 
     /// <summary>
+    /// SHA-256 of the latest observed Word snapshot. Nullable for legacy
+    /// manifests created before versioned reimport provenance existed.
+    /// </summary>
+    public string? LatestWordSnapshotSha256 { get; init; }
+
+    /// <summary>
     /// Explicit action used to construct the new baseline: Word, Manual or
     /// Nodalis. Missing for original imports.
     /// </summary>
