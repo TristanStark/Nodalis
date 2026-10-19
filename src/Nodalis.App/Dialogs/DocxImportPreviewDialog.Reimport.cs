@@ -19,6 +19,7 @@ public partial class DocxImportPreviewDialog
     private readonly Dictionary<Guid, int?> _reimportOverrideChoices = [];
     private readonly Dictionary<Guid, DocxReimportResolution> _reimportDecisions = [];
     private DocxReimportReview? _activeReimportReview;
+    private string? _activeReimportProjectDirectory;
 
     /// <summary>Initializes local-only reimport discovery without any disk writes.</summary>
     private void InitializeReimportControls(string workspaceRoot)
@@ -43,6 +44,7 @@ public partial class DocxImportPreviewDialog
             _reimportOverrideChoices.Clear();
             _reimportDecisions.Clear();
             _activeReimportReview = null;
+            _activeReimportProjectDirectory = null;
             ReimportMatchComboBox.ItemsSource = null;
             ReimportFragmentsList.ItemsSource = null;
             ClearReimportText();
@@ -93,6 +95,7 @@ public partial class DocxImportPreviewDialog
         _reimportOverrideChoices.Clear();
         _reimportDecisions.Clear();
         _activeReimportReview = null;
+        _activeReimportProjectDirectory = null;
         if (ReimportFragmentsList is not null)
         {
             ReimportFragmentsList.ItemsSource = null;
@@ -218,6 +221,7 @@ public partial class DocxImportPreviewDialog
             .ToList();
 
         _activeReimportReview = review;
+        _activeReimportProjectDirectory = projectDirectory;
         ReimportFragmentsList.ItemsSource = rows;
         ReimportFragmentsList.SelectedItem = selectFragmentId is Guid selected
             ? rows.FirstOrDefault(row => row.Fragment.Association.FragmentId == selected)
@@ -313,9 +317,7 @@ public partial class DocxImportPreviewDialog
 
             // Verify the current project identity again; otherwise a stale
             // review could appear to apply to a different project.
-            string expectedProject = _reimportStore.ResolveWorkspaceRelativePath(
-                ((DocxImportTargetOption)ProjectComboBox.SelectedItem).RelativePath);
-            if (!string.Equals(projectDirectory, expectedProject,
+            if (!string.Equals(projectDirectory, _activeReimportProjectDirectory,
                     StringComparison.OrdinalIgnoreCase) ||
                 history.Manifest.ProjectId != _activeReimportReview.ProjectId)
             {
