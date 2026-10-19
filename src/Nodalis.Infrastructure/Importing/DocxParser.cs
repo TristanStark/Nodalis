@@ -273,7 +273,9 @@ public sealed class DocxParser
         // Level 9 means regular body text in Word, not heading level 10.
         int? headingLevel = directOutline is int outline
             ? outline is >= 0 and <= 8 ? outline + 1 : null
-            : style?.HeadingLevel ?? InferHeadingLevel(styleId, style?.Name);
+            : style is not null
+                ? style.HeadingLevel
+                : InferHeadingLevel(styleId, null);
 
         (int? suggestedLevel, string? suggestionReason) =
             headingLevel is null && numberingId is null
