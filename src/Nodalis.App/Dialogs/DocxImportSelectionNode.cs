@@ -29,7 +29,17 @@ public sealed class DocxImportSelectionNode : INotifyPropertyChanged
     /// <summary>
     /// Gets the compact block kind label.
     /// </summary>
-    public required string KindLabel { get; init; }
+    private string _kindLabel = string.Empty;
+
+    public required string KindLabel
+    {
+        get => _kindLabel;
+        set
+        {
+            _kindLabel = value;
+            OnPropertyChanged();
+        }
+    }
 
     /// <summary>
     /// Gets the readable node text.
@@ -39,7 +49,17 @@ public sealed class DocxImportSelectionNode : INotifyPropertyChanged
     /// <summary>
     /// Gets the Markdown rendering of this individual source block.
     /// </summary>
-    public string MarkdownPreview { get; init; } = string.Empty;
+    private string _markdownPreview = string.Empty;
+
+    public string MarkdownPreview
+    {
+        get => _markdownPreview;
+        set
+        {
+            _markdownPreview = value;
+            OnPropertyChanged();
+        }
+    }
 
     /// <summary>
     /// Gets this node's children.
@@ -94,6 +114,62 @@ public sealed class DocxImportSelectionNode : INotifyPropertyChanged
             this;
         Children.Add(
             child);
+    }
+
+    /// <summary>
+    /// Removes descendants while retaining their source selections for structural regrouping.
+    /// </summary>
+    /// <returns>All detached descendants in the previous visual order.</returns>
+    public IReadOnlyList<DocxImportSelectionNode> DetachDescendants()
+    {
+        List<DocxImportSelectionNode> descendants = [];
+        CollectDescendants(this, descendants);
+        foreach (DocxImportSelectionNode child in descendants)
+        {
+            child.Parent = null;
+            child.Children.Clear();
+        }
+
+        Children.Clear();
+        return descendants;
+
+        static void CollectDescendants(
+            DocxImportSelectionNode parent,
+            List<DocxImportSelectionNode> target)
+        {
+            foreach (DocxImportSelectionNode child in parent.Children)
+            {
+                target.Add(child);
+                CollectDescendants(child, target);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Recomputes tri-state values after a non-destructive hierarchy correction.
+    /// </summary>
+    public void RefreshTreeSelection()
+    {
+        RefreshRecursively(this);
+        RefreshAncestors();
+        RaiseRootSelectionChanged();
+
+        static void RefreshRecursively(DocxImportSelectionNode node)
+        {
+            foreach (DocxImportSelectionNode child in node.Children)
+            {
+                RefreshRecursively(child);
+            }
+
+            if (node.Children.Count == 0)
+            {
+                return;
+            }
+
+            bool all = node.Children.All(child => child._isSelected == true);
+            bool none = node.Children.All(child => child._isSelected == false);
+            node.SetSelectionValue(all ? true : none ? false : null);
+        }
     }
 
     /// <summary>

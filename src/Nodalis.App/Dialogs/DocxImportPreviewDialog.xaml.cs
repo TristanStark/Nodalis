@@ -98,6 +98,15 @@ public partial class DocxImportPreviewDialog : Window
         SectionsListBox.ItemsSource =
             _sections;
 
+        HeadingLevelComboBox.ItemsSource =
+            Enumerable.Range(0, 10)
+                .Select(level => new HeadingChoice(
+                    level == 0 ? null : level,
+                    level == 0 ? "Paragraphe / liste" : "Titre " + level))
+                .ToArray();
+        HeadingLevelComboBox.SelectedIndex = 0;
+        UndoHeadingButton.IsEnabled = false;
+
         if (_sections.Count > 0)
         {
             SectionsListBox.SelectedIndex = 0;

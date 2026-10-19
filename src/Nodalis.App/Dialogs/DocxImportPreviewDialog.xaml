@@ -160,6 +160,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
@@ -182,8 +183,15 @@
                                     Content="Tout désélectionner" />
                         </StackPanel>
 
-                        <ListBox x:Name="SectionsListBox"
+                        <TextBox x:Name="SectionSearchTextBox"
                                  Grid.Row="2"
+                                 MinHeight="30"
+                                 Margin="0,0,0,8"
+                                 Padding="8,4"
+                                 ToolTip="Rechercher un titre de section Word"
+                                 TextChanged="SectionSearchText_Changed" />
+                        <ListBox x:Name="SectionsListBox"
+                                 Grid.Row="3"
                                  SelectionMode="Single">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
@@ -238,6 +246,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="3*" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="2*" />
                         </Grid.RowDefinitions>
 
@@ -246,6 +255,7 @@
                                    FontWeight="SemiBold" />
 
                         <TreeView x:Name="ContentTreeView"
+                                  SelectedItemChanged="ContentTreeView_SelectedItemChanged"
                                   Grid.Row="1"
                                   Margin="0,0,0,12"
                                   ItemsSource="{Binding SelectedItem.SelectionRoot.Children, ElementName=SectionsListBox}">
@@ -272,12 +282,37 @@
                             </TreeView.Resources>
                         </TreeView>
 
-                        <TextBlock Grid.Row="2"
+                        <StackPanel Grid.Row="2" Margin="0,0,0,8">
+                            <WrapPanel>
+                                <TextBlock Text="Corriger le bloc :" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox x:Name="HeadingLevelComboBox"
+                                          MinWidth="140"
+                                          Height="30"
+                                          DisplayMemberPath="Label"
+                                          ToolTip="Paragraphe ou niveau de titre 1 à 9" />
+                                <Button Margin="8,0,0,0"
+                                        Padding="10,4"
+                                        Content="Appliquer"
+                                        Click="ApplyHeading_Click" />
+                                <Button x:Name="UndoHeadingButton"
+                                        Margin="8,0,0,0"
+                                        Padding="10,4"
+                                        Content="Annuler la correction"
+                                        Click="UndoHeading_Click" />
+                            </WrapPanel>
+                            <TextBlock x:Name="HeadingSuggestionText"
+                                       Margin="0,4,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="3"
                                    Margin="0,0,0,8"
                                    Text="Aperçu Markdown de la sélection"
                                    FontWeight="SemiBold" />
 
-                        <TextBox Grid.Row="3"
+                        <TextBox Grid.Row="4"
                                  Padding="10"
                                  IsReadOnly="True"
                                  AcceptsReturn="True"
