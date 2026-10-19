@@ -173,5 +173,7 @@ Version v1.8.0 : issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmar
 - [Conversion des tableaux Word, HTML de secours et limites (#160)](docx-1.9-tables.md)
 - [Images et objets Word, sélection et stockage local (#161)](docx-1.9-media.md)
 - [Comparateur Word/Markdown et état des sections (#162)](docx-1.9-preview-comparator.md)
+- [Manifeste de traçabilité DOCX et snapshots (#163)](docx-1.9-provenance.md)
+- [Réimport DOCX : correspondances sûres et comparateur à trois voies en lecture seule (#164)](docx-1.9-reimport-diff.md)
 
 Ces documents décrivent des incréments de développement, pas une release 1.9. Les scénarios multi-projets, le mapping par fichier, le réimport différentiel et la transaction globale ne sont pas encore qualifiés.
