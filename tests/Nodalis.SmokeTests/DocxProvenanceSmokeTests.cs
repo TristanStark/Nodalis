@@ -165,6 +165,7 @@ internal static class DocxProvenanceSmokeTests
                actual.SourceSha256 == await DocxImportManifestStore.ComputeFileSha256Async(
                    committed.SourceCopyPath) &&
                actual.Fragments.All(fragment =>
+                   fragment.TargetSectionId is Guid sectionId && sectionId != Guid.Empty &&
                    File.Exists(Path.Combine(root, fragment.DestinationRelativePath)) &&
                    DocxImportManifestStore.ComputeSha256(
                        File.ReadAllText(Path.Combine(root, fragment.DestinationRelativePath))) ==
