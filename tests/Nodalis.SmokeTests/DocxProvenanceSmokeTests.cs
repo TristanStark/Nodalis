@@ -66,6 +66,33 @@ internal static class DocxProvenanceSmokeTests
 
         Assert(duplicateRejected, "A provenance save must never replace existing history.");
 
+        DocxImportManifest raced = first with { ImportId = Guid.NewGuid() };
+        DocxImportManifest alternate = raced with { SourceSha256 = secondHash };
+        Task<string>[] simultaneous =
+        [
+            store.SaveNewAsync(legacyProject, raced),
+            store.SaveNewAsync(legacyProject, alternate)
+        ];
+        try
+        {
+            await Task.WhenAll(simultaneous);
+        }
+        catch (IOException)
+        {
+            // Exactly one atomic creation must win the contention.
+        }
+
+        string racePath = store.GetManifestPath(legacyProject, raced.ImportId);
+        DocxImportManifest surviving = await store.LoadAsync(racePath);
+        Assert(simultaneous.Count(task => task.IsCompletedSuccessfully) == 1 &&
+               simultaneous.Count(task => task.IsFaulted) == 1 &&
+               (surviving.SourceSha256 == firstHash ||
+                surviving.SourceSha256 == secondHash) &&
+               Directory.EnumerateFiles(
+                   Path.Combine(legacyProject, DocxImportManifestStore.DirectoryName),
+                   "*.tmp").Count() == 0,
+            "Concurrent immutable manifest creation must preserve exactly one writer and clean temp files.");
+
         bool traversalRejected = false;
         try
         {
