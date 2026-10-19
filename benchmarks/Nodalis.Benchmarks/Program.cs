@@ -22,6 +22,9 @@ internal static class Program
     public static async Task<int> Main(
             string[] args)
     {
+        if (args.Contains("--semantic-eval", StringComparer.OrdinalIgnoreCase))
+            return await SemanticEvaluationRunner.RunAsync(args);
+
         int documentCount = ReadDocumentCount(
             args);
         string root = Path.Combine(

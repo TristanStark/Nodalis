@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -6,13 +7,35 @@ using Nodalis.Infrastructure.Persistence;
 
 namespace Nodalis.Infrastructure.Semantic;
 
+/// <summary>Read-only local index metadata; never includes document content or vectors.</summary>
+/// <param name="FileExists">Whether an index file is present.</param>
+/// <param name="IsCompatible">Whether its schema, model, policy and vectors are valid.</param>
+/// <param name="CachePath">Derived machine-local index location.</param>
+/// <param name="ModelId">Configured embedding model for this inspection.</param>
+/// <param name="Dimensions">Configured embedding dimensions.</param>
+/// <param name="DocumentCount">Number of unique indexed documents.</param>
+/// <param name="ChunkCount">Number of validated stored vector fragments.</param>
+/// <param name="OnDiskBytes">Local derived cache size in bytes.</param>
+/// <param name="VectorBytes">Uncompressed in-memory vector payload estimate in bytes.</param>
+/// <param name="UpdatedAtUtc">Observed file modification timestamp.</param>
+/// <param name="IndexedPaths">Unique workspace-relative indexed paths, not document contents.</param>
+public sealed record SemanticIndexStatus(bool FileExists, bool IsCompatible, string CachePath,
+    string ModelId, int Dimensions, int DocumentCount, int ChunkCount,
+    long OnDiskBytes, long VectorBytes, DateTimeOffset? UpdatedAtUtc,
+    IReadOnlyList<string> IndexedPaths);
+
 /// <summary>Versioned local cache, safe to purge or rebuild from canonical Markdown.</summary>
 public sealed class SemanticVectorCacheService
 {
-    private const int MaxEntries = 10_000;
+    /// <summary>Hard upper bound for local vector fragments across a workspace.</summary>
+    public const int MaximumEntries = 10_000;
     private const long MaxCacheFileBytes = 64_000_000;
+    // Serialize all in-process reads, writes and purges of this same cache path,
+    // even when the app creates more than one index service for a workspace.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly string _filePath;
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly SemaphoreSlim _gate;
 
     /// <summary>Builds a machine-local cache key for one workspace, not a workspace file.</summary>
     /// <param name="workspaceRoot">Absolute root of the canonical workspace.</param>
@@ -27,10 +50,61 @@ public sealed class SemanticVectorCacheService
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Nodalis", "SemanticIndexes");
         _filePath = Path.Combine(Path.GetFullPath(directory), key + ".json");
+        _gate = Gates.GetOrAdd(_filePath, static _ => new SemaphoreSlim(1, 1));
     }
 
     /// <summary>Path to the derived cache, for user-visible purge information.</summary>
     public string CachePath => _filePath;
+
+    /// <summary>Reads index size, age and coverage without starting a provider or modifying documents.</summary>
+    /// <param name="modelId">Configured embedding model.</param>
+    /// <param name="dimensions">Configured vector dimensions.</param>
+    /// <param name="segmentationKey">Current chunker policy identifier.</param>
+    /// <param name="token">Cancellation for local cache inspection.</param>
+    /// <returns>A validated index summary or an explicit absent/incompatible status.</returns>
+    public async Task<SemanticIndexStatus> InspectAsync(string modelId, int dimensions,
+        string segmentationKey, CancellationToken token = default)
+    {
+        await _gate.WaitAsync(token);
+        try
+        {
+            if (!File.Exists(_filePath))
+                return new SemanticIndexStatus(false, false, _filePath, modelId,
+                    dimensions, 0, 0, 0, 0, null, []);
+            FileInfo info = new(_filePath);
+            if (info.Length > MaxCacheFileBytes)
+                return new SemanticIndexStatus(true, false, _filePath, modelId,
+                    dimensions, 0, 0, info.Length, 0, info.LastWriteTimeUtc, []);
+
+            try
+            {
+                SemanticVectorIndex loaded = await AtomicJsonFile.ReadAsync<SemanticVectorIndex>(
+                    _filePath, token);
+                if (!IsCompatible(loaded, modelId, dimensions, segmentationKey))
+                    return new SemanticIndexStatus(true, false, _filePath, modelId,
+                        dimensions, 0, 0, info.Length, 0, info.LastWriteTimeUtc, []);
+
+                string[] paths = loaded.Entries.Select(entry => entry.RelativePath)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Order(StringComparer.OrdinalIgnoreCase).ToArray();
+                long vectorBytes = loaded.Entries.Sum(entry => (long)entry.Vector.Length * sizeof(float));
+                return new SemanticIndexStatus(true, true, _filePath, modelId,
+                    dimensions, loaded.Entries.Select(entry => entry.DocumentId).Distinct().Count(),
+                    loaded.Entries.Count, info.Length, vectorBytes,
+                    info.LastWriteTimeUtc, paths);
+            }
+            catch (Exception error) when (error is IOException or JsonException or
+                InvalidDataException or UnauthorizedAccessException)
+            {
+                return new SemanticIndexStatus(true, false, _filePath, modelId,
+                    dimensions, 0, 0, info.Length, 0, info.LastWriteTimeUtc, []);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
 
     /// <summary>Loads only matching schema/model/dimensions/chunk-policy data; corrupt data acts as empty.</summary>
     /// <param name="modelId">Requested local embedding model.</param>
@@ -70,7 +144,7 @@ public sealed class SemanticVectorCacheService
         if (documentId == Guid.Empty || dimensions is < 1 or > 4096 ||
             string.IsNullOrWhiteSpace(modelId) ||
             string.IsNullOrWhiteSpace(segmentationKey) ||
-            entries.Count > MaxEntries || entries.Any(entry =>
+            entries.Count > MaximumEntries || entries.Any(entry =>
                 entry.DocumentId != documentId ||
                 !IsValid(entry, dimensions)))
         {
@@ -85,14 +159,57 @@ public sealed class SemanticVectorCacheService
             List<SemanticVectorEntry> merged = current.Entries
                 .Where(entry => entry.DocumentId != documentId).ToList();
             merged.AddRange(entries);
-            if (merged.Count > MaxEntries)
+            if (merged.Count > MaximumEntries)
             {
                 throw new InvalidDataException("Quota d'index dépassé (10 000 fragments).");
             }
 
             SemanticVectorIndex updated = current with { Entries = merged };
+            // Reject an over-budget index BEFORE touching the existing atomic cache.
+            // This also prevents a successful write that could not be loaded again.
+            int encodedSize = JsonSerializer.SerializeToUtf8Bytes(updated, JsonDefaults.Options).Length;
+            if (encodedSize > MaxCacheFileBytes - 1024)
+                throw new InvalidDataException("Cache vectoriel trop volumineux (64 Mo maximum).");
+            cancellationToken.ThrowIfCancellationRequested();
             await AtomicJsonFile.WriteAsync(_filePath, updated, cancellationToken);
             return updated;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Reconciles the disposable index with the full canonical workspace catalog.
+    /// This is called only after explicit user approval of a new indexing session.
+    /// </summary>
+    /// <param name="modelId">Configured local model.</param>
+    /// <param name="dimensions">Configured embedding dimensions.</param>
+    /// <param name="segmentationKey">Current chunker policy.</param>
+    /// <param name="knownDocuments">All currently eligible canonical document GUIDs.</param>
+    /// <param name="token">Cancellation for local reconciliation.</param>
+    /// <returns>Number of removed obsolete vector fragments.</returns>
+    public async Task<int> PruneUnlistedDocumentsAsync(string modelId, int dimensions,
+        string segmentationKey, IReadOnlySet<Guid> knownDocuments,
+        CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(knownDocuments);
+        await _gate.WaitAsync(token);
+        try
+        {
+            if (!File.Exists(_filePath)) return 0;
+            SemanticVectorIndex current = await ReadUnsafeAsync(
+                modelId, dimensions, segmentationKey, token);
+            if (current.Entries.Count == 0) return 0;
+            List<SemanticVectorEntry> kept = current.Entries
+                .Where(entry => knownDocuments.Contains(entry.DocumentId)).ToList();
+            int removed = current.Entries.Count - kept.Count;
+            if (removed == 0) return 0;
+            token.ThrowIfCancellationRequested();
+            await AtomicJsonFile.WriteAsync(_filePath,
+                current with { Entries = kept }, token);
+            return removed;
         }
         finally
         {
@@ -141,12 +258,7 @@ public sealed class SemanticVectorCacheService
             if (info.Length > MaxCacheFileBytes) return empty;
             SemanticVectorIndex loaded = await AtomicJsonFile.ReadAsync<SemanticVectorIndex>(
                 _filePath, token);
-            if (loaded.SchemaVersion != SemanticVectorIndex.CurrentVersion ||
-                !string.Equals(loaded.ModelId, modelId, StringComparison.Ordinal) ||
-                loaded.Dimensions != dimensions ||
-                loaded.SegmentationKey != segmentationKey ||
-                loaded.Entries is null || loaded.Entries.Count > MaxEntries ||
-                loaded.Entries.Any(entry => !IsValid(entry, dimensions)))
+            if (!IsCompatible(loaded, modelId, dimensions, segmentationKey))
                 return empty;
             return loaded;
         }
@@ -157,14 +269,32 @@ public sealed class SemanticVectorCacheService
         }
     }
 
+    /// <summary>Checks schema, provider identity, metadata bounds and every stored vector.</summary>
+    /// <param name="index">Deserialized local cache.</param>
+    /// <param name="modelId">Current model.</param>
+    /// <param name="dimensions">Current dimension.</param>
+    /// <param name="segmentationKey">Current segmentation policy.</param>
+    /// <returns>Whether the cache can safely be used or reported as valid.</returns>
+    private static bool IsCompatible(SemanticVectorIndex? index, string modelId,
+        int dimensions, string segmentationKey) =>
+        index is not null && index.SchemaVersion == SemanticVectorIndex.CurrentVersion &&
+        string.Equals(index.ModelId, modelId, StringComparison.Ordinal) &&
+        index.Dimensions == dimensions &&
+        index.SegmentationKey == segmentationKey &&
+        index.Entries is not null && index.Entries.Count <= MaximumEntries &&
+        index.Entries.All(entry => IsValid(entry, dimensions)) &&
+        index.Entries.Select(entry => (entry.DocumentId, entry.ChunkId))
+            .Distinct().Count() == index.Entries.Count;
+
     /// <summary>Validates one safe canonical source reference and its finite vector.</summary>
     /// <param name="entry">Candidate vector record.</param>
     /// <param name="dimension">Model dimensions.</param>
     /// <returns>Whether this index entry can be used for retrieval.</returns>
-    private static bool IsValid(SemanticVectorEntry entry, int dimension) =>
-        entry.DocumentId != Guid.Empty &&
-        entry.ChunkId.Length is > 0 and <= 128 &&
-        entry.ContentHash.Length is > 0 and <= 128 &&
+    private static bool IsValid(SemanticVectorEntry? entry, int dimension) =>
+        entry is not null && entry.DocumentId != Guid.Empty &&
+        entry.ChunkId is not null && entry.ChunkId.Length is > 0 and <= 128 &&
+        entry.ContentHash is not null && entry.ContentHash.Length is > 0 and <= 128 &&
+        entry.RelativePath is not null &&
         SemanticMarkdownChunker.IsEligiblePath(entry.RelativePath) &&
         entry.SourceLine > 0 && entry.Vector is not null &&
         entry.Vector.Length == dimension &&

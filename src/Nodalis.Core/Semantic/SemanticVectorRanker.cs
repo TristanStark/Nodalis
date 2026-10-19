@@ -14,7 +14,7 @@ public static class SemanticVectorRanker
     /// <summary>Ranks matches with numeric validation, stable tie-breaking and deduplication.</summary>
     /// <param name="index">Compatible derived cache.</param>
     /// <param name="queryVector">Embedding of the search expression with the same model.</param>
-    /// <param name="topK">Maximum distinct source documents to return.</param>
+    /// <param name="topK">Maximum results (100 deduplicated documents, or 10 000 source fragments for validation).</param>
     /// <param name="threshold">Minimum cosine similarity in [-1, 1].</param>
     /// <param name="scope">Optional canonical relative path prefix.</param>
     /// <param name="deduplicateDocuments">False lets callers verify successive source passages before deduplication.</param>
@@ -31,7 +31,10 @@ public static class SemanticVectorRanker
             queryVector.All(value => value == 0))
             return [];
 
-        int limit = Math.Clamp(topK, 1, 100);
+        // In non-deduplicated mode callers must be able to validate stale
+        // fragments before choosing the best valid passage per document.
+        // This never exceeds the hard index capacity of 10 000 fragments.
+        int limit = Math.Clamp(topK, 1, deduplicateDocuments ? 100 : 10_000);
         double minimum = double.IsFinite(threshold)
             ? Math.Clamp(threshold, -1d, 1d) : 0.2d;
         string? normalizedScope = string.IsNullOrWhiteSpace(scope)

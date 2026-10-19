@@ -3,10 +3,12 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.Core.Links;
+using Nodalis.Core.Search;
 using Nodalis.Core.Semantic;
 using Nodalis.Core.Settings;
 using Nodalis.Infrastructure.AI;
 using Nodalis.Infrastructure.Semantic;
+using Nodalis.Infrastructure.Search;
 
 namespace Nodalis.App.Dialogs;
 
@@ -14,15 +16,29 @@ namespace Nodalis.App.Dialogs;
 public sealed class SemanticSearchDialog : Window
 {
     private readonly SemanticWorkspaceSearchService _service;
+    private readonly WorkspaceSearchService _lexicalService = new();
     private readonly IReadOnlyList<SemanticSource> _documents;
+    private readonly IReadOnlyList<SemanticSource> _lexicalDocuments;
+    private readonly string _workspaceRoot;
     private readonly bool _enabled;
+    private readonly int _exclusionCount;
+    private readonly ComboBox _mode = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly TextBox _query = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
     private readonly TextBox _scope = new() { MinHeight = 32, Margin = new Thickness(0, 5, 0, 9) };
+    private readonly ComboBox _scopePicker = new()
+    {
+        MinHeight = 32,
+        Margin = new Thickness(0, 5, 0, 9),
+        MaxDropDownHeight = 300
+    };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) };
     private readonly ListBox _results = new() { HorizontalContentAlignment = HorizontalAlignment.Stretch };
-    private readonly Button _index = new() { Content = "Indexer ce périmètre", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
+    private readonly Button _index = new() { Content = "Indexer / reprendre ce périmètre", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
     private readonly Button _search = new() { Content = "Rechercher", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
-    private readonly Button _cancel = new() { Content = "Annuler", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
+    private readonly Button _cancel = new() { Content = "Pause / Annuler", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
+    private readonly Button _inspect = new() { Content = "Afficher l'état", Margin = new Thickness(0, 0, 8, 0), MinHeight = 32 };
+    private readonly Button _purge = new() { Content = "Purger les vecteurs…", MinHeight = 32 };
+    private readonly TextBlock _indexInfo = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) };
     private CancellationTokenSource? _request;
 
     /// <summary>Opened result, or null if the user closed the dialog.</summary>
@@ -38,29 +54,49 @@ public sealed class SemanticSearchDialog : Window
     public SemanticSearchDialog(string workspaceRoot, SemanticSearchPreferences preferences,
         LinkIndexCatalog catalog)
     {
-        Title = "Recherche par le sens — locale (1.7)";
+        Title = "Recherche hybride — locale (1.8)";
         Width = 800;
         Height = 640;
         MinWidth = 500;
         MinHeight = 400;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _enabled = preferences.IsEnabled;
+        _exclusionCount = preferences.ExcludedPathPatterns.Count;
+        _workspaceRoot = Path.GetFullPath(workspaceRoot);
+        _mode.Items.Add("Mixte : exacte/fuzzy + sémantique");
+        _mode.Items.Add("Texte seul : exacte/fuzzy (sans modèle)");
+        _mode.Items.Add("Sens seul : embeddings locaux");
+        _mode.SelectedIndex = _enabled ? 0 : 1;
         SemanticChunkingOptions segmentation = new()
         {
             ExcludedPathPatterns = preferences.ExcludedPathPatterns
         };
         _service = new SemanticWorkspaceSearchService(workspaceRoot, preferences,
             new ProcessEmbeddingProvider(preferences), chunking: segmentation);
-        _documents = catalog.Targets.Where(item =>
-                item.Kind == LinkTargetKind.Document &&
-                SemanticMarkdownChunker.IsEligiblePath(item.RelativePath, segmentation))
+        _lexicalDocuments = catalog.Targets.Where(item =>
+                item.Kind == LinkTargetKind.Document)
             .Select(item => new SemanticSource(item.Id, item.RelativePath))
             .DistinctBy(item => item.DocumentId).ToArray();
+        _documents = _lexicalDocuments.Where(item =>
+                SemanticMarkdownChunker.IsEligiblePath(item.RelativePath, segmentation))
+            .ToArray();
+        PopulateScopes();
 
         DockPanel layout = new() { Margin = new Thickness(16) };
         StackPanel top = new();
-        DockPanel.SetDock(top, Dock.Top);
-        layout.Children.Add(top);
+        ScrollViewer topScroll = new()
+        {
+            Content = top,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            MaxHeight = 330
+        };
+        // The expanded index inspector must never push the result list outside
+        // a small or high-DPI window. Both regions remain independently scrollable.
+        SizeChanged += (_, _) =>
+            topScroll.MaxHeight = Math.Max(210, ActualHeight * 0.62);
+        DockPanel.SetDock(topScroll, Dock.Top);
+        layout.Children.Add(topScroll);
         top.Children.Add(new TextBlock
         {
             Text = _enabled
@@ -71,9 +107,17 @@ public sealed class SemanticSearchDialog : Window
         });
         top.Children.Add(new TextBlock { Text = "Requête" });
         top.Children.Add(_query);
+        top.Children.Add(new TextBlock { Text = "Mode de classement" });
+        top.Children.Add(_mode);
         top.Children.Add(new TextBlock
         {
-            Text = "Périmètre facultatif : dossier relatif (vide = workspace entier)",
+            Text = "Choisir un périmètre rapide : Global, Application ou Projet",
+            TextWrapping = TextWrapping.Wrap
+        });
+        top.Children.Add(_scopePicker);
+        top.Children.Add(new TextBlock
+        {
+            Text = "Dossier relatif facultatif (modifiable ; vide = workspace entier)",
             TextWrapping = TextWrapping.Wrap
         });
         top.Children.Add(_scope);
@@ -102,13 +146,31 @@ public sealed class SemanticSearchDialog : Window
         actions.Children.Add(_cancel);
         actions.Children.Add(close);
         top.Children.Add(actions);
+        Expander indexPanel = new()
+        {
+            Header = "État et gestion de l'index local",
+            IsExpanded = false,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        StackPanel manager = new();
+        WrapPanel managerActions = new() { Margin = new Thickness(0, 6, 0, 6) };
+        _inspect.Click += InspectClicked;
+        _purge.Click += PurgeClicked;
+        managerActions.Children.Add(_inspect);
+        managerActions.Children.Add(_purge);
+        manager.Children.Add(managerActions);
+        manager.Children.Add(_indexInfo);
+        indexPanel.Content = manager;
+        top.Children.Add(indexPanel);
         top.Children.Add(_status);
         layout.Children.Add(_results);
         Content = layout;
-        _search.IsEnabled = _enabled;
+        _search.IsEnabled = true;
         _index.IsEnabled = _enabled;
         _cancel.IsEnabled = false;
-        _status.Text = "Cache local effaçable : " + _service.CachePath;
+        _status.Text = "Mode texte sans modèle disponible · cache sémantique dérivé et effaçable.";
+        _indexInfo.Text = "Fichiers éligibles pour l'indexation locale : " + _documents.Count +
+            ". L'état est lu uniquement sur demande, sans démarrer le modèle.";
         _results.MouseDoubleClick += OpenSelected;
         _results.KeyDown += (sender, args) =>
         {
@@ -120,6 +182,54 @@ public sealed class SemanticSearchDialog : Window
         };
         Closing += (_, _) => _request?.Cancel();
         Loaded += (_, _) => _query.Focus();
+    }
+
+    /// <summary>Offers existing application/project scopes without scanning or indexing files.</summary>
+    private void PopulateScopes()
+    {
+        SortedDictionary<string, string> scopes = new(StringComparer.OrdinalIgnoreCase);
+        foreach (SemanticSource source in _lexicalDocuments)
+        {
+            string[] parts = source.RelativePath.Replace('\\', '/').Split('/');
+            if (parts.Length < 3 || !parts[0].Equals("Applications",
+                StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string application = string.Join("/", parts.Take(2));
+            scopes.TryAdd("Application · " + parts[1], application);
+            for (int i = 2; i < parts.Length - 1; i++)
+            {
+                if ((parts[i].Equals("Projets", StringComparison.OrdinalIgnoreCase) ||
+                     parts[i].Equals("Sous-projets", StringComparison.OrdinalIgnoreCase)) &&
+                    i + 1 < parts.Length - 1)
+                {
+                    string project = string.Join("/", parts.Take(i + 2));
+                    scopes.TryAdd("Projet · " + project, project);
+                }
+            }
+        }
+
+        _scopePicker.Items.Add(new ComboBoxItem
+        {
+            Content = "Global · Tout le workspace",
+            Tag = string.Empty
+        });
+        foreach (KeyValuePair<string, string> entry in scopes)
+        {
+            _scopePicker.Items.Add(new ComboBoxItem
+            {
+                Content = entry.Key,
+                Tag = entry.Value
+            });
+        }
+
+        _scopePicker.SelectionChanged += (_, _) =>
+        {
+            if (_scopePicker.SelectedItem is ComboBoxItem selected &&
+                selected.Tag is string selectedPath)
+                _scope.Text = selectedPath;
+        };
+        _scopePicker.SelectedIndex = 0;
     }
 
     /// <summary>Indices only user-approved canonical documents in the selected scope.</summary>
@@ -139,23 +249,55 @@ public sealed class SemanticSearchDialog : Window
             return;
         }
 
-        if (MessageBox.Show(this,
-            "Autoriser l'envoi de passages provenant de " + selection.Length +
-            " fichiers Markdown au processus d'embeddings local de confiance ? " +
-            "Le cache vectoriel sera conservé sur cet ordinateur ; aucune source ne sera modifiée.",
-            "Confirmer l'indexation locale", MessageBoxButton.YesNo, MessageBoxImage.Question)
-            != MessageBoxResult.Yes) return;
-
         CancellationToken token = Begin();
         try
         {
+            _status.Text = "Préparation locale du périmètre, sans appel au modèle…";
+            HashSet<Guid> fullCatalog = _documents
+                .Select(source => source.DocumentId).ToHashSet();
+            SemanticIndexPreview preview = await _service.PreviewIndexAsync(
+                selection, fullCatalog, token);
+            string estimate = preview.DocumentsVisited + " fichier(s), " +
+                preview.ChunksToEmbed + " nouveau(x) vecteur(s), " +
+                preview.ReusedChunks + " passage(s) réutilisé(s), " +
+                preview.RemovedChunks + " passage(s) remplacé(s), " +
+                preview.OrphanedChunks + " orphelin(s) à nettoyer. " +
+                "Index projeté : " + preview.ProjectedTotalChunks + "/10 000 fragments, " +
+                (preview.EstimatedVectorBytes / 1024.0).ToString("0.0") +
+                " Ko de vecteurs bruts estimés (hors JSON et mémoire du modèle).";
+            if (preview.ExceedsChunkBudget)
+            {
+                _status.Text = estimate +
+                    " Périmètre trop volumineux : réduisez-le avant l'indexation.";
+                return;
+            }
+
+            if (MessageBox.Show(this,
+                estimate + "\n\nAutoriser maintenant l'envoi des nouveaux passages " +
+                "au processus d'embeddings local configuré ? " +
+                "Cette estimation n'a lancé aucun fournisseur. " +
+                "Les sources Markdown resteront intactes.",
+                "Confirmer l'indexation locale", MessageBoxButton.YesNo,
+                MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                _status.Text = "Indexation refusée : aucun passage transmis au modèle.";
+                return;
+            }
+
             Progress<SemanticIndexProgress> progress = new(info =>
                 _status.Text = "Indexation : " + info.Completed + "/" + info.Total +
                     " fichiers · " + info.EmbeddedChunks + " nouveaux vecteurs");
+            // Catalog reconciliation uses ALL eligible workspace identities.
+            // The user-selected folder remains the only embedding scope.
+            int removed = await _service.PruneRemovedDocumentsAsync(
+                _documents.Select(source => source.DocumentId).ToHashSet(), true, token);
             SemanticIndexSummary summary = await _service.IndexAsync(
                 selection, true, progress, token);
             _status.Text = "Indexation terminée : " + summary.DocumentsChanged +
-                " fichier(s) actualisé(s), " + summary.EmbeddedChunks + " vecteurs créés.";
+                " fichier(s) actualisé(s), " + summary.EmbeddedChunks +
+                " vecteurs créés, " + removed +
+                " fragments de documents supprimés nettoyés. Relancer reprend les fragments inchangés.";
+            await RefreshIndexStatusAsync(token);
         }
         catch (OperationCanceledException)
         {
@@ -172,7 +314,104 @@ public sealed class SemanticSearchDialog : Window
         }
     }
 
-    /// <summary>Ranks real embeddings, then loads each hit's current source excerpt.</summary>
+    /// <summary>Shows derived cache size, coverage and compatibility without a model call.</summary>
+    /// <param name="sender">Inspection button.</param>
+    /// <param name="args">Click gesture.</param>
+    private async void InspectClicked(object sender, RoutedEventArgs args)
+    {
+        _inspect.IsEnabled = false;
+        try
+        {
+            await RefreshIndexStatusAsync(CancellationToken.None);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            _indexInfo.Text = "État de l'index indisponible : " + error.Message;
+        }
+        finally
+        {
+            _inspect.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Permanently purges only derived vectors after user confirmation.</summary>
+    /// <param name="sender">Purge button.</param>
+    /// <param name="args">Click gesture.</param>
+    private async void PurgeClicked(object sender, RoutedEventArgs args)
+    {
+        if (MessageBox.Show(this,
+            "Purger définitivement les embeddings du workspace courant ? " +
+            "Les notes, projets et sources Markdown ne seront pas modifiés. " +
+            "Une indexation future exigera un nouveau consentement.",
+            "Confirmer la purge locale", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+            != MessageBoxResult.Yes) return;
+
+        _purge.IsEnabled = false;
+        _inspect.IsEnabled = false;
+        try
+        {
+            await _service.PurgeAsync();
+            _results.Items.Clear();
+            _status.Text = "Vecteurs supprimés. Le mode texte reste disponible sans modèle.";
+            await RefreshIndexStatusAsync(CancellationToken.None);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            _indexInfo.Text = "Échec de la purge locale : " + error.Message;
+        }
+        finally
+        {
+            _inspect.IsEnabled = true;
+            _purge.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Reads validated cache metadata and scope coverage without indexing.</summary>
+    /// <param name="token">Cancellation of the local read.</param>
+    /// <returns>Completed status display.</returns>
+    private async Task RefreshIndexStatusAsync(CancellationToken token)
+    {
+        SemanticIndexStatus status = await _service.InspectAsync(token);
+        string state = !status.FileExists ? "Absent (aucun vecteur)" :
+            !status.IsCompatible ? "Incompatible ou corrompu : réindexation nécessaire" :
+            "Valide";
+        string date = status.UpdatedAtUtc?.ToLocalTime().ToString("g") ?? "aucune";
+        int projects = status.IndexedPaths.Count(path =>
+            path.Contains("/Projets/", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("/Sous-projets/", StringComparison.OrdinalIgnoreCase));
+        int applications = status.IndexedPaths.Count(path =>
+            path.StartsWith("Applications/", StringComparison.OrdinalIgnoreCase)) - projects;
+        applications = Math.Max(0, applications);
+        int global = Math.Max(0, status.IndexedPaths.Count - projects - applications);
+        string scope = _scope.Text.Trim().Replace('\\', '/').Trim('/');
+        int withinScope = scope.Length == 0 ? status.IndexedPaths.Count :
+            status.IndexedPaths.Count(path => path.StartsWith(scope + "/",
+                StringComparison.OrdinalIgnoreCase));
+        string[] visible = status.IndexedPaths.Take(5).ToArray();
+        string sample = visible.Length == 0 ? "" :
+            " · Exemples : " + string.Join(", ", visible) +
+            (status.IndexedPaths.Count > visible.Length ? "…" : "");
+        _indexInfo.Text = "État : " + state +
+            " · Modèle : " + (string.IsNullOrWhiteSpace(status.ModelId) ? "non configuré" : status.ModelId) +
+            " (" + status.Dimensions + " dim.)" +
+            " · Documents : " + status.DocumentCount +
+            " · Passages : " + status.ChunkCount + "/10 000" +
+            " · Cache disque : " + (status.OnDiskBytes / 1024.0).ToString("0.0") + " Ko" +
+            " · RAM vecteurs estimée : " + (status.VectorBytes / 1024.0).ToString("0.0") + " Ko" +
+            " · Dernière modification : " + date +
+            " · Couverture : Global " + global + ", Application " + applications +
+            ", Projet " + projects +
+            " · Dans le périmètre choisi : " + withinScope +
+            " · Documents éligibles : " + _documents.Count +
+            " · Motifs exclus : " + _exclusionCount +
+            " · Chemin : " + status.CachePath + sample;
+    }
+
+    /// <summary>
+    /// Searches locally in lexical, semantic or combined mode; an unavailable
+    /// embeddings provider never blocks the useful lexical fallback.
+    /// </summary>
     /// <param name="sender">Search button.</param>
     /// <param name="args">Click.</param>
     private async void SearchClicked(object sender, RoutedEventArgs args)
@@ -186,41 +425,97 @@ public sealed class SemanticSearchDialog : Window
             return;
         }
 
+        int mode = _mode.SelectedIndex;
+        if (!_enabled && mode != 1)
+        {
+            _status.Text = "Embeddings désactivés : choisissez Texte seul, ou activez le fournisseur dans Ctrl+P.";
+            return;
+        }
+
         CancellationToken token = Begin();
         try
         {
-            IReadOnlyList<SemanticSearchResult> hits = await _service.SearchAsync(
-                query, true, scope.Length == 0 ? null : scope, token);
-            _results.Items.Clear();
-            foreach (SemanticSearchResult hit in hits)
+            IReadOnlyList<HybridSearchCandidate> lexical = mode == 2
+                ? [] : await GetLexicalCandidatesAsync(query, scope, token);
+            IReadOnlyList<SemanticSearchResult> vector = [];
+            bool providerUnavailable = false;
+            string semanticQuery = WorkspaceSearchService.GetFreeTextQuery(query);
+            if (mode != 1 && semanticQuery.Length > 0)
             {
+                try
+                {
+                    vector = await _service.SearchAsync(semanticQuery, true,
+                        scope.Length == 0 ? null : scope, token);
+                    if (WorkspaceSearchService.HasStructuredFilters(query))
+                    {
+                        // Reuse the original engine's exact front matter, project
+                        // and modification-date predicates before displaying vectors.
+                        IReadOnlySet<string> permitted =
+                            await _lexicalService.GetFilteredRelativePathsAsync(
+                                _workspaceRoot, query, token);
+                        vector = vector.Where(hit => permitted.Contains(
+                            hit.RelativePath.Replace('\\', '/'))).ToArray();
+                    }
+                }
+                catch (Exception error) when (mode == 0 && error is
+                    EmbeddingProviderException or InvalidDataException or
+                    IOException or UnauthorizedAccessException)
+                {
+                    // Hybrid search still has genuine legacy lexical results.
+                    // Never fabricate semantic hits or persist an error payload.
+                    providerUnavailable = true;
+                }
+            }
+
+            HybridSearchCandidate[] semantic = vector.Select(hit =>
+                new HybridSearchCandidate(hit.DocumentId, hit.RelativePath,
+                    hit.SourceLine, hit.Heading, hit.Excerpt,
+                    Similarity: hit.Similarity)).ToArray();
+            IReadOnlyList<HybridRankedHit> hits = HybridSearchRanker.Fuse(lexical, semantic);
+            _results.Items.Clear();
+            foreach (HybridRankedHit hit in hits)
+            {
+                HybridSearchCandidate candidate = hit.Candidate;
+                string explanation = hit.MatchSource switch
+                {
+                    HybridMatchSource.Combined => "mixte (lexical + sémantique)",
+                    HybridMatchSource.Semantic => "sémantique",
+                    _ => "lexical"
+                };
+                string score = hit.Similarity is double similarity
+                    ? " · similarité cosinus " + similarity.ToString("0.000",
+                        System.Globalization.CultureInfo.InvariantCulture)
+                    : "";
                 StackPanel display = new();
                 display.Children.Add(new TextBlock
                 {
-                    Text = hit.RelativePath + " · ligne " + hit.SourceLine +
-                        (hit.Heading is null ? "" : " · " + hit.Heading) +
-                        " · similarité " + hit.Similarity.ToString("0.000",
-                            System.Globalization.CultureInfo.InvariantCulture),
+                    Text = candidate.RelativePath + " · ligne " + candidate.SourceLine +
+                        (candidate.Heading is null ? "" : " · " + candidate.Heading) +
+                        " · " + explanation + score,
                     FontWeight = FontWeights.SemiBold,
                     TextWrapping = TextWrapping.Wrap
                 });
                 display.Children.Add(new TextBlock
                 {
-                    Text = hit.Excerpt,
+                    Text = candidate.Excerpt,
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 4, 0, 8)
                 });
                 _results.Items.Add(new ListBoxItem
                 {
                     Content = display,
-                    Tag = hit,
+                    Tag = new SemanticSearchResult(candidate.DocumentId,
+                        candidate.RelativePath, candidate.Heading, candidate.SourceLine,
+                        candidate.Excerpt, hit.Similarity ?? 0),
                     HorizontalContentAlignment = HorizontalAlignment.Stretch
                 });
             }
 
-            _status.Text = hits.Count == 0
-                ? "Aucun passage valide trouvé : réindexez ou utilisez la recherche fuzzy/exacte."
-                : hits.Count + " document(s) retrouvés par similarité (ce n'est pas une probabilité).";
+            _status.Text = providerUnavailable
+                ? "Fournisseur local indisponible : résultats exacts/fuzzy affichés sans IA."
+                : hits.Count == 0
+                    ? "Aucune correspondance. Essayez un autre terme ou réindexez les documents."
+                    : hits.Count + " document(s) · RRF = fusion des rangs, pas une probabilité.";
         }
         catch (OperationCanceledException)
         {
@@ -229,13 +524,61 @@ public sealed class SemanticSearchDialog : Window
         catch (Exception error) when (error is EmbeddingProviderException or
             InvalidDataException or IOException or UnauthorizedAccessException)
         {
-            _status.Text = "Modèle local indisponible : " + error.Message +
-                " · La recherche exacte/fuzzy reste accessible.";
+            _status.Text = "Recherche indisponible : " + error.Message +
+                " · Essayez le mode Texte seul.";
         }
         finally
         {
             End();
         }
+    }
+
+    /// <summary>
+    /// Resolves real legacy search occurrences to canonical GUID identities;
+    /// path scope and exclusions are enforced before merging the two rankings.
+    /// </summary>
+    /// <param name="query">User query submitted to the original fuzzy engine.</param>
+    /// <param name="scope">Validated workspace-relative directory prefix.</param>
+    /// <param name="token">Cancellation token.</param>
+    /// <returns>Best-first GUID-backed lexical candidates.</returns>
+    private async Task<IReadOnlyList<HybridSearchCandidate>> GetLexicalCandidatesAsync(
+        string query, string scope, CancellationToken token)
+    {
+        SearchResultSet results = await _lexicalService.SearchAsync(
+            _workspaceRoot, null, query, SearchMatchMode.Fuzzy, token);
+        List<HybridSearchCandidate> candidates = [];
+        HashSet<Guid> seen = [];
+        IEnumerable<SearchResult> ranked = results.Project
+            .Concat(results.Application).Concat(results.Global)
+            .OrderByDescending(item => item.Score)
+            .ThenBy(item => item.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.LineNumber);
+        foreach (SearchResult hit in ranked)
+        {
+            token.ThrowIfCancellationRequested();
+            string relative = Path.GetRelativePath(_workspaceRoot, hit.FilePath)
+                .Replace('\\', '/');
+            if (relative == ".." || relative.StartsWith("../", StringComparison.Ordinal) ||
+                Path.IsPathRooted(relative) ||
+                (scope.Length > 0 &&
+                 !relative.StartsWith(scope + "/", StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            SemanticSource? source = _lexicalDocuments.FirstOrDefault(document =>
+                string.Equals(document.RelativePath.Replace('\\', '/'), relative,
+                    StringComparison.OrdinalIgnoreCase));
+            if (source is null || !seen.Add(source.DocumentId)) continue;
+
+            bool exactReference = hit.MatchKind == SearchMatchKind.FileName &&
+                SearchTextScorer.TryScore(query, hit.DisplayName,
+                    SearchMatchMode.Exact, out double _);
+            candidates.Add(new HybridSearchCandidate(source.DocumentId,
+                source.RelativePath, hit.LineNumber, null, hit.Excerpt,
+                IsExactIdentifier: exactReference));
+            if (candidates.Count >= 200) break;
+        }
+
+        return candidates;
     }
 
     /// <summary>Returns a validated relative folder prefix.</summary>
@@ -261,6 +604,11 @@ public sealed class SemanticSearchDialog : Window
         _index.IsEnabled = false;
         _search.IsEnabled = false;
         _cancel.IsEnabled = true;
+        _mode.IsEnabled = false;
+        _scopePicker.IsEnabled = false;
+        _scope.IsEnabled = false;
+        _purge.IsEnabled = false;
+        _inspect.IsEnabled = false;
         return _request.Token;
     }
 
@@ -270,8 +618,13 @@ public sealed class SemanticSearchDialog : Window
         _request?.Dispose();
         _request = null;
         _index.IsEnabled = _enabled;
-        _search.IsEnabled = _enabled;
+        _search.IsEnabled = true;
+        _mode.IsEnabled = true;
+        _scopePicker.IsEnabled = true;
+        _scope.IsEnabled = true;
         _cancel.IsEnabled = false;
+        _purge.IsEnabled = true;
+        _inspect.IsEnabled = true;
     }
 
     /// <summary>Closes the dialog only when an actual source result is selected.</summary>
