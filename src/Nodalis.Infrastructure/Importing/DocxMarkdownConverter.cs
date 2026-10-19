@@ -51,7 +51,7 @@ public static class DocxMarkdownConverter
             DocxParagraph paragraph)
     {
         string text = ApplyHyperlinks(
-            paragraph.Text,
+            InsertInlineMedia(paragraph.Text, paragraph.Media),
             paragraph.Hyperlinks);
 
         if (string.IsNullOrWhiteSpace(text))
@@ -97,6 +97,55 @@ public static class DocxMarkdownConverter
         builder.AppendLine(
             text.Trim());
         builder.AppendLine();
+    }
+
+    /// <summary>
+    /// Injects Markdown images in the source character order, retaining placeholder warnings
+    /// for unsupported objects and avoiding active links or downloaded resources.
+    /// </summary>
+    private static string InsertInlineMedia(string text, IReadOnlyList<DocxInlineMedia> media)
+    {
+        if (media.Count == 0)
+        {
+            return text;
+        }
+
+        StringBuilder result = new StringBuilder();
+        int previousOffset = 0;
+        foreach (DocxInlineMedia item in media.OrderBy(item => item.TextOffset))
+        {
+            int position = Math.Clamp(item.TextOffset, previousOffset, text.Length);
+            result.Append(text, previousOffset, position - previousOffset);
+            if (result.Length > 0 && !char.IsWhiteSpace(result[^1]))
+            {
+                result.Append(' ');
+            }
+
+            if (item.IsSupported)
+            {
+                string alt = item.AlternativeText
+                    .Replace("[", "\\[", StringComparison.Ordinal)
+                    .Replace("]", "\\]", StringComparison.Ordinal)
+                    .Replace("\r", " ", StringComparison.Ordinal)
+                    .Replace("\n", " ", StringComparison.Ordinal);
+                result.Append("![").Append(alt).Append("](")
+                    .Append(item.MarkdownRelativePath).Append(')');
+            }
+            else
+            {
+                result.Append("[⚠ Objet Word non converti : ")
+                    .Append((item.Warning ?? "élément non pris en charge")
+                        .Replace("[", "(", StringComparison.Ordinal)
+                        .Replace("]", ")", StringComparison.Ordinal))
+                    .Append(']');
+            }
+
+            result.Append(' ');
+            previousOffset = position;
+        }
+
+        result.Append(text, previousOffset, text.Length - previousOffset);
+        return result.ToString();
     }
 
     /// <summary>

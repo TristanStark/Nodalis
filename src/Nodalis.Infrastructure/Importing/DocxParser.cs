@@ -110,6 +110,8 @@ public sealed class DocxParser
                 relationship => relationship.Id,
                 StringComparer.Ordinal);
 
+            DocxInlineMediaInspector mediaInspector = new DocxInlineMediaInspector(archive, relationshipMap);
+
             global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxBlock> blocks = new List<DocxBlock>();
 
             foreach (global::System.Xml.Linq.XElement element in body.Elements())
@@ -126,7 +128,10 @@ public sealed class DocxParser
                             Paragraph = ParseParagraph(
                                 element,
                                 styles,
-                                relationshipMap)
+                                relationshipMap) with
+                            {
+                                Media = mediaInspector.InspectParagraph(element)
+                            }
                         });
 
                     continue;

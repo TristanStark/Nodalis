@@ -1,0 +1,9 @@
+# Nodalis v1.9 — Images, légendes et objets Word (#161, premier incrément)
+
+L'analyse du DOCX détecte les images internes déclarées dans les relations `word/_rels/document.xml.rels` et référencées par `a:blip r:embed`. Les images intégrées PNG, JPEG, GIF et BMP sont validées et identifiées par **SHA256 complet**, avec extraction des attributs alt-text de `wp:docPr`. Le marqueur Markdown est replacé à la position du dessin dans le paragraphe. Les légendes dans les paragraphes Word voisins sont conservées comme texte Word ; aucune association visuelle automatique n'est prétendue.
+
+Au plan d'import, seules les images incluses dans les sections et blocs sélectionnés sont projetées vers `<Projet>/Media-Docx/<SHA256>.<ext>`, accessibles depuis un Markdown de section via `../Media-Docx/<SHA256>.<ext>`. La même ressource n'est enregistrée qu'une fois par projet ; si le fichier existe déjà, son empreinte est vérifiée. L'import refuse les collisions ou modifications de la copie stagée. Les fichiers nouvellement créés sont suivis pour rollback en cas d'erreur ; le DOCX original n'est jamais modifié.
+
+Les images liées (`r:link`), SmartArt et objets OLE/VML non convertibles affichent un avertissement visible à la place d'une image silencieusement manquante. Aucun script, objet OLE ni lien externe n'est téléchargé/exécuté. Les images SVG/EMF non gérées restent dans le DOCX original. Limites anti-ZIP-bomb : 256 relations image, 16 Mio/image, 100 Mio cumulés, ratio de compression borné, chemin local sous `word/media/`.
+
+La première phase couvre les dessins dans les paragraphes du document principal. **Restent ouverts** : médias dans tableaux, en-têtes/pieds, objets ancrés complexes, multiples shapes VML, caption dédiée, validation WPF Windows, éventuels liens relatifs dans d'autres structures de projet. Le test `DocxMediaV19SmokeTests` couvre des DOCX ZIP/XML réels et des ressources dupliquées. Ne pas fermer #161 avant qualification.

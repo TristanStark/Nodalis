@@ -246,8 +246,18 @@ public sealed class WorkspaceDocxImportService
             })
             .ToArray();
 
+        DocxBlock[] selectedSourceBlocks = selected
+            .SelectMany(section => section.Preview.Blocks
+                .Where(block => section.SelectedBlockIndexes is null ||
+                                section.SelectedBlockIndexes.Contains(block.BlockIndex))
+                .Select(block => block.Block))
+            .ToArray();
+        IReadOnlyList<DocxInlineMedia> selectedMedia =
+            DocxSelectedMediaAssets.Select(selectedSourceBlocks);
+
         global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportPlannedChange> changes = new List<DocxImportPlannedChange>();
         global::System.Collections.Generic.List<string> warnings = preview.Conflicts.ToList();
+        warnings.AddRange(DocxSelectedMediaAssets.Warnings(selectedSourceBlocks));
 
         string projectDirectory;
         string projectDisplayName;
@@ -432,6 +442,17 @@ public sealed class WorkspaceDocxImportService
                     $"{group.Count()} section(s) Word → section Nodalis « {sectionName} »"));
         }
 
+        foreach (DocxInlineMedia media in selectedMedia)
+        {
+            string destination = Path.Combine(projectDirectory,
+                DocxSelectedMediaAssets.MediaFolder,
+                Path.GetFileName(media.MarkdownRelativePath!));
+            changes.Add(PlanChange(
+                File.Exists(destination) ? "Réutiliser" : "Créer",
+                destination,
+                "Image Word SHA256 · pièce jointe locale, sans téléchargement"));
+        }
+
         string sourcesDirectory = Path.Combine(
             _workspaceRoot,
             WorkspaceLayout.ImportsDirectoryName,
@@ -509,6 +530,15 @@ public sealed class WorkspaceDocxImportService
                     section.SelectedBlockIndexes?.ToHashSet());
             })
             .ToArray();
+
+        DocxBlock[] selectedSourceBlocks = selected
+            .SelectMany(section => section.Preview.Blocks
+                .Where(block => section.SelectedBlockIndexes is null ||
+                                section.SelectedBlockIndexes.Contains(block.BlockIndex))
+                .Select(block => block.Block))
+            .ToArray();
+        IReadOnlyList<DocxInlineMedia> selectedMedia =
+            DocxSelectedMediaAssets.Select(selectedSourceBlocks);
 
         string projectDirectory = string.Empty;
         global::System.Guid projectId = Guid.Empty;
@@ -600,6 +630,11 @@ public sealed class WorkspaceDocxImportService
                     updatedProject,
                     cancellationToken);
             }
+
+            await DocxSelectedMediaAssets.CopyAsync(
+                preview.StagedImport.StagedCopyPath,
+                projectDirectory, selectedMedia, generatedFiles, createdDirectories,
+                cancellationToken);
 
             foreach (global::System.Linq.IGrouping<string, global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection> group in selected
                          .GroupBy(

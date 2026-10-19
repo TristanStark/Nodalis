@@ -23,4 +23,7 @@ public sealed record DocxParagraph
     public int? ListLevel { get; init; }
 
     public List<DocxHyperlink> Hyperlinks { get; init; } = [];
+
+    /// <summary>Images and unsupported objects in source reading order.</summary>
+    public List<DocxInlineMedia> Media { get; init; } = [];
 }
