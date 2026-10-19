@@ -44,6 +44,17 @@ public sealed class DocxImportManifestStore
             .Replace('\\', '/');
     }
 
+    /// <summary>
+    /// Resolves a manifest's portable path for read-only inspection, rejecting
+    /// absolute or escaping paths. Does not create any workspace directories.
+    /// </summary>
+    public string ResolveWorkspaceRelativePath(string relativePath)
+    {
+        ValidateRelativePath(relativePath);
+        return EnsureWorkspacePath(Path.Combine(_workspaceRoot,
+            relativePath.Replace('/', Path.DirectorySeparatorChar)));
+    }
+
     /// <summary>Computes the SHA-256 of a text snapshot without normalizing it.</summary>
     public static string ComputeSha256(string content)
     {
