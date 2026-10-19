@@ -325,6 +325,97 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="Affectation">
+                <Grid Margin="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Margin="0,0,0,12"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               TextWrapping="Wrap"
+                               Text="Sélectionnez une branche Word à gauche et sa section Nodalis à droite. Glissez-déposez ou utilisez « Affecter ». Le projet cible se choisit dans l'onglet Cible ; aucune écriture avant validation." />
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Margin="0,0,0,8" FontWeight="SemiBold" Text="Sections Word (ordre de fusion)" />
+                            <ListBox x:Name="MappingSourceList"
+                                     Grid.Row="1"
+                                     PreviewMouseMove="MappingSource_MouseMove"
+                                     MinHeight="180">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="10,8" Margin="2,3"
+                                                Background="{StaticResource PanelBackgroundBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding SourceHeading}" FontWeight="SemiBold"
+                                                           TextWrapping="Wrap" />
+                                                <TextBlock Foreground="{StaticResource SecondaryTextBrush}"
+                                                           FontSize="11" Text="{Binding TargetSection}"
+                                                           TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Margin="0,0,0,8" FontWeight="SemiBold" Text="Projet et sections de destination" />
+                            <TreeView x:Name="MappingDestinationTree" Grid.Row="1"
+                                      MinHeight="180"
+                                      AllowDrop="True"
+                                      DragOver="MappingDestination_DragOver"
+                                      Drop="MappingDestination_Drop">
+                                <TreeView.Resources>
+                                    <HierarchicalDataTemplate DataType="{x:Type dialogs:DocxImportDestinationNode}"
+                                                              ItemsSource="{Binding Children}">
+                                        <TextBlock Text="{Binding Label}" Padding="4"
+                                                   TextWrapping="Wrap" />
+                                    </HierarchicalDataTemplate>
+                                </TreeView.Resources>
+                            </TreeView>
+                        </Grid>
+                    </Grid>
+                    <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                        <WrapPanel>
+                            <Button Padding="10,5" Margin="0,0,8,8" Click="MappingAssign_Click"
+                                    Content="Affecter à la section sélectionnée" />
+                            <Button Padding="10,5" Margin="0,0,8,8" Click="MappingIgnore_Click"
+                                    Content="Ignorer la branche" />
+                            <Button Padding="10,5" Margin="0,0,8,8" Click="MappingUp_Click"
+                                    Content="Monter" />
+                            <Button Padding="10,5" Margin="0,0,8,8" Click="MappingDown_Click"
+                                    Content="Descendre" />
+                        </WrapPanel>
+                        <WrapPanel>
+                            <TextBox x:Name="MappingNewSectionBox" Width="220"
+                                     MinHeight="30" Padding="7,4" Margin="0,0,8,0"
+                                     ToolTip="Nom d'une nouvelle section du projet cible" />
+                            <Button Padding="10,5" Click="MappingAssignNew_Click"
+                                    Content="Affecter à une nouvelle section" />
+                        </WrapPanel>
+                        <TextBlock x:Name="MappingFeedbackText" Margin="0,6,0,0"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
             <TabItem x:Name="FilesTab"
                      Header="Fichiers">
                 <Grid Margin="14">

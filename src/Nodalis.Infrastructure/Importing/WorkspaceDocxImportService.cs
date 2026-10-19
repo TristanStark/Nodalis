@@ -140,7 +140,11 @@ public sealed class WorkspaceDocxImportService
                         DisplayName = target.DisplayName,
                         QualifiedName = target.QualifiedName,
                         RelativePath = target.RelativePath,
-                        ApplicationId = manifest.ApplicationId
+                        ApplicationId = manifest.ApplicationId,
+                        ExistingSections = manifest.Sections
+                            .OrderBy(section => section.Order)
+                            .Select(section => section.Name)
+                            .ToList()
                     });
             }
 

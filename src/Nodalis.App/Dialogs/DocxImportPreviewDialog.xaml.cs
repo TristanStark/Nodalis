@@ -97,6 +97,7 @@ public partial class DocxImportPreviewDialog : Window
 
         SectionsListBox.ItemsSource =
             _sections;
+        MappingSourceList.ItemsSource = _sections;
 
         HeadingLevelComboBox.ItemsSource =
             Enumerable.Range(0, 10)
@@ -138,6 +139,11 @@ public partial class DocxImportPreviewDialog : Window
         }
 
         ApplyProjectMode();
+        RefreshMappingDestinations();
+        if (_sections.Count > 0)
+        {
+            MappingSourceList.SelectedIndex = 0;
+        }
 
         SummaryText.Text =
             $"{_sections.Count} section(s) détectée(s) · " +
@@ -227,6 +233,7 @@ public partial class DocxImportPreviewDialog : Window
     {
         RefreshProjectChoices(
             preserveSelection: false);
+        RefreshMappingDestinations();
         InvalidatePlan();
     }
 
@@ -239,6 +246,7 @@ public partial class DocxImportPreviewDialog : Window
             object sender,
             SelectionChangedEventArgs e)
     {
+        RefreshMappingDestinations();
         InvalidatePlan();
     }
 
@@ -264,6 +272,7 @@ public partial class DocxImportPreviewDialog : Window
             RoutedEventArgs e)
     {
         ApplyProjectMode();
+        RefreshMappingDestinations();
         InvalidatePlan();
     }
 
