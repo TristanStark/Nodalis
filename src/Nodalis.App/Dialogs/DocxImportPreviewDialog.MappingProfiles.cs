@@ -15,6 +15,7 @@ public partial class DocxImportPreviewDialog
     private readonly HashSet<int> _manuallyMappedSectionIndexes = [];
     private readonly HashSet<int> _unresolvedProfileConflictIndexes = [];
     private bool _applyingMappingProfile;
+    private DocxMappingProfile? _appliedMappingProfile;
 
     public sealed record ProfileRuleRow(DocxMappingProfileRule Rule, string Label);
 
@@ -424,6 +425,7 @@ public partial class DocxImportPreviewDialog
     private void MappingProfileApply_Click(object sender, RoutedEventArgs e)
     {
         List<(SectionRow Row, DocxMappingDecision Decision)> results = EvaluateMappingProfile();
+        _appliedMappingProfile = SelectedMappingProfile();
         _unresolvedProfileConflictIndexes.Clear();
         _applyingMappingProfile = true;
         try
@@ -506,6 +508,7 @@ public partial class DocxImportPreviewDialog
     /// <summary>Disables unresolved profile proposals and returns to purely manual mapping.</summary>
     private void MappingProfileClear_Click(object sender, RoutedEventArgs e)
     {
+        _appliedMappingProfile = null;
         _unresolvedProfileConflictIndexes.Clear();
         MappingProfileReportBox.Text = "Profil désactivé pour ce document. Affectations courantes à vérifier.";
         MappingProfileStatusText.Text = "Aucune règle de profil ne bloque désormais le plan.";
