@@ -277,6 +277,34 @@ internal static class DocxReimportReviewSmokeTests
                    DocxImportManifestStore.ComputeSha256(original),
             "Keeping Nodalis must retain its baseline and audit the rejected Word update.");
 
+        DocxReimportTransactionResult onlyProvenance =
+            await transaction.CommitWithProvenanceAsync(
+                projectDirectory, keptPlan, retainedOperationId,
+                DocxReimportTransactionService.Fingerprint(keptPlan),
+                new DocxReimportProvenancePackage
+                {
+                    Manifest = keptHistory,
+                    StagedDocxPath = newCopy
+                });
+        Assert(onlyProvenance.WrittenFiles == 0 &&
+               !onlyProvenance.AlreadyApplied &&
+               onlyProvenance.ManifestPath is not null &&
+               File.Exists(onlyProvenance.ManifestPath) &&
+               await File.ReadAllTextAsync(markdownPath) == original,
+            "Keeping Nodalis must still version the Word provenance without modifying notes.");
+
+        DocxReimportTransactionResult replayKept =
+            await transaction.CommitWithProvenanceAsync(
+                projectDirectory, keptPlan, retainedOperationId,
+                DocxReimportTransactionService.Fingerprint(keptPlan),
+                new DocxReimportProvenancePackage
+                {
+                    Manifest = keptHistory,
+                    StagedDocxPath = newCopy
+                });
+        Assert(replayKept.AlreadyApplied && replayKept.WrittenFiles == 0,
+            "A metadata-only reimport must be idempotent.");
+
         bool mismatchedHistoryRejected = false;
         try
         {
