@@ -176,6 +176,7 @@ public sealed class DocxReimportTransactionService
             string path = Destination(project, write.DestinationRelativePath);
             if (!destinations.Add(path) ||
                 string.IsNullOrWhiteSpace(write.ProjectedMarkdown) ||
+                Encoding.UTF8.GetByteCount(write.ProjectedMarkdown) > MaxFileBytes ||
                 !string.Equals(DocxImportManifestStore.ComputeSha256(
                         write.ProjectedMarkdown), write.ProjectedSha256,
                     StringComparison.OrdinalIgnoreCase) ||
@@ -500,9 +501,19 @@ public sealed class DocxReimportTransactionService
         Path.Combine(project, DirectoryName);
 
     /// <summary>Creates an exclusive operation-wide lock shared by commit and recovery.</summary>
-    private static FileStream AcquireLock(string directory) =>
-        new FileStream(Path.Combine(directory, ".lock"), FileMode.OpenOrCreate,
+    private static FileStream AcquireLock(string directory)
+    {
+        string path = Path.Combine(directory, ".lock");
+        if (File.Exists(path) &&
+            (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException(
+                "Verrou de transaction DOCX sur lien symbolique interdit.");
+        }
+
+        return new FileStream(path, FileMode.OpenOrCreate,
             FileAccess.ReadWrite, FileShare.None);
+    }
 
     /// <summary>Confirms the canonical persisted project identifier.</summary>
     private static async Task VerifyProjectAsync(string project, Guid projectId,
@@ -531,13 +542,13 @@ public sealed class DocxReimportTransactionService
                 journalPath, cancellationToken);
         if (journal.OperationId == Guid.Empty || journal.ProjectId == Guid.Empty ||
             journal.PreviousImportId == Guid.Empty ||
-            journal.Fingerprint is not { Length: 64 } ||
+            !IsSha256(journal.Fingerprint) ||
             journal.Entries is not { Count: > 0 and <= 200 } ||
             journal.Entries.Any(entry =>
                 entry is null ||
-                entry.BeforeSha256 is not { Length: 64 } ||
-                entry.AfterSha256 is not { Length: 64 } ||
-                entry.BackupBytesSha256 is not { Length: 64 } ||
+                !IsSha256(entry.BeforeSha256) ||
+                !IsSha256(entry.AfterSha256) ||
+                !IsSha256(entry.BackupBytesSha256) ||
                 string.IsNullOrWhiteSpace(entry.DestinationRelativePath) ||
                 string.IsNullOrWhiteSpace(entry.BackupFileName)) ||
             !Enum.IsDefined(journal.State))
@@ -547,6 +558,13 @@ public sealed class DocxReimportTransactionService
 
         return journal;
     }
+
+    /// <summary>Ensures journals contain real 64-digit SHA-256 hex strings.</summary>
+    private static bool IsSha256(string? hash) =>
+        hash is { Length: 64 } &&
+        hash.All(character =>
+            character is >= '0' and <= '9' or >= 'a' and <= 'f' or
+                >= 'A' and <= 'F');
 
     /// <summary>Returns a stable SHA-256 over the exact original backup bytes.</summary>
     private static string ShaBytes(byte[] bytes) =>
