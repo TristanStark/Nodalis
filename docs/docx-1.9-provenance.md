@@ -28,7 +28,7 @@ confirmation.
 | `fragments[].sourceSectionIndex`, `headingBlockIndex` | Position structurelle d'origine |
 | `fragments[].fragmentId` | Identité unique pour distinguer deux titres identiques |
 | `fragments[].selectedBlockIndexes` | Sélection exacte de blocs |
-| `fragments[].sourceHeading`, `targetSection` | Titre Word et section Nodalis sélectionnée |
+| `fragments[].sourceHeading`, `targetSection`, `targetSectionId` | Titre Word, section Nodalis et son GUID canonique |
 | `fragments[].destinationRelativePath` | Fichier Markdown produit |
 | `fragments[].baseMarkdown`, `fragmentSha256` | Snapshot et empreinte du fragment importé |
 | `fragments[].destinationSha256` | Empreinte de tout le Markdown de destination au commit |
