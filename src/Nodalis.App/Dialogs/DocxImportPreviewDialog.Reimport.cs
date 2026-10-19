@@ -17,12 +17,21 @@ public partial class DocxImportPreviewDialog
     private DocxImportManifestStore _reimportStore = null!;
     private string _reimportWorkspaceRoot = string.Empty;
     private readonly Dictionary<Guid, int?> _reimportOverrideChoices = [];
+    private readonly Dictionary<Guid, DocxReimportResolution> _reimportDecisions = [];
+    private DocxReimportReview? _activeReimportReview;
 
     /// <summary>Initializes local-only reimport discovery without any disk writes.</summary>
     private void InitializeReimportControls(string workspaceRoot)
     {
         _reimportWorkspaceRoot = Path.GetFullPath(workspaceRoot);
         _reimportStore = new DocxImportManifestStore(workspaceRoot);
+        ReimportDecisionComboBox.ItemsSource = new ReimportDecisionChoice[]
+        {
+            new(DocxReimportResolutionAction.KeepNodalis, "Conserver Nodalis"),
+            new(DocxReimportResolutionAction.UseWord, "Utiliser Word"),
+            new(DocxReimportResolutionAction.ManualMerge, "Fusion manuelle"),
+            new(DocxReimportResolutionAction.KeepHistorical, "Garder comme historique")
+        };
     }
 
     /// <summary>Discovers only matching historical sources in the selected project.</summary>
@@ -32,6 +41,8 @@ public partial class DocxImportPreviewDialog
         {
             ReimportHistoryComboBox.ItemsSource = null;
             _reimportOverrideChoices.Clear();
+            _reimportDecisions.Clear();
+            _activeReimportReview = null;
             ReimportMatchComboBox.ItemsSource = null;
             ReimportFragmentsList.ItemsSource = null;
             ClearReimportText();
@@ -80,6 +91,8 @@ public partial class DocxImportPreviewDialog
     private void ReimportHistory_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _reimportOverrideChoices.Clear();
+        _reimportDecisions.Clear();
+        _activeReimportReview = null;
         if (ReimportFragmentsList is not null)
         {
             ReimportFragmentsList.ItemsSource = null;
@@ -139,6 +152,8 @@ public partial class DocxImportPreviewDialog
             await DisplayReimportReportAsync(projectDirectory, history!, trial,
                 row.Fragment.Association.FragmentId);
             _reimportOverrideChoices.Clear();
+            _reimportDecisions.Clear();
+            ReimportDecisionStatus.Text = "Associations modifiées : confirmez de nouveau les décisions.";
             foreach (KeyValuePair<Guid, int?> pair in trial)
             {
                 _reimportOverrideChoices.Add(pair.Key, pair.Value);
@@ -202,6 +217,7 @@ public partial class DocxImportPreviewDialog
                 (fragment.RequiresExplicitResolution ? " · arbitrage" : "")))
             .ToList();
 
+        _activeReimportReview = review;
         ReimportFragmentsList.ItemsSource = rows;
         ReimportFragmentsList.SelectedItem = selectFragmentId is Guid selected
             ? rows.FirstOrDefault(row => row.Fragment.Association.FragmentId == selected)
@@ -255,6 +271,12 @@ public partial class DocxImportPreviewDialog
             (option.Index is not null ||
              selected.Fragment.Association.Kind ==
                  DocxReimportAssociationKind.ConfirmedMissingFromWord));
+        DocxReimportResolution? saved = _reimportDecisions.GetValueOrDefault(
+            selected.Fragment.Association.FragmentId);
+        ReimportDecisionComboBox.SelectedItem =
+            ReimportDecisionComboBox.Items.Cast<ReimportDecisionChoice>()
+                .FirstOrDefault(option => option.Action == saved?.Action);
+        ReimportManualMergeBox.Text = saved?.ManualMarkdown ?? string.Empty;
     }
 
     /// <summary>Clears stale previews after switching projects or comparing another history.</summary>
@@ -264,11 +286,91 @@ public partial class DocxImportPreviewDialog
         ReimportWordBox.Text = string.Empty;
         ReimportLocalBox.Text = string.Empty;
         ReimportMatchComboBox.ItemsSource = null;
+        ReimportDecisionComboBox.SelectedItem = null;
+        ReimportManualMergeBox.Text = string.Empty;
+    }
+
+    /// <summary>
+    /// Captures an explicit resolution choice and runs its dry-run only.
+    /// A failed choice cannot replace earlier accepted in-memory decisions.
+    /// Even a successful plan never writes a workspace document.
+    /// </summary>
+    private async void ReimportDecisionPreview_Click(object sender, RoutedEventArgs e)
+    {
+        await UiActionGuard.RunAsync(this, "Réimport DOCX · décision", () =>
+        {
+            if (ReimportFragmentsList.SelectedItem is not ReimportFragmentChoice row ||
+                ReimportDecisionComboBox.SelectedItem is not ReimportDecisionChoice selected ||
+                ReimportHistoryComboBox.SelectedItem is not ReimportHistoryChoice history ||
+                _activeReimportReview is null ||
+                _activeReimportReview.PreviousImportId != history.Manifest.ImportId ||
+                !TryGetReimportTarget(out string projectDirectory, out ReimportHistoryChoice? _))
+            {
+                ReimportDecisionStatus.Text =
+                    "Recalculez la comparaison et choisissez la section et son action.";
+                return Task.CompletedTask;
+            }
+
+            // Verify the current project identity again; otherwise a stale
+            // review could appear to apply to a different project.
+            string expectedProject = _reimportStore.ResolveWorkspaceRelativePath(
+                ((DocxImportTargetOption)ProjectComboBox.SelectedItem).RelativePath);
+            if (!string.Equals(projectDirectory, expectedProject,
+                    StringComparison.OrdinalIgnoreCase) ||
+                history.Manifest.ProjectId != _activeReimportReview.ProjectId)
+            {
+                throw new InvalidDataException(
+                    "Projet ou historique modifié : recommencez la comparaison DOCX.");
+            }
+
+            DocxReimportResolution decision = new DocxReimportResolution
+            {
+                FragmentId = row.Fragment.Association.FragmentId,
+                Action = selected.Action,
+                ManualMarkdown = selected.Action == DocxReimportResolutionAction.ManualMerge
+                    ? ReimportManualMergeBox.Text : null
+            };
+            Dictionary<Guid, DocxReimportResolution> trial =
+                new Dictionary<Guid, DocxReimportResolution>(_reimportDecisions)
+                {
+                    [decision.FragmentId] = decision
+                };
+            DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
+                _activeReimportReview, history.Manifest, trial.Values.ToArray());
+            DocxReimportDecisionLine result = plan.Lines.Single(line =>
+                line.FragmentId == decision.FragmentId);
+            if (!result.Resolved)
+            {
+                ReimportDecisionStatus.Text = "Décision refusée : " + result.Diagnostic;
+                return Task.CompletedTask;
+            }
+
+            _reimportDecisions.Clear();
+            foreach (KeyValuePair<Guid, DocxReimportResolution> pair in trial)
+            {
+                _reimportDecisions.Add(pair.Key, pair.Value);
+            }
+
+            ReimportDecisionStatus.Text =
+                plan.Lines.Count(line => line.Resolved) + "/" + plan.Lines.Count +
+                " fragment(s) résolu(s) · " + plan.Writes.Count +
+                " modification(s) projetée(s) · " +
+                (plan.ReviewComplete
+                    ? "arbitrages complets, commit non implémenté."
+                    : "d'autres sections, nouvelles sections ou avertissements restent à traiter.") +
+                "\n" + result.Diagnostic +
+                "\nAucun fichier n'a été modifié.";
+            return Task.CompletedTask;
+        });
     }
 
     /// <summary>One explicit historical import selection in the current project.</summary>
     private sealed record ReimportHistoryChoice(
         DocxImportManifest Manifest, string Label);
+
+    /// <summary>One explicit dry-run resolution action available in the inspector.</summary>
+    private sealed record ReimportDecisionChoice(
+        DocxReimportResolutionAction Action, string Label);
 
     /// <summary>One Word section or explicit source deletion offered for arbitration.</summary>
     private sealed record ReimportSectionOption(int? Index, string Label);
