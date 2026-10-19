@@ -90,6 +90,92 @@ internal static class DocxReimportSectionMatcherSmokeTests
                duplicates.UnresolvedNewSectionIndexes.SequenceEqual([0, 1]),
             "Identical headings and contents must remain unresolved, not auto-merged or counted as additions.");
 
+        // User choices must retain one-to-one ownership and must not mutate
+        // the original proposal or the read-only Word preview.
+        DocxImportPreview duplicatePreview = Preview(duplicateBlocks,
+        [
+            Section(0, "Tests", 0, 1, "Corps doublon"),
+            Section(1, "Tests", 2, 3, "Corps doublon")
+        ]);
+        DocxReimportMatchReport adjudicated = DocxReimportMatchResolver.Resolve(
+            duplicates, duplicatePreview,
+            [
+                new DocxReimportSectionMatchOverride
+                {
+                    FragmentId = duplicateA.FragmentId, CurrentSectionIndex = 1
+                },
+                new DocxReimportSectionMatchOverride
+                {
+                    FragmentId = duplicateB.FragmentId, CurrentSectionIndex = 0
+                }
+            ]);
+        Assert(adjudicated.Associations.All(row =>
+                   row.Kind == DocxReimportAssociationKind.Manual &&
+                   !row.RequiresConfirmation) &&
+               adjudicated.AddedSectionIndexes.Count == 0 &&
+               adjudicated.UnresolvedNewSectionIndexes.Count == 0 &&
+               duplicates.Associations.All(row => row.CurrentSectionIndex is null),
+            "Two explicit choices must resolve homonyms while keeping the baseline immutable.");
+
+        bool duplicateRejected = false;
+        try
+        {
+            DocxReimportMatchResolver.Resolve(duplicates, duplicatePreview,
+            [
+                new DocxReimportSectionMatchOverride
+                {
+                    FragmentId = duplicateA.FragmentId, CurrentSectionIndex = 0
+                },
+                new DocxReimportSectionMatchOverride
+                {
+                    FragmentId = duplicateB.FragmentId, CurrentSectionIndex = 0
+                }
+            ]);
+        }
+        catch (InvalidDataException)
+        {
+            duplicateRejected = true;
+        }
+
+        Assert(duplicateRejected,
+            "Two previous fragments must never share the same chosen Word section.");
+
+        bool staleRejected = false;
+        try
+        {
+            DocxReimportMatchResolver.Resolve(duplicates, duplicatePreview,
+            [
+                new DocxReimportSectionMatchOverride
+                {
+                    FragmentId = duplicateA.FragmentId, CurrentSectionIndex = 99
+                }
+            ]);
+        }
+        catch (InvalidDataException)
+        {
+            staleRejected = true;
+        }
+
+        Assert(staleRejected, "Stale section indexes must fail closed.");
+
+        DocxReimportMatchReport markedDeleted = DocxReimportMatchResolver.Resolve(
+            duplicates, duplicatePreview,
+            [
+                new DocxReimportSectionMatchOverride
+                {
+                    FragmentId = duplicateA.FragmentId, CurrentSectionIndex = null
+                }
+            ]);
+        Assert(markedDeleted.Associations.Single(row =>
+                   row.FragmentId == duplicateA.FragmentId).Kind ==
+                   DocxReimportAssociationKind.ConfirmedMissingFromWord &&
+               markedDeleted.Associations.Single(row =>
+                   row.FragmentId == duplicateA.FragmentId).RequiresConfirmation == false &&
+               markedDeleted.Associations.Single(row =>
+                   row.FragmentId == duplicateB.FragmentId).Kind ==
+                   DocxReimportAssociationKind.Ambiguous,
+            "Confirming Word deletion must not erase Nodalis data or resolve other ambiguities.");
+
         // Old manifests without ancestry are still usable for globally
         // unique headings, but association must be reviewed.
         DocxImportManifestFragment legacy = Fragment(0, null, "Nouvelle rubrique",
