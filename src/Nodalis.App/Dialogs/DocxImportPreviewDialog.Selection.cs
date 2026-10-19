@@ -112,6 +112,15 @@ public partial class DocxImportPreviewDialog
                 markdown);
         }
 
+        if (!_applyingMappingProfile)
+        {
+            foreach (SectionRow row in _sections.Where(row => !row.Include))
+            {
+                _manuallyMappedSectionIndexes.Add(row.Index);
+                _unresolvedProfileConflictIndexes.Remove(row.Index);
+            }
+        }
+
         UpdateSelectionSummary();
         InvalidatePlan();
     }

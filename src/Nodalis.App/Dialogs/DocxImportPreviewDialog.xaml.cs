@@ -25,12 +25,16 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     /// <param name="preview">The <c>preview</c> value.</param>
     /// <param name="planBuilder">The <c>planBuilder</c> value.</param>
+    /// <param name="workspaceRoot">Current workspace used for optional mapping profiles.</param>
     public DocxImportPreviewDialog(
             DocxImportPreview preview,
-            Func<DocxImportCommitRequest, Task<DocxImportPlan>> planBuilder)
+            Func<DocxImportCommitRequest, Task<DocxImportPlan>> planBuilder,
+            string workspaceRoot)
     {
         ArgumentNullException.ThrowIfNull(preview);
         ArgumentNullException.ThrowIfNull(planBuilder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+        _mappingProfileStore = new Nodalis.Infrastructure.Importing.DocxMappingProfileStore(workspaceRoot);
 
         _preview = preview;
         _planBuilder = planBuilder;
@@ -59,6 +63,8 @@ public partial class DocxImportPreviewDialog : Window
         _documentSelectionRoot.SelectionChanged += DocumentSelectionRoot_SelectionChanged;
 
         InitializeComponent();
+        InitializeMappingProfileControls();
+        Loaded += MappingProfilesDialog_Loaded;
 
         DocumentSelectionCheckBox.DataContext =
             _documentSelectionRoot;
@@ -292,6 +298,14 @@ public partial class DocxImportPreviewDialog : Window
             nameof(SectionRow.Include) or
             nameof(SectionRow.TargetSection))
         {
+            if (!_applyingMappingProfile &&
+                e.PropertyName == nameof(SectionRow.TargetSection) &&
+                sender is SectionRow changed)
+            {
+                _manuallyMappedSectionIndexes.Add(changed.Index);
+                _unresolvedProfileConflictIndexes.Remove(changed.Index);
+            }
+
             InvalidatePlan();
         }
     }
@@ -662,6 +676,15 @@ public partial class DocxImportPreviewDialog : Window
                     ProjectComboBox);
                 return null;
             }
+        }
+
+        if (_unresolvedProfileConflictIndexes.Count > 0)
+        {
+            Show("Des règles de profil se contredisent pour " +
+                 _unresolvedProfileConflictIndexes.Count +
+                 " section(s). Corrigez leur affectation ou désactivez le profil.",
+                 MappingProfileComboBox);
+            return null;
         }
 
         global::Nodalis.App.Dialogs.DocxImportPreviewDialog.SectionRow[] included = _sections

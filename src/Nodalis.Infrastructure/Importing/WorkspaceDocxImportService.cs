@@ -16,6 +16,9 @@ public sealed class WorkspaceDocxImportService
     private readonly string _workspaceRoot;
     private readonly DocxParser _parser = new();
 
+    /// <summary>Gets the workspace root for local-only user profile storage.</summary>
+    public string WorkspaceRoot => _workspaceRoot;
+
     /// <summary>
     /// Initializes a new instance of <see cref="WorkspaceDocxImportService"/>.
     /// </summary>

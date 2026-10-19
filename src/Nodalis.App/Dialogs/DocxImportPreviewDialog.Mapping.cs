@@ -192,6 +192,8 @@ public partial class DocxImportPreviewDialog
     {
         if (MappingSourceList.SelectedItem is SectionRow row)
         {
+            _manuallyMappedSectionIndexes.Add(row.Index);
+            _unresolvedProfileConflictIndexes.Remove(row.Index);
             row.SelectionRoot.IsSelected = false;
             MappingFeedbackText.Text = "Section ignorée : " + row.SourceHeading;
         }
@@ -252,6 +254,8 @@ public partial class DocxImportPreviewDialog
 
             ImportDocumentPlanBuilder.ValidateDestination(name + ".md");
             source.TargetSection = name;
+            _manuallyMappedSectionIndexes.Add(source.Index);
+            _unresolvedProfileConflictIndexes.Remove(source.Index);
             source.SelectionRoot.IsSelected = true;
             MappingFeedbackText.Text = source.SourceHeading + " → " + name;
             RefreshMappingDestinations();

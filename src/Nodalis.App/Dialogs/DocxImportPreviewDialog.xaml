@@ -417,6 +417,116 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="Profils DOCX">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+                        <TextBlock Text="Règles réutilisables (sans IA)"
+                                   FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Margin="0,5,0,12"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="Les profils restent locaux au workspace. Prévisualisez les règles avant de les appliquer ; les conflits exigent une correction explicite. Rien n'est importé avant le plan final." />
+                        <WrapPanel Margin="0,0,0,8">
+                            <ComboBox x:Name="MappingProfileComboBox" Width="220" MinHeight="30"
+                                      Margin="0,0,8,0" DisplayMemberPath="Name"
+                                      SelectionChanged="MappingProfile_Changed" />
+                            <TextBox x:Name="ProfileNameBox" Width="210" MinHeight="30"
+                                     Margin="0,0,8,0" Padding="6,3"
+                                     ToolTip="Nom du profil à créer ou à renommer" />
+                            <Button Padding="8,4" Margin="0,0,5,0" Content="Créer"
+                                    Click="MappingProfileCreate_Click" />
+                            <Button Padding="8,4" Margin="0,0,5,0" Content="Dupliquer"
+                                    Click="MappingProfileDuplicate_Click" />
+                            <Button Padding="8,4" Content="Enregistrer"
+                                    Click="MappingProfileSave_Click" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,0,0,10">
+                            <Button Padding="8,4" Margin="0,0,8,0" Content="Importer JSON"
+                                    Click="MappingProfileImport_Click" />
+                            <Button Padding="8,4" Margin="0,0,8,0" Content="Exporter JSON"
+                                    Click="MappingProfileExport_Click" />
+                            <CheckBox x:Name="MappingProfileEnabledCheckBox"
+                                      VerticalAlignment="Center"
+                                      Content="Profil activé (uniquement sur demande)" />
+                        </WrapPanel>
+                        <TextBlock Text="Règles ordonnées — sélectionnez une règle pour l'éditer"
+                                   FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <ListBox x:Name="ProfileRulesList"
+                                 Height="130"
+                                 DisplayMemberPath="Label"
+                                 SelectionChanged="MappingProfileRule_Changed" />
+                        <WrapPanel Margin="0,9,0,7">
+                            <TextBox x:Name="ProfileRuleHeadingBox" Width="175" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Titre Word exact, accents ignorés"
+                                     AutomationProperties.Name="Titre source" />
+                            <TextBox x:Name="ProfileRuleStyleBox" Width="150" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Identifiant de style Word (optionnel)"
+                                     AutomationProperties.Name="Style Word" />
+                            <TextBox x:Name="ProfileRuleLevelBox" Width="72" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Niveau de titre Word 1 à 9, vide = tout"
+                                     AutomationProperties.Name="Niveau Word" />
+                            <TextBox x:Name="ProfileRuleParentBox" Width="155" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Chemin parent contenant ce texte"
+                                     AutomationProperties.Name="Chemin parent" />
+                            <TextBox x:Name="ProfileRulePatternBox" Width="205" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Expression régulière sur le titre (limitée en durée)"
+                                     AutomationProperties.Name="Motif sur le titre" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,0,0,7">
+                            <ComboBox x:Name="ProfileRuleActionCombo" Width="150" MinHeight="30"
+                                      Margin="0,0,6,5" />
+                            <TextBox x:Name="ProfileRuleDestinationBox" Width="210" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Section Nodalis cible (vide pour Ignorer)"
+                                     AutomationProperties.Name="Section cible" />
+                            <CheckBox x:Name="ProfileRuleEnabledCheckBox"
+                                      Margin="8,3,6,3" IsChecked="True"
+                                      Content="Règle active" />
+                            <Button Padding="8,4" Margin="0,0,6,5"
+                                    Content="Ajouter une règle"
+                                    Click="MappingProfileRuleAdd_Click" />
+                            <Button Padding="8,4" Margin="0,0,6,5"
+                                    Content="Modifier"
+                                    Click="MappingProfileRuleUpdate_Click" />
+                            <Button Padding="8,4" Margin="0,0,6,5"
+                                    Content="Activer/Désactiver"
+                                    Click="MappingProfileRuleToggle_Click" />
+                            <Button Padding="8,4" Margin="0,0,6,5"
+                                    Content="Supprimer"
+                                    Click="MappingProfileRuleRemove_Click" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,0,0,8">
+                            <Button Padding="9,5" Margin="0,0,6,5"
+                                    Content="Prévisualiser les règles"
+                                    Click="MappingProfilePreview_Click" />
+                            <Button Padding="9,5" Margin="0,0,6,5"
+                                    Content="Appliquer les propositions"
+                                    Click="MappingProfileApply_Click" />
+                            <Button Padding="9,5" Margin="0,0,6,5"
+                                    Content="Mémoriser mes affectations"
+                                    Click="MappingProfileRemember_Click" />
+                            <Button Padding="9,5" Margin="0,0,6,5"
+                                    Content="Ne pas utiliser le profil"
+                                    Click="MappingProfileClear_Click" />
+                        </WrapPanel>
+                        <TextBox x:Name="MappingProfileReportBox" Height="125"
+                                 IsReadOnly="True" Padding="9"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 Text="Aucun profil appliqué." />
+                        <TextBlock x:Name="MappingProfileStatusText"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap" Margin="0,6,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <TabItem x:Name="FilesTab"
                      Header="Fichiers">
                 <Grid Margin="14">

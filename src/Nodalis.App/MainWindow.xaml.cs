@@ -6479,7 +6479,8 @@ public partial class MainWindow : Window
                 preview,
                 request => _docxImportService.BuildPlanAsync(
                     preview,
-                    request))
+                    request),
+                _docxImportService.WorkspaceRoot)
             {
                 Owner = this
             };
