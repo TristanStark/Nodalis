@@ -82,6 +82,12 @@ du nouveau Word, puis confirmer. Vous pouvez aussi indiquer explicitement
 que la section a disparu du Word. Ces arbitrages sont conservés **uniquement
 en mémoire** pendant cette comparaison. Changer d'historique les efface.
 
+Quand le Word a été à la fois **renommé et modifié**, il ne correspond
+plus nécessairement par nom ou empreinte SHA-256. Dans ce cas, le comparateur
+présente les **autres historiques du projet** avec l'avertissement
+« identité à confirmer » : cette liste sert uniquement au choix manuel et
+ne vaut jamais preuve de correspondance.
+
 Le moteur `DocxReimportMatchResolver` impose des identités de section uniques.
 Une ancienne section ne peut pas être associée deux fois et deux anciennes
 sections ne peuvent pas revendiquer une même section Word. Les index devenus
