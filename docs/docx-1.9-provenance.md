@@ -28,7 +28,7 @@ confirmation.
 | `fragments[].sourceSectionIndex`, `headingBlockIndex` | Position structurelle d'origine |
 | `fragments[].fragmentId` | Identité unique pour distinguer deux titres identiques |
 | `fragments[].selectedBlockIndexes` | Sélection exacte de blocs |
-| `fragments[].sourceHeading`, `targetSection`, `targetSectionId` | Titre Word, section Nodalis et son GUID canonique |
+| `fragments[].sourceHeading`, `sourceParentPath`, `sourceWordStyleId`, `sourceHeadingLevel` | Titre Word et contexte hiérarchique/style pour distinguer les sections homonymes |\n| `fragments[].targetSection`, `targetSectionId` | Section Nodalis et son GUID canonique |
 | `fragments[].destinationRelativePath` | Fichier Markdown produit |
 | `fragments[].baseMarkdown`, `fragmentSha256` | Snapshot et empreinte du fragment importé |
 | `fragments[].destinationSha256` | Empreinte de tout le Markdown de destination au commit |
@@ -59,7 +59,11 @@ obtiennent leur propre identité et un nouveau fichier JSON.
   les chemins sortant de celui-ci.
 - Les snapshots sont contrôlés par SHA-256 à la lecture.
 - Les schémas non reconnus et les JSON corrompus sont refusés explicitement.
-- Les écritures du manifeste utilisent le mécanisme atomique existant.
+- Chaque manifeste est sérialisé dans un fichier temporaire dans son
+  répertoire, synchronisé, puis installé par **renommage atomique sans
+  écrasement**. Même deux créations concurrentes avec le même `importId`
+  ne peuvent pas remplacer une version existante. Les fichiers temporaires
+  sont nettoyés en cas d'échec.
 - En cas d'échec de l'import, Nodalis tente le rollback des nouvelles
   écritures, y compris le manifeste et la copie DOCX importée.
 - Aucun manifest historique n'est écrasé par un nouvel import.
