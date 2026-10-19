@@ -181,6 +181,11 @@ public sealed class DocxImportManifestStore
             throw new InvalidDataException("Manifeste DOCX incomplet ou incompatible.");
         }
 
+        if (manifest.AppliedMappingProfile is not null)
+        {
+            DocxMappingProfileEngine.Validate(manifest.AppliedMappingProfile);
+        }
+
         ValidateRelativePath(manifest.SourceCopyRelativePath);
         HashSet<Guid> fragmentIds = [];
         HashSet<int> sourceSections = [];
