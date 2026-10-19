@@ -657,6 +657,54 @@
                                            Text="Aucune décision. Les modifications Nodalis restent intactes." />
                             </StackPanel>
                         </Expander>
+                        <Expander Header="Différentiel par paragraphe · lecture seule"
+                                  Margin="0,7,0,0" IsExpanded="False">
+                            <Grid Margin="8,5">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" MinWidth="150" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" MinWidth="150" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="ReimportDiffStatusText"
+                                           Grid.Row="0" Grid.ColumnSpan="3"
+                                           TextWrapping="Wrap" Margin="0,0,0,6"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+                                <StackPanel Grid.Row="1" Grid.Column="0">
+                                    <TextBlock Text="Base ↔ Word"
+                                               FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <ListBox x:Name="ReimportWordParagraphItems"
+                                             Height="145"
+                                             AutomationProperties.Name="Différentiel de paragraphes Word">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Label}"
+                                                           ToolTip="{Binding Details}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="2">
+                                    <TextBlock Text="Base ↔ Nodalis"
+                                               FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <ListBox x:Name="ReimportNodalisParagraphItems"
+                                             Height="145"
+                                             AutomationProperties.Name="Différentiel de paragraphes Nodalis">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Label}"
+                                                           ToolTip="{Binding Details}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Grid>
+                        </Expander>
                         <TextBlock x:Name="ReimportStatusText" Margin="0,7,0,0"
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource SecondaryTextBrush}"
