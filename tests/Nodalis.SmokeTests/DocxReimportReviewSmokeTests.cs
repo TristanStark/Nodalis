@@ -143,6 +143,86 @@ internal static class DocxReimportReviewSmokeTests
                File.Exists(markdownPath),
             "Explicitly confirming a missing Word section must not delete local Markdown.");
 
+        DocxReimportProvenanceBuilder provenance =
+            new DocxReimportProvenanceBuilder(root);
+        DocxReimportResolution useWord = new DocxReimportResolution
+        {
+            FragmentId = fragment.FragmentId,
+            Action = DocxReimportResolutionAction.UseWord
+        };
+        DocxReimportDecisionPlan appliedWord =
+            DocxReimportDecisionPlanner.Build(wordOnly, previous, [useWord]);
+        Assert(appliedWord.ReviewComplete && appliedWord.Writes.Count == 1,
+            "A changed Word fragment must have one approved projected write.");
+        Guid wordOperationId = Guid.NewGuid();
+        DocxImportManifest newHistory = await provenance.BuildAsync(
+            previous, wordOnly, appliedWord, preview, [useWord],
+            wordOperationId,
+            "Imports/Sources/reimport-" + wordOperationId.ToString("N") + ".docx");
+        Assert(newHistory.PreviousImportId == previous.ImportId &&
+               newHistory.ReimportOperationId == wordOperationId &&
+               newHistory.ImportId == wordOperationId &&
+               newHistory.SourceSha256 ==
+                   await DocxImportManifestStore.ComputeFileSha256Async(newCopy) &&
+               newHistory.Fragments.Single().FragmentId == fragment.FragmentId &&
+               newHistory.Fragments.Single().BaseMarkdown == latestWord &&
+               newHistory.Fragments.Single().LatestWordMarkdownSnapshot == latestWord &&
+               newHistory.Fragments.Single().ReimportResolution == "Word" &&
+               newHistory.Fragments.Single().DestinationSha256 ==
+                   appliedWord.Writes.Single().ProjectedSha256 &&
+               !File.Exists(store.ResolveWorkspaceRelativePath(
+                   newHistory.SourceCopyRelativePath)),
+            "Versioned provenance must record approved Word baseline and lineage without writing.");
+
+        DocxReimportResolution manual = new DocxReimportResolution
+        {
+            FragmentId = fragment.FragmentId,
+            Action = DocxReimportResolutionAction.ManualMerge,
+            ManualMarkdown = "## Tests\n\nRésolution manuelle"
+        };
+        DocxReimportDecisionPlan mergedPlan =
+            DocxReimportDecisionPlanner.Build(wordOnly, previous, [manual]);
+        DocxImportManifest mergedHistory = await provenance.BuildAsync(
+            previous, wordOnly, mergedPlan, preview, [manual],
+            Guid.NewGuid(), "Imports/Sources/merge-" + Guid.NewGuid().ToString("N") + ".docx");
+        Assert(mergedHistory.Fragments.Single().BaseMarkdown ==
+                   manual.ManualMarkdown &&
+               mergedHistory.Fragments.Single().LatestWordMarkdownSnapshot == latestWord &&
+               mergedHistory.Fragments.Single().ReimportResolution == "Manual",
+            "Manual resolution must preserve both the accepted Markdown and Word source text.");
+
+        DocxReimportResolution keepNodalis = new DocxReimportResolution
+        {
+            FragmentId = fragment.FragmentId,
+            Action = DocxReimportResolutionAction.KeepNodalis
+        };
+        DocxReimportDecisionPlan keptPlan =
+            DocxReimportDecisionPlanner.Build(wordOnly, previous, [keepNodalis]);
+        DocxImportManifest keptHistory = await provenance.BuildAsync(
+            previous, wordOnly, keptPlan, preview, [keepNodalis],
+            Guid.NewGuid(), "Imports/Sources/kept-" + Guid.NewGuid().ToString("N") + ".docx");
+        Assert(keptHistory.Fragments.Single().BaseMarkdown == original &&
+               keptHistory.Fragments.Single().LatestWordMarkdownSnapshot == latestWord &&
+               keptHistory.Fragments.Single().ReimportResolution == "Nodalis" &&
+               keptHistory.Fragments.Single().DestinationSha256 ==
+                   DocxImportManifestStore.ComputeSha256(original),
+            "Keeping Nodalis must retain its baseline and audit the rejected Word update.");
+
+        bool mismatchedHistoryRejected = false;
+        try
+        {
+            await provenance.BuildAsync(previous, wordOnly, mergedPlan, preview,
+                [manual], previous.ImportId,
+                "Imports/Sources/new-" + Guid.NewGuid().ToString("N") + ".docx");
+        }
+        catch (InvalidDataException)
+        {
+            mismatchedHistoryRejected = true;
+        }
+
+        Assert(mismatchedHistoryRejected,
+            "A reimport history must have a new identity distinct from its parent.");
+
         await File.WriteAllTextAsync(markdownPath, original + "\nAjout local");
         DocxReimportReview both = await service.BuildAsync(
             projectDirectory, previous, preview);
