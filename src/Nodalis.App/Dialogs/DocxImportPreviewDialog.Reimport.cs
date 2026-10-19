@@ -15,10 +15,12 @@ namespace Nodalis.App.Dialogs;
 public partial class DocxImportPreviewDialog
 {
     private DocxImportManifestStore _reimportStore = null!;
+    private string _reimportWorkspaceRoot = string.Empty;
 
     /// <summary>Initializes local-only reimport discovery without any disk writes.</summary>
     private void InitializeReimportControls(string workspaceRoot)
     {
+        _reimportWorkspaceRoot = Path.GetFullPath(workspaceRoot);
         _reimportStore = new DocxImportManifestStore(workspaceRoot);
     }
 
@@ -91,7 +93,7 @@ public partial class DocxImportPreviewDialog
             string projectDirectory = _reimportStore.ResolveWorkspaceRelativePath(
                 selectedProject.RelativePath);
             DocxReimportReviewService reviewService =
-                new DocxReimportReviewService(_reimportStoreWorkspaceRoot);
+                new DocxReimportReviewService(_reimportWorkspaceRoot);
             DocxReimportReview review = await reviewService.BuildAsync(
                 projectDirectory, history.Manifest, _preview);
 
