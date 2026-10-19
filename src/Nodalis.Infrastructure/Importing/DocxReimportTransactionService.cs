@@ -74,6 +74,19 @@ public sealed class DocxReimportTransactionService
                 "Réimport non approuvé, incomplet ou sans modification.");
         }
 
+        if (plan.Lines.Select(line => line.FragmentId).Distinct().Count() !=
+                plan.Lines.Count ||
+            plan.Writes.Select(write => write.FragmentId).Distinct().Count() !=
+                plan.Writes.Count ||
+            plan.Writes.Any(write => !plan.Lines.Any(line =>
+                line.FragmentId == write.FragmentId &&
+                (line.Action is DocxReimportResolutionAction.UseWord or
+                    DocxReimportResolutionAction.ManualMerge) && line.Resolved)))
+        {
+            throw new InvalidDataException(
+                "Le plan contient des fragments répétés ou non approuvés.");
+        }
+
         string project = ProjectPath(projectDirectory);
         string transactions = TransactionsDirectory(project);
         Directory.CreateDirectory(transactions);
@@ -124,6 +137,18 @@ public sealed class DocxReimportTransactionService
 
             foreach (DocxReimportTransactionEntry entry in existing.Entries)
             {
+                if (!plan.Writes.Any(write =>
+                    string.Equals(write.DestinationRelativePath,
+                        entry.DestinationRelativePath, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(write.ProjectedSha256, entry.AfterSha256,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(write.ExpectedCurrentSha256, entry.BeforeSha256,
+                        StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new InvalidDataException(
+                        "Journal DOCX incompatible avec les destinations approuvées.");
+                }
+
                 string path = Destination(project, entry.DestinationRelativePath);
                 if (!File.Exists(path) ||
                     !string.Equals(DocxImportManifestStore.ComputeSha256(
@@ -347,12 +372,24 @@ public sealed class DocxReimportTransactionService
                 !entry.BackupFileName.EndsWith(".bak", StringComparison.Ordinal) ||
                 !File.Exists(backup) ||
                 (File.GetAttributes(backup) & FileAttributes.ReparsePoint) != 0 ||
-                !string.Equals(ShaBytes(await File.ReadAllBytesAsync(backup, cancellationToken)),
-                    entry.BackupBytesSha256, StringComparison.OrdinalIgnoreCase) ||
                 !File.Exists(destination))
             {
                 throw new InvalidDataException(
                     "Sauvegarde de récupération DOCX manquante ou corrompue.");
+            }
+
+            byte[] originalBytes = await File.ReadAllBytesAsync(backup, cancellationToken);
+            using MemoryStream source = new MemoryStream(originalBytes);
+            using StreamReader reader = new StreamReader(source, Encoding.UTF8,
+                detectEncodingFromByteOrderMarks: true);
+            string restoredText = await reader.ReadToEndAsync(cancellationToken);
+            if (!string.Equals(ShaBytes(originalBytes), entry.BackupBytesSha256,
+                    StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(DocxImportManifestStore.ComputeSha256(restoredText),
+                    entry.BeforeSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "La sauvegarde DOCX ne correspond pas au snapshot d'origine.");
             }
 
             string current = DocxImportManifestStore.ComputeSha256(
