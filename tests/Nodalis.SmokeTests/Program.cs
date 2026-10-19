@@ -99,6 +99,7 @@ try
     DocxPreviewComparatorSmokeTests.Run();
     DocxImportPlanFingerprintSmokeTests.Run();
     await DocxProvenanceSmokeTests.RunAsync(root);
+    DocxReimportDiffSmokeTests.Run();
     await MarkdownBulkImportSmokeTests.RunAsync(root);
     await ProjectExportSmokeTests.RunAsync(root);
     await MeetingExtractionSmokeTests.RunAsync(root);
