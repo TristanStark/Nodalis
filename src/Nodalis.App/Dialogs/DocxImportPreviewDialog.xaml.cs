@@ -63,6 +63,7 @@ public partial class DocxImportPreviewDialog : Window
         _documentSelectionRoot.SelectionChanged += DocumentSelectionRoot_SelectionChanged;
 
         InitializeComponent();
+        InitializeReimportControls(workspaceRoot);
         InitializeMappingProfileControls();
         Loaded += MappingProfilesDialog_Loaded;
 
