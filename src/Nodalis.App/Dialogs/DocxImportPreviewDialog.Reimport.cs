@@ -18,6 +18,7 @@ public partial class DocxImportPreviewDialog
     private string _reimportWorkspaceRoot = string.Empty;
     private readonly Dictionary<Guid, int?> _reimportOverrideChoices = [];
     private readonly Dictionary<Guid, DocxReimportResolution> _reimportDecisions = [];
+    private readonly HashSet<int> _reimportExcludedNewSections = [];
     private DocxReimportReview? _activeReimportReview;
     private string? _activeReimportProjectDirectory;
 
@@ -43,6 +44,7 @@ public partial class DocxImportPreviewDialog
             ReimportHistoryComboBox.ItemsSource = null;
             _reimportOverrideChoices.Clear();
             _reimportDecisions.Clear();
+            _reimportExcludedNewSections.Clear();
             _activeReimportReview = null;
             _activeReimportProjectDirectory = null;
             ReimportMatchComboBox.ItemsSource = null;
@@ -113,6 +115,7 @@ public partial class DocxImportPreviewDialog
     {
         _reimportOverrideChoices.Clear();
         _reimportDecisions.Clear();
+        _reimportExcludedNewSections.Clear();
         _activeReimportReview = null;
         _activeReimportProjectDirectory = null;
         if (ReimportFragmentsList is not null)
@@ -175,6 +178,11 @@ public partial class DocxImportPreviewDialog
                 row.Fragment.Association.FragmentId);
             _reimportOverrideChoices.Clear();
             _reimportDecisions.Clear();
+            _reimportExcludedNewSections.Clear();
+            if (_activeReimportReview is not null)
+            {
+                RefreshNewSectionChoices(_activeReimportReview);
+            }
             ReimportDecisionStatus.Text = "Associations modifiées : confirmez de nouveau les décisions.";
             foreach (KeyValuePair<Guid, int?> pair in trial)
             {
@@ -241,6 +249,7 @@ public partial class DocxImportPreviewDialog
 
         _activeReimportReview = review;
         _activeReimportProjectDirectory = projectDirectory;
+        RefreshNewSectionChoices(review);
         ReimportFragmentsList.ItemsSource = rows;
         ReimportFragmentsList.SelectedItem = selectFragmentId is Guid selected
             ? rows.FirstOrDefault(row => row.Fragment.Association.FragmentId == selected)
@@ -376,7 +385,8 @@ public partial class DocxImportPreviewDialog
                     [decision.FragmentId] = decision
                 };
             DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
-                _activeReimportReview, history.Manifest, trial.Values.ToArray());
+                _activeReimportReview, history.Manifest, trial.Values.ToArray(),
+                _reimportExcludedNewSections.ToArray());
             DocxReimportDecisionLine result = plan.Lines.Single(line =>
                 line.FragmentId == decision.FragmentId);
             if (!result.Resolved)
@@ -403,6 +413,72 @@ public partial class DocxImportPreviewDialog
             return Task.CompletedTask;
         });
     }
+
+    /// <summary>Displays unresolved additions without treating ambiguous matches as new.</summary>
+    private void RefreshNewSectionChoices(DocxReimportReview review)
+    {
+        int[] pending = review.Matching.AddedSectionIndexes
+            .Where(index => !_reimportExcludedNewSections.Contains(index))
+            .OrderBy(index => index)
+            .ToArray();
+        ReimportNewSectionsComboBox.ItemsSource = pending
+            .Select(index => new ReimportNewSectionChoice(index,
+                "Section " + index + " · " + _preview.Sections.Single(section =>
+                    section.Index == index).SourceHeading))
+            .ToArray();
+        if (pending.Length > 0)
+        {
+            ReimportNewSectionsComboBox.SelectedIndex = 0;
+        }
+
+        ReimportNewSectionsStatus.Text =
+            pending.Length + " nouvelle(s) section(s) encore à traiter · " +
+            _reimportExcludedNewSections.Count +
+            " exclue(s) explicitement (aucun fichier écrit).";
+    }
+
+    /// <summary>
+    /// Explicitly excludes a newly added Word section from this read-only
+    /// reimport plan. Ambiguous or already mapped sections are not eligible.
+    /// </summary>
+    private async void ReimportExcludeNewSection_Click(object sender, RoutedEventArgs e)
+    {
+        await UiActionGuard.RunAsync(this, "Réimport DOCX · nouvelle section", () =>
+        {
+            if (ReimportNewSectionsComboBox.SelectedItem is not
+                    ReimportNewSectionChoice selected ||
+                ReimportHistoryComboBox.SelectedItem is not ReimportHistoryChoice history ||
+                _activeReimportReview is null ||
+                !TryGetReimportTarget(out string projectDirectory,
+                    out ReimportHistoryChoice? _) ||
+                !string.Equals(projectDirectory, _activeReimportProjectDirectory,
+                    StringComparison.OrdinalIgnoreCase) ||
+                history.Manifest.ImportId != _activeReimportReview.PreviousImportId)
+            {
+                ReimportNewSectionsStatus.Text =
+                    "Comparez à nouveau cet historique avant d'exclure une section.";
+                return Task.CompletedTask;
+            }
+
+            HashSet<int> trial = new HashSet<int>(_reimportExcludedNewSections)
+            {
+                selected.Index
+            };
+            DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
+                _activeReimportReview, history.Manifest,
+                _reimportDecisions.Values.ToArray(), trial.ToArray());
+            _reimportExcludedNewSections.Clear();
+            _reimportExcludedNewSections.UnionWith(trial);
+            RefreshNewSectionChoices(_activeReimportReview);
+            ReimportDecisionStatus.Text =
+                plan.UnmatchedNewSections.Count + " nouvelle(s) section(s) encore en attente. " +
+                "Aucun fichier n'a été modifié.";
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>One explicitly ignored new Word section in the current review.</summary>
+    private sealed record ReimportNewSectionChoice(int Index, string Label);
 
     /// <summary>Explains availability, truncation and changed paragraph counts.</summary>
     private static string DiffSummary(DocxReimportParagraphComparison comparison)
