@@ -123,6 +123,42 @@ public sealed class DocxImportManifestStore
     }
 
     /// <summary>
+    /// Lists all valid provenance records in a selected project, including
+    /// renamed AND modified Word sources with no matching name/hash.
+    /// This only supports explicit user selection; it never establishes
+    /// identity or permits an automatic reimport.
+    /// </summary>
+    public async Task<IReadOnlyList<DocxImportManifest>> ListProjectHistoryAsync(
+        string projectDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        string directory = Path.Combine(EnsureWorkspacePath(projectDirectory),
+            DirectoryName);
+        if (!Directory.Exists(directory))
+        {
+            return [];
+        }
+
+        List<DocxImportManifest> histories = [];
+        foreach (string path in Directory.EnumerateFiles(directory, "*.json")
+                     .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (histories.Count >= 500)
+            {
+                throw new InvalidDataException(
+                    "Trop d'historiques DOCX pour un seul projet.");
+            }
+
+            histories.Add(await LoadAsync(path, cancellationToken));
+        }
+
+        return histories
+            .OrderByDescending(manifest => manifest.ImportedAtUtc)
+            .ToArray();
+    }
+
+    /// <summary>
     /// Lists possible source associations for one project. A matching name
     /// alone is never considered proof that the document is the same source.
     /// An ambiguous association requires a later explicit user choice.
