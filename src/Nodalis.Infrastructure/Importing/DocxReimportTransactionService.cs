@@ -123,6 +123,9 @@ public sealed class DocxReimportTransactionService
         EnsureNoLinks(transactions);
         await using FileStream guard = AcquireLock(transactions);
         await VerifyProjectAsync(project, plan.ProjectId, cancellationToken);
+        PreparedProvenance? preparedProvenance = provenance is null
+            ? null : await PrepareProvenanceAsync(project, plan,
+                operationId, provenance, cancellationToken);
         foreach (string directory in Directory.EnumerateDirectories(transactions))
         {
             EnsureNoLinks(directory);
@@ -160,9 +163,33 @@ public sealed class DocxReimportTransactionService
             }
 
             ValidateJournalDirectory(operationDirectory, existing);
-            if (existing.Entries.Count != plan.Writes.Count)
+            if (existing.Entries.Count != plan.Writes.Count ||
+                existing.CreatedFiles.Count != (provenance is null ? 0 : 2))
             {
                 throw new InvalidDataException("Journal DOCX incompatible avec le plan.");
+            }
+
+            if (preparedProvenance is not null)
+            {
+                foreach (DocxReimportCreatedFile created in existing.CreatedFiles)
+                {
+                    string actual = CreatedDestination(project, operationId,
+                        created.RelativePath);
+                    string expected = string.Equals(actual,
+                        preparedProvenance.SourcePath, StringComparison.OrdinalIgnoreCase)
+                        ? preparedProvenance.SourceSha256
+                        : preparedProvenance.ManifestSha256;
+                    if (!string.Equals(created.Sha256, expected,
+                            StringComparison.OrdinalIgnoreCase) ||
+                        !File.Exists(actual) ||
+                        !string.Equals(await DocxImportManifestStore.ComputeFileSha256Async(
+                                actual, cancellationToken), created.Sha256,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidDataException(
+                            "Un fichier du réimport déjà finalisé est absent ou modifié.");
+                    }
+                }
             }
 
             foreach (DocxReimportTransactionEntry entry in existing.Entries)
@@ -194,7 +221,8 @@ public sealed class DocxReimportTransactionService
             {
                 OperationId = operationId,
                 AlreadyApplied = true,
-                WrittenFiles = existing.Entries.Count
+                WrittenFiles = existing.Entries.Count,
+                ManifestPath = preparedProvenance?.ManifestPath
             };
         }
 
@@ -271,7 +299,22 @@ public sealed class DocxReimportTransactionService
                 PreviousImportId = plan.PreviousImportId,
                 Fingerprint = Fingerprint(plan),
                 State = DocxReimportTransactionState.Prepared,
-                Entries = entries
+                Entries = entries,
+                CreatedFiles = preparedProvenance is null ? [] :
+                [
+                    new DocxReimportCreatedFile
+                    {
+                        RelativePath = _paths.ToWorkspaceRelativePath(
+                            preparedProvenance.SourcePath),
+                        Sha256 = preparedProvenance.SourceSha256
+                    },
+                    new DocxReimportCreatedFile
+                    {
+                        RelativePath = _paths.ToWorkspaceRelativePath(
+                            preparedProvenance.ManifestPath),
+                        Sha256 = preparedProvenance.ManifestSha256
+                    }
+                ]
             };
             await AtomicJsonFile.WriteAsync(journalPath, journal, cancellationToken);
             journalWritten = true;
@@ -311,13 +354,35 @@ public sealed class DocxReimportTransactionService
                 _afterWriteCheckpoint?.Invoke(index + 1);
             }
 
+            if (preparedProvenance is not null)
+            {
+                // Files are tracked in Prepared before either can be created,
+                // so a crash between DOCX and manifest creation is recoverable.
+                await WriteNewFileAsync(preparedProvenance.SourcePath,
+                    preparedProvenance.SourceBytes, cancellationToken);
+                await _paths.SaveNewAsync(project,
+                    preparedProvenance.Manifest, cancellationToken);
+                if (!string.Equals(
+                        await DocxImportManifestStore.ComputeFileSha256Async(
+                            preparedProvenance.ManifestPath, cancellationToken),
+                        preparedProvenance.ManifestSha256,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Le manifeste DOCX enregistré diffère de la version approuvée.");
+                }
+
+                _afterWriteCheckpoint?.Invoke(prepared.Count + 1);
+            }
+
             await AtomicJsonFile.WriteAsync(journalPath,
                 journal with { State = DocxReimportTransactionState.Completed },
                 cancellationToken);
             return new DocxReimportTransactionResult
             {
                 OperationId = operationId,
-                WrittenFiles = entries.Count
+                WrittenFiles = entries.Count,
+                ManifestPath = preparedProvenance?.ManifestPath
             };
         }
         catch
