@@ -29,6 +29,9 @@ public sealed record DocxImportManifest
     /// <summary>Optional fingerprint of the user's approved preview plan.</summary>
     public string? ApprovedPlanFingerprint { get; init; }
 
+    /// <summary>Snapshot of the applied mapping profile and all its original rules.</summary>
+    public DocxMappingProfile? AppliedMappingProfile { get; init; }
+
     /// <summary>Section indexes explicitly omitted from the import.</summary>
     public List<int> ExcludedSectionIndexes { get; init; } = [];
 
