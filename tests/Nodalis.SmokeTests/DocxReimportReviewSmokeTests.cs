@@ -128,6 +128,21 @@ internal static class DocxReimportReviewSmokeTests
                !wordOnly.SourcePackageUnchanged,
             "Read-only review must compare old base, new Word and actual Nodalis text.");
 
+        DocxReimportReview adjudicated = await service.BuildWithOverridesAsync(
+            projectDirectory, previous, preview,
+            [
+                new DocxReimportSectionMatchOverride
+                {
+                    FragmentId = fragment.FragmentId,
+                    CurrentSectionIndex = null
+                }
+            ]);
+        Assert(adjudicated.Fragments[0].Association.Kind ==
+                   DocxReimportAssociationKind.ConfirmedMissingFromWord &&
+               adjudicated.Fragments[0].Change?.Kind == DocxReimportChangeKind.WordDeleted &&
+               File.Exists(markdownPath),
+            "Explicitly confirming a missing Word section must not delete local Markdown.");
+
         await File.WriteAllTextAsync(markdownPath, original + "\nAjout local");
         DocxReimportReview both = await service.BuildAsync(
             projectDirectory, previous, preview);
