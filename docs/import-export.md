@@ -19,6 +19,12 @@ document.
 
 Le fichier DOCX original reste inchangé, y compris en cas d'échec.
 
+Depuis la v1.9 (développement sur `develop`), chaque import avancé validé
+conserve aussi un manifeste de provenance local (`.nodalis-imports/*.json`)
+dans le projet : origine SHA-256, sélection, destinations et snapshots.
+Voir [DOCX v1.9 — Traçabilité des imports](docx-1.9-provenance.md).
+Le réimport différentiel et l'arbitrage des conflits sont prévus séparément (#164).
+
 ## Import Markdown en masse
 
 L'import Markdown en masse prépare un plan avant validation.
