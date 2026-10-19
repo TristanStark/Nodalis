@@ -43,6 +43,17 @@ internal static class DocxProvenanceSmokeTests
                candidates[0].Manifest.ImportId == second.ImportId,
             "A source name collision must remain ambiguous; exact package hash ranks first.");
 
+        IReadOnlyList<DocxImportManifestMatch> noSameSource =
+            await store.FindCandidatesAsync(legacyProject, "renamed.docx",
+                DocxImportManifestStore.ComputeSha256("different source"));
+        IReadOnlyList<DocxImportManifest> fullProjectHistory =
+            await store.ListProjectHistoryAsync(legacyProject);
+        Assert(noSameSource.Count == 0 &&
+               fullProjectHistory.Count == 2 &&
+               fullProjectHistory.Any(item => item.ImportId == first.ImportId) &&
+               fullProjectHistory.Any(item => item.ImportId == second.ImportId),
+            "Renamed and modified Word files must expose only explicitly selected project history.");
+
         bool duplicateRejected = false;
         try
         {
