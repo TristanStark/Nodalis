@@ -96,7 +96,7 @@ public partial class DocxImportPreviewDialog : Window
         ComplexityComboBox.SelectedIndex = 1;
 
         SectionsListBox.ItemsSource =
-            _sections;
+            new System.Windows.Data.ListCollectionView(_sections);
         MappingSourceList.ItemsSource = _sections;
 
         HeadingLevelComboBox.ItemsSource =
