@@ -148,11 +148,17 @@ EPIC [Documents composites #126](https://github.com/TristanStark/Nodalis/issues/
 - [Checklist de qualification et confidentialité](release-checklist-1.7.md)
 - [Premières mesures synthétiques et limites](semantic-1.7-benchmarks.md)
 
-## Nodalis 1.8 — Recherche hybride (en développement)
+## Nodalis 1.8 — Recherche hybride publiée
 
-Issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmarks et index incrémental), #150 (gestion de l'index, confidentialité et qualification).
+Version v1.8.0 : issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmarks et index incrémental), #150 (gestion de l'index, confidentialité et qualification).
 
-- [Guide de développement : recherche hybride et RRF 1.8](hybrid-search-1.8.md) — fonctionnalités, paramètres, confidentialité, tests et limites avant qualification.
+- [Guide utilisateur : recherche hybride et RRF 1.8](hybrid-search-1.8.md) — fonctionnalités, paramètres, confidentialité et limites connues.
 - [Cadre de mesure de pertinence et latence 1.8](semantic-1.8-evaluation.md) — P@5/P@10, R@10, p50/p95, corpus et limites.
 - [Guide de gestion et confidentialité des index 1.8](semantic-1.8-index-management.md) — consultation, reprise, purge et quotas.
 - [Checklist de qualification 1.8](release-checklist-1.8.md) — tests, recette Windows/Ollama et conditions de sortie.
+
+- [Notes de version v1.8.0](release-notes-1.8.md) — nouveautés, installation, compatibilité et limites.
+
+## Nodalis 1.9 — Import DOCX avancé (en développement)
+
+[EPIC #154](https://github.com/TristanStark/Nodalis/issues/154) : arbre Word hiérarchique, mapping manuel des sections vers Technique/Tests/Recette, prévisualisation, provenance et réimport sans écrasement silencieux. Le socle doit être extensible, mais l'import XLSX/VSDX n'est pas livré en 1.9.

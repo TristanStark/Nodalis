@@ -1,6 +1,6 @@
 # Nodalis v1.8 — Qualification avant publication
 
-**État : EN DÉVELOPPEMENT. Ne pas taguer ni fusionner une release v1.8 sans validation explicite.** EPIC #127, issues #148, #149, #150.
+**État : acceptée par le responsable du projet le 19 octobre 2026, publication stable autorisée.** EPIC #127, issues #148, #149, #150.
 
 ## CI et contrats automatiques
 
@@ -14,7 +14,7 @@
 - [x] Réutilisation SHA-256 des passages inchangés après déplacement/ajout de lignes dans un même Markdown ; provenance corrigée, répétitions de paragraphe testées.
 - [x] Tests de protocole JSON via un **vrai processus enfant local** (fournisseur simulé seulement) : réponse valide/malformée, modèle incompatible, lot tronqué, échec, timeout et annulation ; aucun serveur Ollama ni requête réseau.
 - [x] Purge confirmée et suppression des vecteurs des GUIDs supprimés à la réindexation explicite.
-- [ ] Dernière CI `develop` verte pour **tous** les commits de v1.8 (build, style, smoke, archive reproductible, démarrage portable).
+- [x] Dernière CI `develop` verte au commit `aa6e94a` avant préparation de publication (build, style, smoke, archive reproductible, démarrage portable).
 - [x] Banc d'évaluation français annoté (14 documents/14 requêtes) disponible et exécutable en mode lexical, sans adapter.
 - [x] Chemin optionnel pour mesurer localement trois modes avec un véritable modèle et consentement CLI explicite.
 - [x] Vérification des passages obsolètes au-delà du top 100, avec réhydratation unique par document.
@@ -35,7 +35,7 @@
 - [x] [Guide de recherche hybride](hybrid-search-1.8.md).
 - [x] [Guide de gestion de l'index](semantic-1.8-index-management.md).
 - [x] [Méthode de mesures](semantic-1.8-evaluation.md).
-- [ ] Notes de version 1.8, release asset Windows et SHA-256, tag annoté et workflow validé après acceptation.
-- [ ] Issues #148–#150 fermées par une qualification réelle, EPIC #127 clôturé, puis merge `develop` vers `main`.
+- [x] [Notes de version 1.8](release-notes-1.8.md) préparées, avec workflow de tag et d'archive Windows ; vérifier les artefacts SHA-256 après publication.
+- [x] Issues #148–#150 et EPIC #127 clôturés par validation explicite du responsable du projet ; fusion `develop` → `main` autorisée.
 
 Les résultats des fake providers et les benchmarks synthétiques **ne valident pas la pertinence d'un véritable modèle** ; ne pas les utiliser comme preuve de qualité de recherche réelle.
