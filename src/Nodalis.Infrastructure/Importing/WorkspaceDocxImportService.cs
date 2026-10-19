@@ -1079,7 +1079,7 @@ public sealed class WorkspaceDocxImportService
                 table.Rows.Count == 0
                     ? 0
                     : table.Rows.Max(row =>
-                        row.Cells.Count);
+                        row.Cells.Sum(cell => cell.ColumnSpan));
 
             return "Tableau · " +
                    table.Rows.Count +
@@ -1143,7 +1143,24 @@ public sealed class WorkspaceDocxImportService
                 "Aucun contenu exploitable n'a été détecté dans le document.");
         }
 
-        return warnings;
+        foreach (DocxImportSectionPreview section in sections)
+        {
+            foreach (DocxImportBlockPreview block in section.Blocks)
+            {
+                if (block.Block.Table is not DocxTable table)
+                {
+                    continue;
+                }
+
+                foreach (string warning in table.Warnings)
+                {
+                    warnings.Add("Tableau Word #" + block.BlockIndex +
+                        " (« " + section.SourceHeading + " ») : " + warning);
+                }
+            }
+        }
+
+        return warnings.Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
     /// <summary>

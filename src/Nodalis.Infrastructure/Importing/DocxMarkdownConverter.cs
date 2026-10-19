@@ -113,40 +113,105 @@ public static class DocxMarkdownConverter
             return;
         }
 
-        int columnCount = table.Rows.Max(row =>
-            row.Cells.Count);
+        bool complex = table.Warnings.Count > 0 ||
+            table.Rows.Any(row => row.Cells.Any(cell =>
+                cell.ColumnSpan != 1 ||
+                cell.VerticalMerge != DocxVerticalMerge.None ||
+                cell.NestedTables.Count > 0)) ||
+            table.Rows.Select(row => row.Cells.Count).Distinct().Count() > 1;
 
-        if (columnCount == 0)
+        if (complex)
+        {
+            // Never pretend merged or nested Word cells can be represented faithfully by pipes.
+            builder.AppendLine("> ⚠ Tableau Word complexe : HTML local, fusions verticales à vérifier ; original DOCX conservé.");
+            builder.AppendLine();
+            AppendHtmlTable(builder, table);
+            builder.AppendLine();
+            return;
+        }
+
+        int columns = table.Rows.Max(row => row.Cells.Count);
+        if (columns == 0)
         {
             return;
         }
 
-        AppendTableRow(
-            builder,
-            table.Rows[0],
-            columnCount);
-
+        AppendTableRow(builder, table.Rows[0], columns);
         builder.Append('|');
-
-        for (int index = 0;
-             index < columnCount;
-             index++)
+        for (int index = 0; index < columns; index++)
         {
             builder.Append(" --- |");
         }
 
         builder.AppendLine();
-
-        foreach (global::Nodalis.Core.Importing.DocxTableRow row in table.Rows.Skip(1))
+        foreach (DocxTableRow row in table.Rows.Skip(1))
         {
-            AppendTableRow(
-                builder,
-                row,
-                columnCount);
+            AppendTableRow(builder, row, columns);
         }
 
         builder.AppendLine();
     }
+
+    /// <summary>
+    /// Writes local-only HTML for Word tables whose layout cannot fit standard Markdown.
+    /// All source text is escaped; no script, event, URL or resource is copied to markup.
+    /// </summary>
+    /// <param name="builder">Markdown output buffer.</param>
+    /// <param name="table">Complex or nested Word table.</param>
+    private static void AppendHtmlTable(StringBuilder builder, DocxTable table)
+    {
+        builder.AppendLine("<table>");
+        foreach (DocxTableRow row in table.Rows)
+        {
+            builder.AppendLine("  <tr>");
+            foreach (DocxTableCell cell in row.Cells)
+            {
+                string element = row.IsHeader ? "th" : "td";
+                builder.Append("    <").Append(element);
+
+                if (cell.ColumnSpan > 1)
+                {
+                    builder.Append(" colspan=\"").Append(cell.ColumnSpan).Append('"');
+                }
+
+                if (cell.VerticalMerge != DocxVerticalMerge.None)
+                {
+                    // Preserve the Word merge state without fabricating a rowspan.
+                    builder.Append(" data-word-vmerge=\"")
+                        .Append(cell.VerticalMerge == DocxVerticalMerge.Start
+                            ? "restart" : "continue").Append('"');
+                }
+
+                builder.Append('>');
+                builder.Append(EscapeHtml(cell.Text)
+                    .Replace("\r\n", "\n", StringComparison.Ordinal)
+                    .Replace('\r', '\n')
+                    .Replace("\n", "<br>", StringComparison.Ordinal));
+
+                foreach (DocxTable nested in cell.NestedTables)
+                {
+                    AppendHtmlTable(builder, nested);
+                }
+
+                builder.Append("</").Append(element).AppendLine(">");
+            }
+
+            builder.AppendLine("  </tr>");
+        }
+
+        builder.AppendLine("</table>");
+    }
+
+    /// <summary>Escapes arbitrary source Word text from HTML execution or injection.</summary>
+    /// <param name="text">Raw cell text.</param>
+    /// <returns>Only encoded character data, safe inside HTML cells.</returns>
+    private static string EscapeHtml(string text) =>
+        (text ?? string.Empty)
+            .Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("<", "&lt;", StringComparison.Ordinal)
+            .Replace(">", "&gt;", StringComparison.Ordinal)
+            .Replace("\"", "&quot;", StringComparison.Ordinal)
+            .Replace("'", "&#39;", StringComparison.Ordinal);
 
     /// <summary>
     /// Performs the <c>AppendTableRow</c> operation.

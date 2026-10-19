@@ -302,45 +302,104 @@ public sealed class DocxParser
     /// </summary>
     /// <param name="table">The <c>table</c> value.</param>
     /// <returns>The result of the operation.</returns>
-    private static DocxTable ParseTable(XElement table)
+    private static DocxTable ParseTable(XElement table, int nestingDepth = 0)
     {
-        global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxTableRow> rows = new List<DocxTableRow>();
-
-        foreach (global::System.Xml.Linq.XElement row in table.Elements(
-                     WordNamespace + "tr"))
+        if (nestingDepth > 4)
         {
-            global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxTableCell> cells = new List<DocxTableCell>();
-
-            foreach (global::System.Xml.Linq.XElement cell in row.Elements(
-                         WordNamespace + "tc"))
+            string fallbackText = ExtractText(table);
+            return new DocxTable
             {
-                string[] paragraphs = cell.Elements(
-                        WordNamespace + "p")
-                    .Select(ExtractText)
-                    .Select(text => text.Trim())
-                    .Where(text =>
-                        !string.IsNullOrWhiteSpace(text))
-                    .ToArray();
-
-                cells.Add(
-                    new DocxTableCell
+                Rows =
+                [
+                    new DocxTableRow
                     {
-                        Text = string.Join(
-                            Environment.NewLine,
-                            paragraphs)
-                    });
+                        Cells = [new DocxTableCell { Text = fallbackText }]
+                    }
+                ],
+                Warnings = ["Tableau imbriqué au-delà de quatre niveaux : représentation textuelle conservée."]
+            };
+        }
+
+        List<DocxTableRow> rows = [];
+        List<string> warnings = [];
+        XElement[] rawRows = table.Elements(WordNamespace + "tr").ToArray();
+
+        if (rawRows.Length > 15000)
+        {
+            throw new InvalidDataException("Table DOCX anormalement volumineuse.");
+        }
+
+        foreach (XElement row in rawRows)
+        {
+            List<DocxTableCell> cells = [];
+            XElement[] rawCells = row.Elements(WordNamespace + "tc").ToArray();
+            if (rawCells.Length > 256)
+            {
+                throw new InvalidDataException("Une table DOCX contient trop de cellules par ligne.");
             }
 
-            rows.Add(
-                new DocxTableRow
+            foreach (XElement cell in rawCells)
+            {
+                XElement? properties = cell.Element(WordNamespace + "tcPr");
+                int columnSpan = ParseIntegerAttribute(
+                    properties?.Element(WordNamespace + "gridSpan"), "val") ?? 1;
+                if (columnSpan is < 1 or > 256)
                 {
-                    Cells = cells
+                    throw new InvalidDataException("Fusion de colonnes Word invalide.");
+                }
+
+                XElement? verticalProperty = properties?.Element(WordNamespace + "vMerge");
+                string? verticalValue = verticalProperty?
+                    .Attribute(WordNamespace + "val")?.Value;
+                DocxVerticalMerge vertical = verticalProperty is null
+                    ? DocxVerticalMerge.None
+                    : string.Equals(verticalValue, "restart", StringComparison.OrdinalIgnoreCase)
+                        ? DocxVerticalMerge.Start
+                        : DocxVerticalMerge.Continue;
+
+                List<string> paragraphs = cell.Elements(WordNamespace + "p")
+                    .Select(ExtractText)
+                    .Where(text => !string.IsNullOrWhiteSpace(text))
+                    .ToList();
+
+                List<DocxTable> nested = cell.Elements(WordNamespace + "tbl")
+                    .Select(child => ParseTable(child, nestingDepth + 1))
+                    .ToList();
+
+                if (columnSpan > 1)
+                {
+                    warnings.Add("Cellules fusionnées horizontalement : HTML local plutôt que tableau Markdown.");
+                }
+
+                if (vertical != DocxVerticalMerge.None)
+                {
+                    warnings.Add("Fusion verticale Word : structure signalée, fidélité du rendu à vérifier.");
+                }
+
+                if (nested.Count > 0)
+                {
+                    warnings.Add("Tableau imbriqué conservé dans une représentation HTML locale.");
+                }
+
+                cells.Add(new DocxTableCell
+                {
+                    Text = string.Join(Environment.NewLine, paragraphs),
+                    ColumnSpan = columnSpan,
+                    VerticalMerge = vertical,
+                    NestedTables = nested
                 });
+            }
+
+            bool header = row.Element(WordNamespace + "trPr")?
+                .Element(WordNamespace + "tblHeader") is not null;
+
+            rows.Add(new DocxTableRow { Cells = cells, IsHeader = header });
         }
 
         return new DocxTable
         {
-            Rows = rows
+            Rows = rows,
+            Warnings = warnings.Distinct(StringComparer.Ordinal).ToList()
         };
     }
 
