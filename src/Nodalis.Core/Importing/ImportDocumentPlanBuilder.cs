@@ -1,6 +1,3 @@
-using System.Text.RegularExpressions;
-using Nodalis.Core.Importing;
-
 namespace Nodalis.Core.Importing;
 
 /// <summary>
@@ -72,7 +69,7 @@ public static class ImportDocumentPlanBuilder
         int nodeCount = 0;
         foreach (ImportDocumentNode root in document.Roots)
         {
-            Walk(root, null, false, null, null);
+            Walk(root, null, false, null, null, false);
         }
 
         foreach (string selectedId in overrides.Keys)
@@ -98,7 +95,8 @@ public static class ImportDocumentPlanBuilder
             string? inheritedPath,
             bool inheritedInclude,
             string? inheritedSection,
-            int? previousAncestorOrder)
+            int? previousAncestorOrder,
+            bool parentExcluded)
         {
             nodeCount++;
             if (nodeCount > MaximumNodes ||
@@ -120,19 +118,16 @@ public static class ImportDocumentPlanBuilder
             string? destination = inheritedPath;
             string? section = inheritedSection;
 
+            bool explicitlyExcluded = false;
             if (overrides.TryGetValue(node.SourceId, out ImportSelectionRule? rule))
             {
-                // A parent already excluded by the user must never be revived implicitly.
-                if (inheritedPath is null && !inheritedInclude && previousAncestorOrder is not null)
-                {
-                    // No inherited destination is also normal for an unmapped root:
-                    // explicit child selection remains possible unless a parent was excluded.
-                }
-
+                explicitlyExcluded = !rule.Include;
                 included = rule.Include;
                 destination = rule.DestinationRelativePath ?? inheritedPath;
                 section = rule.TargetSection ?? inheritedSection;
             }
+
+            included = included && !parentExcluded;
 
             if (included && string.IsNullOrWhiteSpace(destination))
             {
@@ -154,7 +149,8 @@ public static class ImportDocumentPlanBuilder
 
             foreach (ImportDocumentNode child in node.Children)
             {
-                Walk(child, destination, included, section, node.SourceOrder);
+                Walk(child, destination, included, section, node.SourceOrder,
+                    parentExcluded || explicitlyExcluded);
             }
         }
     }
