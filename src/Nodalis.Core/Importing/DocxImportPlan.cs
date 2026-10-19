@@ -15,6 +15,9 @@ public sealed record DocxImportPlan
     /// <summary>SHA256 of the projected section Markdown used to detect source changes.</summary>
     public string ProjectedContentSha256 { get; init; } = string.Empty;
 
+    /// <summary>Fingerprint of the rules snapshot used by this import, or empty without a profile.</summary>
+    public string MappingProfileSha256 { get; init; } = string.Empty;
+
     /// <summary>Deterministic fingerprint of the exact dry-run, displayed only after computing it.</summary>
     public string Fingerprint { get; init; } = string.Empty;
 }
