@@ -76,6 +76,22 @@ public partial class DocxImportPreviewDialog
                         : " · même nom, contenu différent")))
                 .ToList();
 
+            // If both the filename and package bytes changed, offer every
+            // other history of this project for an explicit user choice.
+            // A matching project alone never proves source identity.
+            bool unverifiedHistory = histories.Count == 0;
+            if (unverifiedHistory)
+            {
+                IReadOnlyList<DocxImportManifest> allHistories =
+                    await _reimportStore.ListProjectHistoryAsync(projectDirectory);
+                histories = allHistories.Select(manifest =>
+                    new ReimportHistoryChoice(manifest,
+                        manifest.ImportedAtUtc.ToLocalTime().ToString("g") +
+                        " · " + manifest.SourceFileName +
+                        " · identité à confirmer (nom et SHA-256 différents)"))
+                    .ToList();
+            }
+
             ReimportHistoryComboBox.ItemsSource = histories;
             if (histories.Count > 0)
             {
@@ -83,9 +99,12 @@ public partial class DocxImportPreviewDialog
             }
 
             ReimportStatusText.Text = histories.Count == 0
-                ? "Aucun ancien import correspondant par nom ou empreinte. Il n'est pas possible d'identifier automatiquement ce Word."
-                : histories.Count + " historique(s) candidat(s). Choisissez explicitement lequel comparer ; " +
-                  "une correspondance de nom ne garantit pas une source identique.";
+                ? "Aucun historique DOCX présent dans ce projet."
+                : unverifiedHistory
+                    ? histories.Count + " historique(s) du projet sans correspondance de nom ni SHA-256. " +
+                      "Vérifiez et choisissez explicitement la source, sans association automatique."
+                    : histories.Count + " historique(s) candidat(s). Choisissez explicitement lequel comparer ; " +
+                      "une correspondance de nom ne garantit pas une source identique.";
         });
     }
 
