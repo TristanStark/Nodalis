@@ -182,9 +182,11 @@ internal static class DocxReimportReviewSmokeTests
         };
         DocxReimportDecisionPlan mergedPlan =
             DocxReimportDecisionPlanner.Build(wordOnly, previous, [manual]);
+        Guid manualOperationId = Guid.NewGuid();
         DocxImportManifest mergedHistory = await provenance.BuildAsync(
             previous, wordOnly, mergedPlan, preview, [manual],
-            Guid.NewGuid(), "Imports/Sources/merge-" + Guid.NewGuid().ToString("N") + ".docx");
+            manualOperationId,
+            "Imports/Sources/reimport-" + manualOperationId.ToString("N") + ".docx");
         Assert(mergedHistory.Fragments.Single().BaseMarkdown ==
                    manual.ManualMarkdown &&
                mergedHistory.Fragments.Single().LatestWordMarkdownSnapshot == latestWord &&
@@ -198,9 +200,11 @@ internal static class DocxReimportReviewSmokeTests
         };
         DocxReimportDecisionPlan keptPlan =
             DocxReimportDecisionPlanner.Build(wordOnly, previous, [keepNodalis]);
+        Guid retainedOperationId = Guid.NewGuid();
         DocxImportManifest keptHistory = await provenance.BuildAsync(
             previous, wordOnly, keptPlan, preview, [keepNodalis],
-            Guid.NewGuid(), "Imports/Sources/kept-" + Guid.NewGuid().ToString("N") + ".docx");
+            retainedOperationId,
+            "Imports/Sources/reimport-" + retainedOperationId.ToString("N") + ".docx");
         Assert(keptHistory.Fragments.Single().BaseMarkdown == original &&
                keptHistory.Fragments.Single().LatestWordMarkdownSnapshot == latestWord &&
                keptHistory.Fragments.Single().ReimportResolution == "Nodalis" &&
