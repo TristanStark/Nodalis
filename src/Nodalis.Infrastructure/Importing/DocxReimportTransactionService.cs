@@ -434,8 +434,21 @@ public sealed class DocxReimportTransactionService
         {
             cancellationToken.ThrowIfCancellationRequested();
             EnsureNoLinks(directory);
+            string journalPath = Path.Combine(directory, JournalName);
+            if (!File.Exists(journalPath))
+            {
+                ValidateUnjournaledDirectory(directory);
+                operations.Add(new DocxReimportPendingOperation
+                {
+                    OperationId = Guid.ParseExact(Path.GetFileName(directory), "N"),
+                    State = DocxReimportTransactionState.Prepared,
+                    MissingJournal = true
+                });
+                continue;
+            }
+
             DocxReimportTransactionJournal journal = await ReadJournalAsync(
-                Path.Combine(directory, JournalName), cancellationToken);
+                journalPath, cancellationToken);
             ValidateJournalDirectory(directory, journal);
             await VerifyProjectAsync(project, journal.ProjectId, cancellationToken);
             operations.Add(new DocxReimportPendingOperation
@@ -474,6 +487,17 @@ public sealed class DocxReimportTransactionService
             cancellationToken.ThrowIfCancellationRequested();
             string journalPath = Path.Combine(directory, JournalName);
             EnsureNoLinks(directory);
+            if (!File.Exists(journalPath))
+            {
+                // The implementation writes NO Markdown until the journal
+                // has been durably committed. Backup-only orphan directories
+                // therefore contain no edits, and can be safely discarded.
+                ValidateUnjournaledDirectory(directory);
+                Directory.Delete(directory, recursive: true);
+                recovered++;
+                continue;
+            }
+
             DocxReimportTransactionJournal journal =
                 await ReadJournalAsync(journalPath, cancellationToken);
             ValidateJournalDirectory(directory, journal);
@@ -834,6 +858,37 @@ public sealed class DocxReimportTransactionService
         }
     }
 
+    /// <summary>
+    /// Detects a backup-only operation abandoned before journal creation.
+    /// Unknown files, directories or reparse points are never deleted.
+    /// </summary>
+    private static void ValidateUnjournaledDirectory(string directory)
+    {
+        if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out Guid id) ||
+            id == Guid.Empty || Directory.EnumerateDirectories(directory).Any())
+        {
+            throw new InvalidDataException(
+                "Réimport sans journal invalide : inspection manuelle requise.");
+        }
+
+        foreach (string file in Directory.EnumerateFiles(directory))
+        {
+            string name = Path.GetFileName(file);
+            bool isBackup = name.Length == 9 &&
+                name[..5].All(char.IsAsciiDigit) &&
+                name.EndsWith(".bak", StringComparison.Ordinal);
+            bool isJournalTemporary = name.StartsWith(".journal.json.",
+                StringComparison.Ordinal) &&
+                name.EndsWith(".tmp", StringComparison.Ordinal);
+            if ((!isBackup && !isJournalTemporary) ||
+                (File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException(
+                    "Opération DOCX non journalisée contenant des fichiers inconnus.");
+            }
+        }
+    }
+
     /// <summary>Validates the journal ID against its path.</summary>
     private static void ValidateJournalDirectory(string directory,
         DocxReimportTransactionJournal journal)
@@ -1007,6 +1062,9 @@ public sealed record DocxReimportPendingOperation
     public int MarkdownFileCount { get; init; }
 
     public int CreatedArtifactCount { get; init; }
+
+    /// <summary>Interrupted before the first durable journal was created.</summary>
+    public bool MissingJournal { get; init; }
 }
 
 /// <summary>Result of a fully committed or already recorded operation.</summary>
