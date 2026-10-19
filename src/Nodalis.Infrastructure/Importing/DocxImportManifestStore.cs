@@ -209,6 +209,7 @@ public sealed class DocxImportManifestStore
         }
     }
 
+    /// <summary>Rejects escaping or absolute paths supplied by a manifest.</summary>
     private void ValidateRelativePath(string relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath) ||
@@ -223,6 +224,7 @@ public sealed class DocxImportManifestStore
         EnsureWorkspacePath(full);
     }
 
+    /// <summary>Resolves a local path and confines it to the current workspace.</summary>
     private string EnsureWorkspacePath(string path)
     {
         string full = Path.GetFullPath(path);
@@ -238,6 +240,7 @@ public sealed class DocxImportManifestStore
         return full;
     }
 
+    /// <summary>Checks that a fingerprint contains exactly 64 hexadecimal characters.</summary>
     private static bool IsSha256(string? value) =>
         value is { Length: 64 } &&
         value.All(character =>
