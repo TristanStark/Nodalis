@@ -264,18 +264,30 @@ public sealed class DocxParser
             }
         }
 
+        string paragraphText = ExtractText(paragraph).TrimEnd();
+        int? directOutline = ParseIntegerAttribute(
+            properties?.Element(WordNamespace + "outlineLvl"),
+            "val");
+
+        // The direct outline setting overrides both the style and its ancestors.
+        // Level 9 means regular body text in Word, not heading level 10.
+        int? headingLevel = directOutline is int outline
+            ? outline is >= 0 and <= 8 ? outline + 1 : null
+            : style?.HeadingLevel ?? InferHeadingLevel(styleId, style?.Name);
+
+        (int? suggestedLevel, string? suggestionReason) =
+            headingLevel is null && numberingId is null
+                ? SuggestUnstyledHeading(paragraph, paragraphText)
+                : (null, null);
+
         return new DocxParagraph
         {
-            Text = ExtractText(
-                paragraph)
-                .TrimEnd(),
+            Text = paragraphText,
             StyleId = styleId,
             StyleName = style?.Name,
-            HeadingLevel =
-                style?.HeadingLevel ??
-                InferHeadingLevel(
-                    styleId,
-                    style?.Name),
+            HeadingLevel = headingLevel,
+            SuggestedHeadingLevel = suggestedLevel,
+            HeadingSuggestionReason = suggestionReason,
             IsListItem = numberingId is not null,
             NumberingId = numberingId,
             ListLevel = listLevel,
@@ -340,80 +352,144 @@ public sealed class DocxParser
             ZipArchive archive,
             CancellationToken cancellationToken)
     {
-        global::System.IO.Compression.ZipArchiveEntry? entry = archive.GetEntry(
-            "word/styles.xml");
-
+        ZipArchiveEntry? entry = archive.GetEntry("word/styles.xml");
         if (entry is null)
         {
-            return new Dictionary<string, StyleInfo>(
-                StringComparer.OrdinalIgnoreCase);
+            return new Dictionary<string, StyleInfo>(StringComparer.OrdinalIgnoreCase);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-
         XDocument xml;
-
-        using (global::System.IO.Stream stream = entry.Open())
+        using (Stream stream = entry.Open())
         {
             xml = XDocument.Load(stream);
         }
 
-        global::System.Collections.Generic.Dictionary<string, global::Nodalis.Infrastructure.Importing.DocxParser.StyleInfo> result = new Dictionary<string, StyleInfo>(
-            StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, UnresolvedStyle> definitions =
+            new Dictionary<string, UnresolvedStyle>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (global::System.Xml.Linq.XElement styleElement in xml.Descendants(
-                     WordNamespace + "style"))
+        foreach (XElement element in xml.Descendants(WordNamespace + "style"))
         {
-            string? styleId = styleElement
-                .Attribute(
-                    WordNamespace + "styleId")?
-                .Value;
-
-            if (string.IsNullOrWhiteSpace(styleId))
+            cancellationToken.ThrowIfCancellationRequested();
+            string? id = element.Attribute(WordNamespace + "styleId")?.Value;
+            string? type = element.Attribute(WordNamespace + "type")?.Value;
+            if (string.IsNullOrWhiteSpace(id) ||
+                (!string.IsNullOrWhiteSpace(type) &&
+                 !string.Equals(type, "paragraph", StringComparison.OrdinalIgnoreCase)))
             {
                 continue;
             }
 
-            string? type = styleElement
-                .Attribute(
-                    WordNamespace + "type")?
-                .Value;
-
-            if (!string.IsNullOrWhiteSpace(type) &&
-                !string.Equals(
-                    type,
-                    "paragraph",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            string? name = styleElement
-                .Element(
-                    WordNamespace + "name")?
-                .Attribute(
-                    WordNamespace + "val")?
-                .Value;
-
-            int? outlineLevel = ParseIntegerAttribute(
-                styleElement
-                    .Element(
-                        WordNamespace + "pPr")?
-                    .Element(
-                        WordNamespace + "outlineLvl"),
-                "val");
-
-            result[styleId] =
-                new StyleInfo(
-                    name,
-                    outlineLevel is int level
-                        ? level + 1
-                        : InferHeadingLevel(
-                            styleId,
-                            name));
+            definitions[id] = new UnresolvedStyle(
+                element.Element(WordNamespace + "name")?.Attribute(WordNamespace + "val")?.Value,
+                element.Element(WordNamespace + "basedOn")?.Attribute(WordNamespace + "val")?.Value,
+                ParseIntegerAttribute(
+                    element.Element(WordNamespace + "pPr")?.Element(WordNamespace + "outlineLvl"),
+                    "val"));
         }
 
-        return result;
+        Dictionary<string, StyleInfo> resolved =
+            new Dictionary<string, StyleInfo>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string id in definitions.Keys)
+        {
+            ResolveStyle(id, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        }
+
+        return resolved;
+
+        StyleInfo ResolveStyle(string id, HashSet<string> ancestry)
+        {
+            if (resolved.TryGetValue(id, out StyleInfo? cached))
+            {
+                return cached;
+            }
+
+            if (!definitions.TryGetValue(id, out UnresolvedStyle? definition))
+            {
+                return new StyleInfo(null, null);
+            }
+
+            if (!ancestry.Add(id))
+            {
+                // A malformed basedOn cycle cannot inherit an outline level.
+                return new StyleInfo(definition.Name, null);
+            }
+
+            int? inherited = null;
+            if (!string.IsNullOrWhiteSpace(definition.BasedOn))
+            {
+                inherited = ResolveStyle(definition.BasedOn, ancestry).HeadingLevel;
+            }
+
+            ancestry.Remove(id);
+            int? heading = definition.OutlineLevel is int level
+                ? level is >= 0 and <= 8 ? level + 1 : null
+                : InferHeadingLevel(id, definition.Name) ?? inherited;
+
+            StyleInfo result = new StyleInfo(definition.Name, heading);
+            resolved[id] = result;
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Suggests (never automatically applies) a level for obvious but unstyled visual headings.
+    /// </summary>
+    /// <param name="paragraph">Word paragraph XML element.</param>
+    /// <param name="text">Extracted visible text.</param>
+    /// <returns>A reversible candidate and human-readable explanation.</returns>
+    private static (int? Level, string? Reason) SuggestUnstyledHeading(
+        XElement paragraph,
+        string text)
+    {
+        string candidate = text.Trim();
+        if (candidate.Length is < 4 or > 100 ||
+            candidate.Contains('\n') ||
+            candidate.EndsWith('.') ||
+            candidate.EndsWith(';'))
+        {
+            return (null, null);
+        }
+
+        XElement[] contentRuns = paragraph.Descendants(WordNamespace + "r")
+            .Where(run => !string.IsNullOrWhiteSpace(ExtractText(run)))
+            .ToArray();
+
+        if (contentRuns.Length == 0)
+        {
+            return (null, null);
+        }
+
+        int boldRuns = contentRuns.Count(run =>
+        {
+            XElement? bold = run.Element(WordNamespace + "rPr")?.Element(WordNamespace + "b");
+            string? flag = bold?.Attribute(WordNamespace + "val")?.Value;
+            return bold is not null && flag is not ("false" or "0" or "off");
+        });
+
+        int size = contentRuns
+            .Select(run => ParseIntegerAttribute(
+                run.Element(WordNamespace + "rPr")?.Element(WordNamespace + "sz"), "val") ?? 0)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        bool mostlyBold = boldRuns * 4 >= contentRuns.Length * 3;
+        if (size >= 32 && mostlyBold)
+        {
+            return (1, "Titre probable : texte court, taille au moins 16 pt et majoritairement gras ; confirmation nécessaire.");
+        }
+
+        int beforeSpacing = ParseIntegerAttribute(
+            paragraph.Element(WordNamespace + "pPr")?
+                .Element(WordNamespace + "spacing"), "before") ?? 0;
+
+        if (mostlyBold && beforeSpacing >= 120 && candidate.Length <= 70)
+        {
+            return (2, "Sous-titre probable : texte court, majoritairement gras et espacement avant ; confirmation nécessaire.");
+        }
+
+        return (null, null);
     }
 
     /// <summary>
@@ -736,6 +812,11 @@ public sealed class DocxParser
                 out global::System.DateTimeOffset result)
                 ? result
                 : null;
+
+    private sealed record UnresolvedStyle(
+        string? Name,
+        string? BasedOn,
+        int? OutlineLevel);
 
     private sealed record StyleInfo(
         string? Name,

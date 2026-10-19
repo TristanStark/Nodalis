@@ -29,6 +29,10 @@ public sealed record ImportDocumentNode
 
     public int? HeadingLevel { get; init; }
 
+    public int? SuggestedHeadingLevel { get; init; }
+
+    public string? HeadingSuggestionReason { get; init; }
+
     public string? SourceStyle { get; init; }
 
     public List<ImportDocumentNode> Children { get; init; } = [];

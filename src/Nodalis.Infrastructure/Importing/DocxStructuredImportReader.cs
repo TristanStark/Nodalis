@@ -79,6 +79,8 @@ public sealed class DocxStructuredImportReader : IImportDocumentReader
                 SourceOrder = index,
                 Text = text,
                 HeadingLevel = isHeading ? level : null,
+                SuggestedHeadingLevel = block.Paragraph?.SuggestedHeadingLevel,
+                HeadingSuggestionReason = block.Paragraph?.HeadingSuggestionReason,
                 SourceStyle = block.Paragraph?.StyleId
             };
 
@@ -129,6 +131,8 @@ public sealed class DocxStructuredImportReader : IImportDocumentReader
             SourceOrder = node.SourceOrder,
             Text = node.Text,
             HeadingLevel = node.HeadingLevel,
+            SuggestedHeadingLevel = node.SuggestedHeadingLevel,
+            HeadingSuggestionReason = node.HeadingSuggestionReason,
             SourceStyle = node.SourceStyle,
             Children = node.Children.Select(ConvertNode).ToList()
         };
@@ -141,6 +145,8 @@ public sealed class DocxStructuredImportReader : IImportDocumentReader
         public required int SourceOrder { get; init; }
         public required string Text { get; init; }
         public int? HeadingLevel { get; init; }
+        public int? SuggestedHeadingLevel { get; init; }
+        public string? HeadingSuggestionReason { get; init; }
         public string? SourceStyle { get; init; }
         public List<MutableNode> Children { get; } = [];
     }
