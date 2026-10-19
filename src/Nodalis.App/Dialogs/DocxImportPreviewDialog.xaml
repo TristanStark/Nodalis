@@ -705,6 +705,29 @@
                                 </StackPanel>
                             </Grid>
                         </Expander>
+                        <Expander Header="Nouvelles sections Word · décision explicite"
+                                  IsExpanded="False" Margin="0,7,0,0">
+                            <StackPanel Margin="8,5">
+                                <TextBlock Text="Une nouvelle section ne sera jamais ajoutée par ce comparateur. Vous pouvez l'exclure explicitement de ce réimport ; les autres restent en attente."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           Margin="0,0,0,6" />
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="ReimportNewSectionsComboBox"
+                                              DisplayMemberPath="Label"
+                                              MinWidth="220" MaxWidth="420"
+                                              Margin="0,0,8,0"
+                                              AutomationProperties.Name="Nouvelle section Word en attente" />
+                                    <Button Content="Exclure de ce réimport"
+                                            Padding="10,5"
+                                            Click="ReimportExcludeNewSection_Click"
+                                            AutomationProperties.Name="Exclure explicitement cette nouvelle section Word du réimport" />
+                                </StackPanel>
+                                <TextBlock x:Name="ReimportNewSectionsStatus"
+                                           Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+                            </StackPanel>
+                        </Expander>
                         <TextBlock x:Name="ReimportStatusText" Margin="0,7,0,0"
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource SecondaryTextBrush}"
