@@ -623,6 +623,21 @@
                                     Click="ReimportCompare_Click"
                                     AutomationProperties.Name="Comparer cet import DOCX avec la version courante" />
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                            <Button Content="Vérifier les transactions"
+                                    Padding="10,5" Margin="0,0,8,0"
+                                    Click="ReimportInspectRecovery_Click"
+                                    AutomationProperties.Name="Inspecter les transactions de réimport du projet" />
+                            <Button Content="Restaurer les opérations interrompues"
+                                    Padding="10,5" Margin="0,0,8,0"
+                                    Click="ReimportRecover_Click"
+                                    AutomationProperties.Name="Restaurer les sauvegardes des réimports interrompus" />
+                            <TextBlock x:Name="ReimportRecoveryStatus"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       Text="Aucune vérification de récupération effectuée." />
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="Associer la section sélectionnée :"
                                        VerticalAlignment="Center" Margin="0,0,8,0" />
