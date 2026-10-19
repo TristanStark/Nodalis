@@ -31,6 +31,7 @@ internal static class DocxImportPlanFingerprintSmokeTests
         if (first.Length != 64 ||
             DocxImportPlanFingerprint.Compute(original with { Fingerprint = first }) != first ||
             DocxImportPlanFingerprint.Compute(original with { ProjectedContentSha256 = "CONTENT-B" }) == first ||
+            DocxImportPlanFingerprint.Compute(original with { MappingProfileSha256 = "PROFILE-UPDATED" }) == first ||
             DocxImportPlanFingerprint.Compute(original with
             {
                 Changes = original.Changes.AsEnumerable().Reverse().ToList()
