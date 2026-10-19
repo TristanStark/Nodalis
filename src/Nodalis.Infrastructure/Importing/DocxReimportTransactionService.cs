@@ -539,6 +539,153 @@ public sealed class DocxReimportTransactionService
         return destination;
     }
 
+    /// <summary>
+    /// Validates the versioned source and provenance package before any local
+    /// changes and caches exactly the bytes that will be committed.
+    /// </summary>
+    private async Task<PreparedProvenance> PrepareProvenanceAsync(
+        string project,
+        DocxReimportDecisionPlan plan,
+        Guid operationId,
+        DocxReimportProvenancePackage package,
+        CancellationToken cancellationToken)
+    {
+        DocxImportManifest manifest = package.Manifest;
+        _paths.Validate(manifest);
+        if (manifest.ProjectId != plan.ProjectId ||
+            manifest.PreviousImportId != plan.PreviousImportId ||
+            manifest.ReimportOperationId != operationId ||
+            manifest.ImportId != operationId ||
+            !string.Equals(manifest.ApprovedPlanFingerprint,
+                Fingerprint(plan), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Provenance incompatible avec l'approbation de réimport.");
+        }
+
+        string sourcePath = CreatedDestination(project, operationId,
+            manifest.SourceCopyRelativePath);
+        string manifestPath = _paths.GetManifestPath(project, operationId);
+        EnsureNoLinks(sourcePath);
+        EnsureNoLinks(manifestPath);
+
+        string staged = Path.GetFullPath(package.StagedDocxPath);
+        EnsureNoLinks(staged);
+        if (!File.Exists(staged) || new FileInfo(staged).Length > 128L * 1024 * 1024)
+        {
+            throw new InvalidDataException(
+                "Copie DOCX temporaire absente ou trop volumineuse.");
+        }
+
+        byte[] sourceBytes = await File.ReadAllBytesAsync(staged, cancellationToken);
+        string sourceSha = ShaBytes(sourceBytes);
+        if (!string.Equals(manifest.SourceSha256, sourceSha,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Le Word temporaire ne correspond plus à sa provenance.");
+        }
+
+        byte[] manifestBytes = JsonSerializer.SerializeToUtf8Bytes(
+            manifest, JsonDefaults.Options);
+        if (manifestBytes.Length > 64L * 1024 * 1024)
+        {
+            throw new InvalidDataException(
+                "Manifeste de provenance du réimport trop volumineux.");
+        }
+
+        foreach (DocxImportManifestFragment fragment in manifest.Fragments)
+        {
+            DocxReimportProposedWrite? write = plan.Writes.FirstOrDefault(item =>
+                item.FragmentId == fragment.FragmentId);
+            if (write is not null &&
+                (!string.Equals(write.DestinationRelativePath,
+                    fragment.DestinationRelativePath,
+                    StringComparison.OrdinalIgnoreCase) ||
+                 !string.Equals(write.ProjectedSha256,
+                    fragment.DestinationSha256, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException(
+                    "La provenance ne correspond pas aux fichiers projetés.");
+            }
+
+            // Retained local destinations are checked in the same preflight.
+            if (write is null)
+            {
+                string path = Destination(project, fragment.DestinationRelativePath);
+                if (!File.Exists(path) ||
+                    !string.Equals(DocxImportManifestStore.ComputeSha256(
+                            await File.ReadAllTextAsync(path, cancellationToken)),
+                        fragment.DestinationSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "La destination conservée a changé depuis la prévisualisation.");
+                }
+            }
+        }
+
+        return new PreparedProvenance(manifest, sourcePath, manifestPath,
+            sourceBytes, sourceSha, ShaBytes(manifestBytes));
+    }
+
+    /// <summary>
+    /// Allows only the operation-scoped DOCX and its immutable project manifest
+    /// as newly created transaction artifacts. Never resolves arbitrary files.
+    /// </summary>
+    private string CreatedDestination(string project, Guid operationId,
+        string relativePath)
+    {
+        string resolved = _paths.ResolveWorkspaceRelativePath(relativePath);
+        string expectedDocx = Path.Combine(_workspaceRoot, "Imports", "Sources",
+            "reimport-" + operationId.ToString("N") + ".docx");
+        string expectedManifest = _paths.GetManifestPath(project, operationId);
+        if (!string.Equals(resolved, expectedDocx,
+                StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(resolved, expectedManifest,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Fichier généré inconnu pour la transaction de réimport.");
+        }
+
+        EnsureNoLinks(resolved);
+        return resolved;
+    }
+
+    /// <summary>
+    /// Creates an immutable source copy from already verified package bytes
+    /// without allowing an existing copy to be overwritten.
+    /// </summary>
+    private static async Task WriteNewFileAsync(string destination,
+        byte[] content, CancellationToken cancellationToken)
+    {
+        string directory = Path.GetDirectoryName(destination)!;
+        Directory.CreateDirectory(directory);
+        string temporary = Path.Combine(directory,
+            "." + Path.GetFileName(destination) + "." +
+            Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            await using (FileStream stream = new FileStream(temporary,
+                FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096,
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await stream.WriteAsync(content, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(temporary, destination);
+        }
+        finally
+        {
+            if (File.Exists(temporary))
+            {
+                File.Delete(temporary);
+            }
+        }
+    }
+
     /// <summary>Confines the selected project path to the existing workspace.</summary>
     private string ProjectPath(string projectDirectory)
     {
@@ -664,6 +811,15 @@ public sealed class DocxReimportTransactionService
     /// <summary>Returns a stable SHA-256 over the exact original backup bytes.</summary>
     private static string ShaBytes(byte[] bytes) =>
         Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+
+    /// <summary>Prepared immutable provenance and the expected artifact hashes.</summary>
+    private sealed record PreparedProvenance(
+        DocxImportManifest Manifest,
+        string SourcePath,
+        string ManifestPath,
+        byte[] SourceBytes,
+        string SourceSha256,
+        string ManifestSha256);
 
     /// <summary>One complete local destination snapshot before journaling.</summary>
     private sealed record PreparedWrite(DocxReimportProposedWrite Write,
