@@ -226,6 +226,14 @@ public sealed class DocxReimportTransactionService
             };
         }
 
+        if (preparedProvenance is not null &&
+            (File.Exists(preparedProvenance.SourcePath) ||
+             File.Exists(preparedProvenance.ManifestPath)))
+        {
+            throw new IOException(
+                "Un historique DOCX de cette opération existe déjà : aucune écriture.");
+        }
+
         List<PreparedWrite> prepared = [];
         HashSet<string> destinations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (DocxReimportProposedWrite write in plan.Writes)
@@ -455,6 +463,41 @@ public sealed class DocxReimportTransactionService
             return;
         }
 
+        List<string> createdToRemove = [];
+        HashSet<string> createdTargets =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (journal.CreatedFiles.Count is not (0 or 2))
+        {
+            throw new InvalidDataException(
+                "Le journal de réimport contient un nombre anormal de créations.");
+        }
+
+        foreach (DocxReimportCreatedFile created in journal.CreatedFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string full = CreatedDestination(project, journal.OperationId,
+                created.RelativePath);
+            if (!createdTargets.Add(full))
+            {
+                throw new InvalidDataException(
+                    "Créations du journal DOCX en doublon.");
+            }
+
+            if (File.Exists(full))
+            {
+                if (!string.Equals(
+                        await DocxImportManifestStore.ComputeFileSha256Async(
+                            full, cancellationToken),
+                        created.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Fichier créé puis modifié hors du réimport : reprise manuelle.");
+                }
+
+                createdToRemove.Add(full);
+            }
+        }
+
         List<(string Destination, string Backup)> restore = [];
         HashSet<string> destinations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (DocxReimportTransactionEntry entry in journal.Entries)
@@ -517,6 +560,26 @@ public sealed class DocxReimportTransactionService
                 }, cancellationToken);
         }
 
+        foreach (string created in createdToRemove)
+        {
+            DocxReimportCreatedFile recorded = journal.CreatedFiles.Single(file =>
+                string.Equals(CreatedDestination(project, journal.OperationId,
+                    file.RelativePath), created, StringComparison.OrdinalIgnoreCase));
+            if (File.Exists(created))
+            {
+                if (!string.Equals(
+                        await DocxImportManifestStore.ComputeFileSha256Async(
+                            created, cancellationToken),
+                        recorded.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Copie ou manifeste créé modifié avant restauration : reprise manuelle.");
+                }
+
+                File.Delete(created);
+            }
+        }
+
         await AtomicJsonFile.WriteAsync(journalPath,
             journal with { State = DocxReimportTransactionState.RolledBack },
             cancellationToken);
@@ -571,6 +634,13 @@ public sealed class DocxReimportTransactionService
 
         string staged = Path.GetFullPath(package.StagedDocxPath);
         EnsureNoLinks(staged);
+        if (!File.Exists(staged) && File.Exists(sourcePath))
+        {
+            // Replaying a completed transaction remains possible even after
+            // the temporary DOCX staging area has been cleaned up.
+            staged = sourcePath;
+        }
+
         if (!File.Exists(staged) || new FileInfo(staged).Length > 128L * 1024 * 1024)
         {
             throw new InvalidDataException(
@@ -785,7 +855,13 @@ public sealed class DocxReimportTransactionService
         if (journal.OperationId == Guid.Empty || journal.ProjectId == Guid.Empty ||
             journal.PreviousImportId == Guid.Empty ||
             !IsSha256(journal.Fingerprint) ||
-            journal.Entries is not { Count: > 0 and <= 200 } ||
+            journal.Entries is not { Count: <= 200 } ||
+            journal.CreatedFiles is not { Count: <= 2 } ||
+            (journal.Entries.Count == 0 && journal.CreatedFiles.Count == 0) ||
+            journal.CreatedFiles.Any(file =>
+                file is null ||
+                !IsSha256(file.Sha256) ||
+                string.IsNullOrWhiteSpace(file.RelativePath)) ||
             journal.Entries.Any(entry =>
                 entry is null ||
                 !IsSha256(entry.BeforeSha256) ||
