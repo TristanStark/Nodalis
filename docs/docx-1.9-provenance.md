@@ -21,6 +21,9 @@ confirmation.
 | `projectId` | Identité Nodalis du projet destinataire |
 | `sourceFileName`, `sourceSha256` | Nom lisible et empreinte **du contenu** du DOCX |
 | `sourceCopyRelativePath` | Copie locale portable, sans chemin absolu d'origine |
+| `previousImportId`, `reimportOperationId` | Chaînage vers le précédent import et identité de transaction ; facultatifs pour les imports originaux |
+| `fragments[].reimportResolution` | Action qui a produit le snapshot actuel (`Word`, `Manual`, `Nodalis`) |
+| `fragments[].latestWordMarkdownSnapshot`, `latestWordSnapshotSha256` | Texte constaté dans le nouveau Word et empreinte de contrôle, même quand Nodalis est conservé |
 | `approvedPlanFingerprint` | Empreinte du plan explicitement approuvé, si fournie |
 | `appliedMappingProfile` | Snapshot du profil réellement appliqué, y compris les règles et overrides, si présent |
 | `excludedSectionIndexes` | Sections exclues volontairement |
@@ -51,6 +54,16 @@ titres homonymes, sections déplacées ou renommées et modifications concurrent
 Le manifeste est **immuable** pour cet import. Les imports suivants
 obtiennent leur propre identité et un nouveau fichier JSON.
 
+Pour les réimports qualifiés, `DocxReimportProvenanceBuilder` produit un nouveau
+manifeste lié au précédent, avec une **nouvelle copie Word propre à l'opération**
+(`Imports/Sources/reimport-<GUID>.docx`). Les fragments gardent un GUID
+stable d'une génération à la suivante quand leur identité a été confirmée ;
+les sections supprimées du Word restent consultables dans l'historique parent.
+Une fusion manuelle utilise comme nouvelle base le contenu effectivement
+accepté, tout en conservant le texte Word observé séparément. Une décision
+« conserver Nodalis » ne transforme pas le Word rejeté en faux contenu appliqué.
+Le réimport n'est pas encore activé dans l'interface de validation.
+
 ## Sécurité et compatibilité
 
 - Les anciens projets sans `.nodalis-imports/` continuent de fonctionner
@@ -68,6 +81,8 @@ obtiennent leur propre identité et un nouveau fichier JSON.
   écritures, y compris le manifeste et la copie DOCX importée.
 - Aucun manifest historique n'est écrasé par un nouvel import.
 
-**Périmètre :** cette étape ajoute l'enregistrement fiable de la provenance.
-Elle **n'active pas encore le réimport automatique ni la résolution visuelle
-des conflits** ; ces fonctions sont prévues dans #164.
+**Périmètre :** les imports DOCX initiaux enregistrent la provenance ;
+le backend de #164 prépare aussi les générations de réimport, avec sauvegarde
+transactionnelle du Word, des Markdown et de leurs métadonnées. L'interface
+affiche le comparateur et les arbitrages en lecture seule. L'application du
+réimport reste désactivée jusqu'à la qualification de bout en bout.
