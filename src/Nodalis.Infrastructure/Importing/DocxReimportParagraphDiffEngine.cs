@@ -256,7 +256,8 @@ public static class DocxReimportParagraphDiffEngine
         }
 
         marker = text[0];
-        count = text.TakeWhile(character => character == marker).Count();
+        char expectedMarker = marker;
+        count = text.TakeWhile(character => character == expectedMarker).Count();
         return count >= 3;
     }
 
