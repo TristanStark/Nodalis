@@ -480,6 +480,12 @@ public sealed class WorkspaceDocxImportService
                 sourceCopyPath,
                 "Copie locale du DOCX original ; le fichier source reste intact"));
 
+        changes.Add(PlanChange(
+            "Créer",
+            new DocxImportManifestStore(_workspaceRoot).GetManifestPath(
+                projectDirectory, preview.ImportId),
+            "Manifeste de provenance DOCX (empreintes et snapshots de réimport)"));
+
         string contentBeforeCommit = string.Join(
             "\n--TARGET--\n",
             selected.GroupBy(item => item.TargetSection, StringComparer.CurrentCultureIgnoreCase)
@@ -570,6 +576,10 @@ public sealed class WorkspaceDocxImportService
         string? originalManifest = null;
         global::System.Collections.Generic.List<string> generatedFiles = new List<string>();
         global::System.Collections.Generic.List<string> createdDirectories = new List<string>();
+        DocxImportManifestStore provenanceStore = new DocxImportManifestStore(_workspaceRoot);
+        List<DocxImportManifestFragment> provenanceFragments = [];
+        string? committedSourceCopyPath = null;
+        string? provenancePath = null;
 
         try
         {
@@ -700,22 +710,89 @@ public sealed class WorkspaceDocxImportService
 
                 generatedFiles.Add(
                     destination);
+
+                string destinationHash = DocxImportManifestStore.ComputeSha256(markdown);
+                foreach (SelectedSection sourceSection in group)
+                {
+                    int[] indexes = (sourceSection.SelectedBlockIndexes is null
+                            ? sourceSection.Preview.Blocks.Select(block => block.BlockIndex)
+                            : sourceSection.SelectedBlockIndexes)
+                        .OrderBy(index => index)
+                        .ToArray();
+
+                    string snapshot = DocxImportSelectionRenderer.Render(
+                        sourceSection.Preview, indexes).TrimEnd();
+
+                    provenanceFragments.Add(new DocxImportManifestFragment
+                    {
+                        FragmentId = Guid.NewGuid(),
+                        SourceSectionIndex = sourceSection.Preview.Index,
+                        HeadingBlockIndex = sourceSection.Preview.HeadingBlockIndex,
+                        SourceHeading = sourceSection.Preview.SourceHeading,
+                        TargetSection = sectionName,
+                        DestinationRelativePath = provenanceStore.ToWorkspaceRelativePath(destination),
+                        SelectedBlockIndexes = indexes.ToList(),
+                        FragmentSha256 = DocxImportManifestStore.ComputeSha256(snapshot),
+                        BaseMarkdown = snapshot,
+                        DestinationSha256 = destinationHash
+                    });
+                }
             }
 
             string sourceCopyPath = await CommitStagedCopyAsync(
                 preview.StagedImport,
                 cancellationToken);
+            committedSourceCopyPath = sourceCopyPath;
+
+            DocxImportManifest provenance = new DocxImportManifest
+            {
+                ImportId = preview.ImportId,
+                ProjectId = projectId,
+                ImportedAtUtc = DateTimeOffset.UtcNow,
+                SourceFileName = Path.GetFileName(preview.StagedImport.OriginalSourcePath),
+                SourceSha256 = await DocxImportManifestStore.ComputeFileSha256Async(
+                    sourceCopyPath, cancellationToken),
+                SourceCopyRelativePath = provenanceStore.ToWorkspaceRelativePath(sourceCopyPath),
+                ApprovedPlanFingerprint = request.ExpectedPlanFingerprint,
+                ExcludedSectionIndexes = request.Sections
+                    .Where(section => !section.Include)
+                    .Select(section => section.SectionIndex)
+                    .ToList(),
+                Fragments = provenanceFragments
+            };
+
+            string provenanceDirectory = Path.GetDirectoryName(
+                provenanceStore.GetManifestPath(projectDirectory, preview.ImportId))!;
+            if (!Directory.Exists(provenanceDirectory))
+            {
+                Directory.CreateDirectory(provenanceDirectory);
+                createdDirectories.Add(provenanceDirectory);
+            }
+
+            provenancePath = await provenanceStore.SaveNewAsync(
+                projectDirectory, provenance, cancellationToken);
 
             return new DocxImportCommitResult
             {
                 ProjectId = projectId,
                 ProjectDirectory = projectDirectory,
                 SourceCopyPath = sourceCopyPath,
-                GeneratedFiles = generatedFiles
+                GeneratedFiles = generatedFiles,
+                ManifestPath = provenancePath
             };
         }
         catch
         {
+            if (provenancePath is not null)
+            {
+                TryDelete(provenancePath);
+            }
+
+            if (committedSourceCopyPath is not null)
+            {
+                TryDelete(committedSourceCopyPath);
+            }
+
             if (createdProject &&
                 !string.IsNullOrWhiteSpace(projectDirectory) &&
                 Directory.Exists(projectDirectory))
