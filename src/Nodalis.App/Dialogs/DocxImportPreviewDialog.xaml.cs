@@ -428,17 +428,27 @@ public partial class DocxImportPreviewDialog : Window
             "Import DOCX · prévisualiser",
             async () =>
             {
-                if (!ReferenceEquals(
-                        e.Source,
-                        ImportTabs) ||
-                    !IsLoaded ||
-                    FilesTab.IsSelected != true)
+                if (!ReferenceEquals(e.Source, ImportTabs) || !IsLoaded)
                 {
                     return;
                 }
 
-                await RefreshPlanAsync(
-                    showValidationMessages: false);
+                if (ReimportTab.IsSelected)
+                {
+                    ImportButton.IsEnabled = false;
+                    ImportButton.Content = "Réimport · lecture seule";
+                    return;
+                }
+
+                ImportButton.IsEnabled = !_refreshingPlan;
+                ImportButton.Content = _lastPlan is null
+                    ? "Prévisualiser les fichiers"
+                    : "Valider l'import";
+
+                if (FilesTab.IsSelected)
+                {
+                    await RefreshPlanAsync(showValidationMessages: false);
+                }
             });
     }
 
@@ -456,6 +466,17 @@ public partial class DocxImportPreviewDialog : Window
             "Import DOCX · importer",
             async () =>
             {
+                if (ReimportTab.IsSelected)
+                {
+                    MessageBox.Show(this,
+                        "Le comparateur de réimport est en lecture seule. " +
+                        "Aucune modification ne peut être validée depuis cet onglet.",
+                        "Réimport DOCX",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
                 global::Nodalis.Core.Importing.DocxImportCommitRequest? request = BuildCurrentRequest(
                     showValidationMessages: true);
 
@@ -585,7 +606,7 @@ public partial class DocxImportPreviewDialog : Window
         finally
         {
             _refreshingPlan = false;
-            ImportButton.IsEnabled = true;
+            ImportButton.IsEnabled = !ReimportTab.IsSelected;
 
             if (_lastPlan is null)
             {
