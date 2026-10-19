@@ -152,6 +152,52 @@ internal static class DocxReimportDecisionPlannerSmokeTests
         Assert(deleted.ReviewComplete && deleted.Writes.Count == 0,
             "A section deleted in Word remains historic Nodalis content.");
 
+        DocxReimportReview withAddedWordSection = review with
+        {
+            Matching = review.Matching with { AddedSectionIndexes = [7] }
+        };
+        DocxReimportDecisionPlan unresolvedAddition =
+            DocxReimportDecisionPlanner.Build(withAddedWordSection, history,
+                [acceptWord]);
+        DocxReimportDecisionPlan explicitlyExcluded =
+            DocxReimportDecisionPlanner.Build(withAddedWordSection, history,
+                [acceptWord], excludedNewSectionIndexes: [7]);
+        Assert(!unresolvedAddition.ReviewComplete &&
+               unresolvedAddition.UnmatchedNewSections.SequenceEqual([7]) &&
+               explicitlyExcluded.ReviewComplete &&
+               explicitlyExcluded.ExcludedNewSectionIndexes.SequenceEqual([7]) &&
+               explicitlyExcluded.UnmatchedNewSections.Count == 0 &&
+               explicitlyExcluded.Writes.Count == 1,
+            "New Word sections must remain pending until explicitly excluded; old fragment writes remain unchanged.");
+
+        bool invalidNewSectionRejected = false;
+        try
+        {
+            DocxReimportDecisionPlanner.Build(withAddedWordSection, history,
+                [acceptWord], excludedNewSectionIndexes: [99]);
+        }
+        catch (InvalidDataException)
+        {
+            invalidNewSectionRejected = true;
+        }
+
+        Assert(invalidNewSectionRejected,
+            "An exclusion must never refer to an unknown Word section.");
+
+        bool duplicateNewSectionRejected = false;
+        try
+        {
+            DocxReimportDecisionPlanner.Build(withAddedWordSection, history,
+                [acceptWord], excludedNewSectionIndexes: [7, 7]);
+        }
+        catch (InvalidDataException)
+        {
+            duplicateNewSectionRejected = true;
+        }
+
+        Assert(duplicateNewSectionRejected,
+            "The same new Word section must not be excluded twice.");
+
         bool duplicatesRejected = false;
         try
         {
