@@ -288,6 +288,12 @@ public sealed class DocxImportManifestStore
                 (fragment.ReimportResolution is not null &&
                  (fragment.LatestWordMarkdownSnapshot is null ||
                   fragment.ReimportResolution is not ("Word" or "Manual" or "Nodalis"))) ||
+                (fragment.LatestWordSnapshotSha256 is not null &&
+                 (fragment.LatestWordMarkdownSnapshot is null ||
+                  !IsSha256(fragment.LatestWordSnapshotSha256) ||
+                  !string.Equals(fragment.LatestWordSnapshotSha256,
+                      ComputeSha256(fragment.LatestWordMarkdownSnapshot),
+                      StringComparison.OrdinalIgnoreCase))) ||
                 !IsSha256(fragment.FragmentSha256) ||
                 !IsSha256(fragment.DestinationSha256) ||
                 !string.Equals(fragment.FragmentSha256,
