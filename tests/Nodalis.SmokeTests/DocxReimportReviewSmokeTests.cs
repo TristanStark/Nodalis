@@ -123,7 +123,7 @@ internal static class DocxReimportReviewSmokeTests
         Assert(wordOnly.Fragments.Count == 1 &&
                wordOnly.Fragments[0].Change?.Kind == DocxReimportChangeKind.WordChanged &&
                wordOnly.Fragments[0].BaseMarkdown == original &&
-               wordOnly.Fragments[0].LatestWordMarkdown == latestWord &&
+               wordOnly.Fragments[0].LatestWordMarkdown?.Replace("\r\n", "\n") == latestWord &&
                wordOnly.Fragments[0].CurrentNodalisMarkdown == original &&
                !wordOnly.SourcePackageUnchanged,
             "Read-only review must compare old base, new Word and actual Nodalis text.");
