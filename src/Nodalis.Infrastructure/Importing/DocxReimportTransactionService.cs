@@ -95,6 +95,7 @@ public sealed class DocxReimportTransactionService
                 StringComparison.OrdinalIgnoreCase) ||
             !plan.ReviewComplete || plan.Lines.Count == 0 ||
             (plan.Writes.Count == 0 && provenance is null) ||
+            (plan.NewSectionCreations.Count > 0 && provenance is null) ||
             plan.Lines.Any(line => !line.Resolved) ||
             plan.Warnings.Count != 0 ||
             plan.UnmatchedNewSections.Count != 0 ||
@@ -129,8 +130,16 @@ public sealed class DocxReimportTransactionService
         foreach (string directory in Directory.EnumerateDirectories(transactions))
         {
             EnsureNoLinks(directory);
+            string existingJournal = Path.Combine(directory, JournalName);
+            if (!File.Exists(existingJournal))
+            {
+                ValidateUnjournaledDirectory(directory);
+                throw new InvalidOperationException(
+                    "Sauvegardes DOCX sans journal : lancez d'abord la récupération.");
+            }
+
             DocxReimportTransactionJournal prior = await ReadJournalAsync(
-                Path.Combine(directory, JournalName), cancellationToken);
+                existingJournal, cancellationToken);
             ValidateJournalDirectory(directory, prior);
             if (prior.State == DocxReimportTransactionState.Prepared)
             {
@@ -757,7 +766,7 @@ public sealed class DocxReimportTransactionService
             string destination = CreatedDestination(project, operationId,
                 plan.PreviousImportId, creation.DestinationRelativePath);
             if (!destinations.Add(destination) ||
-                File.Exists(destination) ||
+                (File.Exists(destination) && !File.Exists(manifestPath)) ||
                 !Directory.Exists(Path.GetDirectoryName(destination)) ||
                 !string.Equals(DocxImportManifestStore.ComputeSha256(creation.Markdown),
                     creation.Sha256, StringComparison.OrdinalIgnoreCase) ||
