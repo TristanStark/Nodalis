@@ -1,13 +1,15 @@
-# DOCX v1.9 — Réimport différentiel, paragraphes et arbitrages sans écriture (#164)
+# DOCX v1.9 — Réimport différentiel et application explicitement confirmée (#164)
 
 ## État du développement
 
-L'issue #164 dispose d'un comparateur **à trois voies, en lecture seule**,
+L'issue #164 dispose d'un comparateur **à trois voies en lecture seule**,
 d'un rapprochement des sections Word, d'arbitrages manuels, d'un différentiel
-par paragraphe et d'un plan projetant les modifications sans les appliquer.
-Le comparateur utilise les manifestes locaux issus de #163 et oblige à
-sélectionner un historique d'import précis. Aucun chemin d'écriture de
-réimport n'est activé à ce stade.
+par paragraphe et d'un plan de remplacement sécurisé. La commande
+**Préparer le réimport** revalide l'historique et les destinations actuelles ;
+une seconde commande **Appliquer le plan confirmé** ne déclenche les écritures
+qu'après validation Yes/No du détail des fichiers. Le système conserve
+une copie Word et un manifeste versionné, journalise les sauvegardes
+avant modification et restaure les fichiers si nécessaire.
 
 ## Matrice de classification
 
@@ -68,12 +70,10 @@ Cible, puis ouvrez **Réimport · comparer** :
 La lecture vérifie que l'identifiant du projet correspond au manifeste et
 que les destinations Markdown restent dans ce projet. Les fichiers absents
 sont signalés ; les historiques corrompus ou les chemins dangereux sont
-refusés. Les documents originaux et les notes actuelles ne sont pas modifiés.
-
-**Limite de cette étape :** l'onglet ne propose volontairement **aucun bouton
-d'application ou de fusion automatique**. Il prépare l'arbitrage sans prendre
-de décision d'écriture. Une section affichée comme ambiguë n'est jamais
-automatiquement considérée comme supprimée.
+refusés. La **comparaison seule** ne modifie ni les documents originaux ni les notes.
+Une section ambiguë n'est jamais automatiquement considérée comme supprimée.
+Seules les sections résolues et explicitement acceptées peuvent être
+appliquées après préparation puis confirmation séparée.
 
 ## Résolution manuelle et plan des décisions (#164, nouvel incrément)
 
@@ -113,13 +113,16 @@ Quand le fragment initial est localisé sans ambiguïté, le Markdown
 **situé avant et après** est préservé par la proposition de remplacement.
 Le plan conserve l'empreinte SHA-256 de la destination actuelle pour une
 future vérification de concurrence avant commit. Les décisions ne sont pas
-persistées ni appliquées.
+persistées tant que le réimport n'a pas été explicitement confirmé.
 
-**Attention :** le bouton d'import standard est désactivé tant que
-l'onglet de réimport en lecture seule est actif. Un plan indiqué comme
-« complet » n'est **pas** un commit : l'application des modifications,
-le traitement des sections nouvelles et le rollback transactionnel restent
-à implémenter avant que le réimport puisse écrire.
+**Attention :** le bouton d'import standard reste désactivé dans l'onglet
+de réimport pour empêcher toute confusion. Un plan indiqué comme « complet »
+ne déclenche **aucune écriture** : vous devez encore cliquer sur
+**Préparer le réimport**, relire l'aperçu de ses écritures puis
+**Appliquer le plan confirmé** avec une confirmation positive.
+L'approbation est invalidée au moindre changement des décisions ou
+du document depuis l'aperçu. Voir aussi
+[transactions et récupération](docx-1.9-reimport-transaction.md).
 
 ## Différentiel visuel des paragraphes
 
@@ -151,7 +154,8 @@ sections qui ne correspondent à aucun fragment de l'ancien import.
 Une action **Exclure de ce réimport** les marque explicitement comme ignorées
 dans le plan en mémoire. Les sections non traitées empêchent l'état
 `ReviewComplete`; les correspondances encore ambiguës ne peuvent pas être
-contournées avec cette exclusion. Aucun fichier n'est créé ni modifié.
+contournées avec cette exclusion. Cette action d'exclusion, seule, ne crée
+ni ne modifie aucun fichier.
 
 Ce dispositif ne permet pas encore **d'importer réellement une nouvelle
 section** dans Nodalis. Cette opération nécessitera un plan d'affectation
@@ -159,15 +163,21 @@ et une transaction avec rollback.
 
 ## Sécurité
 
-Ce moteur n'enregistre **aucune décision**, n'écrase aucun Markdown et
-n'efface aucun document. Les résultats indiquent quelles sections sont
-éligibles à une proposition de mise à jour ou nécessitent un arbitrage.
+Le comparateur et les arbitrages ne touchent jamais les fichiers. Le
+parcours d'application dispose d'un journal transactionnel, de sauvegardes
+binaires et d'un manifeste immuable. Les plans périmés sont refusés.
+
+Les nouveaux imports enregistrent désormais
+`originalSourceBlockCount`, le nombre total de blocs disponibles dans la
+section Word initiale. Si l'utilisateur n'en avait importé qu'une sélection,
+le réimport est **bloqué avec un avertissement explicite** : on ne
+réintroduit pas automatiquement les paragraphes autrefois exclus. Les
+anciens manifestes sans ce champ demeurent lisibles.
 
 **Restent à développer dans #164 :** l'affectation et l'import effectif de
-nouvelles sections, une fusion assistée lorsque l'ancrage initial a été
-modifié dans Nodalis, les opérations idempotentes et un commit de réimport
-transactionnel avec rollback et reprise. Cette étape ne constitue donc **pas** une fonctionnalité de
-réimport prête à l'emploi.
+nouvelles sections, une fusion assistée des anciens fragments dont l'ancre
+a été modifiée localement, puis la qualification WPF/Windows des cas extrêmes
+de concurrence, permissions et récupération.
 
 La suite smoke vérifie les sept classifications, les conflits entre Word et
 Nodalis et les destinations où plusieurs fragments ont été fusionnés.
