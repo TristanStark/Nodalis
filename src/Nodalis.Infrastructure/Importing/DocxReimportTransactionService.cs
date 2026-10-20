@@ -237,6 +237,7 @@ public sealed class DocxReimportTransactionService
                 OperationId = operationId,
                 AlreadyApplied = true,
                 WrittenFiles = existing.Entries.Count,
+                CreatedMarkdownFiles = preparedProvenance?.NewSections.Count ?? 0,
                 ManifestPath = preparedProvenance?.ManifestPath
             };
         }
@@ -419,6 +420,7 @@ public sealed class DocxReimportTransactionService
             {
                 OperationId = operationId,
                 WrittenFiles = entries.Count,
+                CreatedMarkdownFiles = preparedProvenance?.NewSections.Count ?? 0,
                 ManifestPath = preparedProvenance?.ManifestPath
             };
         }
@@ -1166,6 +1168,9 @@ public sealed record DocxReimportTransactionResult
     public required Guid OperationId { get; init; }
 
     public int WrittenFiles { get; init; }
+
+    /// <summary>Newly created Markdown documents from added Word sections.</summary>
+    public int CreatedMarkdownFiles { get; init; }
 
     public bool AlreadyApplied { get; init; }
 
