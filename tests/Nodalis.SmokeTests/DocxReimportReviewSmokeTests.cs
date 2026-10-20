@@ -539,6 +539,24 @@ internal static class DocxReimportReviewSmokeTests
                excludedAndAssignedRejected,
             "New Word sections cannot escape the project, repeat an assignment or be both imported and excluded.");
 
+        DocxReimportResolution preserveDeleted = new DocxReimportResolution
+        {
+            FragmentId = fragment.FragmentId,
+            Action = DocxReimportResolutionAction.KeepHistorical
+        };
+        DocxImportPreview replacementWord = withRecipe with
+        {
+            Sections = [withRecipe.Sections[1]]
+        };
+        DocxReimportApproval replacementApproval = await approvals.PrepareAsync(
+            projectDirectory, previous.ImportId, replacementWord,
+            [], [preserveDeleted], [], newSectionAssignments: [recipeChoice]);
+        Assert(replacementApproval.Plan.ReviewComplete &&
+               replacementApproval.Plan.NewSectionCreations.Count == 1 &&
+               replacementApproval.Plan.Writes.Count == 0 &&
+               await File.ReadAllTextAsync(markdownPath) == original,
+            "An entirely replaced Word document can preserve old sections in history and create only new files.");
+
         DocxReimportApproval recipeApproval = await approvals.PrepareAsync(
             projectDirectory, previous.ImportId, withRecipe,
             [], [useWord], [], newSectionAssignments: [recipeChoice]);
