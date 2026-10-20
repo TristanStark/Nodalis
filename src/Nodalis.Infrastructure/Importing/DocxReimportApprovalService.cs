@@ -131,10 +131,22 @@ public sealed class DocxReimportApprovalService
                 StringComparison.OrdinalIgnoreCase) ||
             approved.PreparedManifest.ImportId != approved.OperationId ||
             approved.PreparedManifest.ProjectId != approved.ProjectId ||
-            approved.PreparedManifest.PreviousImportId != approved.PreviousImportId)
+            approved.PreparedManifest.PreviousImportId != approved.PreviousImportId ||
+            !string.Equals(approved.PreparedManifest.ApprovedPlanFingerprint,
+                approved.ApprovedPlanFingerprint, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException(
                 "Le plan DOCX approuvé est invalide ou a été modifié.");
+        }
+
+        string manifestPath = _store.GetManifestPath(
+            approved.ProjectDirectory, approved.PreviousImportId);
+        if (!string.Equals(await DocxImportManifestStore.ComputeFileSha256Async(
+                manifestPath, cancellationToken),
+            approved.HistoricalManifestSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "L'historique DOCX a changé depuis la validation : comparaison requise.");
         }
 
         // A completed transaction is replayed against the durable journal
@@ -167,16 +179,6 @@ public sealed class DocxReimportApprovalService
         {
             throw new InvalidDataException(
                 "Le Word a changé depuis la validation : préparez à nouveau le réimport.");
-        }
-
-        string manifestPath = _store.GetManifestPath(
-            approved.ProjectDirectory, approved.PreviousImportId);
-        if (!string.Equals(await DocxImportManifestStore.ComputeFileSha256Async(
-                manifestPath, cancellationToken),
-            approved.HistoricalManifestSha256, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException(
-                "L'historique DOCX a changé depuis la validation : comparaison requise.");
         }
 
         DocxImportManifest previous = await _store.LoadAsync(
