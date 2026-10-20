@@ -557,6 +557,35 @@ internal static class DocxReimportReviewSmokeTests
                await File.ReadAllTextAsync(markdownPath) == original,
             "An entirely replaced Word document can preserve old sections in history and create only new files.");
 
+        string deletedDestinationFolder =
+            Path.Combine(projectDirectory, "Dossier temporaire recette");
+        Directory.CreateDirectory(deletedDestinationFolder);
+        DocxReimportApproval folderApproval = await approvals.PrepareAsync(
+            projectDirectory, previous.ImportId, withRecipe, [],
+            [useWord], [], newSectionAssignments:
+            [
+                recipeChoice with
+                {
+                    TargetFolderRelativePath =
+                        store.ToWorkspaceRelativePath(deletedDestinationFolder)
+                }
+            ]);
+        Directory.Delete(deletedDestinationFolder);
+        bool removedFolderRejected = false;
+        try
+        {
+            await approvals.ApplyAsync(folderApproval, withRecipe);
+        }
+        catch (InvalidDataException)
+        {
+            removedFolderRejected = true;
+        }
+
+        Assert(removedFolderRejected &&
+               !Directory.Exists(deletedDestinationFolder) &&
+               await File.ReadAllTextAsync(markdownPath) == original,
+            "An approved Word section must not recreate a project folder deleted before commit.");
+
         DocxReimportApproval recipeApproval = await approvals.PrepareAsync(
             projectDirectory, previous.ImportId, withRecipe,
             [], [useWord], [], newSectionAssignments: [recipeChoice]);
