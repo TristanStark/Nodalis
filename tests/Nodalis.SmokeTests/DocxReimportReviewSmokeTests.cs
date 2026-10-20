@@ -544,6 +544,63 @@ internal static class DocxReimportReviewSmokeTests
             "A new-section creation transaction must replay idempotently.");
 
         await File.WriteAllTextAsync(markdownPath, original);
+        DocxReimportNewSectionAssignment rootChoice =
+            new DocxReimportNewSectionAssignment
+            {
+                SectionIndex = 1,
+                TargetFolderRelativePath =
+                    store.ToWorkspaceRelativePath(projectDirectory)
+            };
+        DocxReimportApproval rollbackApproval = await approvals.PrepareAsync(
+            projectDirectory, previous.ImportId, withRecipe,
+            [], [useWord], [], newSectionAssignments: [rootChoice]);
+        DocxReimportProvenanceBuilder rollbackProvenance =
+            new DocxReimportProvenanceBuilder(root);
+        DocxReimportReview rollbackReview = await service.BuildAsync(
+            projectDirectory, previous, withRecipe);
+        DocxImportManifest rollbackHistory = await rollbackProvenance.BuildAsync(
+            previous, rollbackReview, rollbackApproval.Plan, withRecipe, [useWord],
+            rollbackApproval.OperationId,
+            "Imports/Sources/reimport-" +
+            rollbackApproval.OperationId.ToString("N") + ".docx");
+        DocxReimportTransactionService failsAfterNewSection =
+            new DocxReimportTransactionService(root, checkpoint =>
+            {
+                if (checkpoint == 2)
+                {
+                    throw new InvalidOperationException(
+                        "Injected failure after creating the new Word section");
+                }
+            });
+        bool newSectionRolledBack = false;
+        try
+        {
+            await failsAfterNewSection.CommitWithProvenanceAsync(
+                projectDirectory, rollbackApproval.Plan,
+                rollbackApproval.OperationId,
+                rollbackApproval.ApprovedPlanFingerprint,
+                new DocxReimportProvenancePackage
+                {
+                    Manifest = rollbackHistory,
+                    StagedDocxPath = newCopy
+                });
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message.Contains("Injected", StringComparison.Ordinal))
+        {
+            newSectionRolledBack = true;
+        }
+
+        Assert(newSectionRolledBack &&
+               await File.ReadAllTextAsync(markdownPath) == original &&
+               !File.Exists(store.ResolveWorkspaceRelativePath(
+                   rollbackApproval.Plan.NewSectionCreations[0].DestinationRelativePath)) &&
+               !File.Exists(store.ResolveWorkspaceRelativePath(
+                   rollbackHistory.SourceCopyRelativePath)) &&
+               !File.Exists(store.GetManifestPath(projectDirectory,
+                   rollbackApproval.OperationId)),
+            "A failed new-section transaction must remove the created Markdown and Word provenance.");
+
         bool mismatchedHistoryRejected = false;
         try
         {
