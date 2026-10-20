@@ -21,6 +21,9 @@ public partial class DocxImportPreviewDialog
     private readonly HashSet<int> _reimportExcludedNewSections = [];
     private DocxReimportReview? _activeReimportReview;
     private string? _activeReimportProjectDirectory;
+    private string? _reimportComparedSourceSha256;
+    private DocxReimportApproval? _preparedReimportApproval;
+    private bool _reimportApplying;
 
     /// <summary>Initializes local-only reimport discovery without any disk writes.</summary>
     private void InitializeReimportControls(string workspaceRoot)
@@ -108,6 +111,8 @@ public partial class DocxImportPreviewDialog
             _reimportExcludedNewSections.Clear();
             _activeReimportReview = null;
             _activeReimportProjectDirectory = null;
+            _reimportComparedSourceSha256 = null;
+            InvalidatePreparedReimport();
             ReimportHistoryComboBox.ItemsSource = null;
             ReimportFragmentsList.ItemsSource = null;
             ReimportNewSectionsComboBox.ItemsSource = null;
@@ -147,6 +152,8 @@ public partial class DocxImportPreviewDialog
             _reimportExcludedNewSections.Clear();
             _activeReimportReview = null;
             _activeReimportProjectDirectory = null;
+            _reimportComparedSourceSha256 = null;
+            InvalidatePreparedReimport();
             ReimportMatchComboBox.ItemsSource = null;
             ReimportNewSectionsComboBox.ItemsSource = null;
             ReimportNewSectionsStatus.Text = string.Empty;
@@ -220,6 +227,8 @@ public partial class DocxImportPreviewDialog
         _reimportExcludedNewSections.Clear();
         _activeReimportReview = null;
         _activeReimportProjectDirectory = null;
+        _reimportComparedSourceSha256 = null;
+        InvalidatePreparedReimport();
         if (ReimportFragmentsList is not null)
         {
             ReimportFragmentsList.ItemsSource = null;
@@ -255,6 +264,10 @@ public partial class DocxImportPreviewDialog
 
             await DisplayReimportReportAsync(projectDirectory, history!,
                 _reimportOverrideChoices);
+            _reimportComparedSourceSha256 =
+                await DocxImportManifestStore.ComputeFileSha256Async(
+                    _preview.StagedImport.StagedCopyPath);
+            InvalidatePreparedReimport();
         });
     }
 
@@ -287,6 +300,7 @@ public partial class DocxImportPreviewDialog
             _reimportOverrideChoices.Clear();
             _reimportDecisions.Clear();
             _reimportExcludedNewSections.Clear();
+            InvalidatePreparedReimport();
             if (_activeReimportReview is not null)
             {
                 RefreshNewSectionChoices(_activeReimportReview);
@@ -357,6 +371,7 @@ public partial class DocxImportPreviewDialog
 
         _activeReimportReview = review;
         _activeReimportProjectDirectory = projectDirectory;
+        InvalidatePreparedReimport();
         RefreshNewSectionChoices(review);
         ReimportFragmentsList.ItemsSource = rows;
         ReimportFragmentsList.SelectedItem = selectFragmentId is Guid selected
@@ -504,6 +519,7 @@ public partial class DocxImportPreviewDialog
             }
 
             _reimportDecisions.Clear();
+            InvalidatePreparedReimport();
             foreach (KeyValuePair<Guid, DocxReimportResolution> pair in trial)
             {
                 _reimportDecisions.Add(pair.Key, pair.Value);
@@ -514,7 +530,7 @@ public partial class DocxImportPreviewDialog
                 " fragment(s) résolu(s) · " + plan.Writes.Count +
                 " modification(s) projetée(s) · " +
                 (plan.ReviewComplete
-                    ? "arbitrages complets, commit non implémenté."
+                    ? "arbitrages complets : utilisez Préparer le réimport."
                     : "d'autres sections, nouvelles sections ou avertissements restent à traiter.") +
                 "\n" + result.Diagnostic +
                 "\nAucun fichier n'a été modifié.";
@@ -577,6 +593,7 @@ public partial class DocxImportPreviewDialog
                 _reimportDecisions.Values.ToArray(), trial.ToArray());
             _reimportExcludedNewSections.Clear();
             _reimportExcludedNewSections.UnionWith(trial);
+            InvalidatePreparedReimport();
             RefreshNewSectionChoices(_activeReimportReview);
             ReimportDecisionStatus.Text =
                 plan.UnmatchedNewSections.Count + " nouvelle(s) section(s) encore en attente. " +
