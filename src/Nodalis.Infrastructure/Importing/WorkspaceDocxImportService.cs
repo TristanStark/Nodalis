@@ -745,6 +745,7 @@ public sealed class WorkspaceDocxImportService
                                 StringComparison.CurrentCultureIgnoreCase)).Id,
                         DestinationRelativePath = provenanceStore.ToWorkspaceRelativePath(destination),
                         SelectedBlockIndexes = indexes.ToList(),
+                        OriginalSourceBlockCount = sourceSection.Preview.Blocks.Count,
                         FragmentSha256 = DocxImportManifestStore.ComputeSha256(snapshot),
                         BaseMarkdown = snapshot,
                         DestinationSha256 = destinationHash
