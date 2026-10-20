@@ -430,6 +430,120 @@ internal static class DocxReimportReviewSmokeTests
         Assert(replayKept.AlreadyApplied && replayKept.WrittenFiles == 0,
             "A metadata-only reimport must be idempotent.");
 
+        // A newly introduced Word section can be explicitly assigned to
+        // an existing project folder and created without any overwrite.
+        DocxBlock recipeHeading = new DocxBlock
+        {
+            Kind = DocxBlockKind.Paragraph,
+            Paragraph = new DocxParagraph { Text = "Recette", HeadingLevel = 1 }
+        };
+        DocxBlock recipeParagraph = new DocxBlock
+        {
+            Kind = DocxBlockKind.Paragraph,
+            Paragraph = new DocxParagraph { Text = "Vérifier la recette" }
+        };
+        DocxImportPreview withRecipe = preview with
+        {
+            StagedImport = preview.StagedImport with
+            {
+                Document = new ParsedDocxDocument
+                {
+                    Blocks = [heading, paragraph, recipeHeading, recipeParagraph]
+                }
+            },
+            Sections =
+            [
+                preview.Sections[0],
+                new DocxImportSectionPreview
+                {
+                    Index = 1,
+                    HeadingBlockIndex = 2,
+                    SourceHeading = "Recette",
+                    SuggestedTargetSection = "Recette",
+                    BlockCount = 1,
+                    MarkdownPreview = "## Recette\\n\\nVérifier la recette",
+                    Blocks =
+                    [
+                        new DocxImportBlockPreview
+                        {
+                            BlockIndex = 3,
+                            Block = recipeParagraph,
+                            KindLabel = "Paragraphe",
+                            DisplayText = "Vérifier la recette",
+                            MarkdownPreview = "Vérifier la recette"
+                        }
+                    ]
+                }
+            ]
+        };
+        string recipeFolder = Path.Combine(projectDirectory, "Recette");
+        Directory.CreateDirectory(recipeFolder);
+        DocxReimportNewSectionAssignment recipeChoice =
+            new DocxReimportNewSectionAssignment
+            {
+                SectionIndex = 1,
+                TargetFolderRelativePath = store.ToWorkspaceRelativePath(recipeFolder)
+            };
+        DocxReimportReview recipeReview = await service.BuildAsync(
+            projectDirectory, previous, withRecipe);
+        DocxReimportDecisionPlan recipePlan = DocxReimportDecisionPlanner.Build(
+            recipeReview, previous, [useWord], [], withRecipe, [recipeChoice]);
+        Assert(recipePlan.ReviewComplete &&
+               recipePlan.NewSectionCreations.Count == 1 &&
+               recipePlan.NewSectionCreations[0].SectionIndex == 1 &&
+               recipePlan.UnmatchedNewSections.Count == 0 &&
+               !File.Exists(store.ResolveWorkspaceRelativePath(
+                   recipePlan.NewSectionCreations[0].DestinationRelativePath)),
+            "An explicitly assigned Word section must be planned as a new file, without writes.");
+
+        DocxReimportApproval recipeApproval = await approvals.PrepareAsync(
+            projectDirectory, previous.ImportId, withRecipe,
+            [], [useWord], [], newSectionAssignments: [recipeChoice]);
+        string createdRecipePath = store.ResolveWorkspaceRelativePath(
+            recipeApproval.Plan.NewSectionCreations.Single().DestinationRelativePath);
+        Assert(!File.Exists(createdRecipePath) &&
+               recipeApproval.Plan.NewSectionCreations.Count == 1,
+            "A prepared new-section approval must not create a Markdown file.");
+
+        // An unrelated writer occupying the approved new destination must
+        // block the transaction; the new file must NEVER be overwritten.
+        await File.WriteAllTextAsync(createdRecipePath,
+            "Recette créée entre préparation et validation");
+        bool collidedCreationRejected = false;
+        try
+        {
+            await approvals.ApplyAsync(recipeApproval, withRecipe);
+        }
+        catch (InvalidDataException)
+        {
+            collidedCreationRejected = true;
+        }
+
+        Assert(collidedCreationRejected &&
+               await File.ReadAllTextAsync(createdRecipePath) ==
+                   "Recette créée entre préparation et validation" &&
+               await File.ReadAllTextAsync(markdownPath) == original,
+            "A new Word destination occupied after approval must fail closed.");
+        File.Delete(createdRecipePath);
+
+        DocxReimportTransactionResult recipeCommit =
+            await approvals.ApplyAsync(recipeApproval, withRecipe);
+        Assert(recipeCommit.ManifestPath is not null &&
+               File.Exists(createdRecipePath) &&
+               (await File.ReadAllTextAsync(createdRecipePath)).Contains(
+                   "Vérifier la recette", StringComparison.Ordinal) &&
+               (await store.LoadAsync(recipeCommit.ManifestPath)).Fragments.Count == 2 &&
+               (await store.LoadAsync(recipeCommit.ManifestPath)).Fragments.Any(item =>
+                   item.SourceSectionIndex == 1 &&
+                   item.DestinationRelativePath ==
+                       recipeApproval.Plan.NewSectionCreations[0].DestinationRelativePath),
+            "Committing an assigned Word section must create a tracked Markdown and provenance entry.");
+        DocxReimportTransactionResult recipeReplay =
+            await approvals.ApplyAsync(recipeApproval, withRecipe);
+        Assert(recipeReplay.AlreadyApplied,
+            "A new-section creation transaction must replay idempotently.");
+
+        await File.WriteAllTextAsync(markdownPath, original);
         bool mismatchedHistoryRejected = false;
         try
         {
