@@ -41,6 +41,13 @@ travail : un DOCX volontairement très volumineux peut être refusé sans
 que son contenu soit endommagé. Les médias sont revérifiés au moment
 de la copie et aucune pièce jointe n'est créée pour un paquet invalide.
 
+Le SHA-256 de la copie temporaire est enregistré **au moment de l'analyse** ;
+un plan ou commit ultérieur est refusé si les octets de cette copie ont changé.
+La copie est limitée à 128 Mio, y compris si le fichier source grandit pendant
+la copie. Les nouveaux Markdown sont créés atomiquement en mode **création
+exclusive** : un fichier apparu entre prévisualisation et import ne peut
+jamais être écrasé.
+
 Cette protection ne remplace pas les garanties transactionnelles et
 la récupération sur interruption qui restent à qualifier dans #165.
 

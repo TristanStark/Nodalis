@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using Nodalis.Core.Importing;
 using Nodalis.Infrastructure.Importing;
+using Nodalis.Infrastructure.Reliability;
 
 internal static class DocxProvenanceSmokeTests
 {
@@ -200,6 +201,58 @@ internal static class DocxProvenanceSmokeTests
                 TargetSection = "Tests"
             }).ToList()
         };
+        // A source edited after the preview cannot silently replace its
+        // analyzed content, even when the earlier plan fingerprint is approved.
+        DocxImportPreview changedPreview = await service.PreparePreviewAsync(sourcePath);
+        DocxImportPlan previouslyApproved = await service.BuildPlanAsync(changedPreview, request);
+        await File.AppendAllTextAsync(changedPreview.StagedImport.StagedCopyPath,
+            "modified after preview");
+        bool changedPlanRejected = false;
+        bool changedCommitRejected = false;
+        try
+        {
+            await service.BuildPlanAsync(changedPreview, request);
+        }
+        catch (InvalidDataException)
+        {
+            changedPlanRejected = true;
+        }
+
+        try
+        {
+            await service.CommitAsync(changedPreview, request with
+            {
+                ExpectedPlanFingerprint = previouslyApproved.Fingerprint
+            });
+        }
+        catch (InvalidDataException)
+        {
+            changedCommitRejected = true;
+        }
+
+        Assert(changedPlanRejected && changedCommitRejected &&
+               !Directory.Exists(Path.Combine(root,
+                   previouslyApproved.TargetProjectRelativePath)),
+            "Tampered staged DOCX must not create a project or pass an approved plan.");
+        service.DiscardStagedCopy(changedPreview.StagedImport);
+
+        string occupied = Path.Combine(root, "docx-safety-collision.md");
+        await File.WriteAllTextAsync(occupied, "Existing user content");
+        bool newFileCollisionRejected = false;
+        try
+        {
+            await AtomicFileWriter.WriteNewAllTextAsync(occupied, "Overwrite attempt");
+        }
+        catch (IOException)
+        {
+            newFileCollisionRejected = true;
+        }
+
+        Assert(newFileCollisionRejected &&
+               await File.ReadAllTextAsync(occupied) == "Existing user content" &&
+               !Directory.EnumerateFiles(root, ".docx-safety-collision.md.*.tmp").Any(),
+            "Concurrent new-document collision must preserve existing notes and clean staging.");
+
         DocxImportPlan plan = await service.BuildPlanAsync(preview, request);
         string expectedManifestPath = plan.Changes.Single(change =>
             change.RelativePath.EndsWith(preview.ImportId.ToString("N") + ".json",

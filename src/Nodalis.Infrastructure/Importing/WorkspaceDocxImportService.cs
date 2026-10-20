@@ -13,6 +13,7 @@ namespace Nodalis.Infrastructure.Importing;
 
 public sealed class WorkspaceDocxImportService
 {
+    private const long MaxStagedDocxBytes = 128L * 1024 * 1024;
     private readonly string _workspaceRoot;
     private readonly DocxParser _parser = new();
 
@@ -230,6 +231,7 @@ public sealed class WorkspaceDocxImportService
         ValidateCommitRequest(
             preview,
             request);
+        await ValidateStagedCopyAsync(preview.StagedImport, cancellationToken);
 
         global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection[] selected = request.Sections
             .Where(section => section.Include)
@@ -537,6 +539,7 @@ public sealed class WorkspaceDocxImportService
         ValidateCommitRequest(
             preview,
             request);
+        await ValidateStagedCopyAsync(preview.StagedImport, cancellationToken);
 
         if (request.ExpectedPlanFingerprint is string approved)
         {
@@ -707,7 +710,9 @@ public sealed class WorkspaceDocxImportService
                         preview.StagedImport.OriginalSourcePath),
                     group);
 
-                await AtomicFileWriter.WriteAllTextAsync(
+                // Create-only: a document appeared after the approved plan
+                // must never be overwritten by a concurrent import.
+                await AtomicFileWriter.WriteNewAllTextAsync(
                     destination,
                     markdown,
                     cancellationToken);
@@ -893,7 +898,19 @@ public sealed class WorkspaceDocxImportService
                 "Seuls les fichiers .docx sont acceptés par l'import Word.");
         }
 
+        if (new FileInfo(fullSourcePath).Length > MaxStagedDocxBytes)
+        {
+            throw new InvalidDataException(
+                "Le DOCX dépasse la limite de 128 Mio pour une copie temporaire.");
+        }
+
         string stagingDirectory = GetStagingDirectory();
+        if (Directory.Exists(stagingDirectory) &&
+            (File.GetAttributes(stagingDirectory) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException(
+                "La zone temporaire DOCX ne peut pas être un lien symbolique.");
+        }
 
         Directory.CreateDirectory(
             stagingDirectory);
@@ -909,14 +926,25 @@ public sealed class WorkspaceDocxImportService
                 stagedPath,
                 cancellationToken);
 
+            string stagedSha256 = await DocxImportManifestStore.ComputeFileSha256Async(
+                stagedPath, cancellationToken);
             global::Nodalis.Core.Importing.ParsedDocxDocument document = await _parser.ParseAsync(
                 stagedPath,
                 cancellationToken);
+            string parsedSha256 = await DocxImportManifestStore.ComputeFileSha256Async(
+                stagedPath, cancellationToken);
+            if (!string.Equals(stagedSha256, parsedSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "La copie Word a été modifiée pendant l'analyse : import interrompu.");
+            }
 
             return new DocxStagedImport
             {
                 OriginalSourcePath = fullSourcePath,
                 StagedCopyPath = stagedPath,
+                StagedCopySha256 = stagedSha256,
                 Document = document
             };
         }
@@ -934,25 +962,15 @@ public sealed class WorkspaceDocxImportService
     /// <param name="staged">The <c>staged</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
     /// <returns>The result of the operation.</returns>
-    public Task<string> CommitStagedCopyAsync(
+    public async Task<string> CommitStagedCopyAsync(
             DocxStagedImport staged,
             CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(staged);
+        await ValidateStagedCopyAsync(staged, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        string stagedPath = Path.GetFullPath(
-            staged.StagedCopyPath);
-
-        EnsureIsStagingPath(
-            stagedPath);
-
-        if (!File.Exists(stagedPath))
-        {
-            throw new FileNotFoundException(
-                "La copie temporaire DOCX est introuvable.",
-                stagedPath);
-        }
+        string stagedPath = Path.GetFullPath(staged.StagedCopyPath);
 
         string sourcesDirectory = Path.Combine(
             _workspaceRoot,
@@ -970,8 +988,36 @@ public sealed class WorkspaceDocxImportService
             stagedPath,
             destination);
 
-        return Task.FromResult(
-            destination);
+        return destination;
+    }
+
+    /// <summary>
+    /// Confirms the staged DOCX remains byte-for-byte identical to the analyzed preview.
+    /// Rejects deletion, replacement, symlinks and oversized packages before writes.
+    /// </summary>
+    private async Task ValidateStagedCopyAsync(
+        DocxStagedImport staged,
+        CancellationToken cancellationToken)
+    {
+        string stagedPath = Path.GetFullPath(staged.StagedCopyPath);
+        EnsureIsStagingPath(stagedPath);
+        if (!File.Exists(stagedPath) ||
+            (File.GetAttributes(stagedPath) & FileAttributes.ReparsePoint) != 0 ||
+            new FileInfo(stagedPath).Length > MaxStagedDocxBytes ||
+            staged.StagedCopySha256.Length != 64)
+        {
+            throw new InvalidDataException(
+                "La copie DOCX de prévisualisation n'est plus disponible ou sûre.");
+        }
+
+        string currentHash = await DocxImportManifestStore.ComputeFileSha256Async(
+            stagedPath, cancellationToken);
+        if (!string.Equals(currentHash, staged.StagedCopySha256,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Le DOCX a changé depuis la prévisualisation : relancez l'analyse.");
+        }
     }
 
     /// <summary>
@@ -1647,12 +1693,22 @@ public sealed class WorkspaceDocxImportService
             bufferSize: 81920,
             useAsync: true);
 
-        await source.CopyToAsync(
-            destination,
-            cancellationToken);
+        byte[] buffer = new byte[81920];
+        long copied = 0;
+        int count;
+        while ((count = await source.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            copied += count;
+            if (copied > MaxStagedDocxBytes)
+            {
+                throw new InvalidDataException(
+                    "Le DOCX source a dépassé 128 Mio pendant la copie.");
+            }
 
-        await destination.FlushAsync(
-            cancellationToken);
+            await destination.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
+        }
+
+        await destination.FlushAsync(cancellationToken);
     }
 
     private sealed record SelectedSection(
