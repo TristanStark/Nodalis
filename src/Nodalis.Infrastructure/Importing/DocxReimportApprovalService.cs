@@ -35,7 +35,8 @@ public sealed class DocxReimportApprovalService
         IReadOnlyCollection<DocxReimportSectionMatchOverride> identities,
         IReadOnlyCollection<DocxReimportResolution> decisions,
         IReadOnlyCollection<int> excludedNewSections,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyCollection<DocxReimportNewSectionAssignment>? newSectionAssignments = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
         ArgumentNullException.ThrowIfNull(latest);
@@ -50,10 +51,13 @@ public sealed class DocxReimportApprovalService
         DocxReimportSectionMatchOverride[] identitiesCopy = identities.ToArray();
         DocxReimportResolution[] decisionsCopy = decisions.ToArray();
         int[] excludedCopy = excludedNewSections.ToArray();
+        DocxReimportNewSectionAssignment[] newAssignments =
+            newSectionAssignments?.ToArray() ?? [];
         DocxReimportReview review = await _reviews.BuildWithOverridesAsync(
             project, previous, latest, identitiesCopy, cancellationToken);
         DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
-            review, previous, decisionsCopy, excludedCopy);
+            review, previous, decisionsCopy, excludedCopy,
+            latest, newAssignments);
         if (!plan.ReviewComplete)
         {
             string diagnostics = string.Join("; ", plan.Lines
@@ -69,6 +73,21 @@ public sealed class DocxReimportApprovalService
                     ? " Des associations Word restent ambiguës." : "") +
                 (plan.Warnings.Count > 0
                     ? " Avertissements de source : " + string.Join("; ", plan.Warnings) : ""));
+        }
+
+        foreach (DocxReimportProposedCreation created in plan.NewSectionCreations)
+        {
+            string target = _store.ResolveWorkspaceRelativePath(
+                created.DestinationRelativePath);
+            string inside = Path.GetRelativePath(project, target);
+            if (Path.IsPathRooted(inside) || inside == ".." ||
+                inside.StartsWith(".." + Path.DirectorySeparatorChar,
+                    StringComparison.Ordinal) ||
+                File.Exists(target) || !Directory.Exists(Path.GetDirectoryName(target)))
+            {
+                throw new InvalidDataException(
+                    "La destination de nouvelle section Word n'est pas dans un dossier existant du projet.");
+            }
         }
 
         if (review.Fragments.All(fragment =>
@@ -109,7 +128,8 @@ public sealed class DocxReimportApprovalService
             Plan = plan,
             Identities = identitiesCopy,
             Decisions = decisionsCopy,
-            ExcludedNewSections = excludedCopy
+            ExcludedNewSections = excludedCopy,
+            NewSectionAssignments = newAssignments
         };
     }
 
@@ -193,7 +213,8 @@ public sealed class DocxReimportApprovalService
             approved.ProjectDirectory, previous, latest, approved.Identities,
             cancellationToken);
         DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
-            fresh, previous, approved.Decisions, approved.ExcludedNewSections);
+            fresh, previous, approved.Decisions, approved.ExcludedNewSections,
+            latest, approved.NewSectionAssignments);
         string fingerprint = DocxReimportTransactionService.Fingerprint(plan);
         if (!plan.ReviewComplete ||
             !string.Equals(fingerprint, approved.ApprovedPlanFingerprint,
@@ -275,4 +296,7 @@ public sealed record DocxReimportApproval
     public required DocxReimportResolution[] Decisions { get; init; }
 
     public required int[] ExcludedNewSections { get; init; }
+
+    /// <summary>Approved explicit placements for newly introduced Word sections.</summary>
+    public DocxReimportNewSectionAssignment[] NewSectionAssignments { get; init; } = [];
 }
