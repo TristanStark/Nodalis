@@ -496,6 +496,49 @@ internal static class DocxReimportReviewSmokeTests
                    recipePlan.NewSectionCreations[0].DestinationRelativePath)),
             "An explicitly assigned Word section must be planned as a new file, without writes.");
 
+        bool unsafePlacementRejected = false;
+        try
+        {
+            DocxReimportDecisionPlanner.Build(recipeReview, previous,
+                [useWord], [], withRecipe,
+                [
+                    recipeChoice with
+                    {
+                        TargetFolderRelativePath = "../hors-workspace"
+                    }
+                ]);
+        }
+        catch (InvalidDataException)
+        {
+            unsafePlacementRejected = true;
+        }
+
+        bool duplicatePlacementRejected = false;
+        try
+        {
+            DocxReimportDecisionPlanner.Build(recipeReview, previous,
+                [useWord], [], withRecipe, [recipeChoice, recipeChoice]);
+        }
+        catch (InvalidDataException)
+        {
+            duplicatePlacementRejected = true;
+        }
+
+        bool excludedAndAssignedRejected = false;
+        try
+        {
+            DocxReimportDecisionPlanner.Build(recipeReview, previous,
+                [useWord], [1], withRecipe, [recipeChoice]);
+        }
+        catch (InvalidDataException)
+        {
+            excludedAndAssignedRejected = true;
+        }
+
+        Assert(unsafePlacementRejected && duplicatePlacementRejected &&
+               excludedAndAssignedRejected,
+            "New Word sections cannot escape the project, repeat an assignment or be both imported and excluded.");
+
         DocxReimportApproval recipeApproval = await approvals.PrepareAsync(
             projectDirectory, previous.ImportId, withRecipe,
             [], [useWord], [], newSectionAssignments: [recipeChoice]);
