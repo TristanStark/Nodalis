@@ -703,6 +703,26 @@ internal static class DocxReimportReviewSmokeTests
                    rollbackApproval.OperationId)),
             "A failed new-section transaction must remove the created Markdown and Word provenance.");
 
+        // End-to-end creation-only reimport: all old sections disappeared
+        // from Word, their original Markdown must remain untouched while
+        // a new section is recorded as the only active fragment.
+        DocxReimportApproval fullyReplacedApproval = await approvals.PrepareAsync(
+            projectDirectory, previous.ImportId, replacementWord,
+            [], [preserveDeleted], [], newSectionAssignments: [rootChoice]);
+        DocxReimportTransactionResult fullyReplaced = await approvals.ApplyAsync(
+            fullyReplacedApproval, replacementWord);
+        string replacedMarkdown = store.ResolveWorkspaceRelativePath(
+            fullyReplacedApproval.Plan.NewSectionCreations.Single()
+                .DestinationRelativePath);
+        Assert(fullyReplaced.WrittenFiles == 0 &&
+               fullyReplaced.CreatedMarkdownFiles == 1 &&
+               File.Exists(replacedMarkdown) &&
+               await File.ReadAllTextAsync(markdownPath) == original &&
+               fullyReplaced.ManifestPath is not null &&
+               (await store.LoadAsync(fullyReplaced.ManifestPath))
+                   .Fragments.Single().SourceSectionIndex == 1,
+            "A completely replaced Word may create a new file while preserving deleted old sections.");
+
         bool mismatchedHistoryRejected = false;
         try
         {
