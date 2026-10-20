@@ -42,7 +42,10 @@ public static class DocxReimportSectionMatcher
                 DocxMappingProfileEngine.Normalize(fragment.SourceHeading),
                 fragment.SourceParentPath is null ? null :
                     DocxMappingProfileEngine.Normalize(fragment.SourceParentPath),
-                NormalizeBody(fragment.BaseMarkdown)))
+                // Manual merges and retained Nodalis data are not Word
+                // signatures. Prefer the actual last-observed Word source.
+                NormalizeBody(fragment.LatestWordMarkdownSnapshot ??
+                    fragment.BaseMarkdown)))
             .ToList();
 
         Dictionary<Guid, (int Index, DocxReimportAssociationKind Kind)> confirmed = [];
