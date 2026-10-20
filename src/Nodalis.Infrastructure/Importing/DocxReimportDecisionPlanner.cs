@@ -219,6 +219,13 @@ public static class DocxReimportDecisionPlanner
             {
                 error = "Le contenu Word ou la fusion manuelle est vide ou trop volumineux.";
             }
+            else if (fragment.BaselineCoversWholeDestination &&
+                     (choice.Action is DocxReimportResolutionAction.UseWord or
+                         DocxReimportResolutionAction.ManualMerge))
+            {
+                error = "La base historique couvre le fichier Markdown ENTIER. " +
+                    "Utilisez la fusion du fichier complet et confirmez à nouveau toutes les notes.";
+            }
             else if (choice.Action == DocxReimportResolutionAction.ManualWholeDocument &&
                      !choice.ConfirmWholeDocumentReplacement)
             {
