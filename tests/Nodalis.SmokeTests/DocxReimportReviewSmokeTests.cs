@@ -590,6 +590,8 @@ internal static class DocxReimportReviewSmokeTests
         DocxReimportTransactionResult recipeCommit =
             await approvals.ApplyAsync(recipeApproval, withRecipe);
         Assert(recipeCommit.ManifestPath is not null &&
+               recipeCommit.WrittenFiles == 1 &&
+               recipeCommit.CreatedMarkdownFiles == 1 &&
                File.Exists(createdRecipePath) &&
                (await File.ReadAllTextAsync(createdRecipePath)).Contains(
                    "Vérifier la recette", StringComparison.Ordinal) &&
@@ -610,7 +612,8 @@ internal static class DocxReimportReviewSmokeTests
 
         DocxReimportTransactionResult recipeReplay =
             await approvals.ApplyAsync(recipeApproval, withRecipe);
-        Assert(recipeReplay.AlreadyApplied,
+        Assert(recipeReplay.AlreadyApplied &&
+               recipeReplay.CreatedMarkdownFiles == 1,
             "A new-section creation transaction must replay idempotently.");
 
         await File.WriteAllTextAsync(markdownPath, original);
