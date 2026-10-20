@@ -131,8 +131,9 @@ public sealed class DocxReimportProvenanceBuilder
             }
 
             if (association.RequiresConfirmation &&
-                action is DocxReimportResolutionAction.UseWord or
-                    DocxReimportResolutionAction.ManualMerge)
+                (action is DocxReimportResolutionAction.UseWord or
+                    DocxReimportResolutionAction.ManualMerge or
+                    DocxReimportResolutionAction.ManualWholeDocument))
             {
                 throw new InvalidDataException(
                     "Une association de section Word doit être confirmée.");
@@ -150,7 +151,8 @@ public sealed class DocxReimportProvenanceBuilder
             string baseline = action switch
             {
                 DocxReimportResolutionAction.UseWord => wordText,
-                DocxReimportResolutionAction.ManualMerge =>
+                DocxReimportResolutionAction.ManualMerge or
+                    DocxReimportResolutionAction.ManualWholeDocument =>
                     choice?.ManualMarkdown ?? throw new InvalidDataException(
                         "Fusion manuelle absente de la décision."),
                 _ => original.BaseMarkdown
@@ -173,7 +175,8 @@ public sealed class DocxReimportProvenanceBuilder
                     out DocxReimportProposedWrite? write))
             {
                 if (action is not (DocxReimportResolutionAction.UseWord or
-                    DocxReimportResolutionAction.ManualMerge) ||
+                    DocxReimportResolutionAction.ManualMerge or
+                    DocxReimportResolutionAction.ManualWholeDocument) ||
                     !string.Equals(write.DestinationRelativePath,
                         original.DestinationRelativePath,
                         StringComparison.OrdinalIgnoreCase) ||
@@ -185,18 +188,36 @@ public sealed class DocxReimportProvenanceBuilder
                         "L'écriture projetée n'est pas cohérente avec le fragment source.");
                 }
 
-                int start = local.IndexOf(original.BaseMarkdown, StringComparison.Ordinal);
-                if (start < 0 || local.IndexOf(original.BaseMarkdown,
-                        start + original.BaseMarkdown.Length,
-                        StringComparison.Ordinal) >= 0)
+                string expected;
+                if (action == DocxReimportResolutionAction.ManualWholeDocument)
                 {
-                    throw new InvalidDataException(
-                        "Fragment source Nodalis introuvable ou non unique.");
-                }
+                    if (choice?.ConfirmWholeDocumentReplacement != true ||
+                        previous.Fragments.Count(fragment => string.Equals(
+                            fragment.DestinationRelativePath,
+                            original.DestinationRelativePath,
+                            StringComparison.OrdinalIgnoreCase)) != 1)
+                    {
+                        throw new InvalidDataException(
+                            "Fusion du fichier complet non confirmée ou source partagée.");
+                    }
 
-                string expected = string.Concat(local.AsSpan(0, start),
-                    baseline.AsSpan(),
-                    local.AsSpan(start + original.BaseMarkdown.Length));
+                    expected = baseline;
+                }
+                else
+                {
+                    int start = local.IndexOf(original.BaseMarkdown, StringComparison.Ordinal);
+                    if (start < 0 || local.IndexOf(original.BaseMarkdown,
+                            start + original.BaseMarkdown.Length,
+                            StringComparison.Ordinal) >= 0)
+                    {
+                        throw new InvalidDataException(
+                            "Fragment source Nodalis introuvable ou non unique.");
+                    }
+
+                    expected = string.Concat(local.AsSpan(0, start),
+                        baseline.AsSpan(),
+                        local.AsSpan(start + original.BaseMarkdown.Length));
+                }
                 if (!string.Equals(expected, write.ProjectedMarkdown,
                         StringComparison.Ordinal) ||
                     !string.Equals(DocxImportManifestStore.ComputeSha256(expected),
@@ -208,9 +229,12 @@ public sealed class DocxReimportProvenanceBuilder
 
                 result = expected;
             }
-            else if ((action is DocxReimportResolutionAction.UseWord or
+            else if (((action is DocxReimportResolutionAction.UseWord or
                 DocxReimportResolutionAction.ManualMerge) &&
-                !string.Equals(original.BaseMarkdown, baseline, StringComparison.Ordinal))
+                !string.Equals(original.BaseMarkdown, baseline, StringComparison.Ordinal)) ||
+                (action == DocxReimportResolutionAction.ManualWholeDocument &&
+                 (!string.Equals(local, baseline, StringComparison.Ordinal) ||
+                  choice?.ConfirmWholeDocumentReplacement != true)))
             {
                 throw new InvalidDataException(
                     "Changement Word ou fusion sans projection d'écriture.");
@@ -238,6 +262,7 @@ public sealed class DocxReimportProvenanceBuilder
                 {
                     DocxReimportResolutionAction.UseWord => "Word",
                     DocxReimportResolutionAction.ManualMerge => "Manual",
+                    DocxReimportResolutionAction.ManualWholeDocument => "ManualFullDocument",
                     _ => "Nodalis"
                 }
             });
