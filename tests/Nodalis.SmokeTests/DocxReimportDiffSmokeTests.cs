@@ -64,6 +64,32 @@ internal static class DocxReimportDiffSmokeTests
                renamedAndEdited.RequiresExplicitResolution,
             "Changed content with a new title still requires explicit identity confirmation.");
 
+        string acceptedFullFile = "## Tests\n\nCas arbitré\n\n## Notes locales\nConserver";
+        DocxImportManifestFragment manuallyResolved = baseline with
+        {
+            BaseMarkdown = acceptedFullFile,
+            FragmentSha256 = DocxImportManifestStore.ComputeSha256(acceptedFullFile),
+            DestinationSha256 = DocxImportManifestStore.ComputeSha256(acceptedFullFile),
+            LatestWordMarkdownSnapshot = updated,
+            LatestWordSnapshotSha256 = DocxImportManifestStore.ComputeSha256(updated),
+            ReimportResolution = "ManualFullDocument"
+        };
+        Assert(DocxReimportDiffEngine.Compare(manuallyResolved,
+                   updated, acceptedFullFile).Kind == DocxReimportChangeKind.Unchanged,
+            "A completed manual whole-file merge must not see unchanged Word as a new edit.");
+        Assert(DocxReimportDiffEngine.Compare(manuallyResolved,
+                   updated + "\nNouvelle ligne", acceptedFullFile).Kind ==
+                   DocxReimportChangeKind.WordChanged,
+            "A real Word change after the manual merge must still be detected.");
+
+        DocxImportManifestFragment keptLocal = manuallyResolved with
+        {
+            ReimportResolution = "Nodalis"
+        };
+        Assert(DocxReimportDiffEngine.Compare(keptLocal,
+                   updated, acceptedFullFile).Kind == DocxReimportChangeKind.Unchanged,
+            "Keeping Nodalis must not cause a phantom Word change in later generations.");
+
         DocxImportManifestFragment mergedDestination = baseline with
         {
             DestinationSha256 = DocxImportManifestStore.ComputeSha256(
