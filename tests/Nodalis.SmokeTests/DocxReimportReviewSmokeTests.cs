@@ -132,6 +132,29 @@ internal static class DocxReimportReviewSmokeTests
                !wordOnly.SourcePackageUnchanged,
             "Read-only review must compare old base, new Word and actual Nodalis text.");
 
+        // A filtered initial DOCX import must not silently pull originally
+        // excluded paragraphs back in when the entire new Word is rendered.
+        DocxImportManifest partial = previous with
+        {
+            Fragments =
+            [
+                fragment with { OriginalSourceBlockCount = 3 }
+            ]
+        };
+        DocxReimportReview partialReview = await service.BuildAsync(
+            projectDirectory, partial, preview);
+        DocxReimportDecisionPlan partialPlan = DocxReimportDecisionPlanner.Build(
+            partialReview, partial, [new DocxReimportResolution
+            {
+                FragmentId = fragment.FragmentId,
+                Action = DocxReimportResolutionAction.KeepNodalis
+            }]);
+        Assert(partialReview.Warnings.Any(warning =>
+                   warning.Contains("partiellement", StringComparison.Ordinal)) &&
+               !partialPlan.ReviewComplete &&
+               partialPlan.Writes.Count == 0,
+            "A historical partial import must block writes until selection is reviewed.");
+
         DocxReimportReview adjudicated = await service.BuildWithOverridesAsync(
             projectDirectory, previous, preview,
             [
