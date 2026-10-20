@@ -50,14 +50,23 @@ public static class DocxSelectedMediaAssets
             return;
         }
 
+        // Validate the ZIP before creating any workspace directories or copying media.
+        using ZipArchive archive = ZipFile.OpenRead(stagedDocx);
+        DocxPackageGuard.Validate(archive);
+
         string mediaDirectory = Path.Combine(projectDirectory, MediaFolder);
-        if (!Directory.Exists(mediaDirectory))
+        if (Directory.Exists(mediaDirectory))
+        {
+            if ((File.GetAttributes(mediaDirectory) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException("Dossier des médias Word redirigé : copie refusée.");
+            }
+        }
+        else
         {
             Directory.CreateDirectory(mediaDirectory);
             createdDirectories.Add(mediaDirectory);
         }
-
-        using ZipArchive archive = ZipFile.OpenRead(stagedDocx);
         foreach (DocxInlineMedia item in media)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -86,6 +95,11 @@ public static class DocxSelectedMediaAssets
 
             if (File.Exists(destination))
             {
+                if ((File.GetAttributes(destination) & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new InvalidDataException("Image Word existante redirigée : copie refusée.");
+                }
+
                 await using FileStream previous = new FileStream(destination, FileMode.Open, FileAccess.Read);
                 if (previous.Length > 16L * 1024 * 1024 ||
                     !string.Equals(Convert.ToHexString(

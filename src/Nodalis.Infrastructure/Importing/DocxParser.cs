@@ -67,6 +67,7 @@ public sealed class DocxParser
         try
         {
             using global::System.IO.Compression.ZipArchive archive = ZipFile.OpenRead(fullPath);
+            DocxPackageGuard.Validate(archive);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -95,9 +96,7 @@ public sealed class DocxParser
 
             using (global::System.IO.Stream stream = documentEntry.Open())
             {
-                documentXml = XDocument.Load(
-                    stream,
-                    LoadOptions.PreserveWhitespace);
+                documentXml = DocxPackageGuard.LoadXml(stream, LoadOptions.PreserveWhitespace);
             }
 
             global::System.Xml.Linq.XElement body = documentXml.Root?
@@ -458,7 +457,7 @@ public sealed class DocxParser
         XDocument xml;
         using (Stream stream = entry.Open())
         {
-            xml = XDocument.Load(stream);
+            xml = DocxPackageGuard.LoadXml(stream);
         }
 
         Dictionary<string, UnresolvedStyle> definitions =
@@ -612,7 +611,7 @@ public sealed class DocxParser
 
         using (global::System.IO.Stream stream = entry.Open())
         {
-            xml = XDocument.Load(stream);
+            xml = DocxPackageGuard.LoadXml(stream);
         }
 
         return xml.Descendants(
@@ -670,7 +669,7 @@ public sealed class DocxParser
 
             using (global::System.IO.Stream stream = entry.Open())
             {
-                xml = XDocument.Load(stream);
+                xml = DocxPackageGuard.LoadXml(stream);
             }
 
             string text = string.Join(
@@ -716,7 +715,7 @@ public sealed class DocxParser
 
         using (global::System.IO.Stream stream = entry.Open())
         {
-            xml = XDocument.Load(stream);
+            xml = DocxPackageGuard.LoadXml(stream);
         }
 
         global::System.Xml.Linq.XElement? root = xml.Root;

@@ -25,6 +25,25 @@ dans le projet : origine SHA-256, sélection, destinations et snapshots.
 Voir [DOCX v1.9 — Traçabilité des imports](docx-1.9-provenance.md).
 Le réimport différentiel et l'arbitrage des conflits sont prévus séparément (#164).
 
+### Protection des documents Word en v1.9 (#165, en développement)
+
+Avant toute interprétation, l'import DOCX valide l'archive ZIP : chemins
+relatifs, unicité des entrées, absence de liens symboliques, limites sur
+le nombre de fichiers, les tailles décompressées et les compressions
+anormalement élevées. Les parties XML sont lues sans DTD, résolution
+d'entités externes ni téléchargement distant.
+
+**Limites de sécurité par document** : 4 096 entrées ZIP, 256 Mio de
+contenu décompressé au total, 32 Mio par partie XML, 16 Mio par média,
+64 Mio par autre entrée ; taux de compression supérieur à 1 000 pour
+une entrée de plus de 1 Mio refusé. Ces limites protègent le poste de
+travail : un DOCX volontairement très volumineux peut être refusé sans
+que son contenu soit endommagé. Les médias sont revérifiés au moment
+de la copie et aucune pièce jointe n'est créée pour un paquet invalide.
+
+Cette protection ne remplace pas les garanties transactionnelles et
+la récupération sur interruption qui restent à qualifier dans #165.
+
 ## Import Markdown en masse
 
 L'import Markdown en masse prépare un plan avant validation.
