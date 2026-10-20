@@ -228,6 +228,7 @@ public sealed class DocxReimportProvenanceBuilder
                 SourceHeadingLevel = source.HeadingLevel,
                 SelectedBlockIndexes = section.Blocks.Select(item =>
                     item.BlockIndex).OrderBy(index => index).ToList(),
+                OriginalSourceBlockCount = section.Blocks.Count,
                 BaseMarkdown = baseline,
                 FragmentSha256 = DocxImportManifestStore.ComputeSha256(baseline),
                 DestinationSha256 = DocxImportManifestStore.ComputeSha256(result),
