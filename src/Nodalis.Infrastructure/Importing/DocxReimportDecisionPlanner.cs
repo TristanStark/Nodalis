@@ -126,7 +126,7 @@ public static class DocxReimportDecisionPlanner
 
             DocxImportSectionPreview section = latest.Sections.Single(item =>
                 item.Index == assignment.SectionIndex);
-            string markdown = DocxImportSelectionRenderer.RenderAll(section);
+            string markdown = DocxImportSelectionRenderer.RenderAll(section).TrimEnd();
             if (string.IsNullOrWhiteSpace(markdown) ||
                 markdown.Length > MaxManualMarkdownLength)
             {
