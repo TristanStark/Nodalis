@@ -53,6 +53,12 @@ Les nouveaux imports retiennent désormais le chemin des titres parents, leur
 niveau et le style Word lorsqu'ils sont disponibles. Les manifestes précédents
 sans ces champs restent lisibles.
 
+Après un réimport avec **fusion manuelle** ou **conservation de Nodalis**,
+l'appariement des sections et la détection des changements Word utilisent le
+dernier snapshot Word réellement observé (avec son SHA-256), et **non** le
+texte Nodalis accepté. Cela évite de détecter à tort le même document Word
+comme une nouvelle modification à chaque génération.
+
 ## Onglet « Réimport · comparer » (aperçu WPF)
 
 Dans l'assistant d'import DOCX, choisissez un **projet existant** dans l'onglet
@@ -103,6 +109,12 @@ de prévisualiser un choix individuel :
   précédemment importé, à condition de le retrouver exactement une fois ;
 - **Fusion manuelle** : proposer un fragment Markdown relu et corrigé
   manuellement, avec la même contrainte d'ancrage ;
+- **Fusion manuelle · remplacer le fichier entier** : réservée aux fichiers
+  Nodalis qui ne contiennent **qu'un seul fragment issu de cet historique**.
+  Cliquez d'abord sur **Charger le Markdown Nodalis actuel** pour partir de
+  toutes les notes existantes, puis comparez le Word récent, modifiez le texte
+  complet et cochez séparément **Je confirme remplacer le Markdown COMPLET**.
+  Sans cette deuxième confirmation, le plan refuse toute écriture.
 - **Garder comme historique** : le contenu Nodalis est préservé, y compris
   si le Word ne contient plus cette section.
 
@@ -111,6 +123,15 @@ introuvable ou présent plusieurs fois, destination absente, contenu vide ou
 trop volumineux, ou plusieurs sections Word réunies dans le même Markdown.
 Quand le fragment initial est localisé sans ambiguïté, le Markdown
 **situé avant et après** est préservé par la proposition de remplacement.
+Si cet ancrage a été modifié dans Nodalis, le remplacement ordinaire reste
+**interdit**. Le mode « fichier entier » écrit **exactement** le contenu
+fusionné par l'utilisateur, sans tentative de deviner quels paragraphes
+conserver. Les notes absentes du texte final seraient perdues : l'interface
+affiche un avertissement spécifique jusque dans la confirmation finale.
+Le hash du **Markdown complet courant** est recalculé à la préparation,
+puis vérifié une nouvelle fois immédiatement avant l'écriture ; toute
+modification concurrente annule le réimport. Les copies de sauvegarde sont
+conservées dans le journal de transaction.
 Le plan conserve l'empreinte SHA-256 de la destination actuelle pour une
 future vérification de concurrence avant commit. Les décisions ne sont pas
 persistées tant que le réimport n'a pas été explicitement confirmé.
@@ -192,10 +213,11 @@ le réimport est **bloqué avec un avertissement explicite** : on ne
 réintroduit pas automatiquement les paragraphes autrefois exclus. Les
 anciens manifestes sans ce champ demeurent lisibles.
 
-**Restent à développer dans #164 :** la fusion assistée des anciens fragments
-dont l'ancre a été modifiée localement, la gestion des nouvelles catégories
-sans dossier préexistant et la qualification WPF/Windows des scénarios extrêmes
-de concurrence, permissions et récupération.
+**Restent à qualifier dans #164 :** le comportement WPF/Windows des scénarios
+extrêmes de concurrence, permissions et récupération, ainsi que la
+gestion de documents partagés par plusieurs fragments et la création de
+nouvelles catégories. Le mode de fusion de document complet exige toujours
+un arbitrage humain et ne constitue pas une fusion automatique.
 
 La suite smoke vérifie les sept classifications, les conflits entre Word et
 Nodalis et les destinations où plusieurs fragments ont été fusionnés.
