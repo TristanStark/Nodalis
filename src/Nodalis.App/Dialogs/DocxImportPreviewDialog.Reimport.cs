@@ -25,6 +25,7 @@ public partial class DocxImportPreviewDialog
     private string? _reimportComparedSourceSha256;
     private DocxReimportApproval? _preparedReimportApproval;
     private bool _reimportApplying;
+    private bool _loadingReimportDecisionFields;
 
     /// <summary>Initializes local-only reimport discovery without any disk writes.</summary>
     private void InitializeReimportControls(string workspaceRoot)
@@ -161,19 +162,45 @@ public partial class DocxImportPreviewDialog
         }
     }
 
-    /// <summary>Invalidates approval if the selected action has changed.</summary>
+    /// <summary>
+    /// Discards the saved decision as well as the approval when a user edits
+    /// any decision field; otherwise an old affirmative full-file consent
+    /// could be reused after the visible checkbox had been unchecked.
+    /// </summary>
+    private void ReimportDecisionFields_Changed()
+    {
+        if (_loadingReimportDecisionFields)
+        {
+            return;
+        }
+
+        if (ReimportFragmentsList?.SelectedItem is ReimportFragmentChoice current)
+        {
+            _reimportDecisions.Remove(current.Fragment.Association.FragmentId);
+        }
+
+        InvalidatePreparedReimport();
+        if (ReimportDecisionStatus is not null)
+        {
+            ReimportDecisionStatus.Text =
+                "Décision modifiée : cliquez sur Prévisualiser cette décision " +
+                "avant de préparer ou d'appliquer un réimport.";
+        }
+    }
+
+    /// <summary>Invalidates the saved decision after an explicit action change.</summary>
     private void ReimportDecisionInput_Changed(
         object sender, SelectionChangedEventArgs e) =>
-        InvalidatePreparedReimport();
+        ReimportDecisionFields_Changed();
 
-    /// <summary>Invalidates approval when a manual fragment is edited.</summary>
+    /// <summary>Invalidates the saved decision when the manual Markdown is edited.</summary>
     private void ReimportManualMerge_Changed(
         object sender, TextChangedEventArgs e) =>
-        InvalidatePreparedReimport();
+        ReimportDecisionFields_Changed();
 
-    /// <summary>Invalidates any prior approval when the whole-document consent changes.</summary>
+    /// <summary>Rejects reuse of consent after the user changes its checkbox.</summary>
     private void ReimportWholeFileConsent_Changed(object sender, RoutedEventArgs e) =>
-        InvalidatePreparedReimport();
+        ReimportDecisionFields_Changed();
 
     /// <summary>
     /// Seeds the manual editor from the whole current Nodalis destination,
@@ -680,12 +707,20 @@ public partial class DocxImportPreviewDialog
                  DocxReimportAssociationKind.ConfirmedMissingFromWord));
         DocxReimportResolution? saved = _reimportDecisions.GetValueOrDefault(
             selected.Fragment.Association.FragmentId);
-        ReimportDecisionComboBox.SelectedItem =
-            ReimportDecisionComboBox.Items.Cast<ReimportDecisionChoice>()
-                .FirstOrDefault(option => option.Action == saved?.Action);
-        ReimportManualMergeBox.Text = saved?.ManualMarkdown ?? string.Empty;
-        ReimportWholeFileConfirmationBox.IsChecked =
-            saved?.ConfirmWholeDocumentReplacement == true;
+        _loadingReimportDecisionFields = true;
+        try
+        {
+            ReimportDecisionComboBox.SelectedItem =
+                ReimportDecisionComboBox.Items.Cast<ReimportDecisionChoice>()
+                    .FirstOrDefault(option => option.Action == saved?.Action);
+            ReimportManualMergeBox.Text = saved?.ManualMarkdown ?? string.Empty;
+            ReimportWholeFileConfirmationBox.IsChecked =
+                saved?.ConfirmWholeDocumentReplacement == true;
+        }
+        finally
+        {
+            _loadingReimportDecisionFields = false;
+        }
         DocxReimportParagraphDiff paragraphDiff =
             DocxReimportParagraphDiffEngine.Compare(selected.Fragment);
         ReimportWordParagraphItems.ItemsSource = BuildDiffRows(paragraphDiff.Word);
@@ -711,9 +746,17 @@ public partial class DocxImportPreviewDialog
         ReimportWordBox.Text = string.Empty;
         ReimportLocalBox.Text = string.Empty;
         ReimportMatchComboBox.ItemsSource = null;
-        ReimportDecisionComboBox.SelectedItem = null;
-        ReimportManualMergeBox.Text = string.Empty;
-        ReimportWholeFileConfirmationBox.IsChecked = false;
+        _loadingReimportDecisionFields = true;
+        try
+        {
+            ReimportDecisionComboBox.SelectedItem = null;
+            ReimportManualMergeBox.Text = string.Empty;
+            ReimportWholeFileConfirmationBox.IsChecked = false;
+        }
+        finally
+        {
+            _loadingReimportDecisionFields = false;
+        }
         ReimportWordParagraphItems.ItemsSource = null;
         ReimportNodalisParagraphItems.ItemsSource = null;
         ReimportDiffStatusText.Text = string.Empty;
