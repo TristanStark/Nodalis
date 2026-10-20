@@ -286,10 +286,10 @@ public sealed class DocxImportManifestStore
                 string.IsNullOrWhiteSpace(fragment.TargetSection) ||
                 fragment.BaseMarkdown is null ||
                 (fragment.LatestWordMarkdownSnapshot is not null &&
-                 fragment.ReimportResolution is not ("Word" or "Manual" or "Nodalis")) ||
+                 fragment.ReimportResolution is not ("Word" or "Manual" or "Nodalis" or "ManualFullDocument")) ||
                 (fragment.ReimportResolution is not null &&
                  (fragment.LatestWordMarkdownSnapshot is null ||
-                  fragment.ReimportResolution is not ("Word" or "Manual" or "Nodalis"))) ||
+                  fragment.ReimportResolution is not ("Word" or "Manual" or "Nodalis" or "ManualFullDocument"))) ||
                 (fragment.LatestWordSnapshotSha256 is not null &&
                  (fragment.LatestWordMarkdownSnapshot is null ||
                   !IsSha256(fragment.LatestWordSnapshotSha256) ||
