@@ -820,10 +820,13 @@ public partial class DocxImportPreviewDialog
                         TargetFolderRelativePath = folder.RelativePath
                     }
                 };
+            HashSet<int> excludedTrial =
+                new HashSet<int>(_reimportExcludedNewSections);
+            excludedTrial.Remove(selected.Index);
             DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
                 _activeReimportReview, history.Manifest,
                 _reimportDecisions.Values.ToArray(),
-                _reimportExcludedNewSections.ToArray(),
+                excludedTrial.ToArray(),
                 _preview, trial.Values.ToArray());
             DocxReimportProposedCreation creation = plan.NewSectionCreations
                 .Single(item => item.SectionIndex == selected.Index);
@@ -835,6 +838,8 @@ public partial class DocxImportPreviewDialog
                     "La destination Markdown existe déjà ou son dossier n'existe plus.");
             }
 
+            _reimportExcludedNewSections.Clear();
+            _reimportExcludedNewSections.UnionWith(excludedTrial);
             _reimportNewAssignments.Clear();
             foreach (KeyValuePair<int, DocxReimportNewSectionAssignment> pair in trial)
             {
@@ -856,23 +861,29 @@ public partial class DocxImportPreviewDialog
     /// <summary>Displays unresolved additions without treating ambiguous matches as new.</summary>
     private void RefreshNewSectionChoices(DocxReimportReview review)
     {
-        int[] pending = review.Matching.AddedSectionIndexes
-            .Where(index => !_reimportExcludedNewSections.Contains(index) &&
-                !_reimportNewAssignments.ContainsKey(index))
+        int[] discovered = review.Matching.AddedSectionIndexes
             .OrderBy(index => index)
             .ToArray();
-        ReimportNewSectionsComboBox.ItemsSource = pending
+        ReimportNewSectionsComboBox.ItemsSource = discovered
             .Select(index => new ReimportNewSectionChoice(index,
                 "Section " + index + " · " + _preview.Sections.Single(section =>
-                    section.Index == index).SourceHeading))
+                    section.Index == index).SourceHeading +
+                (_reimportExcludedNewSections.Contains(index)
+                    ? " · EXCLUE"
+                    : _reimportNewAssignments.ContainsKey(index)
+                        ? " · À IMPORTER"
+                        : " · À TRAITER")))
             .ToArray();
-        if (pending.Length > 0)
+        if (discovered.Length > 0)
         {
             ReimportNewSectionsComboBox.SelectedIndex = 0;
         }
 
+        int pendingCount = discovered.Count(index =>
+            !_reimportExcludedNewSections.Contains(index) &&
+            !_reimportNewAssignments.ContainsKey(index));
         ReimportNewSectionsStatus.Text =
-            pending.Length + " nouvelle(s) section(s) encore à traiter · " +
+            pendingCount + " nouvelle(s) section(s) encore à traiter · " +
             _reimportExcludedNewSections.Count +
             " exclue(s) explicitement · " + _reimportNewAssignments.Count +
             " affectée(s) à un dossier (aucun fichier écrit avant confirmation).";
@@ -905,12 +916,21 @@ public partial class DocxImportPreviewDialog
             {
                 selected.Index
             };
+            Dictionary<int, DocxReimportNewSectionAssignment> assignmentsTrial =
+                new Dictionary<int, DocxReimportNewSectionAssignment>(
+                    _reimportNewAssignments);
+            assignmentsTrial.Remove(selected.Index);
             DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
                 _activeReimportReview, history.Manifest,
                 _reimportDecisions.Values.ToArray(), trial.ToArray(),
-                _preview, _reimportNewAssignments.Values.ToArray());
+                _preview, assignmentsTrial.Values.ToArray());
             _reimportExcludedNewSections.Clear();
             _reimportExcludedNewSections.UnionWith(trial);
+            _reimportNewAssignments.Clear();
+            foreach (KeyValuePair<int, DocxReimportNewSectionAssignment> pair in assignmentsTrial)
+            {
+                _reimportNewAssignments.Add(pair.Key, pair.Value);
+            }
             InvalidatePreparedReimport();
             RefreshNewSectionChoices(_activeReimportReview);
             ReimportDecisionStatus.Text =
