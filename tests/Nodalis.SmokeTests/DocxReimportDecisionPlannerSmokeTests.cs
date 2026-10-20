@@ -125,6 +125,39 @@ internal static class DocxReimportDecisionPlannerSmokeTests
         Assert(!blocked.AllFragmentsResolved && blocked.Writes.Count == 0,
             "A locally rewritten fragment must never be replaced using a stale anchor.");
 
+        string mergedDocument = "# Import depuis spec.docx\n\n" +
+            "## Tests\n\nCas révisé localement et consolidé avec Word\n\n" +
+            "## Notes locales\nNe pas effacer\n\n" +
+            "## Ajout local conservé\nInformation importante";
+        DocxReimportResolution fullMergeWithoutConsent = new DocxReimportResolution
+        {
+            FragmentId = original.FragmentId,
+            Action = DocxReimportResolutionAction.ManualWholeDocument,
+            ManualMarkdown = mergedDocument
+        };
+        DocxReimportDecisionPlan refusedFullMerge =
+            DocxReimportDecisionPlanner.Build(concurrent, history,
+                [fullMergeWithoutConsent]);
+        Assert(!refusedFullMerge.ReviewComplete &&
+               refusedFullMerge.Writes.Count == 0 &&
+               refusedFullMerge.Lines[0].Diagnostic.Contains(
+                   "Confirmez", StringComparison.Ordinal),
+            "A whole-file merge requires a separate informed approval.");
+
+        DocxReimportDecisionPlan fullMerge =
+            DocxReimportDecisionPlanner.Build(concurrent, history,
+                [fullMergeWithoutConsent with
+                {
+                    ConfirmWholeDocumentReplacement = true
+                }]);
+        Assert(fullMerge.ReviewComplete && fullMerge.Writes.Count == 1 &&
+               fullMerge.Writes[0].ProjectedMarkdown == mergedDocument &&
+               fullMerge.Writes[0].ExpectedCurrentSha256 ==
+                   DocxImportManifestStore.ComputeSha256(userModified) &&
+               fullMerge.Lines[0].Action ==
+                   DocxReimportResolutionAction.ManualWholeDocument,
+            "Confirmed full-document merge must permit an edited anchor only with current-file optimistic hash.");
+
         DocxImportManifestFragment merged = Fragment(
             original.DestinationRelativePath, "## Recette\n\nCas B",
             originalDestination);
@@ -149,6 +182,16 @@ internal static class DocxReimportDecisionPlannerSmokeTests
                mergedPlan.Lines.Any(line => !line.Resolved &&
                    line.Diagnostic.Contains("partagent", StringComparison.Ordinal)),
             "A Word fragment in a multi-section destination must not trigger a whole-file overwrite.");
+
+        DocxReimportDecisionPlan sharedFullMerge =
+            DocxReimportDecisionPlanner.Build(sharedReview, shared,
+                [fullMergeWithoutConsent with
+                {
+                    ConfirmWholeDocumentReplacement = true
+                }]);
+        Assert(sharedFullMerge.Writes.Count == 0 &&
+               sharedFullMerge.Lines.Any(line => !line.Resolved),
+            "A full-document merge cannot silently delete another Word fragment sharing the same Markdown.");
 
         DocxReimportDecisionPlan deleted = DocxReimportDecisionPlanner.Build(
             Review(history,
