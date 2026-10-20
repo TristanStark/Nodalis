@@ -338,7 +338,8 @@ public partial class DocxImportPreviewDialog
                 ReimportApplyStatus.Text =
                     (result.AlreadyApplied ? "Opération déjà enregistrée." :
                         "Réimport validé.") +
-                    " " + result.WrittenFiles + " fichier(s) Markdown appliqué(s). " +
+                    " " + result.WrittenFiles + " fichier(s) Markdown modifié(s), " +
+                    result.CreatedMarkdownFiles + " nouveau(x) fichier(s) créé(s). " +
                     "Word et historique immuables sauvegardés. " +
                     "Transaction : " + result.OperationId.ToString("N");
                 ReimportRecoveryStatus.Text =
