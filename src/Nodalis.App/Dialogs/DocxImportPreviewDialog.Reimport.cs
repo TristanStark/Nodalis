@@ -19,6 +19,7 @@ public partial class DocxImportPreviewDialog
     private readonly Dictionary<Guid, int?> _reimportOverrideChoices = [];
     private readonly Dictionary<Guid, DocxReimportResolution> _reimportDecisions = [];
     private readonly HashSet<int> _reimportExcludedNewSections = [];
+    private readonly Dictionary<int, DocxReimportNewSectionAssignment> _reimportNewAssignments = [];
     private DocxReimportReview? _activeReimportReview;
     private string? _activeReimportProjectDirectory;
     private string? _reimportComparedSourceSha256;
@@ -109,6 +110,7 @@ public partial class DocxImportPreviewDialog
             _reimportOverrideChoices.Clear();
             _reimportDecisions.Clear();
             _reimportExcludedNewSections.Clear();
+            _reimportNewAssignments.Clear();
             _activeReimportReview = null;
             _activeReimportProjectDirectory = null;
             _reimportComparedSourceSha256 = null;
@@ -203,7 +205,8 @@ public partial class DocxImportPreviewDialog
                 DocxReimportDecisionPlanner.Build(
                     _activeReimportReview, history.Manifest,
                     _reimportDecisions.Values.ToArray(),
-                    _reimportExcludedNewSections.ToArray());
+                    _reimportExcludedNewSections.ToArray(),
+                    _preview, _reimportNewAssignments.Values.ToArray());
             if (!displayedPlan.ReviewComplete)
             {
                 InvalidatePreparedReimport();
@@ -224,7 +227,8 @@ public partial class DocxImportPreviewDialog
                         CurrentSectionIndex = pair.Value
                     }).ToArray(),
                 _reimportDecisions.Values.ToArray(),
-                _reimportExcludedNewSections.ToArray());
+                _reimportExcludedNewSections.ToArray(),
+                newSectionAssignments: _reimportNewAssignments.Values.ToArray());
 
             if (!string.Equals(approval.ApprovedPlanFingerprint,
                     DocxReimportTransactionService.Fingerprint(displayedPlan),
@@ -241,6 +245,8 @@ public partial class DocxImportPreviewDialog
             ReimportApplyStatus.Text =
                 "Plan prêt : " + approval.Plan.Writes.Count +
                 " fichier(s) Markdown à modifier, " +
+                approval.Plan.NewSectionCreations.Count +
+                " nouvelle(s) section(s) Word à créer, " +
                 approval.Plan.ExcludedNewSectionIndexes.Count +
                 " section(s) Word exclue(s), un Word et un manifeste " +
                 "de provenance à créer. Appuyez sur « Appliquer le plan confirmé » " +
@@ -289,6 +295,10 @@ public partial class DocxImportPreviewDialog
                 "seront créés sans écrasement.\n" +
                 "Sections du nouveau Word volontairement exclues : " +
                 approval.Plan.ExcludedNewSectionIndexes.Count +
+                "\nFichiers Markdown à créer :\n" +
+                (approval.Plan.NewSectionCreations.Count == 0 ? "Aucun" :
+                    string.Join("\n", approval.Plan.NewSectionCreations.Select(item =>
+                        "• " + item.DestinationRelativePath))) +
                 "\nSauvegardes et journal conservés dans le projet.\n\n" +
                 "Confirmer l'application de ce plan ?";
             if (MessageBox.Show(this, prompt, "Confirmer le réimport DOCX",
@@ -313,6 +323,7 @@ public partial class DocxImportPreviewDialog
                 _reimportDecisions.Clear();
                 _reimportOverrideChoices.Clear();
                 _reimportExcludedNewSections.Clear();
+                _reimportNewAssignments.Clear();
                 _activeReimportReview = null;
                 _activeReimportProjectDirectory = null;
                 _reimportComparedSourceSha256 = null;
@@ -350,6 +361,7 @@ public partial class DocxImportPreviewDialog
             _reimportOverrideChoices.Clear();
             _reimportDecisions.Clear();
             _reimportExcludedNewSections.Clear();
+            _reimportNewAssignments.Clear();
             _activeReimportReview = null;
             _activeReimportProjectDirectory = null;
             _reimportComparedSourceSha256 = null;
@@ -425,6 +437,7 @@ public partial class DocxImportPreviewDialog
         _reimportOverrideChoices.Clear();
         _reimportDecisions.Clear();
         _reimportExcludedNewSections.Clear();
+        _reimportNewAssignments.Clear();
         _activeReimportReview = null;
         _activeReimportProjectDirectory = null;
         _reimportComparedSourceSha256 = null;
@@ -500,6 +513,7 @@ public partial class DocxImportPreviewDialog
             _reimportOverrideChoices.Clear();
             _reimportDecisions.Clear();
             _reimportExcludedNewSections.Clear();
+            _reimportNewAssignments.Clear();
             InvalidatePreparedReimport();
             if (_activeReimportReview is not null)
             {
@@ -572,6 +586,7 @@ public partial class DocxImportPreviewDialog
         _activeReimportReview = review;
         _activeReimportProjectDirectory = projectDirectory;
         InvalidatePreparedReimport();
+        RefreshNewFolderChoices(projectDirectory);
         RefreshNewSectionChoices(review);
         ReimportFragmentsList.ItemsSource = rows;
         ReimportFragmentsList.SelectedItem = selectFragmentId is Guid selected
@@ -742,7 +757,8 @@ public partial class DocxImportPreviewDialog
     private void RefreshNewSectionChoices(DocxReimportReview review)
     {
         int[] pending = review.Matching.AddedSectionIndexes
-            .Where(index => !_reimportExcludedNewSections.Contains(index))
+            .Where(index => !_reimportExcludedNewSections.Contains(index) &&
+                !_reimportNewAssignments.ContainsKey(index))
             .OrderBy(index => index)
             .ToArray();
         ReimportNewSectionsComboBox.ItemsSource = pending
@@ -758,7 +774,8 @@ public partial class DocxImportPreviewDialog
         ReimportNewSectionsStatus.Text =
             pending.Length + " nouvelle(s) section(s) encore à traiter · " +
             _reimportExcludedNewSections.Count +
-            " exclue(s) explicitement (aucun fichier écrit).";
+            " exclue(s) explicitement · " + _reimportNewAssignments.Count +
+            " affectée(s) à un dossier (aucun fichier écrit avant confirmation).";
     }
 
     /// <summary>
@@ -790,7 +807,8 @@ public partial class DocxImportPreviewDialog
             };
             DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
                 _activeReimportReview, history.Manifest,
-                _reimportDecisions.Values.ToArray(), trial.ToArray());
+                _reimportDecisions.Values.ToArray(), trial.ToArray(),
+                _preview, _reimportNewAssignments.Values.ToArray());
             _reimportExcludedNewSections.Clear();
             _reimportExcludedNewSections.UnionWith(trial);
             InvalidatePreparedReimport();
