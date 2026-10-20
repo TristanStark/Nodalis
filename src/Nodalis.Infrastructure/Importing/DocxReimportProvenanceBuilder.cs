@@ -243,6 +243,55 @@ public sealed class DocxReimportProvenanceBuilder
             });
         }
 
+        foreach (DocxReimportProposedCreation created in plan.NewSectionCreations)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            DocxImportSectionPreview section = latest.Sections.Single(item =>
+                item.Index == created.SectionIndex);
+            string expectedMarkdown = DocxImportSelectionRenderer.RenderAll(section);
+            if (!string.Equals(expectedMarkdown, created.Markdown,
+                    StringComparison.Ordinal) ||
+                !string.Equals(created.Sha256,
+                    DocxImportManifestStore.ComputeSha256(expectedMarkdown),
+                    StringComparison.OrdinalIgnoreCase) ||
+                fragments.Any(item =>
+                    item.FragmentId == created.FragmentId ||
+                    string.Equals(item.DestinationRelativePath,
+                        created.DestinationRelativePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException(
+                    "La nouvelle section Word ne correspond pas au plan approuvé.");
+            }
+
+            DocxMappingSourceSection newSource = DocxMappingSourceBuilder.Build(
+                section, latest.StagedImport.Document);
+            string destinationFolder = Path.GetFileName(
+                Path.GetDirectoryName(created.DestinationRelativePath) ??
+                string.Empty);
+            fragments.Add(new DocxImportManifestFragment
+            {
+                FragmentId = created.FragmentId,
+                SourceSectionIndex = section.Index,
+                HeadingBlockIndex = section.HeadingBlockIndex,
+                SourceHeading = section.SourceHeading,
+                SourceParentPath = newSource.ParentPath,
+                SourceWordStyleId = newSource.WordStyleId,
+                SourceHeadingLevel = newSource.HeadingLevel,
+                TargetSection = string.IsNullOrWhiteSpace(destinationFolder)
+                    ? "Notes" : destinationFolder,
+                DestinationRelativePath = created.DestinationRelativePath,
+                SelectedBlockIndexes = section.Blocks
+                    .Select(item => item.BlockIndex).OrderBy(index => index).ToList(),
+                OriginalSourceBlockCount = section.Blocks.Count,
+                BaseMarkdown = created.Markdown,
+                FragmentSha256 = created.Sha256,
+                DestinationSha256 = created.Sha256,
+                LatestWordMarkdownSnapshot = created.Markdown,
+                LatestWordSnapshotSha256 = created.Sha256,
+                ReimportResolution = "Word"
+            });
+        }
+
         if (fragments.Count == 0 ||
             fragments.Select(fragment => fragment.SourceSectionIndex)
                 .Distinct().Count() != fragments.Count ||
