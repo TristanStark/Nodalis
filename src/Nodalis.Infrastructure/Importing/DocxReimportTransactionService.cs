@@ -112,7 +112,8 @@ public sealed class DocxReimportTransactionService
             plan.Writes.Any(write => !plan.Lines.Any(line =>
                 line.FragmentId == write.FragmentId &&
                 (line.Action is DocxReimportResolutionAction.UseWord or
-                    DocxReimportResolutionAction.ManualMerge) && line.Resolved)))
+                    DocxReimportResolutionAction.ManualMerge or
+                    DocxReimportResolutionAction.ManualWholeDocument) && line.Resolved)))
         {
             throw new InvalidDataException(
                 "Le plan contient des fragments répétés ou non approuvés.");
