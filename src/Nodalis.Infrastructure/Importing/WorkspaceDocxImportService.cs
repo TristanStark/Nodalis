@@ -16,6 +16,7 @@ public sealed class WorkspaceDocxImportService
     private const long MaxStagedDocxBytes = 128L * 1024 * 1024;
     private readonly string _workspaceRoot;
     private readonly DocxParser _parser = new();
+    private readonly Action<string>? _afterProjectManifestCheckpoint;
 
     /// <summary>Gets the workspace root for local-only user profile storage.</summary>
     public string WorkspaceRoot => _workspaceRoot;
@@ -24,10 +25,13 @@ public sealed class WorkspaceDocxImportService
     /// Initializes a new instance of <see cref="WorkspaceDocxImportService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-    public WorkspaceDocxImportService(string workspaceRoot)
+    /// <param name="afterProjectManifestCheckpoint">Optional fault-injection hook for rollback regression tests.</param>
+    public WorkspaceDocxImportService(string workspaceRoot,
+        Action<string>? afterProjectManifestCheckpoint = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
+        _afterProjectManifestCheckpoint = afterProjectManifestCheckpoint;
     }
 
     /// <summary>
@@ -580,7 +584,8 @@ public sealed class WorkspaceDocxImportService
         global::System.Guid projectId = Guid.Empty;
         bool createdProject = false;
         string? manifestPath = null;
-        string? originalManifest = null;
+        byte[]? originalManifestBytes = null;
+        string? writtenManifestSha256 = null;
         global::System.Collections.Generic.List<string> generatedFiles = new List<string>();
         global::System.Collections.Generic.List<string> createdDirectories = new List<string>();
         DocxImportManifestStore provenanceStore = new DocxImportManifestStore(_workspaceRoot);
@@ -610,7 +615,7 @@ public sealed class WorkspaceDocxImportService
                     projectDirectory,
                     WorkspaceLayout.ProjectManifestFileName);
 
-                originalManifest = await File.ReadAllTextAsync(
+                originalManifestBytes = await File.ReadAllBytesAsync(
                     manifestPath,
                     cancellationToken);
 
@@ -661,14 +666,31 @@ public sealed class WorkspaceDocxImportService
                 selected.Select(section =>
                     section.TargetSection));
 
-            if (!ReferenceEquals(
-                    updatedProject,
-                    project))
+            if (!ReferenceEquals(updatedProject, project))
             {
+                // Reject edits by another process between reading and updating
+                // the existing project. Never roll back someone else's changes.
+                string beforeSha256 = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(
+                        originalManifestBytes!)).ToLowerInvariant();
+                string currentSha256 = await DocxImportManifestStore.ComputeFileSha256Async(
+                    manifestPath!, cancellationToken);
+                if (!string.Equals(currentSha256, beforeSha256,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Le manifeste projet a changé pendant l'import : nouvelle prévisualisation requise.");
+                }
+
+                writtenManifestSha256 = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(
+                        System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+                            updatedProject, JsonDefaults.Options))).ToLowerInvariant();
                 await AtomicJsonFile.WriteAsync(
                     manifestPath!,
                     updatedProject,
                     cancellationToken);
+                _afterProjectManifestCheckpoint?.Invoke(manifestPath!);
             }
 
             await DocxSelectedMediaAssets.CopyAsync(
@@ -845,18 +867,31 @@ public sealed class WorkspaceDocxImportService
                 }
 
                 if (!string.IsNullOrWhiteSpace(manifestPath) &&
-                    originalManifest is not null)
+                    originalManifestBytes is not null &&
+                    writtenManifestSha256 is not null)
                 {
                     try
                     {
-                        await AtomicFileWriter.WriteAllTextAsync(
-                            manifestPath,
-                            originalManifest,
-                            CancellationToken.None);
+                        // Restore only a manifest still matching our own write.
+                        // If an external editor changed it, preserve that edit.
+                        if (File.Exists(manifestPath) &&
+                            string.Equals(
+                                await DocxImportManifestStore.ComputeFileSha256Async(
+                                    manifestPath, CancellationToken.None),
+                                writtenManifestSha256,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            await AtomicFileWriter.WriteAsync(manifestPath,
+                                async (stream, token) =>
+                                {
+                                    await stream.WriteAsync(
+                                        originalManifestBytes, token);
+                                }, CancellationToken.None);
+                        }
                     }
                     catch
                     {
-                        // Preserve the original import exception.
+                        // Preserve the original import exception and recovery data.
                     }
                 }
             }

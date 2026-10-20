@@ -3,6 +3,7 @@ using System.Text;
 using Nodalis.Core.Importing;
 using Nodalis.Infrastructure.Importing;
 using Nodalis.Infrastructure.Reliability;
+using Nodalis.Infrastructure.Persistence;
 
 internal static class DocxProvenanceSmokeTests
 {
@@ -287,6 +288,94 @@ internal static class DocxProvenanceSmokeTests
 
         Assert(File.Exists(sourcePath),
             "Provenance creation must not modify or remove the original DOCX.");
+
+        // Force an interruption immediately after an existing project's
+        // manifest was changed, before writing any generated Word document.
+        string projectManifestPath = Path.Combine(committed.ProjectDirectory,
+            WorkspaceLayout.ProjectManifestFileName);
+        byte[] originalProjectBytes = await File.ReadAllBytesAsync(projectManifestPath);
+        WorkspaceDocxImportService interrupted = new WorkspaceDocxImportService(root,
+            _ => throw new InvalidOperationException("Simulated DOCX import interruption"));
+        DocxImportPreview interruptedPreview =
+            await interrupted.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest reuse = request with
+        {
+            ProjectId = committed.ProjectId,
+            NewProjectName = null,
+            Sections = interruptedPreview.Sections.Select(section =>
+                new DocxImportSectionSelection
+                {
+                    SectionIndex = section.Index,
+                    Include = true,
+                    TargetSection = "Rollback DOCX unique section"
+                }).ToList()
+        };
+        DocxImportPlan interruptedPlan =
+            await interrupted.BuildPlanAsync(interruptedPreview, reuse);
+        bool interruptedObserved = false;
+        try
+        {
+            await interrupted.CommitAsync(interruptedPreview, reuse with
+            {
+                ExpectedPlanFingerprint = interruptedPlan.Fingerprint
+            });
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message.Contains("Simulated", StringComparison.Ordinal))
+        {
+            interruptedObserved = true;
+        }
+
+        Assert(interruptedObserved &&
+               (await File.ReadAllBytesAsync(projectManifestPath))
+                   .SequenceEqual(originalProjectBytes) &&
+               !Directory.Exists(Path.Combine(committed.ProjectDirectory,
+                   "Rollback DOCX unique section")),
+            "Failed DOCX import must restore original project manifest bytes exactly.");
+
+        // An editor racing with a failed import must win: rollback may only
+        // restore a manifest still matching the bytes written by the import.
+        string externalEditedJson = Encoding.UTF8.GetString(originalProjectBytes) +
+                                    Environment.NewLine + "   ";
+        WorkspaceDocxImportService externalEditor = new WorkspaceDocxImportService(
+            root, destination =>
+            {
+                File.WriteAllText(destination, externalEditedJson);
+                throw new InvalidOperationException("Simulated concurrent project edit");
+            });
+        DocxImportPreview concurrentPreview =
+            await externalEditor.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest concurrentRequest = reuse with
+        {
+            Sections = concurrentPreview.Sections.Select(section =>
+                new DocxImportSectionSelection
+                {
+                    SectionIndex = section.Index,
+                    Include = true,
+                    TargetSection = "Concurrent DOCX unique section"
+                }).ToList()
+        };
+        DocxImportPlan concurrentPlan =
+            await externalEditor.BuildPlanAsync(concurrentPreview, concurrentRequest);
+        bool concurrentObserved = false;
+        try
+        {
+            await externalEditor.CommitAsync(concurrentPreview, concurrentRequest with
+            {
+                ExpectedPlanFingerprint = concurrentPlan.Fingerprint
+            });
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message.Contains("Simulated", StringComparison.Ordinal))
+        {
+            concurrentObserved = true;
+        }
+
+        Assert(concurrentObserved &&
+               await File.ReadAllTextAsync(projectManifestPath) == externalEditedJson &&
+               !Directory.Exists(Path.Combine(committed.ProjectDirectory,
+                   "Concurrent DOCX unique section")),
+            "Rollback must never overwrite a concurrent external project edit.");
     }
 
     /// <summary>Creates representative input without requiring Word or a network connection.</summary>

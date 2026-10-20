@@ -48,6 +48,12 @@ la copie. Les nouveaux Markdown sont créés atomiquement en mode **création
 exclusive** : un fichier apparu entre prévisualisation et import ne peut
 jamais être écrasé.
 
+Lors d'une erreur d'import dans un projet existant, les octets du manifeste
+projet sont restaurés **uniquement si le fichier contient encore la version
+écrite par cet import**. Une modification externe concurrente est conservée,
+pas écrasée par le rollback. La restauration du manifeste est validée par
+un test d'interruption et un test d'édition concurrente.
+
 Cette protection ne remplace pas les garanties transactionnelles et
 la récupération sur interruption qui restent à qualifier dans #165.
 
