@@ -390,8 +390,15 @@ public sealed class DocxReimportTransactionService
                 foreach (PreparedNewSection created in preparedProvenance.NewSections)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    if (!Directory.Exists(Path.GetDirectoryName(created.Path)))
+                    {
+                        throw new InvalidDataException(
+                            "Le dossier cible de la nouvelle section Word n'existe plus.");
+                    }
+
+                    EnsureNoLinks(created.Path);
                     await WriteNewFileAsync(created.Path, created.Bytes,
-                        cancellationToken);
+                        cancellationToken, requireExistingDirectory: true);
                 }
 
                 // Files are tracked in Prepared before either can be created,
@@ -879,10 +886,20 @@ public sealed class DocxReimportTransactionService
     /// without allowing an existing copy to be overwritten.
     /// </summary>
     private static async Task WriteNewFileAsync(string destination,
-        byte[] content, CancellationToken cancellationToken)
+        byte[] content, CancellationToken cancellationToken,
+        bool requireExistingDirectory = false)
     {
         string directory = Path.GetDirectoryName(destination)!;
-        Directory.CreateDirectory(directory);
+        if (requireExistingDirectory && !Directory.Exists(directory))
+        {
+            throw new InvalidDataException(
+                "Un réimport ne recrée jamais implicitement un dossier de projet supprimé.");
+        }
+
+        if (!requireExistingDirectory)
+        {
+            Directory.CreateDirectory(directory);
+        }
         string temporary = Path.Combine(directory,
             "." + Path.GetFileName(destination) + "." +
             Guid.NewGuid().ToString("N") + ".tmp");
