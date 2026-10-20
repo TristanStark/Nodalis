@@ -20,7 +20,9 @@ public static class DocxReimportDecisionPlanner
         DocxReimportReview review,
         DocxImportManifest baseline,
         IReadOnlyCollection<DocxReimportResolution> decisions,
-        IReadOnlyCollection<int>? excludedNewSectionIndexes = null)
+        IReadOnlyCollection<int>? excludedNewSectionIndexes = null,
+        DocxImportPreview? latest = null,
+        IReadOnlyCollection<DocxReimportNewSectionAssignment>? newSectionAssignments = null)
     {
         ArgumentNullException.ThrowIfNull(review);
         ArgumentNullException.ThrowIfNull(baseline);
@@ -87,6 +89,70 @@ public static class DocxReimportDecisionPlanner
                 throw new InvalidDataException(
                     "Exclusion de nouvelle section Word invalide ou répétée.");
             }
+        }
+
+        List<DocxReimportProposedCreation> newCreations = [];
+        HashSet<int> assigned = [];
+        HashSet<string> creationDestinations =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DocxReimportNewSectionAssignment assignment in
+                 newSectionAssignments ?? [])
+        {
+            if (!newlyAdded.Contains(assignment.SectionIndex) ||
+                excludedNew.Contains(assignment.SectionIndex) ||
+                !assigned.Add(assignment.SectionIndex) ||
+                latest is null)
+            {
+                throw new InvalidDataException(
+                    "Affectation de nouvelle section Word inconnue, répétée ou exclue.");
+            }
+
+            string folder = assignment.TargetFolderRelativePath.Replace('\\', '/').TrimEnd('/');
+            string leaf = "DOCX-reimport-" + baseline.ImportId.ToString("N") +
+                "-section-" + assignment.SectionIndex.ToString("D4") + ".md";
+            string target = folder + "/" + leaf;
+            if (string.IsNullOrWhiteSpace(folder) ||
+                folder.StartsWith("/", StringComparison.Ordinal) ||
+                folder.Split('/').Any(segment =>
+                    segment is "" or "." or ".." || segment.StartsWith('.')) ||
+                !creationDestinations.Add(target) ||
+                baseline.Fragments.Any(fragment =>
+                    string.Equals(fragment.DestinationRelativePath, target,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException(
+                    "Dossier de destination Word invalide ou en conflit.");
+            }
+
+            DocxImportSectionPreview section = latest.Sections.Single(item =>
+                item.Index == assignment.SectionIndex);
+            string markdown = DocxImportSelectionRenderer.RenderAll(section);
+            if (string.IsNullOrWhiteSpace(markdown) ||
+                markdown.Length > MaxManualMarkdownLength)
+            {
+                throw new InvalidDataException(
+                    "Nouvelle section Word vide ou trop volumineuse.");
+            }
+
+            byte[] key = System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(
+                    baseline.ImportId.ToString("N") + ":" + assignment.SectionIndex +
+                    ":" + target));
+            Guid fragmentId = new Guid(key.AsSpan(0, 16));
+            if (originals.ContainsKey(fragmentId))
+            {
+                throw new InvalidDataException(
+                    "Identifiant de fragment Word déjà attribué.");
+            }
+
+            newCreations.Add(new DocxReimportProposedCreation
+            {
+                SectionIndex = assignment.SectionIndex,
+                FragmentId = fragmentId,
+                DestinationRelativePath = target,
+                Markdown = markdown,
+                Sha256 = DocxImportManifestStore.ComputeSha256(markdown)
+            });
         }
 
         List<DocxReimportDecisionLine> lines = [];
@@ -223,11 +289,38 @@ public static class DocxReimportDecisionPlanner
             Writes = writes,
             Warnings = review.Warnings.ToList(),
             // New Word sections are not silently included in the old import.
-            UnmatchedNewSections = newlyAdded.Except(excludedNew).OrderBy(index => index).ToList(),
+            UnmatchedNewSections = newlyAdded.Except(excludedNew).Except(assigned)
+                .OrderBy(index => index).ToList(),
+            NewSectionCreations = newCreations.OrderBy(item => item.SectionIndex).ToList(),
             ExcludedNewSectionIndexes = excludedNew.OrderBy(index => index).ToList(),
             AmbiguousNewSections = review.Matching.UnresolvedNewSectionIndexes.ToList()
         };
     }
+}
+
+/// <summary>
+/// Explicit placement of a newly introduced Word section in an existing
+/// project folder. Folder paths are workspace-relative; no folder is created.
+/// </summary>
+public sealed record DocxReimportNewSectionAssignment
+{
+    public required int SectionIndex { get; init; }
+
+    public required string TargetFolderRelativePath { get; init; }
+}
+
+/// <summary>New Markdown destination proposed for a Word-only section.</summary>
+public sealed record DocxReimportProposedCreation
+{
+    public required int SectionIndex { get; init; }
+
+    public required Guid FragmentId { get; init; }
+
+    public required string DestinationRelativePath { get; init; }
+
+    public required string Markdown { get; init; }
+
+    public required string Sha256 { get; init; }
 }
 
 /// <summary>User-controlled treatment of one historical section.</summary>
@@ -298,6 +391,9 @@ public sealed record DocxReimportDecisionPlan
     public List<string> Warnings { get; init; } = [];
 
     public List<int> UnmatchedNewSections { get; init; } = [];
+
+    /// <summary>Explicit creation-only Markdown files in existing project folders.</summary>
+    public List<DocxReimportProposedCreation> NewSectionCreations { get; init; } = [];
 
     /// <summary>New Word sections explicitly excluded from this dry-run.</summary>
     public List<int> ExcludedNewSectionIndexes { get; init; } = [];
