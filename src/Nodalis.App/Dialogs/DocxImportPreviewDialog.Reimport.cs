@@ -141,6 +141,206 @@ public partial class DocxImportPreviewDialog
         return true;
     }
 
+    /// <summary>Discards a prepared approval whenever an input changes.</summary>
+    private void InvalidatePreparedReimport()
+    {
+        _preparedReimportApproval = null;
+        if (ReimportApplyButton is not null)
+        {
+            ReimportApplyButton.IsEnabled = false;
+        }
+
+        if (ReimportApplyStatus is not null)
+        {
+            ReimportApplyStatus.Text =
+                "Aucun plan prêt à appliquer. Préparez une nouvelle validation.";
+        }
+    }
+
+    /// <summary>Invalidates approval if the selected action has changed.</summary>
+    private void ReimportDecisionInput_Changed(
+        object sender, SelectionChangedEventArgs e) =>
+        InvalidatePreparedReimport();
+
+    /// <summary>Invalidates approval when a manual fragment is edited.</summary>
+    private void ReimportManualMerge_Changed(
+        object sender, TextChangedEventArgs e) =>
+        InvalidatePreparedReimport();
+
+    /// <summary>
+    /// Reloads the persisted history and Markdown to prepare a fresh approval.
+    /// No file is written. The preview must agree with the currently displayed
+    /// comparison and the staged Word must not have changed since it was read.
+    /// </summary>
+    private async void ReimportPrepare_Click(object sender, RoutedEventArgs e)
+    {
+        await UiActionGuard.RunAsync(this, "Réimport DOCX · préparer", async () =>
+        {
+            if (_reimportApplying ||
+                !TryGetReimportTarget(out string projectDirectory,
+                    out ReimportHistoryChoice? history) ||
+                history is null || _activeReimportReview is null ||
+                _activeReimportReview.PreviousImportId != history.Manifest.ImportId ||
+                !string.Equals(projectDirectory, _activeReimportProjectDirectory,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                ReimportApplyStatus.Text =
+                    "Comparez d'abord un historique DOCX dans le projet actuel.";
+                return;
+            }
+
+            string stagedSha = await DocxImportManifestStore.ComputeFileSha256Async(
+                _preview.StagedImport.StagedCopyPath);
+            if (!string.Equals(stagedSha, _reimportComparedSourceSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                InvalidatePreparedReimport();
+                throw new InvalidDataException(
+                    "Le Word a changé depuis la dernière comparaison. Relancez Comparer.");
+            }
+
+            DocxReimportDecisionPlan displayedPlan =
+                DocxReimportDecisionPlanner.Build(
+                    _activeReimportReview, history.Manifest,
+                    _reimportDecisions.Values.ToArray(),
+                    _reimportExcludedNewSections.ToArray());
+            if (!displayedPlan.ReviewComplete)
+            {
+                InvalidatePreparedReimport();
+                ReimportApplyStatus.Text =
+                    "Préparation refusée : résolvez les conflits, confirmez les " +
+                    "correspondances et traitez toutes les nouvelles sections Word.";
+                return;
+            }
+
+            DocxReimportApprovalService service =
+                new DocxReimportApprovalService(_reimportWorkspaceRoot);
+            DocxReimportApproval approval = await service.PrepareAsync(
+                projectDirectory, history.Manifest.ImportId, _preview,
+                _reimportOverrideChoices.Select(pair =>
+                    new DocxReimportSectionMatchOverride
+                    {
+                        FragmentId = pair.Key,
+                        CurrentSectionIndex = pair.Value
+                    }).ToArray(),
+                _reimportDecisions.Values.ToArray(),
+                _reimportExcludedNewSections.ToArray());
+
+            if (!string.Equals(approval.ApprovedPlanFingerprint,
+                    DocxReimportTransactionService.Fingerprint(displayedPlan),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                InvalidatePreparedReimport();
+                throw new InvalidDataException(
+                    "Les données Nodalis ou les décisions ont changé depuis " +
+                    "le dernier aperçu. Relancez la comparaison.");
+            }
+
+            _preparedReimportApproval = approval;
+            ReimportApplyButton.IsEnabled = true;
+            ReimportApplyStatus.Text =
+                "Plan prêt : " + approval.Plan.Writes.Count +
+                " fichier(s) Markdown à modifier, " +
+                approval.Plan.ExcludedNewSectionIndexes.Count +
+                " section(s) Word exclue(s), un Word et un manifeste " +
+                "de provenance à créer. Appuyez sur « Appliquer le plan confirmé » " +
+                "pour examiner et accepter les écritures. Empreinte : " +
+                approval.ApprovedPlanFingerprint[..12] + "…";
+        });
+    }
+
+    /// <summary>
+    /// Displays the full set of intended Markdown replacements and asks for
+    /// explicit Yes/No consent; the service rereads every source and the plan
+    /// before any write, then journals backups and a new immutable Word copy.
+    /// </summary>
+    private async void ReimportApply_Click(object sender, RoutedEventArgs e)
+    {
+        await UiActionGuard.RunAsync(this, "Réimport DOCX · appliquer", async () =>
+        {
+            if (_reimportApplying || _preparedReimportApproval is not
+                    DocxReimportApproval approval ||
+                !TryGetReimportTarget(out string projectDirectory,
+                    out ReimportHistoryChoice? history) ||
+                history?.Manifest.ImportId != approval.PreviousImportId ||
+                !string.Equals(projectDirectory, approval.ProjectDirectory,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                ReimportApplyStatus.Text =
+                    "Le projet ou le plan préparé a changé : préparez le réimport à nouveau.";
+                InvalidatePreparedReimport();
+                return;
+            }
+
+            string[] changes = approval.Plan.Writes
+                .Select(write => "• " + write.DestinationRelativePath +
+                    "\n  " + write.ExpectedCurrentSha256[..12] +
+                    "… → " + write.ProjectedSha256[..12] + "…")
+                .ToArray();
+            string prompt = "Vous confirmez le réimport dans le projet :\n" +
+                Path.GetFileName(projectDirectory) +
+                "\n\nFichiers Markdown à remplacer (" +
+                changes.Length + ") :\n" +
+                (changes.Length == 0 ? "Aucun : provenance uniquement.\n" :
+                    string.Join("\n", changes.Take(12)) +
+                    (changes.Length > 12 ?
+                        "\n… et " + (changes.Length - 12) + " autre(s) fichier(s)." : "")) +
+                "\n\nUn Word source et un manifeste de provenance " +
+                "seront créés sans écrasement.\n" +
+                "Sections du nouveau Word volontairement exclues : " +
+                approval.Plan.ExcludedNewSectionIndexes.Count +
+                "\nSauvegardes et journal conservés dans le projet.\n\n" +
+                "Confirmer l'application de ce plan ?";
+            if (MessageBox.Show(this, prompt, "Confirmer le réimport DOCX",
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                ReimportApplyStatus.Text =
+                    "Application annulée : aucun fichier modifié.";
+                return;
+            }
+
+            _reimportApplying = true;
+            ReimportPrepareButton.IsEnabled = false;
+            ReimportApplyButton.IsEnabled = false;
+            try
+            {
+                DocxReimportApprovalService service =
+                    new DocxReimportApprovalService(_reimportWorkspaceRoot);
+                DocxReimportTransactionResult result =
+                    await service.ApplyAsync(approval, _preview);
+
+                _reimportDecisions.Clear();
+                _reimportOverrideChoices.Clear();
+                _reimportExcludedNewSections.Clear();
+                _activeReimportReview = null;
+                _activeReimportProjectDirectory = null;
+                _reimportComparedSourceSha256 = null;
+                _preparedReimportApproval = null;
+                ReimportHistoryComboBox.ItemsSource = null;
+                ReimportFragmentsList.ItemsSource = null;
+                ReimportNewSectionsComboBox.ItemsSource = null;
+                ClearReimportText();
+                ReimportStatusText.Text =
+                    "Réimport terminé. Rechargez les historiques pour consulter " +
+                    "la nouvelle version et comparer d'autres sections.";
+                ReimportApplyStatus.Text =
+                    (result.AlreadyApplied ? "Opération déjà enregistrée." :
+                        "Réimport validé.") +
+                    " " + result.WrittenFiles + " fichier(s) Markdown appliqué(s). " +
+                    "Word et historique immuables sauvegardés. " +
+                    "Transaction : " + result.OperationId.ToString("N");
+                ReimportRecoveryStatus.Text =
+                    "Journal et sauvegardes conservés pour audit.";
+            }
+            finally
+            {
+                _reimportApplying = false;
+                ReimportPrepareButton.IsEnabled = true;
+            }
+        });
+    }
+
     /// <summary>Discovers only matching historical sources in the selected project.</summary>
     private async void ReimportLoadHistory_Click(object sender, RoutedEventArgs e)
     {
