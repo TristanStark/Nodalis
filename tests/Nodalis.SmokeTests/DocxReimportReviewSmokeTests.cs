@@ -723,6 +723,69 @@ internal static class DocxReimportReviewSmokeTests
                    .Fragments.Single().SourceSectionIndex == 1,
             "A completely replaced Word may create a new file while preserving deleted old sections.");
 
+        // The original imported anchor has been rewritten locally and can
+        // no longer be found. Only the user's complete-document manual merge,
+        // backed by an independent explicit consent, may replace it.
+        string alteredLocal = "## Tests\n\nCas révisé dans Nodalis\n\n" +
+            "## Notes locales\nConserver cette note essentielle";
+        string acceptedFullMarkdown = "## Tests\n\nCas Word avec arbitrage\n\n" +
+            "## Notes locales\nConserver cette note essentielle\n\n" +
+            "## Historique des modifications\nFusion vérifiée";
+        await File.WriteAllTextAsync(markdownPath, alteredLocal);
+        DocxReimportResolution wholeMerge = new DocxReimportResolution
+        {
+            FragmentId = fragment.FragmentId,
+            Action = DocxReimportResolutionAction.ManualWholeDocument,
+            ManualMarkdown = acceptedFullMarkdown,
+            ConfirmWholeDocumentReplacement = true
+        };
+        DocxReimportApproval fullApproval = await approvals.PrepareAsync(
+            projectDirectory, previous.ImportId, preview, [], [wholeMerge], []);
+        Assert(fullApproval.Plan.ReviewComplete &&
+               fullApproval.Plan.Writes.Single().ProjectedMarkdown == acceptedFullMarkdown &&
+               await File.ReadAllTextAsync(markdownPath) == alteredLocal,
+            "The whole-document merge preview must be complete and read-only.");
+
+        await File.AppendAllTextAsync(markdownPath, "\nÉdition concurrente");
+        bool staleWholeMergeRejected = false;
+        try
+        {
+            await approvals.ApplyAsync(fullApproval, preview);
+        }
+        catch (InvalidDataException)
+        {
+            staleWholeMergeRejected = true;
+        }
+
+        Assert(staleWholeMergeRejected &&
+               (await File.ReadAllTextAsync(markdownPath)).Contains(
+                   "Édition concurrente", StringComparison.Ordinal) &&
+               !File.Exists(store.GetManifestPath(projectDirectory,
+                   fullApproval.OperationId)),
+            "A full-file manual merge cannot overwrite a concurrent local change.");
+
+        await File.WriteAllTextAsync(markdownPath, alteredLocal);
+        DocxReimportTransactionResult fullCommitted =
+            await approvals.ApplyAsync(fullApproval, preview);
+        DocxImportManifest fullHistory =
+            await store.LoadAsync(fullCommitted.ManifestPath!);
+        Assert(fullCommitted.WrittenFiles == 1 &&
+               await File.ReadAllTextAsync(markdownPath) == acceptedFullMarkdown &&
+               fullHistory.Fragments.Single().BaseMarkdown == acceptedFullMarkdown &&
+               fullHistory.Fragments.Single().ReimportResolution == "ManualFullDocument" &&
+               fullHistory.Fragments.Single().LatestWordMarkdownSnapshot?.Replace(
+                   "\r\n", "\n") == latestWord,
+            "A confirmed full-file manual merge must commit exact accepted text and keep Word audit source.");
+
+        DocxReimportReview nextManualGeneration = await service.BuildAsync(
+            projectDirectory, fullHistory, preview);
+        Assert(nextManualGeneration.Fragments.Single().Change?.Kind ==
+                   DocxReimportChangeKind.Unchanged &&
+               await approvals.ApplyAsync(fullApproval, preview) is
+                   { AlreadyApplied: true },
+            "An unchanged Word after a manual merge must not generate a phantom edit or duplicate transaction.");
+        await File.WriteAllTextAsync(markdownPath, original);
+
         bool mismatchedHistoryRejected = false;
         try
         {
