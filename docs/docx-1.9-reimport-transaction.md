@@ -33,8 +33,10 @@ résolu. L'appelant fournit :
 Le service refuse les plans incomplets, les avertissements non levés,
 les sections nouvelles sans décision, les doublons de fragments, les
 destinations étrangères au projet ou via liens symboliques, les fichiers
-manquants et les empreintes SHA-256 obsolètes. Aucune création silencieuse
-de section Word ni de fichier Markdown de destination n'est autorisée.
+manquants et les empreintes SHA-256 obsolètes. Une nouvelle section Word ne
+peut être ajoutée qu'après une **affectation explicite à un dossier existant**
+du projet, sous un nom de fichier déterministe. Aucun fichier déjà présent
+n'est remplacé par cette opération de création.
 
 La transaction ne remplace que les Markdown explicitement projetés.
 `CommitWithProvenanceAsync` ajoute dans la **même opération récupérable**
@@ -65,11 +67,13 @@ L'ordre est :
 3. Écriture et synchronisation des sauvegardes binaires.
 4. Écriture atomique du journal `Prepared`.
 5. Vérification des SHA-256 et remplacement atomique des Markdown projetés.
-6. Si l'opération inclut une nouvelle provenance : création **sans écrasement**
-   du DOCX et du manifeste versionné, tous deux recensés et hachés dans le
-   journal `Prepared` avant leur création.
-7. Écriture atomique de l'état `Completed` seulement après les fichiers
-   Markdown et les nouveaux artefacts.
+6. Si l'opération inclut de nouvelles sections Word : création
+   **sans écrasement** de leurs fichiers Markdown, tous recensés et hachés
+   dans le journal `Prepared` avant leur création.
+7. Création **sans écrasement** de la copie DOCX et du manifeste versionné,
+   eux aussi enregistrés et hachés dans ce même journal.
+8. Écriture atomique de l'état `Completed` seulement après les fichiers
+   Markdown, les nouvelles sections et les deux artefacts de provenance.
 
 En cas d'erreur, le service tente de remettre **toutes** les destinations à
 leur état d'origine à partir des sauvegardes et marque `RolledBack` après
@@ -114,10 +118,10 @@ copie de sauvegarde et exiger une intervention humaine.
 La traçabilité, la copie Word versionnée et la confirmation explicite
 sont maintenant reliées **de bout en bout**. Pour la qualification de sortie
 #164, il reste à tester l'interface WPF en conditions Windows 10/11, les
-permissions, les jonctions et la concurrence externe. L'affectation de
-nouvelles sections du Word au réimport n'est pas encore disponible : elles
-doivent être exclues explicitement de cette opération, puis importées
-séparément si nécessaire. Les associations ambiguës et les fragments
+permissions, les jonctions et la concurrence externe. L'affectation
+de nouvelles sections Word à de nouveaux Markdown dans un dossier existant
+est disponible. Leur intégration dans un Markdown préexistant n'est pas
+encore proposée. Les associations ambiguës et les fragments
 initialement importés partiellement continuent de **bloquer** l'application
 pour éviter toute perte ou réintroduction de contenu non choisi.
 
@@ -137,7 +141,8 @@ elles doivent être recalculées sur les fichiers restaurés.
 2. Réglez les associations incertaines. Pour chaque section concernée,
    choisissez explicitement **Conserver Nodalis**, **Utiliser Word**,
    **Fusion manuelle** ou **Garder comme historique**. Une nouvelle section
-   Word doit être exclue explicitement de ce réimport pour l'instant.
+   Word doit être **attribuée à un dossier existant** pour être ajoutée
+   à un Markdown dédié, ou explicitement exclue du réimport.
 3. Cliquez **Préparer le réimport**. Le plan est recalculé depuis les
    fichiers présents sur disque. Une modification depuis l'aperçu exige
    de recommencer. Le bouton d'application devient actif uniquement
@@ -172,3 +177,10 @@ version d'historique sans écriture Markdown (`Conserver Nodalis`).
 `DocxReimportTransactionSmokeTests` couvre une interruption simulée après
 création du DOCX mais avant celle du manifeste, ainsi que leur nettoyage
 par la récupération.
+
+
+La suite couvre maintenant le refus d'une destination de nouvelle section
+occupée entre préparation et commit, le rejeu idempotent après création,
+l'inscription de la nouvelle section dans l'historique chaîné et le rollback
+d'une nouvelle section ainsi que de sa copie DOCX et de son manifeste à
+la suite d'une erreur injectée.
