@@ -1,0 +1,225 @@
+using Nodalis.Core.Importing;
+
+namespace Nodalis.Infrastructure.Importing;
+
+/// <summary>
+/// Coordinates an explicitly prepared DOCX reimport without trusting a stale
+/// WPF comparison. Each approval is tied to one project, immutable historical
+/// import, staged Word SHA-256 and fully resolved decision-plan fingerprint.
+/// </summary>
+public sealed class DocxReimportApprovalService
+{
+    private readonly DocxImportManifestStore _store;
+    private readonly DocxReimportReviewService _reviews;
+    private readonly DocxReimportProvenanceBuilder _provenance;
+    private readonly DocxReimportTransactionService _transactions;
+
+    /// <summary>Initializes local-only review and guarded reimport services.</summary>
+    public DocxReimportApprovalService(string workspaceRoot)
+    {
+        _store = new DocxImportManifestStore(workspaceRoot);
+        _reviews = new DocxReimportReviewService(workspaceRoot);
+        _provenance = new DocxReimportProvenanceBuilder(workspaceRoot);
+        _transactions = new DocxReimportTransactionService(workspaceRoot);
+    }
+
+    /// <summary>
+    /// Reopens the actual immutable historical manifest, reads the current
+    /// Nodalis files, resolves explicit section identities and creates a
+    /// preview-bound approval. Never writes workspace files.
+    /// </summary>
+    public async Task<DocxReimportApproval> PrepareAsync(
+        string projectDirectory,
+        Guid previousImportId,
+        DocxImportPreview latest,
+        IReadOnlyCollection<DocxReimportSectionMatchOverride> identities,
+        IReadOnlyCollection<DocxReimportResolution> decisions,
+        IReadOnlyCollection<int> excludedNewSections,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
+        ArgumentNullException.ThrowIfNull(latest);
+        ArgumentNullException.ThrowIfNull(identities);
+        ArgumentNullException.ThrowIfNull(decisions);
+        ArgumentNullException.ThrowIfNull(excludedNewSections);
+
+        string project = Path.GetFullPath(projectDirectory);
+        string manifestPath = _store.GetManifestPath(project, previousImportId);
+        DocxImportManifest previous = await _store.LoadAsync(
+            manifestPath, cancellationToken);
+        DocxReimportSectionMatchOverride[] identitiesCopy = identities.ToArray();
+        DocxReimportResolution[] decisionsCopy = decisions.ToArray();
+        int[] excludedCopy = excludedNewSections.ToArray();
+        DocxReimportReview review = await _reviews.BuildWithOverridesAsync(
+            project, previous, latest, identitiesCopy, cancellationToken);
+        DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
+            review, previous, decisionsCopy, excludedCopy);
+        if (!plan.ReviewComplete)
+        {
+            string diagnostics = string.Join("; ", plan.Lines
+                .Where(line => !line.Resolved)
+                .Select(line => line.Diagnostic)
+                .Distinct().Take(4));
+            throw new InvalidDataException(
+                "Tous les arbitrages doivent être terminés avant le réimport. " +
+                diagnostics +
+                (plan.UnmatchedNewSections.Count > 0
+                    ? " Les nouvelles sections Word doivent être traitées explicitement." : "") +
+                (plan.AmbiguousNewSections.Count > 0
+                    ? " Des associations Word restent ambiguës." : "") +
+                (plan.Warnings.Count > 0
+                    ? " Avertissements de source : " + string.Join("; ", plan.Warnings) : ""));
+        }
+
+        if (review.Fragments.All(fragment =>
+                fragment.Association.CurrentSectionIndex is null))
+        {
+            throw new InvalidDataException(
+                "Aucune section Word associée : impossible de créer un nouvel historique.");
+        }
+
+        Guid operationId = Guid.NewGuid();
+        string sourcePath = "Imports/Sources/reimport-" +
+            operationId.ToString("N") + ".docx";
+        DocxImportManifest next = await _provenance.BuildAsync(
+            previous, review, plan, latest, decisionsCopy,
+            operationId, sourcePath, cancellationToken);
+        string stagedHash = await DocxImportManifestStore.ComputeFileSha256Async(
+            latest.StagedImport.StagedCopyPath, cancellationToken);
+        if (!string.Equals(next.SourceSha256, stagedHash,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "La copie Word a changé pendant la préparation du réimport.");
+        }
+
+        return new DocxReimportApproval
+        {
+            ProjectDirectory = project,
+            PreviousImportId = previous.ImportId,
+            ProjectId = previous.ProjectId,
+            OperationId = operationId,
+            HistoricalManifestSha256 =
+                await DocxImportManifestStore.ComputeFileSha256Async(
+                    manifestPath, cancellationToken),
+            StagedSourcePath = Path.GetFullPath(latest.StagedImport.StagedCopyPath),
+            StagedSourceSha256 = stagedHash,
+            ApprovedPlanFingerprint = DocxReimportTransactionService.Fingerprint(plan),
+            Plan = plan,
+            Identities = identitiesCopy,
+            Decisions = decisionsCopy,
+            ExcludedNewSections = excludedCopy
+        };
+    }
+
+    /// <summary>
+    /// Rebuilds every file-backed comparison after user approval. A modified
+    /// source, changed historical record, different project, changed Markdown
+    /// or altered decisions invalidates approval before any filesystem writes.
+    /// </summary>
+    public async Task<DocxReimportTransactionResult> ApplyAsync(
+        DocxReimportApproval approved,
+        DocxImportPreview latest,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(approved);
+        ArgumentNullException.ThrowIfNull(latest);
+
+        if (!string.Equals(Path.GetFullPath(latest.StagedImport.StagedCopyPath),
+                approved.StagedSourcePath, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(
+                await DocxImportManifestStore.ComputeFileSha256Async(
+                    latest.StagedImport.StagedCopyPath, cancellationToken),
+                approved.StagedSourceSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Le Word a changé depuis la validation : préparez à nouveau le réimport.");
+        }
+
+        string manifestPath = _store.GetManifestPath(
+            approved.ProjectDirectory, approved.PreviousImportId);
+        if (!string.Equals(await DocxImportManifestStore.ComputeFileSha256Async(
+                manifestPath, cancellationToken),
+            approved.HistoricalManifestSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "L'historique DOCX a changé depuis la validation : comparaison requise.");
+        }
+
+        DocxImportManifest previous = await _store.LoadAsync(
+            manifestPath, cancellationToken);
+        if (previous.ProjectId != approved.ProjectId)
+        {
+            throw new InvalidDataException(
+                "Le projet sélectionné ne correspond plus à l'approbation.");
+        }
+
+        DocxReimportReview fresh = await _reviews.BuildWithOverridesAsync(
+            approved.ProjectDirectory, previous, latest, approved.Identities,
+            cancellationToken);
+        DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
+            fresh, previous, approved.Decisions, approved.ExcludedNewSections);
+        string fingerprint = DocxReimportTransactionService.Fingerprint(plan);
+        if (!plan.ReviewComplete ||
+            !string.Equals(fingerprint, approved.ApprovedPlanFingerprint,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Le projet a changé depuis l'approbation du plan DOCX. " +
+                "Aucune écriture : refaites la comparaison et la confirmation.");
+        }
+
+        string sourcePath = "Imports/Sources/reimport-" +
+            approved.OperationId.ToString("N") + ".docx";
+        DocxImportManifest next = await _provenance.BuildAsync(
+            previous, fresh, plan, latest, approved.Decisions,
+            approved.OperationId, sourcePath, cancellationToken);
+        if (next.ProjectId != approved.ProjectId ||
+            !string.Equals(next.SourceSha256,
+                approved.StagedSourceSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Le nouveau manifeste DOCX ne correspond plus aux fichiers approuvés.");
+        }
+
+        return await _transactions.CommitWithProvenanceAsync(
+            approved.ProjectDirectory, plan, approved.OperationId,
+            approved.ApprovedPlanFingerprint,
+            new DocxReimportProvenancePackage
+            {
+                Manifest = next,
+                StagedDocxPath = latest.StagedImport.StagedCopyPath
+            }, cancellationToken);
+    }
+}
+
+/// <summary>
+/// One session-scoped reviewed approval. Do not persist; after reloading the
+/// workspace the user must explicitly prepare and approve a new transaction.
+/// </summary>
+public sealed record DocxReimportApproval
+{
+    public required string ProjectDirectory { get; init; }
+
+    public required Guid ProjectId { get; init; }
+
+    public required Guid PreviousImportId { get; init; }
+
+    public required Guid OperationId { get; init; }
+
+    public required string HistoricalManifestSha256 { get; init; }
+
+    public required string StagedSourcePath { get; init; }
+
+    public required string StagedSourceSha256 { get; init; }
+
+    public required string ApprovedPlanFingerprint { get; init; }
+
+    public required DocxReimportDecisionPlan Plan { get; init; }
+
+    public required DocxReimportSectionMatchOverride[] Identities { get; init; }
+
+    public required DocxReimportResolution[] Decisions { get; init; }
+
+    public required int[] ExcludedNewSections { get; init; }
+}
