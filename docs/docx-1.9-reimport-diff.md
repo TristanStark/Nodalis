@@ -147,19 +147,37 @@ le **fichier Markdown entier**, faute de délimiteur sûr. Les comparaisons
 au-delà de 300 paragraphes ou 256 000 caractères par côté affichent
 un avertissement de limitation plutôt que de bloquer la fenêtre.
 
-## Nouvelles sections Word et exclusion explicite
+## Nouvelles sections Word : importer ou exclure
 
 Le panneau **Nouvelles sections Word · décision explicite** affiche les
-sections qui ne correspondent à aucun fragment de l'ancien import.
-Une action **Exclure de ce réimport** les marque explicitement comme ignorées
-dans le plan en mémoire. Les sections non traitées empêchent l'état
-`ReviewComplete`; les correspondances encore ambiguës ne peuvent pas être
-contournées avec cette exclusion. Cette action d'exclusion, seule, ne crée
-ni ne modifie aucun fichier.
+sections sans correspondance avec l'ancien import. Vous pouvez maintenant :
 
-Ce dispositif ne permet pas encore **d'importer réellement une nouvelle
-section** dans Nodalis. Cette opération nécessitera un plan d'affectation
-et une transaction avec rollback.
+- **Importer dans ce dossier** : sélectionner un dossier **déjà existant**
+  du projet (racine ou dossier de premier niveau), puis affecter la nouvelle
+  section à un fichier Markdown créé uniquement après confirmation. Nodalis
+  propose un fichier de nom déterministe
+  `DOCX-reimport-<import-parent-GUID>-section-<index>.md` ;
+  ce fichier n'est **jamais écrasé** s'il existe déjà.
+- **Exclure de ce réimport** : laisser explicitement la nouvelle section
+  hors de cette opération, sans création de fichier.
+
+La liste des dossiers exclut les dossiers internes commençant par un point
+et les liens symboliques / jonctions. Un dossier choisi qui disparaît, une
+destination déjà occupée ou une décision doublonnée bloquent l'application.
+Les sections non traitées empêchent `ReviewComplete` et les correspondances
+ambiguës ne peuvent pas être dissimulées par ce mécanisme.
+
+Les fichiers nouveaux sont suivis dans le journal `Prepared` **avant leur
+création**, avec leur empreinte SHA-256. Ils apparaissent dans le manifeste
+de provenance au même titre que les sections anciennes, conservent leur
+identifiant de fragment et participent à la reprise et au rollback. Les
+fichiers nouveaux sont retirés lors d'une restauration uniquement s'ils
+n'ont pas été modifiés par une opération extérieure.
+
+**Limite actuelle** : chaque nouvelle section occupe un fichier Markdown
+dédié, dans un dossier existant. L'ajout au sein d'un Markdown préexistant
+ou la création automatique d'une nouvelle catégorie ne sont pas proposés :
+ces opérations nécessitent des règles de fusion plus avancées.
 
 ## Sécurité
 
@@ -174,9 +192,9 @@ le réimport est **bloqué avec un avertissement explicite** : on ne
 réintroduit pas automatiquement les paragraphes autrefois exclus. Les
 anciens manifestes sans ce champ demeurent lisibles.
 
-**Restent à développer dans #164 :** l'affectation et l'import effectif de
-nouvelles sections, une fusion assistée des anciens fragments dont l'ancre
-a été modifiée localement, puis la qualification WPF/Windows des cas extrêmes
+**Restent à développer dans #164 :** la fusion assistée des anciens fragments
+dont l'ancre a été modifiée localement, la gestion des nouvelles catégories
+sans dossier préexistant et la qualification WPF/Windows des scénarios extrêmes
 de concurrence, permissions et récupération.
 
 La suite smoke vérifie les sept classifications, les conflits entre Word et
