@@ -30,6 +30,22 @@ résolu. L'appelant fournit :
 - l'empreinte du plan complet, renvoyée par `Fingerprint(plan)` et **approuvée
   explicitement** après consultation de la projection.
 
+Les fusions manuelles qui remplacent **le document entier** exigent
+l'action distincte `ManualWholeDocument` et le consentement
+`ConfirmWholeDocumentReplacement`. Elles sont limitées aux destinations
+qui ne contiennent **qu'un seul fragment** Word issu de l'historique.
+Le Markdown complet à écrire est intégralement fourni et revu par
+l'utilisateur ; aucune sélection automatique de paragraphes n'a lieu.
+
+Le manifeste conserve durablement `BaselineCoversWholeDestination = true`
+pour ce fragment, y compris dans les générations où l'utilisateur choisit
+ensuite « Conserver Nodalis ». Tant que cet indicateur est actif, les
+actions normales « Utiliser Word » / « Fusionner un fragment » sont refusées.
+Cela empêche de perdre au réimport suivant toutes les notes locales
+intégrées dans la base de fichier complet. Le dernier Word réellement
+observé demeure archivé séparément pour comparer les changements de source
+sans faux positifs.
+
 Le service refuse les plans incomplets, les avertissements non levés,
 les sections nouvelles sans décision, les doublons de fragments, les
 destinations étrangères au projet ou via liens symboliques, les fichiers
