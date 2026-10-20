@@ -753,6 +753,105 @@ public partial class DocxImportPreviewDialog
         });
     }
 
+    /// <summary>Offers only existing project folders, excluding private directories and symlinks.</summary>
+    private void RefreshNewFolderChoices(string projectDirectory)
+    {
+        List<ReimportNewFolderChoice> folders =
+        [
+            new ReimportNewFolderChoice(
+                _reimportStore.ToWorkspaceRelativePath(projectDirectory),
+                "Projet · racine")
+        ];
+        foreach (string directory in Directory.EnumerateDirectories(projectDirectory)
+                     .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+        {
+            string name = Path.GetFileName(directory);
+            if (name.StartsWith(".", StringComparison.Ordinal) ||
+                (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+            {
+                continue;
+            }
+
+            folders.Add(new ReimportNewFolderChoice(
+                _reimportStore.ToWorkspaceRelativePath(directory), name));
+        }
+
+        string? selected = (ReimportNewFolderComboBox.SelectedItem as
+            ReimportNewFolderChoice)?.RelativePath;
+        ReimportNewFolderComboBox.ItemsSource = folders;
+        ReimportNewFolderComboBox.SelectedItem = folders.FirstOrDefault(item =>
+            string.Equals(item.RelativePath, selected,
+                StringComparison.OrdinalIgnoreCase)) ?? folders.First();
+    }
+
+    /// <summary>
+    /// Assigns a new Word section to a selected existing project folder.
+    /// This only updates the approval plan; nothing is written yet.
+    /// </summary>
+    private async void ReimportImportNewSection_Click(object sender, RoutedEventArgs e)
+    {
+        await UiActionGuard.RunAsync(this, "Réimport DOCX · nouvelle section", () =>
+        {
+            if (ReimportNewSectionsComboBox.SelectedItem is not
+                    ReimportNewSectionChoice selected ||
+                ReimportNewFolderComboBox.SelectedItem is not
+                    ReimportNewFolderChoice folder ||
+                ReimportHistoryComboBox.SelectedItem is not ReimportHistoryChoice history ||
+                _activeReimportReview is null ||
+                !TryGetReimportTarget(out string projectDirectory,
+                    out ReimportHistoryChoice? _) ||
+                !string.Equals(projectDirectory, _activeReimportProjectDirectory,
+                    StringComparison.OrdinalIgnoreCase) ||
+                history.Manifest.ImportId != _activeReimportReview.PreviousImportId)
+            {
+                ReimportNewSectionsStatus.Text =
+                    "Recomparez le Word et choisissez un dossier du projet.";
+                return Task.CompletedTask;
+            }
+
+            Dictionary<int, DocxReimportNewSectionAssignment> trial =
+                new Dictionary<int, DocxReimportNewSectionAssignment>(
+                    _reimportNewAssignments)
+                {
+                    [selected.Index] = new DocxReimportNewSectionAssignment
+                    {
+                        SectionIndex = selected.Index,
+                        TargetFolderRelativePath = folder.RelativePath
+                    }
+                };
+            DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
+                _activeReimportReview, history.Manifest,
+                _reimportDecisions.Values.ToArray(),
+                _reimportExcludedNewSections.ToArray(),
+                _preview, trial.Values.ToArray());
+            DocxReimportProposedCreation creation = plan.NewSectionCreations
+                .Single(item => item.SectionIndex == selected.Index);
+            string path = _reimportStore.ResolveWorkspaceRelativePath(
+                creation.DestinationRelativePath);
+            if (File.Exists(path) || !Directory.Exists(Path.GetDirectoryName(path)))
+            {
+                throw new InvalidDataException(
+                    "La destination Markdown existe déjà ou son dossier n'existe plus.");
+            }
+
+            _reimportNewAssignments.Clear();
+            foreach (KeyValuePair<int, DocxReimportNewSectionAssignment> pair in trial)
+            {
+                _reimportNewAssignments.Add(pair.Key, pair.Value);
+            }
+
+            InvalidatePreparedReimport();
+            RefreshNewSectionChoices(_activeReimportReview);
+            ReimportDecisionStatus.Text =
+                "Nouvelle section prévue : " + creation.DestinationRelativePath +
+                ". Aucun fichier n'a encore été créé.";
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>One existing Nodalis folder for an explicitly imported Word section.</summary>
+    private sealed record ReimportNewFolderChoice(string RelativePath, string Label);
+
     /// <summary>Displays unresolved additions without treating ambiguous matches as new.</summary>
     private void RefreshNewSectionChoices(DocxReimportReview review)
     {
