@@ -90,7 +90,8 @@ public sealed class DocxReimportApprovalService
             }
         }
 
-        if (review.Fragments.All(fragment =>
+        if (plan.NewSectionCreations.Count == 0 &&
+            review.Fragments.All(fragment =>
                 fragment.Association.CurrentSectionIndex is null))
         {
             throw new InvalidDataException(
