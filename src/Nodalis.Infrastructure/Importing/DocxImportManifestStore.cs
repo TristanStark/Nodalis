@@ -280,6 +280,8 @@ public sealed class DocxImportManifestStore
                 fragment.SelectedBlockIndexes is null ||
                 fragment.SelectedBlockIndexes.Any(index => index < 0) ||
                 fragment.SelectedBlockIndexes.Distinct().Count() != fragment.SelectedBlockIndexes.Count ||
+                (fragment.OriginalSourceBlockCount is int sourceCount &&
+                 (sourceCount < 0 || sourceCount < fragment.SelectedBlockIndexes.Count)) ||
                 string.IsNullOrWhiteSpace(fragment.SourceHeading) ||
                 string.IsNullOrWhiteSpace(fragment.TargetSection) ||
                 fragment.BaseMarkdown is null ||
