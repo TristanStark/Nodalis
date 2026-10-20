@@ -711,7 +711,7 @@ public sealed class DocxReimportTransactionService
         }
 
         string sourcePath = CreatedDestination(project, operationId,
-            manifest.SourceCopyRelativePath);
+            plan.PreviousImportId, manifest.SourceCopyRelativePath);
         string manifestPath = _paths.GetManifestPath(project, operationId);
         EnsureNoLinks(sourcePath);
         EnsureNoLinks(manifestPath);
@@ -748,6 +748,39 @@ public sealed class DocxReimportTransactionService
                 "Manifeste de provenance du réimport trop volumineux.");
         }
 
+        List<PreparedNewSection> newSections = [];
+        HashSet<string> destinations =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DocxReimportProposedCreation creation in plan.NewSectionCreations)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string destination = CreatedDestination(project, operationId,
+                plan.PreviousImportId, creation.DestinationRelativePath);
+            if (!destinations.Add(destination) ||
+                File.Exists(destination) ||
+                !Directory.Exists(Path.GetDirectoryName(destination)) ||
+                !string.Equals(DocxImportManifestStore.ComputeSha256(creation.Markdown),
+                    creation.Sha256, StringComparison.OrdinalIgnoreCase) ||
+                Encoding.UTF8.GetByteCount(creation.Markdown) > MaxFileBytes ||
+                !manifest.Fragments.Any(fragment =>
+                    fragment.FragmentId == creation.FragmentId &&
+                    fragment.SourceSectionIndex == creation.SectionIndex &&
+                    string.Equals(fragment.DestinationRelativePath,
+                        creation.DestinationRelativePath,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(fragment.FragmentSha256, creation.Sha256,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(fragment.DestinationSha256, creation.Sha256,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException(
+                    "La nouvelle section Word n'est pas approuvée ou sa destination existe déjà.");
+            }
+
+            newSections.Add(new PreparedNewSection(destination,
+                Encoding.UTF8.GetBytes(creation.Markdown), creation.Sha256));
+        }
+
         foreach (DocxImportManifestFragment fragment in manifest.Fragments)
         {
             DocxReimportProposedWrite? write = plan.Writes.FirstOrDefault(item =>
@@ -761,6 +794,13 @@ public sealed class DocxReimportTransactionService
             {
                 throw new InvalidDataException(
                     "La provenance ne correspond pas aux fichiers projetés.");
+            }
+
+            // New sections are created only; there is no existing local file.
+            if (plan.NewSectionCreations.Any(item =>
+                    item.FragmentId == fragment.FragmentId))
+            {
+                continue;
             }
 
             // Retained local destinations are checked in the same preflight.
@@ -779,7 +819,7 @@ public sealed class DocxReimportTransactionService
         }
 
         return new PreparedProvenance(manifest, sourcePath, manifestPath,
-            sourceBytes, sourceSha, ShaBytes(manifestBytes));
+            sourceBytes, sourceSha, ShaBytes(manifestBytes), newSections);
     }
 
     /// <summary>
@@ -787,19 +827,36 @@ public sealed class DocxReimportTransactionService
     /// as newly created transaction artifacts. Never resolves arbitrary files.
     /// </summary>
     private string CreatedDestination(string project, Guid operationId,
-        string relativePath)
+        Guid previousImportId, string relativePath)
     {
         string resolved = _paths.ResolveWorkspaceRelativePath(relativePath);
         string expectedDocx = Path.Combine(_workspaceRoot, "Imports", "Sources",
             "reimport-" + operationId.ToString("N") + ".docx");
         string expectedManifest = _paths.GetManifestPath(project, operationId);
-        if (!string.Equals(resolved, expectedDocx,
+        bool isExistingArtifact = string.Equals(resolved, expectedDocx,
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(resolved, expectedManifest,
+                StringComparison.OrdinalIgnoreCase);
+
+        string filename = Path.GetFileName(resolved);
+        string prefix = "DOCX-reimport-" + previousImportId.ToString("N") + "-section-";
+        string index = filename.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+            filename.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+                ? filename[prefix.Length..^3] : string.Empty;
+        string within = Path.GetRelativePath(project, resolved);
+        bool isNewMarkdown = previousImportId != Guid.Empty &&
+            index.Length is > 0 and <= 10 &&
+            index.All(char.IsAsciiDigit) &&
+            !Path.IsPathRooted(within) && within != ".." &&
+            !within.StartsWith(".." + Path.DirectorySeparatorChar,
+                StringComparison.Ordinal) &&
+            string.Equals(Path.GetExtension(resolved), ".md",
                 StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(resolved, expectedManifest,
-                StringComparison.OrdinalIgnoreCase))
+            Directory.Exists(Path.GetDirectoryName(resolved));
+        if (!isExistingArtifact && !isNewMarkdown)
         {
             throw new InvalidDataException(
-                "Fichier généré inconnu pour la transaction de réimport.");
+                "Fichier généré inconnu ou destination hors du projet.");
         }
 
         EnsureNoLinks(resolved);
@@ -1010,7 +1067,12 @@ public sealed class DocxReimportTransactionService
         string ManifestPath,
         byte[] SourceBytes,
         string SourceSha256,
-        string ManifestSha256);
+        string ManifestSha256,
+        List<PreparedNewSection> NewSections);
+
+    /// <summary>One approved create-only Markdown file with original bytes.</summary>
+    private sealed record PreparedNewSection(
+        string Path, byte[] Bytes, string Sha256);
 
     /// <summary>One complete local destination snapshot before journaling.</summary>
     private sealed record PreparedWrite(DocxReimportProposedWrite Write,
