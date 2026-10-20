@@ -687,15 +687,32 @@
                                             Padding="10,5"
                                             AutomationProperties.Name="Prévisualiser la résolution sans écrire" />
                                 </StackPanel>
-                                <TextBlock Text="Fusion manuelle (fragment complet) :"
-                                           Margin="0,7,0,4"
-                                           Foreground="{StaticResource SecondaryTextBrush}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,7,0,4">
+                                    <TextBlock Text="Fusion manuelle :"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                    <Button Content="Charger le Markdown Nodalis actuel"
+                                            Margin="12,0,0,0" Padding="9,4"
+                                            Click="ReimportSeedManualMerge_Click"
+                                            AutomationProperties.Name="Préremplir la fusion manuelle avec le Markdown Nodalis actuel" />
+                                </StackPanel>
                                 <TextBox x:Name="ReimportManualMergeBox" AcceptsReturn="True"
                                          TextChanged="ReimportManualMerge_Changed"
                                          TextWrapping="Wrap" MinHeight="58" MaxHeight="90"
                                          VerticalScrollBarVisibility="Auto"
                                          FontFamily="Consolas"
-                                         AutomationProperties.Name="Markdown du fragment fusionné manuellement" />
+                                         AutomationProperties.Name="Markdown fusionné manuellement, fragment ou fichier complet" />
+                                <CheckBox x:Name="ReimportWholeFileConfirmationBox"
+                                          Margin="0,8,0,4"
+                                          Content="Je confirme remplacer le Markdown COMPLET et avoir conservé toutes les notes utiles dans le texte fusionné."
+                                          Checked="ReimportWholeFileConsent_Changed"
+                                          Unchecked="ReimportWholeFileConsent_Changed"
+                                          ToolTip="Obligatoire pour l’action Remplacer le fichier complet. Sans cette confirmation, l’écriture est refusée."
+                                          AutomationProperties.Name="Confirmation indépendante du remplacement du document Markdown entier" />
+                                <TextBlock Text="⚠ Fusion fichier complet : toutes les notes absentes du texte fusionné seraient perdues. Sauvegarde et confirmation finale obligatoires."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           Margin="0,0,0,5" />
                                 <TextBlock x:Name="ReimportDecisionStatus"
                                            Margin="0,7,0,0" TextWrapping="Wrap"
                                            Foreground="{StaticResource SecondaryTextBrush}"
