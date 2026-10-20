@@ -773,6 +773,7 @@ internal static class DocxReimportReviewSmokeTests
                await File.ReadAllTextAsync(markdownPath) == acceptedFullMarkdown &&
                fullHistory.Fragments.Single().BaseMarkdown == acceptedFullMarkdown &&
                fullHistory.Fragments.Single().ReimportResolution == "ManualFullDocument" &&
+               fullHistory.Fragments.Single().BaselineCoversWholeDestination &&
                fullHistory.Fragments.Single().LatestWordMarkdownSnapshot?.Replace(
                    "\r\n", "\n") == latestWord,
             "A confirmed full-file manual merge must commit exact accepted text and keep Word audit source.");
@@ -784,6 +785,31 @@ internal static class DocxReimportReviewSmokeTests
                await approvals.ApplyAsync(fullApproval, preview) is
                    { AlreadyApplied: true },
             "An unchanged Word after a manual merge must not generate a phantom edit or duplicate transaction.");
+        DocxReimportResolution rejectNextWord = new DocxReimportResolution
+        {
+            FragmentId = fullHistory.Fragments.Single().FragmentId,
+            Action = DocxReimportResolutionAction.UseWord
+        };
+        DocxReimportDecisionPlan protectedNext = DocxReimportDecisionPlanner.Build(
+            nextManualGeneration, fullHistory, [rejectNextWord]);
+        Assert(!protectedNext.ReviewComplete &&
+               protectedNext.Writes.Count == 0,
+            "The next import must never erase local notes by replacing a whole-file baseline with Word.");
+
+        DocxReimportResolution keepMerged = new DocxReimportResolution
+        {
+            FragmentId = fullHistory.Fragments.Single().FragmentId,
+            Action = DocxReimportResolutionAction.KeepNodalis
+        };
+        DocxReimportDecisionPlan keepWhole = DocxReimportDecisionPlanner.Build(
+            nextManualGeneration, fullHistory, [keepMerged]);
+        Guid retainedFullId = Guid.NewGuid();
+        DocxImportManifest retainedFullHistory = await provenance.BuildAsync(
+            fullHistory, nextManualGeneration, keepWhole, preview,
+            [keepMerged], retainedFullId,
+            "Imports/Sources/reimport-" + retainedFullId.ToString("N") + ".docx");
+        Assert(retainedFullHistory.Fragments.Single().BaselineCoversWholeDestination,
+            "Keeping Nodalis in later generations must not silently remove the full-document safety guard.");
         await File.WriteAllTextAsync(markdownPath, original);
 
         bool mismatchedHistoryRejected = false;
