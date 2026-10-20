@@ -158,6 +158,40 @@ internal static class DocxReimportDecisionPlannerSmokeTests
                    DocxReimportResolutionAction.ManualWholeDocument,
             "Confirmed full-document merge must permit an edited anchor only with current-file optimistic hash.");
 
+        DocxImportManifestFragment dangerousBaseline = original with
+        {
+            BaseMarkdown = mergedDocument,
+            FragmentSha256 = DocxImportManifestStore.ComputeSha256(mergedDocument),
+            BaselineCoversWholeDestination = true
+        };
+        DocxImportManifest scopedHistory = Manifest([dangerousBaseline]);
+        DocxReimportReviewedFragment scopedReviewFragment = candidate with
+        {
+            Association = candidate.Association with
+            {
+                FragmentId = dangerousBaseline.FragmentId
+            },
+            CurrentNodalisMarkdown = mergedDocument
+        };
+        DocxReimportReview scopedReview = Review(scopedHistory,
+            [scopedReviewFragment]);
+        DocxReimportDecisionPlan refuseNextWord = DocxReimportDecisionPlanner.Build(
+            scopedReview, scopedHistory, [acceptWord]);
+        Assert(!refuseNextWord.ReviewComplete &&
+               refuseNextWord.Writes.Count == 0 &&
+               refuseNextWord.Lines.Single().Diagnostic.Contains(
+                   "ENTIER", StringComparison.Ordinal),
+            "An already whole-file baseline must never be replaced later by a normal Word action.");
+
+        DocxReimportDecisionPlan safeRepeat = DocxReimportDecisionPlanner.Build(
+            scopedReview, scopedHistory,
+            [fullMergeWithoutConsent with
+            {
+                ConfirmWholeDocumentReplacement = true
+            }]);
+        Assert(safeRepeat.ReviewComplete,
+            "Full-document replacements may only continue with renewed explicit whole-file consent.");
+
         DocxImportManifestFragment merged = Fragment(
             original.DestinationRelativePath, "## Recette\n\nCas B",
             originalDestination);
