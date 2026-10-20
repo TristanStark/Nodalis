@@ -28,10 +28,16 @@ public static class DocxReimportDiffEngine
 
         bool sourceMissing = updatedWordMarkdown is null;
         bool destinationMissing = currentDestinationMarkdown is null;
+        // A user may retain Nodalis or manually merge Word changes.
+        // In either case the accepted Markdown snapshot is NOT necessarily
+        // what Word contained. Compare Word to the separately recorded Word
+        // snapshot rather than reporting a fictitious source change forever.
+        string expectedWordSha = baseline.LatestWordSnapshotSha256 ??
+            baseline.FragmentSha256;
         bool wordChanged = sourceMissing ||
             !string.Equals(
                 DocxImportManifestStore.ComputeSha256(updatedWordMarkdown!),
-                baseline.FragmentSha256,
+                expectedWordSha,
                 StringComparison.OrdinalIgnoreCase);
         bool nodalisChanged = destinationMissing ||
             !string.Equals(
