@@ -194,6 +194,7 @@ public static class DocxReimportDecisionPlanner
             {
                 DocxReimportResolutionAction.UseWord => current.LatestWordMarkdown,
                 DocxReimportResolutionAction.ManualMerge => choice.ManualMarkdown,
+                DocxReimportResolutionAction.ManualWholeDocument => choice.ManualMarkdown,
                 _ => null
             };
 
@@ -218,12 +219,49 @@ public static class DocxReimportDecisionPlanner
             {
                 error = "Le contenu Word ou la fusion manuelle est vide ou trop volumineux.";
             }
+            else if (choice.Action == DocxReimportResolutionAction.ManualWholeDocument &&
+                     !choice.ConfirmWholeDocumentReplacement)
+            {
+                error = "Confirmez explicitement le remplacement du fichier Markdown complet.";
+            }
             else if (baseline.Fragments.Count(other =>
                          string.Equals(other.DestinationRelativePath,
                              fragment.DestinationRelativePath,
                              StringComparison.OrdinalIgnoreCase)) != 1)
             {
                 error = "Plusieurs sections Word partagent ce Markdown : remplacement direct bloqué.";
+            }
+            else if (choice.Action == DocxReimportResolutionAction.ManualWholeDocument)
+            {
+                // Explicit full-file replacement is the only recovery path
+                // when a user changed the original fragment beyond recognition.
+                // It can never be an automatic Word-only choice.
+                string local = current.CurrentNodalisMarkdown!;
+                string updated = replacement!;
+                bool modified = !string.Equals(local, updated, StringComparison.Ordinal);
+                if (modified)
+                {
+                    writes.Add(new DocxReimportProposedWrite
+                    {
+                        FragmentId = fragment.FragmentId,
+                        DestinationRelativePath = fragment.DestinationRelativePath,
+                        ExpectedCurrentSha256 =
+                            DocxImportManifestStore.ComputeSha256(local),
+                        ProjectedSha256 = DocxImportManifestStore.ComputeSha256(updated),
+                        ProjectedMarkdown = updated
+                    });
+                }
+
+                lines.Add(new DocxReimportDecisionLine
+                {
+                    FragmentId = fragment.FragmentId,
+                    Action = choice.Action,
+                    Resolved = true,
+                    Diagnostic = modified
+                        ? "ATTENTION : remplacement EXPLICITE du Markdown ENTIER après fusion manuelle."
+                        : "Fichier Markdown complet déjà identique à la fusion manuelle."
+                });
+                continue;
             }
             else if (string.IsNullOrEmpty(fragment.BaseMarkdown))
             {
@@ -329,7 +367,8 @@ public enum DocxReimportResolutionAction
     KeepNodalis,
     UseWord,
     ManualMerge,
-    KeepHistorical
+    KeepHistorical,
+    ManualWholeDocument
 }
 
 /// <summary>
@@ -343,6 +382,12 @@ public sealed record DocxReimportResolution
     public required DocxReimportResolutionAction Action { get; init; }
 
     public string? ManualMarkdown { get; init; }
+
+    /// <summary>
+    /// Separate informed confirmation that ManualMarkdown is the COMPLETE
+    /// replacement document, including any local notes the user wants to keep.
+    /// </summary>
+    public bool ConfirmWholeDocumentReplacement { get; init; }
 }
 
 /// <summary>Explainable resolution status for one previous import fragment.</summary>
