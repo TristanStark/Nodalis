@@ -144,6 +144,19 @@ public sealed class DocxReimportReviewService
             latest.StagedImport.StagedCopyPath, cancellationToken);
 
         List<string> warnings = [];
+        foreach (DocxImportManifestFragment fragment in previous.Fragments)
+        {
+            if (fragment.OriginalSourceBlockCount is int originalCount &&
+                fragment.SelectedBlockIndexes.Count < originalCount)
+            {
+                warnings.Add("La section Word « " + fragment.SourceHeading +
+                    " » avait été importée partiellement (" +
+                    fragment.SelectedBlockIndexes.Count + "/" + originalCount +
+                    " blocs). Le réimport automatique est bloqué pour ne pas " +
+                    "réintroduire les paragraphes initialement exclus.");
+            }
+        }
+
         string oldCopy = _store.ResolveWorkspaceRelativePath(
             previous.SourceCopyRelativePath);
         if (!File.Exists(oldCopy))
