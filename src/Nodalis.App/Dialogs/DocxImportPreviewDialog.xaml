@@ -753,7 +753,7 @@
                         <Expander Header="Nouvelles sections Word · décision explicite"
                                   IsExpanded="False" Margin="0,7,0,0">
                             <StackPanel Margin="8,5">
-                                <TextBlock Text="Une nouvelle section ne sera jamais ajoutée par ce comparateur. Vous pouvez l'exclure explicitement de ce réimport ; les autres restent en attente."
+                                <TextBlock Text="Pour chaque nouvelle section : choisir un dossier existant du projet et créer un fichier Markdown dédié, ou exclure explicitement cette section du réimport."
                                            TextWrapping="Wrap"
                                            Foreground="{StaticResource SecondaryTextBrush}"
                                            Margin="0,0,0,6" />
@@ -763,6 +763,15 @@
                                               MinWidth="220" MaxWidth="420"
                                               Margin="0,0,8,0"
                                               AutomationProperties.Name="Nouvelle section Word en attente" />
+                                    <ComboBox x:Name="ReimportNewFolderComboBox"
+                                              DisplayMemberPath="Label"
+                                              MinWidth="180" MaxWidth="330"
+                                              Margin="0,0,8,0"
+                                              AutomationProperties.Name="Dossier du projet pour la nouvelle section Word" />
+                                    <Button Content="Importer dans ce dossier"
+                                            Padding="10,5" Margin="0,0,8,0"
+                                            Click="ReimportImportNewSection_Click"
+                                            AutomationProperties.Name="Prévoir un nouveau Markdown dans le dossier choisi" />
                                     <Button Content="Exclure de ce réimport"
                                             Padding="10,5"
                                             Click="ReimportExcludeNewSection_Click"
