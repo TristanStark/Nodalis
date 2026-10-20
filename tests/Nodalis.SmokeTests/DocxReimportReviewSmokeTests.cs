@@ -538,6 +538,15 @@ internal static class DocxReimportReviewSmokeTests
                    item.DestinationRelativePath ==
                        recipeApproval.Plan.NewSectionCreations[0].DestinationRelativePath),
             "Committing an assigned Word section must create a tracked Markdown and provenance entry.");
+        DocxImportManifest recipeManifest =
+            await store.LoadAsync(recipeCommit.ManifestPath);
+        DocxReimportReview nextGeneration = await service.BuildAsync(
+            projectDirectory, recipeManifest, withRecipe);
+        Assert(nextGeneration.Fragments.Count == 2 &&
+               nextGeneration.Fragments.All(item =>
+                   item.Change?.Kind == DocxReimportChangeKind.Unchanged),
+            "The newly imported Word section must be unchanged in the next generation's diff.");
+
         DocxReimportTransactionResult recipeReplay =
             await approvals.ApplyAsync(recipeApproval, withRecipe);
         Assert(recipeReplay.AlreadyApplied,
