@@ -87,6 +87,14 @@ public sealed record DocxImportManifestFragment
     public int? OriginalSourceBlockCount { get; init; }
 
     /// <summary>
+    /// True when BaseMarkdown represents a user-approved replacement of the
+    /// COMPLETE Markdown destination rather than just its imported Word fragment.
+    /// Future Word updates must also require explicit full-document consent.
+    /// Missing/false in legacy provenance.
+    /// </summary>
+    public bool BaselineCoversWholeDestination { get; init; }
+
+    /// <summary>
     /// The Word text observed at reimport, even when the user retained Nodalis
     /// or supplied a manual merge. Missing for historical v1 imports.
     /// </summary>
