@@ -763,6 +763,11 @@
                                               MinWidth="220" MaxWidth="420"
                                               Margin="0,0,8,0"
                                               AutomationProperties.Name="Nouvelle section Word en attente" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <TextBlock Text="Dossier de destination :"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
                                     <ComboBox x:Name="ReimportNewFolderComboBox"
                                               DisplayMemberPath="Label"
                                               MinWidth="180" MaxWidth="330"
