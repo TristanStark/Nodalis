@@ -2,14 +2,23 @@
 
 ## Statut
 
-Le service `DocxReimportTransactionService` est implémenté sur `develop`
-comme **composant interne en cours de qualification**. Il **n'est pas
-branché au bouton de validation de l'assistant DOCX**. Le comparateur Word /
-Nodalis reste en lecture seule pour les décisions d'application, pendant la
-qualification finale des nouvelles sections et de la confirmation utilisateur.
-L'onglet de comparaison dispose toutefois de commandes **indépendantes**
-permettant d'inspecter les journaux et de restaurer, après confirmation,
-les opérations précédemment interrompues.
+Le service `DocxReimportApprovalService` relie désormais le comparateur
+trois voies à `DocxReimportTransactionService`, **sur `develop`**. Le bouton
+**Préparer le réimport** ne modifie rien : il recharge le manifeste réellement
+présent sur disque, compare les fichiers actuels, vérifie tous les arbitrages et
+construit une approbation mémorisée (hash du plan, du DOCX temporaire et du
+manifeste parent).
+
+Le bouton **Appliquer le plan confirmé**, initialement désactivé, n'est
+accessible qu'après préparation. Une fenêtre de confirmation liste les
+fichiers Markdown et leurs empreintes avant/après, les nouvelles sections
+explicitement exclues et la copie Word/manifeste à créer. Seul un choix
+**Oui** déclenche le commit. Immédiatement avant de modifier le workspace,
+les fichiers et le Word sont **relus**. Si la projection diffère du plan
+approuvé, l'opération est refusée sans écriture.
+
+L'onglet contient aussi les commandes indépendantes d'inspection et de
+restauration des journaux interrompus.
 
 ## Contrat d'écriture
 
@@ -102,17 +111,49 @@ externe peut encore intervenir entre la dernière vérification et le
 remplacement atomique ; la résolution de tels conflits doit préserver la
 copie de sauvegarde et exiger une intervention humaine.
 
-La traçabilité et la copie Word versionnée sont désormais incluses dans le
-backend. Avant d'activer le bouton **Appliquer le réimport**, il reste à
-relier la transaction à une confirmation explicite de l'aperçu, fournir une
-affectation contrôlée des nouvelles sections et qualifier les scénarios
-Windows 10/11, permissions, jonctions et concurrence externe.
+La traçabilité, la copie Word versionnée et la confirmation explicite
+sont maintenant reliées **de bout en bout**. Pour la qualification de sortie
+#164, il reste à tester l'interface WPF en conditions Windows 10/11, les
+permissions, les jonctions et la concurrence externe. L'affectation de
+nouvelles sections du Word au réimport n'est pas encore disponible : elles
+doivent être exclues explicitement de cette opération, puis importées
+séparément si nécessaire. Les associations ambiguës et les fragments
+initialement importés partiellement continuent de **bloquer** l'application
+pour éviter toute perte ou réintroduction de contenu non choisi.
 
 Dans l'assistant, **Vérifier les transactions** liste sans écriture les états
 `Prepared`, `Completed`, `RolledBack`. **Restaurer les opérations
 interrompues** demande une confirmation puis lance `RecoverPendingAsync`.
 Après récupération, les décisions et comparaisons en mémoire sont invalidées :
 elles doivent être recalculées sur les fichiers restaurés.
+
+
+
+## Utilisation dans Nodalis
+
+1. Dans l'assistant DOCX, choisissez un **projet existant** et ouvrez
+   **Réimport · comparer**. Chargez l'historique Word exact et cliquez
+   **Comparer**.
+2. Réglez les associations incertaines. Pour chaque section concernée,
+   choisissez explicitement **Conserver Nodalis**, **Utiliser Word**,
+   **Fusion manuelle** ou **Garder comme historique**. Une nouvelle section
+   Word doit être exclue explicitement de ce réimport pour l'instant.
+3. Cliquez **Préparer le réimport**. Le plan est recalculé depuis les
+   fichiers présents sur disque. Une modification depuis l'aperçu exige
+   de recommencer. Le bouton d'application devient actif uniquement
+   si tous les arbitrages sont complets.
+4. Cliquez **Appliquer le plan confirmé**, relisez les fichiers et leurs
+   empreintes, puis validez **Oui**. Le moteur journalise les sauvegardes
+   avant toute modification et crée l'historique immuable.
+5. Après succès, rechargez l'historique pour examiner la nouvelle version.
+   En cas d'interruption, utilisez **Vérifier les transactions** puis
+   **Restaurer les opérations interrompues** avec confirmation.
+
+Les approbations sont **éphémères** : modifier un choix, une association,
+le texte d'une fusion, l'historique ou la comparaison désactive l'application.
+Un plan approuvé est lié à son GUID ; rejouer une transaction déjà terminée
+vérifie son journal et ses empreintes finales sans réinterpréter le Markdown
+écrit lors du premier commit.
 
 ## Régressions intégrées
 
