@@ -254,6 +254,9 @@ public sealed class DocxReimportProvenanceBuilder
                     item.BlockIndex).OrderBy(index => index).ToList(),
                 OriginalSourceBlockCount = section.Blocks.Count,
                 BaseMarkdown = baseline,
+                BaselineCoversWholeDestination =
+                    original.BaselineCoversWholeDestination ||
+                    action == DocxReimportResolutionAction.ManualWholeDocument,
                 FragmentSha256 = DocxImportManifestStore.ComputeSha256(baseline),
                 DestinationSha256 = DocxImportManifestStore.ComputeSha256(result),
                 LatestWordMarkdownSnapshot = wordText,
