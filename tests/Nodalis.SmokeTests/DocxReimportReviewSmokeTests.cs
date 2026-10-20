@@ -73,6 +73,10 @@ internal static class DocxReimportReviewSmokeTests
             Fragments = [fragment]
         };
 
+        // The approval coordinator deliberately reopens immutable provenance
+        // from disk rather than trusting a history object passed by the UI.
+        await store.SaveNewAsync(projectDirectory, previous);
+
         DocxBlock heading = new DocxBlock
         {
             Kind = DocxBlockKind.Paragraph,
@@ -263,6 +267,79 @@ internal static class DocxReimportReviewSmokeTests
                !File.Exists(store.GetManifestPath(projectDirectory,
                    interruptedOperation)),
             "Metadata failure must remove both new artifacts and restore existing Markdown.");
+
+        // Complete approval workflow: fresh persisted history, immutable
+        // approval, stale Markdown refusal and explicit committed provenance.
+        DocxReimportApprovalService approvals =
+            new DocxReimportApprovalService(root);
+        DocxReimportApproval approved = await approvals.PrepareAsync(
+            projectDirectory, previous.ImportId, preview, [], [useWord], []);
+        Assert(approved.Plan.ReviewComplete &&
+               approved.Plan.Writes.Count == 1 &&
+               approved.PreviousImportId == previous.ImportId &&
+               approved.ApprovedPlanFingerprint ==
+                   DocxReimportTransactionService.Fingerprint(approved.Plan) &&
+               await File.ReadAllTextAsync(markdownPath) == original,
+            "Preparing a DOCX approval must be a no-write operation.");
+
+        await File.WriteAllTextAsync(markdownPath,
+            original + "\n\nModification concurrente Nodalis");
+        bool staleApprovalRejected = false;
+        try
+        {
+            await approvals.ApplyAsync(approved, preview);
+        }
+        catch (InvalidDataException)
+        {
+            staleApprovalRejected = true;
+        }
+
+        Assert(staleApprovalRejected &&
+               (await File.ReadAllTextAsync(markdownPath)).Contains(
+                   "Modification concurrente Nodalis", StringComparison.Ordinal) &&
+               !File.Exists(store.GetManifestPath(projectDirectory,
+                   approved.OperationId)),
+            "Any Nodalis edit after approval must reject the write and preserve local notes.");
+
+        await File.WriteAllTextAsync(markdownPath, original);
+        DocxReimportTransactionResult appliedFromApproval =
+            await approvals.ApplyAsync(approved, preview);
+        Assert(!appliedFromApproval.AlreadyApplied &&
+               appliedFromApproval.ManifestPath is not null &&
+               File.Exists(appliedFromApproval.ManifestPath) &&
+               (await File.ReadAllTextAsync(markdownPath)).Replace(
+                   "\r\n", "\n") == latestWord &&
+               (await store.LoadAsync(appliedFromApproval.ManifestPath))
+                   .PreviousImportId == previous.ImportId,
+            "A freshly revalidated approval must commit Word provenance and Markdown.");
+
+        DocxReimportTransactionResult approvalReplay =
+            await approvals.ApplyAsync(approved, preview);
+        Assert(approvalReplay.AlreadyApplied &&
+               approvalReplay.WrittenFiles == 1,
+            "A repeated approved operation must be idempotent.");
+
+        await File.WriteAllTextAsync(markdownPath, original);
+        DocxReimportApproval stagedApproval = await approvals.PrepareAsync(
+            projectDirectory, previous.ImportId, preview, [],
+            [useWord], []);
+        await File.AppendAllTextAsync(newCopy, " modified after approval");
+        bool sourceChangedRejected = false;
+        try
+        {
+            await approvals.ApplyAsync(stagedApproval, preview);
+        }
+        catch (InvalidDataException)
+        {
+            sourceChangedRejected = true;
+        }
+
+        Assert(sourceChangedRejected &&
+               await File.ReadAllTextAsync(markdownPath) == original &&
+               !File.Exists(store.GetManifestPath(projectDirectory,
+                   stagedApproval.OperationId)),
+            "A staged Word modified after explicit approval must block the reimport.");
+        await File.WriteAllTextAsync(newCopy, "Updated DOCX package fixture");
 
         DocxReimportResolution manual = new DocxReimportResolution
         {
