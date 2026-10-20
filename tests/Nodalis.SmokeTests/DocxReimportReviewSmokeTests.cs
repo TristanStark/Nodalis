@@ -582,7 +582,7 @@ internal static class DocxReimportReviewSmokeTests
                        recipeApproval.Plan.NewSectionCreations[0].DestinationRelativePath),
             "Committing an assigned Word section must create a tracked Markdown and provenance entry.");
         DocxImportManifest recipeManifest =
-            await store.LoadAsync(recipeCommit.ManifestPath);
+            await store.LoadAsync(recipeCommit.ManifestPath!);
         DocxReimportReview nextGeneration = await service.BuildAsync(
             projectDirectory, recipeManifest, withRecipe);
         Assert(nextGeneration.Fragments.Count == 2 &&
