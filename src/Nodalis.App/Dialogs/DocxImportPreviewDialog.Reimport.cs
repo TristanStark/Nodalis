@@ -724,7 +724,8 @@ public partial class DocxImportPreviewDialog
                 };
             DocxReimportDecisionPlan plan = DocxReimportDecisionPlanner.Build(
                 _activeReimportReview, history.Manifest, trial.Values.ToArray(),
-                _reimportExcludedNewSections.ToArray());
+                _reimportExcludedNewSections.ToArray(),
+                _preview, _reimportNewAssignments.Values.ToArray());
             DocxReimportDecisionLine result = plan.Lines.Single(line =>
                 line.FragmentId == decision.FragmentId);
             if (!result.Resolved)
