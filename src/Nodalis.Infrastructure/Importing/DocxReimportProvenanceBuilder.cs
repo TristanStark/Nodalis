@@ -248,7 +248,7 @@ public sealed class DocxReimportProvenanceBuilder
             cancellationToken.ThrowIfCancellationRequested();
             DocxImportSectionPreview section = latest.Sections.Single(item =>
                 item.Index == created.SectionIndex);
-            string expectedMarkdown = DocxImportSelectionRenderer.RenderAll(section);
+            string expectedMarkdown = DocxImportSelectionRenderer.RenderAll(section).TrimEnd();
             if (!string.Equals(expectedMarkdown, created.Markdown,
                     StringComparison.Ordinal) ||
                 !string.Equals(created.Sha256,
