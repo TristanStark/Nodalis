@@ -49,6 +49,27 @@ internal static class DocxReimportSectionMatcherSmokeTests
                report.AddedSectionIndexes.SequenceEqual([2]),
             "Distinct body fingerprints must match reordered, renamed homonymous headings without positional guessing.");
 
+        DocxImportManifestFragment manuallyMerged = first with
+        {
+            BaseMarkdown = "## Tests\n\nCorps totalement réécrit dans Nodalis\nNotes locales",
+            FragmentSha256 = DocxImportManifestStore.ComputeSha256(
+                "## Tests\n\nCorps totalement réécrit dans Nodalis\nNotes locales"),
+            LatestWordMarkdownSnapshot = "## Tests\n\nCorps A identique",
+            LatestWordSnapshotSha256 = DocxImportManifestStore.ComputeSha256(
+                "## Tests\n\nCorps A identique"),
+            ReimportResolution = "ManualFullDocument"
+        };
+        DocxReimportMatchReport observedWordMatch =
+            DocxReimportSectionMatcher.Match(
+                Manifest([manuallyMerged, second, removed]), latest);
+        DocxReimportSectionAssociation observed =
+            observedWordMatch.Associations.Single(item =>
+                item.FragmentId == manuallyMerged.FragmentId);
+        Assert(observed.Kind == DocxReimportAssociationKind.ExactBody &&
+               observed.CurrentSectionIndex == 1 &&
+               observed.RequiresConfirmation,
+            "A renamed Word section must still match its last actual Word body after a full-file manual merge.");
+
         // A body edit is still matchable when heading and ancestry are uniquely
         // recorded, even though the paragraph SHA-256 has changed.
         DocxImportManifestFragment context = Fragment(0, 1,
