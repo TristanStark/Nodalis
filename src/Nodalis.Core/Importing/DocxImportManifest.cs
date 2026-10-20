@@ -81,6 +81,12 @@ public sealed record DocxImportManifestFragment
     public List<int> SelectedBlockIndexes { get; init; } = [];
 
     /// <summary>
+    /// Total block count in the source section at original import. Null in old
+    /// provenance; enables detecting partial imports before a reimport.
+    /// </summary>
+    public int? OriginalSourceBlockCount { get; init; }
+
+    /// <summary>
     /// The Word text observed at reimport, even when the user retained Nodalis
     /// or supplied a manual merge. Missing for historical v1 imports.
     /// </summary>
