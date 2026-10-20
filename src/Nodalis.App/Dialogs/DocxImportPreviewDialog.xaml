@@ -601,7 +601,7 @@
                                FontSize="15" FontWeight="SemiBold" />
                     <TextBlock Grid.Row="1" Margin="0,4,0,10" TextWrapping="Wrap"
                                Foreground="{StaticResource SecondaryTextBrush}"
-                               Text="Lecture seule : sélectionnez un projet existant et son ancien import. Aucune action de cet onglet ne remplace ou supprime les notes. Les conflits exigent une résolution explicite lors d'un futur réimport." />
+                               Text="Sélectionnez un projet existant et son ancien import, comparez les versions et arbitrez les changements. Le réimport nécessite ensuite une préparation et une confirmation distinctes. Aucune suppression automatique des notes." />
                     <ScrollViewer Grid.Row="2" Margin="0,0,0,10"
                                   MaxHeight="250"
                                   VerticalScrollBarVisibility="Auto"
@@ -638,6 +638,29 @@
                                        Foreground="{StaticResource SecondaryTextBrush}"
                                        Text="Aucune vérification de récupération effectuée." />
                         </StackPanel>
+                        <StackPanel Margin="0,9,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="ReimportPrepareButton"
+                                        Content="Préparer le réimport"
+                                        Padding="10,5" Margin="0,0,8,0"
+                                        Click="ReimportPrepare_Click"
+                                        AutomationProperties.Name="Vérifier tous les arbitrages et préparer un plan de réimport" />
+                                <Button x:Name="ReimportApplyButton"
+                                        Content="Appliquer le plan confirmé"
+                                        Padding="10,5" Margin="0,0,8,0"
+                                        IsEnabled="False"
+                                        Click="ReimportApply_Click"
+                                        AutomationProperties.Name="Confirmer et appliquer le plan de réimport validé" />
+                                <TextBlock Text="Sauvegardes automatiques, rollback et nouveau Word versionné."
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+                            </StackPanel>
+                            <TextBlock x:Name="ReimportApplyStatus"
+                                       Margin="0,5,0,0"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       Text="Aucun plan préparé : l'application est désactivée." />
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="Associer la section sélectionnée :"
                                        VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -655,6 +678,7 @@
                             <StackPanel Margin="8,5">
                                 <StackPanel Orientation="Horizontal">
                                     <ComboBox x:Name="ReimportDecisionComboBox"
+                                              SelectionChanged="ReimportDecisionInput_Changed"
                                               DisplayMemberPath="Label"
                                               Width="200" Margin="0,0,8,0"
                                               AutomationProperties.Name="Action explicite de réimport pour la section" />
@@ -667,6 +691,7 @@
                                            Margin="0,7,0,4"
                                            Foreground="{StaticResource SecondaryTextBrush}" />
                                 <TextBox x:Name="ReimportManualMergeBox" AcceptsReturn="True"
+                                         TextChanged="ReimportManualMerge_Changed"
                                          TextWrapping="Wrap" MinHeight="58" MaxHeight="90"
                                          VerticalScrollBarVisibility="Auto"
                                          FontFamily="Consolas"
