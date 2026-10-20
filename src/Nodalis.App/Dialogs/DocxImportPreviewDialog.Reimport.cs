@@ -35,7 +35,9 @@ public partial class DocxImportPreviewDialog
         {
             new(DocxReimportResolutionAction.KeepNodalis, "Conserver Nodalis"),
             new(DocxReimportResolutionAction.UseWord, "Utiliser Word"),
-            new(DocxReimportResolutionAction.ManualMerge, "Fusion manuelle"),
+            new(DocxReimportResolutionAction.ManualMerge, "Fusion manuelle (fragment)"),
+            new(DocxReimportResolutionAction.ManualWholeDocument,
+                "Fusion manuelle · remplacer le fichier entier"),
             new(DocxReimportResolutionAction.KeepHistorical, "Garder comme historique")
         };
     }
@@ -169,6 +171,34 @@ public partial class DocxImportPreviewDialog
         object sender, TextChangedEventArgs e) =>
         InvalidatePreparedReimport();
 
+    /// <summary>Invalidates any prior approval when the whole-document consent changes.</summary>
+    private void ReimportWholeFileConsent_Changed(object sender, RoutedEventArgs e) =>
+        InvalidatePreparedReimport();
+
+    /// <summary>
+    /// Seeds the manual editor from the whole current Nodalis destination,
+    /// retaining every local note until the user explicitly edits it.
+    /// Never modifies workspace files.
+    /// </summary>
+    private void ReimportSeedManualMerge_Click(object sender, RoutedEventArgs e)
+    {
+        if (ReimportFragmentsList.SelectedItem is not ReimportFragmentChoice selected ||
+            selected.Fragment.CurrentNodalisMarkdown is null)
+        {
+            ReimportDecisionStatus.Text =
+                "Sélectionnez une section ayant un Markdown Nodalis existant.";
+            return;
+        }
+
+        ReimportManualMergeBox.Text = selected.Fragment.CurrentNodalisMarkdown;
+        ReimportWholeFileConfirmationBox.IsChecked = false;
+        InvalidatePreparedReimport();
+        ReimportDecisionStatus.Text =
+            "Le Markdown Nodalis complet est chargé. Comparez-le à Word, " +
+            "éditez-le et confirmez séparément si vous souhaitez remplacer " +
+            "le document entier.";
+    }
+
     /// <summary>
     /// Reloads the persisted history and Markdown to prepare a fresh approval.
     /// No file is written. The preview must agree with the currently displayed
@@ -283,6 +313,8 @@ public partial class DocxImportPreviewDialog
                     "\n  " + write.ExpectedCurrentSha256[..12] +
                     "… → " + write.ProjectedSha256[..12] + "…")
                 .ToArray();
+            int wholeFileCount = approval.Plan.Lines.Count(line =>
+                line.Action == DocxReimportResolutionAction.ManualWholeDocument);
             string prompt = "Vous confirmez le réimport dans le projet :\n" +
                 Path.GetFileName(projectDirectory) +
                 "\n\nFichiers Markdown à remplacer (" +
@@ -291,6 +323,10 @@ public partial class DocxImportPreviewDialog
                     string.Join("\n", changes.Take(12)) +
                     (changes.Length > 12 ?
                         "\n… et " + (changes.Length - 12) + " autre(s) fichier(s)." : "")) +
+                (wholeFileCount == 0 ? "" :
+                    "\n\n⚠ ATTENTION : " + wholeFileCount +
+                    " Markdown(s) ENTIER(S) vont être remplacés par les fusions manuelles. " +
+                    "Toutes les notes omises du texte fusionné seront perdues !\n") +
                 "\n\nUn Word source et un manifeste de provenance " +
                 "seront créés sans écrasement.\n" +
                 "Sections du nouveau Word volontairement exclues : " +
@@ -648,6 +684,8 @@ public partial class DocxImportPreviewDialog
             ReimportDecisionComboBox.Items.Cast<ReimportDecisionChoice>()
                 .FirstOrDefault(option => option.Action == saved?.Action);
         ReimportManualMergeBox.Text = saved?.ManualMarkdown ?? string.Empty;
+        ReimportWholeFileConfirmationBox.IsChecked =
+            saved?.ConfirmWholeDocumentReplacement == true;
         DocxReimportParagraphDiff paragraphDiff =
             DocxReimportParagraphDiffEngine.Compare(selected.Fragment);
         ReimportWordParagraphItems.ItemsSource = BuildDiffRows(paragraphDiff.Word);
@@ -675,6 +713,7 @@ public partial class DocxImportPreviewDialog
         ReimportMatchComboBox.ItemsSource = null;
         ReimportDecisionComboBox.SelectedItem = null;
         ReimportManualMergeBox.Text = string.Empty;
+        ReimportWholeFileConfirmationBox.IsChecked = false;
         ReimportWordParagraphItems.ItemsSource = null;
         ReimportNodalisParagraphItems.ItemsSource = null;
         ReimportDiffStatusText.Text = string.Empty;
@@ -715,8 +754,13 @@ public partial class DocxImportPreviewDialog
             {
                 FragmentId = row.Fragment.Association.FragmentId,
                 Action = selected.Action,
-                ManualMarkdown = selected.Action == DocxReimportResolutionAction.ManualMerge
-                    ? ReimportManualMergeBox.Text : null
+                ManualMarkdown = selected.Action is
+                    DocxReimportResolutionAction.ManualMerge or
+                    DocxReimportResolutionAction.ManualWholeDocument
+                        ? ReimportManualMergeBox.Text : null,
+                ConfirmWholeDocumentReplacement =
+                    selected.Action == DocxReimportResolutionAction.ManualWholeDocument &&
+                    ReimportWholeFileConfirmationBox.IsChecked == true
             };
             Dictionary<Guid, DocxReimportResolution> trial =
                 new Dictionary<Guid, DocxReimportResolution>(_reimportDecisions)
