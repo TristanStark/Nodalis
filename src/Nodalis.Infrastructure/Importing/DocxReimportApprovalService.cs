@@ -105,6 +105,7 @@ public sealed class DocxReimportApprovalService
             StagedSourcePath = Path.GetFullPath(latest.StagedImport.StagedCopyPath),
             StagedSourceSha256 = stagedHash,
             ApprovedPlanFingerprint = DocxReimportTransactionService.Fingerprint(plan),
+            PreparedManifest = next,
             Plan = plan,
             Identities = identitiesCopy,
             Decisions = decisionsCopy,
@@ -124,6 +125,38 @@ public sealed class DocxReimportApprovalService
     {
         ArgumentNullException.ThrowIfNull(approved);
         ArgumentNullException.ThrowIfNull(latest);
+
+        if (!string.Equals(DocxReimportTransactionService.Fingerprint(
+                    approved.Plan), approved.ApprovedPlanFingerprint,
+                StringComparison.OrdinalIgnoreCase) ||
+            approved.PreparedManifest.ImportId != approved.OperationId ||
+            approved.PreparedManifest.ProjectId != approved.ProjectId ||
+            approved.PreparedManifest.PreviousImportId != approved.PreviousImportId)
+        {
+            throw new InvalidDataException(
+                "Le plan DOCX approuvé est invalide ou a été modifié.");
+        }
+
+        // A completed transaction is replayed against the durable journal
+        // and final destination SHA-256, never re-diffed against the old base.
+        // Re-diffing would misclassify our own approved Word replacement as
+        // a conflicting local edit, defeating idempotence.
+        IReadOnlyList<DocxReimportPendingOperation> prior =
+            await _transactions.InspectAsync(approved.ProjectDirectory,
+                cancellationToken);
+        if (prior.Any(operation =>
+                operation.OperationId == approved.OperationId &&
+                operation.State == DocxReimportTransactionState.Completed))
+        {
+            return await _transactions.CommitWithProvenanceAsync(
+                approved.ProjectDirectory, approved.Plan,
+                approved.OperationId, approved.ApprovedPlanFingerprint,
+                new DocxReimportProvenancePackage
+                {
+                    Manifest = approved.PreparedManifest,
+                    StagedDocxPath = approved.StagedSourcePath
+                }, cancellationToken);
+        }
 
         if (!string.Equals(Path.GetFullPath(latest.StagedImport.StagedCopyPath),
                 approved.StagedSourcePath, StringComparison.OrdinalIgnoreCase) ||
@@ -182,12 +215,27 @@ public sealed class DocxReimportApprovalService
                 "Le nouveau manifeste DOCX ne correspond plus aux fichiers approuvés.");
         }
 
+        if (next.Fragments.Count != approved.PreparedManifest.Fragments.Count ||
+            next.Fragments.Any(current =>
+                !approved.PreparedManifest.Fragments.Any(original =>
+                    original.FragmentId == current.FragmentId &&
+                    string.Equals(original.FragmentSha256,
+                        current.FragmentSha256, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(original.DestinationSha256,
+                        current.DestinationSha256, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(original.LatestWordSnapshotSha256,
+                        current.LatestWordSnapshotSha256, StringComparison.OrdinalIgnoreCase))))
+        {
+            throw new InvalidDataException(
+                "La provenance calculée diffère de celle du plan approuvé.");
+        }
+
         return await _transactions.CommitWithProvenanceAsync(
             approved.ProjectDirectory, plan, approved.OperationId,
             approved.ApprovedPlanFingerprint,
             new DocxReimportProvenancePackage
             {
-                Manifest = next,
+                Manifest = approved.PreparedManifest,
                 StagedDocxPath = latest.StagedImport.StagedCopyPath
             }, cancellationToken);
     }
@@ -214,6 +262,9 @@ public sealed record DocxReimportApproval
     public required string StagedSourceSha256 { get; init; }
 
     public required string ApprovedPlanFingerprint { get; init; }
+
+    /// <summary>Exactly the immutable provenance proposed at approval time.</summary>
+    public required DocxImportManifest PreparedManifest { get; init; }
 
     public required DocxReimportDecisionPlan Plan { get; init; }
 
