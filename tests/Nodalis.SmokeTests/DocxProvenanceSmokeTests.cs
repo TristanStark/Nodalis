@@ -108,6 +108,28 @@ internal static class DocxProvenanceSmokeTests
 
         Assert(traversalRejected, "Paths outside the workspace must be rejected.");
 
+        bool forgedSourceBlockCountRejected = false;
+        try
+        {
+            store.Validate(first with
+            {
+                Fragments =
+                [
+                    first.Fragments[0] with
+                    {
+                        OriginalSourceBlockCount = 0
+                    }
+                ]
+            });
+        }
+        catch (InvalidDataException)
+        {
+            forgedSourceBlockCountRejected = true;
+        }
+
+        Assert(forgedSourceBlockCountRejected,
+            "DOCX provenance cannot claim fewer source blocks than were selected.");
+
         bool tamperingRejected = false;
         try
         {
