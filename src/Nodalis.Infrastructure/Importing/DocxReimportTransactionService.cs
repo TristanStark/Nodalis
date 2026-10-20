@@ -164,7 +164,8 @@ public sealed class DocxReimportTransactionService
 
             ValidateJournalDirectory(operationDirectory, existing);
             if (existing.Entries.Count != plan.Writes.Count ||
-                existing.CreatedFiles.Count != (provenance is null ? 0 : 2))
+                existing.CreatedFiles.Count != (provenance is null
+                    ? 0 : 2 + plan.NewSectionCreations.Count))
             {
                 throw new InvalidDataException("Journal DOCX incompatible avec le plan.");
             }
@@ -174,11 +175,16 @@ public sealed class DocxReimportTransactionService
                 foreach (DocxReimportCreatedFile created in existing.CreatedFiles)
                 {
                     string actual = CreatedDestination(project, operationId,
-                        created.RelativePath);
+                        plan.PreviousImportId, created.RelativePath);
                     string expected = string.Equals(actual,
                         preparedProvenance.SourcePath, StringComparison.OrdinalIgnoreCase)
                         ? preparedProvenance.SourceSha256
-                        : preparedProvenance.ManifestSha256;
+                        : string.Equals(actual, preparedProvenance.ManifestPath,
+                            StringComparison.OrdinalIgnoreCase)
+                            ? preparedProvenance.ManifestSha256
+                            : preparedProvenance.NewSections.Single(item =>
+                                string.Equals(item.Path, actual,
+                                    StringComparison.OrdinalIgnoreCase)).Sha256;
                     if (!string.Equals(created.Sha256, expected,
                             StringComparison.OrdinalIgnoreCase) ||
                         !File.Exists(actual) ||
@@ -228,7 +234,8 @@ public sealed class DocxReimportTransactionService
 
         if (preparedProvenance is not null &&
             (File.Exists(preparedProvenance.SourcePath) ||
-             File.Exists(preparedProvenance.ManifestPath)))
+             File.Exists(preparedProvenance.ManifestPath) ||
+             preparedProvenance.NewSections.Any(item => File.Exists(item.Path))))
         {
             throw new IOException(
                 "Un historique DOCX de cette opération existe déjà : aucune écriture.");
@@ -321,7 +328,13 @@ public sealed class DocxReimportTransactionService
                         RelativePath = _paths.ToWorkspaceRelativePath(
                             preparedProvenance.ManifestPath),
                         Sha256 = preparedProvenance.ManifestSha256
-                    }
+                    },
+                    .. preparedProvenance.NewSections.Select(item =>
+                        new DocxReimportCreatedFile
+                        {
+                            RelativePath = _paths.ToWorkspaceRelativePath(item.Path),
+                            Sha256 = item.Sha256
+                        })
                 ]
             };
             await AtomicJsonFile.WriteAsync(journalPath, journal, cancellationToken);
@@ -364,6 +377,13 @@ public sealed class DocxReimportTransactionService
 
             if (preparedProvenance is not null)
             {
+                foreach (PreparedNewSection created in preparedProvenance.NewSections)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await WriteNewFileAsync(created.Path, created.Bytes,
+                        cancellationToken);
+                }
+
                 // Files are tracked in Prepared before either can be created,
                 // so a crash between DOCX and manifest creation is recoverable.
                 await WriteNewFileAsync(preparedProvenance.SourcePath,
@@ -528,7 +548,8 @@ public sealed class DocxReimportTransactionService
         List<string> createdToRemove = [];
         HashSet<string> createdTargets =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (journal.CreatedFiles.Count is not (0 or 2))
+        if (journal.CreatedFiles.Count != 0 &&
+            (journal.CreatedFiles.Count < 2 || journal.CreatedFiles.Count > 202))
         {
             throw new InvalidDataException(
                 "Le journal de réimport contient un nombre anormal de créations.");
@@ -538,7 +559,7 @@ public sealed class DocxReimportTransactionService
         {
             cancellationToken.ThrowIfCancellationRequested();
             string full = CreatedDestination(project, journal.OperationId,
-                created.RelativePath);
+                journal.PreviousImportId, created.RelativePath);
             if (!createdTargets.Add(full))
             {
                 throw new InvalidDataException(
@@ -626,7 +647,8 @@ public sealed class DocxReimportTransactionService
         {
             DocxReimportCreatedFile recorded = journal.CreatedFiles.Single(file =>
                 string.Equals(CreatedDestination(project, journal.OperationId,
-                    file.RelativePath), created, StringComparison.OrdinalIgnoreCase));
+                    journal.PreviousImportId, file.RelativePath),
+                    created, StringComparison.OrdinalIgnoreCase));
             if (File.Exists(created))
             {
                 if (!string.Equals(
@@ -949,7 +971,7 @@ public sealed class DocxReimportTransactionService
             journal.PreviousImportId == Guid.Empty ||
             !IsSha256(journal.Fingerprint) ||
             journal.Entries is not { Count: <= 200 } ||
-            journal.CreatedFiles is not { Count: <= 2 } ||
+            journal.CreatedFiles is not { Count: <= 202 } ||
             (journal.Entries.Count == 0 && journal.CreatedFiles.Count == 0) ||
             journal.CreatedFiles.Any(file =>
                 file is null ||
