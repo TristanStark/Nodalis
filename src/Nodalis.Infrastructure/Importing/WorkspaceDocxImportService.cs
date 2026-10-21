@@ -17,6 +17,7 @@ public sealed class WorkspaceDocxImportService
     private readonly string _workspaceRoot;
     private readonly DocxParser _parser = new();
     private readonly Action<string>? _afterProjectManifestCheckpoint;
+    private readonly Action<int, string>? _afterMarkdownCreatedCheckpoint;
 
     /// <summary>Gets the workspace root for local-only user profile storage.</summary>
     public string WorkspaceRoot => _workspaceRoot;
@@ -25,13 +26,16 @@ public sealed class WorkspaceDocxImportService
     /// Initializes a new instance of <see cref="WorkspaceDocxImportService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-    /// <param name="afterProjectManifestCheckpoint">Optional fault-injection hook for rollback regression tests.</param>
+    /// <param name="afterProjectManifestCheckpoint">Optional fault-injection hook for manifest rollback regression tests.</param>
+    /// <param name="afterMarkdownCreatedCheckpoint">Optional fault-injection hook after an import creates a Markdown file.</param>
     public WorkspaceDocxImportService(string workspaceRoot,
-        Action<string>? afterProjectManifestCheckpoint = null)
+        Action<string>? afterProjectManifestCheckpoint = null,
+        Action<int, string>? afterMarkdownCreatedCheckpoint = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
         _afterProjectManifestCheckpoint = afterProjectManifestCheckpoint;
+        _afterMarkdownCreatedCheckpoint = afterMarkdownCreatedCheckpoint;
     }
 
     /// <summary>
@@ -587,6 +591,9 @@ public sealed class WorkspaceDocxImportService
         byte[]? originalManifestBytes = null;
         string? writtenManifestSha256 = null;
         global::System.Collections.Generic.List<string> generatedFiles = new List<string>();
+        Dictionary<string, string> generatedMarkdownHashes =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        int completedMarkdownWrites = 0;
         global::System.Collections.Generic.List<string> createdDirectories = new List<string>();
         DocxImportManifestStore provenanceStore = new DocxImportManifestStore(_workspaceRoot);
         List<DocxImportManifestFragment> provenanceFragments = [];
@@ -659,6 +666,11 @@ public sealed class WorkspaceDocxImportService
                 manifestPath = Path.Combine(
                     projectDirectory,
                     WorkspaceLayout.ProjectManifestFileName);
+                // Newly created projects may still require a custom DOCX
+                // destination section not present in their initial profile.
+                // Capture the creator's manifest for the same optimistic check.
+                originalManifestBytes = await File.ReadAllBytesAsync(
+                    manifestPath, cancellationToken);
             }
 
             global::Nodalis.Core.Domain.ProjectManifest updatedProject = EnsureSections(
@@ -739,10 +751,12 @@ public sealed class WorkspaceDocxImportService
                     markdown,
                     cancellationToken);
 
-                generatedFiles.Add(
-                    destination);
-
+                generatedFiles.Add(destination);
                 string destinationHash = DocxImportManifestStore.ComputeSha256(markdown);
+                generatedMarkdownHashes.Add(destination, destinationHash);
+                completedMarkdownWrites++;
+                _afterMarkdownCreatedCheckpoint?.Invoke(
+                    completedMarkdownWrites, destination);
                 foreach (SelectedSection sourceSection in group)
                 {
                     int[] indexes = (sourceSection.SelectedBlockIndexes is null
@@ -835,27 +849,68 @@ public sealed class WorkspaceDocxImportService
                 TryDelete(committedSourceCopyPath);
             }
 
-            if (createdProject &&
-                !string.IsNullOrWhiteSpace(projectDirectory) &&
-                Directory.Exists(projectDirectory))
+            // Do not remove an external edit made after an import created a
+            // Markdown file, even if the transaction itself later fails.
+            bool externalMarkdownEdit = false;
+            foreach ((string file, string expectedHash) in generatedMarkdownHashes)
             {
+                if (!File.Exists(file))
+                {
+                    continue;
+                }
+
                 try
                 {
-                    Directory.Delete(
-                        projectDirectory,
-                        recursive: true);
+                    string actualHash = await DocxImportManifestStore.ComputeFileSha256Async(
+                        file, CancellationToken.None);
+                    if (!string.Equals(actualHash, expectedHash,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        externalMarkdownEdit = true;
+                    }
                 }
                 catch
                 {
-                    // Preserve the original import exception.
+                    // Unable to prove that this file is still ours: keep it.
+                    externalMarkdownEdit = true;
+                }
+            }
+
+            if (createdProject)
+            {
+                // Deleting a whole new project is only safe when its created
+                // Markdown files are still unmodified. Otherwise retain the
+                // partial project for explicit inspection and recovery.
+                if (!externalMarkdownEdit &&
+                    !string.IsNullOrWhiteSpace(projectDirectory) &&
+                    Directory.Exists(projectDirectory))
+                {
+                    try
+                    {
+                        Directory.Delete(projectDirectory, recursive: true);
+                    }
+                    catch
+                    {
+                        // Preserve the original import exception.
+                    }
                 }
             }
             else
             {
                 foreach (string file in generatedFiles)
                 {
-                    TryDelete(
-                        file);
+                    if (generatedMarkdownHashes.ContainsKey(file) &&
+                        (!File.Exists(file) ||
+                         !string.Equals(
+                             await DocxImportManifestStore.ComputeFileSha256Async(
+                                 file, CancellationToken.None),
+                             generatedMarkdownHashes[file],
+                             StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
+
+                    TryDelete(file);
                 }
 
                 foreach (string directory in createdDirectories

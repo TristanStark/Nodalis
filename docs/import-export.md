@@ -53,6 +53,9 @@ projet sont restaurés **uniquement si le fichier contient encore la version
 écrite par cet import**. Une modification externe concurrente est conservée,
 pas écrasée par le rollback. La restauration du manifeste est validée par
 un test d'interruption et un test d'édition concurrente.
+Des tests supplémentaires couvrent les projets créés avec une section DOCX
+personnalisée, l'échec après création de Markdown et le respect d'un fichier
+généré que quelqu'un a modifié avant la restauration.
 
 Cette protection ne remplace pas les garanties transactionnelles et
 la récupération sur interruption qui restent à qualifier dans #165.

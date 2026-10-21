@@ -289,11 +289,131 @@ internal static class DocxProvenanceSmokeTests
         Assert(File.Exists(sourcePath),
             "Provenance creation must not modify or remove the original DOCX.");
 
-        // Force an interruption immediately after an existing project's
-        // manifest was changed, before writing any generated Word document.
+        // A genuinely new project with a user-defined Word section must be
+        // able to update its just-created profile without a null baseline.
+        DocxImportPreview customPreview = await service.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest customRequest = request with
+        {
+            NewProjectName = "DOCX custom section " + Guid.NewGuid().ToString("N"),
+            Sections = customPreview.Sections.Select(section =>
+                new DocxImportSectionSelection
+                {
+                    SectionIndex = section.Index,
+                    Include = true,
+                    TargetSection = "Section DOCX personnalisée"
+                }).ToList()
+        };
+        DocxImportPlan customPlan = await service.BuildPlanAsync(
+            customPreview, customRequest);
+        DocxImportCommitResult customCommitted = await service.CommitAsync(
+            customPreview, customRequest with
+            {
+                ExpectedPlanFingerprint = customPlan.Fingerprint
+            });
+        Assert(customCommitted.GeneratedFiles.Count == 1 &&
+               File.Exists(customCommitted.GeneratedFiles[0]) &&
+               File.ReadAllText(Path.Combine(customCommitted.ProjectDirectory,
+                   WorkspaceLayout.ProjectManifestFileName))
+                   .Contains("Section DOCX personnalisée", StringComparison.Ordinal),
+            "New project imports must support custom DOCX section destinations.");
+
+        // Test interruption immediately after creating a Markdown document:
+        // automatic rollback must remove only our generated file and restore
+        // the exact project manifest, never touching pre-existing content.
         string projectManifestPath = Path.Combine(committed.ProjectDirectory,
             WorkspaceLayout.ProjectManifestFileName);
         byte[] originalProjectBytes = await File.ReadAllBytesAsync(projectManifestPath);
+        string[] beforeDocuments = Directory.GetFiles(committed.ProjectDirectory,
+            "*.md", SearchOption.AllDirectories);
+        WorkspaceDocxImportService partial = new WorkspaceDocxImportService(root,
+            afterMarkdownCreatedCheckpoint: (_, _) =>
+                throw new InvalidOperationException("Simulated Markdown interruption"));
+        DocxImportPreview partialPreview = await partial.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest partialRequest = request with
+        {
+            ProjectId = committed.ProjectId,
+            NewProjectName = null,
+            Sections = partialPreview.Sections.Select(section =>
+                new DocxImportSectionSelection
+                {
+                    SectionIndex = section.Index,
+                    Include = true,
+                    TargetSection = "Rollback après création"
+                }).ToList()
+        };
+        DocxImportPlan partialPlan = await partial.BuildPlanAsync(
+            partialPreview, partialRequest);
+        bool partialObserved = false;
+        try
+        {
+            await partial.CommitAsync(partialPreview, partialRequest with
+            {
+                ExpectedPlanFingerprint = partialPlan.Fingerprint
+            });
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message.Contains("Simulated", StringComparison.Ordinal))
+        {
+            partialObserved = true;
+        }
+
+        Assert(partialObserved &&
+               (await File.ReadAllBytesAsync(projectManifestPath))
+                   .SequenceEqual(originalProjectBytes) &&
+               Directory.GetFiles(committed.ProjectDirectory, "*.md",
+                   SearchOption.AllDirectories)
+                   .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                   .SequenceEqual(beforeDocuments.OrderBy(path => path,
+                       StringComparer.OrdinalIgnoreCase)),
+            "Interrupted new Markdown creation must not leave orphan documents.");
+
+        // If a concurrent editor modifies a newly generated document,
+        // rollback must preserve that user's content rather than delete it.
+        const string userEdit = "# Manual changes during interrupted import";
+        string? preservedMarkdownPath = null;
+        WorkspaceDocxImportService userEdited = new WorkspaceDocxImportService(root,
+            afterMarkdownCreatedCheckpoint: (_, destination) =>
+            {
+                preservedMarkdownPath = destination;
+                File.WriteAllText(destination, userEdit);
+                throw new InvalidOperationException("Simulated external Markdown edit");
+            });
+        DocxImportPreview editedPreview = await userEdited.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest editedRequest = partialRequest with
+        {
+            Sections = editedPreview.Sections.Select(section =>
+                new DocxImportSectionSelection
+                {
+                    SectionIndex = section.Index,
+                    Include = true,
+                    TargetSection = "Édition externe préservée"
+                }).ToList()
+        };
+        DocxImportPlan editedPlan = await userEdited.BuildPlanAsync(
+            editedPreview, editedRequest);
+        bool editedObserved = false;
+        try
+        {
+            await userEdited.CommitAsync(editedPreview, editedRequest with
+            {
+                ExpectedPlanFingerprint = editedPlan.Fingerprint
+            });
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message.Contains("Simulated", StringComparison.Ordinal))
+        {
+            editedObserved = true;
+        }
+
+        Assert(editedObserved && preservedMarkdownPath is not null &&
+               File.Exists(preservedMarkdownPath) &&
+               await File.ReadAllTextAsync(preservedMarkdownPath) == userEdit &&
+               (await File.ReadAllBytesAsync(projectManifestPath))
+                   .SequenceEqual(originalProjectBytes),
+            "Rollback must keep externally edited Markdown while restoring project metadata.");
+
+        // Force an interruption immediately after an existing project's
+        // manifest was changed, before writing any generated Word document.
         WorkspaceDocxImportService interrupted = new WorkspaceDocxImportService(root,
             _ => throw new InvalidOperationException("Simulated DOCX import interruption"));
         DocxImportPreview interruptedPreview =
