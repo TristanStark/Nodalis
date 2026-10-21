@@ -899,15 +899,27 @@ public sealed class WorkspaceDocxImportService
             {
                 foreach (string file in generatedFiles)
                 {
-                    if (generatedMarkdownHashes.ContainsKey(file) &&
-                        (!File.Exists(file) ||
-                         !string.Equals(
-                             await DocxImportManifestStore.ComputeFileSha256Async(
-                                 file, CancellationToken.None),
-                             generatedMarkdownHashes[file],
-                             StringComparison.OrdinalIgnoreCase)))
+                    if (generatedMarkdownHashes.TryGetValue(file,
+                            out string? createdHash))
                     {
-                        continue;
+                        bool stillOurFile = false;
+                        try
+                        {
+                            stillOurFile = File.Exists(file) &&
+                                string.Equals(
+                                    await DocxImportManifestStore.ComputeFileSha256Async(
+                                        file, CancellationToken.None),
+                                    createdHash, StringComparison.OrdinalIgnoreCase);
+                        }
+                        catch
+                        {
+                            // No proof of ownership: never delete this file.
+                        }
+
+                        if (!stillOurFile)
+                        {
+                            continue;
+                        }
                     }
 
                     TryDelete(file);

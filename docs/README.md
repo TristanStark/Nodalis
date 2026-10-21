@@ -66,6 +66,12 @@ des guides dédiés plus détaillés.
 Toute nouvelle fonctionnalité majeure destinée à 1.0 doit être ajoutée à cette
 matrice ou disposer d'un document dédié avant la release stable.
 
+## Qualification des imports DOCX v1.9 (sur `develop`)
+
+- [Grille de qualification manuelle DOCX 1.9](docx-1.9-manual-qualification.md) :
+  12 scénarios guidés avec résultats attendus, réimport et vérification des
+  données après échec ; à tester exclusivement sur un workspace de test.
+
 ## Extensions après 1.0 (en cours)
 
 - [Inbox 1.1 — format, sécurité et récupération](inbox-persistence-v1.md) :

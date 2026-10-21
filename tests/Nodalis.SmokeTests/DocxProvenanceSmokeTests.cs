@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 using Nodalis.Core.Importing;
 using Nodalis.Infrastructure.Importing;
 using Nodalis.Infrastructure.Reliability;
@@ -310,11 +311,16 @@ internal static class DocxProvenanceSmokeTests
             {
                 ExpectedPlanFingerprint = customPlan.Fingerprint
             });
+        using JsonDocument customManifest = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(customCommitted.ProjectDirectory,
+                WorkspaceLayout.ProjectManifestFileName)));
+        bool hasCustomSection = customManifest.RootElement.GetProperty("sections")
+            .EnumerateArray().Any(section =>
+                section.GetProperty("name").GetString() ==
+                "Section DOCX personnalisée");
         Assert(customCommitted.GeneratedFiles.Count == 1 &&
                File.Exists(customCommitted.GeneratedFiles[0]) &&
-               File.ReadAllText(Path.Combine(customCommitted.ProjectDirectory,
-                   WorkspaceLayout.ProjectManifestFileName))
-                   .Contains("Section DOCX personnalisée", StringComparison.Ordinal),
+               hasCustomSection,
             "New project imports must support custom DOCX section destinations.");
 
         // Test interruption immediately after creating a Markdown document:
