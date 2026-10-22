@@ -68,6 +68,7 @@ try
     NavigationWorktreeSmokeTests.Run();
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
+    await ProjectArchivesSmokeTests.RunAsync(root);
     await VerifyProjectStructureAsync(root);
     await VerifyApplicationStructureAsync(root);
     await VerifyTrashAsync(root);

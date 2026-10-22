@@ -17,4 +17,10 @@ public sealed record ProjectManifest
     public List<SectionManifest> Sections { get; init; } = [];
 
     public DateTimeOffset CreatedUtc { get; init; } = DateTimeOffset.UtcNow;
+
+    /// <summary>UTC closure timestamp, or null for an active project.</summary>
+    public DateTimeOffset? ArchivedUtc { get; init; }
+
+    /// <summary>Original workspace-relative path used for a safe, reversible reopening.</summary>
+    public string? ArchiveOriginalRelativePath { get; init; }
 }

@@ -604,6 +604,19 @@ public partial class MainWindow : Window
                     async (_, _) => await ToggleFavoriteAsync(_selectedNode));
                 menu.Items.Add(
                     CreateNodalisSeparator());
+                if (IsArchivedTopLevelProject(_selectedNode))
+                {
+                    AddItem("Réouvrir le projet",
+                        async (_, _) => await RunUiActionAsync(
+                            "Réouvrir le projet", () => RestoreArchivedProjectAsync(_selectedNode)));
+                }
+                else if (!IsUnderArchives(_selectedNode.FullPath))
+                {
+                    AddItem("Clore et archiver",
+                        async (_, _) => await RunUiActionAsync(
+                            "Clore et archiver le projet", () => ArchiveProjectAsync(_selectedNode)));
+                }
+
                 AddItem(
                     "Mettre à la corbeille",
                     async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
@@ -4638,6 +4651,22 @@ public partial class MainWindow : Window
                 Subtitle = "Créer une note depuis un template ou en mode libre",
                 Keywords = ["note", "template", "créer"],
                 ExecuteAsync = CreateNoteAsync
+            },
+            new()
+            {
+                Id = "project.archive",
+                Title = "Clore et archiver le projet",
+                Subtitle = "Déplacer le projet courant vers Archives sans le supprimer",
+                Keywords = ["clore", "projet", "archiver", "archives", "terminé"],
+                ExecuteAsync = ArchiveProjectAsync
+            },
+            new()
+            {
+                Id = "project.restore",
+                Title = "Réouvrir un projet archivé",
+                Subtitle = "Restaurer le projet sélectionné à son emplacement d'origine",
+                Keywords = ["projet", "réouvrir", "restaurer", "archive"],
+                ExecuteAsync = RestoreArchivedProjectAsync
             },
             new()
             {
