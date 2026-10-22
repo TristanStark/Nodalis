@@ -6506,6 +6506,47 @@ public partial class MainWindow : Window
 
         try
         {
+            DocxFirstImportRecoveryService recovery =
+                new DocxFirstImportRecoveryService(_docxImportService.WorkspaceRoot);
+            IReadOnlyList<string> pendingProjects =
+                await recovery.ListPendingProjectsAsync();
+            if (pendingProjects.Count > 0)
+            {
+                if (_documentTabs.Any(tab => pendingProjects.Any(project =>
+                        IsProjectPathAncestorOrEqual(project, tab.FullPath))))
+                {
+                    MessageBox.Show(this,
+                        "Un import Word précédent a été interrompu. Fermez d'abord " +
+                        "tous les documents ouverts dans les projets concernés et " +
+                        "enregistrez vos modifications avant leur récupération.",
+                        "Récupération import DOCX", MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (MessageBox.Show(this,
+                    $"{pendingProjects.Count} import(s) DOCX précédent(s) ont été interrompus.\n\n" +
+                    "Nodalis peut conserver les imports complets, ou retirer les fichiers " +
+                    "qu'il avait créés lorsqu'ils sont encore identiques au journal. " +
+                    "Les modifications externes ne seront pas écrasées.\n\n" +
+                    "Lancer la récupération avant le nouvel import ?",
+                    "Récupération import DOCX", MessageBoxButton.YesNo,
+                    MessageBoxImage.Question) != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                int recovered = await recovery.RecoverPendingAsync();
+                await RefreshNavigationAsync(pendingProjects[0]);
+                await RefreshLinkIndexAndContextAsync();
+                MessageBox.Show(this,
+                    $"{recovered} transaction(s) DOCX vérifiée(s). " +
+                    "Les projets nouvellement créés restent présents si une " +
+                    "interruption a eu lieu avant la fin de leur import.",
+                    "Récupération import DOCX", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+
             StatusText.Text =
                 "Import DOCX · analyse du document…";
 
