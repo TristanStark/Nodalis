@@ -591,6 +591,53 @@ public sealed class WorkspaceDocxImportService
         IReadOnlyList<DocxInlineMedia> selectedMedia =
             DocxSelectedMediaAssets.Select(selectedSourceBlocks);
 
+        // Write the crash-recovery journal BEFORE creating the project or
+        // changing its manifest, documents, media, source copy or provenance.
+        DocxImportManifestStore initialPaths = new DocxImportManifestStore(_workspaceRoot);
+        List<DocxFirstImportFile> expectedOutputs = [];
+        foreach (IGrouping<string, SelectedSection> group in selected.GroupBy(
+                     section => section.TargetSection, StringComparer.CurrentCultureIgnoreCase))
+        {
+            string sectionName = group.Key.Trim();
+            string description =
+                $"{group.Count()} section(s) Word → section Nodalis « {sectionName} »";
+            string destination = ResolvePlannedChangePath(currentPlan,
+                "Créer", description);
+            string markdown = BuildImportedMarkdown(
+                Path.GetFileName(preview.StagedImport.OriginalSourcePath), group);
+            expectedOutputs.Add(new DocxFirstImportFile
+            {
+                RelativePath = initialPaths.ToWorkspaceRelativePath(destination),
+                Sha256 = DocxImportManifestStore.ComputeSha256(markdown)
+            });
+        }
+
+        foreach (DocxInlineMedia media in selectedMedia)
+        {
+            string mediaDestination = Path.Combine(plannedProjectDirectory,
+                DocxSelectedMediaAssets.MediaFolder,
+                Path.GetFileName(media.MarkdownRelativePath!));
+            if (!File.Exists(mediaDestination))
+            {
+                expectedOutputs.Add(new DocxFirstImportFile
+                {
+                    RelativePath = initialPaths.ToWorkspaceRelativePath(mediaDestination),
+                    Sha256 = media.Sha256!
+                });
+            }
+        }
+
+        expectedOutputs.Add(new DocxFirstImportFile
+        {
+            RelativePath = initialPaths.ToWorkspaceRelativePath(plannedSourceCopyPath),
+            Sha256 = preview.StagedImport.StagedCopySha256
+        });
+        DocxFirstImportRecoveryService recovery =
+            new DocxFirstImportRecoveryService(_workspaceRoot);
+        using DocxFirstImportSession recoverySession = await recovery.BeginAsync(
+            currentPlan, preview.ImportId, request.ProjectId, expectedOutputs,
+            cancellationToken);
+
         string projectDirectory = string.Empty;
         global::System.Guid projectId = Guid.Empty;
         bool createdProject = false;
@@ -712,6 +759,12 @@ public sealed class WorkspaceDocxImportService
                     System.Security.Cryptography.SHA256.HashData(
                         System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
                             updatedProject, JsonDefaults.Options))).ToLowerInvariant();
+                if (!createdProject)
+                {
+                    await recovery.ExpectProjectManifestAsync(
+                        recoverySession, writtenManifestSha256, cancellationToken);
+                }
+
                 await AtomicJsonFile.WriteAsync(
                     manifestPath!,
                     updatedProject,
@@ -843,8 +896,11 @@ public sealed class WorkspaceDocxImportService
                 createdDirectories.Add(provenanceDirectory);
             }
 
+            await recovery.ExpectProvenanceAsync(
+                recoverySession, provenance, cancellationToken);
             provenancePath = await provenanceStore.SaveNewAsync(
                 projectDirectory, provenance, cancellationToken);
+            await recovery.CompleteAsync(recoverySession, cancellationToken);
 
             return new DocxImportCommitResult
             {
@@ -999,6 +1055,17 @@ public sealed class WorkspaceDocxImportService
 
             DiscardStagedCopy(
                 preview.StagedImport);
+
+            try
+            {
+                await recovery.RollbackAsync(
+                    recoverySession, CancellationToken.None);
+            }
+            catch
+            {
+                // A third-party edit may block automatic recovery. Keep the
+                // prepared journal and backups for a later explicit inspection.
+            }
 
             throw;
         }
