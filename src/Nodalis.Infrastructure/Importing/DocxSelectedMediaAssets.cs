@@ -119,31 +119,56 @@ public static class DocxSelectedMediaAssets
                 throw new InvalidDataException("Image DOCX trop volumineuse lors de la copie.");
             }
 
-            await using FileStream output = new FileStream(
-                destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            createdFiles.Add(destination);
-            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            using Stream source = entry.Open();
-            byte[] buffer = new byte[81920];
-            long copied = 0;
-            int count;
-            while ((count = await source.ReadAsync(buffer, cancellationToken)) > 0)
+            // A crash must not leave a half-written file under its final
+            // SHA-based name: stream to a temporary sibling, then move once
+            // its bytes have been checked and synchronized.
+            string temporary = Path.Combine(mediaDirectory,
+                "." + fileName + "." + Guid.NewGuid().ToString("N") + ".tmp");
+            try
             {
-                copied += count;
-                if (copied > 16L * 1024 * 1024)
+                using IncrementalHash hash =
+                    IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                using Stream source = entry.Open();
+                await using (FileStream output = new FileStream(temporary,
+                    FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920,
+                    FileOptions.Asynchronous | FileOptions.WriteThrough))
                 {
-                    throw new InvalidDataException("ZIP Word dépassant la limite d'image pendant copie.");
+                    byte[] buffer = new byte[81920];
+                    long copied = 0;
+                    int count;
+                    while ((count = await source.ReadAsync(buffer, cancellationToken)) > 0)
+                    {
+                        copied += count;
+                        if (copied > 16L * 1024 * 1024)
+                        {
+                            throw new InvalidDataException(
+                                "ZIP Word dépassant la limite d'image pendant copie.");
+                        }
+
+                        await output.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
+                        hash.AppendData(buffer, 0, count);
+                    }
+
+                    await output.FlushAsync(cancellationToken);
+                    output.Flush(flushToDisk: true);
                 }
 
-                await output.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
-                hash.AppendData(buffer, 0, count);
-            }
+                if (!string.Equals(Convert.ToHexString(hash.GetHashAndReset()),
+                        item.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Empreinte de média DOCX modifiée depuis le plan.");
+                }
 
-            await output.FlushAsync(cancellationToken);
-            if (!string.Equals(Convert.ToHexString(hash.GetHashAndReset()),
-                    item.Sha256, StringComparison.OrdinalIgnoreCase))
+                File.Move(temporary, destination);
+                createdFiles.Add(destination);
+            }
+            finally
             {
-                throw new InvalidDataException("Empreinte de média DOCX modifiée depuis le plan.");
+                if (File.Exists(temporary))
+                {
+                    File.Delete(temporary);
+                }
             }
         }
     }
