@@ -1004,30 +1004,35 @@ public sealed class WorkspaceDocxImportService
             {
                 foreach (string file in generatedFiles)
                 {
-                    if (generatedMarkdownHashes.TryGetValue(file,
-                            out string? createdHash))
+                    // A media file may have been modified just like Markdown.
+                    // Remove only an import-owned file whose exact checksum
+                    // still matches the prewritten transaction journal.
+                    string relative = provenanceStore.ToWorkspaceRelativePath(file);
+                    DocxFirstImportFile? owned = expectedOutputs.FirstOrDefault(
+                        entry => string.Equals(entry.RelativePath, relative,
+                            StringComparison.OrdinalIgnoreCase));
+                    if (owned is null || !File.Exists(file))
                     {
-                        bool stillOurFile = false;
-                        try
-                        {
-                            stillOurFile = File.Exists(file) &&
-                                string.Equals(
-                                    await DocxImportManifestStore.ComputeFileSha256Async(
-                                        file, CancellationToken.None),
-                                    createdHash, StringComparison.OrdinalIgnoreCase);
-                        }
-                        catch
-                        {
-                            // No proof of ownership: never delete this file.
-                        }
+                        continue;
+                    }
 
-                        if (!stillOurFile)
+                    try
+                    {
+                        if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0 ||
+                            !string.Equals(
+                                await DocxImportManifestStore.ComputeFileSha256Async(
+                                    file, CancellationToken.None),
+                                owned.Sha256, StringComparison.OrdinalIgnoreCase))
                         {
                             continue;
                         }
-                    }
 
-                    TryDelete(file);
+                        TryDelete(file);
+                    }
+                    catch (IOException)
+                    {
+                        // Another process owns or changed this file: preserve it.
+                    }
                 }
 
                 foreach (string directory in createdDirectories
