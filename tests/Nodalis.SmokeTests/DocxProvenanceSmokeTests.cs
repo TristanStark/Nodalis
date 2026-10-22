@@ -734,10 +734,14 @@ internal static class DocxProvenanceSmokeTests
                    Path.Combine(editedNewProject, "Présentation.md")))
                    .Contains("External user notes during failure", StringComparison.Ordinal),
             "Rollback must not recursively delete newly created projects with edited templates.");
-        Assert(await crashRecovery.RecoverPendingAsync() == 1 &&
+        // An in-process failure may already have completed the safe rollback;
+        // a hard crash leaves a Prepared journal for the next launch.
+        int newlyRecovered = await crashRecovery.RecoverPendingAsync();
+        Assert(newlyRecovered is 0 or 1 &&
                Directory.Exists(editedNewProject) &&
-               File.Exists(Path.Combine(editedNewProject, "Présentation.md")),
-            "Durable initial-import recovery must also preserve edited project scaffolds.");
+               File.Exists(Path.Combine(editedNewProject, "Présentation.md")) &&
+               (await crashRecovery.ListPendingProjectsAsync()).Count == 0,
+            "Recovery must preserve edited project scaffolds and settle their journal.");
     }
 
     /// <summary>Creates representative input without requiring Word or a network connection.</summary>
