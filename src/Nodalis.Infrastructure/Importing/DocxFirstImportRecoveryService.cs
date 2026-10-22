@@ -514,28 +514,84 @@ public sealed class DocxFirstImportRecoveryService
         }
 
         string project = SafePath(journal.ProjectRelativePath);
+        string expectedProvenance = Path.Combine(project,
+            DocxImportManifestStore.DirectoryName,
+            journal.ImportId.ToString("N") + ".json");
+        if (journal.ProvenanceRelativePath is not null &&
+            !string.Equals(SafePath(journal.ProvenanceRelativePath),
+                expectedProvenance, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Emplacement du manifeste de provenance DOCX inattendu.");
+        }
+
         HashSet<string> unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (DocxFirstImportFile file in journal.Files)
         {
-            if (!unique.Add(SafePath(file.RelativePath)) || !IsSha(file.Sha256))
+            string full = SafePath(file.RelativePath);
+            if (!unique.Add(full) || !IsSha(file.Sha256) ||
+                !IsAllowedOutput(project, full, expectedProvenance, file.Sha256))
             {
                 throw new InvalidDataException("Fichiers de récupération DOCX incohérents.");
             }
         }
 
         if (journal.ProvenanceRelativePath is not null &&
-            !unique.Contains(SafePath(journal.ProvenanceRelativePath)))
+            !unique.Contains(expectedProvenance))
         {
             throw new InvalidDataException("Provenance DOCX manquante au journal.");
         }
+    }
+
+    /// <summary>Checks a journal file can only be an import Markdown, image, preserved Word or its own provenance.</summary>
+    private bool IsAllowedOutput(string project, string file, string provenance,
+        string sha256)
+    {
+        if (string.Equals(file, provenance, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        string sources = Path.Combine(_root, "Imports", "Sources");
+        if (string.Equals(Path.GetDirectoryName(file), sources,
+                StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(Path.GetExtension(file), ".docx",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        string within = Path.GetRelativePath(project, file);
+        if (Path.IsPathRooted(within) || within == ".." ||
+            within.StartsWith(".." + Path.DirectorySeparatorChar,
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (string.Equals(Path.GetExtension(file), ".md",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        string media = Path.Combine(project, DocxSelectedMediaAssets.MediaFolder);
+        return string.Equals(Path.GetDirectoryName(file), media,
+                   StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(Path.GetFileNameWithoutExtension(file), sha256,
+                   StringComparison.OrdinalIgnoreCase) &&
+               Path.GetExtension(file).ToLowerInvariant() is
+                   (".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp");
     }
 
     /// <summary>Locks the workspace against concurrent initial import or recovery.</summary>
     private FileStream AcquireLock()
     {
         Directory.CreateDirectory(JournalsDirectory);
-        return new FileStream(Path.Combine(JournalsDirectory, ".lock"),
-            FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        string lockPath = Path.Combine(JournalsDirectory, ".lock");
+        EnsureNoLinks(lockPath);
+        return new FileStream(lockPath, FileMode.OpenOrCreate,
+            FileAccess.ReadWrite, FileShare.None);
     }
 
     /// <summary>Computes a safe path, rejecting traversal or reparse ancestors.</summary>
