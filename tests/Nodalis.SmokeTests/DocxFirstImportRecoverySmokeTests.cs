@@ -40,12 +40,12 @@ internal static class DocxFirstImportRecoverySmokeTests
                 DocxImportManifestStore.ComputeSha256(updated));
             await File.WriteAllTextAsync(projectManifest, updated);
             await File.WriteAllTextAsync(created, "First imported paragraph");
-            Assert((await service.ListPendingProjectsAsync()).Single() == existingProject,
-                "Prepared first-import journal must expose its impacted project.");
             // A normal process exit would dispose the OS lock without setting
             // Completed or invoking the exception rollback path.
         }
 
+        Assert((await service.ListPendingProjectsAsync()).Single() == existingProject,
+            "Prepared first-import journal must expose its impacted project.");
         Assert(await service.RecoverPendingAsync() == 1 &&
                await File.ReadAllTextAsync(projectManifest) == original &&
                !System.IO.File.Exists(created) &&
