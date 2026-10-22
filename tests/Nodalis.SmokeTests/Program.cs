@@ -47,6 +47,13 @@ using Nodalis.Infrastructure.Updates;
 
 // This opt-in mode is used exclusively by the test suite to exercise the
 // exact local stdin/stdout child-process boundary without an Ollama server.
+if (args.Length == 5 && args[0] == "--docx-hardkill-child")
+{
+    await DocxHardKillSmokeTests.RunChildAsync(
+        args[1], args[2], Guid.Parse(args[3]), args[4]);
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--embedding-protocol-fixture")
 {
     await EmbeddingProtocolFixture.ServeAsync(args[1]);
@@ -102,6 +109,7 @@ try
     DocxImportPlanFingerprintSmokeTests.Run();
     await DocxProvenanceSmokeTests.RunAsync(root);
     await DocxFirstImportRecoverySmokeTests.RunAsync(root);
+    await DocxHardKillSmokeTests.RunAsync(root);
     await DocxLargeDocumentReleaseSmokeTests.RunAsync(root);
     DocxReimportDiffSmokeTests.Run();
     DocxReimportSectionMatcherSmokeTests.Run();

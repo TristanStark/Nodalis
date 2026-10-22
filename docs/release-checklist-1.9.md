@@ -22,7 +22,8 @@ Statut : **prépublication, develop**. Aucune clôture automatique des issues P0
 - [ ] Réimport à trois voies (Word seul, Nodalis seul, les deux, déplacement, renommage, suppression), aucune perte de notes
 - [x] Journal d'anticipation du premier import : sauvegarde binaire manifeste, checksums des créations, reprise ou rollback simulés (#165)
 - [x] Copie des images Word via fichier temporaire et renommage atomique, suppression sûre des sorties modifiées par un autre processus
-- [ ] **Arrêt forcé réel sur Windows** du premier import aux checkpoints projet / image / Markdown / provenance, avec validation des temporaires et du résultat (#165, #171)
+- [x] Test Windows avec **processus enfant réellement terminé** juste après la première écriture Markdown : récupération du manifeste et conservation de la source/notes
+- [ ] Arrêt forcé réel sur Windows aux checkpoints supplémentaires création projet / image / provenance, inspection des fichiers temporaires et vérification de l'UI de récupération (#165, #171)
 - [ ] Annulation, modification externe, permissions insuffisantes, paquet ZIP/XML corrompu
 - [ ] Retour utilisateur via `docs/docx-1.9-manual-qualification.md` ; aucun P0/P1 bloquant
 
