@@ -34,7 +34,7 @@ internal static class DocxFirstImportRecoverySmokeTests
         // document. The exact original bytes must be restored on next launch.
         using (DocxFirstImportSession session = await service.BeginAsync(
                    plan, firstId, Guid.NewGuid(),
-                   [File(createdRelative, "First imported paragraph")]))
+                   [ExpectedFile(createdRelative, "First imported paragraph")]))
         {
             await service.ExpectProjectManifestAsync(session,
                 DocxImportManifestStore.ComputeSha256(updated));
@@ -58,7 +58,7 @@ internal static class DocxFirstImportRecoverySmokeTests
         Guid conflictId = Guid.NewGuid();
         using (DocxFirstImportSession session = await service.BeginAsync(
                    plan, conflictId, Guid.NewGuid(),
-                   [File(createdRelative, "Expected file bytes")]))
+                   [ExpectedFile(createdRelative, "Expected file bytes")]))
         {
             await File.WriteAllTextAsync(created, "Third-party edit");
         }
@@ -100,7 +100,7 @@ internal static class DocxFirstImportRecoverySmokeTests
         Guid targetId = Guid.NewGuid();
         using (DocxFirstImportSession session = await service.BeginAsync(
                    plan, completedId, targetId,
-                   [File(completedRelative, markdown), File(sourceRelative, docxData)]))
+                   [ExpectedFile(completedRelative, markdown), ExpectedFile(sourceRelative, docxData)]))
         {
             DocxImportManifest provenance = new DocxImportManifest
             {
@@ -156,7 +156,7 @@ internal static class DocxFirstImportRecoverySmokeTests
             .Replace('\\', '/');
         using (DocxFirstImportSession session = await service.BeginAsync(
                    Plan(newRelative), newId, null,
-                   [File(generatedRelative, "DOCX content")]))
+                   [ExpectedFile(generatedRelative, "DOCX content")]))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(generated)!);
             await File.WriteAllTextAsync(generated, "DOCX content");
@@ -187,7 +187,7 @@ internal static class DocxFirstImportRecoverySmokeTests
     /// <param name="relative">Workspace-relative output path.</param>
     /// <param name="content">Exact bytes represented as UTF-8 text.</param>
     /// <returns>Expected created file descriptor.</returns>
-    private static DocxFirstImportFile File(string relative, string content) =>
+    private static DocxFirstImportFile ExpectedFile(string relative, string content) =>
         new DocxFirstImportFile
         {
             RelativePath = relative,
