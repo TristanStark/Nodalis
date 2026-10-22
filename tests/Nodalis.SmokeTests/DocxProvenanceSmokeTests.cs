@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using Nodalis.Core.Domain;
 using Nodalis.Core.Importing;
 using Nodalis.Infrastructure.Importing;
 using Nodalis.Infrastructure.Reliability;
