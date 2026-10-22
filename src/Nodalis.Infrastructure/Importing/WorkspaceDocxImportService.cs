@@ -549,16 +549,21 @@ public sealed class WorkspaceDocxImportService
             request);
         await ValidateStagedCopyAsync(preview.StagedImport, cancellationToken);
 
-        if (request.ExpectedPlanFingerprint is string approved)
+        // Freeze all destinations before the first write. A collision during
+        // commit must fail, never silently rename an approved Markdown or DOCX.
+        DocxImportPlan currentPlan = await BuildPlanAsync(preview, request, cancellationToken);
+        if (request.ExpectedPlanFingerprint is string approved &&
+            (approved.Length != 64 ||
+             !string.Equals(approved, currentPlan.Fingerprint, StringComparison.OrdinalIgnoreCase)))
         {
-            DocxImportPlan current = await BuildPlanAsync(preview, request, cancellationToken);
-            if (approved.Length != 64 ||
-                !string.Equals(approved, current.Fingerprint, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException(
-                    "Le plan DOCX a changé depuis la prévisualisation. Recalculez et validez le plan avant d'importer.");
-            }
+            throw new InvalidDataException(
+                "Le plan DOCX a changé depuis la prévisualisation. Recalculez et validez le plan avant d'importer.");
         }
+
+        string plannedProjectDirectory = ResolveRelativePath(
+            currentPlan.TargetProjectRelativePath);
+        string plannedSourceCopyPath = ResolvePlannedChangePath(currentPlan,
+            "Copier", "Copie locale du DOCX original ; le fichier source reste intact");
 
         global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection[] selected = request.Sections
             .Where(section => section.Include)
@@ -673,6 +678,13 @@ public sealed class WorkspaceDocxImportService
                     manifestPath, cancellationToken);
             }
 
+            if (!string.Equals(Path.GetFullPath(projectDirectory),
+                    Path.GetFullPath(plannedProjectDirectory), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Le projet cible a changé depuis le plan DOCX approuvé. Relancez la prévisualisation.");
+            }
+
             global::Nodalis.Core.Domain.ProjectManifest updatedProject = EnsureSections(
                 project,
                 selected.Select(section =>
@@ -731,13 +743,16 @@ public sealed class WorkspaceDocxImportService
                         sectionDirectory);
                 }
 
-                string sourceStem =
-                    Path.GetFileNameWithoutExtension(
-                        preview.StagedImport.OriginalSourcePath);
-
-                string destination = WindowsPathRules.GetUniqueFilePath(
-                    sectionDirectory,
-                    $"Import - {sourceStem}.md");
+                string description =
+                    $"{group.Count()} section(s) Word → section Nodalis « {sectionName} »";
+                string destination = ResolvePlannedChangePath(
+                    currentPlan, "Créer", description);
+                if (!string.Equals(Path.GetDirectoryName(destination),
+                        sectionDirectory, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "La destination DOCX ne correspond plus à la section approuvée.");
+                }
 
                 string markdown = BuildImportedMarkdown(
                     Path.GetFileName(
@@ -796,7 +811,8 @@ public sealed class WorkspaceDocxImportService
 
             string sourceCopyPath = await CommitStagedCopyAsync(
                 preview.StagedImport,
-                cancellationToken);
+                cancellationToken,
+                plannedDestinationPath: plannedSourceCopyPath);
             committedSourceCopyPath = sourceCopyPath;
 
             DocxImportManifest provenance = new DocxImportManifest
@@ -844,9 +860,25 @@ public sealed class WorkspaceDocxImportService
                 TryDelete(provenancePath);
             }
 
-            if (committedSourceCopyPath is not null)
+            if (committedSourceCopyPath is not null &&
+                File.Exists(committedSourceCopyPath))
             {
-                TryDelete(committedSourceCopyPath);
+                // Never delete a preserved DOCX edited by another process after
+                // our move. A failed import cannot claim modified user data.
+                try
+                {
+                    string actual = await DocxImportManifestStore.ComputeFileSha256Async(
+                        committedSourceCopyPath, CancellationToken.None);
+                    if (string.Equals(actual, preview.StagedImport.StagedCopySha256,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        TryDelete(committedSourceCopyPath);
+                    }
+                }
+                catch (IOException)
+                {
+                    // Ownership could not be proven: keep the copy.
+                }
             }
 
             // Do not remove an external edit made after an import created a
@@ -1059,14 +1091,17 @@ public sealed class WorkspaceDocxImportService
     }
 
     /// <summary>
-    /// Performs the <c>CommitStagedCopyAsync</c> operation.
+    /// Preserves an analyzed Word package without replacing an existing file.
+    /// The optional destination pins the exact path displayed in an approved plan.
     /// </summary>
-    /// <param name="staged">The <c>staged</c> value.</param>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="staged">Verified staged source.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="plannedDestinationPath">Exact path chosen at preview time, when known.</param>
+    /// <returns>Path of the immutable DOCX source copy.</returns>
     public async Task<string> CommitStagedCopyAsync(
             DocxStagedImport staged,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            string? plannedDestinationPath = null)
     {
         ArgumentNullException.ThrowIfNull(staged);
         await ValidateStagedCopyAsync(staged, cancellationToken);
@@ -1082,15 +1117,47 @@ public sealed class WorkspaceDocxImportService
         Directory.CreateDirectory(
             sourcesDirectory);
 
-        string destination = WindowsPathRules.GetUniqueFilePath(
-            sourcesDirectory,
-            Path.GetFileName(staged.OriginalSourcePath));
+        string destination = plannedDestinationPath is null
+            ? WindowsPathRules.GetUniqueFilePath(
+                sourcesDirectory, Path.GetFileName(staged.OriginalSourcePath))
+            : Path.GetFullPath(plannedDestinationPath);
 
-        File.Move(
-            stagedPath,
-            destination);
+        if (!string.Equals(Path.GetDirectoryName(destination),
+                sourcesDirectory, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(Path.GetExtension(destination), ".docx",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "La copie source DOCX prévue est extérieure au dossier Imports/Sources.");
+        }
+
+        // No overwrite: an interprocess collision must abort the import.
+        File.Move(stagedPath, destination);
 
         return destination;
+    }
+
+    /// <summary>Locates exactly one destination already declared in the validated dry-run.</summary>
+    /// <param name="plan">Frozen import plan.</param>
+    /// <param name="action">Planned action.</param>
+    /// <param name="description">Stable description generated with the plan.</param>
+    /// <returns>Absolute path of the approved output.</returns>
+    private string ResolvePlannedChangePath(DocxImportPlan plan,
+        string action, string description)
+    {
+        DocxImportPlannedChange[] matches = plan.Changes
+            .Where(change => string.Equals(change.Action, action,
+                StringComparison.Ordinal) &&
+                string.Equals(change.Description, description,
+                    StringComparison.Ordinal))
+            .ToArray();
+        if (matches.Length != 1)
+        {
+            throw new InvalidDataException(
+                "Plan DOCX ambigu : aucune destination unique pour l'écriture.");
+        }
+
+        return ResolveRelativePath(matches[0].RelativePath);
     }
 
     /// <summary>

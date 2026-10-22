@@ -13,3 +13,7 @@ Limites restantes : diff à la ligne, navigation synchronisée avec l'arbre de s
 Le plan comprend maintenant l'empreinte SHA-256 de ses opérations **dans leur ordre**, des chemins destination, des avertissements et du contenu Markdown réellement projeté. Lorsque l'utilisateur clique sur Valider, cette empreinte est jointe à sa requête. Juste avant toute mutation du workspace, le service recalcule le plan ; un changement externe de nom de fichier, de destination ou du contenu **bloque l'import avec un message explicite** plutôt que de produire une destination surprise.
 
 Cette vérification initiale ne constitue **pas** une transaction interprocessus : une modification concurrente survenant *après* le recalcul mais avant les écritures demeure possible. La prévention de cette fenêtre et la qualification sous forte concurrence restent ouvertes dans #162.
+
+## Chemins gelés entre prévisualisation et commit
+
+L'écriture utilise désormais **les chemins exacts du plan recalculé et validé au démarrage du commit**, pour chaque Markdown et la copie DOCX dans `Imports/Sources`. Elle ne rappelle pas la recherche de noms alternatifs en cours de transaction. Une collision créée par une autre application après approbation provoque un refus sans renommage silencieux ; le rollback conserve les fichiers tiers. Les tests `DocxProvenanceSmokeTests` injectent ces deux collisions à des checkpoints différents. Cela améliore la concurrence contrôlée, mais **ne remplace pas** le journal durable de récupération en cas d'arrêt brutal (#165).

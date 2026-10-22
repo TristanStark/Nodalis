@@ -323,6 +323,99 @@ internal static class DocxProvenanceSmokeTests
                hasCustomSection,
             "New project imports must support custom DOCX section destinations.");
 
+        // Race after plan confirmation and project-manifest update: an
+        // external writer reserves the exact Markdown path. Import must NOT
+        // pick a new name or erase that writer's file.
+        string raceSection = "Race import DOCX";
+        string raceDestination = string.Empty;
+        WorkspaceDocxImportService racing = new WorkspaceDocxImportService(root,
+            afterProjectManifestCheckpoint: _ =>
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(raceDestination)!);
+                File.WriteAllText(raceDestination, "Concurrent writer owns this file");
+            });
+        DocxImportPreview racePreview = await racing.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest raceRequest = request with
+        {
+            ProjectId = committed.ProjectId,
+            NewProjectName = null,
+            Sections = racePreview.Sections.Select(section =>
+                new DocxImportSectionSelection
+                {
+                    SectionIndex = section.Index,
+                    Include = true,
+                    TargetSection = raceSection
+                }).ToList()
+        };
+        DocxImportPlan racePlan = await racing.BuildPlanAsync(racePreview, raceRequest);
+        raceDestination = Path.Combine(root, racePlan.Changes.Single(change =>
+            change.Action == "Créer" &&
+            change.Description.Contains("section Nodalis « " + raceSection + " »",
+                StringComparison.Ordinal)).RelativePath);
+        byte[] raceManifestBefore = await File.ReadAllBytesAsync(
+            Path.Combine(committed.ProjectDirectory, WorkspaceLayout.ProjectManifestFileName));
+        bool collisionRejected = false;
+        try
+        {
+            await racing.CommitAsync(racePreview, raceRequest with
+            {
+                ExpectedPlanFingerprint = racePlan.Fingerprint
+            });
+        }
+        catch (IOException)
+        {
+            collisionRejected = true;
+        }
+
+        Assert(collisionRejected &&
+               await File.ReadAllTextAsync(raceDestination) == "Concurrent writer owns this file" &&
+               (await File.ReadAllBytesAsync(Path.Combine(committed.ProjectDirectory,
+                   WorkspaceLayout.ProjectManifestFileName))).SequenceEqual(raceManifestBefore),
+            "An interprocess collision after approval must not rename the import or discard user data.");
+
+        // A second race reserves the approved DOCX copy after Markdown creation.
+        // Rollback must preserve that other process's source copy.
+        string plannedSourceCollision = string.Empty;
+        WorkspaceDocxImportService sourceRacing = new WorkspaceDocxImportService(root,
+            afterMarkdownCreatedCheckpoint: (_, _) =>
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(plannedSourceCollision)!);
+                File.WriteAllText(plannedSourceCollision, "External source reservation");
+            });
+        DocxImportPreview sourceRacePreview = await sourceRacing.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest sourceRaceRequest = request with
+        {
+            ProjectId = committed.ProjectId,
+            NewProjectName = null,
+            Sections = sourceRacePreview.Sections.Select(section =>
+                new DocxImportSectionSelection
+                {
+                    SectionIndex = section.Index,
+                    Include = true,
+                    TargetSection = "Tests"
+                }).ToList()
+        };
+        DocxImportPlan sourceRacePlan = await sourceRacing.BuildPlanAsync(
+            sourceRacePreview, sourceRaceRequest);
+        plannedSourceCollision = Path.Combine(root, sourceRacePlan.Changes.Single(change =>
+            change.Action == "Copier").RelativePath);
+        bool sourceCollisionRejected = false;
+        try
+        {
+            await sourceRacing.CommitAsync(sourceRacePreview, sourceRaceRequest with
+            {
+                ExpectedPlanFingerprint = sourceRacePlan.Fingerprint
+            });
+        }
+        catch (IOException)
+        {
+            sourceCollisionRejected = true;
+        }
+
+        Assert(sourceCollisionRejected &&
+               await File.ReadAllTextAsync(plannedSourceCollision) == "External source reservation",
+            "A concurrent DOCX source reservation cannot be silently renamed or overwritten.");
+
         // Test interruption immediately after creating a Markdown document:
         // automatic rollback must remove only our generated file and restore
         // the exact project manifest, never touching pre-existing content.

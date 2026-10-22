@@ -56,3 +56,6 @@ ni de workspace contenant des données confidentielles.
 Suivi : [EPIC DOCX #154](https://github.com/TristanStark/Nodalis/issues/154),
 [sécurité #165](https://github.com/TristanStark/Nodalis/issues/165),
 [qualification de sortie #171](https://github.com/TristanStark/Nodalis/issues/171).
+
+| Q13 | Après validation, créer depuis un autre processus le Markdown exactement prévu avant l'écriture (test automatisé). | Import refusé ; chemin et contenu du concurrent préservés ; pas de renommage surprise. |
+| Q14 | Réserver le nom prévu pour la copie DOCX après création Markdown (test automatisé). | Import refusé, rollback de ses propres fichiers ; copie DOCX tierce inchangée. |
