@@ -684,6 +684,60 @@ internal static class DocxProvenanceSmokeTests
         Assert(await crashRecovery.RecoverPendingAsync() == 1 &&
                await File.ReadAllTextAsync(savedEditedManifest) == externalEditedJson,
             "The initial-import journal must never discard concurrent manifest edits.");
+
+        // A newly generated project may already contain an edited template
+        // when the import fails. Do not recursively delete those user notes.
+        string? editedNewProject = null;
+        WorkspaceDocxImportService editedScaffold = new WorkspaceDocxImportService(
+            root, afterMarkdownCreatedCheckpoint: (_, destination) =>
+            {
+                editedNewProject = Directory.GetParent(
+                    Path.GetDirectoryName(destination)!)!.FullName;
+                File.AppendAllText(
+                    Path.Combine(editedNewProject, "Présentation.md"),
+                    "\nExternal user notes during failure");
+                throw new InvalidOperationException("Simulated new-project failure");
+            });
+        DocxImportPreview newProjectPreview =
+            await editedScaffold.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest newProjectRequest = request with
+        {
+            NewProjectName = "DOCX Preserve Scaffold " + Guid.NewGuid().ToString("N"),
+            NewProjectComplexity = ProjectComplexity.Medium,
+            Sections = newProjectPreview.Sections.Select(section =>
+                new DocxImportSectionSelection
+                {
+                    SectionIndex = section.Index,
+                    Include = true,
+                    TargetSection = "Tests"
+                }).ToList()
+        };
+        DocxImportPlan newProjectPlan =
+            await editedScaffold.BuildPlanAsync(newProjectPreview, newProjectRequest);
+        bool scaffoldFailure = false;
+        try
+        {
+            await editedScaffold.CommitAsync(newProjectPreview, newProjectRequest with
+            {
+                ExpectedPlanFingerprint = newProjectPlan.Fingerprint
+            });
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message.Contains("Simulated", StringComparison.Ordinal))
+        {
+            scaffoldFailure = true;
+        }
+
+        Assert(scaffoldFailure && editedNewProject is not null &&
+               File.Exists(Path.Combine(editedNewProject, "Présentation.md")) &&
+               (await File.ReadAllTextAsync(
+                   Path.Combine(editedNewProject, "Présentation.md")))
+                   .Contains("External user notes during failure", StringComparison.Ordinal),
+            "Rollback must not recursively delete newly created projects with edited templates.");
+        Assert(await crashRecovery.RecoverPendingAsync() == 1 &&
+               Directory.Exists(editedNewProject) &&
+               File.Exists(Path.Combine(editedNewProject, "Présentation.md")),
+            "Durable initial-import recovery must also preserve edited project scaffolds.");
     }
 
     /// <summary>Creates representative input without requiring Word or a network connection.</summary>
