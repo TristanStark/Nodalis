@@ -355,13 +355,15 @@ public sealed class WorkspaceDocxImportService
                         WorkspaceLayout.ProjectManifestFileName),
                     "Métadonnées du nouveau projet"));
 
+            bool ultraSimple = request.NewProjectComplexity == ProjectComplexity.UltraSimple;
             changes.Add(
                 PlanChange(
                     "Créer",
-                    Path.Combine(
-                        projectDirectory,
-                        "Présentation.md"),
-                    "Présentation du nouveau projet"));
+                    Path.Combine(projectDirectory,
+                        ultraSimple ? "Fiche de Maintenance.md" : "Présentation.md"),
+                    ultraSimple
+                        ? "Fiche de maintenance du nouveau projet Ultra-simple"
+                        : "Présentation du nouveau projet"));
 
             changes.Add(
                 PlanChange(
@@ -391,16 +393,16 @@ public sealed class WorkspaceDocxImportService
                          .OrderBy(section =>
                              section.Order))
             {
-                changes.Add(
-                    PlanChange(
-                        "Créer",
-                        Path.Combine(
-                            projectDirectory,
-                            WindowsPathRules.SanitizeSegment(
-                                section.Name),
-                            WindowsPathRules.SanitizeSegment(
-                                section.Name) + ".md"),
-                        $"Document initial de la section {section.Name}"));
+                string? singletonFileName =
+                    ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                        section.TemplateKey);
+                string sectionFilePath = singletonFileName is not null
+                    ? Path.Combine(projectDirectory, singletonFileName)
+                    : Path.Combine(projectDirectory,
+                        WindowsPathRules.SanitizeSegment(section.Name),
+                        WindowsPathRules.SanitizeSegment(section.Name) + ".md");
+                changes.Add(PlanChange("Créer", sectionFilePath,
+                    $"Document initial de la section {section.Name}"));
             }
         }
 

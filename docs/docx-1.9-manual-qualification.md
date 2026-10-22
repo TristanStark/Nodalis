@@ -33,6 +33,9 @@
 | Q10 | Importer un document comprenant plusieurs sections vers une cible commune. | Ordre annoncé dans la fusion conservé ; pas de doublons inattendus. |
 | Q11 | Dans le même Word, tester tableau fusionné et image liée distante. | Diagnostic explicite ; aucune ressource distante téléchargée. |
 | Q12 | Après un échec, inspecter `Imports/Sources`, `.nodalis-imports` et les Markdown du projet. | Pas de remplacement silencieux de l'original ; signaler tout artefact orphelin. |
+| Q13 | Simuler une collision Markdown après confirmation du plan (test automatisé). | Refus ; chemin original conservé, pas de renommage surprise. |
+| Q14 | Simuler une collision de copie DOCX après confirmation (test automatisé). | Refus ; rollback des fichiers créés par Nodalis, conservation de la copie tierce. |
+| Q15 | Prévisualiser puis créer un projet Ultra-simple et un projet Moyen. | Le plan annonce les véritables documents créés, dont `Fiche de Maintenance.md`, `Jalons.md` et `Glossaire.md` selon le profil. |
 
 ### Points de vigilance
 
@@ -57,5 +60,3 @@ Suivi : [EPIC DOCX #154](https://github.com/TristanStark/Nodalis/issues/154),
 [sécurité #165](https://github.com/TristanStark/Nodalis/issues/165),
 [qualification de sortie #171](https://github.com/TristanStark/Nodalis/issues/171).
 
-| Q13 | Après validation, créer depuis un autre processus le Markdown exactement prévu avant l'écriture (test automatisé). | Import refusé ; chemin et contenu du concurrent préservés ; pas de renommage surprise. |
-| Q14 | Réserver le nom prévu pour la copie DOCX après création Markdown (test automatisé). | Import refusé, rollback de ses propres fichiers ; copie DOCX tierce inchangée. |

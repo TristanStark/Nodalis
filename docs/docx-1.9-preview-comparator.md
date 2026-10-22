@@ -17,3 +17,7 @@ Cette vérification initiale ne constitue **pas** une transaction interprocessus
 ## Chemins gelés entre prévisualisation et commit
 
 L'écriture utilise désormais **les chemins exacts du plan recalculé et validé au démarrage du commit**, pour chaque Markdown et la copie DOCX dans `Imports/Sources`. Elle ne rappelle pas la recherche de noms alternatifs en cours de transaction. Une collision créée par une autre application après approbation provoque un refus sans renommage silencieux ; le rollback conserve les fichiers tiers. Les tests `DocxProvenanceSmokeTests` injectent ces deux collisions à des checkpoints différents. Cela améliore la concurrence contrôlée, mais **ne remplace pas** le journal durable de récupération en cas d'arrêt brutal (#165).
+
+## Précision des fichiers initiaux (#162)
+
+Les plans de nouveaux projets distinguent maintenant les profils : **Ultra-simple** annonce `Fiche de Maintenance.md` au lieu de `Présentation.md`, et les sections singleton **Jalons** / **Glossaire** sont projetées comme documents à la racine, identiques à la création réelle. Une vérification automatisée compare les fichiers prévus et les fichiers créés pour les profils Ultra-simple et Moyen.

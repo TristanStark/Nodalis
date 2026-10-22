@@ -416,6 +416,61 @@ internal static class DocxProvenanceSmokeTests
                await File.ReadAllTextAsync(plannedSourceCollision) == "External source reservation",
             "A concurrent DOCX source reservation cannot be silently renamed or overwritten.");
 
+        // The dry-run must include the actual initial files created by each
+        // project profile, including the two-file Ultra-simple contract.
+        DocxImportPreview ultraPreview = await service.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest ultraRequest = request with
+        {
+            NewProjectName = "DOCX Ultra " + Guid.NewGuid().ToString("N"),
+            NewProjectComplexity = ProjectComplexity.UltraSimple,
+            Sections = ultraPreview.Sections.Select(section => new DocxImportSectionSelection
+            {
+                SectionIndex = section.Index,
+                Include = true,
+                TargetSection = "Tests"
+            }).ToList()
+        };
+        DocxImportPlan ultraPlan = await service.BuildPlanAsync(ultraPreview, ultraRequest);
+        Assert(ultraPlan.Changes.Any(change =>
+                change.Action == "Créer" &&
+                change.RelativePath.EndsWith("Fiche de Maintenance.md", StringComparison.Ordinal)) &&
+               !ultraPlan.Changes.Any(change =>
+                change.RelativePath.EndsWith("Présentation.md", StringComparison.Ordinal)),
+            "Ultra-simple DOCX dry-runs must describe the maintenance sheet instead of a nonexistent presentation.");
+        DocxImportCommitResult ultraCommitted = await service.CommitAsync(ultraPreview,
+            ultraRequest with { ExpectedPlanFingerprint = ultraPlan.Fingerprint });
+        Assert(File.Exists(Path.Combine(ultraCommitted.ProjectDirectory, "Fiche de Maintenance.md")) &&
+               !File.Exists(Path.Combine(ultraCommitted.ProjectDirectory, "Présentation.md")),
+            "Ultra-simple committed output must match the initial files advertised in the preview.");
+
+        DocxImportPreview ordinaryPreview = await service.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest ordinaryRequest = request with
+        {
+            NewProjectName = "DOCX Standard " + Guid.NewGuid().ToString("N"),
+            NewProjectComplexity = ProjectComplexity.Medium,
+            Sections = ordinaryPreview.Sections.Select(section => new DocxImportSectionSelection
+            {
+                SectionIndex = section.Index,
+                Include = true,
+                TargetSection = "Technique"
+            }).ToList()
+        };
+        DocxImportPlan ordinaryPlan = await service.BuildPlanAsync(
+            ordinaryPreview, ordinaryRequest);
+        DocxImportCommitResult ordinaryCommitted = await service.CommitAsync(
+            ordinaryPreview, ordinaryRequest with
+            {
+                ExpectedPlanFingerprint = ordinaryPlan.Fingerprint
+            });
+        foreach (DocxImportPlannedChange filePlan in ordinaryPlan.Changes
+                     .Where(change => change.Action == "Créer" &&
+                         change.Description.StartsWith("Document initial de la section ",
+                             StringComparison.Ordinal)))
+        {
+            Assert(File.Exists(Path.Combine(root, filePlan.RelativePath)),
+                "Every default profile document predicted in the dry-run must exist at the exact destination.");
+        }
+
         // Test interruption immediately after creating a Markdown document:
         // automatic rollback must remove only our generated file and restore
         // the exact project manifest, never touching pre-existing content.
