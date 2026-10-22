@@ -154,7 +154,8 @@ internal static class DocxHardKillSmokeTests
             candidate.Id == projectId);
         DocxImportCommitRequest request = new DocxImportCommitRequest
         {
-            ApplicationId = target.ApplicationId,
+            ApplicationId = target.ApplicationId ??
+                throw new InvalidDataException("Existing project has no owning application."),
             ProjectId = projectId,
             Sections = preview.Sections.Select(section => new DocxImportSectionSelection
             {
