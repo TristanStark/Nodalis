@@ -24,6 +24,8 @@ public partial class MainWindow
         MaintenanceHistoryButton.Visibility =
             focused is not null && IsMaintenanceDocument(focused.FullPath)
                 ? Visibility.Visible : Visibility.Collapsed;
+        NewMaintenanceIncidentButton.Visibility =
+            visible ? Visibility.Visible : Visibility.Collapsed;
         NewMaintenanceInterventionButton.Visibility =
             visible ? Visibility.Visible : Visibility.Collapsed;
         EditMaintenanceInterventionButton.Visibility =
@@ -59,6 +61,13 @@ public partial class MainWindow
         return File.Exists(path) ? path : null;
     }
 
+    /// <summary>Opens the maintenance form in incident-creation mode.</summary>
+    /// <returns>Safe persistence and navigation task.</returns>
+    private Task CreateMaintenanceIncidentAsync()
+    {
+        return EditMaintenanceHistoryAsync(editExisting: false, creatingIncident: true);
+    }
+
     /// <summary>Opens the compact new-intervention form from the toolbar or palette.</summary>
     /// <returns>The form and safe-persistence operation.</returns>
     private Task CreateMaintenanceInterventionAsync()
@@ -78,7 +87,8 @@ public partial class MainWindow
     /// <param name="selected">Optional exact history entry chosen from the timeline.</param>
     /// <returns>A task representing the user action.</returns>
     private async Task EditMaintenanceHistoryAsync(
-        bool editExisting, MaintenanceHistoryItem? selected = null)
+        bool editExisting, MaintenanceHistoryItem? selected = null,
+        bool creatingIncident = false)
     {
         if (_workspaceReadOnly)
         {
@@ -153,7 +163,8 @@ public partial class MainWindow
         IReadOnlyList<MaintenanceRecord> incidents = history.Records
             .Where(item => item.Kind == MaintenanceRecordKind.Incident)
             .ToArray();
-        MaintenanceInterventionDialog dialog = new MaintenanceInterventionDialog(incidents, original)
+        MaintenanceInterventionDialog dialog = new MaintenanceInterventionDialog(incidents, original,
+            creatingIncident ? MaintenanceRecordKind.Incident : MaintenanceRecordKind.Intervention)
         {
             Owner = this
         };
@@ -172,9 +183,11 @@ public partial class MainWindow
             ? await _maintenanceService.AddAsync(path, entry)
             : await _maintenanceService.EditAsync(path, original, entry);
         await NavigateToSavedMaintenanceRecordAsync(path, saved, entry);
-        StatusText.Text = original is null
-            ? "Intervention ajoutée dans la fiche de maintenance"
-            : "Intervention mise à jour dans la fiche de maintenance";
+        StatusText.Text = creatingIncident
+            ? "Incident ajouté dans la fiche de maintenance"
+            : original is null
+                ? "Intervention ajoutée dans la fiche de maintenance"
+                : "Intervention mise à jour dans la fiche de maintenance";
     }
 
     /// <summary>
@@ -237,7 +250,7 @@ public partial class MainWindow
 
         if (node is null || node.Kind != WorkspaceNodeKind.Document)
         {
-            throw new InvalidOperationException("Intervention sauvegardée, mais sa fiche est introuvable dans l'explorateur.");
+            throw new InvalidOperationException("Entrée de maintenance sauvegardée, mais sa fiche est introuvable dans l'explorateur.");
         }
 
         // The existing caret navigator targets the primary editor pane.
@@ -261,6 +274,15 @@ public partial class MainWindow
         }
 
         await RefreshLinkIndexAndContextAsync();
+    }
+
+    /// <summary>Creates an incident through the shared recoverable UI boundary.</summary>
+    /// <param name="sender">Button.</param>
+    /// <param name="e">Click event.</param>
+    private async void NewMaintenanceIncident_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync("Nouvel incident de maintenance",
+            CreateMaintenanceIncidentAsync);
     }
 
     /// <summary>Handles the new-intervention editor button through the shared UI exception boundary.</summary>

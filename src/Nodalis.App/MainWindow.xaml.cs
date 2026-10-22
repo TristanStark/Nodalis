@@ -4817,6 +4817,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "maintenance.incident.new",
+                Title = "Nouvel incident",
+                Subtitle = "Déclarer un incident dans la fiche de maintenance du projet courant",
+                Keywords = ["maintenance", "incident", "nouveau", "déclarer", "panne"],
+                ExecuteAsync = CreateMaintenanceIncidentAsync
+            },
+            new()
+            {
                 Id = "maintenance.intervention.new",
                 Title = "Nouvelle intervention",
                 Subtitle = "Créer une intervention dans la fiche de maintenance du projet courant",

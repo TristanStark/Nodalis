@@ -320,8 +320,10 @@
                                   Click="NewProject_Click" />
                         <MenuItem Header="Nouvelle tâche"
                                   Click="NewTask_Click" />
+                        <MenuItem Header="Nouvel incident"
+                                   Click="NewMaintenanceIncident_Click" />
                         <MenuItem Header="Nouvelle intervention"
-                                  Click="NewMaintenanceIntervention_Click" />
+                                   Click="NewMaintenanceIntervention_Click" />
                         <MenuItem Header="Modifier une intervention"
                                   Click="EditMaintenanceIntervention_Click" />
                         <Separator />
@@ -833,6 +835,11 @@
                                     Click="OpenMaintenanceHistory_Click"
                                     ToolTip="Consulter les incidents et interventions avec recherche et filtres"
                                     Content="Historique" />
+                            <Button x:Name="NewMaintenanceIncidentButton"
+                                    Visibility="Collapsed" Padding="10,6" Margin="0,0,6,0"
+                                    Click="NewMaintenanceIncident_Click"
+                                    ToolTip="Déclarer un incident dans cette fiche de maintenance"
+                                    Content="Nouvel incident" />
                             <Button x:Name="NewMaintenanceInterventionButton"
                                     Visibility="Collapsed"
                                     Padding="10,6"
