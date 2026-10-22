@@ -6535,10 +6535,10 @@ public partial class MainWindow : Window
         }
 
         if (MessageBox.Show(this,
-            $"{pendingProjects.Count} import(s) DOCX précédent(s) ont été interrompus.\\n\\n" +
+            $"{pendingProjects.Count} import(s) DOCX précédent(s) ont été interrompus.\n\n" +
             "Les imports complets seront conservés ; les sorties partielles " +
             "seront restaurées uniquement si leurs empreintes correspondent. " +
-            "Les changements externes ne seront pas écrasés.\\n\\n" +
+            "Les changements externes ne seront pas écrasés.\n\n" +
             "Lancer la récupération ?",
             "Récupération import DOCX", MessageBoxButton.YesNo,
             MessageBoxImage.Question) != MessageBoxResult.Yes)
