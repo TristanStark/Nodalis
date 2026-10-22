@@ -374,6 +374,17 @@ internal static class DocxProvenanceSmokeTests
                    WorkspaceLayout.ProjectManifestFileName))).SequenceEqual(raceManifestBefore),
             "An interprocess collision after approval must not rename the import or discard user data.");
 
+        // Simulate explicit manual recovery: preserve the concurrent user's
+        // note elsewhere, then let the journal clean its own incomplete import.
+        string savedConcurrentMarkdown = Path.Combine(root, "saved-concurrent-markdown.md");
+        File.Move(raceDestination, savedConcurrentMarkdown);
+        DocxFirstImportRecoveryService crashRecovery =
+            new DocxFirstImportRecoveryService(root);
+        Assert(await crashRecovery.RecoverPendingAsync() == 1 &&
+               await File.ReadAllTextAsync(savedConcurrentMarkdown) ==
+                   "Concurrent writer owns this file",
+            "Recovery must require explicit preservation of an unrelated file.");
+
         // A second race reserves the approved DOCX copy after Markdown creation.
         // Rollback must preserve that other process's source copy.
         string plannedSourceCollision = string.Empty;
@@ -416,6 +427,13 @@ internal static class DocxProvenanceSmokeTests
         Assert(sourceCollisionRejected &&
                await File.ReadAllTextAsync(plannedSourceCollision) == "External source reservation",
             "A concurrent DOCX source reservation cannot be silently renamed or overwritten.");
+
+        string savedConcurrentSource = Path.Combine(root, "saved-concurrent-source.txt");
+        File.Move(plannedSourceCollision, savedConcurrentSource);
+        Assert(await crashRecovery.RecoverPendingAsync() == 1 &&
+               await File.ReadAllTextAsync(savedConcurrentSource) ==
+                   "External source reservation",
+            "A third-party DOCX copy must be preserved before journal rollback.");
 
         // The dry-run must include the actual initial files created by each
         // project profile, including the two-file Ultra-simple contract.
@@ -567,6 +585,12 @@ internal static class DocxProvenanceSmokeTests
                    .SequenceEqual(originalProjectBytes),
             "Rollback must keep externally edited Markdown while restoring project metadata.");
 
+        string savedExternalNote = Path.Combine(root, "saved-user-docx-note.md");
+        File.Move(preservedMarkdownPath!, savedExternalNote);
+        Assert(await crashRecovery.RecoverPendingAsync() == 1 &&
+               await File.ReadAllTextAsync(savedExternalNote) == userEdit,
+            "Crash recovery must preserve notes manually rescued after a conflict.");
+
         // Force an interruption immediately after an existing project's
         // manifest was changed, before writing any generated Word document.
         WorkspaceDocxImportService interrupted = new WorkspaceDocxImportService(root,
@@ -651,6 +675,15 @@ internal static class DocxProvenanceSmokeTests
                !Directory.Exists(Path.Combine(committed.ProjectDirectory,
                    "Concurrent DOCX unique section")),
             "Rollback must never overwrite a concurrent external project edit.");
+
+        // Keep the user's modified manifest as an independent file and
+        // explicitly restore the pre-import version before journal recovery.
+        string savedEditedManifest = Path.Combine(root, "saved-edited-project.json");
+        File.Move(projectManifestPath, savedEditedManifest);
+        await File.WriteAllBytesAsync(projectManifestPath, originalProjectBytes);
+        Assert(await crashRecovery.RecoverPendingAsync() == 1 &&
+               await File.ReadAllTextAsync(savedEditedManifest) == externalEditedJson,
+            "The initial-import journal must never discard concurrent manifest edits.");
     }
 
     /// <summary>Creates representative input without requiring Word or a network connection.</summary>
