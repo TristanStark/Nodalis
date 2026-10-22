@@ -647,6 +647,8 @@ public sealed class WorkspaceDocxImportService
         global::System.Collections.Generic.List<string> generatedFiles = new List<string>();
         Dictionary<string, string> generatedMarkdownHashes =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> createdProjectScaffoldHashes =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         int completedMarkdownWrites = 0;
         global::System.Collections.Generic.List<string> createdDirectories = new List<string>();
         DocxImportManifestStore provenanceStore = new DocxImportManifestStore(_workspaceRoot);
@@ -717,6 +719,17 @@ public sealed class WorkspaceDocxImportService
                 projectId = created.Project.Id;
                 project = created.Project;
                 createdProject = true;
+                // A new project already contains template files. Record their
+                // exact original bytes so exception cleanup will never delete
+                // a newly edited template or an unexpected user file.
+                foreach (string path in Directory.EnumerateFiles(projectDirectory,
+                             "*", SearchOption.AllDirectories))
+                {
+                    createdProjectScaffoldHashes.Add(path,
+                        await DocxImportManifestStore.ComputeFileSha256Async(
+                            path, cancellationToken));
+                }
+
                 manifestPath = Path.Combine(
                     projectDirectory,
                     WorkspaceLayout.ProjectManifestFileName);
@@ -968,12 +981,14 @@ public sealed class WorkspaceDocxImportService
 
             if (createdProject)
             {
-                // Deleting a whole new project is only safe when its created
-                // Markdown files are still unmodified. Otherwise retain the
-                // partial project for explicit inspection and recovery.
+                // Never recursively delete a newly created project when an
+                // unknown file, junction or modified template is present.
+                // Recovery preserves the scaffold for explicit inspection.
                 if (!externalMarkdownEdit &&
                     !string.IsNullOrWhiteSpace(projectDirectory) &&
-                    Directory.Exists(projectDirectory))
+                    Directory.Exists(projectDirectory) &&
+                    await IsOriginalImportProjectTreeAsync(projectDirectory,
+                        createdProjectScaffoldHashes, expectedOutputs))
                 {
                     try
                     {
@@ -1068,6 +1083,80 @@ public sealed class WorkspaceDocxImportService
             }
 
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Proves every remaining file in a newly created project belongs to the
+    /// unchanged template scaffold or is a checksum-verified import output.
+    /// Unexpected user files prevent recursive rollback deletion.
+    /// </summary>
+    /// <param name="projectDirectory">New project root.</param>
+    /// <param name="scaffold">Checksums captured immediately after the project creator returned.</param>
+    /// <param name="expectedOutputs">Checksums durably declared by the import plan.</param>
+    /// <returns>True only when the entire project tree can be safely removed.</returns>
+    private async Task<bool> IsOriginalImportProjectTreeAsync(
+        string projectDirectory,
+        IReadOnlyDictionary<string, string> scaffold,
+        IReadOnlyList<DocxFirstImportFile> expectedOutputs)
+    {
+        try
+        {
+            if ((File.GetAttributes(projectDirectory) & FileAttributes.ReparsePoint) != 0)
+            {
+                return false;
+            }
+
+            string projectRoot = Path.GetFullPath(projectDirectory);
+            DocxImportManifestStore paths = new DocxImportManifestStore(_workspaceRoot);
+            Dictionary<string, string> owned = new Dictionary<string, string>(
+                scaffold, StringComparer.OrdinalIgnoreCase);
+            foreach (DocxFirstImportFile output in expectedOutputs)
+            {
+                string full = paths.ResolveWorkspaceRelativePath(output.RelativePath);
+                string within = Path.GetRelativePath(projectRoot, full);
+                if (Path.IsPathRooted(within) || within == ".." ||
+                    within.StartsWith(".." + Path.DirectorySeparatorChar,
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                owned.TryAdd(full, output.Sha256);
+            }
+
+            foreach (string directory in Directory.EnumerateDirectories(
+                         projectRoot, "*", SearchOption.AllDirectories))
+            {
+                if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                {
+                    return false;
+                }
+            }
+
+            foreach (string file in Directory.EnumerateFiles(
+                         projectRoot, "*", SearchOption.AllDirectories))
+            {
+                if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0 ||
+                    !owned.TryGetValue(file, out string? hash) ||
+                    !string.Equals(
+                        await DocxImportManifestStore.ComputeFileSha256Async(
+                            file, CancellationToken.None),
+                        hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return scaffold.Count > 0;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
