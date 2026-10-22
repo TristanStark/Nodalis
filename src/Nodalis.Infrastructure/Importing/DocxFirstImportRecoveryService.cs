@@ -256,6 +256,36 @@ public sealed class DocxFirstImportRecoveryService
         RecoverOneAsync(session.DirectoryPath, session.Journal,
             cancellationToken, allowCompletion: false);
 
+    /// <summary>Lists the affected project paths without modifying any file.</summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Project roots whose initial import is still pending.</returns>
+    public async Task<IReadOnlyList<string>> ListPendingProjectsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using FileStream exclusive = AcquireLock();
+        List<string> pending = [];
+        foreach (string directory in Directory.EnumerateDirectories(JournalsDirectory))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string file = Path.Combine(directory, JournalName);
+            if (!File.Exists(file))
+            {
+                continue;
+            }
+
+            DocxFirstImportJournal journal =
+                await AtomicJsonFile.ReadAsync<DocxFirstImportJournal>(
+                    file, cancellationToken);
+            ValidateJournal(directory, journal);
+            if (journal.State == "Prepared")
+            {
+                pending.Add(SafePath(journal.ProjectRelativePath));
+            }
+        }
+
+        return pending;
+    }
+
     /// <summary>
     /// On startup or before another import, recovers interrupted transactions.
     /// A fully written and verified import is completed, not discarded.
