@@ -39,10 +39,11 @@
 
 ### Points de vigilance
 
-- **#165** : le parseur ZIP/XML est durci et les créations Markdown sont
-  exclusives, mais la récupération après **arrêt brutal de Nodalis** lors d'un
-  premier import complet doit encore être qualifiée. Ne pas provoquer
-  volontairement un arrêt brutal sur des données importantes.
+- **#165** : le premier import possède un journal write-ahead et une reprise
+  contrôlée avant l'import suivant. Les interruptions sont simulées en tests ;
+  **l'arrêt forcé réel sous Windows reste à qualifier**. Voir
+  [récupération du premier import](docx-1.9-initial-import-recovery.md).
+  Ne pas provoquer volontairement un arrêt brutal sur des données importantes.
 - **#164** : ne pas considérer un réimport comme entièrement validé sans tester
   séparément conflit Word/Nodalis, suppression Word, renommage et historique.
 - **#168** : l'import de plusieurs projets depuis le même Word reste une issue

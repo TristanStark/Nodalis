@@ -20,7 +20,9 @@ Statut : **prépublication, develop**. Aucune clôture automatique des issues P0
 - [ ] 100+ pages sur un vrai DOCX Office : performances / DPI 100, 125 et 150 %, thèmes et keyboard focus
 - [ ] Tableaux fusionnés, images intégrées et liens externes non téléchargés
 - [ ] Réimport à trois voies (Word seul, Nodalis seul, les deux, déplacement, renommage, suppression), aucune perte de notes
-- [ ] Récupération après arrêt brutal **du premier import**, y compris copy media / création Markdown / provenance (#165)
+- [x] Journal d'anticipation du premier import : sauvegarde binaire manifeste, checksums des créations, reprise ou rollback simulés (#165)
+- [x] Copie des images Word via fichier temporaire et renommage atomique, suppression sûre des sorties modifiées par un autre processus
+- [ ] **Arrêt forcé réel sur Windows** du premier import aux checkpoints projet / image / Markdown / provenance, avec validation des temporaires et du résultat (#165, #171)
 - [ ] Annulation, modification externe, permissions insuffisantes, paquet ZIP/XML corrompu
 - [ ] Retour utilisateur via `docs/docx-1.9-manual-qualification.md` ; aucun P0/P1 bloquant
 
