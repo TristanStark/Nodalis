@@ -101,6 +101,7 @@ try
     DocxPreviewComparatorSmokeTests.Run();
     DocxImportPlanFingerprintSmokeTests.Run();
     await DocxProvenanceSmokeTests.RunAsync(root);
+    await DocxFirstImportRecoverySmokeTests.RunAsync(root);
     await DocxLargeDocumentReleaseSmokeTests.RunAsync(root);
     DocxReimportDiffSmokeTests.Run();
     DocxReimportSectionMatcherSmokeTests.Run();
