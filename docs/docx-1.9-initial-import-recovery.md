@@ -23,7 +23,8 @@ fichiers réellement enregistrés.
 
 ## Au démarrage de l'assistant Word
 
-1. Sélectionner **Importer un document Word**.
+1. Utiliser la palette de commandes **Récupérer un import DOCX interrompu**
+   sans choisir de nouvelle source ; ou sélectionner **Importer un document Word**.
 2. Si un import antérieur est interrompu, Nodalis avertit **avant** l'analyse
    de la nouvelle source. Fermer et sauvegarder les onglets des projets
    concernés avant toute tentative de récupération.
