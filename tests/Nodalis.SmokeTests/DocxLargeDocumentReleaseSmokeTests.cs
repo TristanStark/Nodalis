@@ -20,7 +20,7 @@ internal static class DocxLargeDocumentReleaseSmokeTests
         StringBuilder body = new StringBuilder();
         for (int section = 0; section < 105; section++)
         {
-            string title = section % 3 switch
+            string title = (section % 3) switch
             {
                 0 => "Développement",
                 1 => "Tests",
@@ -76,7 +76,7 @@ internal static class DocxLargeDocumentReleaseSmokeTests
             {
                 SectionIndex = section.Index,
                 Include = section.Index == 0 || section.Index % 11 != 0,
-                TargetSection = section.Index % 3 switch
+                TargetSection = (section.Index % 3) switch
                 {
                     0 => "Technique",
                     1 => "Tests",
