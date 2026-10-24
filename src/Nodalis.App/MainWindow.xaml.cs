@@ -2642,6 +2642,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void RenderPreview()
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Rendu Markdown");
         if (_previewVisible &&
             _activeDocumentTab is not null)
         {
@@ -3739,6 +3741,8 @@ public partial class MainWindow : Window
     /// <returns>The result of the operation.</returns>
     private async Task RefreshLinkIndexAsync()
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Index liens");
         _linkIndex = await _linkIndexService.RefreshAsync();
         RefreshDashboard();
     }
@@ -5085,6 +5089,8 @@ public partial class MainWindow : Window
     private async Task RefreshGlossaryContextAsync(
             string? contextPath)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Lecture glossaire");
         _glossaryScopes = await _glossaryService.ResolveScopesAsync(
             _root.FullPath,
             contextPath);
@@ -5748,6 +5754,8 @@ public partial class MainWindow : Window
     /// <returns>The result of the operation.</returns>
     private async Task RefreshDashboardTasksAsync(LinkIndexCatalog? indexSnapshot = null)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Dashboard tâches");
         try
         {
             global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> tasks = await _taskService.GetTasksAsync(
@@ -5785,6 +5793,8 @@ public partial class MainWindow : Window
     /// <returns>The result of the operation.</returns>
     private async Task RefreshDashboardMilestonesAsync(LinkIndexCatalog? indexSnapshot = null)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Dashboard jalons");
         try
         {
             global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> milestones = await _milestoneService.GetUpcomingAsync(
