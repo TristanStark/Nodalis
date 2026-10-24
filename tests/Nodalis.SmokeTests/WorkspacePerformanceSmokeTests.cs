@@ -56,6 +56,40 @@ internal static class WorkspacePerformanceSmokeTests
                 cold.Metrics.ParsedDocuments >= generatedDocuments,
                 "A cold index refresh must inspect and parse the synthetic Markdown corpus.");
 
+            // Multiple service instances must serialize their atomic derived JSON writes.
+            WorkspaceLinkIndexService secondService =
+                new WorkspaceLinkIndexService(performanceRoot);
+            Task<LinkIndexRefreshResult>[] concurrentRefreshes =
+            [
+                service.RefreshWithMetricsAsync(),
+                secondService.RefreshWithMetricsAsync(),
+                service.RefreshWithMetricsAsync(),
+                secondService.RefreshWithMetricsAsync()
+            ];
+            LinkIndexRefreshResult[] sharedResults = await Task.WhenAll(concurrentRefreshes);
+            Assert(
+                sharedResults.All(result =>
+                    result.Metrics.HashedDocuments == 0 &&
+                    result.Metrics.ParsedDocuments == 0 &&
+                    !result.Metrics.IndexFileWritten),
+                "Parallel warm refreshes must not rewrite the same workspace index.");
+
+            using CancellationTokenSource canceled = new CancellationTokenSource();
+            canceled.Cancel();
+            bool cancellationObserved = false;
+            try
+            {
+                await secondService.RefreshWithMetricsAsync(canceled.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                cancellationObserved = true;
+            }
+
+            Assert(
+                cancellationObserved,
+                "Canceled refresh callers must stop without writing the index.");
+
             LinkIndexRefreshResult warm =
                 await service.RefreshWithMetricsAsync();
 

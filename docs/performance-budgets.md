@@ -26,3 +26,17 @@ pas d'écriture artificielle. Le compteur IndexFileWritten et les tests
 cold/warm/single-change garantissent cette propriété sans test de durée CI.
 La mutualisation interservices et la synchronisation des refresh concurrents
 restent à effectuer dans #183.
+
+
+## Isolation du Dispatcher et sérialisation des écritures (#183 / #184, étape 1)
+
+Les opérations d'indexation de liens sont maintenant calculées hors du thread
+WPF, sur le pool de threads .NET. Un sémaphore partagé par chemin racine
+canonique synchronise les écritures même lorsque l'interface, les tâches et
+les jalons créent chacun une instance du service. Les appels annulés cessent
+d'attendre et ne démarrent pas une nouvelle reconstruction.
+
+**Limite actuelle** : la sérialisation ne mutualise pas encore les reconstructions
+successives déclenchées par plusieurs services ; elle évite les courses disque
+et les continuations CPU sur le Dispatcher. Les invalidations ciblées,
+la fusion par version et les budgets de latence sont encore à traiter.

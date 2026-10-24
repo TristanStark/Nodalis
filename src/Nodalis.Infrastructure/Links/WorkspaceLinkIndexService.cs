@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Nodalis.Core.Links;
@@ -11,6 +12,11 @@ namespace Nodalis.Infrastructure.Links;
 
 public sealed class WorkspaceLinkIndexService
 {
+    // The same workspace can be indexed by the UI, tasks and milestone services.
+    // Serialize its writers even when each service owns its own instance.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> RefreshGates =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private readonly string _workspaceRoot;
     private readonly string _indexPath;
     private readonly WorkspaceNavigationBuilder _navigationBuilder = new();
@@ -86,6 +92,31 @@ public sealed class WorkspaceLinkIndexService
     /// <returns>The refreshed catalog and deterministic work counters.</returns>
     public async Task<LinkIndexRefreshResult> RefreshWithMetricsAsync(
             CancellationToken cancellationToken = default)
+    {
+        // Never execute navigation/parsing continuations on the WPF Dispatcher.
+        // This gate also prevents concurrent writes from distinct service instances.
+        SemaphoreSlim refreshGate = RefreshGates.GetOrAdd(
+            _workspaceRoot,
+            static _ => new SemaphoreSlim(1, 1));
+        await refreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await Task.Run(
+                () => RefreshCoreAsync(cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            refreshGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Performs the CPU-heavy index rebuild on a worker thread while holding the
+    /// workspace writer gate. Only pure data/filesystem work is performed here.
+    /// </summary>
+    private async Task<LinkIndexRefreshResult> RefreshCoreAsync(
+            CancellationToken cancellationToken)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         global::Nodalis.Core.Links.LinkIndexCatalog previous = await LoadExistingUnsafeAsync(
