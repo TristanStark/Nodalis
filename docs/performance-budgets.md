@@ -71,3 +71,14 @@ Le rapprochement respecte le plus proche ancêtre et la frontière des segments.
 
 Le panneau backlinks utilise un dictionnaire GUID local afin de ne pas
 rescanner toutes les cibles pour chaque référence entrante.
+
+
+## Chargement différé du dashboard après autosave (#185)
+
+Lorsqu'un onglet document est actif, le dashboard global est masqué.
+Un autosave continue d'actualiser l'index, les backlinks et le contexte
+glossaire utiles à l'éditeur, mais **ne relance plus l'extraction des tâches
+et jalons du dashboard masqué**. ShowDashboard() réactualise les deux listes
+lors de son affichage ; le mode d'affichage visible continue à les rafraîchir.
+Cette règle évite des parcours métier inutiles pendant la saisie continue et
+ne modifie pas les fichiers sources.

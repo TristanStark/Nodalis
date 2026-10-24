@@ -1061,8 +1061,14 @@ public partial class MainWindow
             await RefreshGlossaryContextAsync(
                 tab.FullPath);
             UpdateGlossaryAnnotations();
-            await RefreshDashboardTasksAsync(_linkIndex);
-            await RefreshDashboardMilestonesAsync(_linkIndex);
+
+            // A document hides the global dashboard: do not rebuild its
+            // task/milestone lists until ShowDashboard makes them visible.
+            if (DashboardHost.Visibility == Visibility.Visible)
+            {
+                await RefreshDashboardTasksAsync(_linkIndex);
+                await RefreshDashboardMilestonesAsync(_linkIndex);
+            }
         }
         catch (Exception exception) when (
             exception is IOException or
