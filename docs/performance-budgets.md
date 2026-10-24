@@ -59,3 +59,15 @@ Les tests vérifient que les deux services n'effectuent pas de nouveau parcours
 quand ils reçoivent un snapshot explicite. La coalescence automatique de
 reconstructions initiées depuis d'autres flux et les mesures p95/p99 restent
 à qualifier avant fermeture des issues.
+
+
+## Scope des tâches et backlinks (#182 / #184)
+
+Le service Tâches construit une table des chemins des projets/applications en
+une passe et retrouve le contexte d'un document en parcourant uniquement
+ses segments parents. Le précédent filtrage des projets et applications pour
+chaque document (quadratique lorsque beaucoup de projets existent) disparaît.
+Le rapprochement respecte le plus proche ancêtre et la frontière des segments.
+
+Le panneau backlinks utilise un dictionnaire GUID local afin de ne pas
+rescanner toutes les cibles pour chaque référence entrante.

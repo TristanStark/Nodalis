@@ -3765,13 +3765,15 @@ public partial class MainWindow : Window
         RefreshRelationsContext(
             target);
 
+        Dictionary<Guid, LinkTargetEntry> sourcesById = _linkIndex.Targets
+            .ToDictionary(candidate => candidate.Id);
         global::Nodalis.Core.Links.BacklinkEntry[] backlinks = _linkIndex.References
             .Where(reference =>
                 reference.TargetId == target.Id)
             .Select(reference =>
             {
-                global::Nodalis.Core.Links.LinkTargetEntry? source = _linkIndex.Targets.FirstOrDefault(candidate =>
-                    candidate.Id == reference.SourceId);
+                LinkTargetEntry? source = sourcesById.GetValueOrDefault(
+                    reference.SourceId);
 
                 return source is null
                     ? null

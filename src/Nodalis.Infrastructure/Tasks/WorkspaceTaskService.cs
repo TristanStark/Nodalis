@@ -75,6 +75,8 @@ public sealed partial class WorkspaceTaskService
             CancellationToken cancellationToken)
     {
         global::System.Collections.Generic.List<global::Nodalis.Core.Tasks.TaskItem> tasks = new List<TaskItem>();
+        WorkspaceTaskContextLookup contextLookup =
+            new WorkspaceTaskContextLookup(links.Targets);
         Dictionary<Guid, CachedTaskDocument> nextCache = [];
         int reused = 0;
         int parsed = 0;
@@ -92,25 +94,10 @@ public sealed partial class WorkspaceTaskService
                 continue;
             }
 
-            global::Nodalis.Core.Links.LinkTargetEntry? project = links.Targets
-                .Where(target =>
-                    target.Kind == LinkTargetKind.Project &&
-                    IsRelativeAncestor(
-                        target.RelativePath,
-                        document.RelativePath))
-                .OrderByDescending(target =>
-                    target.RelativePath.Length)
-                .FirstOrDefault();
-
-            global::Nodalis.Core.Links.LinkTargetEntry? application = links.Targets
-                .Where(target =>
-                    target.Kind == LinkTargetKind.Application &&
-                    IsRelativeAncestor(
-                        target.RelativePath,
-                        document.RelativePath))
-                .OrderByDescending(target =>
-                    target.RelativePath.Length)
-                .FirstOrDefault();
+            LinkTargetEntry? project = contextLookup.FindProject(
+                document.RelativePath);
+            LinkTargetEntry? application = contextLookup.FindApplication(
+                document.RelativePath);
 
             // The link index already tracks canonical content hashes. Reuse only
             // if the source AND its project/application context are unchanged.
