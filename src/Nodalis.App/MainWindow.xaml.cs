@@ -3772,8 +3772,13 @@ public partial class MainWindow : Window
         RefreshRelationsContext(
             target);
 
-        Dictionary<Guid, LinkTargetEntry> sourcesById = _linkIndex.Targets
-            .ToDictionary(candidate => candidate.Id);
+        Dictionary<Guid, LinkTargetEntry> sourcesById = [];
+        foreach (LinkTargetEntry candidate in _linkIndex.Targets)
+        {
+            // A copied/corrupt manifest must not crash the UI because two targets
+            // expose the same GUID; preserve the previous first-match behavior.
+            sourcesById.TryAdd(candidate.Id, candidate);
+        }
         global::Nodalis.Core.Links.BacklinkEntry[] backlinks = _linkIndex.References
             .Where(reference =>
                 reference.TargetId == target.Id)
