@@ -70,6 +70,9 @@ internal static class WorkspacePerformanceSmokeTests
             ];
             LinkIndexRefreshResult[] sharedResults = await Task.WhenAll(concurrentRefreshes);
             Assert(
+                sharedResults.Count(result => result.Metrics.JoinedExistingRefresh) >= 1,
+                "At least one simultaneous index request should reuse an in-flight refresh.");
+            Assert(
                 sharedResults.All(result =>
                     result.Metrics.HashedDocuments == 0 &&
                     result.Metrics.ParsedDocuments == 0 &&
@@ -114,6 +117,28 @@ internal static class WorkspacePerformanceSmokeTests
                 snapshotMilestones.Count == 0,
                 "Shared services must use the supplied index snapshot instead of rescanning.");
             File.Delete(lateDocument);
+
+            // A canceled follower must not interrupt a valid leading refresh.
+            WorkspaceLinkIndexService.NotifyWorkspaceChanged(performanceRoot);
+            Task<LinkIndexRefreshResult> leader = service.RefreshWithMetricsAsync();
+            using CancellationTokenSource canceledFollower = new CancellationTokenSource();
+            Task<LinkIndexRefreshResult> follower =
+                secondService.RefreshWithMetricsAsync(canceledFollower.Token);
+            canceledFollower.Cancel();
+            bool followerCanceled = false;
+            try
+            {
+                await follower;
+            }
+            catch (OperationCanceledException)
+            {
+                followerCanceled = true;
+            }
+
+            Assert(followerCanceled, "A follower may cancel its own wait.");
+            LinkIndexRefreshResult leaderResult = await leader;
+            Assert(leaderResult.Catalog.Targets.Count > 0,
+                "Canceling a follower must not cancel the shared leader operation.");
 
             LinkIndexRefreshResult warm =
                 await service.RefreshWithMetricsAsync();

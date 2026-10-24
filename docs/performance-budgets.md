@@ -98,3 +98,21 @@ Mesures en mémoire de session uniquement. Ce heartbeat mesure les blocages
 observables du Dispatcher, pas encore leurs stacks ni l'opération causale.
 Il reste à corréler les traitements longs et à mesurer les scénarios Windows
 avant de fermer #181.
+
+
+## Single-flight par workspace (#183)
+
+Les appels simultanés de même génération vers WorkspaceLinkIndexService
+partagent désormais **une tâche de reconstruction active**. Un appelant peut
+annuler son attente sans annuler les autres ; une invalidation explicite
+(`NotifyWorkspaceChanged`, utilisée notamment par `RefreshDocumentAsync`)
+incrémente la génération et déclenche une nouvelle reconstruction après celle
+en cours. Les écritures demeurent sérialisées et les anciennes générations
+ne peuvent pas écraser une écriture plus récente. Les tâches terminées ne
+sont pas mises en cache, afin qu'un changement externe reste observable au
+prochain rafraîchissement. `JoinedExistingRefresh` indique les demandes
+fusionnées ; la suite smoke teste les appels concurrents et l'annulation.
+
+**Limite** : toutes les mutations structurelles qui n'appellent pas encore
+`NotifyWorkspaceChanged` devront être raccordées à une invalidation explicite
+pour interdire toute fusion avec un refresh déjà en cours lors de la mutation.

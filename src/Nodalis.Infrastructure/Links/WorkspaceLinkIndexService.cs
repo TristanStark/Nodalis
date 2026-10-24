@@ -12,10 +12,40 @@ namespace Nodalis.Infrastructure.Links;
 
 public sealed class WorkspaceLinkIndexService
 {
-    // The same workspace can be indexed by the UI, tasks and milestone services.
-    // Serialize its writers even when each service owns its own instance.
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> RefreshGates =
+    // Service instances in UI, tasks and milestones share one bounded in-flight
+    // operation per canonical workspace. Completed tasks never act as a cache.
+    private static readonly ConcurrentDictionary<string, RefreshWorkspaceState> RefreshStates =
         new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Tracks a running refresh and the version of the last explicit invalidation.
+    /// Lock is held only for the state transitions, never for I/O or awaits.
+    /// </summary>
+    private sealed class RefreshWorkspaceState
+    {
+        internal readonly object Gate = new();
+        internal readonly SemaphoreSlim Writer = new(1, 1);
+        internal long Revision;
+        internal long FlightRevision = -1;
+        internal Task<LinkIndexRefreshResult>? Flight;
+    }
+
+    /// <summary>
+    /// Marks workspace data as changed, so new refresh requests never join an
+    /// already running flight created before this change.
+    /// </summary>
+    /// <param name="workspaceRoot">Workspace directory to invalidate.</param>
+    public static void NotifyWorkspaceChanged(string workspaceRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+        string canonicalRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(workspaceRoot));
+        RefreshWorkspaceState state = RefreshStates.GetOrAdd(
+            canonicalRoot, static _ => new RefreshWorkspaceState());
+        lock (state.Gate)
+        {
+            state.Revision++;
+        }
+    }
 
     private readonly string _workspaceRoot;
     private readonly string _indexPath;
@@ -29,7 +59,8 @@ public sealed class WorkspaceLinkIndexService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
-        _workspaceRoot = Path.GetFullPath(workspaceRoot);
+        _workspaceRoot = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(workspaceRoot));
         _indexPath = Path.Combine(
             _workspaceRoot,
             WorkspaceLayout.LinkIndexFileName);
@@ -93,22 +124,78 @@ public sealed class WorkspaceLinkIndexService
     public async Task<LinkIndexRefreshResult> RefreshWithMetricsAsync(
             CancellationToken cancellationToken = default)
     {
-        // Never execute navigation/parsing continuations on the WPF Dispatcher.
-        // This gate also prevents concurrent writes from distinct service instances.
-        SemaphoreSlim refreshGate = RefreshGates.GetOrAdd(
-            _workspaceRoot,
-            static _ => new SemaphoreSlim(1, 1));
-        await refreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        cancellationToken.ThrowIfCancellationRequested();
+        RefreshWorkspaceState state = RefreshStates.GetOrAdd(
+            _workspaceRoot, static _ => new RefreshWorkspaceState());
+        Task<LinkIndexRefreshResult> flight;
+        bool joined;
+        lock (state.Gate)
         {
-            return await Task.Run(
-                () => RefreshCoreAsync(cancellationToken),
-                cancellationToken).ConfigureAwait(false);
+            long revision = state.Revision;
+            joined = state.Flight is { IsCompleted: false } &&
+                state.FlightRevision == revision;
+            if (joined)
+            {
+                flight = state.Flight!;
+            }
+            else
+            {
+                // A newly invalidated generation must wait until the previous
+                // writer has finished, even when the old flight is still running.
+                Task<LinkIndexRefreshResult>? previous = state.Flight;
+                flight = Task.Run(async () =>
+                {
+                    if (previous is { IsCompleted: false })
+                    {
+                        try
+                        {
+                            await previous.ConfigureAwait(false);
+                        }
+                        catch (Exception)
+                        {
+                            // A failed previous generation must not prevent recovery.
+                        }
+                    }
+
+                    await state.Writer.WaitAsync().ConfigureAwait(false);
+                    try
+                    {
+                        return await RefreshCoreAsync(CancellationToken.None)
+                            .ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        state.Writer.Release();
+                    }
+                });
+                state.Flight = flight;
+                state.FlightRevision = revision;
+                _ = flight.ContinueWith(
+                    completed =>
+                    {
+                        lock (state.Gate)
+                        {
+                            if (ReferenceEquals(state.Flight, completed))
+                            {
+                                state.Flight = null;
+                            }
+                        }
+                    },
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
         }
-        finally
-        {
-            refreshGate.Release();
-        }
+
+        // Cancel only this subscriber's wait, not the shared index rebuild.
+        LinkIndexRefreshResult result = await flight.WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return joined
+            ? result with
+            {
+                Metrics = result.Metrics with { JoinedExistingRefresh = true }
+            }
+            : result;
     }
 
     /// <summary>
@@ -253,8 +340,8 @@ public sealed class WorkspaceLinkIndexService
                 "L'invalidation ciblée doit viser un document Markdown du workspace.");
         }
 
-        return RefreshWithMetricsAsync(
-            cancellationToken);
+        NotifyWorkspaceChanged(_workspaceRoot);
+        return RefreshWithMetricsAsync(cancellationToken);
     }
 
     /// <summary>
