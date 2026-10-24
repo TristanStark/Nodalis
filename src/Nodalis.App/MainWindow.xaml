@@ -391,6 +391,8 @@
                     <MenuItem Header="Système">
                         <MenuItem Header="Changer de workspace…"
                                   Click="ChangeWorkspace_Click" />
+                        <MenuItem Header="Préférences"
+                                  Click="OpenPreferences_Click" />
                         <Separator />
                         <MenuItem Header="Mise à jour"
                                   Click="OpenUpdate_Click" />
