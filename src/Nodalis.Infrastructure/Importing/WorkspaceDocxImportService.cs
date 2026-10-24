@@ -298,6 +298,8 @@ public sealed class WorkspaceDocxImportService
                     projectDirectory,
                     WorkspaceLayout.ProjectManifestFileName),
                 cancellationToken);
+            ValidateActiveImportProject(existingProject, existingProjectId,
+                request.ApplicationId);
 
             string[] requestedSections = selected
                 .Select(section => section.TargetSection)
@@ -689,6 +691,8 @@ public sealed class WorkspaceDocxImportService
                 project = await AtomicJsonFile.ReadAsync<ProjectManifest>(
                     manifestPath,
                     cancellationToken);
+                ValidateActiveImportProject(project, existingProjectId,
+                    request.ApplicationId);
 
                 projectId = project.Id;
             }
@@ -1778,6 +1782,32 @@ public sealed class WorkspaceDocxImportService
                         "La sélection fine des paragraphes ne correspond plus à la prévisualisation DOCX.");
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Prevents importing into a closed project or a folder whose manifest
+    /// no longer matches the selected project and application identities.
+    /// </summary>
+    /// <param name="project">Manifest freshly loaded from disk.</param>
+    /// <param name="requestedProjectId">Project ID selected in the Word assistant.</param>
+    /// <param name="requestedApplicationId">Owning application selected in the assistant.</param>
+    private static void ValidateActiveImportProject(ProjectManifest project,
+        Guid requestedProjectId, Guid requestedApplicationId)
+    {
+        if (project.Id != requestedProjectId ||
+            project.ApplicationId != requestedApplicationId)
+        {
+            throw new InvalidDataException(
+                "Le manifeste du projet cible ne correspond plus à la sélection Word. " +
+                "Recalculez la prévisualisation avant d'importer.");
+        }
+
+        if (project.ArchivedUtc.HasValue ||
+            project.ArchiveOriginalRelativePath is not null)
+        {
+            throw new InvalidOperationException(
+                "Ce projet est clos et archivé : réouvrez-le avant d'importer un DOCX.");
         }
     }
 
