@@ -403,23 +403,46 @@ public sealed class DocxFirstImportRecoveryService
         foreach (DocxFirstImportFile file in journal.Files.Reverse<DocxFirstImportFile>())
         {
             string destination = SafePath(file.RelativePath);
-            if (File.Exists(destination))
+            if (!File.Exists(destination))
             {
-                File.Delete(destination);
+                continue;
             }
+
+            // A separate editor may have modified this file after the initial
+            // preflight. Re-check ownership immediately before each deletion.
+            if (!string.Equals(
+                    await DocxImportManifestStore.ComputeFileSha256Async(
+                        destination, cancellationToken),
+                    file.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Fichier DOCX modifié pendant le rollback : " +
+                    file.RelativePath + ". Modifications conservées.");
+            }
+
+            File.Delete(destination);
         }
 
-        if (backupBytes is not null &&
-            File.Exists(projectManifest) &&
-            !string.Equals(
-                await DocxImportManifestStore.ComputeFileSha256Async(
-                    projectManifest, cancellationToken),
-                journal.OriginalProjectManifestSha256,
-                StringComparison.OrdinalIgnoreCase))
+        if (backupBytes is not null && File.Exists(projectManifest))
         {
-            await AtomicFileWriter.WriteAsync(projectManifest,
-                async (stream, token) =>
-                    await stream.WriteAsync(backupBytes, token), cancellationToken);
+            string manifestHash = await DocxImportManifestStore.ComputeFileSha256Async(
+                projectManifest, cancellationToken);
+            if (!string.Equals(manifestHash,
+                    journal.OriginalProjectManifestSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.Equals(manifestHash,
+                        journal.UpdatedProjectManifestSha256,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Le manifeste projet a changé pendant la récupération : restauration refusée.");
+                }
+
+                await AtomicFileWriter.WriteAsync(projectManifest,
+                    async (stream, token) =>
+                        await stream.WriteAsync(backupBytes, token), cancellationToken);
+            }
         }
 
         await SaveAsync(directory, journal with { State = "RolledBack" },
@@ -500,6 +523,17 @@ public sealed class DocxFirstImportRecoveryService
     /// <summary>Checks journal identity, state, every output hash and safe path.</summary>
     private void ValidateJournal(string directory, DocxFirstImportJournal journal)
     {
+        EnsureNoLinks(directory);
+        EnsureNoLinks(Path.Combine(directory, JournalName));
+        if (!string.Equals(
+                Path.GetDirectoryName(Path.GetFullPath(directory)),
+                Path.GetFullPath(JournalsDirectory),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Journal DOCX hors du répertoire de transactions initiales.");
+        }
+
         if (!Guid.TryParseExact(Path.GetFileName(directory), "N",
                 out Guid id) || journal.ImportId != id ||
             journal.State is not ("Prepared" or "Completed" or "RolledBack") ||
