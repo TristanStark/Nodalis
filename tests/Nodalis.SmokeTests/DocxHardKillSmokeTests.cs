@@ -187,9 +187,10 @@ internal static class DocxHardKillSmokeTests
 
         Assert(manifestPath is not null && beforeManifest is not null &&
                notesPath is not null && originalNotes is not null &&
-               (await File.ReadAllBytesAsync(manifestPath)).SequenceEqual(beforeManifest) &&
+               (checkpoint == "provenance" ||
+                (await File.ReadAllBytesAsync(manifestPath)).SequenceEqual(beforeManifest)) &&
                await File.ReadAllTextAsync(notesPath) == originalNotes,
-            "Crash recovery must not corrupt an existing project's manifest or notes.");
+            "An incomplete import restores the manifest, a complete one keeps it; existing notes survive both.");
 
         if (checkpoint == "provenance")
         {
