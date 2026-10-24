@@ -18,6 +18,7 @@ public sealed class WorkspaceDocxImportService
     private readonly DocxParser _parser = new();
     private readonly Action<string>? _afterProjectManifestCheckpoint;
     private readonly Action<int, string>? _afterMarkdownCreatedCheckpoint;
+    private readonly Action<string, string>? _afterDurableCheckpoint;
 
     /// <summary>Gets the workspace root for local-only user profile storage.</summary>
     public string WorkspaceRoot => _workspaceRoot;
@@ -28,14 +29,17 @@ public sealed class WorkspaceDocxImportService
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
     /// <param name="afterProjectManifestCheckpoint">Optional fault-injection hook for manifest rollback regression tests.</param>
     /// <param name="afterMarkdownCreatedCheckpoint">Optional fault-injection hook after an import creates a Markdown file.</param>
+    /// <param name="afterDurableCheckpoint">Optional crash-test hook at completed project, media, DOCX source or provenance checkpoints.</param>
     public WorkspaceDocxImportService(string workspaceRoot,
         Action<string>? afterProjectManifestCheckpoint = null,
-        Action<int, string>? afterMarkdownCreatedCheckpoint = null)
+        Action<int, string>? afterMarkdownCreatedCheckpoint = null,
+        Action<string, string>? afterDurableCheckpoint = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
         _afterProjectManifestCheckpoint = afterProjectManifestCheckpoint;
         _afterMarkdownCreatedCheckpoint = afterMarkdownCreatedCheckpoint;
+        _afterDurableCheckpoint = afterDurableCheckpoint;
     }
 
     /// <summary>
@@ -719,6 +723,7 @@ public sealed class WorkspaceDocxImportService
                 projectId = created.Project.Id;
                 project = created.Project;
                 createdProject = true;
+                _afterDurableCheckpoint?.Invoke("project", projectDirectory);
                 // A new project already contains template files. Record their
                 // exact original bytes so exception cleanup will never delete
                 // a newly edited template or an unexpected user file.
@@ -789,6 +794,7 @@ public sealed class WorkspaceDocxImportService
                 preview.StagedImport.StagedCopyPath,
                 projectDirectory, selectedMedia, generatedFiles, createdDirectories,
                 cancellationToken);
+            _afterDurableCheckpoint?.Invoke("media", projectDirectory);
 
             foreach (global::System.Linq.IGrouping<string, global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection> group in selected
                          .GroupBy(
@@ -882,6 +888,7 @@ public sealed class WorkspaceDocxImportService
                 cancellationToken,
                 plannedDestinationPath: plannedSourceCopyPath);
             committedSourceCopyPath = sourceCopyPath;
+            _afterDurableCheckpoint?.Invoke("source", sourceCopyPath);
 
             DocxImportManifest provenance = new DocxImportManifest
             {
@@ -913,6 +920,7 @@ public sealed class WorkspaceDocxImportService
                 recoverySession, provenance, cancellationToken);
             provenancePath = await provenanceStore.SaveNewAsync(
                 projectDirectory, provenance, cancellationToken);
+            _afterDurableCheckpoint?.Invoke("provenance", provenancePath);
             await recovery.CompleteAsync(recoverySession, cancellationToken);
 
             return new DocxImportCommitResult
