@@ -13,6 +13,7 @@ using Microsoft.Win32;
 using Nodalis.App.Commands;
 using Nodalis.App.Dashboard;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Diagnostics;
 using Nodalis.App.Editor;
 using Nodalis.App.Glossary;
 using Nodalis.App.Markdown;
@@ -73,6 +74,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceTrashService _trashService;
     private readonly WorkspaceBackupService _backupService;
     private readonly LocalDiagnosticsService _diagnosticsService;
+    private readonly DispatcherHeartbeatMonitor _heartbeatMonitor;
     private readonly DispatcherTimer _previewTimer;
     private readonly DispatcherTimer _backupTimer;
     private readonly bool _workspaceReadOnly;
@@ -146,6 +148,7 @@ public partial class MainWindow : Window
         _preferencesStore = preferencesStore;
         _templateStore = templateStore;
         _diagnosticsService = diagnosticsService;
+        _heartbeatMonitor = new DispatcherHeartbeatMonitor(Dispatcher);
         _workspaceReadOnly = workspaceReadOnly;
         _workspaceAccessMessage = workspaceAccessMessage;
         _linkIndexService = new WorkspaceLinkIndexService(
@@ -229,10 +232,13 @@ public partial class MainWindow : Window
         ApplyContextPanelState();
         ApplyPreviewState();
 
+        Closed += (_, _) => _heartbeatMonitor.SetEnabled(false);
+
         Loaded += async (_, _) =>
         {
             try
             {
+                _heartbeatMonitor.SetEnabled(true);
                 if (_workspaceReadOnly)
                 {
                     StatusText.Text =
@@ -664,7 +670,8 @@ public partial class MainWindow : Window
                 global::Nodalis.App.Dialogs.DiagnosticsDialog dialog =
                     new DiagnosticsDialog(
                         _diagnosticsService,
-                        _root.FullPath)
+                        _root.FullPath,
+                        _heartbeatMonitor)
                     {
                         Owner = this
                     };

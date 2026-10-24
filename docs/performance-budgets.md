@@ -82,3 +82,19 @@ et jalons du dashboard masqué**. ShowDashboard() réactualise les deux listes
 lors de son affichage ; le mode d'affichage visible continue à les rafraîchir.
 Cette règle évite des parcours métier inutiles pendant la saisie continue et
 ne modifie pas les fichiers sources.
+
+
+## Heartbeat Dispatcher — diagnostic local (#181, étape 1)
+
+Le module de diagnostic de l'application dispose d'un heartbeat WPF à priorité
+Background et à intervalle de 500 ms, actif à l'ouverture de la fenêtre et
+désactivable depuis **Diagnostics locaux**. Il calcule pour les retards de
+planification p50, p95, p99 et maximum, avec un historique circulaire borné à
+2 048 mesures et les 32 derniers événements dépassant 200 ms. Le bouton
+« Actualiser les mesures » ajoute les valeurs au rapport technique copiable.
+
+Aucun texte de document, chemin, terme recherché ou réseau n'est enregistré.
+Mesures en mémoire de session uniquement. Ce heartbeat mesure les blocages
+observables du Dispatcher, pas encore leurs stacks ni l'opération causale.
+Il reste à corréler les traitements longs et à mesurer les scénarios Windows
+avant de fermer #181.

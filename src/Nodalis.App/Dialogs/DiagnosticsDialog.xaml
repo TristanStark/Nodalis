@@ -31,6 +31,11 @@
                        Foreground="{StaticResource SecondaryTextBrush}"
                        Text="Le rapport reste local. Nodalis ne l'envoie à aucun service."
                        TextWrapping="Wrap" />
+            <CheckBox x:Name="HeartbeatEnabledCheckBox"
+                      Margin="0,8,0,0"
+                      Content="Mesurer les retards de l'interface (session)"
+                      Checked="HeartbeatEnabled_Changed"
+                      Unchecked="HeartbeatEnabled_Changed" />
         </StackPanel>
 
         <TextBox x:Name="ReportTextBox"
@@ -50,6 +55,9 @@
             <Button Margin="0,0,8,0"
                     Click="OpenFolder_Click"
                     Content="Ouvrir le dossier" />
+            <Button Margin="0,0,8,0"
+                    Click="RefreshReport_Click"
+                    Content="Actualiser les mesures" />
             <Button Margin="0,0,8,0"
                     Click="CopyReport_Click"
                     Content="Copier le rapport" />
