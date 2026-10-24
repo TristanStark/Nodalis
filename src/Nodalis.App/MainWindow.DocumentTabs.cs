@@ -1039,7 +1039,27 @@ public partial class MainWindow
         {
             if (!tab.IsDirty)
             {
+                WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
                 await RefreshLinkIndexAsync();
+
+                // A background tab may have changed links targeting the
+                // foreground document. Update backlinks without a preview render.
+                if (_activeDocumentTab is DocumentTabViewModel foreground)
+                {
+                    UpdateLinkContext(foreground.FullPath);
+
+                    bool activeGlossaryChanged = _glossaryScopes.Any(scope =>
+                        string.Equals(scope.FilePath, tab.FullPath,
+                            StringComparison.OrdinalIgnoreCase));
+                    if (activeGlossaryChanged)
+                    {
+                        await RefreshGlossaryContextAsync(foreground.FullPath);
+                        if (ReferenceEquals(foreground, _activeDocumentTab))
+                        {
+                            UpdateGlossaryAnnotations();
+                        }
+                    }
+                }
             }
 
             return;
