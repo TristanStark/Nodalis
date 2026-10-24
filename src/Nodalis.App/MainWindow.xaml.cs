@@ -103,6 +103,7 @@ public partial class MainWindow : Window
     private IReadOnlyList<GlossaryScope> _glossaryScopes = [];
     private IReadOnlyList<GlossaryEntry> _glossaryEntries = [];
     private IReadOnlyList<GlossaryTextMatch> _glossaryMatches = [];
+    private long _glossaryAnnotationRevision;
     private readonly ToolTip _glossaryToolTip = new ToolTip
     {
         StaysOpen = true,
@@ -2572,6 +2573,8 @@ public partial class MainWindow : Window
                 }
 
                 _documentDirty = true;
+                // Any pending background glossary match now belongs to an old text.
+                _glossaryAnnotationRevision++;
 
                 if (_activeDocumentTab is not null)
                 {
@@ -2605,7 +2608,7 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    private void PreviewTimer_Tick(
+    private async void PreviewTimer_Tick(
             object? sender,
             EventArgs e)
     {
@@ -2614,14 +2617,13 @@ public partial class MainWindow : Window
         try
         {
             RenderPreview();
-            UpdateGlossaryAnnotations();
+            await UpdateGlossaryAnnotationsAsync();
         }
         catch (Exception exception) when (
             RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 exception))
         {
-            InternalLinkPopup.IsOpen =
-                false;
+            InternalLinkPopup.IsOpen = false;
             ReportRecoverableUiError(
                 "Aperçu Markdown / Mermaid",
                 exception,
@@ -3739,15 +3741,18 @@ public partial class MainWindow : Window
     /// Performs the <c>RefreshLinkIndexAndContextAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    private async Task RefreshLinkIndexAndContextAsync()
+    private async Task RefreshLinkIndexAndContextAsync(
+            bool renderPreview = true)
     {
         await RefreshLinkIndexAsync();
 
         if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
         {
-            UpdateLinkContext(
-                _selectedNode.FullPath);
-            RenderPreview();
+            UpdateLinkContext(_selectedNode.FullPath);
+            if (renderPreview)
+            {
+                RenderPreview();
+            }
         }
     }
 
@@ -5088,6 +5093,39 @@ public partial class MainWindow : Window
         }
 
         _glossaryEntries = entries;
+    }
+
+    /// <summary>
+    /// Matches glossary terms outside the Dispatcher and publishes only if
+    /// the tab, source revision and glossary catalog are still current.
+    /// </summary>
+    private async Task UpdateGlossaryAnnotationsAsync()
+    {
+        if (_documentSession is null || _glossaryAdorner is null ||
+            _activeDocumentTab is null)
+        {
+            _glossaryMatches = [];
+            _glossaryAdorner?.SetMatches([]);
+            return;
+        }
+
+        long revision = _glossaryAnnotationRevision;
+        DocumentTabViewModel tab = _activeDocumentTab;
+        string text = MarkdownEditorTextBox.Text;
+        IReadOnlyList<GlossaryEntry> entries = _glossaryEntries;
+        IReadOnlyList<GlossaryTextMatch> matches = await Task.Run(
+            () => GlossaryTextMatcher.Match(text, entries));
+
+        if (revision != _glossaryAnnotationRevision ||
+            !ReferenceEquals(tab, _activeDocumentTab) ||
+            !ReferenceEquals(entries, _glossaryEntries) ||
+            _glossaryAdorner is null)
+        {
+            return;
+        }
+
+        _glossaryMatches = matches;
+        _glossaryAdorner.SetMatches(matches);
     }
 
     /// <summary>

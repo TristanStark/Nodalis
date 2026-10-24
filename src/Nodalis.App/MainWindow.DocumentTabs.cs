@@ -1057,12 +1057,27 @@ public partial class MainWindow
 
         try
         {
-            await RefreshLinkIndexAndContextAsync();
-            await RefreshGlossaryContextAsync(
-                tab.FullPath);
-            UpdateGlossaryAnnotations();
+            // The preview timer already rendered this text revision. Indexing
+            // updates backlinks, but must not rebuild the same FlowDocument.
+            WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
+            await RefreshLinkIndexAndContextAsync(renderPreview: false);
 
-            // A document hides the global dashboard: do not rebuild its
+            // Glossary definitions are scoped files, not arbitrary note text.
+            // Only reload them when editing a source of the active glossary.
+            bool glossarySourceChanged = _glossaryScopes.Count == 0 ||
+                _glossaryScopes.Any(scope => string.Equals(
+                    scope.FilePath, tab.FullPath,
+                    StringComparison.OrdinalIgnoreCase));
+            if (glossarySourceChanged && ReferenceEquals(tab, _activeDocumentTab))
+            {
+                await RefreshGlossaryContextAsync(tab.FullPath);
+                if (ReferenceEquals(tab, _activeDocumentTab))
+                {
+                    UpdateGlossaryAnnotations();
+                }
+            }
+
+            // A document hides the global dashboard: do not rebuild the same
             // task/milestone lists until ShowDashboard makes them visible.
             if (DashboardHost.Visibility == Visibility.Visible)
             {

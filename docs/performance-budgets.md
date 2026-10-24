@@ -116,3 +116,19 @@ fusionnées ; la suite smoke teste les appels concurrents et l'annulation.
 **Limite** : toutes les mutations structurelles qui n'appellent pas encore
 `NotifyWorkspaceChanged` devront être raccordées à une invalidation explicite
 pour interdire toute fusion avec un refresh déjà en cours lors de la mutation.
+
+
+## Autosave et annotations de glossaire (#184 / #185)
+
+Le timer d'aperçu exécute désormais `GlossaryTextMatcher.Match` sur un worker
+avec **révision de saisie**, onglet source et catalogue de glossaire capturés :
+les correspondances obsolètes sont abandonnées au retour sur le Dispatcher.
+L'adorner WPF n'est jamais manipulé depuis ce worker.
+
+Un autosave de note ordinaire continue d'actualiser les métadonnées de liens,
+mais ne reconstruit plus le même `FlowDocument` déjà rendu par le timer.
+Les entrées de glossaire ne sont rechargées que si le fichier sauvegardé
+appartient aux scopes de glossaire actuellement actifs (ou au premier chargement).
+Les dashboards masqués demeurent différés. Cette optimisation conservatrice
+n'évite pas encore toutes les lectures d'index et ne change pas le comportement
+d'un fichier de glossaire nouvellement créé hors contexte actif.
