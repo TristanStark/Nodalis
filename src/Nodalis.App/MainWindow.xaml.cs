@@ -104,6 +104,7 @@ public partial class MainWindow : Window
     private IReadOnlyList<GlossaryEntry> _glossaryEntries = [];
     private IReadOnlyList<GlossaryTextMatch> _glossaryMatches = [];
     private long _glossaryAnnotationRevision;
+    private CancellationTokenSource? _glossaryMatchCancellation;
     private readonly ToolTip _glossaryToolTip = new ToolTip
     {
         StaysOpen = true,
@@ -233,7 +234,11 @@ public partial class MainWindow : Window
         ApplyContextPanelState();
         ApplyPreviewState();
 
-        Closed += (_, _) => _heartbeatMonitor.SetEnabled(false);
+        Closed += (_, _) =>
+        {
+            _heartbeatMonitor.SetEnabled(false);
+            _glossaryMatchCancellation?.Cancel();
+        };
 
         Loaded += async (_, _) =>
         {
@@ -2575,6 +2580,7 @@ public partial class MainWindow : Window
                 _documentDirty = true;
                 // Any pending background glossary match now belongs to an old text.
                 _glossaryAnnotationRevision++;
+                _glossaryMatchCancellation?.Cancel();
 
                 if (_activeDocumentTab is not null)
                 {
@@ -5113,8 +5119,27 @@ public partial class MainWindow : Window
         DocumentTabViewModel tab = _activeDocumentTab;
         string text = MarkdownEditorTextBox.Text;
         IReadOnlyList<GlossaryEntry> entries = _glossaryEntries;
-        IReadOnlyList<GlossaryTextMatch> matches = await Task.Run(
-            () => GlossaryTextMatcher.Match(text, entries));
+        _glossaryMatchCancellation?.Cancel();
+        using CancellationTokenSource cancellation = new();
+        _glossaryMatchCancellation = cancellation;
+        IReadOnlyList<GlossaryTextMatch> matches;
+        try
+        {
+            matches = await Task.Run(
+                () => GlossaryTextMatcher.Match(text, entries, cancellation.Token),
+                cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        finally
+        {
+            if (ReferenceEquals(_glossaryMatchCancellation, cancellation))
+            {
+                _glossaryMatchCancellation = null;
+            }
+        }
 
         if (revision != _glossaryAnnotationRevision ||
             !ReferenceEquals(tab, _activeDocumentTab) ||
@@ -5133,6 +5158,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void UpdateGlossaryAnnotations()
     {
+        _glossaryAnnotationRevision++;
+        _glossaryMatchCancellation?.Cancel();
         if (_documentSession is null ||
             _glossaryAdorner is null)
         {

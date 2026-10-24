@@ -157,6 +157,8 @@ public partial class MainWindow
                 _activeDocumentTab,
                 tab))
         {
+            _glossaryAnnotationRevision++;
+            _glossaryMatchCancellation?.Cancel();
             StoreActiveDocumentTabState();
         }
 

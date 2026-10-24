@@ -132,3 +132,13 @@ appartient aux scopes de glossaire actuellement actifs (ou au premier chargement
 Les dashboards masqués demeurent différés. Cette optimisation conservatrice
 n'évite pas encore toutes les lectures d'index et ne change pas le comportement
 d'un fichier de glossaire nouvellement créé hors contexte actif.
+
+
+## Annulation des annotations obsolètes (#184)
+
+La recherche de termes de glossaire hors Dispatcher accepte désormais un
+`CancellationToken`, vérifié à chaque token et occurrence. Chaque frappe,
+changement d'onglet ou annotation forcée invalide la recherche précédente.
+Une recherche annulée ne publie aucun résultat WPF ; le token est libéré à la
+fin de la tâche. Ceci évite l'accumulation de plusieurs scans inutiles pendant
+une saisie rapide, sans changer les règles de correspondance métier.
