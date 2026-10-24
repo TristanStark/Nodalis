@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Importing;
 using Nodalis.Infrastructure.Importing;
@@ -763,7 +764,11 @@ internal static class DocxProvenanceSmokeTests
         byte[] originalClosureManifest = await File.ReadAllBytesAsync(closureManifest);
         ProjectManifest activeProject = JsonSerializer.Deserialize<ProjectManifest>(
             originalClosureManifest,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ??
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters = { new JsonStringEnumConverter() }
+            }) ??
             throw new InvalidDataException("Cannot deserialize active project.");
         bool archivedRejected = false;
         bool wrongIdentityRejected = false;
