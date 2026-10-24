@@ -2726,6 +2726,41 @@ static async Task VerifyTasksAsync(string root)
             task.Text == "Action déjà terminée"),
         "Completed tasks must be available when explicitly requested.");
 
+    // Path ancestry must respect whole segments: similarly prefixed project
+    // names must not leak tasks or attach the wrong project GUID.
+    global::Nodalis.Core.Projects.ProjectCreationResult siblingProject =
+        await projectCreator.CreateAsync(
+            new ProjectCreationRequest
+            {
+                Name = "Projet Tâches bis",
+                Complexity = ProjectComplexity.Simple,
+                Target = new ProjectCreationTarget
+                {
+                    ApplicationId = application.Id,
+                    ApplicationName = application.Name,
+                    ParentDirectory = applicationPath,
+                    DisplayName = application.Name
+                }
+            });
+
+    await File.WriteAllTextAsync(
+        Path.Combine(siblingProject.ProjectDirectory, "Action voisine.md"),
+        "- [ ] Action voisine\n");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> siblingTasks =
+        await service.GetTasksAsync(siblingProject.ProjectDirectory);
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> originalProjectTasks =
+        await service.GetTasksAsync(project.ProjectDirectory);
+
+    Assert(
+        siblingTasks.Count == 1 &&
+        siblingTasks[0].ProjectId == siblingProject.Project.Id &&
+        siblingTasks[0].Text == "Action voisine" &&
+        originalProjectTasks.Count == 1 &&
+        originalProjectTasks[0].ProjectId == project.Project.Id,
+        "Indexed project ancestors must keep similarly prefixed project scopes separate.");
+
+
     global::Nodalis.Core.Tasks.TaskItem taskToEdit = projectTasks.Single();
 
     await service.UpdateMetadataAsync(
