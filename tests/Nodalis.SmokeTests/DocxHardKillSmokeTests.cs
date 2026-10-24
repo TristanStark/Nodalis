@@ -11,53 +11,91 @@ using Nodalis.Infrastructure.Persistence;
 internal static class DocxHardKillSmokeTests
 {
     /// <summary>
-    /// Runs a real child process and kills it after its first Markdown file was
-    /// committed but before the DOCX source/provenance were recorded.
+    /// Terminates actual Windows child processes at every initial-import
+    /// persistence boundary and checks what the next process may recover.
     /// </summary>
-    /// <param name="workspace">Test workspace.</param>
-    /// <returns>Process-boundary smoke test.</returns>
+    /// <param name="workspace">Disposable smoke-test workspace.</param>
+    /// <returns>End-to-end recovery qualification.</returns>
     public static async Task RunAsync(string workspace)
+    {
+        foreach (string checkpoint in new[]
+                 { "project", "media", "markdown", "source", "provenance" })
+        {
+            await VerifyCheckpointAsync(workspace, checkpoint);
+        }
+    }
+
+    /// <summary>Exercises one kill-and-recover sequence with a fresh DOCX source.</summary>
+    /// <param name="workspace">Existing workspace.</param>
+    /// <param name="checkpoint">Named durable checkpoint.</param>
+    /// <returns>Completed checkpoint test.</returns>
+    private static async Task VerifyCheckpointAsync(string workspace, string checkpoint)
     {
         IReadOnlyList<ProjectCreationTarget> targets =
             await new ProjectCreationTargetDiscovery().DiscoverAsync(workspace);
         ProjectCreationTarget target = targets.First(candidate =>
             candidate.ModuleId is null && candidate.ParentProjectId is null);
-        ProjectCreationResult project =
-            await new FileSystemProjectCreator(workspace).CreateAsync(
+        bool createsProject = checkpoint == "project";
+        ProjectCreationResult? existing = createsProject
+            ? null
+            : await new FileSystemProjectCreator(workspace).CreateAsync(
                 new ProjectCreationRequest
                 {
-                    Name = "HardKill Word " + Guid.NewGuid().ToString("N"),
+                    Name = "Kill " + checkpoint + " " + Guid.NewGuid().ToString("N"),
                     Complexity = ProjectComplexity.UltraSimple,
                     Target = target
                 });
 
         string docx = Path.Combine(workspace,
-            "hard-kill-source-" + Guid.NewGuid().ToString("N") + ".docx");
+            "kill-" + checkpoint + "-" + Guid.NewGuid().ToString("N") + ".docx");
         using (ZipArchive archive = ZipFile.Open(docx, ZipArchiveMode.Create))
         {
             WriteEntry(archive, "word/styles.xml", """
                 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-                <w:style w:type="paragraph" w:styleId="Heading1">
-                <w:name w:val="Titre 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr>
-                </w:style></w:styles>
+                  <w:style w:type="paragraph" w:styleId="Heading1">
+                    <w:name w:val="Titre 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr>
+                  </w:style>
+                </w:styles>
                 """);
             WriteEntry(archive, "word/document.xml", """
-                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-                <w:body>
-                <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-                <w:r><w:t>Technique</w:t></w:r></w:p>
-                <w:p><w:r><w:t>Interruption volontaire au checkpoint</w:t></w:r></w:p>
-                </w:body></w:document>
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                 xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                 xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                 xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+                  <w:body>
+                    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+                      <w:r><w:t>Technique</w:t></w:r></w:p>
+                    <w:p><w:r><w:t>Interruption au checkpoint DOCX</w:t></w:r></w:p>
+                    <w:p><w:r><w:drawing><wp:inline><wp:docPr id="1" name="Test image"/>
+                      <a:graphic><a:graphicData><a:blip r:embed="rId1"/></a:graphicData></a:graphic>
+                    </wp:inline></w:drawing></w:r></w:p>
+                  </w:body>
+                </w:document>
                 """);
+            WriteEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1"
+                  Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+                  Target="media/kill.png"/>
+                </Relationships>
+                """);
+            byte[] pixel = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9fXzwAAAAASUVORK5CYII=");
+            using Stream image = archive.CreateEntry("word/media/kill.png").Open();
+            image.Write(pixel);
         }
 
-        string manifest = Path.Combine(project.ProjectDirectory,
-            WorkspaceLayout.ProjectManifestFileName);
-        byte[] originalManifest = await File.ReadAllBytesAsync(manifest);
-        string userNote = Path.Combine(project.ProjectDirectory, "Notes rapides.md");
-        string originalNote = await File.ReadAllTextAsync(userNote);
+        string? projectDirectory = existing?.ProjectDirectory;
+        string? manifestPath = projectDirectory is null ? null :
+            Path.Combine(projectDirectory, WorkspaceLayout.ProjectManifestFileName);
+        byte[]? beforeManifest = manifestPath is null ? null :
+            await File.ReadAllBytesAsync(manifestPath);
+        string? notesPath = projectDirectory is null ? null :
+            Path.Combine(projectDirectory, "Notes rapides.md");
+        string? originalNotes = notesPath is null ? null :
+            await File.ReadAllTextAsync(notesPath);
         string signal = Path.Combine(workspace,
-            "hard-kill-signal-" + Guid.NewGuid().ToString("N") + ".txt");
+            "kill-signal-" + Guid.NewGuid().ToString("N") + ".txt");
         string executable = Environment.ProcessPath ??
             throw new InvalidOperationException("Executable path unavailable for crash test.");
         ProcessStartInfo start = new ProcessStartInfo(executable)
@@ -67,7 +105,6 @@ internal static class DocxHardKillSmokeTests
             RedirectStandardError = true,
             RedirectStandardOutput = true
         };
-
         if (string.Equals(Path.GetFileNameWithoutExtension(executable),
                 "dotnet", StringComparison.OrdinalIgnoreCase))
         {
@@ -77,11 +114,11 @@ internal static class DocxHardKillSmokeTests
         start.ArgumentList.Add("--docx-hardkill-child");
         start.ArgumentList.Add(workspace);
         start.ArgumentList.Add(docx);
-        start.ArgumentList.Add(project.Project.Id.ToString("D"));
+        start.ArgumentList.Add(existing?.Project.Id.ToString("D") ?? Guid.Empty.ToString("D"));
         start.ArgumentList.Add(signal);
-
+        start.ArgumentList.Add(checkpoint);
         using Process child = Process.Start(start) ??
-            throw new InvalidOperationException("Child process could not be launched.");
+            throw new InvalidOperationException("DOCX crash-test child could not be launched.");
         bool checkpointReached = false;
         try
         {
@@ -109,54 +146,127 @@ internal static class DocxHardKillSmokeTests
 
         if (!checkpointReached)
         {
-            string errors = await child.StandardError.ReadToEndAsync();
+            string errorText = await child.StandardError.ReadToEndAsync();
             throw new InvalidOperationException(
-                "DOCX hard-kill checkpoint not reached. Child said: " + errors);
+                "DOCX child never reached checkpoint " + checkpoint + ": " + errorText);
         }
 
-        string writtenMarkdown = await File.ReadAllTextAsync(signal);
-        Assert(File.Exists(writtenMarkdown), "Child must publish an imported Markdown file.");
+        string signaledPath = await File.ReadAllTextAsync(signal);
+        if (createsProject)
+        {
+            projectDirectory = signaledPath;
+            Assert(Directory.Exists(projectDirectory),
+                "Project-creation checkpoint must persist a real directory.");
+        }
+        else if (checkpoint is "markdown" or "source" or "provenance")
+        {
+            Assert(File.Exists(signaledPath),
+                "Checkpoint " + checkpoint + " must observe a committed file.");
+        }
+
         DocxFirstImportRecoveryService recovery =
             new DocxFirstImportRecoveryService(workspace);
-        Assert((await recovery.ListPendingProjectsAsync()).Any(path =>
-                string.Equals(path, project.ProjectDirectory,
+        Assert((await recovery.ListPendingProjectsAsync()).Any(candidate =>
+                string.Equals(candidate, projectDirectory,
                     StringComparison.OrdinalIgnoreCase)),
-            "A killed child must leave a durable recoverable DOCX journal.");
+            "Hard-kill checkpoint " + checkpoint + " must leave a pending journal.");
+        Assert(await recovery.RecoverPendingAsync() == 1,
+            "Interrupted checkpoint " + checkpoint + " needs exactly one recovery.");
+        Assert((await recovery.ListPendingProjectsAsync()).Count == 0,
+            "Checkpoint " + checkpoint + " must no longer block future imports.");
+        Assert(File.Exists(docx),
+            "Crash recovery must never delete the original Word file.");
 
-        Assert(await recovery.RecoverPendingAsync() == 1 &&
-               !File.Exists(writtenMarkdown) &&
-               (await File.ReadAllBytesAsync(manifest)).SequenceEqual(originalManifest) &&
-               await File.ReadAllTextAsync(userNote) == originalNote &&
-               File.Exists(docx),
-            "Recovery after actual process kill must restore manifest and preserve existing notes/source.");
+        if (createsProject)
+        {
+            Assert(Directory.Exists(projectDirectory) &&
+                   File.Exists(Path.Combine(projectDirectory!, "Fiche de Maintenance.md")),
+                "Crash after project creation must preserve its user-editable scaffold.");
+            return;
+        }
+
+        Assert(manifestPath is not null && beforeManifest is not null &&
+               notesPath is not null && originalNotes is not null &&
+               (await File.ReadAllBytesAsync(manifestPath)).SequenceEqual(beforeManifest) &&
+               await File.ReadAllTextAsync(notesPath) == originalNotes,
+            "Crash recovery must not corrupt an existing project's manifest or notes.");
+
+        if (checkpoint == "provenance")
+        {
+            Assert(File.Exists(signaledPath) &&
+                   Directory.GetFiles(projectDirectory!, "*.md",
+                       SearchOption.AllDirectories).Any(path =>
+                       Path.GetFileName(path).StartsWith("Import - ",
+                           StringComparison.Ordinal)),
+                "A fully persisted import must be completed, not rolled back.");
+        }
+        else
+        {
+            Assert(Directory.GetFiles(projectDirectory!, "*.md",
+                       SearchOption.AllDirectories).All(path =>
+                       !Path.GetFileName(path).StartsWith("Import - ",
+                           StringComparison.Ordinal)),
+                "Recovery must remove incomplete imported Markdown files.");
+            Assert(!Directory.Exists(Path.Combine(projectDirectory!, "Media-Docx")) ||
+                   Directory.GetFiles(Path.Combine(projectDirectory!, "Media-Docx")).Length == 0,
+                "Incomplete imported image must be removed after process termination.");
+            if (checkpoint == "source")
+            {
+                Assert(!File.Exists(signaledPath),
+                    "Partial DOCX source copy must be removed after crash rollback.");
+            }
+        }
+
+        Assert(await recovery.RecoverPendingAsync() == 0,
+            "Hard-kill recovery must be idempotent.");
     }
 
-    /// <summary>Child-mode import that intentionally blocks at a deterministic post-write checkpoint.</summary>
-    /// <param name="workspace">Existing test workspace.</param>
-    /// <param name="docx">Word source.</param>
-    /// <param name="projectId">Existing target project.</param>
-    /// <param name="signalPath">Signal for the parent to kill the process.</param>
-    /// <returns>Only completes if unexpectedly not terminated.</returns>
+    /// <summary>Runs one Word import in a child until its selected checkpoint.</summary>
+    /// <param name="workspace">Existing workspace.</param>
+    /// <param name="docx">Word source file.</param>
+    /// <param name="projectId">Existing project or empty for new-project fixture.</param>
+    /// <param name="signalPath">File that informs the parent which file was committed.</param>
+    /// <param name="checkpoint">Checkpoint that the parent must kill.</param>
+    /// <returns>Never returns normally if the checkpoint is reached.</returns>
     public static async Task RunChildAsync(
-        string workspace, string docx, Guid projectId, string signalPath)
+        string workspace, string docx, Guid projectId, string signalPath,
+        string checkpoint)
     {
-        WorkspaceDocxImportService importer =
-            new WorkspaceDocxImportService(workspace,
-                afterMarkdownCreatedCheckpoint: (_, destination) =>
+        Action<string> signal = destination =>
+        {
+            File.WriteAllText(signalPath, destination);
+            Thread.Sleep(Timeout.Infinite);
+        };
+        WorkspaceDocxImportService importer = new WorkspaceDocxImportService(
+            workspace,
+            afterMarkdownCreatedCheckpoint: (_, destination) =>
+            {
+                if (checkpoint == "markdown")
                 {
-                    // Signal only once the file is completely written; the
-                    // parent will terminate this process before provenance.
-                    File.WriteAllText(signalPath, destination);
-                    Thread.Sleep(Timeout.Infinite);
-                });
+                    signal(destination);
+                }
+            },
+            afterDurableCheckpoint: (stage, destination) =>
+            {
+                if (stage == checkpoint)
+                {
+                    signal(destination);
+                }
+            });
         DocxImportPreview preview = await importer.PreparePreviewAsync(docx);
-        DocxImportTargetOption target = preview.Projects.Single(candidate =>
-            candidate.Id == projectId);
+        DocxImportTargetOption? project = projectId == Guid.Empty
+            ? null
+            : preview.Projects.Single(candidate => candidate.Id == projectId);
+        Guid appId = project?.ApplicationId ??
+            preview.Applications.First().Id;
         DocxImportCommitRequest request = new DocxImportCommitRequest
         {
-            ApplicationId = target.ApplicationId ??
-                throw new InvalidDataException("Existing project has no owning application."),
-            ProjectId = projectId,
+            ApplicationId = appId,
+            ProjectId = projectId == Guid.Empty ? null : projectId,
+            NewProjectName = projectId == Guid.Empty
+                ? "DOCX Crash " + Guid.NewGuid().ToString("N")
+                : null,
+            NewProjectComplexity = ProjectComplexity.UltraSimple,
             Sections = preview.Sections.Select(section => new DocxImportSectionSelection
             {
                 SectionIndex = section.Index,
@@ -168,7 +278,7 @@ internal static class DocxHardKillSmokeTests
         await importer.CommitAsync(preview,
             request with { ExpectedPlanFingerprint = plan.Fingerprint });
         throw new InvalidOperationException(
-            "The hard-kill smoke child unexpectedly completed.");
+            "DOCX crash child unexpectedly completed checkpoint " + checkpoint);
     }
 
     /// <summary>Writes one synthetic Open XML package entry.</summary>
