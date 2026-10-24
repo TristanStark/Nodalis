@@ -8,6 +8,7 @@ using Nodalis.App.Editor;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Settings;
+using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.App;
