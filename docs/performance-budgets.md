@@ -142,3 +142,20 @@ changement d'onglet ou annotation forcée invalide la recherche précédente.
 Une recherche annulée ne publie aucun résultat WPF ; le token est libéré à la
 fin de la tâche. Ceci évite l'accumulation de plusieurs scans inutiles pendant
 une saisie rapide, sans changer les règles de correspondance métier.
+
+
+## Corrélation des gels et annulation des annotations (#181 / #184)
+
+Diagnostics locaux agrège des durées p50/p95/p99 pour les opérations d'index,
+de contexte autosave, de lecture de glossaire, de rendu Markdown et de
+projection des tâches/jalons. Le moniteur conserve au plus 128 durées par
+catégorie et 32 événements longs. Pour chaque retard du Dispatcher supérieur
+à 200 ms, les opérations en cours ou achevées dans les trois secondes sont
+signalées comme activités temporellement proches — **pas une attribution
+causale**. Le rapport ne contient ni chemin ni contenu documentaire.
+
+Les recherches GlossaryTextMatcher en arrière-plan vérifient l'annulation
+sur chaque terme et chaque occurrence. Une frappe supplémentaire ou un
+changement d'onglet annule l'analyse précédente ; les résultats arrivant
+après changement de révision sont ignorés côté WPF. Le smoke test couvre
+l'annulation explicite.

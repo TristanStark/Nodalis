@@ -2455,6 +2455,25 @@ static async Task VerifyGlossaryAsync(string root)
         sourceText ==
         "Base de données, STEAK et bifteck. Steakhouse ne doit pas matcher.",
         "Glossary annotation matching must never mutate Markdown content.");
+
+    using CancellationTokenSource canceledGlossaryMatch = new();
+    canceledGlossaryMatch.Cancel();
+    bool glossaryCancelled = false;
+    try
+    {
+        GlossaryTextMatcher.Match(
+            sourceText,
+            matcherEntries,
+            canceledGlossaryMatch.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        glossaryCancelled = true;
+    }
+
+    Assert(
+        glossaryCancelled,
+        "Canceled background glossary annotation matching must stop before publishing.");
 }
 
 static async Task VerifyAttachmentsAsync(string root)
