@@ -104,6 +104,7 @@ public partial class MainWindow : Window
     private IReadOnlyList<GlossaryEntry> _glossaryEntries = [];
     private IReadOnlyList<GlossaryTextMatch> _glossaryMatches = [];
     private long _glossaryAnnotationRevision;
+    private long _glossaryContextRevision;
     private CancellationTokenSource? _glossaryMatchCancellation;
     private readonly ToolTip _glossaryToolTip = new ToolTip
     {
@@ -5091,19 +5092,25 @@ public partial class MainWindow : Window
     {
         using DispatcherHeartbeatMonitor.OperationScope measurement =
             _heartbeatMonitor.TrackOperation("Lecture glossaire");
-        _glossaryScopes = await _glossaryService.ResolveScopesAsync(
+        long revision = ++_glossaryContextRevision;
+        IReadOnlyList<GlossaryScope> scopes = await _glossaryService.ResolveScopesAsync(
             _root.FullPath,
             contextPath);
 
-        global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryEntry> entries = new List<GlossaryEntry>();
-
-        foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in _glossaryScopes)
+        List<GlossaryEntry> entries = [];
+        foreach (GlossaryScope scope in scopes)
         {
-            entries.AddRange(
-                await _glossaryService.LoadEntriesAsync(
-                    scope));
+            entries.AddRange(await _glossaryService.LoadEntriesAsync(scope));
         }
 
+        // Another tab or scope may have requested a newer context while the
+        // disk reads were in progress; never publish an obsolete glossary.
+        if (revision != _glossaryContextRevision)
+        {
+            return;
+        }
+
+        _glossaryScopes = scopes;
         _glossaryEntries = entries;
     }
 
