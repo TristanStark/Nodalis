@@ -109,6 +109,7 @@ internal sealed class PreviousLinkTargetLookup
             : null;
     }
 
+    /// <summary>Returns the earliest document not claimed by another navigation node.</summary>
     private static LinkTargetEntry? FirstUnmatched(
         IEnumerable<LinkTargetEntry> candidates,
         ISet<Guid> matchedIds)
@@ -124,6 +125,7 @@ internal sealed class PreviousLinkTargetLookup
         return null;
     }
 
+    /// <summary>Returns the only remaining candidate, or null for collisions.</summary>
     private static LinkTargetEntry? UniqueUnmatched(
         IEnumerable<LinkTargetEntry> candidates,
         ISet<Guid> matchedIds)
@@ -147,6 +149,7 @@ internal sealed class PreviousLinkTargetLookup
         return match;
     }
 
+    /// <summary>Appends to a bucket while retaining source iteration order.</summary>
     private static void Add(
         Dictionary<string, List<LinkTargetEntry>> map,
         string key,
@@ -161,6 +164,7 @@ internal sealed class PreviousLinkTargetLookup
         values.Add(target);
     }
 
+    /// <summary>Appends to a two-level scope/key lookup.</summary>
     private static void AddScoped(
         Dictionary<string, Dictionary<string, List<LinkTargetEntry>>> map,
         string scope,
@@ -267,6 +271,7 @@ internal sealed class LinkTargetResolutionLookup
         return resolution;
     }
 
+    /// <summary>Appends a resolution candidate to an ordered name bucket.</summary>
     private static void Add(
         Dictionary<string, List<LinkTargetEntry>> map,
         string key,
