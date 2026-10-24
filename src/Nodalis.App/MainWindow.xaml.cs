@@ -863,6 +863,18 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Opens the existing preferences dialog from the System menu.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void OpenPreferences_Click(
+            object sender,
+            RoutedEventArgs e) =>
+            await RunUiActionAsync(
+                "Préférences",
+                ShowPreferencesAsync);
+
+    /// <summary>
     /// Opens the backup manager.
     /// </summary>
     /// <param name="sender">The event sender.</param>
