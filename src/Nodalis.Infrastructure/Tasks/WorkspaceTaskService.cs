@@ -74,148 +74,148 @@ public sealed partial class WorkspaceTaskService
             LinkIndexCatalog links,
             CancellationToken cancellationToken)
     {
-            global::System.Collections.Generic.List<global::Nodalis.Core.Tasks.TaskItem> tasks = new List<TaskItem>();
-            Dictionary<Guid, CachedTaskDocument> nextCache = [];
-            int reused = 0;
-            int parsed = 0;
+        global::System.Collections.Generic.List<global::Nodalis.Core.Tasks.TaskItem> tasks = new List<TaskItem>();
+        Dictionary<Guid, CachedTaskDocument> nextCache = [];
+        int reused = 0;
+        int parsed = 0;
 
-            foreach (global::Nodalis.Core.Links.LinkTargetEntry document in links.Targets.Where(target =>
-                         target.Kind == LinkTargetKind.Document))
+        foreach (global::Nodalis.Core.Links.LinkTargetEntry document in links.Targets.Where(target =>
+                     target.Kind == LinkTargetKind.Document))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            string fullPath = ResolveWorkspacePath(
+                document.RelativePath);
+
+            if (!File.Exists(fullPath))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                string fullPath = ResolveWorkspacePath(
-                    document.RelativePath);
-
-                if (!File.Exists(fullPath))
-                {
-                    continue;
-                }
-
-                global::Nodalis.Core.Links.LinkTargetEntry? project = links.Targets
-                    .Where(target =>
-                        target.Kind == LinkTargetKind.Project &&
-                        IsRelativeAncestor(
-                            target.RelativePath,
-                            document.RelativePath))
-                    .OrderByDescending(target =>
-                        target.RelativePath.Length)
-                    .FirstOrDefault();
-
-                global::Nodalis.Core.Links.LinkTargetEntry? application = links.Targets
-                    .Where(target =>
-                        target.Kind == LinkTargetKind.Application &&
-                        IsRelativeAncestor(
-                            target.RelativePath,
-                            document.RelativePath))
-                    .OrderByDescending(target =>
-                        target.RelativePath.Length)
-                    .FirstOrDefault();
-
-                // The link index already tracks canonical content hashes. Reuse only
-                // if the source AND its project/application context are unchanged.
-                if (document.ContentHash is string fingerprint &&
-                    _cachedDocuments.TryGetValue(document.Id, out CachedTaskDocument? cached) &&
-                    cached.Fingerprint == fingerprint &&
-                    cached.RelativePath == document.RelativePath &&
-                    cached.ProjectId == project?.Id &&
-                    cached.ProjectName == project?.DisplayName &&
-                    cached.ApplicationId == application?.Id &&
-                    cached.ApplicationName == application?.DisplayName)
-                {
-                    tasks.AddRange(cached.Items);
-                    nextCache[document.Id] = cached;
-                    reused++;
-                    continue;
-                }
-
-                string[] lines = await File.ReadAllLinesAsync(fullPath, cancellationToken);
-                List<TaskItem> documentTasks = [];
-                parsed++;
-                for (int index = 0;
-                     index < lines.Length;
-                     index++)
-                {
-                    global::System.Text.RegularExpressions.Match match = CheckboxPattern().Match(
-                        lines[index]);
-
-                    if (!match.Success)
-                    {
-                        continue;
-                    }
-
-                    if (index + 1 < lines.Length &&
-                        TryParsePromotionMarker(
-                            lines[index + 1],
-                            MeetingActionSourceMarkerPrefix,
-                            out global::System.Guid _))
-                    {
-                        continue;
-                    }
-
-                    string body = match.Groups["body"].Value.Trim();
-                    (
-                        string Text,
-                        string? Owner,
-                        global::System.DateOnly? DueDate,
-                        string? Priority,
-                        string? Status,
-                        global::System.Collections.Generic.IReadOnlyList<string> Tags
-                    ) metadata = ParseMetadata(
-                        body);
-
-                    documentTasks.Add(new TaskItem
-                    {
-                        Id = CreateTaskId(
-                            document.Id,
-                            index + 1,
-                            body),
-                        SourceDocumentId = document.Id,
-                        SourceRelativePath = document.RelativePath,
-                        LineNumber = index + 1,
-                        RawLine = lines[index],
-                        Text = metadata.Text,
-                        IsCompleted =
-                            !string.IsNullOrWhiteSpace(
-                                match.Groups["checked"].Value),
-                        Owner = metadata.Owner,
-                        DueDate = metadata.DueDate,
-                        Priority = metadata.Priority,
-                        Status = metadata.Status,
-                        Tags = metadata.Tags,
-                        ApplicationId = application?.Id,
-                        ApplicationName = application?.DisplayName,
-                        ProjectId = project?.Id,
-                        ProjectName = project?.DisplayName
-                    });
-                }
-
-                tasks.AddRange(documentTasks);
-                if (document.ContentHash is string newFingerprint)
-                {
-                    nextCache[document.Id] = new CachedTaskDocument(
-                        newFingerprint, document.RelativePath,
-                        project?.Id, project?.DisplayName,
-                        application?.Id, application?.DisplayName, documentTasks);
-                }
+                continue;
             }
 
-            // Publish an all-or-nothing derived snapshot only after a complete
-            // refresh. Deleted documents naturally disappear from the next cache.
-            cancellationToken.ThrowIfCancellationRequested();
-            _cachedDocuments = nextCache;
-            LastReusedDocumentCount = reused;
-            LastParsedDocumentCount = parsed;
-            return new TaskCollection
+            global::Nodalis.Core.Links.LinkTargetEntry? project = links.Targets
+                .Where(target =>
+                    target.Kind == LinkTargetKind.Project &&
+                    IsRelativeAncestor(
+                        target.RelativePath,
+                        document.RelativePath))
+                .OrderByDescending(target =>
+                    target.RelativePath.Length)
+                .FirstOrDefault();
+
+            global::Nodalis.Core.Links.LinkTargetEntry? application = links.Targets
+                .Where(target =>
+                    target.Kind == LinkTargetKind.Application &&
+                    IsRelativeAncestor(
+                        target.RelativePath,
+                        document.RelativePath))
+                .OrderByDescending(target =>
+                    target.RelativePath.Length)
+                .FirstOrDefault();
+
+            // The link index already tracks canonical content hashes. Reuse only
+            // if the source AND its project/application context are unchanged.
+            if (document.ContentHash is string fingerprint &&
+                _cachedDocuments.TryGetValue(document.Id, out CachedTaskDocument? cached) &&
+                cached.Fingerprint == fingerprint &&
+                cached.RelativePath == document.RelativePath &&
+                cached.ProjectId == project?.Id &&
+                cached.ProjectName == project?.DisplayName &&
+                cached.ApplicationId == application?.Id &&
+                cached.ApplicationName == application?.DisplayName)
             {
-                UpdatedUtc = DateTimeOffset.UtcNow,
-                Tasks = tasks
-                    .OrderBy(task => task.IsCompleted)
-                    .ThenBy(task => task.DueDate ?? DateOnly.MaxValue)
-                    .ThenBy(task => GetPriorityRank(task.Priority))
-                    .ThenBy(task => task.Text, StringComparer.CurrentCultureIgnoreCase)
-                    .ToList()
-            };
+                tasks.AddRange(cached.Items);
+                nextCache[document.Id] = cached;
+                reused++;
+                continue;
+            }
+
+            string[] lines = await File.ReadAllLinesAsync(fullPath, cancellationToken);
+            List<TaskItem> documentTasks = [];
+            parsed++;
+            for (int index = 0;
+                 index < lines.Length;
+                 index++)
+            {
+                global::System.Text.RegularExpressions.Match match = CheckboxPattern().Match(
+                    lines[index]);
+
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                if (index + 1 < lines.Length &&
+                    TryParsePromotionMarker(
+                        lines[index + 1],
+                        MeetingActionSourceMarkerPrefix,
+                        out global::System.Guid _))
+                {
+                    continue;
+                }
+
+                string body = match.Groups["body"].Value.Trim();
+                (
+                    string Text,
+                    string? Owner,
+                    global::System.DateOnly? DueDate,
+                    string? Priority,
+                    string? Status,
+                    global::System.Collections.Generic.IReadOnlyList<string> Tags
+                ) metadata = ParseMetadata(
+                    body);
+
+                documentTasks.Add(new TaskItem
+                {
+                    Id = CreateTaskId(
+                        document.Id,
+                        index + 1,
+                        body),
+                    SourceDocumentId = document.Id,
+                    SourceRelativePath = document.RelativePath,
+                    LineNumber = index + 1,
+                    RawLine = lines[index],
+                    Text = metadata.Text,
+                    IsCompleted =
+                        !string.IsNullOrWhiteSpace(
+                            match.Groups["checked"].Value),
+                    Owner = metadata.Owner,
+                    DueDate = metadata.DueDate,
+                    Priority = metadata.Priority,
+                    Status = metadata.Status,
+                    Tags = metadata.Tags,
+                    ApplicationId = application?.Id,
+                    ApplicationName = application?.DisplayName,
+                    ProjectId = project?.Id,
+                    ProjectName = project?.DisplayName
+                });
+            }
+
+            tasks.AddRange(documentTasks);
+            if (document.ContentHash is string newFingerprint)
+            {
+                nextCache[document.Id] = new CachedTaskDocument(
+                    newFingerprint, document.RelativePath,
+                    project?.Id, project?.DisplayName,
+                    application?.Id, application?.DisplayName, documentTasks);
+            }
+        }
+
+        // Publish an all-or-nothing derived snapshot only after a complete
+        // refresh. Deleted documents naturally disappear from the next cache.
+        cancellationToken.ThrowIfCancellationRequested();
+        _cachedDocuments = nextCache;
+        LastReusedDocumentCount = reused;
+        LastParsedDocumentCount = parsed;
+        return new TaskCollection
+        {
+            UpdatedUtc = DateTimeOffset.UtcNow,
+            Tasks = tasks
+                .OrderBy(task => task.IsCompleted)
+                .ThenBy(task => task.DueDate ?? DateOnly.MaxValue)
+                .ThenBy(task => GetPriorityRank(task.Priority))
+                .ThenBy(task => task.Text, StringComparer.CurrentCultureIgnoreCase)
+                .ToList()
+        };
     }
 
     /// <summary>
