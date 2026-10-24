@@ -50,11 +50,13 @@ workspace ni du dossier projet.
 
 ## Limites avant la release 1.9
 
-- Les tests automatisés simulent le redémarrage en libérant le verrou système
-  **sans** appeler les méthodes de complétion/rollback, et vérifient des
-  collisions et éditions externes.
-- Une qualification manuelle sur un véritable arrêt forcé de Nodalis, avec
-  inspection des journaux et fichiers temporaires, reste nécessaire (#171).
+- Les tests automatisés simulent la reprise après une terminaison normale du
+  processus de test **et** tuent réellement un processus enfant Windows au
+  milieu de cinq phases de premier import : création de projet, média intégré,
+  Markdown, copie source DOCX et provenance.
+- La validation **interactive** dans Nodalis après une fermeture forcée,
+  l'inspection des journaux et fichiers temporaires, ainsi que les scénarios
+  d'erreur disque/permissions NTFS restent à effectuer (#171).
 - Les protections de concurrence sont optimistes ; elles n'empêchent pas un
   processus externe malveillant de modifier un fichier pendant les quelques
   instructions séparant une ultime vérification d'une opération disque.

@@ -39,11 +39,13 @@
 
 ### Points de vigilance
 
-- **#165** : le premier import possède un journal write-ahead et une reprise
-  contrôlée avant l'import suivant. Les interruptions sont simulées en tests ;
-  **l'arrêt forcé réel sous Windows reste à qualifier**. Voir
+- **#165** : le premier import possède un journal write-ahead. La CI Windows
+  **termine réellement un processus enfant** à cinq checkpoints (projet, image,
+  Markdown, copie source, provenance), puis vérifie rollback/reprise, conservation
+  des notes et idempotence. La **validation interactive de l'UI** de récupération
+  et des erreurs disque/NTFS reste à faire. Voir
   [récupération du premier import](docx-1.9-initial-import-recovery.md).
-  Ne pas provoquer volontairement un arrêt brutal sur des données importantes.
+  Ne pas provoquer de crash sur des données professionnelles.
 - **#164** : ne pas considérer un réimport comme entièrement validé sans tester
   séparément conflit Word/Nodalis, suppression Word, renommage et historique.
 - **#168** : l'import de plusieurs projets depuis le même Word reste une issue

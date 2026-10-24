@@ -23,7 +23,8 @@ Statut : **prépublication, develop**. Aucune clôture automatique des issues P0
 - [x] Journal d'anticipation du premier import : sauvegarde binaire manifeste, checksums des créations, reprise ou rollback simulés (#165)
 - [x] Copie des images Word via fichier temporaire et renommage atomique, suppression sûre des sorties modifiées par un autre processus
 - [x] Test Windows avec **processus enfant réellement terminé** juste après la première écriture Markdown : récupération du manifeste et conservation de la source/notes
-- [ ] Arrêt forcé réel sur Windows aux checkpoints supplémentaires création projet / image / provenance, inspection des fichiers temporaires et vérification de l'UI de récupération (#165, #171)
+- [x] Arrêt forcé réel dans la CI Windows après création de projet, copie d'image, Markdown, source DOCX et provenance, puis récupération au redémarrage
+- [ ] Inspection manuelle des temporaires après crash et vérification de l'UI de récupération (#165, #171)
 - [ ] Annulation, modification externe, permissions insuffisantes, paquet ZIP/XML corrompu
 - [ ] Retour utilisateur via `docs/docx-1.9-manual-qualification.md` ; aucun P0/P1 bloquant
 
