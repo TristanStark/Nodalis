@@ -40,3 +40,22 @@ d'attendre et ne démarrent pas une nouvelle reconstruction.
 successives déclenchées par plusieurs services ; elle évite les courses disque
 et les continuations CPU sur le Dispatcher. Les invalidations ciblées,
 la fusion par version et les budgets de latence sont encore à traiter.
+
+
+## Mutualisation explicite des projections UI (#183, #184, #185)
+
+Les flux **autosave actif**, **ouverture du workspace**, **fiche projet** et
+**chargement des vues dynamiques** transmettent le catalogue de liens déjà
+rafraîchi aux services tâches et jalons. Ceux-ci n'effectuent pas de seconde
+reconstruction de l'index pendant ces flux. Les autres appels conservent le
+comportement habituel pour les modifications structurelles/métiers autonomes.
+
+La lecture/analyse des tâches et des jalons s'effectue via un worker .NET :
+les boucles de parsing, regex, contextes et tris n'exécutent plus leurs
+continuations sur le Dispatcher WPF. La publication WPF reste côté appelant.
+Le cache incrémental des tâches reste protégé par son sémaphore.
+
+Les tests vérifient que les deux services n'effectuent pas de nouveau parcours
+quand ils reçoivent un snapshot explicite. La coalescence automatique de
+reconstructions initiées depuis d'autres flux et les mesures p95/p99 restent
+à qualifier avant fermeture des issues.

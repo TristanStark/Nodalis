@@ -248,8 +248,8 @@ public partial class MainWindow : Window
                 await RefreshGlossaryContextAsync(
                     _selectedNode?.FullPath ?? _root.FullPath);
                 UpdateGlossaryAnnotations();
-                await RefreshDashboardTasksAsync();
-                await RefreshDashboardMilestonesAsync();
+                await RefreshDashboardTasksAsync(_linkIndex);
+                await RefreshDashboardMilestonesAsync(_linkIndex);
                 await RefreshInboxDashboardCountAsync();
                 await RestoreDocumentTabsAsync();
                 await RestoreEditorSplitAsync();
@@ -1749,10 +1749,12 @@ public partial class MainWindow : Window
             Task<IReadOnlyList<TaskItem>> tasksTask =
                 _taskService.GetTasksAsync(
                     node.FullPath,
-                    includeCompleted: false);
+                    includeCompleted: false,
+                    indexSnapshot: _linkIndex);
             Task<IReadOnlyList<MilestoneItem>> milestonesTask =
                 _milestoneService.GetMilestonesAsync(
-                    node.FullPath);
+                    node.FullPath,
+                    indexSnapshot: _linkIndex);
             Task<IReadOnlyList<DecisionRecord>> decisionsTask =
                 _decisionService.GetDecisionsAsync(
                     node.FullPath);
@@ -5653,13 +5655,14 @@ public partial class MainWindow : Window
     /// Performs the <c>RefreshDashboardTasksAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    private async Task RefreshDashboardTasksAsync()
+    private async Task RefreshDashboardTasksAsync(LinkIndexCatalog? indexSnapshot = null)
     {
         try
         {
             global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> tasks = await _taskService.GetTasksAsync(
                 _root.FullPath,
-                includeCompleted: false);
+                includeCompleted: false,
+                indexSnapshot: indexSnapshot);
 
             OpenTasksList.ItemsSource = tasks
                 .OrderBy(task =>
@@ -5689,13 +5692,14 @@ public partial class MainWindow : Window
     /// Performs the <c>RefreshDashboardMilestonesAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    private async Task RefreshDashboardMilestonesAsync()
+    private async Task RefreshDashboardMilestonesAsync(LinkIndexCatalog? indexSnapshot = null)
     {
         try
         {
             global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> milestones = await _milestoneService.GetUpcomingAsync(
                 DateOnly.FromDateTime(DateTime.Today),
-                forwardDays: 60);
+                forwardDays: 60,
+                indexSnapshot: indexSnapshot);
 
             UpcomingMilestonesList.ItemsSource = milestones
                 .Take(12)

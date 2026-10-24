@@ -32,13 +32,26 @@ public sealed class WorkspaceMilestoneService
     /// Performs the <c>GetMilestonesAsync</c> operation.
     /// </summary>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="indexSnapshot">Optional already refreshed index shared by UI services.</param>
     /// <returns>The result of the operation.</returns>
     public async Task<IReadOnlyList<MilestoneItem>> GetMilestonesAsync(
             string? contextPath,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            LinkIndexCatalog? indexSnapshot = null)
     {
-        global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(cancellationToken);
+        LinkIndexCatalog links = indexSnapshot ?? await _linkIndex.RefreshAsync(cancellationToken);
+        return await Task.Run(
+            () => GetMilestonesFromSnapshotAsync(contextPath, links, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>Parses milestone tables off the WPF Dispatcher using one index snapshot.</summary>
+    private async Task<IReadOnlyList<MilestoneItem>> GetMilestonesFromSnapshotAsync(
+            string? contextPath,
+            LinkIndexCatalog links,
+            CancellationToken cancellationToken)
+    {
         (global::System.Guid? ApplicationId, global::System.Guid? ProjectId) context = ResolveContext(contextPath, links);
         global::System.Collections.Generic.List<global::Nodalis.Core.Milestones.MilestoneItem> result = new List<MilestoneItem>();
 
@@ -110,12 +123,14 @@ public sealed class WorkspaceMilestoneService
     /// </summary>
     /// <param name="today">The <c>today</c> value.</param>
     /// <param name="forwardDays">The <c>forwardDays</c> value.</param>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="indexSnapshot">Optional already refreshed index shared by UI services.</param>
     /// <returns>The result of the operation.</returns>
     public async Task<IReadOnlyList<MilestoneItem>> GetUpcomingAsync(
             DateOnly today,
             int forwardDays = 60,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            LinkIndexCatalog? indexSnapshot = null)
     {
         if (forwardDays < 0)
         {
@@ -125,7 +140,8 @@ public sealed class WorkspaceMilestoneService
         global::System.DateOnly maximum = today.AddDays(forwardDays);
         global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> all = await GetMilestonesAsync(
             _workspaceRoot,
-            cancellationToken);
+            cancellationToken,
+            indexSnapshot);
 
         return all
             .Where(item =>

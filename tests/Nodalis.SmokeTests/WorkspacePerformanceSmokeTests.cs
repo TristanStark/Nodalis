@@ -1,5 +1,7 @@
 using Nodalis.Core.Links;
 using Nodalis.Infrastructure.Links;
+using Nodalis.Infrastructure.Tasks;
+using Nodalis.Infrastructure.Milestones;
 using Nodalis.Infrastructure.Persistence;
 
 internal static class WorkspacePerformanceSmokeTests
@@ -89,6 +91,29 @@ internal static class WorkspacePerformanceSmokeTests
             Assert(
                 cancellationObserved,
                 "Canceled refresh callers must stop without writing the index.");
+
+            // A supplied snapshot must be consumed without a redundant filesystem
+            // traversal, even when a new Markdown file appears in the meantime.
+            WorkspaceTaskService sharedTasks =
+                new WorkspaceTaskService(performanceRoot);
+            WorkspaceMilestoneService sharedMilestones =
+                new WorkspaceMilestoneService(performanceRoot);
+            string lateDocument = Path.Combine(performanceRoot, "Late Addition.md");
+            await File.WriteAllTextAsync(lateDocument, "- [ ] Late task\\n");
+            IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> snapshotTasks =
+                await sharedTasks.GetTasksAsync(
+                    null,
+                    includeCompleted: true,
+                    indexSnapshot: cold.Catalog);
+            IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> snapshotMilestones =
+                await sharedMilestones.GetMilestonesAsync(
+                    null,
+                    indexSnapshot: cold.Catalog);
+            Assert(
+                !snapshotTasks.Any(task => task.Text.Contains("Late task", StringComparison.Ordinal)) &&
+                snapshotMilestones.Count == 0,
+                "Shared services must use the supplied index snapshot instead of rescanning.");
+            File.Delete(lateDocument);
 
             LinkIndexRefreshResult warm =
                 await service.RefreshWithMetricsAsync();

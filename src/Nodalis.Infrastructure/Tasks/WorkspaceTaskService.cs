@@ -44,17 +44,36 @@ public sealed partial class WorkspaceTaskService
     /// <summary>
     /// Performs the <c>RefreshAsync</c> operation.
     /// </summary>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="indexSnapshot">An optional already refreshed snapshot, shared with callers.</param>
     /// <returns>The result of the operation.</returns>
     public async Task<TaskCollection> RefreshAsync(
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            LinkIndexCatalog? indexSnapshot = null)
     {
         await _refreshGate.WaitAsync(cancellationToken);
         try
         {
-            global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(
+            LinkIndexCatalog links = indexSnapshot ?? await _linkIndex.RefreshAsync(
                 cancellationToken);
+            return await Task.Run(
+                () => BuildTaskCollectionAsync(links, cancellationToken),
+                cancellationToken);
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
 
+    /// <summary>
+    /// Parses and projects a single catalog on a worker; no WPF types are accessed.
+    /// The owning refresh gate protects the incremental document cache.
+    /// </summary>
+    private async Task<TaskCollection> BuildTaskCollectionAsync(
+            LinkIndexCatalog links,
+            CancellationToken cancellationToken)
+    {
             global::System.Collections.Generic.List<global::Nodalis.Core.Tasks.TaskItem> tasks = new List<TaskItem>();
             Dictionary<Guid, CachedTaskDocument> nextCache = [];
             int reused = 0;
@@ -197,11 +216,6 @@ public sealed partial class WorkspaceTaskService
                     .ThenBy(task => task.Text, StringComparer.CurrentCultureIgnoreCase)
                     .ToList()
             };
-        }
-        finally
-        {
-            _refreshGate.Release();
-        }
     }
 
     /// <summary>
@@ -209,21 +223,24 @@ public sealed partial class WorkspaceTaskService
     /// </summary>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="includeCompleted">The <c>includeCompleted</c> value.</param>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="indexSnapshot">Optional previously refreshed workspace snapshot.</param>
     /// <returns>The result of the operation.</returns>
     public async Task<IReadOnlyList<TaskItem>> GetTasksAsync(
             string? contextPath,
             bool includeCompleted = false,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            LinkIndexCatalog? indexSnapshot = null)
     {
         global::Nodalis.Core.Tasks.TaskCollection catalog = await RefreshAsync(
-            cancellationToken);
+            cancellationToken,
+            indexSnapshot);
 
         global::System.Collections.Generic.IEnumerable<global::Nodalis.Core.Tasks.TaskItem> filtered = catalog.Tasks.AsEnumerable();
 
         (global::System.Guid? ApplicationId, global::System.Guid? ProjectId) context = ResolveContext(
             contextPath,
-            await _linkIndex.LoadAsync(cancellationToken));
+            indexSnapshot ?? await _linkIndex.LoadAsync(cancellationToken));
 
         if (context.ProjectId is Guid projectId)
         {

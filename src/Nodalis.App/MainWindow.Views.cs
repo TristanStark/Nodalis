@@ -128,7 +128,9 @@ public partial class MainWindow
                 return _viewsCache;
             }
 
-            LinkIndexCatalog catalog = await _linkIndexService.LoadAsync(cancellationToken);
+            LinkIndexCatalog catalog = _workspaceReadOnly
+                ? await _linkIndexService.LoadAsync(cancellationToken)
+                : await _linkIndexService.RefreshAsync(cancellationToken);
             IReadOnlyList<TaskItem> tasks = [];
             IReadOnlyList<MilestoneItem> milestones = [];
             IReadOnlyList<DecisionRecord> decisions = [];
@@ -137,10 +139,11 @@ public partial class MainWindow
 
             if (!_workspaceReadOnly)
             {
-                // Services are sequential because some rebuild the same derived link index.
+                // One versioned link snapshot is shared by every derived view projection.
                 tasks = await _taskService.GetTasksAsync(null, includeCompleted: true,
-                    cancellationToken: cancellationToken);
-                milestones = await _milestoneService.GetMilestonesAsync(null, cancellationToken);
+                    cancellationToken: cancellationToken, indexSnapshot: catalog);
+                milestones = await _milestoneService.GetMilestonesAsync(null,
+                    cancellationToken, indexSnapshot: catalog);
 
                 // Resolve each canonical decision folder once, across applications/projects.
                 List<DecisionRecord> allDecisions = [];
@@ -162,7 +165,6 @@ public partial class MainWindow
 
             // The navigation tree can lag behind external moves/renames. Discover
             // maintenance sheets from the refreshed canonical index instead.
-            catalog = await _linkIndexService.LoadAsync(cancellationToken);
             string workspace = Path.GetFullPath(_root.FullPath);
             string prefix = Path.TrimEndingDirectorySeparator(workspace) +
                 Path.DirectorySeparatorChar;

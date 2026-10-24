@@ -1061,8 +1061,8 @@ public partial class MainWindow
             await RefreshGlossaryContextAsync(
                 tab.FullPath);
             UpdateGlossaryAnnotations();
-            await RefreshDashboardTasksAsync();
-            await RefreshDashboardMilestonesAsync();
+            await RefreshDashboardTasksAsync(_linkIndex);
+            await RefreshDashboardMilestonesAsync(_linkIndex);
         }
         catch (Exception exception) when (
             exception is IOException or
