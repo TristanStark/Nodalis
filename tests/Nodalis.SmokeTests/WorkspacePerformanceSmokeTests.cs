@@ -47,6 +47,10 @@ internal static class WorkspacePerformanceSmokeTests
                 await service.RefreshWithMetricsAsync();
 
             Assert(
+                cold.Metrics.IndexFileWritten,
+                "Cold index creation must persist a derived JSON snapshot.");
+
+            Assert(
                 cold.Metrics.DocumentCount >= generatedDocuments &&
                 cold.Metrics.HashedDocuments >= generatedDocuments &&
                 cold.Metrics.ParsedDocuments >= generatedDocuments,
@@ -54,6 +58,10 @@ internal static class WorkspacePerformanceSmokeTests
 
             LinkIndexRefreshResult warm =
                 await service.RefreshWithMetricsAsync();
+
+            Assert(
+                !warm.Metrics.IndexFileWritten,
+                "No-change refresh must not rewrite the derived JSON.");
 
             Assert(
                 warm.Metrics.HashedDocuments == 0 &&
@@ -77,6 +85,10 @@ internal static class WorkspacePerformanceSmokeTests
             LinkIndexRefreshResult targeted =
                 await service.RefreshDocumentAsync(
                     changedPath);
+
+            Assert(
+                targeted.Metrics.IndexFileWritten,
+                "A changed source must persist the updated JSON.");
 
             Assert(
                 targeted.Metrics.HashedDocuments == 1 &&

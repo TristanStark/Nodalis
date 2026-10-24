@@ -15,3 +15,14 @@ Les smoke tests comparent chaque backlink à l'ancien résolveur et vérifient
 les collisions de noms ainsi que GUID et alias conservés après déplacement.
 Les mesures Windows 5 000/10 000 documents et les p95/p99 du Dispatcher
 restent requises pour valider l'issue entière.
+
+
+## Suppression des écritures JSON inutiles (#183, étape 1)
+
+Un refresh compare explicitement cibles (y compris alias), références et
+relations en ordre déterministe. Si le contenu indexé est identique, le fichier
+JSON et son horodatage restent inchangés ; l'horodatage UpdatedUtc ne déclenche
+pas d'écriture artificielle. Le compteur IndexFileWritten et les tests
+cold/warm/single-change garantissent cette propriété sans test de durée CI.
+La mutualisation interservices et la synchronisation des refresh concurrents
+restent à effectuer dans #183.

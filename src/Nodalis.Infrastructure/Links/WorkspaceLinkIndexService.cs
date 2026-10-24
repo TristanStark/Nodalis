@@ -148,10 +148,21 @@ public sealed class WorkspaceLinkIndexService
             Relations = documentIndexes.Relations
         };
 
-        await AtomicJsonFile.WriteAsync(
-            _indexPath,
-            catalog,
-            cancellationToken);
+        // The index is derived data: do not rewrite it or change its timestamp
+        // when the full target/reference/relation projection is identical.
+        bool indexFileWritten = !File.Exists(_indexPath) ||
+            !HasSameIndexContent(previous, catalog);
+        if (indexFileWritten)
+        {
+            await AtomicJsonFile.WriteAsync(
+                _indexPath,
+                catalog,
+                cancellationToken);
+        }
+        else
+        {
+            catalog = previous;
+        }
 
         stopwatch.Stop();
 
@@ -170,6 +181,7 @@ public sealed class WorkspaceLinkIndexService
                 ReusedDocuments = Math.Max(
                     0,
                     documentCount - counters.ParsedDocuments),
+                IndexFileWritten = indexFileWritten,
                 ElapsedMilliseconds = stopwatch.ElapsedMilliseconds
             }
         };
@@ -821,6 +833,47 @@ public sealed class WorkspaceLinkIndexService
         return new DocumentIndexBuildResult(
             references,
             relations);
+    }
+
+    /// <summary>
+    /// Checks the actual content of an index, not the generated UpdatedUtc value.
+    /// Lists are compared in serialized order and aliases by value rather than
+    /// record-reference equality to prevent redundant disk writes.
+    /// </summary>
+    private static bool HasSameIndexContent(
+        LinkIndexCatalog previous,
+        LinkIndexCatalog current)
+    {
+        if (previous.SchemaVersion != LinkIndexCatalog.CurrentSchemaVersion ||
+            previous.Targets.Count != current.Targets.Count ||
+            previous.References.Count != current.References.Count ||
+            previous.Relations.Count != current.Relations.Count)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < previous.Targets.Count; index++)
+        {
+            LinkTargetEntry oldTarget = previous.Targets[index];
+            LinkTargetEntry newTarget = current.Targets[index];
+            if (oldTarget.Id != newTarget.Id ||
+                oldTarget.Kind != newTarget.Kind ||
+                oldTarget.DisplayName != newTarget.DisplayName ||
+                oldTarget.QualifiedName != newTarget.QualifiedName ||
+                oldTarget.RelativePath != newTarget.RelativePath ||
+                oldTarget.ScopeIdentity != newTarget.ScopeIdentity ||
+                oldTarget.LocalRelativePath != newTarget.LocalRelativePath ||
+                oldTarget.ContentHash != newTarget.ContentHash ||
+                oldTarget.ContentLength != newTarget.ContentLength ||
+                oldTarget.LastWriteUtcTicks != newTarget.LastWriteUtcTicks ||
+                !oldTarget.Aliases.SequenceEqual(newTarget.Aliases, StringComparer.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return previous.References.SequenceEqual(current.References) &&
+            previous.Relations.SequenceEqual(current.Relations);
     }
 
     /// <summary>

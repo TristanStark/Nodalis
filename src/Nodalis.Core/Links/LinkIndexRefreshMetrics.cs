@@ -15,6 +15,9 @@ public sealed record LinkIndexRefreshMetrics
 
     public required int ReusedDocuments { get; init; }
 
+    /// <summary>Whether this refresh changed the on-disk derived index JSON.</summary>
+    public bool IndexFileWritten { get; init; }
+
     public required long ElapsedMilliseconds { get; init; }
 }
 
