@@ -4,6 +4,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Nodalis.App.Diagnostics;
 using Nodalis.App.Editor;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Navigation;
@@ -1006,6 +1007,8 @@ public partial class MainWindow
     private async Task HandleDocumentTabAutosaveSavedAsync(
             object? sender)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Autosave contextes");
         if (sender is not DocumentAutosaveController autosave ||
             !_autosaveTabs.TryGetValue(
                 autosave,
