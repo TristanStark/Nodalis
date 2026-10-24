@@ -1,4 +1,5 @@
 using Nodalis.Core.Domain;
+using Nodalis.Infrastructure.Importing;
 using Nodalis.Infrastructure.Persistence;
 
 namespace Nodalis.Infrastructure.Projects;
@@ -45,6 +46,22 @@ public sealed class ProjectArchiveService
         if (original.ArchivedUtc.HasValue || original.ArchiveOriginalRelativePath is not null)
         {
             throw new InvalidOperationException("Ce projet est déjà marqué comme archivé.");
+        }
+
+        // Never relocate a project while an interrupted first DOCX import
+        // still references this path, including imports in subprojects.
+        // Moving the tree would otherwise invalidate its recovery journal.
+        DocxFirstImportRecoveryService importRecovery =
+            new DocxFirstImportRecoveryService(_root);
+        IReadOnlyList<string> pendingImports =
+            await importRecovery.ListPendingProjectsAsync(cancellationToken);
+        if (pendingImports.Any(pending =>
+                string.Equals(pending, source, StringComparison.OrdinalIgnoreCase) ||
+                IsInside(pending, source)))
+        {
+            throw new InvalidOperationException(
+                "Un import DOCX du projet ou d'un sous-projet est interrompu. " +
+                "Récupérez l'import avant de clore et archiver le projet.");
         }
 
         string destination = Path.Combine(_archivesRoot, original.Id.ToString("N"));

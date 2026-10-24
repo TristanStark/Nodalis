@@ -1,5 +1,7 @@
 using Nodalis.Core.Domain;
+using Nodalis.Core.Importing;
 using Nodalis.Core.Navigation;
+using Nodalis.Infrastructure.Importing;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Projects;
 using System.Text.Json;
@@ -33,6 +35,46 @@ internal static class ProjectArchivesSmokeTests
         await File.WriteAllTextAsync(notes, "# Notes originales\n\nNe pas modifier.\n");
 
         ProjectArchiveService service = new ProjectArchiveService(root);
+        // Closing a project with unfinished DOCX writes would orphan their
+        // journal because every destination still points to the active tree.
+        DocxFirstImportRecoveryService recovery =
+            new DocxFirstImportRecoveryService(root);
+        string expected = Path.Combine(project, "Tests", "Import - incident.md");
+        DocxImportPlan plan = new DocxImportPlan
+        {
+            TargetProjectDisplayName = original.Name,
+            TargetProjectRelativePath = Path.GetRelativePath(root, project)
+                .Replace('\\', '/'),
+            Fingerprint = new string('a', 64)
+        };
+        using (DocxFirstImportSession pending = await recovery.BeginAsync(
+                   plan, Guid.NewGuid(), original.Id,
+                   [
+                       new DocxFirstImportFile
+                       {
+                           RelativePath = Path.GetRelativePath(root, expected)
+                               .Replace('\\', '/'),
+                           Sha256 = DocxImportManifestStore.ComputeSha256("expected")
+                       }
+                   ]))
+        {
+            // Persist the unfinished journal but release its workspace lock.
+        }
+
+        bool pendingBlocked = false;
+        try
+        {
+            await service.ArchiveAsync(project);
+        }
+        catch (InvalidOperationException)
+        {
+            pendingBlocked = true;
+        }
+
+        Assert(pendingBlocked && Directory.Exists(project),
+            "Project archive must refuse to orphan an interrupted DOCX import journal.");
+        Assert(await recovery.RecoverPendingAsync() == 1,
+            "The interrupted import must be safely reconciled before closure.");
         string archived = await service.ArchiveAsync(project);
         Assert(!Directory.Exists(project) && Directory.Exists(archived),
             "A closed project must leave the active application tree.");
