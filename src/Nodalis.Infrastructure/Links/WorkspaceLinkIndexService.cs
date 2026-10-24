@@ -98,13 +98,15 @@ public sealed class WorkspaceLinkIndexService
         global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkTargetEntry> targets = new List<LinkTargetEntry>();
         global::System.Collections.Generic.HashSet<global::System.Guid> matchedPreviousIds = new HashSet<Guid>();
         RefreshCounters counters = new RefreshCounters();
+        PreviousLinkTargetLookup previousLookup =
+            new PreviousLinkTargetLookup(previous.Targets);
 
         await CollectTargetsAsync(
             navigation,
             breadcrumb: [],
             scopeIdentity: $"workspace:{navigation.Id:D}",
             scopeRootPath: _workspaceRoot,
-            previous.Targets,
+            previousLookup,
             matchedPreviousIds,
             targets,
             counters,
@@ -477,7 +479,7 @@ public sealed class WorkspaceLinkIndexService
     /// <param name="breadcrumb">The <c>breadcrumb</c> value.</param>
     /// <param name="scopeIdentity">The <c>scopeIdentity</c> value.</param>
     /// <param name="scopeRootPath">The <c>scopeRootPath</c> value.</param>
-    /// <param name="previousTargets">The <c>previousTargets</c> value.</param>
+    /// <param name="previousLookup">One lookup for previous targets during this refresh.</param>
     /// <param name="matchedPreviousIds">The <c>matchedPreviousIds</c> value.</param>
     /// <param name="targets">The <c>targets</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
@@ -487,7 +489,7 @@ public sealed class WorkspaceLinkIndexService
             IReadOnlyList<string> breadcrumb,
             string scopeIdentity,
             string scopeRootPath,
-            IReadOnlyList<LinkTargetEntry> previousTargets,
+            PreviousLinkTargetLookup previousLookup,
             ISet<Guid> matchedPreviousIds,
             ICollection<LinkTargetEntry> targets,
             RefreshCounters counters,
@@ -540,8 +542,7 @@ public sealed class WorkspaceLinkIndexService
                 " / ",
                 currentBreadcrumb);
 
-            global::Nodalis.Core.Links.LinkTargetEntry? existing = previousTargets.FirstOrDefault(target =>
-                target.Id == node.Id);
+            LinkTargetEntry? existing = previousLookup.FindById(node.Id);
 
             global::System.Collections.Generic.List<string> aliases = existing is null
                 ? []
@@ -582,8 +583,7 @@ public sealed class WorkspaceLinkIndexService
             FileInfo fileInfo = new FileInfo(
                 node.FullPath);
 
-            global::Nodalis.Core.Links.LinkTargetEntry? existing = MatchDocumentByLocation(
-                previousTargets,
+            global::Nodalis.Core.Links.LinkTargetEntry? existing = previousLookup.MatchByLocation(
                 matchedPreviousIds,
                 relativePath,
                 currentScopeIdentity,
@@ -606,8 +606,7 @@ public sealed class WorkspaceLinkIndexService
                     cancellationToken);
                 counters.HashedDocuments++;
 
-                existing ??= MatchDocumentByHash(
-                    previousTargets,
+                existing ??= previousLookup.MatchByHash(
                     matchedPreviousIds,
                     currentScopeIdentity,
                     contentHash);
@@ -655,7 +654,7 @@ public sealed class WorkspaceLinkIndexService
                 currentBreadcrumb,
                 currentScopeIdentity,
                 currentScopeRootPath,
-                previousTargets,
+                previousLookup,
                 matchedPreviousIds,
                 targets,
                 counters,
@@ -679,10 +678,8 @@ public sealed class WorkspaceLinkIndexService
             RefreshCounters counters,
             CancellationToken cancellationToken)
     {
-        LinkIndexCatalog resolutionCatalog = new LinkIndexCatalog
-        {
-            Targets = targets.ToList()
-        };
+        LinkTargetResolutionLookup resolutionLookup =
+            new LinkTargetResolutionLookup(targets);
 
         global::System.Collections.Generic.Dictionary<global::System.Guid, global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkReferenceEntry>> previousReferences =
             previous.References
@@ -717,8 +714,7 @@ public sealed class WorkspaceLinkIndexService
                 {
                     foreach (LinkReferenceEntry cached in cachedReferences)
                     {
-                        LinkResolution resolution = Resolve(
-                            resolutionCatalog,
+                        LinkResolution resolution = resolutionLookup.Resolve(
                             cached.RawTarget);
 
                         references.Add(
@@ -785,8 +781,7 @@ public sealed class WorkspaceLinkIndexService
                         continue;
                     }
 
-                    LinkResolution resolution = Resolve(
-                        resolutionCatalog,
+                    LinkResolution resolution = resolutionLookup.Resolve(
                         inline.Target);
 
                     references.Add(
@@ -826,91 +821,6 @@ public sealed class WorkspaceLinkIndexService
         return new DocumentIndexBuildResult(
             references,
             relations);
-    }
-
-    /// <summary>
-    /// Matches a document by its stable filesystem location without opening the file.
-    /// </summary>
-    private static LinkTargetEntry? MatchDocumentByLocation(
-            IReadOnlyList<LinkTargetEntry> previousTargets,
-            ISet<Guid> matchedPreviousIds,
-            string relativePath,
-            string scopeIdentity,
-            string localRelativePath)
-    {
-        LinkTargetEntry[] documents = previousTargets
-            .Where(target =>
-                target.Kind == LinkTargetKind.Document &&
-                !matchedPreviousIds.Contains(
-                    target.Id))
-            .ToArray();
-
-        LinkTargetEntry? byPath = documents.FirstOrDefault(target =>
-            string.Equals(
-                target.RelativePath,
-                relativePath,
-                StringComparison.OrdinalIgnoreCase));
-
-        if (byPath is not null)
-        {
-            return byPath;
-        }
-
-        return documents.FirstOrDefault(target =>
-            string.Equals(
-                target.ScopeIdentity,
-                scopeIdentity,
-                StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(
-                target.LocalRelativePath,
-                localRelativePath,
-                StringComparison.OrdinalIgnoreCase));
-    }
-
-    /// <summary>
-    /// Matches a moved document by content hash after a location match was impossible.
-    /// </summary>
-    private static LinkTargetEntry? MatchDocumentByHash(
-            IReadOnlyList<LinkTargetEntry> previousTargets,
-            ISet<Guid> matchedPreviousIds,
-            string scopeIdentity,
-            string contentHash)
-    {
-        LinkTargetEntry[] documents = previousTargets
-            .Where(target =>
-                target.Kind == LinkTargetKind.Document &&
-                !matchedPreviousIds.Contains(
-                    target.Id))
-            .ToArray();
-
-        LinkTargetEntry[] sameScopeHash = documents
-            .Where(target =>
-                string.Equals(
-                    target.ScopeIdentity,
-                    scopeIdentity,
-                    StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(
-                    target.ContentHash,
-                    contentHash,
-                    StringComparison.Ordinal))
-            .ToArray();
-
-        if (sameScopeHash.Length == 1)
-        {
-            return sameScopeHash[0];
-        }
-
-        LinkTargetEntry[] globalHash = documents
-            .Where(target =>
-                string.Equals(
-                    target.ContentHash,
-                    contentHash,
-                    StringComparison.Ordinal))
-            .ToArray();
-
-        return globalHash.Length == 1
-            ? globalHash[0]
-            : null;
     }
 
     /// <summary>

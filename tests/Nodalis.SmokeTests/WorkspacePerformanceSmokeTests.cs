@@ -87,6 +87,52 @@ internal static class WorkspacePerformanceSmokeTests
             Assert(
                 targeted.Catalog.References.Count >= generatedDocuments,
                 "Incremental refresh must preserve backlinks from unchanged documents.");
+
+            LinkTargetEntry original = targeted.Catalog.Targets.Single(target =>
+                target.RelativePath == "Document 0008.md");
+            File.Move(
+                Path.Combine(performanceRoot, "Document 0008.md"),
+                Path.Combine(performanceRoot, "Renamed Document 0008.md"));
+            LinkIndexRefreshResult moved = await service.RefreshWithMetricsAsync();
+            LinkTargetEntry afterMove = moved.Catalog.Targets.Single(target =>
+                target.RelativePath == "Renamed Document 0008.md");
+            Assert(
+                original.Id == afterMove.Id &&
+                afterMove.Aliases.Contains("Document 0008"),
+                "Unique hash lookup must preserve GUID and historic alias across a move.");
+
+            string folderA = Path.Combine(performanceRoot, "Collision A");
+            string folderB = Path.Combine(performanceRoot, "Collision B");
+            Directory.CreateDirectory(folderA);
+            Directory.CreateDirectory(folderB);
+            await File.WriteAllTextAsync(Path.Combine(folderA, "Collision.md"), "# A\n");
+            await File.WriteAllTextAsync(Path.Combine(folderB, "Collision.md"), "# B\n");
+            await File.WriteAllTextAsync(
+                Path.Combine(performanceRoot, "Ambiguity.md"),
+                "[[Collision]] [[Document 0008]] [[missing-target]]\n");
+            LinkIndexRefreshResult collisions = await service.RefreshWithMetricsAsync();
+            foreach (LinkReferenceEntry reference in collisions.Catalog.References)
+            {
+                LinkResolution expectedResolution = WorkspaceLinkIndexService.Resolve(
+                    collisions.Catalog,
+                    reference.RawTarget);
+                Guid? expectedId = expectedResolution.Status == LinkResolutionStatus.Resolved
+                    ? expectedResolution.Target!.Id
+                    : null;
+                Assert(
+                    reference.TargetId == expectedId,
+                    "Batch resolver must match legacy resolver for cached and parsed backlinks.");
+            }
+
+            LinkTargetEntry ambiguity = collisions.Catalog.Targets.Single(target =>
+                target.RelativePath == "Ambiguity.md");
+            Assert(
+                collisions.Catalog.References.Any(reference =>
+                    reference.SourceId == ambiguity.Id &&
+                    reference.RawTarget == "Collision" &&
+                    reference.TargetId is null),
+                "Duplicate display names must remain ambiguous.");
+
         }
         finally
         {
