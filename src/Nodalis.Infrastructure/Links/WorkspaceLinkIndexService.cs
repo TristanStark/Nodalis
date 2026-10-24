@@ -560,8 +560,18 @@ public sealed class WorkspaceLinkIndexService
                 ? []
                 : MergeAliases(
                     existing.Aliases,
-                    existing.DisplayName,
-                    existing.QualifiedName);
+                    string.Equals(
+                        existing.DisplayName,
+                        node.DisplayName,
+                        StringComparison.CurrentCultureIgnoreCase)
+                        ? null
+                        : existing.DisplayName,
+                    string.Equals(
+                        existing.QualifiedName,
+                        qualifiedName,
+                        StringComparison.CurrentCultureIgnoreCase)
+                        ? null
+                        : existing.QualifiedName);
 
             targets.Add(new LinkTargetEntry
             {
@@ -633,8 +643,18 @@ public sealed class WorkspaceLinkIndexService
                 ? []
                 : MergeAliases(
                     existing.Aliases,
-                    existing.DisplayName,
-                    existing.QualifiedName);
+                    string.Equals(
+                        existing.DisplayName,
+                        displayName,
+                        StringComparison.CurrentCultureIgnoreCase)
+                        ? null
+                        : existing.DisplayName,
+                    string.Equals(
+                        existing.QualifiedName,
+                        qualifiedName,
+                        StringComparison.CurrentCultureIgnoreCase)
+                        ? null
+                        : existing.QualifiedName);
 
             global::System.Guid id = existing?.Id ?? Guid.NewGuid();
 
