@@ -20,21 +20,26 @@ public partial class DiagnosticsDialog : Window
     /// </summary>
     /// <param name="diagnosticsService">The local diagnostics service.</param>
     /// <param name="workspaceRoot">Optional workspace root included as technical context.</param>
-    /// <param name="heartbeatMonitor">Bounded in-memory UI latency monitor.</param>
+    /// <param name="heartbeatMonitor">Optional shared in-memory UI latency monitor.</param>
     public DiagnosticsDialog(
             LocalDiagnosticsService diagnosticsService,
             string? workspaceRoot,
-            DispatcherHeartbeatMonitor heartbeatMonitor)
+            DispatcherHeartbeatMonitor? heartbeatMonitor = null)
     {
         ArgumentNullException.ThrowIfNull(diagnosticsService);
-        ArgumentNullException.ThrowIfNull(heartbeatMonitor);
 
         InitializeComponent();
 
         _diagnosticsService = diagnosticsService;
         _workspaceRoot = workspaceRoot;
-        _heartbeatMonitor = heartbeatMonitor;
-        HeartbeatEnabledCheckBox.IsChecked = heartbeatMonitor.IsEnabled;
+        _heartbeatMonitor = heartbeatMonitor ?? new DispatcherHeartbeatMonitor(Dispatcher);
+        HeartbeatEnabledCheckBox.IsChecked = _heartbeatMonitor.IsEnabled;
+        if (heartbeatMonitor is null)
+        {
+            // The diagnostics dialog owns this fallback monitor, not MainWindow.
+            // Stop it at close to avoid retaining a timer after the error dialog.
+            Closed += (_, _) => _heartbeatMonitor.SetEnabled(false);
+        }
 
         SessionStateText.Text =
             diagnosticsService.PreviousSessionEndedUnexpectedly
