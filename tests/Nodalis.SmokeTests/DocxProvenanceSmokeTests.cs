@@ -742,6 +742,65 @@ internal static class DocxProvenanceSmokeTests
                File.Exists(Path.Combine(editedNewProject, "Présentation.md")) &&
                (await crashRecovery.ListPendingProjectsAsync()).Count == 0,
             "Recovery must preserve edited project scaffolds and settle their journal.");
+
+        // A project closed after the Word assistant opened, or swapped on
+        // disk with another identity, must reject the import before writing.
+        DocxImportPreview closurePreview = await service.PreparePreviewAsync(sourcePath);
+        DocxImportCommitRequest closureRequest = request with
+        {
+            ProjectId = committed.ProjectId,
+            NewProjectName = null,
+            Sections = closurePreview.Sections.Select(section =>
+                new DocxImportSectionSelection
+                {
+                    SectionIndex = section.Index,
+                    Include = true,
+                    TargetSection = "Technique"
+                }).ToList()
+        };
+        string closureManifest = Path.Combine(committed.ProjectDirectory,
+            WorkspaceLayout.ProjectManifestFileName);
+        byte[] originalClosureManifest = await File.ReadAllBytesAsync(closureManifest);
+        ProjectManifest activeProject = JsonSerializer.Deserialize<ProjectManifest>(
+            originalClosureManifest,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ??
+            throw new InvalidDataException("Cannot deserialize active project.");
+        bool archivedRejected = false;
+        bool wrongIdentityRejected = false;
+        try
+        {
+            await File.WriteAllTextAsync(closureManifest, JsonSerializer.Serialize(
+                activeProject with { ArchivedUtc = DateTimeOffset.UtcNow }));
+            try
+            {
+                await service.BuildPlanAsync(closurePreview, closureRequest);
+            }
+            catch (InvalidOperationException)
+            {
+                archivedRejected = true;
+            }
+
+            await File.WriteAllTextAsync(closureManifest, JsonSerializer.Serialize(
+                activeProject with { Id = Guid.NewGuid() }));
+            try
+            {
+                await service.BuildPlanAsync(closurePreview, closureRequest);
+            }
+            catch (InvalidDataException)
+            {
+                wrongIdentityRejected = true;
+            }
+        }
+        finally
+        {
+            await File.WriteAllBytesAsync(closureManifest, originalClosureManifest);
+            service.DiscardStagedCopy(closurePreview.StagedImport);
+        }
+
+        Assert(archivedRejected && wrongIdentityRejected &&
+               (await File.ReadAllBytesAsync(closureManifest))
+                   .SequenceEqual(originalClosureManifest),
+            "DOCX preview must reject closed projects and swapped manifests without data loss.");
     }
 
     /// <summary>Creates representative input without requiring Word or a network connection.</summary>
