@@ -16,7 +16,11 @@ public sealed class DispatcherHeartbeatMonitor
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _stopwatch = new();
     private readonly long[] _samples = new long[MaximumSamples];
-    private readonly List<(DateTimeOffset WhenUtc, long DelayMilliseconds)> _slowEvents = [];
+    private readonly List<(DateTimeOffset WhenUtc, long DelayMilliseconds, string Operations)> _slowEvents = [];
+    private readonly Dictionary<int, (string Name, long Started)> _activeOperations = [];
+    private readonly Dictionary<string, Queue<long>> _operationDurations = [];
+    private readonly Queue<(string Name, DateTimeOffset FinishedUtc)> _recentOperations = [];
+    private int _nextOperationId;
     private int _count;
     private int _next;
     private long _previousTickMilliseconds;
@@ -61,6 +65,68 @@ public sealed class DispatcherHeartbeatMonitor
         _timer.Start();
     }
 
+    /// <summary>Tracks one named operation if performance measurement is enabled.</summary>
+    /// <param name="name">Fixed operation category, never file paths or document text.</param>
+    /// <returns>A scope which completes the measurement when disposed.</returns>
+    public OperationScope TrackOperation(string name)
+    {
+        if (!IsEnabled)
+        {
+            return default;
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        int id = ++_nextOperationId;
+        _activeOperations[id] = (name, Stopwatch.GetTimestamp());
+        return new OperationScope(this, id);
+    }
+
+    /// <summary>Completes a tracked operation and retains only bounded aggregates.</summary>
+    private void CompleteOperation(int id)
+    {
+        if (!_activeOperations.Remove(id, out (string Name, long Started) operation))
+        {
+            return;
+        }
+
+        long duration = (long)Stopwatch.GetElapsedTime(operation.Started).TotalMilliseconds;
+        if (!_operationDurations.TryGetValue(operation.Name, out Queue<long>? samples))
+        {
+            samples = new Queue<long>();
+            _operationDurations.Add(operation.Name, samples);
+        }
+
+        if (samples.Count >= 128)
+        {
+            samples.Dequeue();
+        }
+
+        samples.Enqueue(duration);
+        if (_recentOperations.Count >= 32)
+        {
+            _recentOperations.Dequeue();
+        }
+
+        _recentOperations.Enqueue((operation.Name, DateTimeOffset.UtcNow));
+    }
+
+    /// <summary>Disposable scope for one named operation.</summary>
+    public readonly struct OperationScope : IDisposable
+    {
+        private readonly DispatcherHeartbeatMonitor? _owner;
+        private readonly int _id;
+
+        /// <summary>Initializes one operation scope.</summary>
+        internal OperationScope(DispatcherHeartbeatMonitor owner, int id)
+        {
+            _owner = owner;
+            _id = id;
+        }
+
+        /// <summary>Records the operation's elapsed duration.</summary>
+        public void Dispose() => _owner?.CompleteOperation(_id);
+    }
+
     /// <summary>Handles the low-priority dispatcher heartbeat.</summary>
     private void OnTimerTick(object? sender, EventArgs e)
     {
@@ -87,7 +153,22 @@ public sealed class DispatcherHeartbeatMonitor
             _slowEvents.RemoveAt(0);
         }
 
-        _slowEvents.Add((DateTimeOffset.UtcNow, delay));
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        HashSet<string> operations = new(
+            _activeOperations.Values.Select(value => value.Name),
+            StringComparer.Ordinal);
+        foreach ((string name, DateTimeOffset finishedUtc) in _recentOperations)
+        {
+            if ((now - finishedUtc).TotalSeconds <= 3)
+            {
+                operations.Add(name);
+            }
+        }
+
+        _slowEvents.Add((
+            now,
+            delay,
+            operations.Count == 0 ? "indéterminé" : string.Join(", ", operations)));
     }
 
     /// <summary>
@@ -119,14 +200,23 @@ public sealed class DispatcherHeartbeatMonitor
         }
         else
         {
-            foreach ((DateTimeOffset when, long delay) in _slowEvents)
+            foreach ((DateTimeOffset when, long delay, string operations) in _slowEvents)
             {
-                builder.AppendLine($"{when:O} — {delay} ms");
+                builder.AppendLine($"{when:O} — {delay} ms — activités proches : {operations}");
             }
         }
 
+        builder.AppendLine("Durée des opérations (128 échantillons max. par type) :");
+        foreach (KeyValuePair<string, Queue<long>> entry in _operationDurations
+                     .OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            long[] durations = entry.Value.OrderBy(value => value).ToArray();
+            builder.AppendLine(
+                $"{entry.Key} : n={durations.Length} · p50={Percentile(durations, 0.5)} ms · p95={Percentile(durations, 0.95)} ms · p99={Percentile(durations, 0.99)} ms");
+        }
+
         builder.AppendLine(
-            "Mesures conservées en mémoire uniquement ; aucun document ou chemin n'est enregistré.");
+            "Mesures locales uniquement ; activités proches = corrélation temporelle, pas causalité. Aucun contenu ou chemin enregistré.");
         return builder.ToString();
     }
 
