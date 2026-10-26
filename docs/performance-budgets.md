@@ -24,8 +24,10 @@ relations en ordre déterministe. Si le contenu indexé est identique, le fichie
 JSON et son horodatage restent inchangés ; l'horodatage UpdatedUtc ne déclenche
 pas d'écriture artificielle. Le compteur IndexFileWritten et les tests
 cold/warm/single-change garantissent cette propriété sans test de durée CI.
-La mutualisation interservices et la synchronisation des refresh concurrents
-restent à effectuer dans #183.
+La synchronisation par workspace et la fusion des demandes simultanées
+sont maintenant implémentées (voir « Single-flight par workspace »).
+Le raccordement systématique des mutations structurelles à l'invalidation
+explicite et les mesures réelles Windows restent nécessaires pour #183.
 
 
 ## Isolation du Dispatcher et sérialisation des écritures (#183 / #184, étape 1)
@@ -159,3 +161,41 @@ sur chaque terme et chaque occurrence. Une frappe supplémentaire ou un
 changement d'onglet annule l'analyse précédente ; les résultats arrivant
 après changement de révision sont ignorés côté WPF. Le smoke test couvre
 l'annulation explicite.
+
+## Incrément develop du 26 octobre 2026 (#181, #183, #184, #186–#189)
+
+- **DOCX** : une modification de sélection provenant d'un bloc annonce son
+  nœud d'origine et ne recalcule que la section correspondante. « Tout
+  sélectionner » continue d'invalider toutes les sections. Le compteur de
+  blocs retenus est conservé par section et une double notification lors de
+  la correction de titre est supprimée. À qualifier sur de vrais DOCX de 100+
+  pages et lors d'actions successives (sélection, profil, plan et commit).
+- **Vues dynamiques** : la projection des éléments déjà collectés est bâtie
+  par un worker ; l'interface reçoit seulement son snapshot terminé. La même
+  instance de catalogue de liens est réutilisée au lieu de relire le JSON
+  dérivé en fin de collecte. Conserver le contrôle des modifications externes
+  avant de qualifier définitivement #188.
+- **Aperçu Markdown** : après le debounce, le parsing des blocs se fait hors
+  du Dispatcher. Une nouvelle frappe annule l'ancien parsing ; un résultat
+  n'est publié que si l'onglet, la révision et le contenu correspondent encore.
+  La construction du FlowDocument et tous les objets WPF restent sur le thread
+  UI. Les autres demandes synchrones de rendu conservent leur parcours
+  historique. Le parsing est coopérativement annulable même dans les longs
+  blocs de code. Un smoke test vérifie la parité des blocs et l'annulation.
+- **Navigation** : le parcours du système de fichiers et la construction du
+  modèle pur sont déplacés sur un worker ; les viewmodels WPF et leur
+  publication restent côté Dispatcher.
+- **Diagnostics** : catégories fixes « Navigation arborescence », « Sauvegarde
+  automatique », « Vidage des onglets » et « Vues dynamiques » intégrées au
+  rapport de durée d'opérations ; working set du processus, heap managé et
+  collectes GC complètent les percentiles. Ce sont des observations globales,
+  non une attribution de consommation aux opérations.
+- **Single-flight** : test supplémentaire simulant deux générations
+  invalidées pendant des refresh concurrents et vérifiant la présence de la
+  dernière génération dans le JSON dérivé.
+
+Ces changements ne constituent **pas** une validation de performance Windows :
+les captures p95/p99 avant/après, les 5 000/10 000 documents, les scénarios
+multi-onglets et les protections contre les changements structurels externes
+restent au gate #190. Aucun budget chronométrique artificiel n'est ajouté
+aux tests de CI.
