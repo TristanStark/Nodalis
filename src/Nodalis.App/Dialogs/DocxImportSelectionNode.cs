@@ -14,6 +14,7 @@ public sealed class DocxImportSelectionNode : INotifyPropertyChanged
 
     /// <summary>
     /// Raised once at the root whenever selection changes anywhere in the subtree.
+    /// The sender identifies the changed node; whole-document operations send the document root.
     /// </summary>
     public event EventHandler? SelectionChanged;
 
@@ -270,7 +271,7 @@ public sealed class DocxImportSelectionNode : INotifyPropertyChanged
         }
 
         root.SelectionChanged?.Invoke(
-            root,
+            this,
             EventArgs.Empty);
     }
 
