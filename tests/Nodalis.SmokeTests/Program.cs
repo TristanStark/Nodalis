@@ -3058,6 +3058,97 @@ static async Task VerifyMilestonesAsync(string root)
             StringComparison.Ordinal),
         "Editing a compatible customized milestone table must safely normalize its supported schema.");
 
+    // Pasted milestones may omit the Id column entirely, even when the
+    // project's Markdown table already contains the seven canonical headers.
+    string pastedTable =
+        "# Jalons copiés\n\n" +
+        "| Jalon | Date cible | Statut | Description | Lien | Id | Dépend de |\n" +
+        "| --- | --- | --- | --- | --- | --- | --- |\n" +
+        "| Copié depuis Excel | 27/10/2026 | À faire | Description conservée | outil://test |\n" +
+        "| Copié depuis Word | 2026-11-05 | En cours | Ancienne date ISO | | | |\n" +
+        "| Date erronée | 31/02/2026 | À faire | Ne pas effacer la saisie | |\n";
+    await File.WriteAllTextAsync(
+        canonicalMilestonePath,
+        pastedTable);
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> pasted =
+        await service.GetMilestonesAsync(project.ProjectDirectory);
+    Assert(
+        pasted.Count == 3 &&
+        pasted.Single(item => item.Name == "Copié depuis Excel").TargetDate ==
+            new DateOnly(2026, 10, 27) &&
+        pasted.Single(item => item.Name == "Copié depuis Word").TargetDate ==
+            new DateOnly(2026, 11, 5) &&
+        pasted.Single(item => item.Name == "Date erronée").TargetDate is null &&
+        pasted.Select(item => item.Id).Distinct().Count() == 3,
+        "French dates, legacy ISO dates, and pasted rows without Id must remain visible and distinct.");
+
+    global::Nodalis.Core.Milestones.MilestoneItem pastedToEdit =
+        pasted.Single(item => item.Name == "Copié depuis Excel");
+    global::Nodalis.Core.Milestones.MilestoneItem editedPaste =
+        await service.UpdateAsync(
+            pastedToEdit,
+            new MilestoneDraft
+            {
+                Name = pastedToEdit.Name,
+                TargetDate = pastedToEdit.TargetDate,
+                Status = "En cours",
+                Description = pastedToEdit.Description,
+                Link = pastedToEdit.Link
+            });
+
+    string normalizedPastes = await File.ReadAllTextAsync(canonicalMilestonePath);
+    Assert(
+        editedPaste.Id == pastedToEdit.Id &&
+        normalizedPastes.Contains("| Copié depuis Excel | 27/10/2026 | En cours |", StringComparison.Ordinal) &&
+        normalizedPastes.Contains("| Copié depuis Word | 05/11/2026 |", StringComparison.Ordinal) &&
+        normalizedPastes.Contains("| Date erronée | 31/02/2026 |", StringComparison.Ordinal) &&
+        pasted.All(item => normalizedPastes.Contains(item.Id.ToString("D"), StringComparison.Ordinal)),
+        "Editing a pasted row must materialize durable IDs, write French dates, and retain invalid raw dates.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> afterPaste =
+        await service.GetMilestonesAsync(project.ProjectDirectory);
+    Assert(
+        afterPaste.Select(item => item.Id).Order().SequenceEqual(
+            pasted.Select(item => item.Id).Order()),
+        "Materializing missing IDs must preserve identity for every pasted milestone.");
+
+    await service.DeleteAsync(
+        afterPaste.Single(item => item.Name == "Copié depuis Word"));
+    Assert(
+        (await service.GetMilestonesAsync(project.ProjectDirectory)).Count == 2,
+        "Pasted milestones must remain deletable after ID normalization.");
+
+    // Also check older five-column documents without any identifier header.
+    await File.WriteAllTextAsync(
+        canonicalMilestonePath,
+        "# Jalons hérités\n\n" +
+        "| Jalon | Date cible | Statut | Description | Lien |\n" +
+        "| --- | --- | --- | --- | --- |\n" +
+        "| Recette héritée | 29/10/2026 | À faire | Important | |\n");
+    global::Nodalis.Core.Milestones.MilestoneItem legacyPaste =
+        (await service.GetMilestonesAsync(project.ProjectDirectory)).Single();
+    Assert(
+        legacyPaste.TargetDate == new DateOnly(2026, 10, 29),
+        "A five-column pasted milestone without IDs must be visible before migration.");
+    await service.UpdateAsync(
+        legacyPaste,
+        new MilestoneDraft
+        {
+            Name = legacyPaste.Name,
+            TargetDate = legacyPaste.TargetDate,
+            Status = "Terminée",
+            Description = legacyPaste.Description
+        });
+    string normalizedLegacy = await File.ReadAllTextAsync(canonicalMilestonePath);
+    Assert(
+        normalizedLegacy.Contains("| Recette héritée | 29/10/2026 | Terminée |", StringComparison.Ordinal) &&
+        normalizedLegacy.Contains(legacyPaste.Id.ToString("D"), StringComparison.Ordinal),
+        "Legacy pasted tables must migrate to explicit identifiers without losing their French dates.");
+
+    // Restore the empty canonical table for the pre-existing CRUD/dependency tests.
+    await File.WriteAllTextAsync(canonicalMilestonePath, normalizedTemplate);
+
     global::Nodalis.Core.Milestones.MilestoneItem first = await service.AddAsync(
         project.ProjectDirectory,
         new MilestoneDraft
