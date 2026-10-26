@@ -774,6 +774,7 @@ public sealed class WorkspaceMilestoneService
     /// </summary>
     /// <param name="draft">The milestone values.</param>
     /// <param name="id">The stable milestone identifier.</param>
+    /// <param name="unrecognizedSourceDate">An invalid date cell to preserve without data loss during schema upgrades.</param>
     /// <returns>The Markdown table row.</returns>
     private static string FormatRow(
             MilestoneDraft draft,
