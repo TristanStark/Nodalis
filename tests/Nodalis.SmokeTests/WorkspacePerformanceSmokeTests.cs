@@ -1,4 +1,5 @@
 using Nodalis.Core.Links;
+using Nodalis.Core.Markdown;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Tasks;
 using Nodalis.Infrastructure.Milestones;
@@ -40,6 +41,35 @@ internal static class WorkspacePerformanceSmokeTests
                     path,
                     $"# Document {index:D4}\n\n[[{nextName}]]\n\n- [ ] Tâche {index}\n");
             }
+
+            // Parsing the same Markdown snapshot in a worker must be independent
+            // of WPF and preserve every block, including ordered lists and tables.
+            string markdown = "# Vue volumineuse\n\n1. Premier\n2. Second\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n";
+            IReadOnlyList<MarkdownBlock> directParse =
+                MarkdownDocumentParser.Parse(markdown);
+            IReadOnlyList<MarkdownBlock> workerParse =
+                await Task.Run(() => MarkdownDocumentParser.Parse(markdown));
+            Assert(
+                directParse.Count == workerParse.Count &&
+                directParse.Zip(workerParse).All(pair =>
+                    pair.First.Kind == pair.Second.Kind &&
+                    pair.First.Text == pair.Second.Text &&
+                    pair.First.OrderedListNumber == pair.Second.OrderedListNumber &&
+                    pair.First.TableRows.Count == pair.Second.TableRows.Count),
+                "Background Markdown parsing must preserve visible block semantics.");
+
+            using CancellationTokenSource obsoletePreview = new CancellationTokenSource();
+            obsoletePreview.Cancel();
+            bool stopped = false;
+            try
+            {
+                MarkdownDocumentParser.Parse(markdown, obsoletePreview.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                stopped = true;
+            }
+            Assert(stopped, "Canceled Markdown previews must not continue parsing.");
 
             WorkspaceLinkIndexService service =
                 new WorkspaceLinkIndexService(
