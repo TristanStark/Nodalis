@@ -192,6 +192,13 @@ public sealed class DispatcherHeartbeatMonitor
         builder.AppendLine($"Retard p95 : {Percentile(sorted, 0.95)} ms");
         builder.AppendLine($"Retard p99 : {Percentile(sorted, 0.99)} ms");
         builder.AppendLine($"Retard maximum : {_maximumDelay} ms");
+        // Process-wide counters give reproducible context for a slow UI sample,
+        // but cannot be attributed to one operation when workers overlap.
+        using Process process = Process.GetCurrentProcess();
+        builder.AppendLine($"Mémoire physique du processus : {process.WorkingSet64 / 1048576} MiB");
+        builder.AppendLine($"Heap managé approximatif : {GC.GetTotalMemory(false) / 1048576} MiB");
+        builder.AppendLine(
+            $"Collections GC Gen0/1/2 : {GC.CollectionCount(0)}/{GC.CollectionCount(1)}/{GC.CollectionCount(2)}");
         builder.AppendLine("Derniers retards > 200 ms (UTC, maximum 32) :");
 
         if (_slowEvents.Count == 0)
