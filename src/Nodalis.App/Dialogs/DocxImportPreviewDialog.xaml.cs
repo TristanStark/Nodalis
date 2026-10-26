@@ -854,6 +854,9 @@ public partial class DocxImportPreviewDialog : Window
         private string _markdownPreview = string.Empty;
         private string _originalPreview = string.Empty;
 
+        /// <summary>Cached selected block count, updated only for an affected section.</summary>
+        public int SelectedBlockCount { get; private set; }
+
         /// <summary>Full read-only Word text, including excluded blocks.</summary>
         public string OriginalPreview => _originalPreview;
 
@@ -863,7 +866,7 @@ public partial class DocxImportPreviewDialog : Window
             string.IsNullOrWhiteSpace(TargetSection) ?
                 "Destination manquante : sélection à corriger." :
                 "Incluse → " + TargetSection + " · " +
-                SelectionRoot.GetSelectedBlockIndexes().Count + "/" + BlockCount +
+                SelectedBlockCount + "/" + BlockCount +
                 " blocs Word retenus.";
 
         /// <summary>Initializes the unedited Word source view once.</summary>
@@ -935,9 +938,12 @@ public partial class DocxImportPreviewDialog : Window
         /// Refreshes the live Markdown preview and notifies bindings that the section's tri-state inclusion changed.
         /// </summary>
         /// <param name="markdownPreview">The Markdown produced by the current block selection.</param>
+        /// <param name="selectedBlockCount">Number of retained blocks after the change.</param>
         public void RefreshSelection(
-                string markdownPreview)
+                string markdownPreview,
+                int selectedBlockCount)
         {
+            SelectedBlockCount = selectedBlockCount;
             MarkdownPreview =
                 markdownPreview;
 
@@ -958,8 +964,8 @@ public partial class DocxImportPreviewDialog : Window
         public void InitializeMarkdownPreview(
                 string markdownPreview)
         {
-            _markdownPreview =
-                markdownPreview;
+            _markdownPreview = markdownPreview;
+            SelectedBlockCount = SelectionRoot.GetSelectedBlockIndexes().Count;
         }
     }
 
