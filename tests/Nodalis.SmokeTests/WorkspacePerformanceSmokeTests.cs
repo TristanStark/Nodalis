@@ -170,6 +170,32 @@ internal static class WorkspacePerformanceSmokeTests
             Assert(leaderResult.Catalog.Targets.Count > 0,
                 "Canceling a follower must not cancel the shared leader operation.");
 
+            // An invalidation that lands while an older refresh is running must
+            // schedule a later generation, not allow the older JSON to win.
+            string newGenerationFile =
+                Path.Combine(performanceRoot, "New Generation.md");
+            WorkspaceLinkIndexService.NotifyWorkspaceChanged(performanceRoot);
+            Task<LinkIndexRefreshResult> olderGeneration =
+                service.RefreshWithMetricsAsync();
+            await File.WriteAllTextAsync(
+                newGenerationFile,
+                "# New Generation\n\n[[Document 0001]]\n");
+            WorkspaceLinkIndexService.NotifyWorkspaceChanged(performanceRoot);
+            LinkIndexRefreshResult newerGeneration =
+                await secondService.RefreshWithMetricsAsync();
+            await olderGeneration;
+            Assert(
+                newerGeneration.Catalog.Targets.Any(target =>
+                    target.RelativePath == "New Generation.md"),
+                "An invalidated generation must include a document added after the prior refresh started.");
+
+            LinkIndexCatalog onDisk =
+                await service.LoadAsync();
+            Assert(
+                onDisk.Targets.Any(target =>
+                    target.RelativePath == "New Generation.md"),
+                "An older concurrent refresh must not overwrite the newest index on disk.");
+
             LinkIndexRefreshResult warm =
                 await service.RefreshWithMetricsAsync();
 
