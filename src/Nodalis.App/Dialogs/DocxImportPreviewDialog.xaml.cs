@@ -19,6 +19,7 @@ public partial class DocxImportPreviewDialog : Window
     private DocxImportCommitRequest? _plannedRequest;
     private DocxImportPlan? _lastPlan;
     private bool _refreshingPlan;
+    private long _planChangeVersion;
 
     /// <summary>
     /// Initializes a new instance of <see cref="DocxImportPreviewDialog"/>.
@@ -388,6 +389,7 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     private void InvalidatePlan()
     {
+        _planChangeVersion++;
         _plannedRequest = null;
         _lastPlan = null;
 
@@ -557,8 +559,18 @@ public partial class DocxImportPreviewDialog : Window
             PlanTargetText.Text =
                 "Calcul des fichiers qui seront créés ou modifiés…";
 
+            long plannedVersion = _planChangeVersion;
             global::Nodalis.Core.Importing.DocxImportPlan plan = await _planBuilder(
                 request);
+
+            // The source selection, target or mapping can change while the
+            // dry-run awaits filesystem I/O. Never publish an obsolete plan
+            // or allow its fingerprint to be used for a later commit.
+            if (plannedVersion != _planChangeVersion)
+            {
+                PlanTargetText.Text = "Sélection modifiée : recalculez le plan d'import.";
+                return false;
+            }
 
             _plannedRequest = request;
             _lastPlan = plan;
