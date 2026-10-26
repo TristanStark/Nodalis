@@ -990,6 +990,8 @@ public partial class MainWindow : Window
     /// <returns>A task representing the scheduling check.</returns>
     private async Task TryRunAutomaticBackupAsync()
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Sauvegarde automatique");
         if (_backupInProgress)
         {
             return;
@@ -8432,6 +8434,8 @@ public partial class MainWindow : Window
     private async Task RefreshNavigationAsync(
             string? openPath = null)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Navigation arborescence");
         // Preserve the selected document/project when refreshing unrelated branches.
         string? targetPath = openPath ?? _selectedNode?.FullPath;
         global::System.Collections.Generic.HashSet<global::System.Guid> expandedIds = GetExpandedNodeIds();
