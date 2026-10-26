@@ -152,8 +152,20 @@ Exemple :
     - [ ] Préparer la recette | Responsable: Alice | Échéance: 2026-10-10 | Priorité: Haute | Statut: En cours | Tags: api, recette
 
 Les jalons restent dans Jalons.md. Ils peuvent inclure une date cible, un
-statut, une description, un lien et des dépendances. Les dépendances incohérentes
-ou cycliques sont signalées plutôt que corrigées silencieusement.
+statut, une description, un lien et des dépendances. Les dates sont saisies et
+écrites au format **JJ/MM/AAAA** (ex. `27/10/2026`). Les dates historiques
+`AAAA-MM-JJ` restent reconnues pour la compatibilité.
+
+Vous pouvez **coller directement des lignes de jalons sans colonne `Id` ou avec
+une cellule `Id` vide** dans un tableau Markdown. Elles sont détectées par
+leur nom et leur date ; un identifiant déterministe provisoire est attribué
+pour l'affichage, puis inscrit dans `Jalons.md` à la prochaine modification
+via l'éditeur (ajout/modification/suppression). Les jalons existants avec un
+identifiant gardent leur identité et leurs dépendances. Une date incorrecte
+n'est pas effacée automatiquement lors d'une normalisation de la table.
+
+Les dépendances incohérentes ou cycliques sont signalées plutôt que corrigées
+silencieusement.
 
 Le calendrier agrège les éléments datés du workspace.
 
