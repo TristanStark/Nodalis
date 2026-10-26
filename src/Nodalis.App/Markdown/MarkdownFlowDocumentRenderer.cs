@@ -23,8 +23,29 @@ public static class MarkdownFlowDocumentRenderer
             string markdown,
             string? baseDirectory = null,
             Action<string>? internalLinkClicked = null,
+            Action<string>? linkClicked = null) =>
+        RenderBlocks(
+            MarkdownDocumentParser.Parse(markdown),
+            baseDirectory,
+            internalLinkClicked,
+            linkClicked);
+
+    /// <summary>
+    /// Builds WPF elements on the calling Dispatcher from Markdown blocks that
+    /// may have been parsed and validated on a background worker.
+    /// </summary>
+    /// <param name="blocks">Pre-parsed immutable-by-convention Markdown blocks.</param>
+    /// <param name="baseDirectory">Directory for relative images and links.</param>
+    /// <param name="internalLinkClicked">Callback for internal links.</param>
+    /// <param name="linkClicked">Callback for ordinary links.</param>
+    /// <returns>A WPF FlowDocument that must be used on its creating Dispatcher.</returns>
+    public static FlowDocument RenderBlocks(
+            IReadOnlyList<MarkdownBlock> blocks,
+            string? baseDirectory = null,
+            Action<string>? internalLinkClicked = null,
             Action<string>? linkClicked = null)
     {
+        ArgumentNullException.ThrowIfNull(blocks);
         global::System.Windows.Documents.FlowDocument document = new FlowDocument
         {
             PagePadding = new Thickness(22),
@@ -33,9 +54,6 @@ public static class MarkdownFlowDocumentRenderer
             Foreground = GetBrush("PrimaryTextBrush", Brushes.White),
             Background = GetBrush("WindowBackgroundBrush", Brushes.Transparent)
         };
-
-        global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Markdown.MarkdownBlock> blocks =
-            MarkdownDocumentParser.Parse(markdown);
 
         for (int index = 0;
              index < blocks.Count;)
