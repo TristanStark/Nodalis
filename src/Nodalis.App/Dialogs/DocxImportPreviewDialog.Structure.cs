@@ -132,8 +132,9 @@ public partial class DocxImportPreviewDialog
             parent.AddChild(node);
         }
 
+        // RefreshTreeSelection already raises the event from this section root.
+        // A second explicit call previously forced a redundant plan invalidation.
         root.RefreshTreeSelection();
-        DocumentSelectionRoot_SelectionChanged(root, EventArgs.Empty);
         ContentTreeView.Items.Refresh();
     }
 }
