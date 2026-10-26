@@ -594,6 +594,8 @@ public partial class MainWindow
     /// <returns>A task representing the flush operation.</returns>
     private async Task FlushAllDocumentTabsAsync()
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Vidage des onglets");
         StoreActiveDocumentTabState();
 
         foreach (DocumentTabViewModel tab in _documentTabs)
