@@ -703,15 +703,7 @@ public sealed class WorkspaceMilestoneService
 
             DateOnly? targetDate = null;
 
-            if (DateOnly.TryParseExact(
-                    dateText,
-                    "yyyy-MM-dd",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out global::System.DateOnly parsedDate))
-            {
-                targetDate = parsedDate;
-            }
+            targetDate = ParseTargetDate(dateText);
 
             string description = GetCell(
                 cells,
@@ -785,14 +777,33 @@ public sealed class WorkspaceMilestoneService
     /// <returns>The Markdown table row.</returns>
     private static string FormatRow(
             MilestoneDraft draft,
-            Guid id) =>
+            Guid id,
+            string? unrecognizedSourceDate = null) =>
             $"| {EscapeCell(draft.Name.Trim())} | " +
-            $"{(draft.TargetDate is DateOnly date ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : string.Empty)} | " +
+            $"{(draft.TargetDate is DateOnly date ? date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) : EscapeCell(unrecognizedSourceDate ?? string.Empty))} | " +
             $"{EscapeCell(draft.Status.Trim())} | " +
             $"{EscapeCell(draft.Description.Trim())} | " +
             $"{EscapeCell(NormalizeOptional(draft.Link) ?? string.Empty)} | " +
             $"{id:D} | " +
             $"{FormatDependencyIds(draft.DependencyIds)} |";
+
+    /// <summary>
+    /// Reads pasted French dates while retaining support for existing ISO milestone files.
+    /// </summary>
+    /// <param name="dateText">The date cell in either French or legacy ISO notation.</param>
+    /// <returns>The valid target date, or null for an empty or unrecognized cell.</returns>
+    private static DateOnly? ParseTargetDate(string dateText)
+    {
+        string[] acceptedFormats = ["dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd"];
+        return DateOnly.TryParseExact(
+                dateText.Trim(),
+                acceptedFormats,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out DateOnly date)
+            ? date
+            : null;
+    }
 
     /// <summary>
     /// Ensures that an existing milestone table persists stable identifiers and dependency columns.
@@ -928,26 +939,24 @@ public sealed class WorkspaceMilestoneService
                 .All(match =>
                     match);
 
-        if (alreadyStable)
+        bool changed = !alreadyStable;
+        if (!alreadyStable)
         {
-            return false;
+            lines[headerIndex] =
+                "| Jalon | Date cible | Statut | Description | Lien | Id | Dépend de |";
+
+            int separatorIndex = headerIndex + 1;
+            if (separatorIndex < lines.Count &&
+                IsSeparatorRow(SplitTableRow(lines[separatorIndex])))
+            {
+                lines[separatorIndex] =
+                    "| --- | --- | --- | --- | --- | --- | --- |";
+            }
         }
 
-        lines[headerIndex] =
-            "| Jalon | Date cible | Statut | Description | Lien | Id | Dépend de |";
-
-        int separatorIndex = headerIndex + 1;
-
-        if (separatorIndex < lines.Count &&
-            lines[separatorIndex].TrimStart().StartsWith(
-                "|",
-                StringComparison.Ordinal))
-        {
-            lines[separatorIndex] =
-                "| --- | --- | --- | --- | --- | --- | --- |";
-        }
-
-        for (int index = headerIndex + 2; index < lines.Count; index++)
+        // Even a canonical seven-column table may contain manually pasted rows
+        // without an Id. Materialize deterministic IDs before any edit/delete.
+        for (int index = headerIndex + 1; index < lines.Count; index++)
         {
             string line = lines[index];
 
@@ -979,21 +988,22 @@ public sealed class WorkspaceMilestoneService
                 continue;
             }
 
+            string existingIdText = GetCell(cells, columns, "id", "identifiant");
+            if (alreadyStable &&
+                cells.Count == stableColumns.Length &&
+                Guid.TryParse(existingIdText, out Guid existingId) &&
+                existingId != Guid.Empty)
+            {
+                continue;
+            }
+
             DateOnly? targetDate = null;
             string dateText = GetCell(
                 cells,
                 columns,
                 "date cible");
 
-            if (DateOnly.TryParseExact(
-                    dateText,
-                    "yyyy-MM-dd",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out global::System.DateOnly parsedDate))
-            {
-                targetDate = parsedDate;
-            }
+            targetDate = ParseTargetDate(dateText);
 
             global::System.Guid stableId =
                 ParseMilestoneId(
@@ -1037,9 +1047,20 @@ public sealed class WorkspaceMilestoneService
                             "prerequis"))
                 };
 
-            lines[index] = FormatRow(
+            string replacement = FormatRow(
                 draft,
-                stableId);
+                stableId,
+                targetDate is null ? dateText : null);
+            if (!string.Equals(line, replacement, StringComparison.Ordinal))
+            {
+                lines[index] = replacement;
+                changed = true;
+            }
+        }
+
+        if (!changed)
+        {
+            return false;
         }
 
         string content = string.Join(
