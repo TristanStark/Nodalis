@@ -257,7 +257,9 @@ internal static class WorkspaceCalendarSmokeTests
                 10,
                 16));
 
-        string milestoneSource = await File.ReadAllTextAsync(milestonePath);
+        // The first read migrates legacy Jalons/Jalons.md to project-root Jalons.md.
+        string canonicalMilestonePath = Path.Combine(projectDirectory, "Jalons.md");
+        string milestoneSource = await File.ReadAllTextAsync(canonicalMilestonePath);
         Assert(
             milestoneSource.Contains("| Livraison | 16/10/2026 |", StringComparison.Ordinal),
             "Dragging an ID-less French milestone must persist a French target date.");
