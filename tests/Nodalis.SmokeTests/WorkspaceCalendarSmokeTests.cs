@@ -171,7 +171,7 @@ internal static class WorkspaceCalendarSmokeTests
 
         await File.WriteAllTextAsync(
             milestonePath,
-            "# Jalons\n\n| Jalon | Date cible | Statut | Description | Lien |\n| --- | --- | --- | --- | --- |\n| Livraison | 2026-10-15 | En cours | Version cible | |\n");
+            "# Jalons\n\n| Jalon | Date cible | Statut | Description | Lien |\n| --- | --- | --- | --- | --- |\n| Livraison | 15/10/2026 | En cours | Version cible | |\n");
 
         WorkspaceMeetingService meetingService =
             new WorkspaceMeetingService(
@@ -256,6 +256,14 @@ internal static class WorkspaceCalendarSmokeTests
                 2026,
                 10,
                 16));
+
+        string milestoneSource = await File.ReadAllTextAsync(milestonePath);
+        Assert(
+            milestoneSource.Contains("| Livraison | 16/10/2026 |", StringComparison.Ordinal),
+            "Dragging an ID-less French milestone must persist a French target date.");
+        Assert(
+            milestoneSource.Contains("| Id | Dépend de |", StringComparison.Ordinal),
+            "Calendar rescheduling must safely materialize the missing milestone ID.");
 
         WorkspaceCalendarSnapshot updated =
             await service.RefreshAsync();
