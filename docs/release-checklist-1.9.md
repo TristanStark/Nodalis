@@ -28,6 +28,9 @@ Statut : **prépublication, develop**. Aucune clôture automatique des issues P0
 - [ ] Inspection manuelle des temporaires après crash et vérification de l'UI de récupération (#165, #171)
 - [ ] Annulation, modification externe, permissions insuffisantes, paquet ZIP/XML corrompu
 - [ ] Retour utilisateur via `docs/docx-1.9-manual-qualification.md` ; aucun P0/P1 bloquant
+- [ ] Performance #189 : Word 100+ pages, sélectionner/désélectionner rapidement une sous-section, changer de titre puis annuler ; vérifier que le contenu final, le dry-run, les exclusions et le réimport restent identiques
+- [ ] Performance #184/#186 : Markdown 100k+ caractères, 30 onglets, frappe continue/bascule d'onglets/fermeture pendant parsing ; aucun aperçu périmé ni erreur WPF inter-thread
+- [ ] Performance #181/#183/#188 : diagnostics p95/p99, alternance autosave/recherche/vues/navigation, changements externes et génération d'index : aucun catalogue JSON obsolète ni blocage durable
 
 ## Critères pour publication
 
