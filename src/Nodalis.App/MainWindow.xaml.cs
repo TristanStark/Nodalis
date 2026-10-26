@@ -8493,8 +8493,12 @@ public partial class MainWindow : Window
         string? targetPath = openPath ?? _selectedNode?.FullPath;
         global::System.Collections.Generic.HashSet<global::System.Guid> expandedIds = GetExpandedNodeIds();
 
-        global::Nodalis.Core.Navigation.WorkspaceNavigationNode root = await _navigationBuilder.BuildAsync(
-            _root.FullPath);
+        // Filesystem enumeration, manifest reads and navigation sorting can
+        // dominate the Dispatcher for large workspaces. Build a pure snapshot
+        // off UI, then create/bind WPF view models only after the await.
+        string workspacePath = _root.FullPath;
+        global::Nodalis.Core.Navigation.WorkspaceNavigationNode root = await Task.Run(
+            () => _navigationBuilder.BuildAsync(workspacePath));
 
         _root = CreateRootViewModel(
             root,
