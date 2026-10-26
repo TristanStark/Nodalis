@@ -26,6 +26,7 @@ using Nodalis.Core.Glossary;
 using Nodalis.Core.Importing;
 using Nodalis.Core.Links;
 using Nodalis.Core.Meetings;
+using Nodalis.Core.Markdown;
 using Nodalis.Core.Milestones;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Projects;
@@ -76,6 +77,8 @@ public partial class MainWindow : Window
     private readonly LocalDiagnosticsService _diagnosticsService;
     private readonly DispatcherHeartbeatMonitor _heartbeatMonitor;
     private readonly DispatcherTimer _previewTimer;
+    private CancellationTokenSource? _previewParseCancellation;
+    private long _previewEditRevision;
     private readonly DispatcherTimer _backupTimer;
     private readonly bool _workspaceReadOnly;
     private readonly string? _workspaceAccessMessage;
@@ -2600,6 +2603,9 @@ public partial class MainWindow : Window
                 _autosave.Schedule(
                     MarkdownEditorTextBox.Text);
 
+                // Prevent an older off-thread Markdown parse from publishing.
+                _previewEditRevision++;
+                _previewParseCancellation?.Cancel();
                 _previewTimer.Stop();
                 _previewTimer.Start();
 
@@ -2625,8 +2631,49 @@ public partial class MainWindow : Window
 
         try
         {
-            RenderPreview();
+            if (_previewVisible && _activeDocumentTab is DocumentTabViewModel sourceTab)
+            {
+                string snapshot = MarkdownEditorTextBox.Text;
+                long revision = _previewEditRevision;
+                using CancellationTokenSource cancellation = new CancellationTokenSource();
+                _previewParseCancellation?.Cancel();
+                _previewParseCancellation = cancellation;
+                try
+                {
+                    IReadOnlyList<MarkdownBlock> blocks = await Task.Run(
+                        () => MarkdownDocumentParser.Parse(snapshot, cancellation.Token),
+                        cancellation.Token);
+
+                    // No stale preview after another keystroke or tab switch.
+                    if (cancellation.IsCancellationRequested ||
+                        revision != _previewEditRevision ||
+                        !ReferenceEquals(_activeDocumentTab, sourceTab) ||
+                        !_previewVisible ||
+                        !string.Equals(snapshot, MarkdownEditorTextBox.Text, StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    RenderPreview(blocks);
+                }
+                finally
+                {
+                    if (ReferenceEquals(_previewParseCancellation, cancellation))
+                    {
+                        _previewParseCancellation = null;
+                    }
+                }
+            }
+            else
+            {
+                RenderPreview();
+            }
+
             await UpdateGlossaryAnnotationsAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded work has no UI side effects.
         }
         catch (Exception exception) when (
             RecoverableExceptionPolicy.CanContinueAtActionBoundary(
@@ -2643,7 +2690,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Performs the <c>RenderPreview</c> operation.
     /// </summary>
-    private void RenderPreview()
+    /// <param name="parsedBlocks">Optional off-thread parse of the active editor revision.</param>
+    private void RenderPreview(IReadOnlyList<MarkdownBlock>? parsedBlocks = null)
     {
         using DispatcherHeartbeatMonitor.OperationScope measurement =
             _heartbeatMonitor.TrackOperation("Rendu Markdown");
@@ -2653,9 +2701,14 @@ public partial class MainWindow : Window
             string? baseDirectory = Path.GetDirectoryName(
                 _activeDocumentTab.FullPath);
 
-            MarkdownPreview.Document =
-                MarkdownFlowDocumentRenderer.Render(
+            MarkdownPreview.Document = parsedBlocks is null
+                ? MarkdownFlowDocumentRenderer.Render(
                     MarkdownEditorTextBox.Text,
+                    baseDirectory,
+                    OnInternalLinkClicked,
+                    OnMarkdownLinkClicked)
+                : MarkdownFlowDocumentRenderer.RenderBlocks(
+                    parsedBlocks,
                     baseDirectory,
                     OnInternalLinkClicked,
                     OnMarkdownLinkClicked);
