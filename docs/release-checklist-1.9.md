@@ -10,6 +10,7 @@ Statut : **prépublication, develop**. Aucune clôture automatique des issues P0
 - [ ] Fixture Word 105 sauts de page : styles Heading, sections normalisées, preview multi-destinations, chemins exacts du plan et sauvegarde source/provenance
 - [ ] Collisions interprocessus après approbation : fichier Markdown et copie DOCX — refus sans renommage
 - [ ] Vérification créateur/profil : projet Ultra-simple et Moyen, fichiers racines singleton Jalons/Glossaire
+- [ ] Jalons : coller dans `Jalons.md` des dates `JJ/MM/AAAA`, sans `Id` (entête court ou sept colonnes), puis modifier/supprimer un jalon et le déplacer dans le calendrier ; vérifier l'ID stable, l'affichage et la compatibilité `AAAA-MM-JJ`.
 - [ ] CI Build sur develop : tests de non-régression, vérification binaire portable Win10/11 et artefact disponible
 - [ ] Vérifier SHA du commit avant qualification : les résultats d'une CI antérieure ne qualifient pas le nouveau head
 
