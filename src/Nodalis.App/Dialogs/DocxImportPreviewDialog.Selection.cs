@@ -98,7 +98,22 @@ public partial class DocxImportPreviewDialog
             object? sender,
             EventArgs e)
     {
-        foreach (global::Nodalis.App.Dialogs.DocxImportPreviewDialog.SectionRow section in _sections)
+        // A block change only invalidates its owning section. Selecting the
+        // document root still recomputes all sections, but never on a simple click.
+        DocxImportSelectionNode? changed = sender as DocxImportSelectionNode;
+        while (changed?.Parent is not null &&
+               !ReferenceEquals(changed.Parent, _documentSelectionRoot))
+        {
+            changed = changed.Parent;
+        }
+
+        IEnumerable<SectionRow> affected = changed is not null &&
+            !ReferenceEquals(changed, _documentSelectionRoot)
+            ? _sections.Where(section =>
+                ReferenceEquals(section.SelectionRoot, changed))
+            : _sections;
+
+        foreach (SectionRow section in affected)
         {
             IReadOnlyList<int> selectedBlockIndexes =
                 section.SelectionRoot.GetSelectedBlockIndexes();
@@ -111,15 +126,13 @@ public partial class DocxImportPreviewDialog
                     : string.Empty;
 
             section.RefreshSelection(
-                markdown);
-        }
+                markdown,
+                selectedBlockIndexes.Count);
 
-        if (!_applyingMappingProfile)
-        {
-            foreach (SectionRow row in _sections.Where(row => !row.Include))
+            if (!_applyingMappingProfile && !section.Include)
             {
-                _manuallyMappedSectionIndexes.Add(row.Index);
-                _unresolvedProfileConflictIndexes.Remove(row.Index);
+                _manuallyMappedSectionIndexes.Add(section.Index);
+                _unresolvedProfileConflictIndexes.Remove(section.Index);
             }
         }
 
@@ -167,10 +180,7 @@ public partial class DocxImportPreviewDialog
             _sections.Count(section =>
                 section.Include);
         int selectedBlocks =
-            _sections.Sum(section =>
-                section.SelectionRoot
-                    .GetSelectedBlockIndexes()
-                    .Count);
+            _sections.Sum(section => section.SelectedBlockCount);
         int totalBlocks =
             _sections.Sum(section =>
                 section.BlockCount);
