@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Diagnostics;
 using Nodalis.App.Commands;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -119,6 +120,8 @@ public partial class MainWindow
     private async Task<WorkspaceViewProjection> LoadWorkspaceViewsProjectionAsync(
         CancellationToken cancellationToken)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Vues dynamiques");
         await _viewsLoadGate.WaitAsync(cancellationToken);
         try
         {
@@ -190,12 +193,16 @@ public partial class MainWindow
                         item.Error ?? "Fiche de maintenance inaccessible.")));
             }
 
-            // A service refresh may have updated only the *derived* link index.
-            // Use the latest load, not a manual guess or a newly minted identity.
-            catalog = await _linkIndexService.LoadAsync(cancellationToken);
-            WorkspaceViewProjection projection = WorkspaceViewProjector.Build(
-                catalog, tasks, milestones, decisions, maintenance,
-                workspaceRoot: _root.FullPath, cancellationToken: cancellationToken);
+            // The already refreshed immutable index is shared by tasks, jalons,
+            // and the final view. A second JSON load provides no newer canonical
+            // data and can race another refresh. Build the CPU-heavy projection on
+            // a worker; only present the finished snapshot on the Dispatcher.
+            string projectionRoot = _root.FullPath;
+            WorkspaceViewProjection projection = await Task.Run(
+                () => WorkspaceViewProjector.Build(
+                    catalog, tasks, milestones, decisions, maintenance,
+                    workspaceRoot: projectionRoot, cancellationToken: cancellationToken),
+                cancellationToken);
             if (diagnostics.Count > 0)
             {
                 projection = projection with
