@@ -169,6 +169,15 @@ silencieusement.
 
 Le calendrier agrège les éléments datés du workspace.
 
+Le **Health Check du projet** ne considère pas `Jalons.md`, `Glossaire.md`
+et `Tâches.md` **à la racine du projet** comme des documents orphelins :
+ils sont accessibles directement par les commandes dédiées, sans lien Markdown
+entrant. L'ancien emplacement `Jalons/Jalons.md` ou
+`Glossaire/Glossaire.md` reste pris en charge par la logique des documents
+structurels. Cette exception ne masque pas les autres anomalies de ces fichiers
+(dates de jalon manquantes, tâches en retard, liens cassés, etc.) et ne concerne
+pas les notes ordinaires portant ces noms dans d'autres dossiers.
+
 ## 9. Réunions et décisions
 
 L'assistant de réunion crée des comptes-rendus Markdown et peut extraire les
