@@ -1413,7 +1413,23 @@ public sealed class ProjectHealthCheckService
             DocumentSnapshot document,
             ProjectManifest project)
     {
+        // These project-root documents have dedicated entry points in the
+        // command palette. An inbound Markdown link is not expected.
+        // Keep the exemption scoped to exact root paths: user notes in
+        // subdirectories must still be checked for orphaned documents.
         if (string.Equals(
+                document.ProjectRelativePath,
+                "Jalons.md",
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                document.ProjectRelativePath,
+                WorkspaceLayout.GlobalGlossaryFileName,
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                document.ProjectRelativePath,
+                "Tâches.md",
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
                 document.ProjectRelativePath,
                 "Présentation.md",
                 StringComparison.CurrentCultureIgnoreCase) ||
