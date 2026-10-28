@@ -42,6 +42,31 @@ internal static class WorkspacePerformanceSmokeTests
                     $"# Document {index:D4}\n\n[[{nextName}]]\n\n- [ ] Tâche {index}\n");
             }
 
+            // Body-only edits must not reparse/rebind front matter on each key.
+            // Opening/closing delimiters and metadata edits must invalidate it.
+            string metadataSource =
+                "---\r\nstatus: active\r\ntags: perf\r\n---\r\n# Large note\r\nBody";
+            string metadataBodyEdited =
+                "---\r\nstatus: active\r\ntags: perf\r\n---\r\n# Large note\r\nBody updated";
+            string metadataHeaderEdited =
+                "---\r\nstatus: archived\r\ntags: perf\r\n---\r\n# Large note\r\nBody";
+
+            string originalHeader = MarkdownFrontMatterParser.GetFrontMatterSignature(
+                metadataSource);
+            Assert(
+                originalHeader.Length > 0 &&
+                string.Equals(originalHeader,
+                    MarkdownFrontMatterParser.GetFrontMatterSignature(
+                        metadataBodyEdited), StringComparison.Ordinal) &&
+                !string.Equals(originalHeader,
+                    MarkdownFrontMatterParser.GetFrontMatterSignature(
+                        metadataHeaderEdited), StringComparison.Ordinal) &&
+                MarkdownFrontMatterParser.GetFrontMatterSignature("# Note\nBody") ==
+                    string.Empty &&
+                MarkdownFrontMatterParser.GetFrontMatterSignature("---\nmissing close") ==
+                    string.Empty,
+                "Front matter signature must ignore body-only edits and detect metadata changes.");
+
             // Parsing the same Markdown snapshot in a worker must be independent
             // of WPF and preserve every block, including ordered lists and tables.
             string markdown = "# Vue volumineuse\n\n1. Premier\n2. Second\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n";

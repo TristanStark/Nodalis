@@ -127,6 +127,60 @@ public static class MarkdownFrontMatterParser
     }
 
     /// <summary>
+    /// Extracts only the front matter prefix, including its closing delimiter,
+    /// without allocating or parsing the potentially large Markdown body.
+    /// </summary>
+    /// <param name="markdown">The complete source document.</param>
+    /// <returns>The source prefix, or an empty string when no valid closing front matter exists.</returns>
+    public static string GetFrontMatterSignature(string markdown)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+
+        if (!TryReadFirstLine(
+                markdown,
+                0,
+                out string firstLine,
+                out int nextLineStart) ||
+            !string.Equals(
+                firstLine.Trim(),
+                "---",
+                StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        int currentLineStart = nextLineStart;
+        while (currentLineStart <= markdown.Length)
+        {
+            if (!TryReadFirstLine(
+                    markdown,
+                    currentLineStart,
+                    out string line,
+                    out int nextStart))
+            {
+                break;
+            }
+
+            if (string.Equals(
+                    line.Trim(),
+                    "---",
+                    StringComparison.Ordinal))
+            {
+                return markdown[..nextStart];
+            }
+
+            if (nextStart <= currentLineStart)
+            {
+                break;
+            }
+
+            currentLineStart = nextStart;
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
     /// Replaces or creates front matter while preserving the document body.
     /// </summary>
     /// <param name="markdown">The original Markdown source.</param>

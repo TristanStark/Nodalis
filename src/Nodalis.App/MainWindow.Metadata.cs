@@ -1,5 +1,6 @@
 using System.Windows;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Editor;
 using Nodalis.Core.Markdown;
 
 namespace Nodalis.App;
@@ -18,6 +19,9 @@ public partial class MainWindow
         "type",
         "tags"
     ];
+
+    private DocumentTabViewModel? _propertiesCachedTab;
+    private string? _propertiesCachedFrontMatter;
 
     /// <summary>
     /// Opens the front matter property editor for the active document.
@@ -117,9 +121,23 @@ public partial class MainWindow
     private void RefreshDocumentPropertiesContext(
             string markdown)
     {
+        // Parse only when the header itself changes. MarkdownFrontMatterParser
+        // otherwise copies the entire body while producing the summary, which
+        // is prohibitively expensive for long notes on every TextChanged.
+        string signature = MarkdownFrontMatterParser.GetFrontMatterSignature(
+            markdown);
+        if (ReferenceEquals(_propertiesCachedTab, _activeDocumentTab) &&
+            string.Equals(_propertiesCachedFrontMatter, signature,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
         MarkdownFrontMatterDocument metadata =
             MarkdownFrontMatterParser.Parse(
                 markdown);
+        _propertiesCachedTab = _activeDocumentTab;
+        _propertiesCachedFrontMatter = signature;
 
         KeyValuePair<string, string>[] properties =
             metadata.Properties
@@ -160,6 +178,8 @@ public partial class MainWindow
     /// </summary>
     private void ClearDocumentPropertiesContext()
     {
+        _propertiesCachedTab = null;
+        _propertiesCachedFrontMatter = null;
         DocumentPropertiesList.ItemsSource =
             null;
         DocumentPropertiesHost.Visibility =

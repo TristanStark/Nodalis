@@ -266,3 +266,19 @@ visible, les panneaux Tâches et Jalons sont désormais reconstruits à partir
 du **catalogue déjà actualisé**, sans un nouveau parcours d'index.
 Ce cas évite de laisser des cases à cocher ou des jalons obsolètes dans
 l'accueil après un changement d'onglet.
+
+
+## Propriétés Markdown : mise à jour limitée au front matter (#186, 28 octobre 2026)
+
+Le résumé des propriétés du panneau contextuel utilise désormais une signature
+correspondant **uniquement à l'en-tête YAML**, bornée par les deux délimiteurs
+`---`. Quand une frappe ne change que le corps Markdown, Nodalis ne lance
+plus `MarkdownFrontMatterParser.Parse` (qui copie normalement le corps du
+fichier), ne retrie plus les propriétés et ne rebinde plus la liste WPF.
+La signature est vérifiée à chaque frappe avec lecture du premier en-tête ;
+elle est invalidée au changement d'onglet, de contexte ou d'en-tête.
+Les documents sans front matter renvoient une signature vide : leurs frappes
+ordinaires ne provoquent pas de re-parsing des métadonnées. La modification
+des propriétés via le formulaire force toujours l'actualisation attendue.
+Smoke tests : LF/CRLF, corps édité, en-tête édité et ouverture non close.
+La latence WPF doit encore être quantifiée sur des notes de 100 k / 1 M caractères.
