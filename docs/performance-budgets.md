@@ -238,3 +238,25 @@ parse métier redondant imposé par les services ; mêmes tâches, jalons,
 backlinks et navigation qu'avant. Qualifier en particulier le commit
 transactionnel et la réimportation de gros DOCX, ainsi que les erreurs
 d'actualisation de l'interface. La transaction source reste inchangée.
+
+
+## Dashboard affiché : snapshot partagé et révisions (#183, #185, 28 octobre 2026)
+
+À chaque ouverture de l'accueil, une seule reconstruction du catalogue de
+liens est demandée pour les panneaux Tâches et Jalons. Les deux projections
+métier partagent ce snapshot ; elles ne lancent plus deux reconstructions
+concurrentes du workspace. Un compteur de révision propre à l'accueil empêche
+un chargement antérieur de publier ses listes après un nouvel affichage ou
+une navigation ailleurs. Les échecs I/O de chaque panneau restent indépendants
+et ne masquent pas la réussite de l'autre.
+
+Après une sauvegarde d'onglet, le rafraîchissement de l'index n'entraîne plus
+une reconstruction des favoris, historiques et vues sauvegardées **si l'accueil
+est masqué**. Les listes sont recalculées lors de la prochaine ouverture.
+Les flux qui doivent actualiser les backlinks dans l'éditeur conservent leur
+indexation. Les deux panneaux de l'accueil restent à qualifier sur Windows,
+en particulier avec plusieurs changements d'onglets rapides.
+
+Pour évaluer : ouvrir l'accueil à plusieurs reprises sur un workspace de
+5 000 documents, vérifier tâches/jalons récents, puis ouvrir une note et
+saisir en continu. Comparer les événements > 200 ms dans Diagnostics locaux.

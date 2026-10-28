@@ -98,6 +98,7 @@ public partial class MainWindow : Window
     private bool _backupInProgress;
     private double _lastContextWidth;
     private LinkIndexCatalog _linkIndex = new();
+    private long _dashboardBusinessRevision;
     private int _linkSuggestionStart;
     private int _linkSuggestionLength;
     private string? _linkSuggestionAlias;
@@ -3322,11 +3323,111 @@ public partial class MainWindow : Window
         _glossaryAdorner?.SetMatches([]);
 
         RefreshDashboard();
-        _ = RefreshDashboardTasksAsync();
-        _ = RefreshDashboardMilestonesAsync();
+        // Fetch one fresh catalog for both business panels rather than letting
+        // each service perform a separate full workspace index traversal.
+        _ = RefreshDashboardBusinessAsync();
 
         StatusText.Text =
             "Accueil · favoris et éléments récents locaux";
+    }
+
+    /// <summary>
+    /// Refreshes the visible dashboard task and milestone panels from one
+    /// current link-index snapshot. Superseded requests cannot publish stale UI.
+    /// </summary>
+    /// <param name="indexSnapshot">An optional snapshot already refreshed by the caller.</param>
+    /// <returns>A task representing both independent business projections.</returns>
+    private async Task RefreshDashboardBusinessAsync(
+            LinkIndexCatalog? indexSnapshot = null)
+    {
+        long revision = ++_dashboardBusinessRevision;
+
+        try
+        {
+            LinkIndexCatalog links =
+                indexSnapshot ?? await _linkIndexService.RefreshAsync();
+
+            if (revision != _dashboardBusinessRevision ||
+                DashboardHost.Visibility != Visibility.Visible)
+            {
+                return;
+            }
+
+            // Both operations reuse the same catalog. Their Markdown parsing
+            // already runs off the Dispatcher within their respective services.
+            Task<IReadOnlyList<TaskItem>> taskRequest =
+                _taskService.GetTasksAsync(
+                    _root.FullPath,
+                    includeCompleted: false,
+                    indexSnapshot: links);
+            Task<IReadOnlyList<MilestoneItem>> milestoneRequest =
+                _milestoneService.GetUpcomingAsync(
+                    DateOnly.FromDateTime(DateTime.Today),
+                    forwardDays: 60,
+                    indexSnapshot: links);
+
+            try
+            {
+                IReadOnlyList<TaskItem> tasks = await taskRequest;
+                if (revision == _dashboardBusinessRevision &&
+                    DashboardHost.Visibility == Visibility.Visible)
+                {
+                    OpenTasksList.ItemsSource = tasks
+                        .OrderBy(task => task.DueDate ?? DateOnly.MaxValue)
+                        .ThenBy(task => task.Text,
+                            StringComparer.CurrentCultureIgnoreCase)
+                        .Take(12)
+                        .ToArray();
+                }
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                if (revision == _dashboardBusinessRevision &&
+                    DashboardHost.Visibility == Visibility.Visible)
+                {
+                    OpenTasksList.ItemsSource = null;
+                    StatusText.Text = $"Tâches indisponibles : {exception.Message}";
+                }
+            }
+
+            try
+            {
+                IReadOnlyList<MilestoneItem> milestones = await milestoneRequest;
+                if (revision == _dashboardBusinessRevision &&
+                    DashboardHost.Visibility == Visibility.Visible)
+                {
+                    UpcomingMilestonesList.ItemsSource = milestones
+                        .Take(12)
+                        .ToArray();
+                }
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                if (revision == _dashboardBusinessRevision &&
+                    DashboardHost.Visibility == Visibility.Visible)
+                {
+                    UpcomingMilestonesList.ItemsSource = null;
+                    StatusText.Text = $"Jalons indisponibles : {exception.Message}";
+                }
+            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            if (revision == _dashboardBusinessRevision &&
+                DashboardHost.Visibility == Visibility.Visible)
+            {
+                StatusText.Text = $"Index du dashboard indisponible : {exception.Message}";
+            }
+        }
     }
 
     /// <summary>
@@ -3800,7 +3901,14 @@ public partial class MainWindow : Window
         using DispatcherHeartbeatMonitor.OperationScope measurement =
             _heartbeatMonitor.TrackOperation("Index liens");
         _linkIndex = await _linkIndexService.RefreshAsync();
-        RefreshDashboard();
+
+        // The document editor hides this dashboard. Rebuilding its recent
+        // lists and saved-view projections on every autosave is wasted WPF work.
+        // ShowDashboard() refreshes them when the user returns.
+        if (DashboardHost.Visibility == Visibility.Visible)
+        {
+            RefreshDashboard();
+        }
     }
 
     /// <summary>
