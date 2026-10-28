@@ -260,3 +260,9 @@ en particulier avec plusieurs changements d'onglets rapides.
 Pour évaluer : ouvrir l'accueil à plusieurs reprises sur un workspace de
 5 000 documents, vérifier tâches/jalons récents, puis ouvrir une note et
 saisir en continu. Comparer les événements > 200 ms dans Diagnostics locaux.
+
+Lorsqu'un onglet non actif termine sa sauvegarde alors que l'accueil est
+visible, les panneaux Tâches et Jalons sont désormais reconstruits à partir
+du **catalogue déjà actualisé**, sans un nouveau parcours d'index.
+Ce cas évite de laisser des cases à cocher ou des jalons obsolètes dans
+l'accueil après un changement d'onglet.

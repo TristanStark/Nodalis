@@ -1044,6 +1044,14 @@ public partial class MainWindow
                 WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
                 await RefreshLinkIndexAsync();
 
+                // The user can return to Home while another tab's autosave
+                // finishes. Keep visible task/milestone lists consistent,
+                // reusing the index just rebuilt for this saved revision.
+                if (DashboardHost.Visibility == Visibility.Visible)
+                {
+                    await RefreshDashboardBusinessAsync(_linkIndex);
+                }
+
                 // A background tab may have changed links targeting the
                 // foreground document. Update backlinks without a preview render.
                 if (_activeDocumentTab is DocumentTabViewModel foreground)
