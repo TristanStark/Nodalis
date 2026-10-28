@@ -53,17 +53,47 @@ public sealed class WorkspaceSearchService
     /// <param name="mode">The text matching mode.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Ranked results grouped by contextual scope.</returns>
-    public async Task<SearchResultSet> SearchAsync(
+    public Task<SearchResultSet> SearchAsync(
             string workspaceRoot,
             string? contextPath,
             string query,
             SearchMatchMode mode,
             CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(
-            workspaceRoot);
-        ArgumentException.ThrowIfNullOrWhiteSpace(
-            query);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Keep traversal, synchronous manifest checks, parsing, fuzzy scoring
+        // and sorting off the caller's SynchronizationContext (WPF Dispatcher).
+        // One worker per query, not one worker per document.
+        return Task.Run(
+            () => SearchCoreAsync(
+                workspaceRoot,
+                contextPath,
+                query,
+                mode,
+                cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Performs the complete ranked search on a worker without publishing UI state.
+    /// </summary>
+    /// <param name="workspaceRoot">The workspace root.</param>
+    /// <param name="contextPath">The active document or directory.</param>
+    /// <param name="query">The original search expression.</param>
+    /// <param name="mode">Exact or fuzzy matching.</param>
+    /// <param name="cancellationToken">Cancellation for this query only.</param>
+    /// <returns>The completed, ordered result groups.</returns>
+    private static async Task<SearchResultSet> SearchCoreAsync(
+            string workspaceRoot,
+            string? contextPath,
+            string query,
+            SearchMatchMode mode,
+            CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
 
         string root =
             Path.GetFullPath(
@@ -74,17 +104,26 @@ public sealed class WorkspaceSearchService
                 root,
                 contextPath);
 
+        // Scoped to a single query: external manifest changes are observed by
+        // the next search, without thousands of repeated File.Exists probes.
+        Dictionary<string, string?> projectAncestors =
+            new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string?> applicationAncestors =
+            new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
         string? currentProjectDirectory =
-            FindAncestorContaining(
+            FindAncestorContainingCached(
                 contextDirectory,
                 root,
-                WorkspaceLayout.ProjectManifestFileName);
+                WorkspaceLayout.ProjectManifestFileName,
+                projectAncestors);
 
         string? currentApplicationDirectory =
-            FindAncestorContaining(
+            FindAncestorContainingCached(
                 contextDirectory,
                 root,
-                WorkspaceLayout.ApplicationManifestFileName);
+                WorkspaceLayout.ApplicationManifestFileName,
+                applicationAncestors);
 
         SearchQueryPlan plan =
             ParseQuery(
@@ -98,7 +137,8 @@ public sealed class WorkspaceSearchService
                 StringComparer.OrdinalIgnoreCase);
 
         foreach (string file in EnumerateMarkdownFiles(
-                     root))
+                     root,
+                     cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -108,16 +148,18 @@ public sealed class WorkspaceSearchService
                 root;
 
             string? fileProjectDirectory =
-                FindAncestorContaining(
+                FindAncestorContainingCached(
                     directory,
                     root,
-                    WorkspaceLayout.ProjectManifestFileName);
+                    WorkspaceLayout.ProjectManifestFileName,
+                    projectAncestors);
 
             string? fileApplicationDirectory =
-                FindAncestorContaining(
+                FindAncestorContainingCached(
                     directory,
                     root,
-                    WorkspaceLayout.ApplicationManifestFileName);
+                    WorkspaceLayout.ApplicationManifestFileName,
+                    applicationAncestors);
 
             SearchScopeKind scope =
                 ClassifyScope(
@@ -202,22 +244,46 @@ public sealed class WorkspaceSearchService
     /// <param name="query">Original user query with structured filters.</param>
     /// <param name="cancellationToken">Abort the explicit search.</param>
     /// <returns>Permitted workspace-relative Markdown paths, compared case-insensitively.</returns>
-    public async Task<IReadOnlySet<string>> GetFilteredRelativePathsAsync(
+    public Task<IReadOnlySet<string>> GetFilteredRelativePathsAsync(
         string workspaceRoot, string query, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return Task.Run(
+            () => FilterRelativePathsCoreAsync(
+                workspaceRoot,
+                query,
+                cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies semantic-search path and front-matter filters off the UI thread.
+    /// </summary>
+    /// <param name="workspaceRoot">The workspace root.</param>
+    /// <param name="query">The structured search expression.</param>
+    /// <param name="cancellationToken">Cancellation for this filtering request.</param>
+    /// <returns>Workspace-relative paths passing all filters.</returns>
+    private static async Task<IReadOnlySet<string>> FilterRelativePathsCoreAsync(
+        string workspaceRoot, string query, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         string root = Path.GetFullPath(workspaceRoot);
         SearchQueryPlan plan = ParseQuery(query);
         HashSet<string> included = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, string?> projectNames = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string?> projectAncestors =
+            new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (string file in EnumerateMarkdownFiles(root))
+        foreach (string file in EnumerateMarkdownFiles(root, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
             string directory = Path.GetDirectoryName(file) ?? root;
-            string? projectDirectory = FindAncestorContaining(directory, root,
-                WorkspaceLayout.ProjectManifestFileName);
+            string? projectDirectory = FindAncestorContainingCached(
+                directory, root, WorkspaceLayout.ProjectManifestFileName,
+                projectAncestors);
             string? projectName = GetProjectName(projectDirectory, projectNames);
             if (!MatchesProjectFilter(projectName, plan.ProjectFilter) ||
                 !MatchesDateFilter(file, plan.ModifiedDateFilter))
@@ -742,9 +808,11 @@ public sealed class WorkspaceSearchService
     /// Enumerates all searchable Markdown files without entering internal storage directories.
     /// </summary>
     /// <param name="root">The workspace root.</param>
+    /// <param name="cancellationToken">Stops traversal for a superseded query.</param>
     /// <returns>The Markdown files.</returns>
     private static IEnumerable<string> EnumerateMarkdownFiles(
-            string root)
+            string root,
+            CancellationToken cancellationToken)
     {
         Stack<string> pending =
             new Stack<string>();
@@ -753,6 +821,7 @@ public sealed class WorkspaceSearchService
 
         while (pending.Count > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string directory =
                 pending.Pop();
 
@@ -770,6 +839,7 @@ public sealed class WorkspaceSearchService
 
             foreach (string child in children)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 pending.Push(
                     child);
             }
@@ -783,6 +853,7 @@ public sealed class WorkspaceSearchService
                              file => file,
                              StringComparer.CurrentCultureIgnoreCase))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 yield return file;
             }
         }
@@ -1222,6 +1293,55 @@ public sealed class WorkspaceSearchService
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Memoizes nearest matching ancestors for one search, including misses.
+    /// No cache survives the request so newly created or deleted manifests are visible.
+    /// </summary>
+    /// <param name="startDirectory">The first directory to inspect.</param>
+    /// <param name="root">The workspace boundary.</param>
+    /// <param name="fileName">The manifest name.</param>
+    /// <param name="cache">The query-local directory-to-ancestor map.</param>
+    /// <returns>The closest matching directory, or null when absent.</returns>
+    private static string? FindAncestorContainingCached(
+            string startDirectory,
+            string root,
+            string fileName,
+            IDictionary<string, string?> cache)
+    {
+        List<string> visited = new List<string>();
+        string? match = null;
+
+        for (string? current = startDirectory;
+             current is not null && IsInsideOrEqual(current, root);
+             current = Directory.GetParent(current)?.FullName)
+        {
+            if (cache.TryGetValue(current, out string? known))
+            {
+                match = known;
+                break;
+            }
+
+            visited.Add(current);
+            if (File.Exists(Path.Combine(current, fileName)))
+            {
+                match = current;
+                break;
+            }
+
+            if (string.Equals(current, root, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+        }
+
+        foreach (string directory in visited)
+        {
+            cache[directory] = match;
+        }
+
+        return match;
     }
 
     /// <summary>

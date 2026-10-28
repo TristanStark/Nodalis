@@ -199,3 +199,27 @@ les captures p95/p99 avant/après, les 5 000/10 000 documents, les scénarios
 multi-onglets et les protections contre les changements structurels externes
 restent au gate #190. Aucun budget chronométrique artificiel n'est ajouté
 aux tests de CI.
+
+
+## Recherche classique hors Dispatcher (#188, incrément 28 octobre 2026)
+
+La recherche exacte/fuzzy et le filtrage de chemins pour la recherche
+sémantique exécutent désormais **l'ensemble** du parcours, des accès aux
+manifestes, du parsing Markdown, du scoring et du tri sur un worker .NET
+(unique pour chaque requête, pas un worker par document). Les résultats ne
+touchent pas WPF avant leur publication par le dialogue, qui continue
+d'annuler la requête précédente et d'écarter les réponses obsolètes.
+
+Un cache **strictement local à chaque requête** mémorise les répertoires
+ancêtres ayant un manifeste projet/application, y compris les absences,
+pour éviter les sondages `File.Exists` redondants à chaque fichier. Il
+n'existe aucun cache persistant de texte ou de métadonnées : la recherche
+suivante observe les modifications externes. L'énumération de dossiers et
+fichiers vérifie l'annulation entre chaque élément, et le classement reste
+inchangé. Smoke tests : annulation préalable, nouveaux documents, mutation
+du contenu et des filtres sans résultat périmé.
+
+À qualifier sur Windows : latence p95/p99 Dispatcher lors de 20 requêtes
+successives en mode fuzzy, time-to-result sur 5 000/10 000 documents,
+contrôle multi-onglets et recherche sémantique. L'index de contenu dérivé
+et les optimisations du scoring restent **hors de cet incrément**.

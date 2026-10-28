@@ -1990,6 +1990,68 @@ static async Task VerifySearchAsync(string root)
         scorerMatched &&
         typoQuality > 0.8,
         "The dependency-free fuzzy scorer must be deterministic and expose a strong score for a one-edit typo.");
+
+    // A canceled query must not start a traversal; the same applies to the
+    // path-only filtering API used by the semantic search integration.
+    using CancellationTokenSource canceledSearch = new CancellationTokenSource();
+    canceledSearch.Cancel();
+    bool searchCanceled = false;
+    bool filterCanceled = false;
+    try
+    {
+        await search.SearchAsync(root, projectFile, "architecture",
+            global::Nodalis.Core.Search.SearchMatchMode.Fuzzy, canceledSearch.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        searchCanceled = true;
+    }
+
+    try
+    {
+        await search.GetFilteredRelativePathsAsync(root, "status:active",
+            canceledSearch.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        filterCanceled = true;
+    }
+
+    Assert(searchCanceled && filterCanceled,
+        "Canceled lexical and semantic-filter requests must stop before work begins.");
+
+    // Cache only ancestor lookups within one query. A later query must see
+    // changes to an existing Markdown file and newly created project manifests.
+    string mutableFile = Path.Combine(project.ProjectDirectory, "Recherche mutation.md");
+    await File.WriteAllTextAsync(mutableFile,
+        "---\nstatus: active\n---\n\nancienne-expression\n");
+
+    global::Nodalis.Core.Search.SearchResultSet original =
+        await search.SearchAsync(root, projectFile, "ancienne-expression");
+    Assert(original.Project.Any(result => result.FilePath == mutableFile),
+        "Search must see files added after an earlier query.");
+
+    string relativeMutablePath =
+        Path.GetRelativePath(root, mutableFile).Replace('\\', '/');
+    IReadOnlySet<string> activePaths =
+        await search.GetFilteredRelativePathsAsync(root, "status:active");
+    Assert(activePaths.Contains(relativeMutablePath),
+        "Structured path filtering must include a newly written active file.");
+
+    await File.WriteAllTextAsync(mutableFile,
+        "---\nstatus: archived\n---\n\nnouvelle-expression\n");
+
+    global::Nodalis.Core.Search.SearchResultSet updated =
+        await search.SearchAsync(root, projectFile, "nouvelle-expression");
+    global::Nodalis.Core.Search.SearchResultSet removed =
+        await search.SearchAsync(root, projectFile, "ancienne-expression");
+    IReadOnlySet<string> updatedActivePaths =
+        await search.GetFilteredRelativePathsAsync(root, "status:active");
+
+    Assert(updated.Project.Any(result => result.FilePath == mutableFile) &&
+        !removed.Project.Any(result => result.FilePath == mutableFile) &&
+        !updatedActivePaths.Contains(relativeMutablePath),
+        "Subsequent searches must not serve stale content or structured filters.");
 }
 
 static async Task VerifyLinksAndBacklinksAsync(string root)
