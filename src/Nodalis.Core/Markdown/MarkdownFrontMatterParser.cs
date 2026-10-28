@@ -136,45 +136,52 @@ public static class MarkdownFrontMatterParser
     {
         ArgumentNullException.ThrowIfNull(markdown);
 
-        if (!TryReadFirstLine(
-                markdown,
-                0,
-                out string firstLine,
-                out int nextLineStart) ||
-            !string.Equals(
-                firstLine.Trim(),
-                "---",
-                StringComparison.Ordinal))
+        // Most Markdown notes have no front matter. Reject them from the
+        // first non-whitespace character without copying or scanning a long
+        // single-line body, even when that line is several megabytes long.
+        int markerStart = 0;
+        while (markerStart < markdown.Length &&
+               markdown[markerStart] != '\n' &&
+               char.IsWhiteSpace(markdown[markerStart]))
+        {
+            markerStart++;
+        }
+
+        if (markerStart + 3 > markdown.Length ||
+            markdown[markerStart] != '-' ||
+            markdown[markerStart + 1] != '-' ||
+            markdown[markerStart + 2] != '-')
         {
             return string.Empty;
         }
 
-        int currentLineStart = nextLineStart;
-        while (currentLineStart <= markdown.Length)
+        int firstLineEnd = markdown.IndexOf('\n', markerStart + 3);
+        if (firstLineEnd < 0 ||
+            !markdown.AsSpan(0, firstLineEnd)
+                .Trim().SequenceEqual("---".AsSpan()))
         {
-            if (!TryReadFirstLine(
-                    markdown,
-                    currentLineStart,
-                    out string line,
-                    out int nextStart))
+            return string.Empty;
+        }
+
+        int lineStart = firstLineEnd + 1;
+        while (lineStart < markdown.Length)
+        {
+            int lineEnd = markdown.IndexOf('\n', lineStart);
+            int contentEnd = lineEnd < 0 ? markdown.Length : lineEnd;
+
+            if (markdown.AsSpan(lineStart, contentEnd - lineStart)
+                .Trim().SequenceEqual("---".AsSpan()))
+            {
+                int prefixEnd = lineEnd < 0 ? markdown.Length : lineEnd + 1;
+                return markdown[..prefixEnd];
+            }
+
+            if (lineEnd < 0)
             {
                 break;
             }
 
-            if (string.Equals(
-                    line.Trim(),
-                    "---",
-                    StringComparison.Ordinal))
-            {
-                return markdown[..nextStart];
-            }
-
-            if (nextStart <= currentLineStart)
-            {
-                break;
-            }
-
-            currentLineStart = nextStart;
+            lineStart = lineEnd + 1;
         }
 
         return string.Empty;

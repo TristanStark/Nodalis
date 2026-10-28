@@ -64,7 +64,9 @@ internal static class WorkspacePerformanceSmokeTests
                 MarkdownFrontMatterParser.GetFrontMatterSignature("# Note\nBody") ==
                     string.Empty &&
                 MarkdownFrontMatterParser.GetFrontMatterSignature("---\nmissing close") ==
-                    string.Empty,
+                    string.Empty &&
+                MarkdownFrontMatterParser.GetFrontMatterSignature(
+                    new string('x', 1024 * 1024)) == string.Empty,
                 "Front matter signature must ignore body-only edits and detect metadata changes.");
 
             // Parsing the same Markdown snapshot in a worker must be independent

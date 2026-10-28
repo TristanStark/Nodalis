@@ -282,3 +282,8 @@ ordinaires ne provoquent pas de re-parsing des métadonnées. La modification
 des propriétés via le formulaire force toujours l'actualisation attendue.
 Smoke tests : LF/CRLF, corps édité, en-tête édité et ouverture non close.
 La latence WPF doit encore être quantifiée sur des notes de 100 k / 1 M caractères.
+
+Optimisation complémentaire : l'extraction de la signature rejette en temps
+constant le cas courant d'un fichier sans en-tête (premier caractère utile
+différent de `---`) et emploie des `ReadOnlySpan<char>` pour contrôler
+les délimiteurs, sans allocation de lignes ni copie d'un corps de 1 Mio.
