@@ -18,11 +18,40 @@ internal static class DocxHardKillSmokeTests
     /// <returns>End-to-end recovery qualification.</returns>
     public static async Task RunAsync(string workspace)
     {
+        await VerifyTransientRecoveryLockAsync(workspace);
+
         foreach (string checkpoint in new[]
                  { "project", "media", "markdown", "source", "provenance" })
         {
             await VerifyCheckpointAsync(workspace, checkpoint);
         }
+    }
+
+    /// <summary>
+    /// Confirms startup recovery retries a transient Windows sharing violation
+    /// without reading journals while another process still owns the lock.
+    /// </summary>
+    /// <param name="workspace">Isolated smoke-test workspace.</param>
+    /// <returns>The completed lock-contention test.</returns>
+    private static async Task VerifyTransientRecoveryLockAsync(string workspace)
+    {
+        string directory = Path.Combine(
+            workspace, "Imports", DocxFirstImportRecoveryService.DirectoryName);
+        Directory.CreateDirectory(directory);
+        string lockPath = Path.Combine(directory, ".lock");
+
+        using FileStream held = new FileStream(
+            lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        DocxFirstImportRecoveryService recovery =
+            new DocxFirstImportRecoveryService(workspace);
+        Task<IReadOnlyList<string>> pending = recovery.ListPendingProjectsAsync();
+
+        await Task.Delay(250);
+        Assert(!pending.IsCompleted,
+            "Recovery must not read journals while the import lock is held.");
+
+        held.Dispose();
+        await pending.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     /// <summary>Exercises one kill-and-recover sequence with a fresh DOCX source.</summary>

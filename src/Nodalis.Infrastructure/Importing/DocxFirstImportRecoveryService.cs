@@ -262,7 +262,7 @@ public sealed class DocxFirstImportRecoveryService
     public async Task<IReadOnlyList<string>> ListPendingProjectsAsync(
         CancellationToken cancellationToken = default)
     {
-        using FileStream exclusive = AcquireLock();
+        using FileStream exclusive = await AcquireRecoveryLockAsync(cancellationToken);
         List<string> pending = [];
         foreach (string directory in Directory.EnumerateDirectories(JournalsDirectory))
         {
@@ -295,7 +295,7 @@ public sealed class DocxFirstImportRecoveryService
     /// <returns>Number of interrupted transactions reconciled.</returns>
     public async Task<int> RecoverPendingAsync(CancellationToken cancellationToken = default)
     {
-        using FileStream exclusive = AcquireLock();
+        using FileStream exclusive = await AcquireRecoveryLockAsync(cancellationToken);
         int recovered = 0;
         foreach (string directory in Directory.EnumerateDirectories(JournalsDirectory)
                      .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
@@ -616,6 +616,37 @@ public sealed class DocxFirstImportRecoveryService
                    StringComparison.OrdinalIgnoreCase) &&
                Path.GetExtension(file).ToLowerInvariant() is
                    (".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp");
+    }
+
+    /// <summary>
+    /// Waits briefly for a Windows file-sharing lock to be released after a
+    /// hard-killed import process. The exclusive lock is still mandatory;
+    /// unrelated filesystem errors fail immediately and no journal is read
+    /// without first obtaining exclusive access.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels only this recovery request.</param>
+    /// <returns>An exclusive lock stream, owned by the caller.</returns>
+    private async Task<FileStream> AcquireRecoveryLockAsync(
+        CancellationToken cancellationToken)
+    {
+        const int maximumRetries = 40;
+
+        for (int attempt = 0; ; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return AcquireLock();
+            }
+            catch (IOException exception) when (
+                attempt < maximumRetries &&
+                (exception.HResult & 0xFFFF) is 32 or 33)
+            {
+                // Windows can still have the child process's handle in flight
+                // briefly after WaitForExitAsync. Never delete the lock file.
+                await Task.Delay(100, cancellationToken);
+            }
+        }
     }
 
     /// <summary>Locks the workspace against concurrent initial import or recovery.</summary>

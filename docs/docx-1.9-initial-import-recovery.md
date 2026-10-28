@@ -65,3 +65,17 @@ workspace ni du dossier projet.
 
 Voir [checklist de sortie](release-checklist-1.9.md) et
 [qualification utilisateur](docx-1.9-manual-qualification.md).
+
+
+## Partage Windows du verrou après arrêt brutal (28/10/2026)
+
+La CI Windows a mis en évidence un échec intermittent après une interruption
+simulée du processus DOCX : Windows signalait encore un *sharing violation*
+sur `Imports/.nodalis-first-imports/.lock` après le retour de
+`WaitForExitAsync`. Les opérations **de lecture des journaux** et de
+récupération attendent désormais brièvement une libération de ce verrou,
+avec 40 tentatives au plus espacées de 100 ms, et respect de l'annulation.
+Seules les erreurs Win32 32/33 sont réessayées. Les nouvelles transactions
+conservent leur verrou exclusif immédiat : aucun import concurrent, aucune
+suppression du fichier `.lock` et aucune récupération sans possession du verrou.
+Un smoke test provoque explicitement la contention et vérifie la reprise.
