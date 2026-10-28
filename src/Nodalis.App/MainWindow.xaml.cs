@@ -6792,11 +6792,18 @@ public partial class MainWindow : Window
 
             try
             {
+                // RefreshNavigationAsync already rebuilt the link index. Reuse
+                // that exact snapshot for both business projections instead
+                // of scanning the imported workspace three more times.
                 await RefreshNavigationAsync(
                     result.ProjectDirectory);
-                await RefreshLinkIndexAndContextAsync();
-                await RefreshDashboardTasksAsync();
-                await RefreshDashboardMilestonesAsync();
+                if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
+                {
+                    UpdateLinkContext(_selectedNode.FullPath);
+                }
+
+                await RefreshDashboardTasksAsync(_linkIndex);
+                await RefreshDashboardMilestonesAsync(_linkIndex);
             }
             catch (Exception refreshException) when (
                 refreshException is IOException or
@@ -6961,11 +6968,17 @@ public partial class MainWindow : Window
 
             try
             {
+                // The navigation refresh has already produced a current
+                // catalog. Share it with task and milestone projections.
                 await RefreshNavigationAsync(
                     result.ProjectDirectory);
-                await RefreshLinkIndexAndContextAsync();
-                await RefreshDashboardTasksAsync();
-                await RefreshDashboardMilestonesAsync();
+                if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
+                {
+                    UpdateLinkContext(_selectedNode.FullPath);
+                }
+
+                await RefreshDashboardTasksAsync(_linkIndex);
+                await RefreshDashboardMilestonesAsync(_linkIndex);
             }
             catch (Exception refreshException) when (
                 refreshException is IOException or

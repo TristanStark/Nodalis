@@ -223,3 +223,18 @@ du contenu et des filtres sans résultat périmé.
 successives en mode fuzzy, time-to-result sur 5 000/10 000 documents,
 contrôle multi-onglets et recherche sémantique. L'index de contenu dérivé
 et les optimisations du scoring restent **hors de cet incrément**.
+
+
+## Imports DOCX/Markdown : réutiliser un seul index (#183, incrément 28 octobre 2026)
+
+Après la validation d'un import DOCX ou Markdown, `RefreshNavigationAsync`
+reconstruit **déjà** le catalogue de liens. Les flux de commit n'appellent plus
+`RefreshLinkIndexAndContextAsync` immédiatement après. Ils transmettent le
+même snapshot `_linkIndex` aux projections tâches et jalons. Si la sélection
+reste un document, le contexte de ses liens est actualisé depuis ce snapshot.
+
+Invariants attendus : un seul refresh d'index par validation d'import, aucun
+parse métier redondant imposé par les services ; mêmes tâches, jalons,
+backlinks et navigation qu'avant. Qualifier en particulier le commit
+transactionnel et la réimportation de gros DOCX, ainsi que les erreurs
+d'actualisation de l'interface. La transaction source reste inchangée.
