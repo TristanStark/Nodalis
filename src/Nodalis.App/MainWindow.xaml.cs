@@ -265,8 +265,14 @@ public partial class MainWindow : Window
                 await RefreshGlossaryContextAsync(
                     _selectedNode?.FullPath ?? _root.FullPath);
                 UpdateGlossaryAnnotations();
-                await RefreshDashboardTasksAsync(_linkIndex);
-                await RefreshDashboardMilestonesAsync(_linkIndex);
+                // One shared projection for Home, with stale-result protection.
+                // No task/milestone scan is necessary if startup restores an
+                // editor instead of leaving the Home dashboard visible.
+                if (DashboardHost.Visibility == Visibility.Visible)
+                {
+                    await RefreshDashboardBusinessAsync(_linkIndex);
+                }
+
                 await RefreshInboxDashboardCountAsync();
                 await RestoreDocumentTabsAsync();
                 await RestoreEditorSplitAsync();
