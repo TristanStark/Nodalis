@@ -24,6 +24,10 @@
     <Color x:Key="MarkdownQuoteColor">#80C9D3</Color>
     <Color x:Key="MarkdownCodeColor">#D7A2DA</Color>
     <Color x:Key="MarkdownLinkColor">#83AEFF</Color>
+    <Color x:Key="MarkdownStrongColor">#F2D18C</Color>
+    <Color x:Key="MarkdownEmphasisColor">#D5DDA4</Color>
+    <Color x:Key="MarkdownMutedSyntaxColor">#8A93A4</Color>
+    <Color x:Key="MarkdownMetadataColor">#AFC4E8</Color>
 
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource WindowBackgroundColor}" />
     <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{StaticResource PanelBackgroundColor}" />
@@ -45,6 +49,10 @@
     <SolidColorBrush x:Key="MarkdownQuoteBrush" Color="{StaticResource MarkdownQuoteColor}" />
     <SolidColorBrush x:Key="MarkdownCodeBrush" Color="{StaticResource MarkdownCodeColor}" />
     <SolidColorBrush x:Key="MarkdownLinkBrush" Color="{StaticResource MarkdownLinkColor}" />
+    <SolidColorBrush x:Key="MarkdownStrongBrush" Color="{StaticResource MarkdownStrongColor}" />
+    <SolidColorBrush x:Key="MarkdownEmphasisBrush" Color="{StaticResource MarkdownEmphasisColor}" />
+    <SolidColorBrush x:Key="MarkdownMutedSyntaxBrush" Color="{StaticResource MarkdownMutedSyntaxColor}" />
+    <SolidColorBrush x:Key="MarkdownMetadataBrush" Color="{StaticResource MarkdownMetadataColor}" />
 
     <!--
         Keyboard focus must remain obvious independently from the Windows theme.
