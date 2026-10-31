@@ -1,6 +1,6 @@
 {
   "schemaVersion": 3,
-  "updatedUtc": "2026-10-18T12:00:00+00:00",
+  "updatedUtc": "2026-10-31T08:24:00+00:00",
   "targets": [
     {
       "id": "aa000000-0000-4000-8000-000000000002",
@@ -340,6 +340,46 @@
       "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Sous-projets/Recherche lexicale 1.7/Tests/Scénarios recherche 1.7.md",
       "scopeIdentity": "project:aa000000-0000-4000-8000-000000000006",
       "localRelativePath": "Tests/Scénarios recherche 1.7.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000030",
+      "kind": "document",
+      "displayName": "Qualification 1.9 - Import DOCX",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Tests / Qualification 1.9 - Import DOCX",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Tests/Qualification 1.9 - Import DOCX.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Tests/Qualification 1.9 - Import DOCX.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000031",
+      "kind": "document",
+      "displayName": "Qualification 1.9 - Performance WPF",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Tests / Qualification 1.9 - Performance WPF",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Tests/Qualification 1.9 - Performance WPF.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Tests/Qualification 1.9 - Performance WPF.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000032",
+      "kind": "document",
+      "displayName": "Qualification 1.9 - Fonctionnalites connexes",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Tests / Qualification 1.9 - Fonctionnalites connexes",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Tests/Qualification 1.9 - Fonctionnalites connexes.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Tests/Qualification 1.9 - Fonctionnalites connexes.md",
+      "aliases": []
+    },
+    {
+      "id": "bb000000-0000-4000-8000-000000000033",
+      "kind": "document",
+      "displayName": "Qualification 1.9 - Gate release",
+      "qualifiedName": "Nodalis / Nodalis - Évolutions 1.x / Tests / Qualification 1.9 - Gate release",
+      "relativePath": "Applications/Nodalis/Projets/Nodalis - Évolutions 1.x/Tests/Qualification 1.9 - Gate release.md",
+      "scopeIdentity": "project:aa000000-0000-4000-8000-000000000003",
+      "localRelativePath": "Tests/Qualification 1.9 - Gate release.md",
       "aliases": []
     }
   ],

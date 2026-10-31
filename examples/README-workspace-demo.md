@@ -44,3 +44,9 @@ Sur Windows avec PowerShell (depuis la racine du dépôt) :
 Le contrôle valide manifests et GUID, références typées, inclusions Markdown, dates et dépendances des jalons, images BMP et vues. Pour contrôler le **rendu réel WPF et la navigation**, il faut ouvrir Nodalis sur Windows.
 
 Documentation détaillée du format : [workspace-format.md](../docs/workspace-format.md). Guides : [v1.4 impact](../docs/impact-user-guide-1.4.md), [v1.5 vues](../docs/views-user-guide-1.5.md) et [v1.6 composites](../docs/composite-documents-1.6.md).
+
+## Qualification de la future v1.9
+
+Sur `develop`, le projet **Nodalis - Évolutions 1.x → Tests** contient quatre documents **Qualification 1.9** constitués de cases à cocher natives Nodalis. Ils permettent de valider les scénarios DOCX, les performances Windows, les régressions et les gates de release directement depuis le workspace, puis de reporter les résultats dans les issues liées. Voir `DEPART.md`.
+
+Ces tâches représentent une **recette réelle à faire** et ne sont ni cochées d'avance ni des engagements de publication. Certaines issues P1 demandent d'abord d'arbitrer si la fonctionnalité est livrable ou reportée. Éviter tout essai destructif sur les données professionnelles.
