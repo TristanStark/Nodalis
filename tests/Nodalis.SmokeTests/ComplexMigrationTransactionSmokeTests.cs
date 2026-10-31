@@ -179,6 +179,79 @@ internal static class ComplexMigrationTransactionSmokeTests
                 "Cross-project backlink must be planned as an explicit, exact replacement.");
             File.Delete(backlink);
 
+            // Explicit Markdown reference definitions (including image links)
+            // are rewritten at the definition, never at their usage sites.
+            // Both project-local and external backlinks remain byte-reversible.
+            string referenceImage = Path.Combine(projectRoot,
+                "Technique", "capture.png");
+            await File.WriteAllTextAsync(referenceImage, "reference image");
+            string referenceContent = originalPresentation +
+                "[Documentation][tech]\n![Capture][screen]\n\n" +
+                "[tech]: <Technique/Technique.md> \"Documentation\"\n" +
+                "[screen]: <Technique/capture.png>\n";
+            string referenceExternal = Path.Combine(workspace,
+                "Reference externe.md");
+            string referenceExternalContent = "[Ouvrir][tech]\n\n" +
+                "[tech]: <Applications/Test/Projets/Complexe historique/" +
+                "Technique/Technique.md> \"Source\"\n";
+            await File.WriteAllTextAsync(presentationPath, referenceContent);
+            await File.WriteAllTextAsync(referenceExternal, referenceExternalContent);
+            ComplexProjectMigrationPlan referencePlan = await planner.PrepareAsync(
+                projectRoot);
+            Assert(referencePlan.CanExecute &&
+                referencePlan.LinkRewrites.Count == 2 &&
+                referencePlan.ExternalLinkRewrites.Count == 1 &&
+                referencePlan.LinkRewrites.All(item =>
+                    item.OriginalTarget.StartsWith('<') &&
+                    item.ReplacementTarget.Contains("Documentation/Technique/",
+                        StringComparison.Ordinal)),
+                "Simple reference definitions must be qualified, including images " +
+                "and a backlink in another document.");
+
+            ComplexProjectMigrationTransactionService referenceExecutor = new(
+                workspace);
+            await referenceExecutor.ApplyAsync(referencePlan,
+                referencePlan.SourceFingerprint, approved: true);
+            Assert((await File.ReadAllTextAsync(presentationPath)).Contains(
+                    "[tech]: <Documentation/Technique/Technique.md> \"Documentation\"",
+                    StringComparison.Ordinal) &&
+                (await File.ReadAllTextAsync(presentationPath)).Contains(
+                    "[screen]: <Documentation/Technique/capture.png>",
+                    StringComparison.Ordinal) &&
+                (await File.ReadAllTextAsync(referenceExternal)).Contains(
+                    "/Documentation/Technique/Technique.md> \"Source\"",
+                    StringComparison.Ordinal) &&
+                File.Exists(Path.Combine(projectRoot,
+                    "Documentation", "Technique", "capture.png")),
+                "Approved reference rewrites must preserve the definition label, " +
+                "optional title, image and external backlink.");
+
+            ComplexProjectMigrationJournal referenceJournal =
+                (await referenceExecutor.GetRollbackCandidatesAsync(
+                    projectRoot)).Single();
+            await referenceExecutor.RollbackAsync(referenceJournal.TransactionId,
+                approved: true);
+            Assert(await File.ReadAllTextAsync(presentationPath) == referenceContent &&
+                await File.ReadAllTextAsync(referenceExternal) ==
+                    referenceExternalContent &&
+                await File.ReadAllTextAsync(referenceImage) == "reference image",
+                "Reference-style migration must restore the precise originals.");
+            File.Delete(referenceExternal);
+            File.Delete(referenceImage);
+
+            // Ambiguous/duplicate definitions and unknown labels are still
+            // blockers; a guess must never become an automatic rewrite.
+            await File.WriteAllTextAsync(presentationPath,
+                "[Guide][missing]\n");
+            Assert(!(await planner.PrepareAsync(projectRoot)).CanExecute,
+                "Undefined Markdown references must fail closed.");
+            await File.WriteAllTextAsync(presentationPath,
+                "[Guide][tech]\n[tech]: <Technique/Technique.md>\n" +
+                "[TECH]: <Technique/Technique.md>\n");
+            Assert(!(await planner.PrepareAsync(projectRoot)).CanExecute,
+                "Case-insensitive duplicate definitions must fail closed.");
+            await File.WriteAllTextAsync(presentationPath, originalPresentation);
+
             await File.AppendAllTextAsync(presentationPath,
                 "\n[[Technique]]\n");
             ComplexProjectMigrationPlan blocked = await planner.PrepareAsync(
