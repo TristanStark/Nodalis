@@ -88,6 +88,25 @@ public sealed class ProjectJourneyService
     }
 
     /// <summary>
+    /// Lists all templates matching the project's authoritative complexity,
+    /// without creating any files. Ultra-simple gets no default selection,
+    /// but may explicitly opt into a custom template.
+    /// </summary>
+    /// <param name="projectDirectory">Existing project directory.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Applicable, non-activated model proposals.</returns>
+    public async Task<IReadOnlyList<ProjectJourneyTemplate>> ListApplicableTemplatesAsync(
+        string projectDirectory, CancellationToken cancellationToken = default)
+    {
+        ProjectManifest project = await LoadProjectAsync(
+            ValidateProjectDirectory(projectDirectory), cancellationToken);
+        ProjectJourneyTemplateCatalog catalog =
+            await LoadTemplatesAsync(cancellationToken);
+        return catalog.Templates.Where(item =>
+            item.Complexity == project.InitialComplexity).ToArray();
+    }
+
+    /// <summary>
     /// Read-only proposal for a project's initial complexity. Ultra-simple
     /// projects intentionally receive no default journey, even when templates
     /// are customized. Creating a journey always requires an explicit call.
