@@ -1,8 +1,8 @@
 # Nodalis v1.9 — fiche de qualification manuelle DOCX
 
-> **Statut : branche `develop`, prépublication.** Cette grille couvre le parcours
-> d'import DOCX et les réimports en cours de développement. Elle ne remplace pas
-> la CI et n'implique pas que l'EPIC #154 soit terminée.
+> **Statut : recette v1.9.0 acceptée par l'utilisateur le 31 octobre 2026.**
+> Cette grille conserve le protocole de vérification manuelle de l'import DOCX ;
+> elle complète la CI et les notes de version, sans remplacer les sauvegardes.
 
 ## Préparation
 
