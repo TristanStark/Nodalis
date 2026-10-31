@@ -87,6 +87,40 @@ approbation ni preuve d'exécution.
 - Conservation du JSON exact, des GUID et de la révision pendant
   archivage puis réouverture ; lecture seule à l'état archivé.
 
+## Première interface WPF — édition guidée (31/10/2026)
+
+La palette de commandes contient désormais **« Parcours projet 2.0 »**, à
+ouvrir depuis un projet sélectionné ou un document du projet. Une fenêtre
+modale à thème sombre permet de lire l'état des étapes et opérations sans
+créer ni modifier aucun fichier lors de son ouverture. Ce premier accès
+n'ajoute aucun nœud au Worktree et ne crée pas d'onglet de document.
+
+- **Initialiser** : proposition du modèle selon la complexité. L'utilisateur
+  confirme la création, qui utilise une écriture `CreateNew`. Ultra-simple
+  reste sans initialisation par défaut.
+- **Étapes** : ajout, renommage, retrait, ordre (monter/descendre) et état
+  À faire / En cours / Terminée / Non applicable.
+- **Opérations** : ajout, renommage, retrait et réordonnancement à l'intérieur
+  d'une étape. Les GUID ne sont pas recalculés lors des éditions.
+- **Confirmation et protection** : chaque changement passe par un plan Core
+  pur (`ProjectJourneyEditor`), puis une confirmation explicite. Le service
+  ne publie que le JSON de parcours avec le SHA-256 lu initialement et refuse
+  les révisions externes plus récentes. En cas de conflit, l'utilisateur doit
+  recharger depuis le disque ; aucune fusion implicite.
+- **Lecture seule** : un parcours archivé ou un workspace en lecture seule
+  reste consultable, sans action d'écriture. Les documents, tâches, jalons
+  et preuves externes ne sont jamais supprimés par cet éditeur.
+
+La suite `ProjectJourneyEditingSmokeTests` vérifie les opérations Core,
+les GUID, la conservation des preuves et liens associés, le refus de statut
+invalide et de version obsolète, ainsi que la persistance après redémarrage.
+La CI Windows vérifie également la compilation et les ressources XAML.
+
+**Limites de ce lot :** la fenêtre est modale, et non encore un onglet
+réutilisable par projet. Il reste à développer l'onglet intégré,
+les liens cliquables vers les sources, l'édition des modèles du workspace
+dans l'interface et la qualification visuelle WPF par l'utilisateur.
+
 ## Suite de l'EPIC #195
 
 1. Ajouter édition guidée des étapes/opérations (ajouter, déplacer, ignorer)
