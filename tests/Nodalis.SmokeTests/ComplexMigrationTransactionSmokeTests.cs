@@ -172,8 +172,11 @@ internal static class ComplexMigrationTransactionSmokeTests
                 "[Technique](<Applications/Test/Projets/Complexe historique/Technique/Technique.md>)");
             ComplexProjectMigrationPlan externalBacklink = await planner.PrepareAsync(
                 projectRoot);
-            Assert(!externalBacklink.CanExecute,
-                "A backlink outside the migrated project must not be lost.");
+            Assert(externalBacklink.CanExecute &&
+                externalBacklink.ExternalLinkRewrites.Count == 1 &&
+                externalBacklink.ExternalLinkRewrites[0].ReplacementTarget ==
+                    "<Applications/Test/Projets/Complexe historique/Documentation/Technique/Technique.md>",
+                "Cross-project backlink must be planned as an explicit, exact replacement.");
             File.Delete(backlink);
 
             await File.AppendAllTextAsync(presentationPath,
@@ -264,14 +267,31 @@ internal static class ComplexMigrationTransactionSmokeTests
                 new UTF8Encoding(true));
             await File.AppendAllTextAsync(linkedTechnique,
                 "\n[Glossaire](../Glossaire.md) et [Jalons](../Jalons.md)\n");
+            // Backlinks from both workspace root and another project require
+            // individually recoverable snapshots, not silent in-place changes.
+            string externalRoot = Path.Combine(workspace, "External Root.md");
+            string externalOriginal = "[Technique](<Applications/Test/Projets/" +
+                "Linked Complex/Technique/Technique.md#intro>)\r\n";
+            await File.WriteAllTextAsync(externalRoot, externalOriginal,
+                new UTF8Encoding(true));
+            byte[] externalRootBytes = await File.ReadAllBytesAsync(externalRoot);
+            string siblingRoot = Path.Combine(workspace,
+                "Applications", "Test", "Projets", "Other Project");
+            Directory.CreateDirectory(siblingRoot);
+            string externalSibling = Path.Combine(siblingRoot, "Source.md");
+            string siblingOriginal =
+                "![Jalons](<../Linked Complex/Jalons.md>)\n";
+            await File.WriteAllTextAsync(externalSibling, siblingOriginal);
             string linkOriginalHash =
                 await ComplexProjectMigrationPlanService.FingerprintAsync(linkedProject);
             ComplexProjectMigrationPlan linkedPlan = await planner.PrepareAsync(
                 linkedProject);
             Assert(linkedPlan.CanExecute &&
                 linkedPlan.LinkRewrites.Count == 5 &&
-                linkedPlan.LinkRewrites.All(item => item.SourceHash.Length == 64),
-                "Preview must include all five local, byte-fingerprinted repairs.");
+                linkedPlan.ExternalLinkRewrites.Count == 2 &&
+                linkedPlan.ExternalLinkRewrites.All(item =>
+                    item.SourceHash.Length == 64),
+                "Preflight must preview internal and external byte-protected edits.");
 
             // The approved operation cannot silently absorb a new external
             // backlink that appeared after the preview.
@@ -289,6 +309,21 @@ internal static class ComplexMigrationTransactionSmokeTests
             linkedPlan = await planner.PrepareAsync(linkedProject);
             ComplexProjectMigrationResult linkedResult = await executor.ApplyAsync(
                 linkedPlan, linkedPlan.SourceFingerprint, approved: true);
+            byte[] externalPublished = await File.ReadAllBytesAsync(externalRoot);
+            string siblingPublished = await File.ReadAllTextAsync(externalSibling);
+            Assert(externalPublished.Length > 3 &&
+                externalPublished[0] == 0xEF &&
+                externalPublished[1] == 0xBB &&
+                externalPublished[2] == 0xBF &&
+                (await File.ReadAllTextAsync(externalRoot)).Contains(
+                    "Linked Complex/Documentation/Technique/Technique.md#intro",
+                    StringComparison.Ordinal) &&
+                siblingPublished.Contains(
+                    "../Linked Complex/Management/Jalons.md",
+                    StringComparison.Ordinal) &&
+                (await executor.ListPendingProjectsAsync()).Count == 0,
+                "Approved migration must publish every backlink and retain BOM.");
+
             byte[] publishedBytes = await File.ReadAllBytesAsync(linkedPresentation);
             string publishedPresentation = await File.ReadAllTextAsync(
                 linkedPresentation);
@@ -316,14 +351,98 @@ internal static class ComplexMigrationTransactionSmokeTests
 
             IReadOnlyList<ComplexProjectMigrationJournal> linkedRollback =
                 await executor.GetRollbackCandidatesAsync(linkedProject);
-            Assert(linkedRollback.Count == 1,
-                "A rewritten migration must retain its original for rollback.");
+            Assert(linkedRollback.Count == 1 &&
+                linkedRollback[0].ExternalLinkFiles.Count == 2,
+                "A rewritten migration must retain exact external archives.");
+
+            await File.AppendAllTextAsync(externalSibling, "Concurrent edit\n");
+            await RejectAsync(() => executor.RollbackAsync(
+                    linkedRollback[0].TransactionId, approved: true),
+                "Edited external backlinks must block rollback before modifying the project.");
+            Assert(File.Exists(Path.Combine(linkedProject,
+                    "Documentation", "Technique", "Technique.md")),
+                "A blocked rollback must leave the migrated project intact.");
+            await File.WriteAllTextAsync(externalSibling, siblingPublished);
+
             await executor.RollbackAsync(
                 linkedRollback[0].TransactionId, approved: true);
             Assert(await ComplexProjectMigrationPlanService.FingerprintAsync(
                     linkedProject) == linkOriginalHash &&
-                File.Exists(Path.Combine(linkedProject, "Technique", "Technique.md")),
-                "Rollback must restore original Markdown bytes and unmodified structure.");
+                File.Exists(Path.Combine(linkedProject, "Technique", "Technique.md")) &&
+                (await File.ReadAllBytesAsync(externalRoot))
+                    .SequenceEqual(externalRootBytes) &&
+                await File.ReadAllTextAsync(externalSibling) == siblingOriginal,
+                "Rollback must restore project and external Markdown byte for byte.");
+
+            // Crash after publishing the first external file must never
+            // make the journal appear complete; explicit recovery continues
+            // the remaining replacements and makes rollback possible.
+            string recoverRoot = Path.Combine(workspace, "Applications", "Test",
+                "Projets", "Recover Backlinks");
+            Directory.CreateDirectory(recoverRoot);
+            foreach (string entry in Directory.EnumerateFileSystemEntries(
+                         linkedResult.BackupDirectory, "*", SearchOption.AllDirectories))
+            {
+                string relative = Path.GetRelativePath(
+                    linkedResult.BackupDirectory, entry);
+                string copy = Path.Combine(recoverRoot, relative);
+                if (Directory.Exists(entry))
+                {
+                    Directory.CreateDirectory(copy);
+                }
+                else
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
+                    File.Copy(entry, copy);
+                }
+            }
+
+            string recoveryA = Path.Combine(workspace, "Recovery A.md");
+            string recoveryB = Path.Combine(workspace, "Recovery B.md");
+            string initialA = "[T](<Applications/Test/Projets/Recover Backlinks/Technique/Technique.md>)\n";
+            string initialB = "[J](<Applications/Test/Projets/Recover Backlinks/Jalons.md>)\n";
+            await File.WriteAllTextAsync(recoveryA, initialA);
+            await File.WriteAllTextAsync(recoveryB, initialB);
+            ComplexProjectMigrationPlan recoveryPlan = await planner.PrepareAsync(
+                recoverRoot);
+            Assert(recoveryPlan.CanExecute &&
+                recoveryPlan.ExternalLinkRewrites.Count == 2,
+                "Recovery fixture must require exactly two external publications.");
+
+            ComplexProjectMigrationTransactionService fault = new(
+                workspace, checkpoint: name =>
+                {
+                    if (name == "external-published")
+                    {
+                        throw new InvalidOperationException(
+                            "Simulated hard stop after publishing one backlink.");
+                    }
+                });
+            await RejectAsync(() => fault.ApplyAsync(recoveryPlan,
+                    recoveryPlan.SourceFingerprint, approved: true),
+                "Interrupted cross-project publication must retain recovery state.");
+            Assert((await executor.ListPendingProjectsAsync()).Single() ==
+                    recoverRoot &&
+                (await File.ReadAllTextAsync(recoveryA)).Contains(
+                    "Documentation/Technique/Technique.md", StringComparison.Ordinal) &&
+                await File.ReadAllTextAsync(recoveryB) == initialB,
+                "Crash must leave one applied and one pending backlink, journaled.");
+            await RejectAsync(() => executor.RecoverPendingAsync(approved: false),
+                "Completing partial backlink publication requires a human decision.");
+            Assert(await executor.RecoverPendingAsync(approved: true) == 1 &&
+                (await File.ReadAllTextAsync(recoveryB)).Contains(
+                    "Management/Jalons.md", StringComparison.Ordinal) &&
+                (await executor.ListPendingProjectsAsync()).Count == 0,
+                "Recovery must idempotently complete the second backlink.");
+
+            ComplexProjectMigrationJournal recoveryJournal =
+                (await executor.GetRollbackCandidatesAsync(recoverRoot)).Single();
+            await executor.RollbackAsync(recoveryJournal.TransactionId,
+                approved: true);
+            Assert(await File.ReadAllTextAsync(recoveryA) == initialA &&
+                await File.ReadAllTextAsync(recoveryB) == initialB &&
+                File.Exists(Path.Combine(recoverRoot, "Technique", "Technique.md")),
+                "Recovery followed by rollback must restore every cross-project byte.");
 
             // A second independent legacy project simulates a crash immediately
             // after publication but before the durable published checkpoint.
