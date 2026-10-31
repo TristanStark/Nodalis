@@ -59,6 +59,22 @@ public partial class ProjectJourneyView : UserControl
     /// <summary>Whether at least one user-approved change was saved.</summary>
     public bool Changed { get; private set; }
 
+    /// <summary>
+    /// Refreshes an attached journey after a workspace template edit.
+    /// Detached views refresh themselves on their next WPF Loaded event.
+    /// </summary>
+    /// <returns>Completed read-only refresh.</returns>
+    public Task RefreshTemplatesAsync()
+    {
+        if (Window.GetWindow(this) is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunActionAsync(() => ReloadAsync(SelectedStep()?.Id),
+            "Actualiser les modèles");
+    }
+
     /// <summary>Refreshes state without creating files or modifying any project.</summary>
     /// <param name="selectedStepId">Optional stage to preserve in selection.</param>
     /// <returns>Completed read-only refresh.</returns>
