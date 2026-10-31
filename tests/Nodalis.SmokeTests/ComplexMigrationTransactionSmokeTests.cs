@@ -381,10 +381,9 @@ internal static class ComplexMigrationTransactionSmokeTests
                 "Projets", "Recover Backlinks");
             Directory.CreateDirectory(recoverRoot);
             foreach (string entry in Directory.EnumerateFileSystemEntries(
-                         linkedResult.BackupDirectory, "*", SearchOption.AllDirectories))
+                         linkedProject, "*", SearchOption.AllDirectories))
             {
-                string relative = Path.GetRelativePath(
-                    linkedResult.BackupDirectory, entry);
+                string relative = Path.GetRelativePath(linkedProject, entry);
                 string copy = Path.Combine(recoverRoot, relative);
                 if (Directory.Exists(entry))
                 {
