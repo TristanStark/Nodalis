@@ -5006,6 +5006,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "block.goto",
+                Title = "Atteindre un bloc par ID",
+                Subtitle = "Ouvrir précisément un critère ou test Markdown identifié",
+                Keywords = ["bloc", "guid", "critère", "test", "identifiant", "navigation", "2.0"],
+                ExecuteAsync = ShowBlockNavigationAsync
+            },
+            new()
+            {
                 Id = "quick-open",
                 Title = "Quick Open",
                 Subtitle = "Ouvrir document, projet, module ou application · Ctrl+T",
