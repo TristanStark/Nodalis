@@ -313,16 +313,22 @@ public partial class MainWindow
         IReadOnlyList<QuickOpenEntry> entries = BuildQuickOpenEntries();
         if (WorktreeFavoritesExpander.IsExpanded)
         {
-            WorktreeFavoritesList.ItemsSource = entries
+            QuickOpenEntry[] favorites = entries
                 .Where(entry => entry.IsFavorite && !entry.IsBroken)
                 .OrderBy(entry => entry.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .Take(20)
                 .ToArray();
+            if (WorktreeFavoritesList.ItemsSource is not
+                    IEnumerable<QuickOpenEntry> existingFavorites ||
+                !existingFavorites.SequenceEqual(favorites))
+            {
+                WorktreeFavoritesList.ItemsSource = favorites;
+            }
         }
 
         if (WorktreeRecentsExpander.IsExpanded)
         {
-            WorktreeRecentsList.ItemsSource = entries
+            QuickOpenEntry[] recents = entries
                 .Where(entry =>
                     entry.RecentRank >= 0 &&
                     entry.KindLabel.Contains(
@@ -330,6 +336,12 @@ public partial class MainWindow
                 .OrderBy(entry => entry.RecentRank)
                 .Take(20)
                 .ToArray();
+            if (WorktreeRecentsList.ItemsSource is not
+                    IEnumerable<QuickOpenEntry> existingRecents ||
+                !existingRecents.SequenceEqual(recents))
+            {
+                WorktreeRecentsList.ItemsSource = recents;
+            }
         }
     }
 
