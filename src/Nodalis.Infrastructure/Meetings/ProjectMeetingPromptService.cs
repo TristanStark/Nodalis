@@ -95,28 +95,29 @@ public sealed class ProjectMeetingPromptService
     private string ResolveProjectDirectory(string meetingPath)
     {
         DirectoryInfo? cursor = Directory.GetParent(meetingPath);
+        bool meetingFolderSeen = false;
 
         while (cursor is not null && IsWithinWorkspace(cursor.FullName))
         {
-            if (string.Equals(
-                    cursor.Name,
+            if (string.Equals(cursor.Name,
                     WorkspaceMeetingService.MeetingsDirectoryName,
                     StringComparison.OrdinalIgnoreCase))
             {
-                DirectoryInfo? project = cursor.Parent;
-                if (project is not null &&
-                    IsWithinWorkspace(project.FullName) &&
-                    File.Exists(Path.Combine(project.FullName, WorkspaceLayout.ProjectManifestFileName)))
-                {
-                    return project.FullName;
-                }
+                meetingFolderSeen = true;
+            }
+
+            if (meetingFolderSeen &&
+                File.Exists(Path.Combine(cursor.FullName,
+                    WorkspaceLayout.ProjectManifestFileName)))
+            {
+                return cursor.FullName;
             }
 
             cursor = cursor.Parent;
         }
 
         throw new InvalidOperationException(
-            "Le compte-rendu doit se trouver dans le dossier Réunions d'un projet Nodalis.");
+            "Le compte-rendu doit se trouver dans une section Réunions d'un projet Nodalis.");
     }
 
     /// <summary>

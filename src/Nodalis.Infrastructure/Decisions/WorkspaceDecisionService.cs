@@ -4,6 +4,7 @@ using Nodalis.Core.Links;
 using Nodalis.Core.Templates;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Templates;
 
@@ -58,9 +59,8 @@ public sealed class WorkspaceDecisionService
 
         string scopeDirectory = ResolveWorkspacePath(
             scope.Target.RelativePath);
-        string decisionsDirectory = Path.Combine(
-            scopeDirectory,
-            DecisionsDirectoryName);
+        string decisionsDirectory = await WorkspaceProjectRoleDirectoryResolver.ResolveAsync(
+            scopeDirectory, DecisionsDirectoryName, cancellationToken);
 
         Directory.CreateDirectory(decisionsDirectory);
 
@@ -161,21 +161,26 @@ public sealed class WorkspaceDecisionService
             return [];
         }
 
-        string directory = Path.Combine(
-            ResolveWorkspacePath(scope.Value.Target.RelativePath),
-            DecisionsDirectoryName);
+        string scopeDirectory = ResolveWorkspacePath(scope.Value.Target.RelativePath);
+        string preferred = await WorkspaceProjectRoleDirectoryResolver.ResolveAsync(
+            scopeDirectory, DecisionsDirectoryName, cancellationToken);
+        string legacy = Path.Combine(scopeDirectory, DecisionsDirectoryName);
 
-        if (!Directory.Exists(directory))
+        string[] directories = new[] { preferred, legacy }
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(Directory.Exists)
+            .ToArray();
+
+        if (directories.Length == 0)
         {
             return [];
         }
 
-        global::System.Collections.Generic.List<global::Nodalis.Core.Decisions.DecisionRecord> result = new List<DecisionRecord>();
+        List<DecisionRecord> result = [];
 
-        foreach (string filePath in Directory.EnumerateFiles(
-                     directory,
-                     "*.md",
-                     SearchOption.TopDirectoryOnly))
+        foreach (string filePath in directories.SelectMany(directory =>
+                     Directory.EnumerateFiles(
+                         directory, "*.md", SearchOption.TopDirectoryOnly)))
         {
             cancellationToken.ThrowIfCancellationRequested();
 

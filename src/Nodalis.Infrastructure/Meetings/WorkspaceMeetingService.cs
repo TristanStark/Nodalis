@@ -3,6 +3,7 @@ using Nodalis.Core.Meetings;
 using Nodalis.Core.Templates;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Templates;
 
@@ -50,9 +51,8 @@ public sealed class WorkspaceMeetingService
                 "Sélectionnez une application, un projet ou un document rattaché avant de créer une réunion.");
 
         string scopeDirectory = ResolveWorkspacePath(scope.Target.RelativePath);
-        string meetingsDirectory = Path.Combine(
-            scopeDirectory,
-            MeetingsDirectoryName);
+        string meetingsDirectory = await WorkspaceProjectRoleDirectoryResolver.ResolveAsync(
+            scopeDirectory, MeetingsDirectoryName, cancellationToken);
 
         Directory.CreateDirectory(meetingsDirectory);
 
