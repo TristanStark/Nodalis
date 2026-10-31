@@ -48,8 +48,18 @@ public partial class MainWindow
     /// <param name="e">Scroll position change.</param>
     private void NavigationTree_StickyScrollChanged(
         object sender,
-        ScrollChangedEventArgs e) =>
+        ScrollChangedEventArgs e)
+    {
+        if (Math.Abs(e.VerticalChange) > 0 &&
+            !_allowExplicitWorktreeBringIntoView)
+        {
+            // A user who scrolled after asking for a reveal owns the viewport:
+            // invalidate any deferred BringIntoView from the previous context.
+            _worktreeRevealSequence++;
+        }
+
         ScheduleStickyWorktreeRefresh();
+    }
 
     /// <summary>Recomputes the top context after the explorer width or height changes.</summary>
     /// <param name="sender">The worktree.</param>
