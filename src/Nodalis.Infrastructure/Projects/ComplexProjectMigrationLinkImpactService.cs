@@ -168,6 +168,14 @@ public sealed class ComplexProjectMigrationLinkImpactService
                 int end = content.IndexOf('\n', offset);
                 end = end < 0 ? content.Length : end;
                 string line = content[offset..end];
+                // Preserve offsets against the original content, but exclude
+                // the CR belonging to a Windows CRLF line terminator from
+                // anchored Markdown definition parsing.
+                if (line.EndsWith('\r'))
+                {
+                    line = line[..^1];
+                }
+
                 lineNumber++;
                 string trimmed = line.TrimStart();
                 if (trimmed.Length >= 3 && (trimmed[0] == (char)96 ||
