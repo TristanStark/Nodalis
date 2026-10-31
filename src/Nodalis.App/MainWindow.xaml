@@ -776,12 +776,17 @@
                         Background="{StaticResource PanelBackgroundBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,0,0,1">
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Disabled">
-                        <ListBox x:Name="DocumentTabsList"
+                    <!-- The ListBox must own scrolling for horizontal item
+                         virtualization; an outer ScrollViewer measured every tab. -->
+                    <ListBox x:Name="DocumentTabsList"
                                  Margin="6,3"
                                  BorderThickness="0"
                                  Background="Transparent"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
                                  SelectionChanged="DocumentTabsList_SelectionChanged"
                                  PreviewMouseLeftButtonDown="DocumentTabsList_PreviewMouseLeftButtonDown"
                                  PreviewMouseMove="DocumentTabsList_PreviewMouseMove"
@@ -791,7 +796,7 @@
                                  Drop="DocumentTabsList_Drop">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
+                                    <VirtualizingStackPanel Orientation="Horizontal" />
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
                             <ListBox.ItemTemplate>
@@ -819,8 +824,7 @@
                                     </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
-                        </ListBox>
-                    </ScrollViewer>
+                    </ListBox>
                 </Border>
 
                 <Border Grid.Row="1"
