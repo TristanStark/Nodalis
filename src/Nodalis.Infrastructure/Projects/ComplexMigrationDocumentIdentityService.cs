@@ -241,6 +241,10 @@ public sealed class ComplexMigrationDocumentIdentityService
         return routes;
     }
 
+    /// <summary>Applies approved structural moves to a project-relative path.</summary>
+    /// <param name="relative">Original project-relative document path.</param>
+    /// <param name="moves">Approved and immutable section moves.</param>
+    /// <returns>Projected path of the same document.</returns>
     private static string MapRelativePath(string relative,
         IReadOnlyList<ComplexMigrationMove> moves)
     {
@@ -262,6 +266,9 @@ public sealed class ComplexMigrationDocumentIdentityService
         return relative;
     }
 
+    /// <summary>Rejects absolute, traversal and nonportable journal paths.</summary>
+    /// <param name="relative">Portable workspace-relative candidate.</param>
+    /// <returns>Validated path unchanged.</returns>
     private static string NormalizeRelative(string relative)
     {
         if (string.IsNullOrWhiteSpace(relative) ||
@@ -275,10 +282,18 @@ public sealed class ComplexMigrationDocumentIdentityService
         return relative;
     }
 
+    /// <summary>Enforces a separator-bounded containment check.</summary>
+    /// <param name="root">Canonical parent folder.</param>
+    /// <param name="path">Candidate absolute child path.</param>
+    /// <returns>True only for a descendant, never the root itself.</returns>
     private static bool IsWithin(string root, string path) =>
         path.StartsWith(root + Path.DirectorySeparatorChar,
             StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Hashes original file bytes without normalizing content.</summary>
+    /// <param name="path">Absolute Markdown path.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Uppercase hexadecimal SHA-256.</returns>
     private static async Task<string> FingerprintFileAsync(
         string path, CancellationToken cancellationToken)
     {
