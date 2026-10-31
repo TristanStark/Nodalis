@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Nodalis.Core.Domain;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
@@ -50,8 +51,10 @@ internal static class ComplexMigrationTransactionSmokeTests
                 WorkspaceLayout.ProjectManifestFileName);
             JsonSerializerOptions json = new()
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
             };
+            json.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
             await File.WriteAllTextAsync(manifestPath,
                 JsonSerializer.Serialize(project, json));
             await File.WriteAllTextAsync(Path.Combine(projectRoot,
@@ -143,11 +146,7 @@ internal static class ComplexMigrationTransactionSmokeTests
             ComplexProjectMigrationResult applied = await executor.ApplyAsync(
                 plan, plan.SourceFingerprint, approved: true);
             ProjectManifest after = JsonSerializer.Deserialize<ProjectManifest>(
-                await File.ReadAllTextAsync(manifestPath),
-                new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                })!;
+                await File.ReadAllTextAsync(manifestPath), json)!;
             SectionManifest[] oldSections = project.Sections.ToArray();
 
             Assert(after.Id == project.Id &&
