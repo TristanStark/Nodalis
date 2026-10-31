@@ -1770,14 +1770,19 @@ public partial class MainWindow
     /// </summary>
     private void RefreshDocumentTabsFromNavigation()
     {
+        // One traversal for all open tabs. The old loop searched the entire
+        // navigation tree per tab, yielding O(tabs × workspace nodes) cost.
+        Dictionary<Guid, NavigationNodeViewModel> documentNodes = _root
+            .DescendantsAndSelf()
+            .Where(node => node.Kind == WorkspaceNodeKind.Document)
+            .GroupBy(node => node.Id)
+            .ToDictionary(group => group.Key, group => group.First());
+
         foreach (DocumentTabViewModel tab in _documentTabs)
         {
-            NavigationNodeViewModel? node =
-                _root
-                    .DescendantsAndSelf()
-                    .FirstOrDefault(candidate =>
-                        candidate.Kind == WorkspaceNodeKind.Document &&
-                        candidate.Id == tab.DocumentId);
+            documentNodes.TryGetValue(
+                tab.DocumentId,
+                out NavigationNodeViewModel? node);
 
             if (node is null)
             {
