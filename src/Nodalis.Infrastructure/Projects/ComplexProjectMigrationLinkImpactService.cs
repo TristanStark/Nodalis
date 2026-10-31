@@ -1,12 +1,38 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using Nodalis.Infrastructure.Persistence;
 
 namespace Nodalis.Infrastructure.Projects;
 
+/// <summary>One byte-protected literal link edit within an existing project document.</summary>
+/// <param name="ProjectRelativePath">Original path relative to the project root.</param>
+/// <param name="WorkspaceRelativePath">Display path relative to the workspace.</param>
+/// <param name="Line">One-based diagnostic line.</param>
+/// <param name="Offset">UTF-16 character offset in the original document.</param>
+/// <param name="OriginalTarget">Exact captured target including angle brackets if present.</param>
+/// <param name="ReplacementTarget">Target after the proposed folder moves.</param>
+/// <param name="SourceHash">SHA-256 of original Markdown bytes.</param>
+public sealed record ComplexMigrationLinkRewrite(
+    string ProjectRelativePath,
+    string WorkspaceRelativePath,
+    int Line,
+    int Offset,
+    string OriginalTarget,
+    string ReplacementTarget,
+    string SourceHash);
+
+/// <summary>Read-only plan for provably reversible local edits and other blockers.</summary>
+/// <param name="Rewrites">Local edits that can be applied to staging only.</param>
+/// <param name="Blockers">Unsupported syntax and affected references outside the project.</param>
+public sealed record ComplexMigrationLinkAudit(
+    IReadOnlyList<ComplexMigrationLinkRewrite> Rewrites,
+    IReadOnlyList<string> Blockers);
+
 /// <summary>
-/// Read-only impact analysis for references around a Complex project migration.
-/// Nothing in the workspace is rewritten: affected and ambiguous references
-/// remain blockers until a multi-file, recoverable rewrite is available.
+/// Simulates project moves on both link sources and destinations. Affected
+/// internal, plain relative targets are proposed for editing in staging;
+/// external backlinks and unknown syntax fail closed. Never writes a file.
 /// </summary>
 public sealed class ComplexProjectMigrationLinkImpactService
 {
@@ -30,14 +56,15 @@ public sealed class ComplexProjectMigrationLinkImpactService
         @"\b(?:src|href)\s*=",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly string _workspaceRoot;
     private readonly string _projectRoot;
     private readonly IReadOnlyList<ComplexMigrationMove> _moves;
 
-    /// <summary>Creates a deterministic, non-mutating migration link auditor.</summary>
+    /// <summary>Creates a deterministic, non-mutating link auditor.</summary>
     /// <param name="workspaceRoot">Workspace containing active Markdown.</param>
-    /// <param name="projectRoot">Source Complex project directory.</param>
-    /// <param name="moves">Read-only candidate moves from the approved blueprint.</param>
+    /// <param name="projectRoot">Source Complex project root.</param>
+    /// <param name="moves">Frozen candidate moves.</param>
     public ComplexProjectMigrationLinkImpactService(
         string workspaceRoot,
         string projectRoot,
@@ -46,21 +73,25 @@ public sealed class ComplexProjectMigrationLinkImpactService
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectRoot);
         ArgumentNullException.ThrowIfNull(moves);
-        _workspaceRoot = Path.GetFullPath(workspaceRoot);
-        _projectRoot = Path.GetFullPath(projectRoot);
+        _workspaceRoot = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(workspaceRoot));
+        _projectRoot = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(projectRoot));
         _moves = moves.Where(move =>
             move.State == ComplexMigrationMoveState.Candidate).ToArray();
     }
 
     /// <summary>
-    /// Finds precisely affected supported path references, and conservatively
-    /// reports link syntaxes whose target cannot be proven stable.
+    /// Returns proposed exact replacements as well as unqualified references.
+    /// Only UTF-8 Markdown can be rewritten, preserving its original BOM and
+    /// newline bytes. An unsupported file is never silently modified.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Human-readable source/line diagnostics; no workspace writes.</returns>
-    public async Task<IReadOnlyList<string>> FindBlockingReferencesAsync(
+    /// <returns>Immutable, read-only link analysis.</returns>
+    public async Task<ComplexMigrationLinkAudit> AnalyzeAsync(
         CancellationToken cancellationToken = default)
     {
+        List<ComplexMigrationLinkRewrite> rewrites = [];
         List<string> blockers = [];
         foreach (string file in ComplexProjectMigrationPlanService.EnumerateTree(
                      _workspaceRoot, cancellationToken))
@@ -70,7 +101,7 @@ public sealed class ComplexProjectMigrationLinkImpactService
             if ((attributes & FileAttributes.ReparsePoint) != 0)
             {
                 throw new InvalidDataException(
-                    "Une jonction du workspace empêche de qualifier tous les backlinks.");
+                    "Une jonction du workspace empêche de qualifier les backlinks.");
             }
 
             if ((attributes & FileAttributes.Directory) != 0 ||
@@ -80,9 +111,9 @@ public sealed class ComplexProjectMigrationLinkImpactService
                 continue;
             }
 
-            string relative = Path.GetRelativePath(_workspaceRoot, file)
+            string workspaceRelative = Path.GetRelativePath(_workspaceRoot, file)
                 .Replace('\\', '/');
-            string firstPart = relative.Split('/')[0];
+            string firstPart = workspaceRelative.Split('/')[0];
             if (string.Equals(firstPart, WorkspaceLayout.TemplatesDirectoryName,
                     StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(firstPart, WorkspaceLayout.ImportsDirectoryName,
@@ -91,19 +122,37 @@ public sealed class ComplexProjectMigrationLinkImpactService
                 continue;
             }
 
+            byte[] bytes = await File.ReadAllBytesAsync(file, cancellationToken);
+            string content;
+            try
+            {
+                content = StrictUtf8.GetString(bytes);
+            }
+            catch (DecoderFallbackException)
+            {
+                blockers.Add(workspaceRelative + " : encodage non UTF-8 à qualifier.");
+                continue;
+            }
+
+            string hash = Convert.ToHexString(SHA256.HashData(bytes));
+            bool internalDocument = IsWithin(_projectRoot, file);
+            string projectRelative = internalDocument
+                ? Path.GetRelativePath(_projectRoot, file).Replace('\\', '/')
+                : string.Empty;
             bool inFence = false;
             char fenceChar = '\0';
             int fenceLength = 0;
+            int offset = 0;
             int lineNumber = 0;
-            await using FileStream input = new(file, FileMode.Open,
-                FileAccess.Read, FileShare.Read, 65536, useAsync: true);
-            using StreamReader reader = new(input);
-            while (await reader.ReadLineAsync(cancellationToken) is string line)
+            while (offset < content.Length)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                int end = content.IndexOf('\n', offset);
+                end = end < 0 ? content.Length : end;
+                string line = content[offset..end];
                 lineNumber++;
                 string trimmed = line.TrimStart();
-                if (trimmed.Length >= 3 && (trimmed[0] == '`' ||
+                if (trimmed.Length >= 3 && (trimmed[0] == (char)96 ||
                     trimmed[0] == '~'))
                 {
                     int runLength = 0;
@@ -120,128 +169,187 @@ public sealed class ComplexProjectMigrationLinkImpactService
                             inFence = true;
                             fenceChar = trimmed[0];
                             fenceLength = runLength;
+                            offset = end + 1;
                             continue;
                         }
 
                         if (trimmed[0] == fenceChar && runLength >= fenceLength)
                         {
                             inFence = false;
+                            offset = end + 1;
                             continue;
                         }
                     }
                 }
 
-                if (inFence)
+                if (!inFence)
                 {
-                    continue;
-                }
-
-                string context = relative + ":" + lineNumber;
-                if (line.Contains("[[", StringComparison.Ordinal) ||
-                    ReferenceDefinitionPattern.IsMatch(line) ||
-                    ReferenceUsagePattern.IsMatch(line))
-                {
-                    blockers.Add(context + " : référence wiki/indirecte non qualifiée.");
-                    continue;
-                }
-
-                MatchCollection markdown = MarkdownLinkPattern.Matches(line);
-                MatchCollection html = HtmlLinkPattern.Matches(line);
-                int directTokens = Regex.Matches(line, @"\]\(").Count;
-                int htmlTokens = HtmlAttributePattern.Matches(line).Count;
-                if (markdown.Count != directTokens || html.Count != htmlTokens)
-                {
-                    blockers.Add(context + " : syntaxe de lien ambiguë.");
-                    continue;
-                }
-
-                foreach (Match match in markdown.Cast<Match>().Concat(html.Cast<Match>()))
-                {
-                    string? reason = CheckTarget(file, match.Groups["target"].Value);
-                    if (reason is not null)
+                    string context = workspaceRelative + ":" + lineNumber;
+                    if (line.Contains("[[", StringComparison.Ordinal) ||
+                        ReferenceDefinitionPattern.IsMatch(line) ||
+                        ReferenceUsagePattern.IsMatch(line))
                     {
-                        blockers.Add(context + " : " + reason);
+                        blockers.Add(context + " : référence wiki/indirecte non qualifiée.");
+                    }
+                    else
+                    {
+                        MatchCollection markdown = MarkdownLinkPattern.Matches(line);
+                        MatchCollection html = HtmlLinkPattern.Matches(line);
+                        bool ambiguous = markdown.Count != Regex.Matches(
+                            line, @"\]\(").Count ||
+                            html.Count != HtmlAttributePattern.Matches(line).Count;
+
+                        // Inline code can contain syntactically valid text that
+                        // must never be silently rewritten as a live link.
+                        if ((markdown.Count > 0 || html.Count > 0) &&
+                            line.Contains((char)96))
+                        {
+                            ambiguous = true;
+                        }
+
+                        if (ambiguous)
+                        {
+                            blockers.Add(context + " : syntaxe de lien ambiguë.");
+                        }
+                        else
+                        {
+                            foreach (Match match in markdown.Cast<Match>()
+                                         .Concat(html.Cast<Match>()))
+                            {
+                                Group capture = match.Groups["target"];
+                                LinkChange change = EvaluateTarget(file, capture.Value);
+                                if (change.Blocker is not null)
+                                {
+                                    blockers.Add(context + " : " + change.Blocker);
+                                }
+                                else if (change.Replacement is not null)
+                                {
+                                    if (!internalDocument)
+                                    {
+                                        blockers.Add(context +
+                                            " : backlink extérieur à réécrire : " +
+                                            capture.Value);
+                                    }
+                                    else
+                                    {
+                                        rewrites.Add(new ComplexMigrationLinkRewrite(
+                                            projectRelative, workspaceRelative,
+                                            lineNumber, offset + capture.Index,
+                                            capture.Value, change.Replacement, hash));
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+
+                offset = end + 1;
             }
         }
 
-        return blockers.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return new ComplexMigrationLinkAudit(
+            rewrites.OrderBy(item => item.WorkspaceRelativePath,
+                StringComparer.OrdinalIgnoreCase).ThenBy(item => item.Offset).ToArray(),
+            blockers.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
     }
 
+    /// <summary>Legacy convenience API for consumers needing blockers only.</summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Unqualified affected references.</returns>
+    public async Task<IReadOnlyList<string>> FindBlockingReferencesAsync(
+        CancellationToken cancellationToken = default) =>
+        (await AnalyzeAsync(cancellationToken)).Blockers;
+
     /// <summary>
-    /// A literal relative reference is safe only when it still resolves to
-    /// the mapped target at the mapped document position after all moves.
+    /// Compute new relative destination without resolving unsupported formats
+    /// or guessing identities from missing original targets.
     /// </summary>
-    /// <param name="source">Absolute source document path.</param>
-    /// <param name="rawTarget">As-authored Markdown or HTML target.</param>
-    /// <returns>Reason for a blocked link, or null for an unchanged target.</returns>
-    private string? CheckTarget(string source, string rawTarget)
+    /// <param name="source">Source Markdown file.</param>
+    /// <param name="raw">Captured exact target.</param>
+    /// <returns>Proposed target, blocking diagnosis, or unchanged.</returns>
+    private LinkChange EvaluateTarget(string source, string raw)
     {
-        string target = rawTarget.Trim();
-        if (target.StartsWith('<') && target.EndsWith('>'))
+        bool angle = raw.StartsWith('<') && raw.EndsWith('>');
+        string target = angle ? raw[1..^1] : raw;
+        if (target.Length == 0 || target.StartsWith('#') ||
+            target.StartsWith("//", StringComparison.Ordinal))
         {
-            target = target[1..^1];
-        }
-
-        if (target.Length == 0 || target.StartsWith('#'))
-        {
-            return null;
-        }
-
-        if (target.StartsWith("//", StringComparison.Ordinal))
-        {
-            return null;
+            return new LinkChange(null, null);
         }
 
         if (Uri.TryCreate(target, UriKind.Absolute, out Uri? uri))
         {
             return uri.Scheme is "http" or "https" or "mailto" or "data"
-                ? null
-                : "schéma de lien non qualifié : " + target;
+                ? new LinkChange(null, null)
+                : new LinkChange(null, "schéma non qualifié : " + raw);
         }
 
         if (target.StartsWith('/') || target.StartsWith('\\') ||
             target.Contains('%') || target.Contains('?') ||
             target.Contains('\\') || target.Contains(':'))
         {
-            return "cible relative ou encodée non qualifiée : " + target;
+            return new LinkChange(null, "cible encodée ou absolue : " + raw);
         }
 
-        string logicalTarget = target.Split('#', 2)[0];
-        if (logicalTarget.Length == 0)
+        int anchor = target.IndexOf('#');
+        string path = anchor >= 0 ? target[..anchor] : target;
+        string suffix = anchor >= 0 ? target[anchor..] : string.Empty;
+        if (path.Length == 0)
         {
-            return null;
+            return new LinkChange(null, null);
         }
 
         string resolved;
         try
         {
             resolved = Path.GetFullPath(Path.Combine(
-                Path.GetDirectoryName(source)!,
-                logicalTarget.Replace('/', Path.DirectorySeparatorChar)));
+                Path.GetDirectoryName(source)!, path.Replace('/',
+                    Path.DirectorySeparatorChar)));
         }
         catch (Exception exception) when (exception is ArgumentException or
             NotSupportedException or PathTooLongException)
         {
-            return "chemin de lien non résoluble : " + target;
+            return new LinkChange(null, "chemin de lien non résoluble : " + raw);
         }
 
         string mappedSource = MapPath(source);
         string mappedTarget = MapPath(resolved);
-        string postMoveResolution = Path.GetFullPath(Path.Combine(
-            Path.GetDirectoryName(mappedSource)!,
-            logicalTarget.Replace('/', Path.DirectorySeparatorChar)));
+        string after = Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(mappedSource)!, path.Replace('/',
+                Path.DirectorySeparatorChar)));
+        if (string.Equals(after, mappedTarget,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return new LinkChange(null, null);
+        }
 
-        return string.Equals(postMoveResolution, mappedTarget,
-            StringComparison.OrdinalIgnoreCase)
-            ? null
-            : "lien relatif affecté : " + target;
+        if (!IsWithin(_workspaceRoot, resolved) ||
+            (!File.Exists(resolved) && !Directory.Exists(resolved)))
+        {
+            return new LinkChange(null, "cible absente ou hors workspace : " + raw);
+        }
+
+        string newPath = Path.GetRelativePath(
+            Path.GetDirectoryName(mappedSource)!, mappedTarget)
+            .Replace('\\', '/');
+        if (newPath == "." || Path.IsPathRooted(newPath))
+        {
+            return new LinkChange(null, "chemin recalculé non portable : " + raw);
+        }
+
+        string replacement = (angle ? "<" : string.Empty) +
+            newPath + suffix + (angle ? ">" : string.Empty);
+        if (!angle && replacement.Any(char.IsWhiteSpace))
+        {
+            return new LinkChange(null, "chemin recalculé avec espaces : " + raw);
+        }
+
+        return new LinkChange(replacement, null);
     }
 
-    /// <summary>Maps a path through exactly the approved candidate moves.</summary>
-    /// <param name="sourcePath">Path before migration.</param>
-    /// <returns>Corresponding absolute path after migration.</returns>
+    /// <summary>Maps source paths through only the explicit candidate moves.</summary>
+    /// <param name="sourcePath">Existing absolute path.</param>
+    /// <returns>Hypothetical location after migration.</returns>
     private string MapPath(string sourcePath)
     {
         foreach (ComplexMigrationMove move in _moves)
@@ -265,4 +373,14 @@ public sealed class ComplexProjectMigrationLinkImpactService
 
         return sourcePath;
     }
+
+    /// <summary>Checks path containment with a separator boundary.</summary>
+    /// <param name="root">Canonical root.</param>
+    /// <param name="path">Candidate path.</param>
+    /// <returns>Whether path is strictly within root.</returns>
+    private static bool IsWithin(string root, string path) =>
+        path.StartsWith(root + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
+
+    private sealed record LinkChange(string? Replacement, string? Blocker);
 }

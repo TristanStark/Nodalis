@@ -7,7 +7,7 @@ namespace Nodalis.Infrastructure.Projects;
 
 /// <summary>
 /// Immutable opt-in plan: all source files are fingerprinted before approval.
-/// Affected links are blocked until link rewriting is implemented; unaffected links are permitted.
+/// Only unambiguous project-local affected links are proposed for transactional rewriting.
 /// </summary>
 public sealed record ComplexProjectMigrationPlan
 {
@@ -31,6 +31,9 @@ public sealed record ComplexProjectMigrationPlan
 
     /// <summary>Informational observations that do not permit implicit writes.</summary>
     public IReadOnlyList<string> Warnings { get; init; } = [];
+
+    /// <summary>Hash-protected project-local rewrites approved with the migration.</summary>
+    public IReadOnlyList<ComplexMigrationLinkRewrite> LinkRewrites { get; init; } = [];
 
     /// <summary>True only for at least one safe, eligible move.</summary>
     public bool CanExecute =>
@@ -147,21 +150,21 @@ public sealed class ComplexProjectMigrationPlanService
             }
         }
 
-        // Compare the actual target of each supported relative reference before
-        // and after the proposed moves. Safe external or unaffected links do not
-        // unnecessarily block migration; affected references still fail closed.
+        // Only project-local, unambiguous link repairs can join the durable
+        // staging transaction. External backlinks still require a future
+        // workspace-wide multi-file transaction and remain blockers.
+        ComplexMigrationLinkAudit linkAnalysis = new([], []);
         if (preview.Moves.Any(move =>
                 move.State == ComplexMigrationMoveState.Candidate))
         {
             ComplexProjectMigrationLinkImpactService linkAudit = new(
                 _workspaceRoot, root, preview.Moves);
-            IReadOnlyList<string> impacted =
-                await linkAudit.FindBlockingReferencesAsync(cancellationToken);
-            if (impacted.Count > 0)
+            linkAnalysis = await linkAudit.AnalyzeAsync(cancellationToken);
+            if (linkAnalysis.Blockers.Count > 0)
             {
                 blockers.Add("Références Markdown à requalifier avant déplacement (" +
-                    impacted.Count + ") : " +
-                    string.Join(", ", impacted.Take(5)));
+                    linkAnalysis.Blockers.Count + ") : " +
+                    string.Join(", ", linkAnalysis.Blockers.Take(5)));
             }
         }
 
@@ -174,6 +177,7 @@ public sealed class ComplexProjectMigrationPlanService
             SourceFingerprint = fingerprint,
             Moves = preview.Moves,
             MissingDirectories = preview.MissingDirectories,
+            LinkRewrites = linkAnalysis.Rewrites,
             Blockers = blockers.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             Warnings = warnings
         };

@@ -44,14 +44,19 @@
         </ListBox>
         <StackPanel Grid.Row="2" Margin="0,12,0,0">
             <TextBlock FontSize="11" FontWeight="SemiBold"
-                       Text="BLOCAGES ET REFERENCES À REQUALIFIER"/>
-            <TextBox x:Name="BlockersText" IsReadOnly="True" MinHeight="52"
-                     MaxHeight="95" Margin="0,5,0,0"
+                       Text="LIENS LOCAUX À RÉÉCRIRE DANS LA COPIE"/>
+            <TextBox x:Name="RewritesText" IsReadOnly="True" MinHeight="38"
+                     MaxHeight="86" Margin="0,5,0,0"
+                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+            <TextBlock FontSize="11" FontWeight="SemiBold" Margin="0,9,0,0"
+                       Text="BLOCAGES ET RÉFÉRENCES À REQUALIFIER"/>
+            <TextBox x:Name="BlockersText" IsReadOnly="True" MinHeight="45"
+                     MaxHeight="80" Margin="0,5,0,0"
                      TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
         </StackPanel>
         <StackPanel Grid.Row="3" Margin="0,12,0,0">
             <TextBlock TextWrapping="Wrap"
-                       Text="Les fichiers sont préparés sur une copie. L’original est conservé dans Imports/.complex-v2-migrations ; toute interruption est journalisée. Les documents ouverts et liens non pris en charge interdisent la migration."
+                       Text="Les fichiers sont préparés sur une copie. L’original est conservé dans Imports/.complex-v2-migrations ; toute interruption est journalisée. Les liens internes sans ambiguïté sont réécrits dans cette copie ; les backlinks externes et formats inconnus restent bloquants."
                        Foreground="{StaticResource SecondaryTextBrush}"/>
             <TextBlock Text="Pour autoriser cette opération, saisir MIGRER :"
                        FontWeight="SemiBold" Margin="0,9,0,4"/>

@@ -30,11 +30,18 @@ jonctions / liens symboliques et dossiers parents.
 Il calcule une empreinte SHA-256 regroupant tous les noms, les dossiers
 vides et les hashes du contenu de tous les fichiers du projet.
 
-Tant qu'un réécrivain de liens fiable n'est pas intégré, toute référence
-Markdown ou HTML à requalifier dans les notes actives peut bloquer la
-migration. Le contrôle est volontairement conservateur : même les liens
-externes Markdown peuvent empêcher ce premier lot de s'exécuter. Les
-templates et journaux techniques sont exclus du balayage des liens actifs.
+Le préflight identifie et prévisualise les chemins relatifs Markdown (y
+compris images) et les attributs HTML cités qui changeraient de destination.
+Il propose des remplacements exacts seulement pour les documents **situés
+dans le projet migré**, avec positions de texte, empreintes SHA-256 et
+conservation des ancres et fins de ligne (UTF-8 avec ou sans BOM).
+
+Les liens externes, ancres et références qui restent valides ne sont pas
+modifiés. Toute référence affectée **depuis un autre projet**, une syntaxe
+wiki/indirecte, un chemin encodé/ambigu ou une source non UTF-8 reste bloquante.
+Les blocs de code clôturés sont exclus ; les lignes contenant du code inline
+et des liens sont refusées plutôt que réécrites. Templates et journaux
+techniques sont hors périmètre de l'analyse.
 
 ## Sauvegarde, journal et transaction
 
@@ -46,9 +53,11 @@ Une transaction approuvée conserve les données dans :
       staging/                  si publication non achevée
       previously-published/     après restauration
 
-Le projet est copié en staging. Les sections physiques sont déplacées
+Le projet est copié en staging. Les références locales approuvées sont
+réécrites **uniquement dans cette copie**, après contrôle du SHA-256 de chaque
+fichier et des offsets exacts. Ensuite les sections physiques sont déplacées
 dans cette copie seulement, les identifiants de sections existantes sont
-conservés, et les nouveaux conteneurs obtiennent de nouveaux GUID.
+conservés et les nouveaux conteneurs obtiennent de nouveaux GUID.
 
 Après une nouvelle vérification de l'empreinte originale, le journal est
 écrit AVANT les deux renommages de répertoires sur le même volume :
@@ -66,8 +75,10 @@ la version publiée dans previously-published/.
 
 ## Limites et qualification
 
-- Les références Markdown, liens relatifs et images nécessitant des
-  réécritures bloquent l'exécution ; pas de déplacement partiel.
+- Les références nécessitant une réécriture **hors du projet** bloquent
+  encore l'exécution ; aucun demi-déplacement inter-projets n'est permis.
+- Les syntaxes Markdown/HTML ambiguës ou les fichiers non UTF-8 exigent
+  une requalification ; aucun remplacement deviné.
 - Une copie intégrale du projet nécessite un espace disque suffisant.
 - Un autre logiciel peut encore modifier les fichiers en parallèle ;
   les vérifications d'empreintes et le verrou du moteur limitent ce risque,

@@ -119,8 +119,9 @@ public partial class MainWindow
             if (MessageBox.Show(this,
                 "Vous confirmez la migration du projet vers la structure Complexe 2.0 ?\n\n" +
                 "Empreinte vérifiée : " + plan.SourceFingerprint + "\n\n" +
-                "L'original sera conservé pour restauration. Cette opération ne " +
-                "réécrit pas les liens Markdown : tout lien détecté bloque déjà le plan.",
+                "L'original sera conservé pour restauration. " +
+                plan.LinkRewrites.Count + " lien(s) local(aux) seront réécrits dans " +
+                "la copie de staging après une nouvelle vérification.",
                 "Confirmer la migration Complexe", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes)
             {

@@ -172,6 +172,8 @@ public sealed class ComplexProjectMigrationTransactionService
         try
         {
             await CopyProjectAsync(projectRoot, stage, cancellationToken);
+            await ComplexProjectMigrationLinkRewriteApplier.ApplyAsync(
+                stage, plan.LinkRewrites, cancellationToken);
             await ApplyStagedLayoutAsync(stage, plan, cancellationToken);
             string stagedHash =
                 await ComplexProjectMigrationPlanService.FingerprintAsync(
@@ -682,6 +684,7 @@ public sealed class ComplexProjectMigrationTransactionService
         return latest.CanExecute &&
             latest.ProjectId == approved.ProjectId &&
             latest.Moves.SequenceEqual(approved.Moves) &&
+            latest.LinkRewrites.SequenceEqual(approved.LinkRewrites) &&
             string.Equals(latest.SourceFingerprint,
                 approved.SourceFingerprint, StringComparison.OrdinalIgnoreCase);
     }
