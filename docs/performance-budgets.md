@@ -287,3 +287,46 @@ Optimisation complémentaire : l'extraction de la signature rejette en temps
 constant le cas courant d'un fichier sans en-tête (premier caractère utile
 différent de `---`) et emploie des `ReadOnlySpan<char>` pour contrôler
 les délimiteurs, sans allocation de lignes ni copie d'un corps de 1 Mio.
+
+
+## Qualification ciblée — fermeture de nombreux onglets et reprise de veille (31 octobre 2026)
+
+Reproduction utilisateur : plusieurs documents ouverts, puis menu contextuel
+« Fermer les onglets à droite » ; blocage important de l'interface. Ralentissement
+également à la reprise de veille.
+
+Analyse du journal Visual Studio : **50** `TaskCanceledException` de première
+chance (annulations sans crash démontré), **27** diagnostics WPF
+`TreeViewItem.VerticalContentAlignment` / `FindAncestor ItemsControl` et **28**
+arrêts normaux de threads avec code `0x0`. La capture (~365 Mo) n'établit pas
+une fuite de mémoire à elle seule.
+
+Incrément `develop` :
+- Une fermeture multiple prévalide l'autosave de chaque onglet et demande
+  confirmation explicite en cas de contenu non enregistré. Elle supprime les
+  onglets **en une seule rebinding du ListBox**, au lieu d'une série de
+  suppressions impliquant autant de passes de layout. L'onglet de référence
+  est réactivé une seule fois et les contrôleurs sont désinscrits/disposés.
+- Les événements `Saved` des contrôleurs sont agrégés avec un debounce
+  de 220 ms. Un burst de sauvegardes, notamment après veille, produit un
+  recalcul liens/contextes commun au lieu de N invalidations indépendantes.
+  Les sauvegardes arrivées pendant un recalcul produisent un lot suivant ;
+  l'enregistrement disque reste immédiat et indépendant de ce debounce UI.
+- Le `TreeViewItem` définit explicitement
+  `VerticalContentAlignment=Center` pour éviter la liaison ancestrale
+  par défaut lors du détachement/recyclage des conteneurs.
+- Les notifications Windows de suspension/reprise interrompent/réarment les
+  timers de présentation et backup sans déclencher de reconstruction globale
+  immédiate au réveil ; le heartbeat ne confond pas la suspension déclarée
+  avec un blocage WPF.
+- Smoke test avec 40 contrôleurs d'autosave, rafales de saisies, double flush
+  et conflit de modification externe : aucune réécriture d'une version
+  concurrente n'est tolérée.
+
+**Qualification requise sur Windows** : 30/100 onglets (mix courts/longs et
+édités), « Fermer à droite » / « Fermer les autres » depuis le début et le
+milieu, retour du split, annulation sur conflit externe, apparition correcte
+du dernier onglet, pas d'onglet fantôme, disparition des diagnostics de binding.
+Comparer avant/après le temps de fermeture et le retard Dispatcher p95/p99/max.
+Laisser Nodalis ouvert avant mise en veille puis mesurer la reprise et le nombre
+de refresh / sauvegardes sans attribuer à priori le ralentissement à la RAM.
