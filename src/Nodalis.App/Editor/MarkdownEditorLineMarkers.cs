@@ -10,7 +10,7 @@ namespace Nodalis.App.Editor;
 /// Draws unobtrusive Markdown structure markers beside visible editor lines.
 /// The source stays in a normal TextBox, so selection, undo and autosave are unchanged.
 /// </summary>
-internal sealed class MarkdownEditorLineMarkers
+internal sealed class MarkdownEditorLineMarkers : IDisposable
 {
     private const int MaximumVisibleLines = 150;
 
@@ -57,6 +57,23 @@ internal sealed class MarkdownEditorLineMarkers
             ScrollViewer.ScrollChangedEvent,
             new ScrollChangedEventHandler(Editor_ScrollChanged));
         _markers.IsHitTestVisible = false;
+    }
+
+    /// <summary>
+    /// Releases editor event subscriptions and its pending refresh timer.
+    /// </summary>
+    public void Dispose()
+    {
+        _refreshTimer.Stop();
+        _refreshTimer.Tick -= RefreshTimer_Tick;
+        _editor.TextChanged -= Editor_TextChanged;
+        _editor.Loaded -= Editor_Loaded;
+        _editor.SizeChanged -= Editor_SizeChanged;
+        _editor.IsVisibleChanged -= Editor_IsVisibleChanged;
+        _editor.RemoveHandler(
+            ScrollViewer.ScrollChangedEvent,
+            new ScrollChangedEventHandler(Editor_ScrollChanged));
+        _markers.Children.Clear();
     }
 
     /// <summary>
