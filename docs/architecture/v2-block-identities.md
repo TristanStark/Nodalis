@@ -38,3 +38,5 @@ Le schéma de l'index de liens dérivé est passé de 3 à 4. Les nouvelles list
 - `BlockIndexQuery.Resolve` lit uniquement l'instantané de l'index ; aucune lecture réseau ni accès disque. Un bloc dont le document propriétaire manque n'est pas déclaré résolu.
 
 **Limite** : le service d'écriture transactionnelle, le contrôle de la présence unique d'un ID avant insertion et l'UI de navigation sont encore à développer. Le nouveau schéma n'est pas un stockage métier autonome : il se reconstruit depuis les sources.
+
+**Compatibilité vérifiée en CI** : le contrat de persistance explicite les nouvelles projections dérivées et la migration d'un index v3 (sans `blocks`/`blockIssues`) vers v4. Les identifiants de documents et les alias préexistants restent dans le registre d'identités.

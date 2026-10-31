@@ -73,6 +73,12 @@ internal static class PersistenceContractSmokeTests
             contracts.Single(contract =>
                 contract.Key ==
                 "user-preferences");
+        PersistenceContractDefinition blockIdentity =
+            contracts.Single(contract => contract.Key == "markdown-block-identity");
+        PersistenceContractDefinition blockIndex =
+            contracts.Single(contract => contract.Key == "block-identity-index");
+        PersistenceContractDefinition blockIssues =
+            contracts.Single(contract => contract.Key == "block-issue-index");
 
         Assert(
             projectGlossary.Location ==
@@ -83,12 +89,12 @@ internal static class PersistenceContractSmokeTests
 
         Assert(
             LinkIndexCatalog.CurrentSchemaVersion ==
-                3 &&
+                4 &&
             WorkspaceBackupManifest.CurrentSchemaVersion ==
                 1 &&
             UserPreferences.CurrentSchemaVersion ==
                 1,
-            "Frozen 1.0 independent persistence schema versions must change only with an explicit contract update.");
+            "Only the link index schema may advance to 4 under the explicit Nodalis 2.0 block-projection contract update.");
 
         Assert(
             targetRegistry.Category ==
@@ -97,6 +103,16 @@ internal static class PersistenceContractSmokeTests
             targetRegistry.IndependentSchemaVersion ==
                 LinkIndexCatalog.CurrentSchemaVersion,
             "Document target IDs and aliases must be classified as persistent identity state, not disposable cache.");
+
+        Assert(
+            blockIdentity.Category == PersistenceContractCategory.CanonicalBusinessData &&
+            !blockIdentity.Rebuildable &&
+            blockIndex.Category == PersistenceContractCategory.DerivedCache &&
+            blockIndex.Rebuildable &&
+            blockIndex.IndependentSchemaVersion == LinkIndexCatalog.CurrentSchemaVersion &&
+            blockIssues.Category == PersistenceContractCategory.DerivedCache &&
+            blockIssues.Rebuildable,
+            "Version 4 must declare canonical block markers and rebuildable derived block projections.");
 
         Assert(
             referenceIndex.Category ==

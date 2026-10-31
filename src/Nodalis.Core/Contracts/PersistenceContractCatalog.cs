@@ -192,6 +192,38 @@ public static class PersistenceContractCatalog
         },
         new PersistenceContractDefinition
         {
+            Key = "markdown-block-identity",
+            Location = "**/*.md#nodalis-block-markers",
+            Category = PersistenceContractCategory.CanonicalBusinessData,
+            GovernedByWorkspaceSchema = true,
+            Rebuildable = false,
+            IdentityAndRenameInvariant =
+                "A stable block GUID is stored in a Markdown HTML comment immediately after its heading. Moving the block preserves its identity; legacy documents without markers remain valid."
+        },
+        new PersistenceContractDefinition
+        {
+            Key = "block-identity-index",
+            Location = ".nodalis-links.json#/blocks",
+            Category = PersistenceContractCategory.DerivedCache,
+            IndependentSchemaVersion = LinkIndexCatalog.CurrentSchemaVersion,
+            GovernedByWorkspaceSchema = false,
+            Rebuildable = true,
+            IdentityAndRenameInvariant =
+                "BlockId, DocumentId and heading position are rebuilt from the Markdown marker and existing document identity registry."
+        },
+        new PersistenceContractDefinition
+        {
+            Key = "block-issue-index",
+            Location = ".nodalis-links.json#/blockIssues",
+            Category = PersistenceContractCategory.DerivedCache,
+            IndependentSchemaVersion = LinkIndexCatalog.CurrentSchemaVersion,
+            GovernedByWorkspaceSchema = false,
+            Rebuildable = true,
+            IdentityAndRenameInvariant =
+                "Malformed and duplicate block marker diagnostics are derived from canonical Markdown without repairing the source."
+        },
+        new PersistenceContractDefinition
+        {
             Key = "link-target-registry",
             Location = ".nodalis-links.json#/targets",
             Category = PersistenceContractCategory.IdentityRegistry,

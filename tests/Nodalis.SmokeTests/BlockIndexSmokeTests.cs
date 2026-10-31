@@ -1,4 +1,5 @@
 using Nodalis.Core.Links;
+using System.Text.Json.Nodes;
 using Nodalis.Core.Markdown;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Persistence;
@@ -43,6 +44,21 @@ internal static class BlockIndexSmokeTests
                 resolved.Document?.RelativePath == "Criteria.md" &&
                 resolved.Block?.HeadingLine == 2,
                 "Block resolution must return its stable owning document.");
+
+            // Simulate the exact v1.9 schema v3 payload: document target IDs
+            // must survive while block projections are reconstructed.
+            string indexPath = Path.Combine(workspaceRoot, WorkspaceLayout.LinkIndexFileName);
+            JsonObject v3 = JsonNode.Parse(await File.ReadAllTextAsync(indexPath))!.AsObject();
+            v3["schemaVersion"] = 3;
+            v3.Remove("blocks");
+            v3.Remove("blockIssues");
+            await File.WriteAllTextAsync(indexPath, v3.ToJsonString());
+            LinkIndexCatalog migrated = await service.LoadAsync();
+            Assert(migrated.SchemaVersion == 4 &&
+                migrated.Blocks.Count == 2 &&
+                migrated.Targets.Single(target =>
+                    target.RelativePath == "Criteria.md").Id == resolved.Document?.Id,
+                "Schema v3 must reconstruct block indexes while retaining document IDs.");
 
             LinkIndexRefreshResult warm = await service.RefreshWithMetricsAsync();
             Assert(warm.Metrics.ParsedDocuments == 0 &&
