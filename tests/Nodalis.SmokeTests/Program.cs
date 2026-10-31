@@ -130,6 +130,7 @@ try
     await BlockIndexSmokeTests.RunAsync(root);
     BlockRelationSourceSmokeTests.Run();
     RelationEditorSnapshotSmokeTests.Run();
+    await ComplexMigrationPreviewSmokeTests.RunAsync(root);
     VerifyTypedRelations();
     ImpactAnalysisSmokeTests.Run();
     ImpactReleaseQualificationSmokeTests.Run();
