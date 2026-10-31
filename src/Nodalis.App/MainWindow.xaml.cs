@@ -1584,6 +1584,15 @@ public partial class MainWindow : Window
             return;
         }
 
+        // WPF may raise SelectedItemChanged later when a tab updates the
+        // bound IsSelected property. The editor is already opening that node:
+        // do not re-enter DisplayNodeAsync or reconfigure its worktree context.
+        if (!NavigationTree.IsKeyboardFocusWithin &&
+            ReferenceEquals(_selectedNode, node))
+        {
+            return;
+        }
+
         _selectedNode = node;
         // Selecting a visible tree row (or syncing selection from an editor
         // tab) must not queue a delayed BringIntoView that scrolls away from
