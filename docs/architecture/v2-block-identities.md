@@ -26,3 +26,15 @@ Ce premier lot n'installe pas de migration automatique, n'altère pas le Worktre
 **À compléter sous #193** : service d'attribution intégrant le contrôle d'unicité workspace et la protection contre modification externe, index inverse incrémental, relations typées bloc ↔ bloc et document ↔ bloc, opérations transactionnelles, historique et transfert. Ne pas utiliser `InsertMarker` seul pour enregistrer un fichier : l'appelant doit valider le snapshot de départ, les collisions inter-documents et le commit atomique avant toute écriture.
 
 La suite de tests `MarkdownBlockIdentitySmokeTests` couvre documents historiques, CRLF, idempotence, déplacement/renommage, titres de code, collisions et marqueurs invalides.
+
+## Projection incrémentale de l'index (second incrément #193 / #206)
+
+Le schéma de l'index de liens dérivé est passé de 3 à 4. Les nouvelles listes `Blocks` et `BlockIssues` complètent les références et relations existantes sans changer les sources Markdown.
+
+- Chaque bloc indexé associe `Id` (GUID du marqueur) à `DocumentId` (GUID du document déjà indexé) et à son titre, niveau, position et ligne courants.
+- Un renommage/déplacement de fichier ne change pas `DocumentId` : la résolution cherche toujours le chemin courant dans `Targets`. Une modification de titre impose le recalcul du bloc uniquement pour le fichier modifié.
+- Lors d'une actualisation à chaud, les blocs et diagnostics des fichiers inchangés sont réutilisés sans reparser le Markdown ; une migration d'index v3 vers v4 reparcourt volontairement les sources une fois.
+- Une collision de GUID entre blocs (même document ou documents distincts) retourne **Ambiguous**, jamais le premier bloc trouvé ; les marqueurs malformés/dupliqués restent diagnostiqués dans le JSON reconstructible.
+- `BlockIndexQuery.Resolve` lit uniquement l'instantané de l'index ; aucune lecture réseau ni accès disque. Un bloc dont le document propriétaire manque n'est pas déclaré résolu.
+
+**Limite** : le service d'écriture transactionnelle, le contrôle de la présence unique d'un ID avant insertion et l'UI de navigation sont encore à développer. Le nouveau schéma n'est pas un stockage métier autonome : il se reconstruit depuis les sources.

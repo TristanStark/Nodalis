@@ -242,6 +242,7 @@ public sealed class WorkspaceLinkIndexService
                     !previousDocuments.TryGetValue(
                         target.Id,
                         out global::Nodalis.Core.Links.LinkTargetEntry? previousTarget) ||
+                    previous.SchemaVersion != LinkIndexCatalog.CurrentSchemaVersion ||
                     !string.Equals(
                         previousTarget.ContentHash,
                         target.ContentHash,
@@ -263,7 +264,9 @@ public sealed class WorkspaceLinkIndexService
                 .OrderBy(target => target.QualifiedName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList(),
             References = documentIndexes.References,
-            Relations = documentIndexes.Relations
+            Relations = documentIndexes.Relations,
+            Blocks = documentIndexes.Blocks,
+            BlockIssues = documentIndexes.BlockIssues
         };
 
         // The index is derived data: do not rewrite it or change its timestamp
@@ -845,6 +848,16 @@ public sealed class WorkspaceLinkIndexService
                     group => group.Key,
                     group => group.ToList());
 
+        Dictionary<Guid, List<IndexedMarkdownBlock>> previousBlocks =
+            previous.Blocks.GroupBy(block => block.DocumentId)
+                .ToDictionary(group => group.Key, group => group.ToList());
+        Dictionary<Guid, List<IndexedMarkdownBlockIssue>> previousBlockIssues =
+            previous.BlockIssues.GroupBy(issue => issue.DocumentId)
+                .ToDictionary(group => group.Key, group => group.ToList());
+
+        List<IndexedMarkdownBlock> blocks = [];
+        List<IndexedMarkdownBlockIssue> blockIssues = [];
+
         global::System.Collections.Generic.List<global::Nodalis.Core.Links.LinkReferenceEntry> references =
             new List<LinkReferenceEntry>();
         global::System.Collections.Generic.List<global::Nodalis.Core.Relations.TypedRelationEntry> relations =
@@ -886,6 +899,17 @@ public sealed class WorkspaceLinkIndexService
                         cachedRelations);
                 }
 
+                if (previousBlocks.TryGetValue(source.Id, out List<IndexedMarkdownBlock>? cachedBlocks))
+                {
+                    blocks.AddRange(cachedBlocks);
+                }
+
+                if (previousBlockIssues.TryGetValue(
+                    source.Id, out List<IndexedMarkdownBlockIssue>? cachedIssues))
+                {
+                    blockIssues.AddRange(cachedIssues);
+                }
+
                 continue;
             }
 
@@ -905,6 +929,37 @@ public sealed class WorkspaceLinkIndexService
                 fullPath,
                 cancellationToken);
             counters.ParsedDocuments++;
+
+            // Block projection is derived from this already-read source: no additional
+            // filesystem traversal and no synchronous work on the WPF Dispatcher.
+            MarkdownBlockIdentityScan scan = MarkdownBlockIdentityCodec.Inspect(markdown);
+            foreach (MarkdownBlockIdentityEntry heading in scan.Blocks)
+            {
+                if (heading.Id is Guid blockId)
+                {
+                    blocks.Add(new IndexedMarkdownBlock
+                    {
+                        Id = blockId,
+                        DocumentId = source.Id,
+                        HeadingTitle = heading.Title,
+                        HeadingLevel = heading.Level,
+                        HeadingLine = heading.HeadingLine,
+                        HeadingOffset = heading.HeadingOffset
+                    });
+                }
+            }
+
+            foreach (MarkdownBlockIdentityIssue issue in scan.Issues)
+            {
+                blockIssues.Add(new IndexedMarkdownBlockIssue
+                {
+                    DocumentId = source.Id,
+                    Kind = issue.Kind,
+                    Id = issue.Id,
+                    HeadingLine = issue.HeadingLine,
+                    MarkerLine = issue.MarkerLine
+                });
+            }
 
             string[] lines = markdown
                 .Replace(
@@ -970,7 +1025,9 @@ public sealed class WorkspaceLinkIndexService
 
         return new DocumentIndexBuildResult(
             references,
-            relations);
+            relations,
+            blocks,
+            blockIssues);
     }
 
     /// <summary>
@@ -985,7 +1042,9 @@ public sealed class WorkspaceLinkIndexService
         if (previous.SchemaVersion != LinkIndexCatalog.CurrentSchemaVersion ||
             previous.Targets.Count != current.Targets.Count ||
             previous.References.Count != current.References.Count ||
-            previous.Relations.Count != current.Relations.Count)
+            previous.Relations.Count != current.Relations.Count ||
+            previous.Blocks.Count != current.Blocks.Count ||
+            previous.BlockIssues.Count != current.BlockIssues.Count)
         {
             return false;
         }
@@ -1011,7 +1070,9 @@ public sealed class WorkspaceLinkIndexService
         }
 
         return previous.References.SequenceEqual(current.References) &&
-            previous.Relations.SequenceEqual(current.Relations);
+            previous.Relations.SequenceEqual(current.Relations) &&
+            previous.Blocks.SequenceEqual(current.Blocks) &&
+            previous.BlockIssues.SequenceEqual(current.BlockIssues);
     }
 
     /// <summary>
@@ -1143,6 +1204,8 @@ public sealed class WorkspaceLinkIndexService
 
     private sealed record DocumentIndexBuildResult(
         List<LinkReferenceEntry> References,
-        List<TypedRelationEntry> Relations);
+        List<TypedRelationEntry> Relations,
+        List<IndexedMarkdownBlock> Blocks,
+        List<IndexedMarkdownBlockIssue> BlockIssues);
 
 }
