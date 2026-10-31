@@ -4,6 +4,7 @@ using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Navigation;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.Infrastructure.Navigation;
 
@@ -399,45 +400,49 @@ public sealed class WorkspaceNavigationBuilder
             new HashSet<string>(
                 StringComparer.OrdinalIgnoreCase);
 
+        Dictionary<string, SectionManifest> sectionPaths =
+            new(StringComparer.OrdinalIgnoreCase);
+
         if (manifest is not null)
         {
-            foreach (global::Nodalis.Core.Domain.SectionManifest section in manifest.Sections
-                         .OrderBy(section =>
-                             section.Order)
-                         .ThenBy(
-                             section => section.Name,
-                             StringComparer.CurrentCultureIgnoreCase))
+            foreach (SectionManifest section in manifest.Sections)
             {
-                string sectionDirectory = Path.Combine(
-                    directory,
-                    WindowsPathRules.SanitizeSegment(
-                        section.Name));
-
-                if (!Directory.Exists(
-                        sectionDirectory))
+                if (ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                        section.TemplateKey) is not null)
                 {
                     continue;
                 }
 
-                managedSectionPaths.Add(
-                    Path.GetFullPath(
-                        sectionDirectory));
+                string sectionDirectory =
+                    ProjectSectionDirectoryLayout.Resolve(directory, section);
+                if (Directory.Exists(sectionDirectory))
+                {
+                    sectionPaths.TryAdd(Path.GetFullPath(sectionDirectory), section);
+                }
+            }
 
-                global::Nodalis.Core.Navigation.WorkspaceNavigationNode sectionNode =
-                    await BuildGenericFolderAsync(
-                        workspaceRoot,
-                        sectionDirectory,
-                        WorkspaceNodeKind.Section,
-                        cancellationToken);
+            foreach (SectionManifest section in manifest.Sections
+                .OrderBy(item => item.Order)
+                .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase))
+            {
+                if (ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                        section.TemplateKey) is not null)
+                {
+                    continue;
+                }
 
-                children.Add(
-                    sectionNode with
-                    {
-                        Id =
-                            section.Id,
-                        DisplayName =
-                            section.Name
-                    });
+                string sectionDirectory = ProjectSectionDirectoryLayout.Resolve(directory, section);
+                if (!Directory.Exists(sectionDirectory) ||
+                    !string.Equals(Path.GetDirectoryName(sectionDirectory), directory,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                managedSectionPaths.Add(Path.GetFullPath(sectionDirectory));
+                WorkspaceNavigationNode node = await BuildGenericFolderAsync(
+                    workspaceRoot, sectionDirectory, WorkspaceNodeKind.Section, cancellationToken);
+                children.Add(ApplySectionIdentities(node, sectionPaths));
             }
         }
 
@@ -462,12 +467,9 @@ public sealed class WorkspaceNavigationBuilder
                 continue;
             }
 
-            children.Add(
-                await BuildGenericFolderAsync(
-                    workspaceRoot,
-                    childDirectory,
-                    WorkspaceNodeKind.Section,
-                    cancellationToken));
+            WorkspaceNavigationNode otherFolder = await BuildGenericFolderAsync(
+                workspaceRoot, childDirectory, WorkspaceNodeKind.Section, cancellationToken);
+            children.Add(ApplySectionIdentities(otherFolder, sectionPaths));
         }
 
         foreach (string file in EnumerateMarkdownFiles(
@@ -542,6 +544,36 @@ public sealed class WorkspaceNavigationBuilder
             Kind = WorkspaceNodeKind.ProjectsRoot,
             FullPath = path,
             Children = projects
+        };
+    }
+
+    /// <summary>
+    /// Rebinds nested folder nodes to stable manifest section IDs without
+    /// flattening the physical hierarchy or generating duplicate root entries.
+    /// </summary>
+    /// <param name="node">Filesystem navigation node.</param>
+    /// <param name="knownSections">Manifest sections by absolute directory path.</param>
+    /// <returns>Existing tree with stable IDs and display labels for managed folders.</returns>
+    private static WorkspaceNavigationNode ApplySectionIdentities(
+        WorkspaceNavigationNode node,
+        IReadOnlyDictionary<string, SectionManifest> knownSections)
+    {
+        if (node.Kind != WorkspaceNodeKind.Section)
+        {
+            return node;
+        }
+
+        SectionManifest? section = knownSections.TryGetValue(
+            Path.GetFullPath(node.FullPath), out SectionManifest? known)
+            ? known : null;
+
+        return node with
+        {
+            Id = section?.Id ?? node.Id,
+            DisplayName = section?.Name ?? node.DisplayName,
+            Children = node.Children
+                .Select(child => ApplySectionIdentities(child, knownSections))
+                .ToList()
         };
     }
 
