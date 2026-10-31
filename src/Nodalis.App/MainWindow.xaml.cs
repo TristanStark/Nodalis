@@ -4902,6 +4902,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.complex-v2-preview",
+                Title = "Prévisualiser la structure Complexe 2.0",
+                Subtitle = "Inventaire en lecture seule des déplacements et conflits éventuels",
+                Keywords = ["complexe", "structure", "migration", "aperçu", "documentation", "analyse"],
+                ExecuteAsync = ShowComplexMigrationPreviewAsync
+            },
+            new()
+            {
                 Id = "project.restore",
                 Title = "Réouvrir un projet archivé",
                 Subtitle = "Restaurer le projet sélectionné à son emplacement d'origine",
