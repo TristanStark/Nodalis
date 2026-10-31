@@ -276,6 +276,7 @@ public sealed class WorkspaceDocxImportService
         string projectDirectory;
         string projectDisplayName;
         ProjectManifest? existingProject = null;
+        global::Nodalis.Core.Templates.ProjectProfileDefinition? creatingProfile = null;
         bool createsProject = request.ProjectId is null;
 
         if (request.ProjectId is Guid existingProjectId)
@@ -392,6 +393,8 @@ public sealed class WorkspaceDocxImportService
                 ?? throw new InvalidDataException(
                     $"Aucun profil de projet '{request.NewProjectComplexity}' n'est disponible.");
 
+            creatingProfile = profile;
+
             foreach (global::Nodalis.Core.Templates.ProjectSectionTemplateDefinition section in profile.Sections
                          .Where(section =>
                              !string.IsNullOrWhiteSpace(
@@ -402,11 +405,19 @@ public sealed class WorkspaceDocxImportService
                 string? singletonFileName =
                     ProjectSingletonDocumentLayout.GetRootDocumentFileName(
                         section.TemplateKey);
-                string sectionFilePath = singletonFileName is not null
-                    ? Path.Combine(projectDirectory, singletonFileName)
+                string profileDirectory = section.RelativeDirectory is null
+                    ? (singletonFileName is not null
+                        ? projectDirectory
+                        : Path.Combine(projectDirectory,
+                            WindowsPathRules.SanitizeSegment(section.Name)))
                     : Path.Combine(projectDirectory,
-                        WindowsPathRules.SanitizeSegment(section.Name),
-                        WindowsPathRules.SanitizeSegment(section.Name) + ".md");
+                        ProjectSectionDirectoryLayout.ValidateRelativeDirectory(
+                            section.RelativeDirectory).Replace(
+                            '/', Path.DirectorySeparatorChar));
+
+                string sectionFilePath = Path.Combine(profileDirectory,
+                    singletonFileName ??
+                    WindowsPathRules.SanitizeSegment(section.Name) + ".md");
                 changes.Add(PlanChange("Créer", sectionFilePath,
                     $"Document initial de la section {section.Name}"));
             }
@@ -430,10 +441,8 @@ public sealed class WorkspaceDocxImportService
                     " » dans l'ordre choisi dans l'onglet Affectation.");
             }
 
-            string sectionDirectory = Path.Combine(
-                projectDirectory,
-                WindowsPathRules.SanitizeSegment(
-                    sectionName));
+            string sectionDirectory = ResolveImportSectionDirectory(
+                projectDirectory, sectionName, existingProject, creatingProfile);
 
             string desiredFileName =
                 $"Import - {sourceStem}.md";
@@ -808,10 +817,8 @@ public sealed class WorkspaceDocxImportService
                 cancellationToken.ThrowIfCancellationRequested();
 
                 string sectionName = group.Key.Trim();
-                string sectionDirectory = Path.Combine(
-                    projectDirectory,
-                    WindowsPathRules.SanitizeSegment(
-                        sectionName));
+                string sectionDirectory = ResolveImportSectionDirectory(
+                    projectDirectory, sectionName, updatedProject, null);
 
                 if (!Directory.Exists(sectionDirectory))
                 {
@@ -1863,6 +1870,51 @@ public sealed class WorkspaceDocxImportService
                 Sections = sections
             }
             : project;
+    }
+
+    /// <summary>
+    /// Resolves DOCX target sections from the same explicit manifest/profile
+    /// layout used for project creation. Unknown sections retain their legacy
+    /// root-directory behavior. Singleton files are not import directories.
+    /// </summary>
+    /// <param name="projectDirectory">Approved project root.</param>
+    /// <param name="sectionName">Selected logical section name.</param>
+    /// <param name="project">Existing or just-created project manifest.</param>
+    /// <param name="profile">New project profile, before creation.</param>
+    /// <returns>Physical folder for the imported Markdown.</returns>
+    private static string ResolveImportSectionDirectory(
+        string projectDirectory,
+        string sectionName,
+        ProjectManifest? project,
+        global::Nodalis.Core.Templates.ProjectProfileDefinition? profile)
+    {
+        SectionManifest? section = project?.Sections.FirstOrDefault(item =>
+            string.Equals(item.Name, sectionName,
+                StringComparison.OrdinalIgnoreCase));
+
+        global::Nodalis.Core.Templates.ProjectSectionTemplateDefinition? template =
+            profile?.Sections.FirstOrDefault(item =>
+                string.Equals(item.Name, sectionName,
+                    StringComparison.OrdinalIgnoreCase));
+
+        string? templateKey = section?.TemplateKey ?? template?.TemplateKey;
+        string? relativeDirectory = section?.RelativeDirectory ??
+            template?.RelativeDirectory;
+
+        // Keep the historical DOCX import behavior for singleton roles:
+        // no imported source may be mistaken for the unique Jalons.md file.
+        if (ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                templateKey) is not null)
+        {
+            relativeDirectory = null;
+        }
+
+        string target = relativeDirectory is null
+            ? WindowsPathRules.SanitizeSegment(sectionName)
+            : ProjectSectionDirectoryLayout.ValidateRelativeDirectory(
+                relativeDirectory).Replace('/', Path.DirectorySeparatorChar);
+
+        return Path.Combine(projectDirectory, target);
     }
 
     /// <summary>
