@@ -13,6 +13,7 @@ namespace Nodalis.App;
 public partial class MainWindow
 {
     private bool _allowExplicitWorktreeBringIntoView;
+    private long _worktreeRevealSequence;
 
     /// <summary>
     /// Keeps the explorer's manually chosen scroll position when another
@@ -142,23 +143,35 @@ public partial class MainWindow
     private void ScheduleRevealTreeItem(NavigationNodeViewModel node)
     {
         EnsureWorktreeNodeIsVisible(node);
+        long request = ++_worktreeRevealSequence;
         Dispatcher.BeginInvoke(
             DispatcherPriority.Loaded,
-            new Action(() => RunUiAction(
-                "Explorateur · révéler la sélection",
-                () =>
+            new Action(() =>
+            {
+                // A tab switch or manual scroll may have superseded this
+                // deferred reveal while WPF was realizing its containers.
+                if (request != _worktreeRevealSequence ||
+                    !ReferenceEquals(_selectedNode, node))
                 {
-                    _allowExplicitWorktreeBringIntoView = true;
+                    return;
+                }
+
+                RunUiAction(
+                    "Explorateur · révéler la sélection",
+                    () =>
+                    {
+                        _allowExplicitWorktreeBringIntoView = true;
                     try
                     {
                         RevealTreeItemContainer(node);
-                    }
-                    finally
-                    {
-                        _allowExplicitWorktreeBringIntoView = false;
-                    }
-                },
-                showDialog: false)));
+                        }
+                        finally
+                        {
+                            _allowExplicitWorktreeBringIntoView = false;
+                        }
+                    },
+                    showDialog: false);
+            }));
     }
 
     /// <summary>
