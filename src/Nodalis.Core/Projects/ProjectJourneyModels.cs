@@ -114,3 +114,11 @@ public sealed record ProjectJourneyOperation
 public sealed record ProjectJourneySnapshot(
     ProjectJourneyDocument Document,
     string Sha256);
+
+
+/// <summary>Workspace template catalog with its optional on-disk revision.</summary>
+/// <param name="Catalog">Deterministic built-ins or an explicit workspace override.</param>
+/// <param name="Sha256">Exact file hash, null when no override exists.</param>
+public sealed record ProjectJourneyTemplateSnapshot(
+    ProjectJourneyTemplateCatalog Catalog,
+    string? Sha256);
