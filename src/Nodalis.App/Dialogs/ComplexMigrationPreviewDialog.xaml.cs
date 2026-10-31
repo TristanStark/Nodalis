@@ -18,9 +18,10 @@ public partial class ComplexMigrationPreviewDialog : Window
         InitializeComponent();
         MovesList.ItemsSource = preview.Moves;
         SummaryText.Text =
-            $"{preview.Moves.Count} déplacement(s) proposé(s), " +
-            $"{preview.Moves.Count(move => move.State == ComplexMigrationMoveState.Blocked)} " +
-            "conflit(s). Aucune écriture possible dans cet écran.";
+            $"{preview.Moves.Count(move => move.State == ComplexMigrationMoveState.Candidate)} déplacement(s) candidat(s), " +
+            $"{preview.Moves.Count(move => move.State == ComplexMigrationMoveState.AlreadyPlaced)} déjà en place, " +
+            $"{preview.Moves.Count(move => move.State == ComplexMigrationMoveState.Blocked)} conflit(s). " +
+            "Aucune écriture possible dans cet écran.";
 
         MissingText.Text = preview.MissingDirectories.Count == 0
             ? "Aucun dossier manquant dans la structure cible."

@@ -8,6 +8,8 @@ public enum ComplexMigrationMoveState
 {
     /// <summary>Source exists and destination does not.</summary>
     Candidate,
+    /// <summary>Section is already stored in the intended v2 folder.</summary>
+    AlreadyPlaced,
     /// <summary>Source is missing or no longer at its original location.</summary>
     MissingSource,
     /// <summary>Collision, symlink, or ambiguous role requires manual correction.</summary>
@@ -114,7 +116,10 @@ public sealed class ComplexProjectMigrationPreviewService
             if (destination is null)
             {
                 if (section.TemplateKey is null &&
-                    !string.Equals(section.Name, "Jalons", StringComparison.OrdinalIgnoreCase))
+                    !string.Equals(section.Name, "Jalons", StringComparison.OrdinalIgnoreCase) &&
+                    (section.RelativeDirectory is null ||
+                     !Layout.Contains(section.RelativeDirectory,
+                         StringComparer.OrdinalIgnoreCase)))
                 {
                     warnings.Add("Section hors plan conservée : " + section.Name);
                 }
@@ -135,8 +140,9 @@ public sealed class ComplexProjectMigrationPreviewService
         foreach ((SectionManifest section, string destination) in proposed)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string source = WindowsPathRules.SanitizeSegment(section.Name);
-            string from = Path.Combine(root, source);
+            string source = section.RelativeDirectory ??
+                WindowsPathRules.SanitizeSegment(section.Name);
+            string from = Resolve(root, source);
             string to = Resolve(root, destination);
 
             ComplexMigrationMoveState state = ComplexMigrationMoveState.Candidate;
@@ -150,6 +156,11 @@ public sealed class ComplexProjectMigrationPreviewService
             {
                 state = ComplexMigrationMoveState.MissingSource;
                 detail = "Source absente : vérifier un déplacement préalable.";
+            }
+            else if (string.Equals(from, to, StringComparison.OrdinalIgnoreCase))
+            {
+                state = ComplexMigrationMoveState.AlreadyPlaced;
+                detail = "Section déjà dans le dossier prévu : aucun déplacement requis.";
             }
             else
             {

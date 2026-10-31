@@ -79,6 +79,16 @@ internal static class ComplexProjectLayoutSmokeTests
                     $"Missing Complex v2 project path {relativePath}.");
             }
 
+            ComplexProjectMigrationPreviewService migrations =
+                new ComplexProjectMigrationPreviewService(workspace);
+            ComplexProjectMigrationPreview inventory =
+                await migrations.PreviewAsync(project);
+            Assert(inventory.Moves.Count == 7 &&
+                inventory.Moves.All(move => move.State ==
+                    ComplexMigrationMoveState.AlreadyPlaced) &&
+                inventory.MissingDirectories.Count == 0,
+                "A newly created v2 Complex layout must not be flagged as needing legacy migration.");
+
             Assert(File.Exists(Path.Combine(project, "Jalons.md")) &&
                 File.Exists(Path.Combine(project, "Glossaire.md")) &&
                 File.Exists(Path.Combine(project, "Notes rapides.md")) &&
