@@ -126,6 +126,17 @@ public sealed class ComplexProjectMigrationPlanService
 
         // The whole project is copied to staging, so refuse junctions anywhere,
         // including attachments and user-created directories.
+        string sourceAncestor = root;
+        while (sourceAncestor.Length > _workspaceRoot.Length)
+        {
+            if ((File.GetAttributes(sourceAncestor) & FileAttributes.ReparsePoint) != 0)
+            {
+                blockers.Add("Le chemin du projet traverse une jonction ou un lien symbolique.");
+            }
+
+            sourceAncestor = Path.GetDirectoryName(sourceAncestor) ?? _workspaceRoot;
+        }
+
         IReadOnlyList<string> entries = EnumerateTree(root, cancellationToken);
         foreach (string entry in entries)
         {
@@ -257,31 +268,54 @@ public sealed class ComplexProjectMigrationPlanService
         CancellationToken cancellationToken)
     {
         List<string> found = [];
-        foreach (string file in Directory.EnumerateFiles(_workspaceRoot,
-                     "*.md", SearchOption.AllDirectories))
+        foreach (string file in EnumerateTree(_workspaceRoot, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            // A junction elsewhere in the workspace must not escape the
-            // workspace boundary when reading references.
-            string relative = Path.GetRelativePath(_workspaceRoot, file);
-            string[] segments = relative.Split(Path.DirectorySeparatorChar);
-            string ancestor = _workspaceRoot;
-            foreach (string segment in segments.SkipLast(1))
+            FileAttributes attributes = File.GetAttributes(file);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
             {
-                ancestor = Path.Combine(ancestor, segment);
-                if ((File.GetAttributes(ancestor) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException(
+                    "Une jonction du workspace empêche de qualifier tous les backlinks.");
+            }
+
+            if ((attributes & FileAttributes.Directory) != 0 ||
+                !string.Equals(Path.GetExtension(file), ".md",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string relative = Path.GetRelativePath(
+                _workspaceRoot, file).Replace('\\', '/');
+            string firstPart = relative.Split('/')[0];
+            if (string.Equals(firstPart, WorkspaceLayout.TemplatesDirectoryName,
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(firstPart, WorkspaceLayout.ImportsDirectoryName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                // Templates and import journals are not live Markdown sources.
+                continue;
+            }
+
+            bool hasUnresolvedLink = false;
+            await using FileStream input = new(file, FileMode.Open,
+                FileAccess.Read, FileShare.Read, 65536, useAsync: true);
+            using StreamReader reader = new(input);
+            while (await reader.ReadLineAsync(cancellationToken) is string line)
+            {
+                if (line.Contains("[[", StringComparison.Ordinal) ||
+                    line.Contains("](", StringComparison.Ordinal) ||
+                    line.Contains("src=", StringComparison.OrdinalIgnoreCase) ||
+                    line.Contains("href=", StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new InvalidDataException(
-                        "Lien symbolique détecté pendant l'analyse des références.");
+                    hasUnresolvedLink = true;
+                    break;
                 }
             }
 
-            string content = await File.ReadAllTextAsync(file, cancellationToken);
-            if (Regex.IsMatch(content,
-                @"\]\(|\[\[|(?i:\b(?:src|href)\s*=)",
-                RegexOptions.CultureInvariant))
+            if (hasUnresolvedLink)
             {
-                found.Add(relative.Replace('\\', '/'));
+                found.Add(relative);
             }
         }
 
