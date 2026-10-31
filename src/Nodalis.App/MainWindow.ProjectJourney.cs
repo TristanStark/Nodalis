@@ -1,10 +1,12 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Nodalis.App.Dialogs;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Navigation;
+using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App;
 
@@ -105,6 +107,7 @@ public partial class MainWindow
             tab = new ProjectJourneyTabEntry(
                 project.Id, project.DisplayName, project.FullPath, view);
             view.CloseRequested += ProjectJourneyView_CloseRequested;
+            view.SourceOpenRequested += ProjectJourneyView_SourceOpenRequested;
             _projectJourneyTabs.Add(tab);
             UpdateDocumentTabsVisibility();
         }
@@ -176,6 +179,83 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>Routes an explicit evidence open request through the UI guard.</summary>
+    /// <param name="sender">Journey tab view.</param>
+    /// <param name="e">Stored workspace-relative source reference.</param>
+    private async void ProjectJourneyView_SourceOpenRequested(
+        object? sender, ProjectJourneySourceOpenRequestedEventArgs e)
+    {
+        await RunUiActionAsync("Parcours projet · ouvrir une preuve",
+            () => OpenProjectJourneySourceAsync(e.RelativePath));
+    }
+
+    /// <summary>
+    /// Verifies workspace containment and junctions again at open time,
+    /// then uses the canonical Markdown tabs or an explicit OS open for
+    /// known document/image file types. Executables are never launched.
+    /// </summary>
+    /// <param name="reference">Portable relative reference.</param>
+    /// <returns>Completed user-initiated navigation.</returns>
+    private async Task OpenProjectJourneySourceAsync(string reference)
+    {
+        ProjectJourneySourceService sources = new(_root.FullPath);
+        string path = sources.ResolveExistingFile(reference);
+        string extension = Path.GetExtension(path);
+
+        if (string.Equals(extension, ".md", StringComparison.OrdinalIgnoreCase))
+        {
+            NavigationNodeViewModel? node = FindAndExpand(_root, path);
+            if (node is null)
+            {
+                await RefreshNavigationAsync(path);
+                node = FindAndExpand(_root, path);
+            }
+
+            if (node?.Kind == WorkspaceNodeKind.Document)
+            {
+                _selectedNode = node;
+                _restoringSelection = true;
+                node.IsSelected = true;
+                _restoringSelection = false;
+                await OpenDocumentAsync(node);
+                StatusText.Text = "Preuve ouverte dans Nodalis · " + reference;
+                return;
+            }
+        }
+
+        HashSet<string> supportedExtensions = new(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ".md", ".txt", ".csv", ".json", ".pdf", ".docx", ".xlsx",
+            ".vsdx", ".png", ".jpg", ".jpeg", ".webp"
+        };
+        if (!supportedExtensions.Contains(extension))
+        {
+            MessageBox.Show(this,
+                "Cette référence pointe vers un format que Nodalis n'ouvre pas " +
+                "pour des raisons de sécurité.\n\n" + reference +
+                "\n\nLe lien reste présent, sans exécution du fichier.",
+                "Format de preuve non ouvrable", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        if (MessageBox.Show(this,
+            "Ouvrir le fichier suivant avec l'application associée de Windows ?\n\n" +
+            reference + "\n\nNodalis ne modifie pas son contenu.",
+            "Ouvrir une preuve", MessageBoxButton.YesNo,
+            MessageBoxImage.Question) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo(path)
+        {
+            UseShellExecute = true
+        });
+        StatusText.Text = "Fichier lié ouvert · " + reference;
+    }
+
     /// <summary>Closes the journey tab via its tab-strip button.</summary>
     /// <param name="sender">Tab close button.</param>
     /// <param name="e">Click event.</param>
@@ -208,6 +288,7 @@ public partial class MainWindow
     {
         bool active = ReferenceEquals(tab, _activeProjectJourneyTab);
         tab.View.CloseRequested -= ProjectJourneyView_CloseRequested;
+        tab.View.SourceOpenRequested -= ProjectJourneyView_SourceOpenRequested;
         if (active)
         {
             DeactivateProjectJourneyTabView();
@@ -237,6 +318,7 @@ public partial class MainWindow
         foreach (ProjectJourneyTabEntry tab in _projectJourneyTabs)
         {
             tab.View.CloseRequested -= ProjectJourneyView_CloseRequested;
+            tab.View.SourceOpenRequested -= ProjectJourneyView_SourceOpenRequested;
         }
 
         _projectJourneyTabs.Clear();
