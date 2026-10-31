@@ -1,6 +1,8 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using Microsoft.Win32;
 using Nodalis.App.Reliability;
 using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.Projects;
@@ -14,6 +16,7 @@ namespace Nodalis.App.Dialogs;
 public partial class ProjectJourneyView : UserControl
 {
     private readonly ProjectJourneyService _service;
+    private readonly ProjectJourneySourceService _sources;
     private readonly string _workspaceRoot;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
@@ -27,6 +30,9 @@ public partial class ProjectJourneyView : UserControl
 
     /// <summary>Raised when the enclosing project tab should close.</summary>
     public event EventHandler? CloseRequested;
+
+    /// <summary>Requests opening a verified workspace source in the main editor.</summary>
+    public event EventHandler<ProjectJourneySourceOpenRequestedEventArgs>? SourceOpenRequested;
 
     private ProjectJourneySnapshot? _snapshot;
     private ProjectJourneyTemplate? _preview;
@@ -49,6 +55,7 @@ public partial class ProjectJourneyView : UserControl
             "Archives" + Path.DirectorySeparatorChar,
             StringComparison.OrdinalIgnoreCase);
         _service = new ProjectJourneyService(_workspaceRoot);
+        _sources = new ProjectJourneySourceService(_workspaceRoot);
         InitializeComponent();
         StatusCombo.ItemsSource = _statuses;
         ProjectNameText.Text = "Parcours · " + Path.GetFileName(_projectDirectory);
@@ -116,7 +123,7 @@ public partial class ProjectJourneyView : UserControl
 
     /// <summary>Renders stages from one immutable selection snapshot.</summary>
     /// <param name="selectedStepId">Stage to highlight.</param>
-    private void Render(Guid? selectedStepId)
+    private void Render(Guid? selectedStepId, Guid? selectedOperationId = null)
     {
         _painting = true;
         try
@@ -129,7 +136,7 @@ public partial class ProjectJourneyView : UserControl
             StepsList.ItemsSource = rows;
             StepsList.SelectedItem = rows.FirstOrDefault(row =>
                 row.Step.Id == selectedStepId) ?? rows.FirstOrDefault();
-            RenderSelection();
+            RenderSelection(selectedOperationId);
             int completed = steps.Count(step =>
                 step.Status == ProjectJourneyStepStatus.Completed);
             int applicable = steps.Count(step =>
@@ -150,7 +157,7 @@ public partial class ProjectJourneyView : UserControl
     }
 
     /// <summary>Displays stage operations and progress without triggering writes.</summary>
-    private void RenderSelection()
+    private void RenderSelection(Guid? selectedOperationId = null)
     {
         _painting = true;
         try
@@ -158,7 +165,9 @@ public partial class ProjectJourneyView : UserControl
             ProjectJourneyStep? step = SelectedStep();
             SelectedStepText.Text = step?.Name ?? "Sélectionnez une étape";
             OperationsList.ItemsSource = step?.Operations;
-            OperationsList.SelectedIndex = step?.Operations.Count > 0 ? 0 : -1;
+            OperationsList.SelectedItem = step?.Operations.FirstOrDefault(item =>
+                item.Id == selectedOperationId) ?? step?.Operations.FirstOrDefault();
+            RenderEvidence();
             StatusCombo.SelectedItem = step is null
                 ? null
                 : _statuses.Single(item => item.Status == step.Status);
@@ -177,6 +186,8 @@ public partial class ProjectJourneyView : UserControl
         bool editable = !_busy && !_readOnly && _snapshot is not null;
         bool stage = editable && SelectedStep() is not null;
         bool operation = stage && SelectedOperation() is not null;
+        bool viewableOperation = !_busy && _snapshot is not null &&
+            SelectedOperation() is not null;
         InitializeButton.IsEnabled = !_busy && !_readOnly &&
             _snapshot is null && _preview is not null;
         ModelCombo.IsEnabled = !_busy && !_readOnly && _snapshot is null;
@@ -192,6 +203,11 @@ public partial class ProjectJourneyView : UserControl
         RemoveOperationButton.IsEnabled = operation;
         MoveOperationUpButton.IsEnabled = operation;
         MoveOperationDownButton.IsEnabled = operation;
+        LinkSourceButton.IsEnabled = operation;
+        OpenSourceButton.IsEnabled = viewableOperation && SelectedSource() is not null;
+        UnlinkSourceButton.IsEnabled = operation && SelectedSource() is not null;
+        SetOperationPromptButton.IsEnabled = operation;
+        PrepareOperationPromptButton.IsEnabled = viewableOperation;
     }
 
     /// <summary>Gets the currently selected stable stage.</summary>
@@ -203,6 +219,35 @@ public partial class ProjectJourneyView : UserControl
     /// <returns>Operation or null.</returns>
     private ProjectJourneyOperation? SelectedOperation() =>
         OperationsList.SelectedItem as ProjectJourneyOperation;
+
+    /// <summary>Gets the selected non-owning source reference.</summary>
+    private JourneySourceRow? SelectedSource() =>
+        SourcesList.SelectedItem as JourneySourceRow;
+
+    /// <summary>Displays availability of source references without reading their bytes.</summary>
+    private void RenderEvidence()
+    {
+        bool wasPainting = _painting;
+        _painting = true;
+        try
+        {
+            ProjectJourneyOperation? operation = SelectedOperation();
+            SourcesList.ItemsSource = operation?.SourcePaths.Select(path =>
+                new JourneySourceRow(path, _sources.IsAvailable(path)
+                    ? "Fichier présent dans le workspace"
+                    : "Introuvable ou chemin non sûr")).ToArray();
+            SourcesList.SelectedIndex = operation?.SourcePaths.Count > 0 ? 0 : -1;
+            PromptKeyText.Text = operation is null
+                ? "Prompt : —"
+                : "Prompt : " + (operation.PromptKey ?? "aucun");
+        }
+        finally
+        {
+            _painting = wasPainting;
+        }
+
+        UpdateButtons();
+    }
 
     /// <summary>Uses the shared recoverable-error boundary and serializes UI changes.</summary>
     /// <param name="action">One user-initiated async action.</param>
@@ -233,10 +278,11 @@ public partial class ProjectJourneyView : UserControl
     /// <param name="description">Human-readable modification preview.</param>
     /// <param name="edit">Pure Core edit.</param>
     /// <param name="selectedStepId">Stage to reselect.</param>
+    /// <param name="selectedOperationId">Operation to preserve when editing its sources.</param>
     /// <returns>Completed, approved edit or unchanged project.</returns>
     private async Task CommitAsync(string description,
         Func<ProjectJourneyDocument, ProjectJourneyDocument> edit,
-        Guid? selectedStepId)
+        Guid? selectedStepId, Guid? selectedOperationId = null)
     {
         if (_readOnly || _snapshot is null)
         {
@@ -256,7 +302,7 @@ public partial class ProjectJourneyView : UserControl
             "Parcours projet · confirmer", MessageBoxButton.YesNo,
             MessageBoxImage.Question) != MessageBoxResult.Yes)
         {
-            Render(selectedStepId);
+            Render(selectedStepId, selectedOperationId);
             return;
         }
 
@@ -265,7 +311,7 @@ public partial class ProjectJourneyView : UserControl
             _snapshot = await _service.SaveAsync(_projectDirectory,
                 proposed, _snapshot.Sha256);
             Changed = true;
-            Render(selectedStepId);
+            Render(selectedStepId, selectedOperationId);
             StatusText.Text = "Modification enregistrée · identifiants et références conservés.";
         }
         catch (Exception exception) when (exception is IOException or
@@ -279,7 +325,7 @@ public partial class ProjectJourneyView : UserControl
                 "pour réexaminer l'état actuel.",
                 "Parcours projet · écriture refusée", MessageBoxButton.OK,
                 MessageBoxImage.Warning);
-            Render(selectedStepId);
+            Render(selectedStepId, selectedOperationId);
             StatusText.Text = "Écriture refusée · rechargement manuel nécessaire.";
         }
     }
@@ -316,7 +362,7 @@ public partial class ProjectJourneyView : UserControl
     {
         if (!_painting)
         {
-            UpdateButtons();
+            RenderEvidence();
         }
     }
 
