@@ -160,16 +160,16 @@ Analyse/
 Management/
   Réunions/
   Décisions/
+  Jalons.md
 Exploitation/
   Exploitation.md
   Déploiement/Déploiement.md
 Tests/Tests.md
-Jalons.md
 Glossaire.md
 Notes rapides.md
 ```
 
-**Important** : `Jalons.md` reste pour l'instant à la racine, pour préserver les résolveurs existants avant sa future transition vers `Management/Jalons.md`. Le profil Simple/Moyen/Ultra-simple n'est pas modifié. La première initialisation 2.0 met à jour **uniquement** un profil Complexe identique au profil intégré 1.9 ; toute personnalisation (ordre, type, libellé, sections) interdit son remplacement automatique. Les projets existants ne sont jamais déplacés lors de la mise à jour d'un profil. Dans l'éditeur de profils, un chemin physique déclaré est conservé lors des modifications du libellé et visible dans le détail des sections.
+**Important** : `Jalons.md` est créé dans `Management` pour les nouveaux projets Complexes. Les projets existants ne sont pas migrés automatiquement. Les profils Simple/Moyen/Ultra-simple ne sont pas modifiés. La première initialisation 2.0 met à jour **uniquement** un profil Complexe identique au profil intégré 1.9 ; toute personnalisation (ordre, type, libellé, sections) interdit son remplacement automatique. Les projets existants ne sont jamais déplacés lors de la mise à jour d'un profil. Dans l'éditeur de profils, un chemin physique déclaré est conservé lors des modifications du libellé et visible dans le détail des sections.
 
 
 ### Commandes de réunions et de décisions

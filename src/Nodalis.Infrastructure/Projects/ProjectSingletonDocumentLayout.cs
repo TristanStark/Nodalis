@@ -4,11 +4,11 @@ using Nodalis.Infrastructure.Persistence;
 namespace Nodalis.Infrastructure.Projects;
 
 /// <summary>
-/// Describes the active storage location for a project role represented by one root Markdown document.
+/// Describes the active storage location for a unique project Markdown role.
 /// </summary>
 public sealed record ProjectSingletonDocumentResolution
 {
-    /// <summary>Gets the canonical root-file path for the role.</summary>
+    /// <summary>Gets the canonical preferred-file path for the role.</summary>
     public required string PreferredPath { get; init; }
 
     /// <summary>Gets the path that callers must currently use.</summary>
@@ -28,12 +28,12 @@ public sealed record ProjectSingletonDocumentResolution
 }
 
 /// <summary>
-/// Centralizes the 1.0 storage contract for the Jalons and Glossaire project roles.
+/// Centralizes the singleton storage contract for legacy and nested Jalons and Glossaire roles.
 /// </summary>
 public static class ProjectSingletonDocumentLayout
 {
     /// <summary>
-    /// Gets the canonical project-root Markdown file name for a singleton root-document role.
+    /// Gets the canonical file name for a protected singleton document role.
     /// </summary>
     /// <param name="templateKey">The stable project-section template key.</param>
     /// <returns>The canonical file name, or <see langword="null"/> for directory-backed sections.</returns>
