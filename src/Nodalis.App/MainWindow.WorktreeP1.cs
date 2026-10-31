@@ -21,6 +21,9 @@ public partial class MainWindow
     private bool _worktreeP1Initialized;
     private bool _worktreeDisplayUpdating;
     private HashSet<Guid>? _expansionBeforeWorktreeFilter;
+    private NavigationNodeViewModel? _lastFilteredWorktreeRoot;
+    private string? _lastFilteredWorktreeQuery;
+    private Guid? _lastFilteredWorktreeApplication;
 
     /// <summary>
     /// Loads local display preferences after the initial canonical tree exists.
@@ -135,6 +138,17 @@ public partial class MainWindow
                     ? FindSelectedWorktreeApplication()?.Id
                     : null;
 
+            // Tab activation schedules a context update, not a new filter.
+            // Reprojecting the same search repeatedly re-expands rows the
+            // user deliberately collapsed and can reset the virtualized
+            // TreeView's scroll anchor.
+            if (ReferenceEquals(_lastFilteredWorktreeRoot, _root) &&
+                string.Equals(_lastFilteredWorktreeQuery, query, StringComparison.Ordinal) &&
+                _lastFilteredWorktreeApplication == applicationId)
+            {
+                return;
+            }
+
             if (query.Length > 0 && _expansionBeforeWorktreeFilter is null)
             {
                 _expansionBeforeWorktreeFilter = GetExpandedNodeIds();
@@ -154,6 +168,9 @@ public partial class MainWindow
                 }
             }
 
+            _lastFilteredWorktreeRoot = _root;
+            _lastFilteredWorktreeQuery = query;
+            _lastFilteredWorktreeApplication = applicationId;
             ScheduleStickyWorktreeRefresh();
         }
         finally
