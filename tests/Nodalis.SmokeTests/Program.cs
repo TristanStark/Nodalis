@@ -47,6 +47,13 @@ using Nodalis.Infrastructure.Updates;
 
 // This opt-in mode is used exclusively by the test suite to exercise the
 // exact local stdin/stdout child-process boundary without an Ollama server.
+if (args.Length == 6 && args[0] == "--docx-hardkill-child")
+{
+    await DocxHardKillSmokeTests.RunChildAsync(
+        args[1], args[2], Guid.Parse(args[3]), args[4], args[5]);
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--embedding-protocol-fixture")
 {
     await EmbeddingProtocolFixture.ServeAsync(args[1]);
@@ -68,6 +75,7 @@ try
     NavigationWorktreeSmokeTests.Run();
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
+    await ProjectArchivesSmokeTests.RunAsync(root);
     await VerifyProjectStructureAsync(root);
     await VerifyApplicationStructureAsync(root);
     await VerifyTrashAsync(root);
@@ -80,6 +88,7 @@ try
     await VerifySearchAsync(root);
     await VerifyLinksAndBacklinksAsync(root);
     await WorkspacePerformanceSmokeTests.RunAsync(root);
+    await AutosaveBurstSmokeTests.RunAsync(root);
     await VerifyGlossaryAsync(root);
     await VerifyAttachmentsAsync(root);
     await VerifyTasksAsync(root);
@@ -90,9 +99,29 @@ try
     await VerifyDocxImportAsync(root);
     await VerifyDocxImportAnalysisAsync(root);
     await DocxFineSelectionSmokeTests.RunAsync(root);
+    StructuredImportSmokeTests.Run();
+    await DocxHeadingHierarchySmokeTests.RunAsync(root);
+    DocxImportStructureEditorSmokeTests.Run();
+    await DocxMappingProfilesSmokeTests.RunAsync(root);
+    await DocxTableV19SmokeTests.RunAsync(root);
+    await DocxMediaV19SmokeTests.RunAsync(root);
+    await DocxPackageSafetySmokeTests.RunAsync(root);
+    DocxPreviewComparatorSmokeTests.Run();
+    DocxImportPlanFingerprintSmokeTests.Run();
+    await DocxProvenanceSmokeTests.RunAsync(root);
+    await DocxFirstImportRecoverySmokeTests.RunAsync(root);
+    await DocxHardKillSmokeTests.RunAsync(root);
+    await DocxLargeDocumentReleaseSmokeTests.RunAsync(root);
+    DocxReimportDiffSmokeTests.Run();
+    DocxReimportSectionMatcherSmokeTests.Run();
+    await DocxReimportReviewSmokeTests.RunAsync(root);
+    DocxReimportDecisionPlannerSmokeTests.Run();
+    DocxReimportParagraphDiffSmokeTests.Run();
+    await DocxReimportTransactionSmokeTests.RunAsync(root);
     await MarkdownBulkImportSmokeTests.RunAsync(root);
     await ProjectExportSmokeTests.RunAsync(root);
     await MeetingExtractionSmokeTests.RunAsync(root);
+    MarkdownSyntaxSmokeTests.Run();
     VerifyMarkdownParser();
     VerifyFlowcharts();
     VerifyMarkdownFrontMatter();
@@ -1963,6 +1992,68 @@ static async Task VerifySearchAsync(string root)
         scorerMatched &&
         typoQuality > 0.8,
         "The dependency-free fuzzy scorer must be deterministic and expose a strong score for a one-edit typo.");
+
+    // A canceled query must not start a traversal; the same applies to the
+    // path-only filtering API used by the semantic search integration.
+    using CancellationTokenSource canceledSearch = new CancellationTokenSource();
+    canceledSearch.Cancel();
+    bool searchCanceled = false;
+    bool filterCanceled = false;
+    try
+    {
+        await search.SearchAsync(root, projectFile, "architecture",
+            global::Nodalis.Core.Search.SearchMatchMode.Fuzzy, canceledSearch.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        searchCanceled = true;
+    }
+
+    try
+    {
+        await search.GetFilteredRelativePathsAsync(root, "status:active",
+            canceledSearch.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        filterCanceled = true;
+    }
+
+    Assert(searchCanceled && filterCanceled,
+        "Canceled lexical and semantic-filter requests must stop before work begins.");
+
+    // Cache only ancestor lookups within one query. A later query must see
+    // changes to an existing Markdown file and newly created project manifests.
+    string mutableFile = Path.Combine(project.ProjectDirectory, "Recherche mutation.md");
+    await File.WriteAllTextAsync(mutableFile,
+        "---\nstatus: active\n---\n\nancienne-expression\n");
+
+    global::Nodalis.Core.Search.SearchResultSet original =
+        await search.SearchAsync(root, projectFile, "ancienne-expression");
+    Assert(original.Project.Any(result => result.FilePath == mutableFile),
+        "Search must see files added after an earlier query.");
+
+    string relativeMutablePath =
+        Path.GetRelativePath(root, mutableFile).Replace('\\', '/');
+    IReadOnlySet<string> activePaths =
+        await search.GetFilteredRelativePathsAsync(root, "status:active");
+    Assert(activePaths.Contains(relativeMutablePath),
+        "Structured path filtering must include a newly written active file.");
+
+    await File.WriteAllTextAsync(mutableFile,
+        "---\nstatus: archived\n---\n\nnouvelle-expression\n");
+
+    global::Nodalis.Core.Search.SearchResultSet updated =
+        await search.SearchAsync(root, projectFile, "nouvelle-expression");
+    global::Nodalis.Core.Search.SearchResultSet removed =
+        await search.SearchAsync(root, projectFile, "ancienne-expression");
+    IReadOnlySet<string> updatedActivePaths =
+        await search.GetFilteredRelativePathsAsync(root, "status:active");
+
+    Assert(updated.Project.Any(result => result.FilePath == mutableFile) &&
+        !removed.Project.Any(result => result.FilePath == mutableFile) &&
+        !updatedActivePaths.Contains(relativeMutablePath),
+        "Subsequent searches must not serve stale content or structured filters.");
 }
 
 static async Task VerifyLinksAndBacklinksAsync(string root)
@@ -2428,6 +2519,25 @@ static async Task VerifyGlossaryAsync(string root)
         sourceText ==
         "Base de données, STEAK et bifteck. Steakhouse ne doit pas matcher.",
         "Glossary annotation matching must never mutate Markdown content.");
+
+    using CancellationTokenSource canceledGlossaryMatch = new();
+    canceledGlossaryMatch.Cancel();
+    bool glossaryCancelled = false;
+    try
+    {
+        GlossaryTextMatcher.Match(
+            sourceText,
+            matcherEntries,
+            canceledGlossaryMatch.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        glossaryCancelled = true;
+    }
+
+    Assert(
+        glossaryCancelled,
+        "Canceled background glossary annotation matching must stop before publishing.");
 }
 
 static async Task VerifyAttachmentsAsync(string root)
@@ -2698,6 +2808,41 @@ static async Task VerifyTasksAsync(string root)
             task.IsCompleted &&
             task.Text == "Action déjà terminée"),
         "Completed tasks must be available when explicitly requested.");
+
+    // Path ancestry must respect whole segments: similarly prefixed project
+    // names must not leak tasks or attach the wrong project GUID.
+    global::Nodalis.Core.Projects.ProjectCreationResult siblingProject =
+        await projectCreator.CreateAsync(
+            new ProjectCreationRequest
+            {
+                Name = "Projet Tâches bis",
+                Complexity = ProjectComplexity.Simple,
+                Target = new ProjectCreationTarget
+                {
+                    ApplicationId = application.Id,
+                    ApplicationName = application.Name,
+                    ParentDirectory = applicationPath,
+                    DisplayName = application.Name
+                }
+            });
+
+    await File.WriteAllTextAsync(
+        Path.Combine(siblingProject.ProjectDirectory, "Action voisine.md"),
+        "- [ ] Action voisine\n");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> siblingTasks =
+        await service.GetTasksAsync(siblingProject.ProjectDirectory);
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> originalProjectTasks =
+        await service.GetTasksAsync(project.ProjectDirectory);
+
+    Assert(
+        siblingTasks.Count == 1 &&
+        siblingTasks[0].ProjectId == siblingProject.Project.Id &&
+        siblingTasks[0].Text == "Action voisine" &&
+        originalProjectTasks.Count == 1 &&
+        originalProjectTasks[0].ProjectId == project.Project.Id,
+        "Indexed project ancestors must keep similarly prefixed project scopes separate.");
+
 
     global::Nodalis.Core.Tasks.TaskItem taskToEdit = projectTasks.Single();
 
@@ -2976,6 +3121,97 @@ static async Task VerifyMilestonesAsync(string root)
             "Validation template",
             StringComparison.Ordinal),
         "Editing a compatible customized milestone table must safely normalize its supported schema.");
+
+    // Pasted milestones may omit the Id column entirely, even when the
+    // project's Markdown table already contains the seven canonical headers.
+    string pastedTable =
+        "# Jalons copiés\n\n" +
+        "| Jalon | Date cible | Statut | Description | Lien | Id | Dépend de |\n" +
+        "| --- | --- | --- | --- | --- | --- | --- |\n" +
+        "| Copié depuis Excel | 27/10/2026 | À faire | Description conservée | outil://test |\n" +
+        "| Copié depuis Word | 2026-11-05 | En cours | Ancienne date ISO | | | |\n" +
+        "| Date erronée | 31/02/2026 | À faire | Ne pas effacer la saisie | |\n";
+    await File.WriteAllTextAsync(
+        canonicalMilestonePath,
+        pastedTable);
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> pasted =
+        await service.GetMilestonesAsync(project.ProjectDirectory);
+    Assert(
+        pasted.Count == 3 &&
+        pasted.Single(item => item.Name == "Copié depuis Excel").TargetDate ==
+            new DateOnly(2026, 10, 27) &&
+        pasted.Single(item => item.Name == "Copié depuis Word").TargetDate ==
+            new DateOnly(2026, 11, 5) &&
+        pasted.Single(item => item.Name == "Date erronée").TargetDate is null &&
+        pasted.Select(item => item.Id).Distinct().Count() == 3,
+        "French dates, legacy ISO dates, and pasted rows without Id must remain visible and distinct.");
+
+    global::Nodalis.Core.Milestones.MilestoneItem pastedToEdit =
+        pasted.Single(item => item.Name == "Copié depuis Excel");
+    global::Nodalis.Core.Milestones.MilestoneItem editedPaste =
+        await service.UpdateAsync(
+            pastedToEdit,
+            new MilestoneDraft
+            {
+                Name = pastedToEdit.Name,
+                TargetDate = pastedToEdit.TargetDate,
+                Status = "En cours",
+                Description = pastedToEdit.Description,
+                Link = pastedToEdit.Link
+            });
+
+    string normalizedPastes = await File.ReadAllTextAsync(canonicalMilestonePath);
+    Assert(
+        editedPaste.Id == pastedToEdit.Id &&
+        normalizedPastes.Contains("| Copié depuis Excel | 27/10/2026 | En cours |", StringComparison.Ordinal) &&
+        normalizedPastes.Contains("| Copié depuis Word | 05/11/2026 |", StringComparison.Ordinal) &&
+        normalizedPastes.Contains("| Date erronée | 31/02/2026 |", StringComparison.Ordinal) &&
+        pasted.All(item => normalizedPastes.Contains(item.Id.ToString("D"), StringComparison.Ordinal)),
+        "Editing a pasted row must materialize durable IDs, write French dates, and retain invalid raw dates.");
+
+    global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> afterPaste =
+        await service.GetMilestonesAsync(project.ProjectDirectory);
+    Assert(
+        afterPaste.Select(item => item.Id).Order().SequenceEqual(
+            pasted.Select(item => item.Id).Order()),
+        "Materializing missing IDs must preserve identity for every pasted milestone.");
+
+    await service.DeleteAsync(
+        afterPaste.Single(item => item.Name == "Copié depuis Word"));
+    Assert(
+        (await service.GetMilestonesAsync(project.ProjectDirectory)).Count == 2,
+        "Pasted milestones must remain deletable after ID normalization.");
+
+    // Also check older five-column documents without any identifier header.
+    await File.WriteAllTextAsync(
+        canonicalMilestonePath,
+        "# Jalons hérités\n\n" +
+        "| Jalon | Date cible | Statut | Description | Lien |\n" +
+        "| --- | --- | --- | --- | --- |\n" +
+        "| Recette héritée | 29/10/2026 | À faire | Important | |\n");
+    global::Nodalis.Core.Milestones.MilestoneItem legacyPaste =
+        (await service.GetMilestonesAsync(project.ProjectDirectory)).Single();
+    Assert(
+        legacyPaste.TargetDate == new DateOnly(2026, 10, 29),
+        "A five-column pasted milestone without IDs must be visible before migration.");
+    await service.UpdateAsync(
+        legacyPaste,
+        new MilestoneDraft
+        {
+            Name = legacyPaste.Name,
+            TargetDate = legacyPaste.TargetDate,
+            Status = "Terminée",
+            Description = legacyPaste.Description
+        });
+    string normalizedLegacy = await File.ReadAllTextAsync(canonicalMilestonePath);
+    Assert(
+        normalizedLegacy.Contains("| Recette héritée | 29/10/2026 | Terminée |", StringComparison.Ordinal) &&
+        normalizedLegacy.Contains(legacyPaste.Id.ToString("D"), StringComparison.Ordinal),
+        "Legacy pasted tables must migrate to explicit identifiers without losing their French dates.");
+
+    // Restore the empty canonical table for the pre-existing CRUD/dependency tests.
+    await File.WriteAllTextAsync(canonicalMilestonePath, normalizedTemplate);
 
     global::Nodalis.Core.Milestones.MilestoneItem first = await service.AddAsync(
         project.ProjectDirectory,
@@ -4222,9 +4458,25 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                     "Section DOCX")),
             "Building a DOCX plan must not perform any business write.");
 
+        Assert(
+            plan.Fingerprint.Length == 64 &&
+            plan.Fingerprint == DocxImportPlanFingerprint.Compute(plan),
+            "The documented DOCX dry-run must have a stable content-and-file fingerprint.");
+
+        await AssertThrowsAsync<InvalidDataException>(
+            () => previewService.CommitAsync(
+                preview,
+                request with { ExpectedPlanFingerprint = new string('0', 64) }),
+            "A mismatching approved DOCX dry-run must block all workspace writes.");
+
+        Assert(
+            File.Exists(preview.StagedImport.StagedCopyPath) &&
+            !Directory.Exists(Path.Combine(project.ProjectDirectory, "Section DOCX")),
+            "Rejected DOCX approval must preserve the stage and leave the project untouched.");
+
         global::Nodalis.Core.Importing.DocxImportCommitResult committed = await previewService.CommitAsync(
             preview,
-            request);
+            request with { ExpectedPlanFingerprint = plan.Fingerprint });
 
         Assert(
             !File.Exists(

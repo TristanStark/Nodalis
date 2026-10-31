@@ -48,8 +48,21 @@ public partial class MainWindow
     /// <param name="e">Scroll position change.</param>
     private void NavigationTree_StickyScrollChanged(
         object sender,
-        ScrollChangedEventArgs e) =>
+        ScrollChangedEventArgs e)
+    {
+        if (Math.Abs(e.VerticalChange) > 0 &&
+            Math.Abs(e.ExtentHeightChange) < double.Epsilon &&
+            Math.Abs(e.ViewportHeightChange) < double.Epsilon &&
+            !_allowExplicitWorktreeBringIntoView)
+        {
+            // Treat a scroll as a new viewport intent only when the size of
+            // the content/viewport stayed fixed. Structural relayout can
+            // otherwise cancel an intentional reveal before it is rendered.
+            _worktreeRevealSequence++;
+        }
+
         ScheduleStickyWorktreeRefresh();
+    }
 
     /// <summary>Recomputes the top context after the explorer width or height changes.</summary>
     /// <param name="sender">The worktree.</param>

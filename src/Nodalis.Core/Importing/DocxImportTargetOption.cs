@@ -11,4 +11,7 @@ public sealed record DocxImportTargetOption
     public required string RelativePath { get; init; }
 
     public Guid? ApplicationId { get; init; }
+
+    /// <summary>Named sections already present in this project.</summary>
+    public List<string> ExistingSections { get; init; } = [];
 }

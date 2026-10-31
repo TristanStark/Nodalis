@@ -196,6 +196,31 @@ internal static class ProjectHealthSmokeTests
             "# Note isolée\n\n" +
             "Cette note n'est référencée nulle part.\n");
 
+        // The command palette opens these project-root documents without
+        // requiring a Markdown link from another note.
+        await File.WriteAllTextAsync(
+            Path.Combine(
+                projectDirectory,
+                WorkspaceLayout.GlobalGlossaryFileName),
+            "# Glossaire\n\n| Terme | Définition |\n| --- | --- |\n| API | Interface |\n");
+
+        await File.WriteAllTextAsync(
+            Path.Combine(
+                projectDirectory,
+                "Tâches.md"),
+            "# Tâches\n\n- [ ] Préparer la livraison | Échéance: 2026-10-01\n");
+
+        // Exempt only the dedicated root files, not unrelated notes with
+        // identical basenames nested in an arbitrary project section.
+        foreach (string filename in new[] { "Jalons.md", "Glossaire.md", "Tâches.md" })
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(
+                    technicalDirectory,
+                    filename),
+                "# Note non référencée\n\nDocument utilisateur.\n");
+        }
+
         await File.WriteAllTextAsync(
             Path.Combine(
                 testsDirectory,
@@ -276,6 +301,45 @@ internal static class ProjectHealthSmokeTests
             report,
             "MEETING_NOT_RECENT");
 
+        string projectPathInWorkspace =
+            Path.GetRelativePath(
+                    healthRoot,
+                    projectDirectory)
+                .Replace(
+                    Path.DirectorySeparatorChar,
+                    '/');
+
+        HashSet<string> orphanPaths =
+            report.Issues
+                .Where(issue =>
+                    issue.Code == "DOCUMENT_ORPHAN")
+                .Select(issue =>
+                    issue.RelativePath ?? string.Empty)
+                .ToHashSet(
+                    StringComparer.OrdinalIgnoreCase);
+
+        Assert(
+            !orphanPaths.Contains(projectPathInWorkspace + "/Glossaire.md") &&
+            !orphanPaths.Contains(projectPathInWorkspace + "/Tâches.md") &&
+            !orphanPaths.Contains(projectPathInWorkspace + "/Jalons/Jalons.md"),
+            "Glossary, tasks and legacy milestone entry-point documents must not be flagged as orphaned.");
+
+        Assert(
+            orphanPaths.Contains(projectPathInWorkspace + "/Technique/Orphelin.md") &&
+            orphanPaths.Contains(projectPathInWorkspace + "/Technique/Jalons.md") &&
+            orphanPaths.Contains(projectPathInWorkspace + "/Technique/Glossaire.md") &&
+            orphanPaths.Contains(projectPathInWorkspace + "/Technique/Tâches.md"),
+            "Unrelated nested notes must continue to trigger orphan warnings, even when named like entry points.");
+
+        Assert(
+            report.Issues.Any(issue =>
+                issue.Code == "TASK_OVERDUE" &&
+                string.Equals(
+                    issue.RelativePath,
+                    projectPathInWorkspace + "/Tâches.md",
+                    StringComparison.OrdinalIgnoreCase)),
+            "Tâches.md must remain subject to overdue-task checks despite its orphan exemption.");
+
         string indexAfter =
             await File.ReadAllTextAsync(
                 linkIndexPath);
@@ -291,6 +355,44 @@ internal static class ProjectHealthSmokeTests
             indexWriteTimeBefore ==
             indexWriteTimeAfter,
             "Project Health Check must not modify the existing derived link index.");
+
+        // Canonical v1.9 layout: migrate the legacy milestone document into
+        // the project root and verify the orphan exemption still applies.
+        File.Move(
+            Path.Combine(
+                milestonesDirectory,
+                "Jalons.md"),
+            Path.Combine(
+                projectDirectory,
+                "Jalons.md"));
+
+        await linkIndexService.RefreshAsync();
+
+        ProjectHealthReport canonicalReport =
+            await service.ScanAsync(
+                projectDirectory,
+                new ProjectHealthOptions
+                {
+                    MeetingRecencyDays = 30,
+                    MinimumTestContentCharacters = 20
+                },
+                new DateOnly(2026, 10, 5));
+
+        Assert(
+            !canonicalReport.Issues.Any(issue =>
+                issue.Code == "DOCUMENT_ORPHAN" &&
+                string.Equals(
+                    issue.RelativePath,
+                    projectPathInWorkspace + "/Jalons.md",
+                    StringComparison.OrdinalIgnoreCase)),
+            "Canonical project-root Jalons.md must not require an incoming Markdown reference.");
+
+        AssertHasCode(
+            canonicalReport,
+            "MILESTONE_DATE_MISSING");
+        AssertHasCode(
+            canonicalReport,
+            "DOCUMENT_ORPHAN");
 
         File.Delete(
             linkIndexPath);

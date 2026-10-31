@@ -27,8 +27,28 @@ internal static class MaintenanceInterventionSmokeTests
             Date = new DateOnly(2026, 10, 17),
             Summary = "Incident initial"
         };
-        string withIncident = MaintenanceMarkdownCodec.Append(legacy, incident);
-        await File.WriteAllTextAsync(path, withIncident);
+        string withIncident = await service.AddAsync(path, incident);
+        Assert(withIncident.Contains("### Incident", StringComparison.Ordinal) &&
+               withIncident.Contains("- **Identifiant :** " + incident.Id, StringComparison.Ordinal) &&
+               (await service.ReadAsync(path)).Records.Single().Kind == MaintenanceRecordKind.Incident,
+            "Incident creation must persist a selectable, permanent INC- identifier.");
+
+        bool invalidIncidentRejected = false;
+        try
+        {
+            MaintenanceMarkdownCodec.Append(withIncident, incident with
+            {
+                Id = MaintenanceMarkdownCodec.NewId(MaintenanceRecordKind.Incident),
+                Summary = "Plusieurs\nlignes"
+            });
+        }
+        catch (ArgumentException)
+        {
+            invalidIncidentRejected = true;
+        }
+
+        Assert(invalidIncidentRejected,
+            "Incident fields must not inject multiline Markdown.");
 
         MaintenanceRecord first = new MaintenanceRecord
         {

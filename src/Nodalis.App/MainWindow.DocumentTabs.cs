@@ -4,10 +4,13 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
+using Nodalis.App.Diagnostics;
 using Nodalis.App.Editor;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Settings;
+using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.App;
@@ -20,6 +23,11 @@ public partial class MainWindow
     private bool _suppressDocumentTabSelection;
     private Point _documentTabDragStart;
     private DocumentTabViewModel? _draggedDocumentTab;
+    private bool _bulkTabCloseInProgress;
+    private readonly HashSet<DocumentTabViewModel> _bulkClosingTabs = [];
+    private readonly HashSet<DocumentAutosaveController> _pendingAutosaveRefreshes = [];
+    private DispatcherTimer _autosaveRefreshTimer = null!;
+    private bool _autosaveRefreshRunning;
 
     /// <summary>
     /// Initializes the document tab strip after the window controls are created.
@@ -27,6 +35,14 @@ public partial class MainWindow
     private void InitializeDocumentTabs()
     {
         DocumentTabsList.ItemsSource = _documentTabs;
+        _autosaveRefreshTimer = new DispatcherTimer(
+            TimeSpan.FromMilliseconds(220),
+            DispatcherPriority.Background,
+            AutosaveRefreshTimer_Tick,
+            Dispatcher)
+        {
+            IsEnabled = false
+        };
         UpdateDocumentTabsVisibility();
     }
 
@@ -139,6 +155,7 @@ public partial class MainWindow
         autosave.ConflictDetected -= Autosave_ConflictDetected;
         autosave.SaveFailed -= Autosave_SaveFailed;
         _autosaveTabs.Remove(autosave);
+        _pendingAutosaveRefreshes.Remove(autosave);
     }
 
     /// <summary>
@@ -157,6 +174,8 @@ public partial class MainWindow
                 _activeDocumentTab,
                 tab))
         {
+            _glossaryAnnotationRevision++;
+            _glossaryMatchCancellation?.Cancel();
             StoreActiveDocumentTabState();
         }
 
@@ -440,6 +459,10 @@ public partial class MainWindow
             bool activateNeighbor)
     {
         ArgumentNullException.ThrowIfNull(tab);
+        if (_bulkTabCloseInProgress)
+        {
+            return false;
+        }
 
         if (ReferenceEquals(
                 _activeDocumentTab,
@@ -590,6 +613,8 @@ public partial class MainWindow
     /// <returns>A task representing the flush operation.</returns>
     private async Task FlushAllDocumentTabsAsync()
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Vidage des onglets");
         StoreActiveDocumentTabState();
 
         foreach (DocumentTabViewModel tab in _documentTabs)
@@ -1000,69 +1025,81 @@ public partial class MainWindow
     /// </summary>
     /// <param name="sender">The autosave controller that raised the event.</param>
     /// <returns>A task representing contextual refresh work.</returns>
-    private async Task HandleDocumentTabAutosaveSavedAsync(
-            object? sender)
+    private async Task HandleDocumentTabAutosaveSavedBatchAsync(
+            IReadOnlyList<DocumentAutosaveController> controllers)
     {
-        if (sender is not DocumentAutosaveController autosave ||
-            !_autosaveTabs.TryGetValue(
-                autosave,
-                out DocumentTabViewModel? tab))
-        {
-            return;
-        }
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Autosave contextes groupés");
 
-        tab.IsDirty =
-            !string.Equals(
+        List<DocumentTabViewModel> changed = [];
+        foreach (DocumentAutosaveController autosave in controllers)
+        {
+            if (!_autosaveTabs.TryGetValue(autosave, out DocumentTabViewModel? tab) ||
+                _bulkClosingTabs.Contains(tab))
+            {
+                continue;
+            }
+
+            tab.IsDirty = !string.Equals(
                 tab.Content,
                 tab.Session.Content,
                 StringComparison.Ordinal);
+            tab.HasConflict = false;
 
-        tab.HasConflict = false;
-
-        if (ReferenceEquals(
-                tab,
-                _secondaryDocumentTab))
-        {
-            UpdateSecondarySaveState(
-                tab);
-        }
-
-        if (!ReferenceEquals(
-                tab,
-                _activeDocumentTab))
-        {
-            if (!tab.IsDirty)
+            if (ReferenceEquals(tab, _secondaryDocumentTab))
             {
-                await RefreshLinkIndexAsync();
+                UpdateSecondarySaveState(tab);
             }
 
-            return;
+            if (ReferenceEquals(tab, _activeDocumentTab))
+            {
+                _documentDirty = tab.IsDirty;
+                SaveStateText.Text = tab.IsDirty ? "Modification…" : "Enregistré";
+                if (!tab.IsDirty)
+                {
+                    StatusText.Text = "Enregistré localement";
+                }
+            }
+
+            if (!tab.IsDirty)
+            {
+                changed.Add(tab);
+            }
         }
 
-        _documentDirty =
-            tab.IsDirty;
-
-        SaveStateText.Text =
-            tab.IsDirty
-                ? "Modification…"
-                : "Enregistré";
-
-        if (tab.IsDirty)
+        if (changed.Count == 0)
         {
             return;
         }
-
-        StatusText.Text =
-            "Enregistré localement";
 
         try
         {
-            await RefreshLinkIndexAndContextAsync();
-            await RefreshGlossaryContextAsync(
-                tab.FullPath);
-            UpdateGlossaryAnnotations();
-            await RefreshDashboardTasksAsync();
-            await RefreshDashboardMilestonesAsync();
+            // One versioned rebuild per burst, even if many tab timers resume
+            // simultaneously after a machine sleep. Never discard an actual save.
+            WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
+            await RefreshLinkIndexAsync();
+
+            if (_activeDocumentTab is DocumentTabViewModel foreground)
+            {
+                UpdateLinkContext(foreground.FullPath);
+
+                bool reloadGlossary = _glossaryScopes.Count == 0 ||
+                    changed.Any(tab => _glossaryScopes.Any(scope =>
+                        string.Equals(scope.FilePath, tab.FullPath, StringComparison.OrdinalIgnoreCase)));
+                if (reloadGlossary)
+                {
+                    await RefreshGlossaryContextAsync(foreground.FullPath);
+                    if (ReferenceEquals(foreground, _activeDocumentTab))
+                    {
+                        UpdateGlossaryAnnotations();
+                    }
+                }
+            }
+
+            if (DashboardHost.Visibility == Visibility.Visible)
+            {
+                await RefreshDashboardBusinessAsync(_linkIndex);
+            }
         }
         catch (Exception exception) when (
             exception is IOException or
@@ -1071,6 +1108,60 @@ public partial class MainWindow
         {
             StatusText.Text =
                 $"Enregistré · index liens indisponible : {exception.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Records a completed save without creating one expensive refresh per tab.
+    /// </summary>
+    /// <param name="sender">The autosave controller that completed the save.</param>
+    private void QueueDocumentAutosaveRefresh(object? sender)
+    {
+        if (sender is not DocumentAutosaveController autosave ||
+            !_autosaveTabs.TryGetValue(autosave, out DocumentTabViewModel? tab) ||
+            _bulkClosingTabs.Contains(tab))
+        {
+            return;
+        }
+
+        _pendingAutosaveRefreshes.Add(autosave);
+        _autosaveRefreshTimer.Stop();
+        if (!_autosaveRefreshRunning)
+        {
+            _autosaveRefreshTimer.Start();
+        }
+    }
+
+    /// <summary>
+    /// Coalesces completed autosaves into one index/context update and allows a
+    /// trailing batch if another save completes while the refresh is running.
+    /// </summary>
+    /// <param name="sender">The debounce timer.</param>
+    /// <param name="e">The timer event.</param>
+    private async void AutosaveRefreshTimer_Tick(object? sender, EventArgs e)
+    {
+        _autosaveRefreshTimer.Stop();
+        if (_autosaveRefreshRunning || _pendingAutosaveRefreshes.Count == 0)
+        {
+            return;
+        }
+
+        _autosaveRefreshRunning = true;
+        DocumentAutosaveController[] batch = _pendingAutosaveRefreshes.ToArray();
+        _pendingAutosaveRefreshes.Clear();
+        try
+        {
+            await RunUiActionAsync(
+                "Autosave · finalisation groupée",
+                () => HandleDocumentTabAutosaveSavedBatchAsync(batch));
+        }
+        finally
+        {
+            _autosaveRefreshRunning = false;
+            if (_pendingAutosaveRefreshes.Count > 0)
+            {
+                _autosaveRefreshTimer.Start();
+            }
         }
     }
 
@@ -1416,10 +1507,15 @@ public partial class MainWindow
             };
 
         close.Click += async (_, _) =>
-            await CloseDocumentTabAsync(
-                tab,
-                "fermer cet onglet",
-                activateNeighbor: true);
+            await RunUiActionAsync(
+                "Fermer un onglet du menu",
+                async () =>
+                {
+                    await CloseDocumentTabAsync(
+                        tab,
+                        "fermer cet onglet",
+                        activateNeighbor: true);
+                });
 
         menu.Items.Add(close);
 
@@ -1431,8 +1527,9 @@ public partial class MainWindow
             };
 
         closeOthers.Click += async (_, _) =>
-            await CloseOtherDocumentTabsAsync(
-                tab);
+            await RunUiActionAsync(
+                "Fermer les autres onglets",
+                () => CloseOtherDocumentTabsAsync(tab));
 
         menu.Items.Add(closeOthers);
 
@@ -1449,8 +1546,9 @@ public partial class MainWindow
             };
 
         closeRight.Click += async (_, _) =>
-            await CloseDocumentTabsToRightAsync(
-                tab);
+            await RunUiActionAsync(
+                "Fermer les onglets à droite",
+                () => CloseDocumentTabsToRightAsync(tab));
 
         menu.Items.Add(closeRight);
         DocumentTabsList.ContextMenu = menu;
@@ -1461,64 +1559,199 @@ public partial class MainWindow
     /// </summary>
     /// <param name="survivor">The tab to keep.</param>
     /// <returns>A task representing close operations.</returns>
-    private async Task CloseOtherDocumentTabsAsync(
+    private Task CloseOtherDocumentTabsAsync(
+            DocumentTabViewModel survivor) =>
+        CloseDocumentTabBatchAsync(
+            survivor,
+            _documentTabs.Where(tab => !ReferenceEquals(tab, survivor)).ToArray());
+
+    /// <summary>
+    /// Closes all tabs to the right of the survivor without repeated WPF layouts.
+    /// </summary>
+    /// <param name="survivor">The reference tab.</param>
+    /// <returns>The completed batch close.</returns>
+    private Task CloseDocumentTabsToRightAsync(
             DocumentTabViewModel survivor)
     {
-        foreach (DocumentTabViewModel tab in _documentTabs
-                     .Where(candidate =>
-                         !ReferenceEquals(
-                             candidate,
-                             survivor))
-                     .ToArray())
-        {
-            if (!await CloseDocumentTabAsync(
-                    tab,
-                    "fermer cet onglet",
-                    activateNeighbor: false))
-            {
-                return;
-            }
-        }
-
-        await ActivateDocumentTabAsync(
-            survivor,
-            synchronizeNavigation: true);
+        int index = _documentTabs.IndexOf(survivor);
+        return index < 0
+            ? Task.CompletedTask
+            : CloseDocumentTabBatchAsync(
+                survivor,
+                _documentTabs.Skip(index + 1).ToArray());
     }
 
     /// <summary>
-    /// Closes every tab positioned to the right of the requested survivor.
+    /// Checks all pending saves before removing many tabs with one ListBox rebinding.
+    /// No dirty document is discarded without explicit confirmation.
     /// </summary>
-    /// <param name="survivor">The reference tab.</param>
-    /// <returns>A task representing close operations.</returns>
-    private async Task CloseDocumentTabsToRightAsync(
-            DocumentTabViewModel survivor)
+    /// <param name="survivor">The tab to keep and display.</param>
+    /// <param name="candidates">Snapshot of the tabs to remove.</param>
+    /// <returns>The completed batch close.</returns>
+    private async Task CloseDocumentTabBatchAsync(
+            DocumentTabViewModel survivor,
+            IReadOnlyList<DocumentTabViewModel> candidates)
     {
-        int index =
-            _documentTabs.IndexOf(survivor);
-
-        if (index < 0)
+        if (_bulkTabCloseInProgress ||
+            candidates.Count == 0 ||
+            !_documentTabs.Contains(survivor))
         {
             return;
         }
 
-        DocumentTabViewModel[] tabs = _documentTabs
-            .Skip(index + 1)
-            .ToArray();
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Fermeture groupée onglets");
 
-        foreach (DocumentTabViewModel tab in tabs)
+        DocumentTabViewModel[] closing = candidates
+            .Where(tab => !ReferenceEquals(tab, survivor) && _documentTabs.Contains(tab))
+            .Distinct()
+            .ToArray();
+        if (closing.Length == 0)
         {
-            if (!await CloseDocumentTabAsync(
-                    tab,
-                    "fermer cet onglet",
-                    activateNeighbor: false))
-            {
-                return;
-            }
+            return;
         }
 
-        await ActivateDocumentTabAsync(
-            survivor,
-            synchronizeNavigation: true);
+        _bulkTabCloseInProgress = true;
+        DocumentTabsList.IsEnabled = false;
+        foreach (DocumentTabViewModel tab in closing)
+        {
+            _bulkClosingTabs.Add(tab);
+        }
+
+        try
+        {
+            StoreActiveDocumentTabState();
+            StoreSecondaryDocumentTabState();
+
+            bool savedAnyChanges = false;
+            List<DocumentTabViewModel> unsaved = [];
+            foreach (DocumentTabViewModel tab in closing)
+            {
+                savedAnyChanges |= tab.IsDirty ||
+                    !string.Equals(tab.Content, tab.Session.Content, StringComparison.Ordinal);
+
+                try
+                {
+                    await tab.Autosave.FlushAsync();
+                }
+                catch (Exception exception) when (
+                    RecoverableExceptionPolicy.CanContinue(exception))
+                {
+                    ReportRecoverableUiError(
+                        "Enregistrement avant fermeture groupée",
+                        exception,
+                        showDialog: false);
+                }
+
+                tab.IsDirty = !string.Equals(
+                    tab.Content,
+                    tab.Session.Content,
+                    StringComparison.Ordinal);
+                if (tab.IsDirty)
+                {
+                    unsaved.Add(tab);
+                }
+            }
+
+            if (unsaved.Count > 0)
+            {
+                string names = string.Join(
+                    ", ",
+                    unsaved.Take(5).Select(tab => tab.DisplayName));
+                string suffix = unsaved.Count > 5 ? "…" : string.Empty;
+                MessageBoxResult answer = MessageBox.Show(
+                    this,
+                    $"{unsaved.Count} onglet(s) non enregistrés : {names}{suffix}.\n\n" +
+                    "Les fermer entraînera la perte de leurs modifications locales. Continuer ?",
+                    "Modifications non enregistrées",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (answer != MessageBoxResult.Yes)
+                {
+                    if (savedAnyChanges)
+                    {
+                        WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
+                        await RefreshLinkIndexAsync();
+                    }
+
+                    return;
+                }
+            }
+
+            HashSet<DocumentTabViewModel> removed = closing.ToHashSet();
+            DocumentTabViewModel[] retained = _documentTabs
+                .Where(tab => !removed.Contains(tab))
+                .ToArray();
+
+            if (_secondaryDocumentTab is not null &&
+                (removed.Contains(_secondaryDocumentTab) ||
+                 ReferenceEquals(_secondaryDocumentTab, survivor)))
+            {
+                DetachSecondaryDocumentTabView();
+            }
+
+            if (_activeDocumentTab is not null &&
+                removed.Contains(_activeDocumentTab))
+            {
+                _activeDocumentTab = null;
+                _documentSession = null;
+                _autosave = null;
+                _documentDirty = false;
+                _conflictWarningShown = false;
+            }
+
+            foreach (DocumentTabViewModel tab in closing)
+            {
+                UnregisterDocumentTabAutosave(tab.Autosave);
+                await tab.Autosave.DisposeAsync();
+            }
+
+            // The horizontal ListBox has nonvirtualized items: repeated Remove()
+            // relayouts every remaining tab. Detaching once avoids N visual passes.
+            _suppressDocumentTabSelection = true;
+            try
+            {
+                DocumentTabsList.ItemsSource = null;
+                _documentTabs.Clear();
+                foreach (DocumentTabViewModel tab in retained)
+                {
+                    _documentTabs.Add(tab);
+                }
+
+                DocumentTabsList.ItemsSource = _documentTabs;
+                DocumentTabsList.SelectedItem = survivor;
+                DocumentTabsList.ContextMenu = null;
+                UpdateDocumentTabsVisibility();
+            }
+            finally
+            {
+                _suppressDocumentTabSelection = false;
+            }
+
+            if (!ReferenceEquals(_activeDocumentTab, survivor))
+            {
+                await ActivateDocumentTabAsync(
+                    survivor,
+                    synchronizeNavigation: true);
+            }
+
+            if (savedAnyChanges)
+            {
+                WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
+                await RefreshLinkIndexAsync();
+                if (_activeDocumentTab is not null)
+                {
+                    UpdateLinkContext(_activeDocumentTab.FullPath);
+                }
+            }
+        }
+        finally
+        {
+            _bulkClosingTabs.Clear();
+            _bulkTabCloseInProgress = false;
+            DocumentTabsList.IsEnabled = true;
+        }
     }
 
     /// <summary>
@@ -1537,14 +1770,19 @@ public partial class MainWindow
     /// </summary>
     private void RefreshDocumentTabsFromNavigation()
     {
+        // One traversal for all open tabs. The old loop searched the entire
+        // navigation tree per tab, yielding O(tabs × workspace nodes) cost.
+        Dictionary<Guid, NavigationNodeViewModel> documentNodes = _root
+            .DescendantsAndSelf()
+            .Where(node => node.Kind == WorkspaceNodeKind.Document)
+            .GroupBy(node => node.Id)
+            .ToDictionary(group => group.Key, group => group.First());
+
         foreach (DocumentTabViewModel tab in _documentTabs)
         {
-            NavigationNodeViewModel? node =
-                _root
-                    .DescendantsAndSelf()
-                    .FirstOrDefault(candidate =>
-                        candidate.Kind == WorkspaceNodeKind.Document &&
-                        candidate.Id == tab.DocumentId);
+            documentNodes.TryGetValue(
+                tab.DocumentId,
+                out NavigationNodeViewModel? node);
 
             if (node is null)
             {

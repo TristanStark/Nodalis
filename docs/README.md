@@ -1,6 +1,6 @@
-# Documentation Nodalis 1.0
+# Documentation Nodalis — versions 1.0 à 1.9
 
-Ce dossier constitue la documentation versionnée avec le code pour Nodalis 1.0.
+Ce dossier constitue la documentation versionnée avec le code pour Nodalis, jusqu'à la stable **v1.9.0**.
 Le point d'entrée utilisateur est README-UTILISATEUR.md. Le présent document
 sert de sommaire et de matrice de couverture des fonctionnalités majeures.
 
@@ -65,6 +65,12 @@ des guides dédiés plus détaillés.
 
 Toute nouvelle fonctionnalité majeure destinée à 1.0 doit être ajoutée à cette
 matrice ou disposer d'un document dédié avant la release stable.
+
+## Recette de référence des imports DOCX v1.9
+
+- [Grille de qualification manuelle DOCX 1.9](docx-1.9-manual-qualification.md) :
+  12 scénarios guidés avec résultats attendus, réimport et vérification des
+  données après échec ; à tester exclusivement sur un workspace de test.
 
 ## Extensions après 1.0 (en cours)
 
@@ -159,6 +165,29 @@ Version v1.8.0 : issues #148 (fusion exacte/fuzzy + vectorielle), #149 (benchmar
 
 - [Notes de version v1.8.0](release-notes-1.8.md) — nouveautés, installation, compatibilité et limites.
 
-## Nodalis 1.9 — Import DOCX avancé (en développement)
+## Nodalis 1.9 — Import DOCX avancé, performances et éditeur coloré (stable)
 
 [EPIC #154](https://github.com/TristanStark/Nodalis/issues/154) : arbre Word hiérarchique, mapping manuel des sections vers Technique/Tests/Recette, prévisualisation, provenance et réimport sans écrasement silencieux. Le socle doit être extensible, mais l'import XLSX/VSDX n'est pas livré en 1.9.
+
+### Documentation de la version publiée
+
+- [Contrat d'arbre documentaire et plan sans effet de bord (#155)](docx-1.9-import-tree.md)
+- [Détection de titres Word et heuristiques explicables (#156)](docx-1.9-heading-detection.md)
+- [Recherche, correction et annulation des niveaux de titres dans l'assistant (#157)](docx-1.9-structure-editor.md)
+- [Affectation visuelle des sections Word, ordre de fusion et limites actuelles (#158)](docx-1.9-mapping.md)
+- [Profils DOCX déterministes, édition, import/export et arbitrages (#159)](docx-1.9-mapping-profiles.md)
+- [Conversion des tableaux Word, HTML de secours et limites (#160)](docx-1.9-tables.md)
+- [Images et objets Word, sélection et stockage local (#161)](docx-1.9-media.md)
+- [Comparateur Word/Markdown et état des sections (#162)](docx-1.9-preview-comparator.md)
+- [Manifeste de traçabilité DOCX et snapshots (#163)](docx-1.9-provenance.md)
+- [Réimport DOCX : correspondances sûres et comparateur à trois voies en lecture seule (#164)](docx-1.9-reimport-diff.md)
+- [Réimport DOCX : transaction locale, rollback et reprise après interruption (#164)](docx-1.9-reimport-transaction.md)
+
+La **v1.9.0** a été qualifiée fonctionnellement et visuellement par l'utilisateur et validée par CI avant publication. Les imports **XLSX/VSDX ne sont pas inclus**.
+
+- [Notes de version complètes v1.9.0](release-notes-1.9.md)
+- [Checklist de sortie et qualification acceptée](release-checklist-1.9.md)
+- [Guide de coloration Markdown dans l'éditeur](markdown-editor-syntax.md)
+- [Budgets, diagnostics et non-régressions de performance](performance-budgets.md)
+- [Sécurité et restauration du premier import](docx-1.9-initial-import-recovery.md)
+- [Sécurité transactionnelle de réimport](docx-1.9-reimport-transaction.md)

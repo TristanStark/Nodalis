@@ -15,6 +15,15 @@ public sealed record LinkIndexRefreshMetrics
 
     public required int ReusedDocuments { get; init; }
 
+    /// <summary>Whether this refresh changed the on-disk derived index JSON.</summary>
+    public bool IndexFileWritten { get; init; }
+
+    /// <summary>
+    /// True for an additional caller joining a pending same-generation rebuild.
+    /// Such callers do not re-enumerate or re-write index data themselves.
+    /// </summary>
+    public bool JoinedExistingRefresh { get; init; }
+
     public required long ElapsedMilliseconds { get; init; }
 }
 

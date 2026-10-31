@@ -1,5 +1,8 @@
 using Nodalis.Core.Links;
+using Nodalis.Core.Markdown;
 using Nodalis.Infrastructure.Links;
+using Nodalis.Infrastructure.Tasks;
+using Nodalis.Infrastructure.Milestones;
 using Nodalis.Infrastructure.Persistence;
 
 internal static class WorkspacePerformanceSmokeTests
@@ -39,6 +42,62 @@ internal static class WorkspacePerformanceSmokeTests
                     $"# Document {index:D4}\n\n[[{nextName}]]\n\n- [ ] Tâche {index}\n");
             }
 
+            // Body-only edits must not reparse/rebind front matter on each key.
+            // Opening/closing delimiters and metadata edits must invalidate it.
+            string metadataSource =
+                "---\r\nstatus: active\r\ntags: perf\r\n---\r\n# Large note\r\nBody";
+            string metadataBodyEdited =
+                "---\r\nstatus: active\r\ntags: perf\r\n---\r\n# Large note\r\nBody updated";
+            string metadataHeaderEdited =
+                "---\r\nstatus: archived\r\ntags: perf\r\n---\r\n# Large note\r\nBody";
+
+            string originalHeader = MarkdownFrontMatterParser.GetFrontMatterSignature(
+                metadataSource);
+            Assert(
+                originalHeader.Length > 0 &&
+                string.Equals(originalHeader,
+                    MarkdownFrontMatterParser.GetFrontMatterSignature(
+                        metadataBodyEdited), StringComparison.Ordinal) &&
+                !string.Equals(originalHeader,
+                    MarkdownFrontMatterParser.GetFrontMatterSignature(
+                        metadataHeaderEdited), StringComparison.Ordinal) &&
+                MarkdownFrontMatterParser.GetFrontMatterSignature("# Note\nBody") ==
+                    string.Empty &&
+                MarkdownFrontMatterParser.GetFrontMatterSignature("---\nmissing close") ==
+                    string.Empty &&
+                MarkdownFrontMatterParser.GetFrontMatterSignature(
+                    new string('x', 1024 * 1024)) == string.Empty,
+                "Front matter signature must ignore body-only edits and detect metadata changes.");
+
+            // Parsing the same Markdown snapshot in a worker must be independent
+            // of WPF and preserve every block, including ordered lists and tables.
+            string markdown = "# Vue volumineuse\n\n1. Premier\n2. Second\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n";
+            IReadOnlyList<MarkdownBlock> directParse =
+                MarkdownDocumentParser.Parse(markdown);
+            IReadOnlyList<MarkdownBlock> workerParse =
+                await Task.Run(() => MarkdownDocumentParser.Parse(markdown));
+            Assert(
+                directParse.Count == workerParse.Count &&
+                directParse.Zip(workerParse).All(pair =>
+                    pair.First.Kind == pair.Second.Kind &&
+                    pair.First.Text == pair.Second.Text &&
+                    pair.First.OrderedListNumber == pair.Second.OrderedListNumber &&
+                    pair.First.TableRows.Count == pair.Second.TableRows.Count),
+                "Background Markdown parsing must preserve visible block semantics.");
+
+            using CancellationTokenSource obsoletePreview = new CancellationTokenSource();
+            obsoletePreview.Cancel();
+            bool stopped = false;
+            try
+            {
+                MarkdownDocumentParser.Parse(markdown, obsoletePreview.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                stopped = true;
+            }
+            Assert(stopped, "Canceled Markdown previews must not continue parsing.");
+
             WorkspaceLinkIndexService service =
                 new WorkspaceLinkIndexService(
                     performanceRoot);
@@ -47,13 +106,129 @@ internal static class WorkspacePerformanceSmokeTests
                 await service.RefreshWithMetricsAsync();
 
             Assert(
+                cold.Metrics.IndexFileWritten,
+                "Cold index creation must persist a derived JSON snapshot.");
+
+            Assert(
                 cold.Metrics.DocumentCount >= generatedDocuments &&
                 cold.Metrics.HashedDocuments >= generatedDocuments &&
                 cold.Metrics.ParsedDocuments >= generatedDocuments,
                 "A cold index refresh must inspect and parse the synthetic Markdown corpus.");
 
+            // Multiple service instances must serialize their atomic derived JSON writes.
+            WorkspaceLinkIndexService secondService =
+                new WorkspaceLinkIndexService(performanceRoot);
+            Task<LinkIndexRefreshResult>[] concurrentRefreshes =
+            [
+                service.RefreshWithMetricsAsync(),
+                secondService.RefreshWithMetricsAsync(),
+                service.RefreshWithMetricsAsync(),
+                secondService.RefreshWithMetricsAsync()
+            ];
+            LinkIndexRefreshResult[] sharedResults = await Task.WhenAll(concurrentRefreshes);
+            Assert(
+                sharedResults.Count(result => result.Metrics.JoinedExistingRefresh) >= 1,
+                "At least one simultaneous index request should reuse an in-flight refresh.");
+            Assert(
+                sharedResults.All(result =>
+                    result.Metrics.HashedDocuments == 0 &&
+                    result.Metrics.ParsedDocuments == 0 &&
+                    !result.Metrics.IndexFileWritten),
+                "Parallel warm refreshes must not rewrite the same workspace index.");
+
+            using CancellationTokenSource canceled = new CancellationTokenSource();
+            canceled.Cancel();
+            bool cancellationObserved = false;
+            try
+            {
+                await secondService.RefreshWithMetricsAsync(canceled.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                cancellationObserved = true;
+            }
+
+            Assert(
+                cancellationObserved,
+                "Canceled refresh callers must stop without writing the index.");
+
+            // A supplied snapshot must be consumed without a redundant filesystem
+            // traversal, even when a new Markdown file appears in the meantime.
+            WorkspaceTaskService sharedTasks =
+                new WorkspaceTaskService(performanceRoot);
+            WorkspaceMilestoneService sharedMilestones =
+                new WorkspaceMilestoneService(performanceRoot);
+            string lateDocument = Path.Combine(performanceRoot, "Late Addition.md");
+            await File.WriteAllTextAsync(lateDocument, "- [ ] Late task\\n");
+            IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> snapshotTasks =
+                await sharedTasks.GetTasksAsync(
+                    null,
+                    includeCompleted: true,
+                    indexSnapshot: cold.Catalog);
+            IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> snapshotMilestones =
+                await sharedMilestones.GetMilestonesAsync(
+                    null,
+                    indexSnapshot: cold.Catalog);
+            Assert(
+                !snapshotTasks.Any(task => task.Text.Contains("Late task", StringComparison.Ordinal)) &&
+                snapshotMilestones.Count == 0,
+                "Shared services must use the supplied index snapshot instead of rescanning.");
+            File.Delete(lateDocument);
+
+            // A canceled follower must not interrupt a valid leading refresh.
+            WorkspaceLinkIndexService.NotifyWorkspaceChanged(performanceRoot);
+            Task<LinkIndexRefreshResult> leader = service.RefreshWithMetricsAsync();
+            using CancellationTokenSource canceledFollower = new CancellationTokenSource();
+            Task<LinkIndexRefreshResult> follower =
+                secondService.RefreshWithMetricsAsync(canceledFollower.Token);
+            canceledFollower.Cancel();
+            bool followerCanceled = false;
+            try
+            {
+                await follower;
+            }
+            catch (OperationCanceledException)
+            {
+                followerCanceled = true;
+            }
+
+            Assert(followerCanceled, "A follower may cancel its own wait.");
+            LinkIndexRefreshResult leaderResult = await leader;
+            Assert(leaderResult.Catalog.Targets.Count > 0,
+                "Canceling a follower must not cancel the shared leader operation.");
+
+            // An invalidation that lands while an older refresh is running must
+            // schedule a later generation, not allow the older JSON to win.
+            string newGenerationFile =
+                Path.Combine(performanceRoot, "New Generation.md");
+            WorkspaceLinkIndexService.NotifyWorkspaceChanged(performanceRoot);
+            Task<LinkIndexRefreshResult> olderGeneration =
+                service.RefreshWithMetricsAsync();
+            await File.WriteAllTextAsync(
+                newGenerationFile,
+                "# New Generation\n\n[[Document 0001]]\n");
+            WorkspaceLinkIndexService.NotifyWorkspaceChanged(performanceRoot);
+            LinkIndexRefreshResult newerGeneration =
+                await secondService.RefreshWithMetricsAsync();
+            await olderGeneration;
+            Assert(
+                newerGeneration.Catalog.Targets.Any(target =>
+                    target.RelativePath == "New Generation.md"),
+                "An invalidated generation must include a document added after the prior refresh started.");
+
+            LinkIndexCatalog onDisk =
+                await service.LoadAsync();
+            Assert(
+                onDisk.Targets.Any(target =>
+                    target.RelativePath == "New Generation.md"),
+                "An older concurrent refresh must not overwrite the newest index on disk.");
+
             LinkIndexRefreshResult warm =
                 await service.RefreshWithMetricsAsync();
+
+            Assert(
+                !warm.Metrics.IndexFileWritten,
+                "No-change refresh must not rewrite the derived JSON.");
 
             Assert(
                 warm.Metrics.HashedDocuments == 0 &&
@@ -79,6 +254,10 @@ internal static class WorkspacePerformanceSmokeTests
                     changedPath);
 
             Assert(
+                targeted.Metrics.IndexFileWritten,
+                "A changed source must persist the updated JSON.");
+
+            Assert(
                 targeted.Metrics.HashedDocuments == 1 &&
                 targeted.Metrics.ParsedDocuments == 1 &&
                 targeted.Metrics.ChangedDocuments == 1,
@@ -87,6 +266,52 @@ internal static class WorkspacePerformanceSmokeTests
             Assert(
                 targeted.Catalog.References.Count >= generatedDocuments,
                 "Incremental refresh must preserve backlinks from unchanged documents.");
+
+            LinkTargetEntry original = targeted.Catalog.Targets.Single(target =>
+                target.RelativePath == "Document 0008.md");
+            File.Move(
+                Path.Combine(performanceRoot, "Document 0008.md"),
+                Path.Combine(performanceRoot, "Renamed Document 0008.md"));
+            LinkIndexRefreshResult moved = await service.RefreshWithMetricsAsync();
+            LinkTargetEntry afterMove = moved.Catalog.Targets.Single(target =>
+                target.RelativePath == "Renamed Document 0008.md");
+            Assert(
+                original.Id == afterMove.Id &&
+                afterMove.Aliases.Contains("Document 0008"),
+                "Unique hash lookup must preserve GUID and historic alias across a move.");
+
+            string folderA = Path.Combine(performanceRoot, "Collision A");
+            string folderB = Path.Combine(performanceRoot, "Collision B");
+            Directory.CreateDirectory(folderA);
+            Directory.CreateDirectory(folderB);
+            await File.WriteAllTextAsync(Path.Combine(folderA, "Collision.md"), "# A\n");
+            await File.WriteAllTextAsync(Path.Combine(folderB, "Collision.md"), "# B\n");
+            await File.WriteAllTextAsync(
+                Path.Combine(performanceRoot, "Ambiguity.md"),
+                "[[Collision]] [[Document 0008]] [[missing-target]]\n");
+            LinkIndexRefreshResult collisions = await service.RefreshWithMetricsAsync();
+            foreach (LinkReferenceEntry reference in collisions.Catalog.References)
+            {
+                LinkResolution expectedResolution = WorkspaceLinkIndexService.Resolve(
+                    collisions.Catalog,
+                    reference.RawTarget);
+                Guid? expectedId = expectedResolution.Status == LinkResolutionStatus.Resolved
+                    ? expectedResolution.Target!.Id
+                    : null;
+                Assert(
+                    reference.TargetId == expectedId,
+                    "Batch resolver must match legacy resolver for cached and parsed backlinks.");
+            }
+
+            LinkTargetEntry ambiguity = collisions.Catalog.Targets.Single(target =>
+                target.RelativePath == "Ambiguity.md");
+            Assert(
+                collisions.Catalog.References.Any(reference =>
+                    reference.SourceId == ambiguity.Id &&
+                    reference.RawTarget == "Collision" &&
+                    reference.TargetId is null),
+                "Duplicate display names must remain ambiguous.");
+
         }
         finally
         {

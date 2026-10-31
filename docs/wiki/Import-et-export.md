@@ -15,6 +15,9 @@ Le parcours documenté est le suivant :
 
 Cela permet d'éviter de transformer involontairement un document entier en une multitude de fichiers.
 
+Pour la validation de la v1.9 sur `develop` :
+[grille manuelle DOCX](https://github.com/TristanStark/Nodalis/blob/develop/docs/docx-1.9-manual-qualification.md).
+
 ## Import Markdown en masse
 
 L'analyse préalable peut présenter les documents à importer, repérer les **pièces jointes relatives**, identifier des doublons et proposer un plan avant validation.

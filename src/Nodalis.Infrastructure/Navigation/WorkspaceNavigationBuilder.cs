@@ -69,6 +69,12 @@ public sealed class WorkspaceNavigationBuilder
             applicationsPath,
             cancellationToken));
 
+        string archivesPath = Path.Combine(root, WorkspaceLayout.ArchivesDirectoryName);
+        if (Directory.Exists(archivesPath))
+        {
+            children.Add(await BuildArchivesRootAsync(root, archivesPath, cancellationToken));
+        }
+
         return new WorkspaceNavigationNode
         {
             Id = workspace.Id,
@@ -76,6 +82,31 @@ public sealed class WorkspaceNavigationBuilder
             Kind = WorkspaceNodeKind.Workspace,
             FullPath = root,
             Children = children
+        };
+    }
+
+    /// <summary>Builds a first-class Archives node, preserving project GUIDs and their document trees.</summary>
+    /// <param name="workspaceRoot">Current workspace root.</param>
+    /// <param name="archivesPath">Location of archived project directories.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A navigable Archives folder whose entries are ordinary project nodes.</returns>
+    private static async Task<WorkspaceNavigationNode> BuildArchivesRootAsync(
+        string workspaceRoot, string archivesPath, CancellationToken cancellationToken)
+    {
+        List<WorkspaceNavigationNode> projects = new List<WorkspaceNavigationNode>();
+        foreach (string directory in EnumerateDirectories(archivesPath))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            projects.Add(await BuildProjectAsync(workspaceRoot, directory, cancellationToken));
+        }
+
+        return new WorkspaceNavigationNode
+        {
+            Id = CreateDeterministicId("archives"),
+            DisplayName = "Archives",
+            Kind = WorkspaceNodeKind.Folder,
+            FullPath = archivesPath,
+            Children = Sort(projects)
         };
     }
 

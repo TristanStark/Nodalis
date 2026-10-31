@@ -8,10 +8,14 @@ public static partial class MarkdownDocumentParser
     /// Performs the <c>Parse</c> operation.
     /// </summary>
     /// <param name="markdown">The <c>markdown</c> value.</param>
+    /// <param name="cancellationToken">Stops stale background editor parsing.</param>
     /// <returns>The result of the operation.</returns>
-    public static IReadOnlyList<MarkdownBlock> Parse(string markdown)
+    public static IReadOnlyList<MarkdownBlock> Parse(
+        string markdown,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(markdown);
+        cancellationToken.ThrowIfCancellationRequested();
 
         string lineFeed = ((char)10).ToString();
         string carriageReturnLineFeed = string.Concat((char)13, (char)10);
@@ -32,6 +36,7 @@ public static partial class MarkdownDocumentParser
 
         for (int index = 0; index < lines.Length;)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string line = lines[index];
 
             if (string.IsNullOrWhiteSpace(line))
@@ -50,6 +55,7 @@ public static partial class MarkdownDocumentParser
                 while (index < lines.Length &&
                        !CodeFencePattern().IsMatch(lines[index]))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     code.Add(lines[index]);
                     index++;
                 }

@@ -44,159 +44,21 @@ public sealed partial class WorkspaceTaskService
     /// <summary>
     /// Performs the <c>RefreshAsync</c> operation.
     /// </summary>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="indexSnapshot">An optional already refreshed snapshot, shared with callers.</param>
     /// <returns>The result of the operation.</returns>
     public async Task<TaskCollection> RefreshAsync(
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            LinkIndexCatalog? indexSnapshot = null)
     {
         await _refreshGate.WaitAsync(cancellationToken);
         try
         {
-            global::Nodalis.Core.Links.LinkIndexCatalog links = await _linkIndex.RefreshAsync(
+            LinkIndexCatalog links = indexSnapshot ?? await _linkIndex.RefreshAsync(
                 cancellationToken);
-
-            global::System.Collections.Generic.List<global::Nodalis.Core.Tasks.TaskItem> tasks = new List<TaskItem>();
-            Dictionary<Guid, CachedTaskDocument> nextCache = [];
-            int reused = 0;
-            int parsed = 0;
-
-            foreach (global::Nodalis.Core.Links.LinkTargetEntry document in links.Targets.Where(target =>
-                         target.Kind == LinkTargetKind.Document))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                string fullPath = ResolveWorkspacePath(
-                    document.RelativePath);
-
-                if (!File.Exists(fullPath))
-                {
-                    continue;
-                }
-
-                global::Nodalis.Core.Links.LinkTargetEntry? project = links.Targets
-                    .Where(target =>
-                        target.Kind == LinkTargetKind.Project &&
-                        IsRelativeAncestor(
-                            target.RelativePath,
-                            document.RelativePath))
-                    .OrderByDescending(target =>
-                        target.RelativePath.Length)
-                    .FirstOrDefault();
-
-                global::Nodalis.Core.Links.LinkTargetEntry? application = links.Targets
-                    .Where(target =>
-                        target.Kind == LinkTargetKind.Application &&
-                        IsRelativeAncestor(
-                            target.RelativePath,
-                            document.RelativePath))
-                    .OrderByDescending(target =>
-                        target.RelativePath.Length)
-                    .FirstOrDefault();
-
-                // The link index already tracks canonical content hashes. Reuse only
-                // if the source AND its project/application context are unchanged.
-                if (document.ContentHash is string fingerprint &&
-                    _cachedDocuments.TryGetValue(document.Id, out CachedTaskDocument? cached) &&
-                    cached.Fingerprint == fingerprint &&
-                    cached.RelativePath == document.RelativePath &&
-                    cached.ProjectId == project?.Id &&
-                    cached.ProjectName == project?.DisplayName &&
-                    cached.ApplicationId == application?.Id &&
-                    cached.ApplicationName == application?.DisplayName)
-                {
-                    tasks.AddRange(cached.Items);
-                    nextCache[document.Id] = cached;
-                    reused++;
-                    continue;
-                }
-
-                string[] lines = await File.ReadAllLinesAsync(fullPath, cancellationToken);
-                List<TaskItem> documentTasks = [];
-                parsed++;
-                for (int index = 0;
-                     index < lines.Length;
-                     index++)
-                {
-                    global::System.Text.RegularExpressions.Match match = CheckboxPattern().Match(
-                        lines[index]);
-
-                    if (!match.Success)
-                    {
-                        continue;
-                    }
-
-                    if (index + 1 < lines.Length &&
-                        TryParsePromotionMarker(
-                            lines[index + 1],
-                            MeetingActionSourceMarkerPrefix,
-                            out global::System.Guid _))
-                    {
-                        continue;
-                    }
-
-                    string body = match.Groups["body"].Value.Trim();
-                    (
-                        string Text,
-                        string? Owner,
-                        global::System.DateOnly? DueDate,
-                        string? Priority,
-                        string? Status,
-                        global::System.Collections.Generic.IReadOnlyList<string> Tags
-                    ) metadata = ParseMetadata(
-                        body);
-
-                    documentTasks.Add(new TaskItem
-                    {
-                        Id = CreateTaskId(
-                            document.Id,
-                            index + 1,
-                            body),
-                        SourceDocumentId = document.Id,
-                        SourceRelativePath = document.RelativePath,
-                        LineNumber = index + 1,
-                        RawLine = lines[index],
-                        Text = metadata.Text,
-                        IsCompleted =
-                            !string.IsNullOrWhiteSpace(
-                                match.Groups["checked"].Value),
-                        Owner = metadata.Owner,
-                        DueDate = metadata.DueDate,
-                        Priority = metadata.Priority,
-                        Status = metadata.Status,
-                        Tags = metadata.Tags,
-                        ApplicationId = application?.Id,
-                        ApplicationName = application?.DisplayName,
-                        ProjectId = project?.Id,
-                        ProjectName = project?.DisplayName
-                    });
-                }
-
-                tasks.AddRange(documentTasks);
-                if (document.ContentHash is string newFingerprint)
-                {
-                    nextCache[document.Id] = new CachedTaskDocument(
-                        newFingerprint, document.RelativePath,
-                        project?.Id, project?.DisplayName,
-                        application?.Id, application?.DisplayName, documentTasks);
-                }
-            }
-
-            // Publish an all-or-nothing derived snapshot only after a complete
-            // refresh. Deleted documents naturally disappear from the next cache.
-            cancellationToken.ThrowIfCancellationRequested();
-            _cachedDocuments = nextCache;
-            LastReusedDocumentCount = reused;
-            LastParsedDocumentCount = parsed;
-            return new TaskCollection
-            {
-                UpdatedUtc = DateTimeOffset.UtcNow,
-                Tasks = tasks
-                    .OrderBy(task => task.IsCompleted)
-                    .ThenBy(task => task.DueDate ?? DateOnly.MaxValue)
-                    .ThenBy(task => GetPriorityRank(task.Priority))
-                    .ThenBy(task => task.Text, StringComparer.CurrentCultureIgnoreCase)
-                    .ToList()
-            };
+            return await Task.Run(
+                () => BuildTaskCollectionAsync(links, cancellationToken),
+                cancellationToken);
         }
         finally
         {
@@ -205,25 +67,167 @@ public sealed partial class WorkspaceTaskService
     }
 
     /// <summary>
+    /// Parses and projects a single catalog on a worker; no WPF types are accessed.
+    /// The owning refresh gate protects the incremental document cache.
+    /// </summary>
+    private async Task<TaskCollection> BuildTaskCollectionAsync(
+            LinkIndexCatalog links,
+            CancellationToken cancellationToken)
+    {
+        global::System.Collections.Generic.List<global::Nodalis.Core.Tasks.TaskItem> tasks = new List<TaskItem>();
+        WorkspaceTaskContextLookup contextLookup =
+            new WorkspaceTaskContextLookup(links.Targets);
+        Dictionary<Guid, CachedTaskDocument> nextCache = [];
+        int reused = 0;
+        int parsed = 0;
+
+        foreach (global::Nodalis.Core.Links.LinkTargetEntry document in links.Targets.Where(target =>
+                     target.Kind == LinkTargetKind.Document))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            string fullPath = ResolveWorkspacePath(
+                document.RelativePath);
+
+            if (!File.Exists(fullPath))
+            {
+                continue;
+            }
+
+            LinkTargetEntry? project = contextLookup.FindProject(
+                document.RelativePath);
+            LinkTargetEntry? application = contextLookup.FindApplication(
+                document.RelativePath);
+
+            // The link index already tracks canonical content hashes. Reuse only
+            // if the source AND its project/application context are unchanged.
+            if (document.ContentHash is string fingerprint &&
+                _cachedDocuments.TryGetValue(document.Id, out CachedTaskDocument? cached) &&
+                cached.Fingerprint == fingerprint &&
+                cached.RelativePath == document.RelativePath &&
+                cached.ProjectId == project?.Id &&
+                cached.ProjectName == project?.DisplayName &&
+                cached.ApplicationId == application?.Id &&
+                cached.ApplicationName == application?.DisplayName)
+            {
+                tasks.AddRange(cached.Items);
+                nextCache[document.Id] = cached;
+                reused++;
+                continue;
+            }
+
+            string[] lines = await File.ReadAllLinesAsync(fullPath, cancellationToken);
+            List<TaskItem> documentTasks = [];
+            parsed++;
+            for (int index = 0;
+                 index < lines.Length;
+                 index++)
+            {
+                global::System.Text.RegularExpressions.Match match = CheckboxPattern().Match(
+                    lines[index]);
+
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                if (index + 1 < lines.Length &&
+                    TryParsePromotionMarker(
+                        lines[index + 1],
+                        MeetingActionSourceMarkerPrefix,
+                        out global::System.Guid _))
+                {
+                    continue;
+                }
+
+                string body = match.Groups["body"].Value.Trim();
+                (
+                    string Text,
+                    string? Owner,
+                    global::System.DateOnly? DueDate,
+                    string? Priority,
+                    string? Status,
+                    global::System.Collections.Generic.IReadOnlyList<string> Tags
+                ) metadata = ParseMetadata(
+                    body);
+
+                documentTasks.Add(new TaskItem
+                {
+                    Id = CreateTaskId(
+                        document.Id,
+                        index + 1,
+                        body),
+                    SourceDocumentId = document.Id,
+                    SourceRelativePath = document.RelativePath,
+                    LineNumber = index + 1,
+                    RawLine = lines[index],
+                    Text = metadata.Text,
+                    IsCompleted =
+                        !string.IsNullOrWhiteSpace(
+                            match.Groups["checked"].Value),
+                    Owner = metadata.Owner,
+                    DueDate = metadata.DueDate,
+                    Priority = metadata.Priority,
+                    Status = metadata.Status,
+                    Tags = metadata.Tags,
+                    ApplicationId = application?.Id,
+                    ApplicationName = application?.DisplayName,
+                    ProjectId = project?.Id,
+                    ProjectName = project?.DisplayName
+                });
+            }
+
+            tasks.AddRange(documentTasks);
+            if (document.ContentHash is string newFingerprint)
+            {
+                nextCache[document.Id] = new CachedTaskDocument(
+                    newFingerprint, document.RelativePath,
+                    project?.Id, project?.DisplayName,
+                    application?.Id, application?.DisplayName, documentTasks);
+            }
+        }
+
+        // Publish an all-or-nothing derived snapshot only after a complete
+        // refresh. Deleted documents naturally disappear from the next cache.
+        cancellationToken.ThrowIfCancellationRequested();
+        _cachedDocuments = nextCache;
+        LastReusedDocumentCount = reused;
+        LastParsedDocumentCount = parsed;
+        return new TaskCollection
+        {
+            UpdatedUtc = DateTimeOffset.UtcNow,
+            Tasks = tasks
+                .OrderBy(task => task.IsCompleted)
+                .ThenBy(task => task.DueDate ?? DateOnly.MaxValue)
+                .ThenBy(task => GetPriorityRank(task.Priority))
+                .ThenBy(task => task.Text, StringComparer.CurrentCultureIgnoreCase)
+                .ToList()
+        };
+    }
+
+    /// <summary>
     /// Performs the <c>GetTasksAsync</c> operation.
     /// </summary>
     /// <param name="contextPath">The <c>contextPath</c> value.</param>
     /// <param name="includeCompleted">The <c>includeCompleted</c> value.</param>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="indexSnapshot">Optional previously refreshed workspace snapshot.</param>
     /// <returns>The result of the operation.</returns>
     public async Task<IReadOnlyList<TaskItem>> GetTasksAsync(
             string? contextPath,
             bool includeCompleted = false,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            LinkIndexCatalog? indexSnapshot = null)
     {
         global::Nodalis.Core.Tasks.TaskCollection catalog = await RefreshAsync(
-            cancellationToken);
+            cancellationToken,
+            indexSnapshot);
 
         global::System.Collections.Generic.IEnumerable<global::Nodalis.Core.Tasks.TaskItem> filtered = catalog.Tasks.AsEnumerable();
 
         (global::System.Guid? ApplicationId, global::System.Guid? ProjectId) context = ResolveContext(
             contextPath,
-            await _linkIndex.LoadAsync(cancellationToken));
+            indexSnapshot ?? await _linkIndex.LoadAsync(cancellationToken));
 
         if (context.ProjectId is Guid projectId)
         {

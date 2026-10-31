@@ -2,6 +2,9 @@ namespace Nodalis.Core.Importing;
 
 public sealed record DocxImportPreview
 {
+    /// <summary>Stable identifier shared by the preview, plan and final manifest.</summary>
+    public Guid ImportId { get; init; } = Guid.NewGuid();
+
     public required DocxStagedImport StagedImport { get; init; }
 
     public required DocxImportAnalysis Analysis { get; init; }

@@ -13,6 +13,7 @@ using Microsoft.Win32;
 using Nodalis.App.Commands;
 using Nodalis.App.Dashboard;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Diagnostics;
 using Nodalis.App.Editor;
 using Nodalis.App.Glossary;
 using Nodalis.App.Markdown;
@@ -25,6 +26,7 @@ using Nodalis.Core.Glossary;
 using Nodalis.Core.Importing;
 using Nodalis.Core.Links;
 using Nodalis.Core.Meetings;
+using Nodalis.Core.Markdown;
 using Nodalis.Core.Milestones;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Projects;
@@ -73,7 +75,12 @@ public partial class MainWindow : Window
     private readonly WorkspaceTrashService _trashService;
     private readonly WorkspaceBackupService _backupService;
     private readonly LocalDiagnosticsService _diagnosticsService;
+    private readonly DispatcherHeartbeatMonitor _heartbeatMonitor;
     private readonly DispatcherTimer _previewTimer;
+    private CancellationTokenSource? _previewParseCancellation;
+    private long _previewEditRevision;
+    private readonly MarkdownEditorLineMarkers _primaryMarkdownLineMarkers;
+    private readonly MarkdownEditorLineMarkers _secondaryMarkdownLineMarkers;
     private readonly DispatcherTimer _backupTimer;
     private readonly bool _workspaceReadOnly;
     private readonly string? _workspaceAccessMessage;
@@ -93,6 +100,7 @@ public partial class MainWindow : Window
     private bool _backupInProgress;
     private double _lastContextWidth;
     private LinkIndexCatalog _linkIndex = new();
+    private long _dashboardBusinessRevision;
     private int _linkSuggestionStart;
     private int _linkSuggestionLength;
     private string? _linkSuggestionAlias;
@@ -101,6 +109,9 @@ public partial class MainWindow : Window
     private IReadOnlyList<GlossaryScope> _glossaryScopes = [];
     private IReadOnlyList<GlossaryEntry> _glossaryEntries = [];
     private IReadOnlyList<GlossaryTextMatch> _glossaryMatches = [];
+    private long _glossaryAnnotationRevision;
+    private long _glossaryContextRevision;
+    private CancellationTokenSource? _glossaryMatchCancellation;
     private readonly ToolTip _glossaryToolTip = new ToolTip
     {
         StaysOpen = true,
@@ -137,6 +148,14 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(diagnosticsService);
 
         InitializeComponent();
+        InitializeMarkdownSyntaxOverlays(
+            preferences.Editor.SyntaxHighlightingEnabled);
+        _primaryMarkdownLineMarkers = new MarkdownEditorLineMarkers(
+            MarkdownEditorTextBox,
+            PrimaryMarkdownMarkers);
+        _secondaryMarkdownLineMarkers = new MarkdownEditorLineMarkers(
+            SecondaryMarkdownEditorTextBox,
+            SecondaryMarkdownMarkers);
         InitializeContextMenus();
         InitializeDocumentTabs();
         InitializeDocumentOutline();
@@ -146,6 +165,7 @@ public partial class MainWindow : Window
         _preferencesStore = preferencesStore;
         _templateStore = templateStore;
         _diagnosticsService = diagnosticsService;
+        _heartbeatMonitor = new DispatcherHeartbeatMonitor(Dispatcher);
         _workspaceReadOnly = workspaceReadOnly;
         _workspaceAccessMessage = workspaceAccessMessage;
         _linkIndexService = new WorkspaceLinkIndexService(
@@ -195,6 +215,7 @@ public partial class MainWindow : Window
         };
 
         InitializeEditorSplit();
+        RegisterPowerNotifications();
 
         MarkdownEditorTextBox.FontSize = preferences.Editor.FontSize;
         MarkdownEditorTextBox.IsReadOnly =
@@ -229,10 +250,22 @@ public partial class MainWindow : Window
         ApplyContextPanelState();
         ApplyPreviewState();
 
+        Closed += (_, _) =>
+        {
+            DisposeMarkdownSyntaxOverlays();
+            _primaryMarkdownLineMarkers.Dispose();
+            _secondaryMarkdownLineMarkers.Dispose();
+            _heartbeatMonitor.SetEnabled(false);
+            _autosaveRefreshTimer.Stop();
+            _glossaryMatchCancellation?.Cancel();
+            _previewParseCancellation?.Cancel();
+        };
+
         Loaded += async (_, _) =>
         {
             try
             {
+                _heartbeatMonitor.SetEnabled(true);
                 if (_workspaceReadOnly)
                 {
                     StatusText.Text =
@@ -248,8 +281,14 @@ public partial class MainWindow : Window
                 await RefreshGlossaryContextAsync(
                     _selectedNode?.FullPath ?? _root.FullPath);
                 UpdateGlossaryAnnotations();
-                await RefreshDashboardTasksAsync();
-                await RefreshDashboardMilestonesAsync();
+                // One shared projection for Home, with stale-result protection.
+                // No task/milestone scan is necessary if startup restores an
+                // editor instead of leaving the Home dashboard visible.
+                if (DashboardHost.Visibility == Visibility.Visible)
+                {
+                    await RefreshDashboardBusinessAsync(_linkIndex);
+                }
+
                 await RefreshInboxDashboardCountAsync();
                 await RestoreDocumentTabsAsync();
                 await RestoreEditorSplitAsync();
@@ -336,6 +375,8 @@ public partial class MainWindow : Window
                         Editor = _preferences.Editor with
                         {
                             LivePreview = _previewVisible,
+                            SyntaxHighlightingEnabled =
+                                SyntaxHighlightingToggle.IsChecked == true,
                             WordWrap =
                                 MarkdownEditorTextBox.TextWrapping ==
                                 TextWrapping.Wrap,
@@ -604,6 +645,19 @@ public partial class MainWindow : Window
                     async (_, _) => await ToggleFavoriteAsync(_selectedNode));
                 menu.Items.Add(
                     CreateNodalisSeparator());
+                if (IsArchivedTopLevelProject(_selectedNode))
+                {
+                    AddItem("Réouvrir le projet",
+                        async (_, _) => await RunUiActionAsync(
+                            "Réouvrir le projet", () => RestoreArchivedProjectAsync(_selectedNode)));
+                }
+                else if (!IsUnderArchives(_selectedNode.FullPath))
+                {
+                    AddItem("Clore et archiver",
+                        async (_, _) => await RunUiActionAsync(
+                            "Clore et archiver le projet", () => ArchiveProjectAsync(_selectedNode)));
+                }
+
                 AddItem(
                     "Mettre à la corbeille",
                     async (_, _) => await MoveNodeToTrashAsync(_selectedNode));
@@ -651,7 +705,8 @@ public partial class MainWindow : Window
                 global::Nodalis.App.Dialogs.DiagnosticsDialog dialog =
                     new DiagnosticsDialog(
                         _diagnosticsService,
-                        _root.FullPath)
+                        _root.FullPath,
+                        _heartbeatMonitor)
                     {
                         Owner = this
                     };
@@ -843,6 +898,18 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Opens the existing preferences dialog from the System menu.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The routed event arguments.</param>
+    private async void OpenPreferences_Click(
+            object sender,
+            RoutedEventArgs e) =>
+            await RunUiActionAsync(
+                "Préférences",
+                ShowPreferencesAsync);
+
+    /// <summary>
     /// Opens the backup manager.
     /// </summary>
     /// <param name="sender">The event sender.</param>
@@ -951,6 +1018,8 @@ public partial class MainWindow : Window
     /// <returns>A task representing the scheduling check.</returns>
     private async Task TryRunAutomaticBackupAsync()
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Sauvegarde automatique");
         if (_backupInProgress)
         {
             return;
@@ -1530,8 +1599,19 @@ public partial class MainWindow : Window
             return;
         }
 
+        // WPF may raise SelectedItemChanged later when a tab updates the
+        // bound IsSelected property. The editor is already opening that node:
+        // do not re-enter DisplayNodeAsync or reconfigure its worktree context.
+        if (!NavigationTree.IsKeyboardFocusWithin &&
+            ReferenceEquals(_selectedNode, node))
+        {
+            return;
+        }
+
         _selectedNode = node;
-        ScheduleRevealTreeItem(node);
+        // Selecting a visible tree row (or syncing selection from an editor
+        // tab) must not queue a delayed BringIntoView that scrolls away from
+        // the user's current position. The explicit reveal command owns that.
         ScheduleStickyWorktreeRefresh();
         ScheduleWorktreeP1Refresh();
         await RunUiActionAsync(
@@ -1736,10 +1816,12 @@ public partial class MainWindow : Window
             Task<IReadOnlyList<TaskItem>> tasksTask =
                 _taskService.GetTasksAsync(
                     node.FullPath,
-                    includeCompleted: false);
+                    includeCompleted: false,
+                    indexSnapshot: _linkIndex);
             Task<IReadOnlyList<MilestoneItem>> milestonesTask =
                 _milestoneService.GetMilestonesAsync(
-                    node.FullPath);
+                    node.FullPath,
+                    indexSnapshot: _linkIndex);
             Task<IReadOnlyList<DecisionRecord>> decisionsTask =
                 _decisionService.GetDecisionsAsync(
                     node.FullPath);
@@ -2538,6 +2620,9 @@ public partial class MainWindow : Window
                 }
 
                 _documentDirty = true;
+                // Any pending background glossary match now belongs to an old text.
+                _glossaryAnnotationRevision++;
+                _glossaryMatchCancellation?.Cancel();
 
                 if (_activeDocumentTab is not null)
                 {
@@ -2554,6 +2639,9 @@ public partial class MainWindow : Window
                 _autosave.Schedule(
                     MarkdownEditorTextBox.Text);
 
+                // Prevent an older off-thread Markdown parse from publishing.
+                _previewEditRevision++;
+                _previewParseCancellation?.Cancel();
                 _previewTimer.Stop();
                 _previewTimer.Start();
 
@@ -2571,7 +2659,7 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="sender">The <c>sender</c> value.</param>
     /// <param name="e">The <c>e</c> value.</param>
-    private void PreviewTimer_Tick(
+    private async void PreviewTimer_Tick(
             object? sender,
             EventArgs e)
     {
@@ -2579,15 +2667,55 @@ public partial class MainWindow : Window
 
         try
         {
-            RenderPreview();
-            UpdateGlossaryAnnotations();
+            if (_previewVisible && _activeDocumentTab is DocumentTabViewModel sourceTab)
+            {
+                string snapshot = MarkdownEditorTextBox.Text;
+                long revision = _previewEditRevision;
+                using CancellationTokenSource cancellation = new CancellationTokenSource();
+                _previewParseCancellation?.Cancel();
+                _previewParseCancellation = cancellation;
+                try
+                {
+                    IReadOnlyList<MarkdownBlock> blocks = await Task.Run(
+                        () => MarkdownDocumentParser.Parse(snapshot, cancellation.Token),
+                        cancellation.Token);
+
+                    // No stale preview after another keystroke or tab switch.
+                    if (cancellation.IsCancellationRequested ||
+                        revision != _previewEditRevision ||
+                        !ReferenceEquals(_activeDocumentTab, sourceTab) ||
+                        !_previewVisible ||
+                        !string.Equals(snapshot, MarkdownEditorTextBox.Text, StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    RenderPreview(blocks);
+                }
+                finally
+                {
+                    if (ReferenceEquals(_previewParseCancellation, cancellation))
+                    {
+                        _previewParseCancellation = null;
+                    }
+                }
+            }
+            else
+            {
+                RenderPreview();
+            }
+
+            await UpdateGlossaryAnnotationsAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded work has no UI side effects.
         }
         catch (Exception exception) when (
             RecoverableExceptionPolicy.CanContinueAtActionBoundary(
                 exception))
         {
-            InternalLinkPopup.IsOpen =
-                false;
+            InternalLinkPopup.IsOpen = false;
             ReportRecoverableUiError(
                 "Aperçu Markdown / Mermaid",
                 exception,
@@ -2598,17 +2726,25 @@ public partial class MainWindow : Window
     /// <summary>
     /// Performs the <c>RenderPreview</c> operation.
     /// </summary>
-    private void RenderPreview()
+    /// <param name="parsedBlocks">Optional off-thread parse of the active editor revision.</param>
+    private void RenderPreview(IReadOnlyList<MarkdownBlock>? parsedBlocks = null)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Rendu Markdown");
         if (_previewVisible &&
             _activeDocumentTab is not null)
         {
             string? baseDirectory = Path.GetDirectoryName(
                 _activeDocumentTab.FullPath);
 
-            MarkdownPreview.Document =
-                MarkdownFlowDocumentRenderer.Render(
+            MarkdownPreview.Document = parsedBlocks is null
+                ? MarkdownFlowDocumentRenderer.Render(
                     MarkdownEditorTextBox.Text,
+                    baseDirectory,
+                    OnInternalLinkClicked,
+                    OnMarkdownLinkClicked)
+                : MarkdownFlowDocumentRenderer.RenderBlocks(
+                    parsedBlocks,
                     baseDirectory,
                     OnInternalLinkClicked,
                     OnMarkdownLinkClicked);
@@ -2628,12 +2764,10 @@ public partial class MainWindow : Window
             object? sender,
             EventArgs e)
     {
-        Dispatcher.BeginInvoke(async () =>
-            await RunUiActionAsync(
-                "Autosave · finalisation",
-                () =>
-                    HandleDocumentTabAutosaveSavedAsync(
-                        sender)));
+        // Persisting the data has already succeeded. Coalesce UI/index work
+        // instead of scheduling a full workspace scan for every open tab.
+        Dispatcher.BeginInvoke(() =>
+            QueueDocumentAutosaveRefresh(sender));
     }
 
     /// <summary>
@@ -3222,11 +3356,111 @@ public partial class MainWindow : Window
         _glossaryAdorner?.SetMatches([]);
 
         RefreshDashboard();
-        _ = RefreshDashboardTasksAsync();
-        _ = RefreshDashboardMilestonesAsync();
+        // Fetch one fresh catalog for both business panels rather than letting
+        // each service perform a separate full workspace index traversal.
+        _ = RefreshDashboardBusinessAsync();
 
         StatusText.Text =
             "Accueil · favoris et éléments récents locaux";
+    }
+
+    /// <summary>
+    /// Refreshes the visible dashboard task and milestone panels from one
+    /// current link-index snapshot. Superseded requests cannot publish stale UI.
+    /// </summary>
+    /// <param name="indexSnapshot">An optional snapshot already refreshed by the caller.</param>
+    /// <returns>A task representing both independent business projections.</returns>
+    private async Task RefreshDashboardBusinessAsync(
+            LinkIndexCatalog? indexSnapshot = null)
+    {
+        long revision = ++_dashboardBusinessRevision;
+
+        try
+        {
+            LinkIndexCatalog links =
+                indexSnapshot ?? await _linkIndexService.RefreshAsync();
+
+            if (revision != _dashboardBusinessRevision ||
+                DashboardHost.Visibility != Visibility.Visible)
+            {
+                return;
+            }
+
+            // Both operations reuse the same catalog. Their Markdown parsing
+            // already runs off the Dispatcher within their respective services.
+            Task<IReadOnlyList<TaskItem>> taskRequest =
+                _taskService.GetTasksAsync(
+                    _root.FullPath,
+                    includeCompleted: false,
+                    indexSnapshot: links);
+            Task<IReadOnlyList<MilestoneItem>> milestoneRequest =
+                _milestoneService.GetUpcomingAsync(
+                    DateOnly.FromDateTime(DateTime.Today),
+                    forwardDays: 60,
+                    indexSnapshot: links);
+
+            try
+            {
+                IReadOnlyList<TaskItem> tasks = await taskRequest;
+                if (revision == _dashboardBusinessRevision &&
+                    DashboardHost.Visibility == Visibility.Visible)
+                {
+                    OpenTasksList.ItemsSource = tasks
+                        .OrderBy(task => task.DueDate ?? DateOnly.MaxValue)
+                        .ThenBy(task => task.Text,
+                            StringComparer.CurrentCultureIgnoreCase)
+                        .Take(12)
+                        .ToArray();
+                }
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                if (revision == _dashboardBusinessRevision &&
+                    DashboardHost.Visibility == Visibility.Visible)
+                {
+                    OpenTasksList.ItemsSource = null;
+                    StatusText.Text = $"Tâches indisponibles : {exception.Message}";
+                }
+            }
+
+            try
+            {
+                IReadOnlyList<MilestoneItem> milestones = await milestoneRequest;
+                if (revision == _dashboardBusinessRevision &&
+                    DashboardHost.Visibility == Visibility.Visible)
+                {
+                    UpcomingMilestonesList.ItemsSource = milestones
+                        .Take(12)
+                        .ToArray();
+                }
+            }
+            catch (Exception exception) when (
+                exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException)
+            {
+                if (revision == _dashboardBusinessRevision &&
+                    DashboardHost.Visibility == Visibility.Visible)
+                {
+                    UpcomingMilestonesList.ItemsSource = null;
+                    StatusText.Text = $"Jalons indisponibles : {exception.Message}";
+                }
+            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            InvalidDataException)
+        {
+            if (revision == _dashboardBusinessRevision &&
+                DashboardHost.Visibility == Visibility.Visible)
+            {
+                StatusText.Text = $"Index du dashboard indisponible : {exception.Message}";
+            }
+        }
     }
 
     /// <summary>
@@ -3697,23 +3931,35 @@ public partial class MainWindow : Window
     /// <returns>The result of the operation.</returns>
     private async Task RefreshLinkIndexAsync()
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Index liens");
         _linkIndex = await _linkIndexService.RefreshAsync();
-        RefreshDashboard();
+
+        // The document editor hides this dashboard. Rebuilding its recent
+        // lists and saved-view projections on every autosave is wasted WPF work.
+        // ShowDashboard() refreshes them when the user returns.
+        if (DashboardHost.Visibility == Visibility.Visible)
+        {
+            RefreshDashboard();
+        }
     }
 
     /// <summary>
     /// Performs the <c>RefreshLinkIndexAndContextAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    private async Task RefreshLinkIndexAndContextAsync()
+    private async Task RefreshLinkIndexAndContextAsync(
+            bool renderPreview = true)
     {
         await RefreshLinkIndexAsync();
 
         if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
         {
-            UpdateLinkContext(
-                _selectedNode.FullPath);
-            RenderPreview();
+            UpdateLinkContext(_selectedNode.FullPath);
+            if (renderPreview)
+            {
+                RenderPreview();
+            }
         }
     }
 
@@ -3750,13 +3996,20 @@ public partial class MainWindow : Window
         RefreshRelationsContext(
             target);
 
+        Dictionary<Guid, LinkTargetEntry> sourcesById = [];
+        foreach (LinkTargetEntry candidate in _linkIndex.Targets)
+        {
+            // A copied/corrupt manifest must not crash the UI because two targets
+            // expose the same GUID; preserve the previous first-match behavior.
+            sourcesById.TryAdd(candidate.Id, candidate);
+        }
         global::Nodalis.Core.Links.BacklinkEntry[] backlinks = _linkIndex.References
             .Where(reference =>
                 reference.TargetId == target.Id)
             .Select(reference =>
             {
-                global::Nodalis.Core.Links.LinkTargetEntry? source = _linkIndex.Targets.FirstOrDefault(candidate =>
-                    candidate.Id == reference.SourceId);
+                LinkTargetEntry? source = sourcesById.GetValueOrDefault(
+                    reference.SourceId);
 
                 return source is null
                     ? null
@@ -4641,6 +4894,22 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.archive",
+                Title = "Clore et archiver le projet",
+                Subtitle = "Déplacer le projet courant vers Archives sans le supprimer",
+                Keywords = ["clore", "projet", "archiver", "archives", "terminé"],
+                ExecuteAsync = ArchiveProjectAsync
+            },
+            new()
+            {
+                Id = "project.restore",
+                Title = "Réouvrir un projet archivé",
+                Subtitle = "Restaurer le projet sélectionné à son emplacement d'origine",
+                Keywords = ["projet", "réouvrir", "restaurer", "archive"],
+                ExecuteAsync = RestoreArchivedProjectAsync
+            },
+            new()
+            {
                 Id = "project.new",
                 Title = "Nouveau projet",
                 Subtitle = "Créer un projet ou sous-projet depuis un profil",
@@ -4793,6 +5062,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "docx.recovery",
+                Title = "Récupérer un import DOCX interrompu",
+                Subtitle = "Vérifier les journaux et restaurer les fichiers après un arrêt brutal",
+                Keywords = ["docx", "word", "import", "récupération", "rollback", "crash"],
+                ExecuteAsync = RecoverFirstDocxImportsAsync
+            },
+            new()
+            {
                 Id = "markdown.import",
                 Title = "Importer du Markdown en masse",
                 Subtitle = "Analyser un dossier ou plusieurs fichiers avant toute écriture",
@@ -4814,6 +5091,14 @@ public partial class MainWindow : Window
                 Subtitle = "Créer une tâche Markdown dans le projet courant",
                 Keywords = ["nouvelle", "tâche", "task", "action", "créer", "projet"],
                 ExecuteAsync = CreateTaskFromPaletteAsync
+            },
+            new()
+            {
+                Id = "maintenance.incident.new",
+                Title = "Nouvel incident",
+                Subtitle = "Déclarer un incident dans la fiche de maintenance du projet courant",
+                Keywords = ["maintenance", "incident", "nouveau", "déclarer", "panne"],
+                ExecuteAsync = CreateMaintenanceIncidentAsync
             },
             new()
             {
@@ -5001,20 +5286,80 @@ public partial class MainWindow : Window
     private async Task RefreshGlossaryContextAsync(
             string? contextPath)
     {
-        _glossaryScopes = await _glossaryService.ResolveScopesAsync(
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Lecture glossaire");
+        long revision = ++_glossaryContextRevision;
+        IReadOnlyList<GlossaryScope> scopes = await _glossaryService.ResolveScopesAsync(
             _root.FullPath,
             contextPath);
 
-        global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryEntry> entries = new List<GlossaryEntry>();
-
-        foreach (global::Nodalis.Core.Glossary.GlossaryScope scope in _glossaryScopes)
+        List<GlossaryEntry> entries = [];
+        foreach (GlossaryScope scope in scopes)
         {
-            entries.AddRange(
-                await _glossaryService.LoadEntriesAsync(
-                    scope));
+            entries.AddRange(await _glossaryService.LoadEntriesAsync(scope));
         }
 
+        // Another tab or scope may have requested a newer context while the
+        // disk reads were in progress; never publish an obsolete glossary.
+        if (revision != _glossaryContextRevision)
+        {
+            return;
+        }
+
+        _glossaryScopes = scopes;
         _glossaryEntries = entries;
+    }
+
+    /// <summary>
+    /// Matches glossary terms outside the Dispatcher and publishes only if
+    /// the tab, source revision and glossary catalog are still current.
+    /// </summary>
+    private async Task UpdateGlossaryAnnotationsAsync()
+    {
+        if (_documentSession is null || _glossaryAdorner is null ||
+            _activeDocumentTab is null)
+        {
+            _glossaryMatches = [];
+            _glossaryAdorner?.SetMatches([]);
+            return;
+        }
+
+        long revision = _glossaryAnnotationRevision;
+        DocumentTabViewModel tab = _activeDocumentTab;
+        string text = MarkdownEditorTextBox.Text;
+        IReadOnlyList<GlossaryEntry> entries = _glossaryEntries;
+        _glossaryMatchCancellation?.Cancel();
+        using CancellationTokenSource cancellation = new();
+        _glossaryMatchCancellation = cancellation;
+        IReadOnlyList<GlossaryTextMatch> matches;
+        try
+        {
+            matches = await Task.Run(
+                () => GlossaryTextMatcher.Match(text, entries, cancellation.Token),
+                cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        finally
+        {
+            if (ReferenceEquals(_glossaryMatchCancellation, cancellation))
+            {
+                _glossaryMatchCancellation = null;
+            }
+        }
+
+        if (revision != _glossaryAnnotationRevision ||
+            !ReferenceEquals(tab, _activeDocumentTab) ||
+            !ReferenceEquals(entries, _glossaryEntries) ||
+            _glossaryAdorner is null)
+        {
+            return;
+        }
+
+        _glossaryMatches = matches;
+        _glossaryAdorner.SetMatches(matches);
     }
 
     /// <summary>
@@ -5022,6 +5367,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void UpdateGlossaryAnnotations()
     {
+        _glossaryAnnotationRevision++;
+        _glossaryMatchCancellation?.Cancel();
         if (_documentSession is null ||
             _glossaryAdorner is null)
         {
@@ -5608,13 +5955,16 @@ public partial class MainWindow : Window
     /// Performs the <c>RefreshDashboardTasksAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    private async Task RefreshDashboardTasksAsync()
+    private async Task RefreshDashboardTasksAsync(LinkIndexCatalog? indexSnapshot = null)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Dashboard tâches");
         try
         {
             global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Tasks.TaskItem> tasks = await _taskService.GetTasksAsync(
                 _root.FullPath,
-                includeCompleted: false);
+                includeCompleted: false,
+                indexSnapshot: indexSnapshot);
 
             OpenTasksList.ItemsSource = tasks
                 .OrderBy(task =>
@@ -5644,13 +5994,16 @@ public partial class MainWindow : Window
     /// Performs the <c>RefreshDashboardMilestonesAsync</c> operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    private async Task RefreshDashboardMilestonesAsync()
+    private async Task RefreshDashboardMilestonesAsync(LinkIndexCatalog? indexSnapshot = null)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Dashboard jalons");
         try
         {
             global::System.Collections.Generic.IReadOnlyList<global::Nodalis.Core.Milestones.MilestoneItem> milestones = await _milestoneService.GetUpcomingAsync(
                 DateOnly.FromDateTime(DateTime.Today),
-                forwardDays: 60);
+                forwardDays: 60,
+                indexSnapshot: indexSnapshot);
 
             UpcomingMilestonesList.ItemsSource = milestones
                 .Take(12)
@@ -6446,6 +6799,73 @@ public partial class MainWindow : Window
             $"Tâche · {task.Text} · ligne {task.LineNumber}";
     }
 
+    /// <summary>Lets the user recover interrupted initial DOCX imports independently of a new source.</summary>
+    /// <returns>Recovery command task.</returns>
+    private async Task RecoverFirstDocxImportsAsync()
+    {
+        await TryRecoverFirstDocxImportsAsync(informIfEmpty: true);
+    }
+
+    /// <summary>
+    /// Checks and explicitly reconciles durable first-import journals, only
+    /// after tabs in affected projects have been closed and the user consents.
+    /// </summary>
+    /// <param name="informIfEmpty">Show an information message if nothing is pending.</param>
+    /// <returns>True if a new import may safely continue.</returns>
+    private async Task<bool> TryRecoverFirstDocxImportsAsync(bool informIfEmpty = false)
+    {
+        DocxFirstImportRecoveryService recovery =
+            new DocxFirstImportRecoveryService(_docxImportService.WorkspaceRoot);
+        IReadOnlyList<string> pendingProjects =
+            await recovery.ListPendingProjectsAsync();
+        if (pendingProjects.Count == 0)
+        {
+            if (informIfEmpty)
+            {
+                MessageBox.Show(this, "Aucun premier import DOCX interrompu.",
+                    "Récupération import DOCX", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+
+            return true;
+        }
+
+        if (_documentTabs.Any(tab => pendingProjects.Any(project =>
+                IsProjectPathAncestorOrEqual(project, tab.FullPath))))
+        {
+            MessageBox.Show(this,
+                "Un import Word précédent a été interrompu. Fermez d'abord " +
+                "tous les documents ouverts dans les projets concernés et " +
+                "enregistrez vos modifications avant leur récupération.",
+                "Récupération import DOCX", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return false;
+        }
+
+        if (MessageBox.Show(this,
+            $"{pendingProjects.Count} import(s) DOCX précédent(s) ont été interrompus.\n\n" +
+            "Les imports complets seront conservés ; les sorties partielles " +
+            "seront restaurées uniquement si leurs empreintes correspondent. " +
+            "Les changements externes ne seront pas écrasés.\n\n" +
+            "Lancer la récupération ?",
+            "Récupération import DOCX", MessageBoxButton.YesNo,
+            MessageBoxImage.Question) != MessageBoxResult.Yes)
+        {
+            return false;
+        }
+
+        int recovered = await recovery.RecoverPendingAsync();
+        await RefreshNavigationAsync(pendingProjects[0]);
+        await RefreshLinkIndexAndContextAsync();
+        MessageBox.Show(this,
+            $"{recovered} transaction(s) DOCX vérifiée(s). " +
+            "Les squelettes de projets nouvellement créés restent présents " +
+            "si leur import avait été interrompu.",
+            "Récupération import DOCX", MessageBoxButton.OK,
+            MessageBoxImage.Information);
+        return true;
+    }
+
     /// <summary>
     /// Performs the <c>ImportDocxAsync</c> operation.
     /// </summary>
@@ -6469,6 +6889,11 @@ public partial class MainWindow : Window
 
         try
         {
+            if (!await TryRecoverFirstDocxImportsAsync())
+            {
+                return;
+            }
+
             StatusText.Text =
                 "Import DOCX · analyse du document…";
 
@@ -6479,7 +6904,8 @@ public partial class MainWindow : Window
                 preview,
                 request => _docxImportService.BuildPlanAsync(
                     preview,
-                    request))
+                    request),
+                _docxImportService.WorkspaceRoot)
             {
                 Owner = this
             };
@@ -6507,11 +6933,18 @@ public partial class MainWindow : Window
 
             try
             {
+                // RefreshNavigationAsync already rebuilt the link index. Reuse
+                // that exact snapshot for both business projections instead
+                // of scanning the imported workspace three more times.
                 await RefreshNavigationAsync(
                     result.ProjectDirectory);
-                await RefreshLinkIndexAndContextAsync();
-                await RefreshDashboardTasksAsync();
-                await RefreshDashboardMilestonesAsync();
+                if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
+                {
+                    UpdateLinkContext(_selectedNode.FullPath);
+                }
+
+                await RefreshDashboardTasksAsync(_linkIndex);
+                await RefreshDashboardMilestonesAsync(_linkIndex);
             }
             catch (Exception refreshException) when (
                 refreshException is IOException or
@@ -6676,11 +7109,17 @@ public partial class MainWindow : Window
 
             try
             {
+                // The navigation refresh has already produced a current
+                // catalog. Share it with task and milestone projections.
                 await RefreshNavigationAsync(
                     result.ProjectDirectory);
-                await RefreshLinkIndexAndContextAsync();
-                await RefreshDashboardTasksAsync();
-                await RefreshDashboardMilestonesAsync();
+                if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
+                {
+                    UpdateLinkContext(_selectedNode.FullPath);
+                }
+
+                await RefreshDashboardTasksAsync(_linkIndex);
+                await RefreshDashboardMilestonesAsync(_linkIndex);
             }
             catch (Exception refreshException) when (
                 refreshException is IOException or
@@ -8202,12 +8641,18 @@ public partial class MainWindow : Window
     private async Task RefreshNavigationAsync(
             string? openPath = null)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Navigation arborescence");
         // Preserve the selected document/project when refreshing unrelated branches.
         string? targetPath = openPath ?? _selectedNode?.FullPath;
         global::System.Collections.Generic.HashSet<global::System.Guid> expandedIds = GetExpandedNodeIds();
 
-        global::Nodalis.Core.Navigation.WorkspaceNavigationNode root = await _navigationBuilder.BuildAsync(
-            _root.FullPath);
+        // Filesystem enumeration, manifest reads and navigation sorting can
+        // dominate the Dispatcher for large workspaces. Build a pure snapshot
+        // off UI, then create/bind WPF view models only after the await.
+        string workspacePath = _root.FullPath;
+        global::Nodalis.Core.Navigation.WorkspaceNavigationNode root = await Task.Run(
+            () => _navigationBuilder.BuildAsync(workspacePath));
 
         _root = CreateRootViewModel(
             root,

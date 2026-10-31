@@ -5,6 +5,10 @@ en place pendant un import.
 
 ## Import DOCX
 
+**Version 1.9.0 :** l'assistant propose un arbre de titres Word modifiable, l'affectation manuelle des branches vers des sections/documents et l'exclusion de blocs. Le plan complet, les médias, la provenance et les changements du réimport sont inspectables avant confirmation. Le DOCX original reste inchangé. Voir les [notes de version](release-notes-1.9.md) et [l'aide au mapping](docx-1.9-mapping.md).
+
+
+
 L'import DOCX suit une séquence de prévisualisation avant toute écriture métier :
 
 1. le fichier source est copié dans la zone locale Imports/Sources ;
@@ -18,6 +22,47 @@ La sélection fine permet de ne retenir qu'une partie des sections ou blocs du
 document.
 
 Le fichier DOCX original reste inchangé, y compris en cas d'échec.
+
+Depuis la v1.9 stable, chaque import avancé validé
+conserve aussi un manifeste de provenance local (`.nodalis-imports/*.json`)
+dans le projet : origine SHA-256, sélection, destinations et snapshots.
+Voir [DOCX v1.9 — Traçabilité des imports](docx-1.9-provenance.md).
+Le réimport différentiel et l'arbitrage des conflits sont prévus séparément (#164).
+
+### Protection des documents Word en v1.9 (#165)
+
+Avant toute interprétation, l'import DOCX valide l'archive ZIP : chemins
+relatifs, unicité des entrées, absence de liens symboliques, limites sur
+le nombre de fichiers, les tailles décompressées et les compressions
+anormalement élevées. Les parties XML sont lues sans DTD, résolution
+d'entités externes ni téléchargement distant.
+
+**Limites de sécurité par document** : 4 096 entrées ZIP, 256 Mio de
+contenu décompressé au total, 32 Mio par partie XML, 16 Mio par média,
+64 Mio par autre entrée ; taux de compression supérieur à 1 000 pour
+une entrée de plus de 1 Mio refusé. Ces limites protègent le poste de
+travail : un DOCX volontairement très volumineux peut être refusé sans
+que son contenu soit endommagé. Les médias sont revérifiés au moment
+de la copie et aucune pièce jointe n'est créée pour un paquet invalide.
+
+Le SHA-256 de la copie temporaire est enregistré **au moment de l'analyse** ;
+un plan ou commit ultérieur est refusé si les octets de cette copie ont changé.
+La copie est limitée à 128 Mio, y compris si le fichier source grandit pendant
+la copie. Les nouveaux Markdown sont créés atomiquement en mode **création
+exclusive** : un fichier apparu entre prévisualisation et import ne peut
+jamais être écrasé.
+
+Lors d'une erreur d'import dans un projet existant, les octets du manifeste
+projet sont restaurés **uniquement si le fichier contient encore la version
+écrite par cet import**. Une modification externe concurrente est conservée,
+pas écrasée par le rollback. La restauration du manifeste est validée par
+un test d'interruption et un test d'édition concurrente.
+Des tests supplémentaires couvrent les projets créés avec une section DOCX
+personnalisée, l'échec après création de Markdown et le respect d'un fichier
+généré que quelqu'un a modifié avant la restauration.
+
+Cette protection ne remplace pas les garanties transactionnelles et
+la récupération sur interruption qui restent à qualifier dans #165.
 
 ## Import Markdown en masse
 

@@ -160,6 +160,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
@@ -182,8 +183,15 @@
                                     Content="Tout désélectionner" />
                         </StackPanel>
 
-                        <ListBox x:Name="SectionsListBox"
+                        <TextBox x:Name="SectionSearchTextBox"
                                  Grid.Row="2"
+                                 MinHeight="30"
+                                 Margin="0,0,0,8"
+                                 Padding="8,4"
+                                 ToolTip="Rechercher un titre de section Word"
+                                 TextChanged="SectionSearchText_Changed" />
+                        <ListBox x:Name="SectionsListBox"
+                                 Grid.Row="3"
                                  SelectionMode="Single">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
@@ -238,6 +246,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="3*" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="2*" />
                         </Grid.RowDefinitions>
 
@@ -246,6 +255,7 @@
                                    FontWeight="SemiBold" />
 
                         <TreeView x:Name="ContentTreeView"
+                                  SelectedItemChanged="ContentTreeView_SelectedItemChanged"
                                   Grid.Row="1"
                                   Margin="0,0,0,12"
                                   ItemsSource="{Binding SelectedItem.SelectionRoot.Children, ElementName=SectionsListBox}">
@@ -272,12 +282,37 @@
                             </TreeView.Resources>
                         </TreeView>
 
-                        <TextBlock Grid.Row="2"
+                        <StackPanel Grid.Row="2" Margin="0,0,0,8">
+                            <WrapPanel>
+                                <TextBlock Text="Corriger le bloc :" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox x:Name="HeadingLevelComboBox"
+                                          MinWidth="140"
+                                          Height="30"
+                                          DisplayMemberPath="Label"
+                                          ToolTip="Paragraphe ou niveau de titre 1 à 9" />
+                                <Button Margin="8,0,0,0"
+                                        Padding="10,4"
+                                        Content="Appliquer"
+                                        Click="ApplyHeading_Click" />
+                                <Button x:Name="UndoHeadingButton"
+                                        Margin="8,0,0,0"
+                                        Padding="10,4"
+                                        Content="Annuler la correction"
+                                        Click="UndoHeading_Click" />
+                            </WrapPanel>
+                            <TextBlock x:Name="HeadingSuggestionText"
+                                       Margin="0,4,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="3"
                                    Margin="0,0,0,8"
                                    Text="Aperçu Markdown de la sélection"
                                    FontWeight="SemiBold" />
 
-                        <TextBox Grid.Row="3"
+                        <TextBox Grid.Row="4"
                                  Padding="10"
                                  IsReadOnly="True"
                                  AcceptsReturn="True"
@@ -286,6 +321,544 @@
                                  HorizontalScrollBarVisibility="Auto"
                                  FontFamily="Consolas"
                                  Text="{Binding SelectedItem.MarkdownPreview, ElementName=SectionsListBox, Mode=OneWay}" />
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Affectation">
+                <Grid Margin="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Margin="0,0,0,12"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               TextWrapping="Wrap"
+                               Text="Sélectionnez une branche Word à gauche et sa section Nodalis à droite. Glissez-déposez ou utilisez « Affecter ». Le projet cible se choisit dans l'onglet Cible ; aucune écriture avant validation." />
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Margin="0,0,0,8" FontWeight="SemiBold" Text="Sections Word (ordre de fusion)" />
+                            <ListBox x:Name="MappingSourceList"
+                                     Grid.Row="1"
+                                     PreviewMouseLeftButtonDown="MappingSource_MouseDown"
+                                     PreviewMouseMove="MappingSource_MouseMove"
+                                     MinHeight="180">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="10,8" Margin="2,3"
+                                                Background="{StaticResource PanelBackgroundBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding SourceHeading}" FontWeight="SemiBold"
+                                                           TextWrapping="Wrap" />
+                                                <TextBlock Foreground="{StaticResource SecondaryTextBrush}"
+                                                           FontSize="11" Text="{Binding TargetSection}"
+                                                           TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Margin="0,0,0,8" FontWeight="SemiBold" Text="Projet et sections de destination" />
+                            <TreeView x:Name="MappingDestinationTree" Grid.Row="1"
+                                      MinHeight="180"
+                                      AllowDrop="True"
+                                      DragOver="MappingDestination_DragOver"
+                                      Drop="MappingDestination_Drop">
+                                <TreeView.Resources>
+                                    <HierarchicalDataTemplate DataType="{x:Type dialogs:DocxImportDestinationNode}"
+                                                              ItemsSource="{Binding Children}">
+                                        <TextBlock Text="{Binding Label}" Padding="4"
+                                                   TextWrapping="Wrap" />
+                                    </HierarchicalDataTemplate>
+                                </TreeView.Resources>
+                            </TreeView>
+                        </Grid>
+                    </Grid>
+                    <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                        <WrapPanel>
+                            <Button Padding="10,5" Margin="0,0,8,8" Click="MappingAssign_Click"
+                                    Content="Affecter à la section sélectionnée" />
+                            <Button Padding="10,5" Margin="0,0,8,8" Click="MappingIgnore_Click"
+                                    Content="Ignorer la branche" />
+                            <Button Padding="10,5" Margin="0,0,8,8" Click="MappingUp_Click"
+                                    Content="Monter" />
+                            <Button Padding="10,5" Margin="0,0,8,8" Click="MappingDown_Click"
+                                    Content="Descendre" />
+                        </WrapPanel>
+                        <WrapPanel>
+                            <TextBox x:Name="MappingNewSectionBox" Width="220"
+                                     MinHeight="30" Padding="7,4" Margin="0,0,8,0"
+                                     ToolTip="Nom d'une nouvelle section du projet cible" />
+                            <Button Padding="10,5" Click="MappingAssignNew_Click"
+                                    Content="Affecter à une nouvelle section" />
+                        </WrapPanel>
+                        <TextBlock x:Name="MappingFeedbackText" Margin="0,6,0,0"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Profils DOCX">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+                        <TextBlock Text="Règles réutilisables (sans IA)"
+                                   FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Margin="0,5,0,12"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="Les profils restent locaux au workspace. Prévisualisez les règles avant de les appliquer ; les conflits exigent une correction explicite. Rien n'est importé avant le plan final." />
+                        <WrapPanel Margin="0,0,0,8">
+                            <ComboBox x:Name="MappingProfileComboBox" Width="220" MinHeight="30"
+                                      Margin="0,0,8,0" DisplayMemberPath="Name"
+                                      SelectionChanged="MappingProfile_Changed" />
+                            <TextBox x:Name="ProfileNameBox" Width="210" MinHeight="30"
+                                     Margin="0,0,8,0" Padding="6,3"
+                                     ToolTip="Nom du profil à créer ou à renommer" />
+                            <Button Padding="8,4" Margin="0,0,5,0" Content="Créer"
+                                    Click="MappingProfileCreate_Click" />
+                            <Button Padding="8,4" Margin="0,0,5,0" Content="Dupliquer"
+                                    Click="MappingProfileDuplicate_Click" />
+                            <Button Padding="8,4" Content="Enregistrer"
+                                    Click="MappingProfileSave_Click" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,0,0,10">
+                            <Button Padding="8,4" Margin="0,0,8,0" Content="Importer JSON"
+                                    Click="MappingProfileImport_Click" />
+                            <Button Padding="8,4" Margin="0,0,8,0" Content="Exporter JSON"
+                                    Click="MappingProfileExport_Click" />
+                            <CheckBox x:Name="MappingProfileEnabledCheckBox"
+                                      VerticalAlignment="Center"
+                                      Content="Profil activé (uniquement sur demande)" />
+                        </WrapPanel>
+                        <TextBlock Text="Règles ordonnées — sélectionnez une règle pour l'éditer"
+                                   FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <ListBox x:Name="ProfileRulesList"
+                                 Height="130"
+                                 DisplayMemberPath="Label"
+                                 SelectionChanged="MappingProfileRule_Changed" />
+                        <WrapPanel Margin="0,9,0,7">
+                            <TextBox x:Name="ProfileRuleHeadingBox" Width="175" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Titre Word exact, accents ignorés"
+                                     AutomationProperties.Name="Titre source" />
+                            <TextBox x:Name="ProfileRuleStyleBox" Width="150" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Identifiant de style Word (optionnel)"
+                                     AutomationProperties.Name="Style Word" />
+                            <TextBox x:Name="ProfileRuleLevelBox" Width="72" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Niveau de titre Word 1 à 9, vide = tout"
+                                     AutomationProperties.Name="Niveau Word" />
+                            <TextBox x:Name="ProfileRuleParentBox" Width="155" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Chemin parent contenant ce texte"
+                                     AutomationProperties.Name="Chemin parent" />
+                            <TextBox x:Name="ProfileRulePatternBox" Width="205" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Expression régulière sur le titre (limitée en durée)"
+                                     AutomationProperties.Name="Motif sur le titre" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,0,0,7">
+                            <ComboBox x:Name="ProfileRuleActionCombo" Width="150" MinHeight="30"
+                                      Margin="0,0,6,5" />
+                            <TextBox x:Name="ProfileRuleDestinationBox" Width="210" MinHeight="30"
+                                     Margin="0,0,6,5" Padding="6,3"
+                                     ToolTip="Section Nodalis cible (vide pour Ignorer)"
+                                     AutomationProperties.Name="Section cible" />
+                            <CheckBox x:Name="ProfileRuleEnabledCheckBox"
+                                      Margin="8,3,6,3" IsChecked="True"
+                                      Content="Règle active" />
+                            <Button Padding="8,4" Margin="0,0,6,5"
+                                    Content="Ajouter une règle"
+                                    Click="MappingProfileRuleAdd_Click" />
+                            <Button Padding="8,4" Margin="0,0,6,5"
+                                    Content="Modifier"
+                                    Click="MappingProfileRuleUpdate_Click" />
+                            <Button Padding="8,4" Margin="0,0,6,5"
+                                    Content="Activer/Désactiver"
+                                    Click="MappingProfileRuleToggle_Click" />
+                            <Button Padding="8,4" Margin="0,0,6,5"
+                                    Content="Supprimer"
+                                    Click="MappingProfileRuleRemove_Click" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,0,0,8">
+                            <Button Padding="9,5" Margin="0,0,6,5"
+                                    Content="Prévisualiser les règles"
+                                    Click="MappingProfilePreview_Click" />
+                            <Button Padding="9,5" Margin="0,0,6,5"
+                                    Content="Appliquer les propositions"
+                                    Click="MappingProfileApply_Click" />
+                            <Button Padding="9,5" Margin="0,0,6,5"
+                                    Content="Mémoriser mes affectations"
+                                    Click="MappingProfileRemember_Click" />
+                            <Button Padding="9,5" Margin="0,0,6,5"
+                                    Content="Ne pas utiliser le profil"
+                                    Click="MappingProfileClear_Click" />
+                        </WrapPanel>
+                        <TextBox x:Name="MappingProfileReportBox" Height="125"
+                                 IsReadOnly="True" Padding="9"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 Text="Aucun profil appliqué." />
+                        <TextBlock x:Name="MappingProfileStatusText"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap" Margin="0,6,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Comparateur">
+                <Grid Margin="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Original Word interprété et Markdown projeté"
+                               FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Grid.Row="1" Margin="0,4,0,10"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               TextWrapping="Wrap"
+                               Text="L'original présente tous les blocs (même exclus) ; la sortie reflète exactement la sélection et son affectation. Ce n'est pas un rendu pixel-perfect de Microsoft Word." />
+                    <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                        <ComboBox x:Name="CompareSectionsListBox" MinHeight="30"
+                                  DisplayMemberPath="SourceHeading"
+                                  AutomationProperties.Name="Section Word à comparer" />
+                        <TextBlock Margin="0,6,0,0"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding SelectedItem.TargetStatus, ElementName=CompareSectionsListBox}" />
+                    </StackPanel>
+                    <Grid Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="150" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" MinWidth="150" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Word · contenu original"
+                                       FontWeight="SemiBold" Margin="0,0,0,7" />
+                            <TextBox Grid.Row="1" Padding="9" MinHeight="100"
+                                     FontFamily="Consolas" IsReadOnly="True"
+                                     AcceptsReturn="True" TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     Text="{Binding SelectedItem.OriginalPreview, ElementName=CompareSectionsListBox, Mode=OneWay}" />
+                        </Grid>
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Markdown · sélection courante"
+                                       FontWeight="SemiBold" Margin="0,0,0,7" />
+                            <TextBox Grid.Row="1" Padding="9" MinHeight="100"
+                                     FontFamily="Consolas" IsReadOnly="True"
+                                     AcceptsReturn="True" TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     Text="{Binding SelectedItem.MarkdownPreview, ElementName=CompareSectionsListBox, Mode=OneWay}" />
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem x:Name="ReimportTab" Header="Réimport · comparer">
+                <Grid Margin="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="2*" />
+                        <RowDefinition Height="3*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Comparer les versions Word et Nodalis"
+                               FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Grid.Row="1" Margin="0,4,0,10" TextWrapping="Wrap"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               Text="Sélectionnez un projet existant et son ancien import, comparez les versions et arbitrez les changements. Le réimport nécessite ensuite une préparation et une confirmation distinctes. Aucune suppression automatique des notes." />
+                    <ScrollViewer Grid.Row="2" Margin="0,0,0,10"
+                                  MaxHeight="250"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  CanContentScroll="True">
+                        <StackPanel Orientation="Vertical">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Rechercher les historiques"
+                                    Margin="0,0,8,0" Padding="10,5"
+                                    Click="ReimportLoadHistory_Click"
+                                    AutomationProperties.Name="Rechercher les historiques DOCX du projet" />
+                            <ComboBox x:Name="ReimportHistoryComboBox"
+                                      MinWidth="250" MaxWidth="520"
+                                      DisplayMemberPath="Label"
+                                      SelectionChanged="ReimportHistory_SelectionChanged"
+                                      Margin="0,0,8,0"
+                                      AutomationProperties.Name="Historique d'import DOCX à comparer" />
+                            <Button Content="Comparer" Padding="10,5"
+                                    Click="ReimportCompare_Click"
+                                    AutomationProperties.Name="Comparer cet import DOCX avec la version courante" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                            <Button Content="Vérifier les transactions"
+                                    Padding="10,5" Margin="0,0,8,0"
+                                    Click="ReimportInspectRecovery_Click"
+                                    AutomationProperties.Name="Inspecter les transactions de réimport du projet" />
+                            <Button Content="Restaurer les opérations interrompues"
+                                    Padding="10,5" Margin="0,0,8,0"
+                                    Click="ReimportRecover_Click"
+                                    AutomationProperties.Name="Restaurer les sauvegardes des réimports interrompus" />
+                            <TextBlock x:Name="ReimportRecoveryStatus"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       Text="Aucune vérification de récupération effectuée." />
+                        </StackPanel>
+                        <StackPanel Margin="0,9,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="ReimportPrepareButton"
+                                        Content="Préparer le réimport"
+                                        Padding="10,5" Margin="0,0,8,0"
+                                        Click="ReimportPrepare_Click"
+                                        AutomationProperties.Name="Vérifier tous les arbitrages et préparer un plan de réimport" />
+                                <Button x:Name="ReimportApplyButton"
+                                        Content="Appliquer le plan confirmé"
+                                        Padding="10,5" Margin="0,0,8,0"
+                                        IsEnabled="False"
+                                        Click="ReimportApply_Click"
+                                        AutomationProperties.Name="Confirmer et appliquer le plan de réimport validé" />
+                                <TextBlock Text="Sauvegardes automatiques, rollback et nouveau Word versionné."
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+                            </StackPanel>
+                            <TextBlock x:Name="ReimportApplyStatus"
+                                       Margin="0,5,0,0"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       Text="Aucun plan préparé : l'application est désactivée." />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="Associer la section sélectionnée :"
+                                       VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox x:Name="ReimportMatchComboBox"
+                                      DisplayMemberPath="Label"
+                                      MinWidth="210" MaxWidth="460"
+                                      Margin="0,0,8,0"
+                                      AutomationProperties.Name="Section du nouveau Word correspondante ou section disparue" />
+                            <Button Content="Confirmer l'association"
+                                    Padding="10,5" Click="ReimportAssignSection_Click"
+                                    AutomationProperties.Name="Confirmer manuellement l'association de cette section Word" />
+                        </StackPanel>
+                        <Expander Header="Décisions de réimport · aperçu sans écriture"
+                                  Margin="0,7,0,0" IsExpanded="False">
+                            <StackPanel Margin="8,5">
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="ReimportDecisionComboBox"
+                                              SelectionChanged="ReimportDecisionInput_Changed"
+                                              DisplayMemberPath="Label"
+                                              Width="200" Margin="0,0,8,0"
+                                              AutomationProperties.Name="Action explicite de réimport pour la section" />
+                                    <Button Content="Prévisualiser cette décision"
+                                            Click="ReimportDecisionPreview_Click"
+                                            Padding="10,5"
+                                            AutomationProperties.Name="Prévisualiser la résolution sans écrire" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,7,0,4">
+                                    <TextBlock Text="Fusion manuelle :"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                    <Button Content="Charger le Markdown Nodalis actuel"
+                                            Margin="12,0,0,0" Padding="9,4"
+                                            Click="ReimportSeedManualMerge_Click"
+                                            AutomationProperties.Name="Préremplir la fusion manuelle avec le Markdown Nodalis actuel" />
+                                </StackPanel>
+                                <TextBox x:Name="ReimportManualMergeBox" AcceptsReturn="True"
+                                         TextChanged="ReimportManualMerge_Changed"
+                                         TextWrapping="Wrap" MinHeight="58" MaxHeight="90"
+                                         VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas"
+                                         AutomationProperties.Name="Markdown fusionné manuellement, fragment ou fichier complet" />
+                                <CheckBox x:Name="ReimportWholeFileConfirmationBox"
+                                          Margin="0,8,0,4"
+                                          Content="Je confirme remplacer le Markdown COMPLET et avoir conservé toutes les notes utiles dans le texte fusionné."
+                                          Checked="ReimportWholeFileConsent_Changed"
+                                          Unchecked="ReimportWholeFileConsent_Changed"
+                                          ToolTip="Obligatoire pour l’action Remplacer le fichier complet. Sans cette confirmation, l’écriture est refusée."
+                                          AutomationProperties.Name="Confirmation indépendante du remplacement du document Markdown entier" />
+                                <TextBlock Text="⚠ Fusion fichier complet : toutes les notes absentes du texte fusionné seraient perdues. Sauvegarde et confirmation finale obligatoires."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           Margin="0,0,0,5" />
+                                <TextBlock x:Name="ReimportDecisionStatus"
+                                           Margin="0,7,0,0" TextWrapping="Wrap"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           Text="Aucune décision. Les modifications Nodalis restent intactes." />
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="Différentiel par paragraphe · lecture seule"
+                                  Margin="0,7,0,0" IsExpanded="False">
+                            <Grid Margin="8,5">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" MinWidth="150" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" MinWidth="150" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="ReimportDiffStatusText"
+                                           Grid.Row="0" Grid.ColumnSpan="3"
+                                           TextWrapping="Wrap" Margin="0,0,0,6"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+                                <StackPanel Grid.Row="1" Grid.Column="0">
+                                    <TextBlock Text="Base ↔ Word"
+                                               FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <ListBox x:Name="ReimportWordParagraphItems"
+                                             Height="145"
+                                             AutomationProperties.Name="Différentiel de paragraphes Word">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Label}"
+                                                           ToolTip="{Binding Details}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="2">
+                                    <TextBlock Text="Base ↔ Nodalis"
+                                               FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <ListBox x:Name="ReimportNodalisParagraphItems"
+                                             Height="145"
+                                             AutomationProperties.Name="Différentiel de paragraphes Nodalis">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Label}"
+                                                           ToolTip="{Binding Details}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Grid>
+                        </Expander>
+                        <Expander Header="Nouvelles sections Word · décision explicite"
+                                  IsExpanded="False" Margin="0,7,0,0">
+                            <StackPanel Margin="8,5">
+                                <TextBlock Text="Pour chaque nouvelle section : choisir un dossier existant du projet et créer un fichier Markdown dédié, ou exclure explicitement cette section du réimport."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           Margin="0,0,0,6" />
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="ReimportNewSectionsComboBox"
+                                              DisplayMemberPath="Label"
+                                              MinWidth="220" MaxWidth="420"
+                                              Margin="0,0,8,0"
+                                              AutomationProperties.Name="Nouvelle section Word en attente" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <TextBlock Text="Dossier de destination :"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
+                                    <ComboBox x:Name="ReimportNewFolderComboBox"
+                                              DisplayMemberPath="Label"
+                                              MinWidth="180" MaxWidth="330"
+                                              Margin="0,0,8,0"
+                                              AutomationProperties.Name="Dossier du projet pour la nouvelle section Word" />
+                                    <Button Content="Importer dans ce dossier"
+                                            Padding="10,5" Margin="0,0,8,0"
+                                            Click="ReimportImportNewSection_Click"
+                                            AutomationProperties.Name="Prévoir un nouveau Markdown dans le dossier choisi" />
+                                    <Button Content="Exclure de ce réimport"
+                                            Padding="10,5"
+                                            Click="ReimportExcludeNewSection_Click"
+                                            AutomationProperties.Name="Exclure explicitement cette nouvelle section Word du réimport" />
+                                </StackPanel>
+                                <TextBlock x:Name="ReimportNewSectionsStatus"
+                                           Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+                            </StackPanel>
+                        </Expander>
+                        <TextBlock x:Name="ReimportStatusText" Margin="0,7,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   Text="Choisissez un projet dans l'onglet Cible, puis recherchez ses historiques d'import DOCX." />
+                        </StackPanel>
+                    </ScrollViewer>
+                    <ListBox x:Name="ReimportFragmentsList" Grid.Row="3"
+                             MinHeight="75" Margin="0,0,0,10"
+                             DisplayMemberPath="Label"
+                             SelectionChanged="ReimportFragment_SelectionChanged"
+                             AutomationProperties.Name="Sections comparées entre les versions Word et Nodalis" />
+                    <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="130" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" MinWidth="130" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" MinWidth="130" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Base du précédent import"
+                                       FontWeight="SemiBold" Margin="0,0,0,5" />
+                            <TextBox x:Name="ReimportBaseBox" Grid.Row="1"
+                                     IsReadOnly="True" FontFamily="Consolas" Padding="7"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto" />
+                        </Grid>
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Nouvelle version Word"
+                                       FontWeight="SemiBold" Margin="0,0,0,5" />
+                            <TextBox x:Name="ReimportWordBox" Grid.Row="1"
+                                     IsReadOnly="True" FontFamily="Consolas" Padding="7"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto" />
+                        </Grid>
+                        <Grid Grid.Column="4">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Markdown actuel Nodalis"
+                                       FontWeight="SemiBold" Margin="0,0,0,5" />
+                            <TextBox x:Name="ReimportLocalBox" Grid.Row="1"
+                                     IsReadOnly="True" FontFamily="Consolas" Padding="7"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto" />
+                        </Grid>
                     </Grid>
                 </Grid>
             </TabItem>

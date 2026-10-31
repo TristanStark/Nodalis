@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Diagnostics;
 using Nodalis.App.Commands;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -119,6 +120,8 @@ public partial class MainWindow
     private async Task<WorkspaceViewProjection> LoadWorkspaceViewsProjectionAsync(
         CancellationToken cancellationToken)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Vues dynamiques");
         await _viewsLoadGate.WaitAsync(cancellationToken);
         try
         {
@@ -128,7 +131,9 @@ public partial class MainWindow
                 return _viewsCache;
             }
 
-            LinkIndexCatalog catalog = await _linkIndexService.LoadAsync(cancellationToken);
+            LinkIndexCatalog catalog = _workspaceReadOnly
+                ? await _linkIndexService.LoadAsync(cancellationToken)
+                : await _linkIndexService.RefreshAsync(cancellationToken);
             IReadOnlyList<TaskItem> tasks = [];
             IReadOnlyList<MilestoneItem> milestones = [];
             IReadOnlyList<DecisionRecord> decisions = [];
@@ -137,10 +142,11 @@ public partial class MainWindow
 
             if (!_workspaceReadOnly)
             {
-                // Services are sequential because some rebuild the same derived link index.
+                // One versioned link snapshot is shared by every derived view projection.
                 tasks = await _taskService.GetTasksAsync(null, includeCompleted: true,
-                    cancellationToken: cancellationToken);
-                milestones = await _milestoneService.GetMilestonesAsync(null, cancellationToken);
+                    cancellationToken: cancellationToken, indexSnapshot: catalog);
+                milestones = await _milestoneService.GetMilestonesAsync(null,
+                    cancellationToken, indexSnapshot: catalog);
 
                 // Resolve each canonical decision folder once, across applications/projects.
                 List<DecisionRecord> allDecisions = [];
@@ -162,7 +168,6 @@ public partial class MainWindow
 
             // The navigation tree can lag behind external moves/renames. Discover
             // maintenance sheets from the refreshed canonical index instead.
-            catalog = await _linkIndexService.LoadAsync(cancellationToken);
             string workspace = Path.GetFullPath(_root.FullPath);
             string prefix = Path.TrimEndingDirectorySeparator(workspace) +
                 Path.DirectorySeparatorChar;
@@ -188,12 +193,16 @@ public partial class MainWindow
                         item.Error ?? "Fiche de maintenance inaccessible.")));
             }
 
-            // A service refresh may have updated only the *derived* link index.
-            // Use the latest load, not a manual guess or a newly minted identity.
-            catalog = await _linkIndexService.LoadAsync(cancellationToken);
-            WorkspaceViewProjection projection = WorkspaceViewProjector.Build(
-                catalog, tasks, milestones, decisions, maintenance,
-                workspaceRoot: _root.FullPath, cancellationToken: cancellationToken);
+            // The already refreshed immutable index is shared by tasks, jalons,
+            // and the final view. A second JSON load provides no newer canonical
+            // data and can race another refresh. Build the CPU-heavy projection on
+            // a worker; only present the finished snapshot on the Dispatcher.
+            string projectionRoot = _root.FullPath;
+            WorkspaceViewProjection projection = await Task.Run(
+                () => WorkspaceViewProjector.Build(
+                    catalog, tasks, milestones, decisions, maintenance,
+                    workspaceRoot: projectionRoot, cancellationToken: cancellationToken),
+                cancellationToken);
             if (diagnostics.Count > 0)
             {
                 projection = projection with

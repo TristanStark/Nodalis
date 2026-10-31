@@ -13,17 +13,33 @@ namespace Nodalis.Infrastructure.Importing;
 
 public sealed class WorkspaceDocxImportService
 {
+    private const long MaxStagedDocxBytes = 128L * 1024 * 1024;
     private readonly string _workspaceRoot;
     private readonly DocxParser _parser = new();
+    private readonly Action<string>? _afterProjectManifestCheckpoint;
+    private readonly Action<int, string>? _afterMarkdownCreatedCheckpoint;
+    private readonly Action<string, string>? _afterDurableCheckpoint;
+
+    /// <summary>Gets the workspace root for local-only user profile storage.</summary>
+    public string WorkspaceRoot => _workspaceRoot;
 
     /// <summary>
     /// Initializes a new instance of <see cref="WorkspaceDocxImportService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
-    public WorkspaceDocxImportService(string workspaceRoot)
+    /// <param name="afterProjectManifestCheckpoint">Optional fault-injection hook for manifest rollback regression tests.</param>
+    /// <param name="afterMarkdownCreatedCheckpoint">Optional fault-injection hook after an import creates a Markdown file.</param>
+    /// <param name="afterDurableCheckpoint">Optional crash-test hook at completed project, media, DOCX source or provenance checkpoints.</param>
+    public WorkspaceDocxImportService(string workspaceRoot,
+        Action<string>? afterProjectManifestCheckpoint = null,
+        Action<int, string>? afterMarkdownCreatedCheckpoint = null,
+        Action<string, string>? afterDurableCheckpoint = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
+        _afterProjectManifestCheckpoint = afterProjectManifestCheckpoint;
+        _afterMarkdownCreatedCheckpoint = afterMarkdownCreatedCheckpoint;
+        _afterDurableCheckpoint = afterDurableCheckpoint;
     }
 
     /// <summary>
@@ -140,7 +156,11 @@ public sealed class WorkspaceDocxImportService
                         DisplayName = target.DisplayName,
                         QualifiedName = target.QualifiedName,
                         RelativePath = target.RelativePath,
-                        ApplicationId = manifest.ApplicationId
+                        ApplicationId = manifest.ApplicationId,
+                        ExistingSections = manifest.Sections
+                            .OrderBy(section => section.Order)
+                            .Select(section => section.Name)
+                            .ToList()
                     });
             }
 
@@ -223,6 +243,7 @@ public sealed class WorkspaceDocxImportService
         ValidateCommitRequest(
             preview,
             request);
+        await ValidateStagedCopyAsync(preview.StagedImport, cancellationToken);
 
         global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection[] selected = request.Sections
             .Where(section => section.Include)
@@ -239,8 +260,18 @@ public sealed class WorkspaceDocxImportService
             })
             .ToArray();
 
+        DocxBlock[] selectedSourceBlocks = selected
+            .SelectMany(section => section.Preview.Blocks
+                .Where(block => section.SelectedBlockIndexes is null ||
+                                section.SelectedBlockIndexes.Contains(block.BlockIndex))
+                .Select(block => block.Block))
+            .ToArray();
+        IReadOnlyList<DocxInlineMedia> selectedMedia =
+            DocxSelectedMediaAssets.Select(selectedSourceBlocks);
+
         global::System.Collections.Generic.List<global::Nodalis.Core.Importing.DocxImportPlannedChange> changes = new List<DocxImportPlannedChange>();
         global::System.Collections.Generic.List<string> warnings = preview.Conflicts.ToList();
+        warnings.AddRange(DocxSelectedMediaAssets.Warnings(selectedSourceBlocks));
 
         string projectDirectory;
         string projectDisplayName;
@@ -267,6 +298,8 @@ public sealed class WorkspaceDocxImportService
                     projectDirectory,
                     WorkspaceLayout.ProjectManifestFileName),
                 cancellationToken);
+            ValidateActiveImportProject(existingProject, existingProjectId,
+                request.ApplicationId);
 
             string[] requestedSections = selected
                 .Select(section => section.TargetSection)
@@ -328,13 +361,15 @@ public sealed class WorkspaceDocxImportService
                         WorkspaceLayout.ProjectManifestFileName),
                     "Métadonnées du nouveau projet"));
 
+            bool ultraSimple = request.NewProjectComplexity == ProjectComplexity.UltraSimple;
             changes.Add(
                 PlanChange(
                     "Créer",
-                    Path.Combine(
-                        projectDirectory,
-                        "Présentation.md"),
-                    "Présentation du nouveau projet"));
+                    Path.Combine(projectDirectory,
+                        ultraSimple ? "Fiche de Maintenance.md" : "Présentation.md"),
+                    ultraSimple
+                        ? "Fiche de maintenance du nouveau projet Ultra-simple"
+                        : "Présentation du nouveau projet"));
 
             changes.Add(
                 PlanChange(
@@ -364,16 +399,16 @@ public sealed class WorkspaceDocxImportService
                          .OrderBy(section =>
                              section.Order))
             {
-                changes.Add(
-                    PlanChange(
-                        "Créer",
-                        Path.Combine(
-                            projectDirectory,
-                            WindowsPathRules.SanitizeSegment(
-                                section.Name),
-                            WindowsPathRules.SanitizeSegment(
-                                section.Name) + ".md"),
-                        $"Document initial de la section {section.Name}"));
+                string? singletonFileName =
+                    ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                        section.TemplateKey);
+                string sectionFilePath = singletonFileName is not null
+                    ? Path.Combine(projectDirectory, singletonFileName)
+                    : Path.Combine(projectDirectory,
+                        WindowsPathRules.SanitizeSegment(section.Name),
+                        WindowsPathRules.SanitizeSegment(section.Name) + ".md");
+                changes.Add(PlanChange("Créer", sectionFilePath,
+                    $"Document initial de la section {section.Name}"));
             }
         }
 
@@ -387,6 +422,14 @@ public sealed class WorkspaceDocxImportService
                          StringComparer.CurrentCultureIgnoreCase))
         {
             string sectionName = group.Key.Trim();
+            if (group.Count() > 1)
+            {
+                warnings.Add(
+                    "Fusion ordonnée : " + group.Count() +
+                    " sections Word rejoignent « " + sectionName +
+                    " » dans l'ordre choisi dans l'onglet Affectation.");
+            }
+
             string sectionDirectory = Path.Combine(
                 projectDirectory,
                 WindowsPathRules.SanitizeSegment(
@@ -417,6 +460,17 @@ public sealed class WorkspaceDocxImportService
                     $"{group.Count()} section(s) Word → section Nodalis « {sectionName} »"));
         }
 
+        foreach (DocxInlineMedia media in selectedMedia)
+        {
+            string destination = Path.Combine(projectDirectory,
+                DocxSelectedMediaAssets.MediaFolder,
+                Path.GetFileName(media.MarkdownRelativePath!));
+            changes.Add(PlanChange(
+                File.Exists(destination) ? "Réutiliser" : "Créer",
+                destination,
+                "Image Word SHA256 · pièce jointe locale, sans téléchargement"));
+        }
+
         string sourcesDirectory = Path.Combine(
             _workspaceRoot,
             WorkspaceLayout.ImportsDirectoryName,
@@ -444,8 +498,28 @@ public sealed class WorkspaceDocxImportService
                 sourceCopyPath,
                 "Copie locale du DOCX original ; le fichier source reste intact"));
 
-        return new DocxImportPlan
+        changes.Add(PlanChange(
+            "Créer",
+            new DocxImportManifestStore(_workspaceRoot).GetManifestPath(
+                projectDirectory, preview.ImportId),
+            "Manifeste de provenance DOCX (empreintes et snapshots de réimport)"));
+
+        string contentBeforeCommit = string.Join(
+            "\n--TARGET--\n",
+            selected.GroupBy(item => item.TargetSection, StringComparer.CurrentCultureIgnoreCase)
+                .Select(group =>
+                    group.Key + "\n" + BuildImportedMarkdown(
+                        Path.GetFileName(preview.StagedImport.OriginalSourcePath), group)));
+
+        DocxImportPlan plan = new DocxImportPlan
         {
+            MappingProfileSha256 = request.AppliedMappingProfile is null
+                ? string.Empty
+                : DocxImportManifestStore.ComputeSha256(
+                    System.Text.Json.JsonSerializer.Serialize(request.AppliedMappingProfile)),
+            ProjectedContentSha256 = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(contentBeforeCommit))).ToLowerInvariant(),
             TargetProjectDisplayName =
                 projectDisplayName,
             TargetProjectRelativePath =
@@ -459,6 +533,8 @@ public sealed class WorkspaceDocxImportService
                     StringComparer.CurrentCultureIgnoreCase)
                 .ToList()
         };
+
+        return plan with { Fingerprint = DocxImportPlanFingerprint.Compute(plan) };
     }
 
     /// <summary>
@@ -479,6 +555,23 @@ public sealed class WorkspaceDocxImportService
         ValidateCommitRequest(
             preview,
             request);
+        await ValidateStagedCopyAsync(preview.StagedImport, cancellationToken);
+
+        // Freeze all destinations before the first write. A collision during
+        // commit must fail, never silently rename an approved Markdown or DOCX.
+        DocxImportPlan currentPlan = await BuildPlanAsync(preview, request, cancellationToken);
+        if (request.ExpectedPlanFingerprint is string approved &&
+            (approved.Length != 64 ||
+             !string.Equals(approved, currentPlan.Fingerprint, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidDataException(
+                "Le plan DOCX a changé depuis la prévisualisation. Recalculez et validez le plan avant d'importer.");
+        }
+
+        string plannedProjectDirectory = ResolveRelativePath(
+            currentPlan.TargetProjectRelativePath);
+        string plannedSourceCopyPath = ResolvePlannedChangePath(currentPlan,
+            "Copier", "Copie locale du DOCX original ; le fichier source reste intact");
 
         global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection[] selected = request.Sections
             .Where(section => section.Include)
@@ -495,13 +588,79 @@ public sealed class WorkspaceDocxImportService
             })
             .ToArray();
 
+        DocxBlock[] selectedSourceBlocks = selected
+            .SelectMany(section => section.Preview.Blocks
+                .Where(block => section.SelectedBlockIndexes is null ||
+                                section.SelectedBlockIndexes.Contains(block.BlockIndex))
+                .Select(block => block.Block))
+            .ToArray();
+        IReadOnlyList<DocxInlineMedia> selectedMedia =
+            DocxSelectedMediaAssets.Select(selectedSourceBlocks);
+
+        // Write the crash-recovery journal BEFORE creating the project or
+        // changing its manifest, documents, media, source copy or provenance.
+        DocxImportManifestStore initialPaths = new DocxImportManifestStore(_workspaceRoot);
+        List<DocxFirstImportFile> expectedOutputs = [];
+        foreach (IGrouping<string, SelectedSection> group in selected.GroupBy(
+                     section => section.TargetSection, StringComparer.CurrentCultureIgnoreCase))
+        {
+            string sectionName = group.Key.Trim();
+            string description =
+                $"{group.Count()} section(s) Word → section Nodalis « {sectionName} »";
+            string destination = ResolvePlannedChangePath(currentPlan,
+                "Créer", description);
+            string markdown = BuildImportedMarkdown(
+                Path.GetFileName(preview.StagedImport.OriginalSourcePath), group);
+            expectedOutputs.Add(new DocxFirstImportFile
+            {
+                RelativePath = initialPaths.ToWorkspaceRelativePath(destination),
+                Sha256 = DocxImportManifestStore.ComputeSha256(markdown)
+            });
+        }
+
+        foreach (DocxInlineMedia media in selectedMedia)
+        {
+            string mediaDestination = Path.Combine(plannedProjectDirectory,
+                DocxSelectedMediaAssets.MediaFolder,
+                Path.GetFileName(media.MarkdownRelativePath!));
+            if (!File.Exists(mediaDestination))
+            {
+                expectedOutputs.Add(new DocxFirstImportFile
+                {
+                    RelativePath = initialPaths.ToWorkspaceRelativePath(mediaDestination),
+                    Sha256 = media.Sha256!
+                });
+            }
+        }
+
+        expectedOutputs.Add(new DocxFirstImportFile
+        {
+            RelativePath = initialPaths.ToWorkspaceRelativePath(plannedSourceCopyPath),
+            Sha256 = preview.StagedImport.StagedCopySha256
+        });
+        DocxFirstImportRecoveryService recovery =
+            new DocxFirstImportRecoveryService(_workspaceRoot);
+        using DocxFirstImportSession recoverySession = await recovery.BeginAsync(
+            currentPlan, preview.ImportId, request.ProjectId, expectedOutputs,
+            cancellationToken);
+
         string projectDirectory = string.Empty;
         global::System.Guid projectId = Guid.Empty;
         bool createdProject = false;
         string? manifestPath = null;
-        string? originalManifest = null;
+        byte[]? originalManifestBytes = null;
+        string? writtenManifestSha256 = null;
         global::System.Collections.Generic.List<string> generatedFiles = new List<string>();
+        Dictionary<string, string> generatedMarkdownHashes =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> createdProjectScaffoldHashes =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        int completedMarkdownWrites = 0;
         global::System.Collections.Generic.List<string> createdDirectories = new List<string>();
+        DocxImportManifestStore provenanceStore = new DocxImportManifestStore(_workspaceRoot);
+        List<DocxImportManifestFragment> provenanceFragments = [];
+        string? committedSourceCopyPath = null;
+        string? provenancePath = null;
 
         try
         {
@@ -525,13 +684,15 @@ public sealed class WorkspaceDocxImportService
                     projectDirectory,
                     WorkspaceLayout.ProjectManifestFileName);
 
-                originalManifest = await File.ReadAllTextAsync(
+                originalManifestBytes = await File.ReadAllBytesAsync(
                     manifestPath,
                     cancellationToken);
 
                 project = await AtomicJsonFile.ReadAsync<ProjectManifest>(
                     manifestPath,
                     cancellationToken);
+                ValidateActiveImportProject(project, existingProjectId,
+                    request.ApplicationId);
 
                 projectId = project.Id;
             }
@@ -566,9 +727,33 @@ public sealed class WorkspaceDocxImportService
                 projectId = created.Project.Id;
                 project = created.Project;
                 createdProject = true;
+                _afterDurableCheckpoint?.Invoke("project", projectDirectory);
+                // A new project already contains template files. Record their
+                // exact original bytes so exception cleanup will never delete
+                // a newly edited template or an unexpected user file.
+                foreach (string path in Directory.EnumerateFiles(projectDirectory,
+                             "*", SearchOption.AllDirectories))
+                {
+                    createdProjectScaffoldHashes.Add(path,
+                        await DocxImportManifestStore.ComputeFileSha256Async(
+                            path, cancellationToken));
+                }
+
                 manifestPath = Path.Combine(
                     projectDirectory,
                     WorkspaceLayout.ProjectManifestFileName);
+                // Newly created projects may still require a custom DOCX
+                // destination section not present in their initial profile.
+                // Capture the creator's manifest for the same optimistic check.
+                originalManifestBytes = await File.ReadAllBytesAsync(
+                    manifestPath, cancellationToken);
+            }
+
+            if (!string.Equals(Path.GetFullPath(projectDirectory),
+                    Path.GetFullPath(plannedProjectDirectory), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Le projet cible a changé depuis le plan DOCX approuvé. Relancez la prévisualisation.");
             }
 
             global::Nodalis.Core.Domain.ProjectManifest updatedProject = EnsureSections(
@@ -576,15 +761,44 @@ public sealed class WorkspaceDocxImportService
                 selected.Select(section =>
                     section.TargetSection));
 
-            if (!ReferenceEquals(
-                    updatedProject,
-                    project))
+            if (!ReferenceEquals(updatedProject, project))
             {
+                // Reject edits by another process between reading and updating
+                // the existing project. Never roll back someone else's changes.
+                string beforeSha256 = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(
+                        originalManifestBytes!)).ToLowerInvariant();
+                string currentSha256 = await DocxImportManifestStore.ComputeFileSha256Async(
+                    manifestPath!, cancellationToken);
+                if (!string.Equals(currentSha256, beforeSha256,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Le manifeste projet a changé pendant l'import : nouvelle prévisualisation requise.");
+                }
+
+                writtenManifestSha256 = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(
+                        System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+                            updatedProject, JsonDefaults.Options))).ToLowerInvariant();
+                if (!createdProject)
+                {
+                    await recovery.ExpectProjectManifestAsync(
+                        recoverySession, writtenManifestSha256, cancellationToken);
+                }
+
                 await AtomicJsonFile.WriteAsync(
                     manifestPath!,
                     updatedProject,
                     cancellationToken);
+                _afterProjectManifestCheckpoint?.Invoke(manifestPath!);
             }
+
+            await DocxSelectedMediaAssets.CopyAsync(
+                preview.StagedImport.StagedCopyPath,
+                projectDirectory, selectedMedia, generatedFiles, createdDirectories,
+                cancellationToken);
+            _afterDurableCheckpoint?.Invoke("media", projectDirectory);
 
             foreach (global::System.Linq.IGrouping<string, global::Nodalis.Infrastructure.Importing.WorkspaceDocxImportService.SelectedSection> group in selected
                          .GroupBy(
@@ -607,63 +821,230 @@ public sealed class WorkspaceDocxImportService
                         sectionDirectory);
                 }
 
-                string sourceStem =
-                    Path.GetFileNameWithoutExtension(
-                        preview.StagedImport.OriginalSourcePath);
-
-                string destination = WindowsPathRules.GetUniqueFilePath(
-                    sectionDirectory,
-                    $"Import - {sourceStem}.md");
+                string description =
+                    $"{group.Count()} section(s) Word → section Nodalis « {sectionName} »";
+                string destination = ResolvePlannedChangePath(
+                    currentPlan, "Créer", description);
+                if (!string.Equals(Path.GetDirectoryName(destination),
+                        sectionDirectory, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "La destination DOCX ne correspond plus à la section approuvée.");
+                }
 
                 string markdown = BuildImportedMarkdown(
                     Path.GetFileName(
                         preview.StagedImport.OriginalSourcePath),
                     group);
 
-                await AtomicFileWriter.WriteAllTextAsync(
+                // Create-only: a document appeared after the approved plan
+                // must never be overwritten by a concurrent import.
+                await AtomicFileWriter.WriteNewAllTextAsync(
                     destination,
                     markdown,
                     cancellationToken);
 
-                generatedFiles.Add(
-                    destination);
+                generatedFiles.Add(destination);
+                string destinationHash = DocxImportManifestStore.ComputeSha256(markdown);
+                generatedMarkdownHashes.Add(destination, destinationHash);
+                completedMarkdownWrites++;
+                _afterMarkdownCreatedCheckpoint?.Invoke(
+                    completedMarkdownWrites, destination);
+                foreach (SelectedSection sourceSection in group)
+                {
+                    int[] indexes = (sourceSection.SelectedBlockIndexes is null
+                            ? sourceSection.Preview.Blocks.Select(block => block.BlockIndex)
+                            : sourceSection.SelectedBlockIndexes)
+                        .OrderBy(index => index)
+                        .ToArray();
+
+                    string snapshot = DocxImportSelectionRenderer.Render(
+                        sourceSection.Preview, indexes).TrimEnd();
+
+                    DocxMappingSourceSection wordContext =
+                        DocxMappingSourceBuilder.Build(
+                            sourceSection.Preview, preview.StagedImport.Document);
+                    provenanceFragments.Add(new DocxImportManifestFragment
+                    {
+                        SourceParentPath = wordContext.ParentPath,
+                        SourceWordStyleId = wordContext.WordStyleId,
+                        SourceHeadingLevel = wordContext.HeadingLevel,
+                        FragmentId = Guid.NewGuid(),
+                        SourceSectionIndex = sourceSection.Preview.Index,
+                        HeadingBlockIndex = sourceSection.Preview.HeadingBlockIndex,
+                        SourceHeading = sourceSection.Preview.SourceHeading,
+                        TargetSection = sectionName,
+                        TargetSectionId = updatedProject.Sections.First(section =>
+                            string.Equals(section.Name, sectionName,
+                                StringComparison.CurrentCultureIgnoreCase)).Id,
+                        DestinationRelativePath = provenanceStore.ToWorkspaceRelativePath(destination),
+                        SelectedBlockIndexes = indexes.ToList(),
+                        OriginalSourceBlockCount = sourceSection.Preview.Blocks.Count,
+                        FragmentSha256 = DocxImportManifestStore.ComputeSha256(snapshot),
+                        BaseMarkdown = snapshot,
+                        DestinationSha256 = destinationHash
+                    });
+                }
             }
 
             string sourceCopyPath = await CommitStagedCopyAsync(
                 preview.StagedImport,
-                cancellationToken);
+                cancellationToken,
+                plannedDestinationPath: plannedSourceCopyPath);
+            committedSourceCopyPath = sourceCopyPath;
+            _afterDurableCheckpoint?.Invoke("source", sourceCopyPath);
+
+            DocxImportManifest provenance = new DocxImportManifest
+            {
+                ImportId = preview.ImportId,
+                ProjectId = projectId,
+                ImportedAtUtc = DateTimeOffset.UtcNow,
+                SourceFileName = Path.GetFileName(preview.StagedImport.OriginalSourcePath),
+                SourceSha256 = await DocxImportManifestStore.ComputeFileSha256Async(
+                    sourceCopyPath, cancellationToken),
+                SourceCopyRelativePath = provenanceStore.ToWorkspaceRelativePath(sourceCopyPath),
+                ApprovedPlanFingerprint = request.ExpectedPlanFingerprint,
+                AppliedMappingProfile = request.AppliedMappingProfile,
+                ExcludedSectionIndexes = request.Sections
+                    .Where(section => !section.Include)
+                    .Select(section => section.SectionIndex)
+                    .ToList(),
+                Fragments = provenanceFragments
+            };
+
+            string provenanceDirectory = Path.GetDirectoryName(
+                provenanceStore.GetManifestPath(projectDirectory, preview.ImportId))!;
+            if (!Directory.Exists(provenanceDirectory))
+            {
+                Directory.CreateDirectory(provenanceDirectory);
+                createdDirectories.Add(provenanceDirectory);
+            }
+
+            await recovery.ExpectProvenanceAsync(
+                recoverySession, provenance, cancellationToken);
+            provenancePath = await provenanceStore.SaveNewAsync(
+                projectDirectory, provenance, cancellationToken);
+            _afterDurableCheckpoint?.Invoke("provenance", provenancePath);
+            await recovery.CompleteAsync(recoverySession, cancellationToken);
 
             return new DocxImportCommitResult
             {
                 ProjectId = projectId,
                 ProjectDirectory = projectDirectory,
                 SourceCopyPath = sourceCopyPath,
-                GeneratedFiles = generatedFiles
+                GeneratedFiles = generatedFiles,
+                ManifestPath = provenancePath
             };
         }
         catch
         {
-            if (createdProject &&
-                !string.IsNullOrWhiteSpace(projectDirectory) &&
-                Directory.Exists(projectDirectory))
+            if (provenancePath is not null)
             {
+                TryDelete(provenancePath);
+            }
+
+            if (committedSourceCopyPath is not null &&
+                File.Exists(committedSourceCopyPath))
+            {
+                // Never delete a preserved DOCX edited by another process after
+                // our move. A failed import cannot claim modified user data.
                 try
                 {
-                    Directory.Delete(
-                        projectDirectory,
-                        recursive: true);
+                    string actual = await DocxImportManifestStore.ComputeFileSha256Async(
+                        committedSourceCopyPath, CancellationToken.None);
+                    if (string.Equals(actual, preview.StagedImport.StagedCopySha256,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        TryDelete(committedSourceCopyPath);
+                    }
+                }
+                catch (IOException)
+                {
+                    // Ownership could not be proven: keep the copy.
+                }
+            }
+
+            // Do not remove an external edit made after an import created a
+            // Markdown file, even if the transaction itself later fails.
+            bool externalMarkdownEdit = false;
+            foreach ((string file, string expectedHash) in generatedMarkdownHashes)
+            {
+                if (!File.Exists(file))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    string actualHash = await DocxImportManifestStore.ComputeFileSha256Async(
+                        file, CancellationToken.None);
+                    if (!string.Equals(actualHash, expectedHash,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        externalMarkdownEdit = true;
+                    }
                 }
                 catch
                 {
-                    // Preserve the original import exception.
+                    // Unable to prove that this file is still ours: keep it.
+                    externalMarkdownEdit = true;
+                }
+            }
+
+            if (createdProject)
+            {
+                // Never recursively delete a newly created project when an
+                // unknown file, junction or modified template is present.
+                // Recovery preserves the scaffold for explicit inspection.
+                if (!externalMarkdownEdit &&
+                    !string.IsNullOrWhiteSpace(projectDirectory) &&
+                    Directory.Exists(projectDirectory) &&
+                    await IsOriginalImportProjectTreeAsync(projectDirectory,
+                        createdProjectScaffoldHashes, expectedOutputs))
+                {
+                    try
+                    {
+                        Directory.Delete(projectDirectory, recursive: true);
+                    }
+                    catch
+                    {
+                        // Preserve the original import exception.
+                    }
                 }
             }
             else
             {
                 foreach (string file in generatedFiles)
                 {
-                    TryDelete(
-                        file);
+                    // A media file may have been modified just like Markdown.
+                    // Remove only an import-owned file whose exact checksum
+                    // still matches the prewritten transaction journal.
+                    string relative = provenanceStore.ToWorkspaceRelativePath(file);
+                    DocxFirstImportFile? owned = expectedOutputs.FirstOrDefault(
+                        entry => string.Equals(entry.RelativePath, relative,
+                            StringComparison.OrdinalIgnoreCase));
+                    if (owned is null || !File.Exists(file))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0 ||
+                            !string.Equals(
+                                await DocxImportManifestStore.ComputeFileSha256Async(
+                                    file, CancellationToken.None),
+                                owned.Sha256, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        TryDelete(file);
+                    }
+                    catch (IOException)
+                    {
+                        // Another process owns or changed this file: preserve it.
+                    }
                 }
 
                 foreach (string directory in createdDirectories
@@ -675,18 +1056,31 @@ public sealed class WorkspaceDocxImportService
                 }
 
                 if (!string.IsNullOrWhiteSpace(manifestPath) &&
-                    originalManifest is not null)
+                    originalManifestBytes is not null &&
+                    writtenManifestSha256 is not null)
                 {
                     try
                     {
-                        await AtomicFileWriter.WriteAllTextAsync(
-                            manifestPath,
-                            originalManifest,
-                            CancellationToken.None);
+                        // Restore only a manifest still matching our own write.
+                        // If an external editor changed it, preserve that edit.
+                        if (File.Exists(manifestPath) &&
+                            string.Equals(
+                                await DocxImportManifestStore.ComputeFileSha256Async(
+                                    manifestPath, CancellationToken.None),
+                                writtenManifestSha256,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            await AtomicFileWriter.WriteAsync(manifestPath,
+                                async (stream, token) =>
+                                {
+                                    await stream.WriteAsync(
+                                        originalManifestBytes, token);
+                                }, CancellationToken.None);
+                        }
                     }
                     catch
                     {
-                        // Preserve the original import exception.
+                        // Preserve the original import exception and recovery data.
                     }
                 }
             }
@@ -694,7 +1088,92 @@ public sealed class WorkspaceDocxImportService
             DiscardStagedCopy(
                 preview.StagedImport);
 
+            try
+            {
+                await recovery.RollbackAsync(
+                    recoverySession, CancellationToken.None);
+            }
+            catch
+            {
+                // A third-party edit may block automatic recovery. Keep the
+                // prepared journal and backups for a later explicit inspection.
+            }
+
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Proves every remaining file in a newly created project belongs to the
+    /// unchanged template scaffold or is a checksum-verified import output.
+    /// Unexpected user files prevent recursive rollback deletion.
+    /// </summary>
+    /// <param name="projectDirectory">New project root.</param>
+    /// <param name="scaffold">Checksums captured immediately after the project creator returned.</param>
+    /// <param name="expectedOutputs">Checksums durably declared by the import plan.</param>
+    /// <returns>True only when the entire project tree can be safely removed.</returns>
+    private async Task<bool> IsOriginalImportProjectTreeAsync(
+        string projectDirectory,
+        IReadOnlyDictionary<string, string> scaffold,
+        IReadOnlyList<DocxFirstImportFile> expectedOutputs)
+    {
+        try
+        {
+            if ((File.GetAttributes(projectDirectory) & FileAttributes.ReparsePoint) != 0)
+            {
+                return false;
+            }
+
+            string projectRoot = Path.GetFullPath(projectDirectory);
+            DocxImportManifestStore paths = new DocxImportManifestStore(_workspaceRoot);
+            Dictionary<string, string> owned = new Dictionary<string, string>(
+                scaffold, StringComparer.OrdinalIgnoreCase);
+            foreach (DocxFirstImportFile output in expectedOutputs)
+            {
+                string full = paths.ResolveWorkspaceRelativePath(output.RelativePath);
+                string within = Path.GetRelativePath(projectRoot, full);
+                if (Path.IsPathRooted(within) || within == ".." ||
+                    within.StartsWith(".." + Path.DirectorySeparatorChar,
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                owned.TryAdd(full, output.Sha256);
+            }
+
+            foreach (string directory in Directory.EnumerateDirectories(
+                         projectRoot, "*", SearchOption.AllDirectories))
+            {
+                if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                {
+                    return false;
+                }
+            }
+
+            foreach (string file in Directory.EnumerateFiles(
+                         projectRoot, "*", SearchOption.AllDirectories))
+            {
+                if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0 ||
+                    !owned.TryGetValue(file, out string? hash) ||
+                    !string.Equals(
+                        await DocxImportManifestStore.ComputeFileSha256Async(
+                            file, CancellationToken.None),
+                        hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return scaffold.Count > 0;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
@@ -728,7 +1207,19 @@ public sealed class WorkspaceDocxImportService
                 "Seuls les fichiers .docx sont acceptés par l'import Word.");
         }
 
+        if (new FileInfo(fullSourcePath).Length > MaxStagedDocxBytes)
+        {
+            throw new InvalidDataException(
+                "Le DOCX dépasse la limite de 128 Mio pour une copie temporaire.");
+        }
+
         string stagingDirectory = GetStagingDirectory();
+        if (Directory.Exists(stagingDirectory) &&
+            (File.GetAttributes(stagingDirectory) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException(
+                "La zone temporaire DOCX ne peut pas être un lien symbolique.");
+        }
 
         Directory.CreateDirectory(
             stagingDirectory);
@@ -744,14 +1235,25 @@ public sealed class WorkspaceDocxImportService
                 stagedPath,
                 cancellationToken);
 
+            string stagedSha256 = await DocxImportManifestStore.ComputeFileSha256Async(
+                stagedPath, cancellationToken);
             global::Nodalis.Core.Importing.ParsedDocxDocument document = await _parser.ParseAsync(
                 stagedPath,
                 cancellationToken);
+            string parsedSha256 = await DocxImportManifestStore.ComputeFileSha256Async(
+                stagedPath, cancellationToken);
+            if (!string.Equals(stagedSha256, parsedSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "La copie Word a été modifiée pendant l'analyse : import interrompu.");
+            }
 
             return new DocxStagedImport
             {
                 OriginalSourcePath = fullSourcePath,
                 StagedCopyPath = stagedPath,
+                StagedCopySha256 = stagedSha256,
                 Document = document
             };
         }
@@ -764,30 +1266,23 @@ public sealed class WorkspaceDocxImportService
     }
 
     /// <summary>
-    /// Performs the <c>CommitStagedCopyAsync</c> operation.
+    /// Preserves an analyzed Word package without replacing an existing file.
+    /// The optional destination pins the exact path displayed in an approved plan.
     /// </summary>
-    /// <param name="staged">The <c>staged</c> value.</param>
-    /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
-    /// <returns>The result of the operation.</returns>
-    public Task<string> CommitStagedCopyAsync(
+    /// <param name="staged">Verified staged source.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="plannedDestinationPath">Exact path chosen at preview time, when known.</param>
+    /// <returns>Path of the immutable DOCX source copy.</returns>
+    public async Task<string> CommitStagedCopyAsync(
             DocxStagedImport staged,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            string? plannedDestinationPath = null)
     {
         ArgumentNullException.ThrowIfNull(staged);
+        await ValidateStagedCopyAsync(staged, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        string stagedPath = Path.GetFullPath(
-            staged.StagedCopyPath);
-
-        EnsureIsStagingPath(
-            stagedPath);
-
-        if (!File.Exists(stagedPath))
-        {
-            throw new FileNotFoundException(
-                "La copie temporaire DOCX est introuvable.",
-                stagedPath);
-        }
+        string stagedPath = Path.GetFullPath(staged.StagedCopyPath);
 
         string sourcesDirectory = Path.Combine(
             _workspaceRoot,
@@ -797,16 +1292,76 @@ public sealed class WorkspaceDocxImportService
         Directory.CreateDirectory(
             sourcesDirectory);
 
-        string destination = WindowsPathRules.GetUniqueFilePath(
-            sourcesDirectory,
-            Path.GetFileName(staged.OriginalSourcePath));
+        string destination = plannedDestinationPath is null
+            ? WindowsPathRules.GetUniqueFilePath(
+                sourcesDirectory, Path.GetFileName(staged.OriginalSourcePath))
+            : Path.GetFullPath(plannedDestinationPath);
 
-        File.Move(
-            stagedPath,
-            destination);
+        if (!string.Equals(Path.GetDirectoryName(destination),
+                sourcesDirectory, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(Path.GetExtension(destination), ".docx",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "La copie source DOCX prévue est extérieure au dossier Imports/Sources.");
+        }
 
-        return Task.FromResult(
-            destination);
+        // No overwrite: an interprocess collision must abort the import.
+        File.Move(stagedPath, destination);
+
+        return destination;
+    }
+
+    /// <summary>Locates exactly one destination already declared in the validated dry-run.</summary>
+    /// <param name="plan">Frozen import plan.</param>
+    /// <param name="action">Planned action.</param>
+    /// <param name="description">Stable description generated with the plan.</param>
+    /// <returns>Absolute path of the approved output.</returns>
+    private string ResolvePlannedChangePath(DocxImportPlan plan,
+        string action, string description)
+    {
+        DocxImportPlannedChange[] matches = plan.Changes
+            .Where(change => string.Equals(change.Action, action,
+                StringComparison.Ordinal) &&
+                string.Equals(change.Description, description,
+                    StringComparison.Ordinal))
+            .ToArray();
+        if (matches.Length != 1)
+        {
+            throw new InvalidDataException(
+                "Plan DOCX ambigu : aucune destination unique pour l'écriture.");
+        }
+
+        return ResolveRelativePath(matches[0].RelativePath);
+    }
+
+    /// <summary>
+    /// Confirms the staged DOCX remains byte-for-byte identical to the analyzed preview.
+    /// Rejects deletion, replacement, symlinks and oversized packages before writes.
+    /// </summary>
+    private async Task ValidateStagedCopyAsync(
+        DocxStagedImport staged,
+        CancellationToken cancellationToken)
+    {
+        string stagedPath = Path.GetFullPath(staged.StagedCopyPath);
+        EnsureIsStagingPath(stagedPath);
+        if (!File.Exists(stagedPath) ||
+            (File.GetAttributes(stagedPath) & FileAttributes.ReparsePoint) != 0 ||
+            new FileInfo(stagedPath).Length > MaxStagedDocxBytes ||
+            staged.StagedCopySha256.Length != 64)
+        {
+            throw new InvalidDataException(
+                "La copie DOCX de prévisualisation n'est plus disponible ou sûre.");
+        }
+
+        string currentHash = await DocxImportManifestStore.ComputeFileSha256Async(
+            stagedPath, cancellationToken);
+        if (!string.Equals(currentHash, staged.StagedCopySha256,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Le DOCX a changé depuis la prévisualisation : relancez l'analyse.");
+        }
     }
 
     /// <summary>
@@ -1064,7 +1619,7 @@ public sealed class WorkspaceDocxImportService
                 table.Rows.Count == 0
                     ? 0
                     : table.Rows.Max(row =>
-                        row.Cells.Count);
+                        row.Cells.Sum(cell => cell.ColumnSpan));
 
             return "Tableau · " +
                    table.Rows.Count +
@@ -1128,7 +1683,24 @@ public sealed class WorkspaceDocxImportService
                 "Aucun contenu exploitable n'a été détecté dans le document.");
         }
 
-        return warnings;
+        foreach (DocxImportSectionPreview section in sections)
+        {
+            foreach (DocxImportBlockPreview block in section.Blocks)
+            {
+                if (block.Block.Table is not DocxTable table)
+                {
+                    continue;
+                }
+
+                foreach (string warning in table.Warnings)
+                {
+                    warnings.Add("Tableau Word #" + block.BlockIndex +
+                        " (« " + section.SourceHeading + " ») : " + warning);
+                }
+            }
+        }
+
+        return warnings.Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
     /// <summary>
@@ -1210,6 +1782,32 @@ public sealed class WorkspaceDocxImportService
                         "La sélection fine des paragraphes ne correspond plus à la prévisualisation DOCX.");
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Prevents importing into a closed project or a folder whose manifest
+    /// no longer matches the selected project and application identities.
+    /// </summary>
+    /// <param name="project">Manifest freshly loaded from disk.</param>
+    /// <param name="requestedProjectId">Project ID selected in the Word assistant.</param>
+    /// <param name="requestedApplicationId">Owning application selected in the assistant.</param>
+    private static void ValidateActiveImportProject(ProjectManifest project,
+        Guid requestedProjectId, Guid requestedApplicationId)
+    {
+        if (project.Id != requestedProjectId ||
+            project.ApplicationId != requestedApplicationId)
+        {
+            throw new InvalidDataException(
+                "Le manifeste du projet cible ne correspond plus à la sélection Word. " +
+                "Recalculez la prévisualisation avant d'importer.");
+        }
+
+        if (project.ArchivedUtc.HasValue ||
+            project.ArchiveOriginalRelativePath is not null)
+        {
+            throw new InvalidOperationException(
+                "Ce projet est clos et archivé : réouvrez-le avant d'importer un DOCX.");
         }
     }
 
@@ -1465,12 +2063,22 @@ public sealed class WorkspaceDocxImportService
             bufferSize: 81920,
             useAsync: true);
 
-        await source.CopyToAsync(
-            destination,
-            cancellationToken);
+        byte[] buffer = new byte[81920];
+        long copied = 0;
+        int count;
+        while ((count = await source.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            copied += count;
+            if (copied > MaxStagedDocxBytes)
+            {
+                throw new InvalidDataException(
+                    "Le DOCX source a dépassé 128 Mio pendant la copie.");
+            }
 
-        await destination.FlushAsync(
-            cancellationToken);
+            await destination.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
+        }
+
+        await destination.FlushAsync(cancellationToken);
     }
 
     private sealed record SelectedSection(

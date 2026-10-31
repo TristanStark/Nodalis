@@ -51,7 +51,7 @@ public static class DocxMarkdownConverter
             DocxParagraph paragraph)
     {
         string text = ApplyHyperlinks(
-            paragraph.Text,
+            InsertInlineMedia(paragraph.Text, paragraph.Media),
             paragraph.Hyperlinks);
 
         if (string.IsNullOrWhiteSpace(text))
@@ -100,6 +100,55 @@ public static class DocxMarkdownConverter
     }
 
     /// <summary>
+    /// Injects Markdown images in the source character order, retaining placeholder warnings
+    /// for unsupported objects and avoiding active links or downloaded resources.
+    /// </summary>
+    private static string InsertInlineMedia(string text, IReadOnlyList<DocxInlineMedia> media)
+    {
+        if (media.Count == 0)
+        {
+            return text;
+        }
+
+        StringBuilder result = new StringBuilder();
+        int previousOffset = 0;
+        foreach (DocxInlineMedia item in media.OrderBy(item => item.TextOffset))
+        {
+            int position = Math.Clamp(item.TextOffset, previousOffset, text.Length);
+            result.Append(text, previousOffset, position - previousOffset);
+            if (result.Length > 0 && !char.IsWhiteSpace(result[^1]))
+            {
+                result.Append(' ');
+            }
+
+            if (item.IsSupported)
+            {
+                string alt = item.AlternativeText
+                    .Replace("[", "\\[", StringComparison.Ordinal)
+                    .Replace("]", "\\]", StringComparison.Ordinal)
+                    .Replace("\r", " ", StringComparison.Ordinal)
+                    .Replace("\n", " ", StringComparison.Ordinal);
+                result.Append("![").Append(alt).Append("](")
+                    .Append(item.MarkdownRelativePath).Append(')');
+            }
+            else
+            {
+                result.Append("[⚠ Objet Word non converti : ")
+                    .Append((item.Warning ?? "élément non pris en charge")
+                        .Replace("[", "(", StringComparison.Ordinal)
+                        .Replace("]", ")", StringComparison.Ordinal))
+                    .Append(']');
+            }
+
+            result.Append(' ');
+            previousOffset = position;
+        }
+
+        result.Append(text, previousOffset, text.Length - previousOffset);
+        return result.ToString();
+    }
+
+    /// <summary>
     /// Performs the <c>AppendTable</c> operation.
     /// </summary>
     /// <param name="builder">The <c>builder</c> value.</param>
@@ -113,40 +162,140 @@ public static class DocxMarkdownConverter
             return;
         }
 
-        int columnCount = table.Rows.Max(row =>
-            row.Cells.Count);
+        bool complex = table.Warnings.Count > 0 ||
+            table.Rows.Any(row => row.Cells.Any(cell =>
+                cell.ColumnSpan != 1 ||
+                cell.VerticalMerge != DocxVerticalMerge.None ||
+                cell.NestedTables.Count > 0)) ||
+            table.Rows.Select(row => row.Cells.Count).Distinct().Count() > 1;
 
-        if (columnCount == 0)
+        if (complex)
+        {
+            // Never pretend merged or nested Word cells can be represented faithfully by pipes.
+            builder.AppendLine("> ⚠ Tableau Word complexe : HTML local, fusions verticales à vérifier ; original DOCX conservé.");
+            builder.AppendLine();
+            AppendHtmlTable(builder, table);
+            builder.AppendLine();
+            return;
+        }
+
+        int columns = table.Rows.Max(row => row.Cells.Count);
+        if (columns == 0)
         {
             return;
         }
 
-        AppendTableRow(
-            builder,
-            table.Rows[0],
-            columnCount);
-
+        AppendTableRow(builder, table.Rows[0], columns);
         builder.Append('|');
-
-        for (int index = 0;
-             index < columnCount;
-             index++)
+        for (int index = 0; index < columns; index++)
         {
             builder.Append(" --- |");
         }
 
         builder.AppendLine();
-
-        foreach (global::Nodalis.Core.Importing.DocxTableRow row in table.Rows.Skip(1))
+        foreach (DocxTableRow row in table.Rows.Skip(1))
         {
-            AppendTableRow(
-                builder,
-                row,
-                columnCount);
+            AppendTableRow(builder, row, columns);
         }
 
         builder.AppendLine();
     }
+
+    /// <summary>
+    /// Writes local-only HTML for Word tables whose layout cannot fit standard Markdown.
+    /// All source text is escaped; no script, event, URL or resource is copied to markup.
+    /// </summary>
+    /// <param name="builder">Markdown output buffer.</param>
+    /// <param name="table">Complex or nested Word table.</param>
+    private static void AppendHtmlTable(StringBuilder builder, DocxTable table)
+    {
+        builder.AppendLine("<table>");
+        foreach (DocxTableRow row in table.Rows)
+        {
+            builder.AppendLine("  <tr>");
+            foreach (DocxTableCell cell in row.Cells)
+            {
+                string element = row.IsHeader ? "th" : "td";
+                builder.Append("    <").Append(element);
+
+                if (cell.ColumnSpan > 1)
+                {
+                    builder.Append(" colspan=\"").Append(cell.ColumnSpan).Append('"');
+                }
+
+                if (cell.VerticalMerge != DocxVerticalMerge.None)
+                {
+                    // Preserve the Word merge state without fabricating a rowspan.
+                    builder.Append(" data-word-vmerge=\"")
+                        .Append(cell.VerticalMerge == DocxVerticalMerge.Start
+                            ? "restart" : "continue").Append('"');
+                }
+
+                builder.Append('>');
+                if (cell.Parts.Count == 0)
+                {
+                    // Compatibility with fixture tables constructed without ordered parts.
+                    AppendEscapedHtmlText(builder, cell.Text);
+                    foreach (DocxTable nested in cell.NestedTables)
+                    {
+                        AppendHtmlTable(builder, nested);
+                    }
+                }
+                else
+                {
+                    bool precedingParagraph = false;
+                    foreach (DocxTableCellPart part in cell.Parts)
+                    {
+                        if (part.Text is string text)
+                        {
+                            if (precedingParagraph)
+                            {
+                                builder.Append("<br>");
+                            }
+
+                            AppendEscapedHtmlText(builder, text);
+                            precedingParagraph = true;
+                        }
+                        else if (part.NestedTable is DocxTable childTable)
+                        {
+                            AppendHtmlTable(builder, childTable);
+                            precedingParagraph = false;
+                        }
+                    }
+                }
+
+                builder.Append("</").Append(element).AppendLine(">");
+            }
+
+            builder.AppendLine("  </tr>");
+        }
+
+        builder.AppendLine("</table>");
+    }
+
+    /// <summary>
+    /// Appends safe text content while retaining all paragraph line breaks.
+    /// </summary>
+    /// <param name="builder">Destination HTML buffer.</param>
+    /// <param name="text">Source Word cell text.</param>
+    private static void AppendEscapedHtmlText(StringBuilder builder, string text)
+    {
+        builder.Append(EscapeHtml(text)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Replace("\n", "<br>", StringComparison.Ordinal));
+    }
+
+    /// <summary>Escapes arbitrary source Word text from HTML execution or injection.</summary>
+    /// <param name="text">Raw cell text.</param>
+    /// <returns>Only encoded character data, safe inside HTML cells.</returns>
+    private static string EscapeHtml(string text) =>
+        (text ?? string.Empty)
+            .Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("<", "&lt;", StringComparison.Ordinal)
+            .Replace(">", "&gt;", StringComparison.Ordinal)
+            .Replace("\"", "&quot;", StringComparison.Ordinal)
+            .Replace("'", "&#39;", StringComparison.Ordinal);
 
     /// <summary>
     /// Performs the <c>AppendTableRow</c> operation.

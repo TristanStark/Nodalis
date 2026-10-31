@@ -1,8 +1,17 @@
-# Nodalis 1.0 — guide utilisateur
+# Nodalis v1.9 — guide utilisateur
 
 Nodalis est une application Windows locale de prise de notes et d'aide à la
 gestion de projet. Les données restent dans un workspace normal composé
 principalement de Markdown et de JSON.
+
+## Nouveautés v1.9.0
+
+- **Documents Word volumineux :** choisissez un DOCX, contrôlez sa structure, associez les sous-sections à Technique/Tests/Recette ou à des fichiers personnalisés, puis examinez le plan de création avant validation.
+- **Réimport sûr :** examinez les différences Word/Nodalis et résolvez les conflits avant de confirmer ; conservez une sauvegarde du workspace pour les premiers essais.
+- **Éditeur Markdown :** l'option **Couleurs** dans la barre d'outils différencie titres, liens, emphases, code, tâches et métadonnées ; désactivez-la pour utiliser le rendu texte classique.
+- **Performances :** navigation, édition multi-onglets et mises à jour asynchrones optimisées. La recette Windows est documentée dans [la checklist 1.9](release-checklist-1.9.md).
+
+Voir les [notes de version v1.9.0](release-notes-1.9.md), le [guide des imports](import-export.md) et le [guide de l'éditeur coloré](markdown-editor-syntax.md). Les imports XLSX et VSDX ne sont pas disponibles dans cette version.
 
 ## 1. Installer et démarrer
 
@@ -140,7 +149,7 @@ Les valeurs contenant des espaces peuvent être placées entre guillemets.
 
 La commande **Ctrl+P → Configurer la recherche sémantique locale** permet de définir un fournisseur d'embeddings installé localement et de consentir à son utilisation. **Ctrl+P → Rechercher par le sens (local)** indexe uniquement le périmètre approuvé et affiche des extraits reliés à leurs sources. Sans activation et fournisseur compatible, la recherche exacte/fuzzy reste disponible. La commande **Effacer le cache sémantique** supprime uniquement les vecteurs dérivés, pas les Markdown.
 
-Guide : [Recherche sémantique locale 1.7](semantic-1.7-guide.md). La recherche hybride combinée est prévue en 1.8.
+Guide : [Recherche sémantique locale 1.7](semantic-1.7-guide.md). La recherche hybride combinée est disponible depuis la version 1.8.
 
 ## 8. Tâches, Kanban, jalons et calendrier
 
@@ -152,10 +161,31 @@ Exemple :
     - [ ] Préparer la recette | Responsable: Alice | Échéance: 2026-10-10 | Priorité: Haute | Statut: En cours | Tags: api, recette
 
 Les jalons restent dans Jalons.md. Ils peuvent inclure une date cible, un
-statut, une description, un lien et des dépendances. Les dépendances incohérentes
-ou cycliques sont signalées plutôt que corrigées silencieusement.
+statut, une description, un lien et des dépendances. Les dates sont saisies et
+écrites au format **JJ/MM/AAAA** (ex. `27/10/2026`). Les dates historiques
+`AAAA-MM-JJ` restent reconnues pour la compatibilité.
+
+Vous pouvez **coller directement des lignes de jalons sans colonne `Id` ou avec
+une cellule `Id` vide** dans un tableau Markdown. Elles sont détectées par
+leur nom et leur date ; un identifiant déterministe provisoire est attribué
+pour l'affichage, puis inscrit dans `Jalons.md` à la prochaine modification
+via l'éditeur (ajout/modification/suppression). Les jalons existants avec un
+identifiant gardent leur identité et leurs dépendances. Une date incorrecte
+n'est pas effacée automatiquement lors d'une normalisation de la table.
+
+Les dépendances incohérentes ou cycliques sont signalées plutôt que corrigées
+silencieusement.
 
 Le calendrier agrège les éléments datés du workspace.
+
+Le **Health Check du projet** ne considère pas `Jalons.md`, `Glossaire.md`
+et `Tâches.md` **à la racine du projet** comme des documents orphelins :
+ils sont accessibles directement par les commandes dédiées, sans lien Markdown
+entrant. L'ancien emplacement `Jalons/Jalons.md` ou
+`Glossaire/Glossaire.md` reste pris en charge par la logique des documents
+structurels. Cette exception ne masque pas les autres anomalies de ces fichiers
+(dates de jalon manquantes, tâches en retard, liens cassés, etc.) et ne concerne
+pas les notes ordinaires portant ces noms dans d'autres dossiers.
 
 ## 9. Réunions et décisions
 

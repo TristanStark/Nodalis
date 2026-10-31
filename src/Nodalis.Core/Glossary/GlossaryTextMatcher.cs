@@ -7,10 +7,12 @@ public static class GlossaryTextMatcher
     /// </summary>
     /// <param name="text">The <c>text</c> value.</param>
     /// <param name="entries">The <c>entries</c> value.</param>
+    /// <param name="cancellationToken">Cancels stale matching on a new editor revision.</param>
     /// <returns>The result of the operation.</returns>
     public static IReadOnlyList<GlossaryTextMatch> Match(
             string text,
-            IReadOnlyList<GlossaryEntry> entries)
+            IReadOnlyList<GlossaryEntry> entries,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(entries);
@@ -29,11 +31,13 @@ public static class GlossaryTextMatcher
                      .OrderByDescending(pair => pair.Key.Length)
                      .ThenBy(pair => pair.Key, StringComparer.CurrentCultureIgnoreCase))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string token = pair.Key;
             int searchFrom = 0;
 
             while (searchFrom < text.Length)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 int index = text.IndexOf(
                     token,
                     searchFrom,

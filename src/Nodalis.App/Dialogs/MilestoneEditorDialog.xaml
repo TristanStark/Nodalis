@@ -41,9 +41,10 @@
                            FontWeight="SemiBold" />
                 <DatePicker x:Name="TargetDatePicker"
                             Margin="0,6,0,0"
+                            Language="fr-FR"
                             SelectedDateFormat="Short"
                             IsTodayHighlighted="True"
-                            ToolTip="Sélectionnez une date, saisissez-la au clavier ou effacez-la." />
+                            ToolTip="Date cible au format JJ/MM/AAAA (ex. 27/10/2026). Vous pouvez coller une date ou utiliser le calendrier." />
             </StackPanel>
 
             <StackPanel Grid.Column="2">

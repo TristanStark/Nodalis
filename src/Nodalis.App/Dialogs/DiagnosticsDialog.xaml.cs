@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using Nodalis.Infrastructure.Reliability;
+using Nodalis.App.Diagnostics;
 
 namespace Nodalis.App.Dialogs;
 
@@ -12,15 +13,18 @@ public partial class DiagnosticsDialog : Window
 {
     private readonly LocalDiagnosticsService _diagnosticsService;
     private readonly string? _workspaceRoot;
+    private readonly DispatcherHeartbeatMonitor _heartbeatMonitor;
 
     /// <summary>
     /// Initializes a new instance of <see cref="DiagnosticsDialog"/>.
     /// </summary>
     /// <param name="diagnosticsService">The local diagnostics service.</param>
     /// <param name="workspaceRoot">Optional workspace root included as technical context.</param>
+    /// <param name="heartbeatMonitor">Optional shared in-memory UI latency monitor.</param>
     public DiagnosticsDialog(
             LocalDiagnosticsService diagnosticsService,
-            string? workspaceRoot)
+            string? workspaceRoot,
+            DispatcherHeartbeatMonitor? heartbeatMonitor = null)
     {
         ArgumentNullException.ThrowIfNull(diagnosticsService);
 
@@ -28,6 +32,14 @@ public partial class DiagnosticsDialog : Window
 
         _diagnosticsService = diagnosticsService;
         _workspaceRoot = workspaceRoot;
+        _heartbeatMonitor = heartbeatMonitor ?? new DispatcherHeartbeatMonitor(Dispatcher);
+        HeartbeatEnabledCheckBox.IsChecked = _heartbeatMonitor.IsEnabled;
+        if (heartbeatMonitor is null)
+        {
+            // The diagnostics dialog owns this fallback monitor, not MainWindow.
+            // Stop it at close to avoid retaining a timer after the error dialog.
+            Closed += (_, _) => _heartbeatMonitor.SetEnabled(false);
+        }
 
         SessionStateText.Text =
             diagnosticsService.PreviousSessionEndedUnexpectedly
@@ -108,13 +120,32 @@ public partial class DiagnosticsDialog : Window
         }
     }
 
+    /// <summary>Enables/disables lightweight UI latency sampling for this session.</summary>
+    private void HeartbeatEnabled_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_heartbeatMonitor is null)
+        {
+            return;
+        }
+
+        _heartbeatMonitor.SetEnabled(HeartbeatEnabledCheckBox.IsChecked == true);
+        RefreshReport();
+    }
+
+    /// <summary>Refreshes local crash and UI-latency diagnostics on demand.</summary>
+    private void RefreshReport_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshReport();
+    }
+
     /// <summary>
     /// Regenerates the technical report shown in the dialog.
     /// </summary>
     private void RefreshReport()
     {
         ReportTextBox.Text =
-            _diagnosticsService.BuildTechnicalReport(
-                _workspaceRoot);
+            _diagnosticsService.BuildTechnicalReport(_workspaceRoot) +
+            Environment.NewLine +
+            _heartbeatMonitor.BuildReport();
     }
 }

@@ -130,10 +130,17 @@
         </Style>
         <Style TargetType="{x:Type TreeViewItem}"
                BasedOn="{StaticResource {x:Type TreeViewItem}}">
+            <!-- Handle at the item itself, BEFORE its ScrollViewer ancestor
+                 processes the bubbling RequestBringIntoView event. -->
+            <EventSetter Event="RequestBringIntoView"
+                         Handler="NavigationTree_RequestBringIntoView" />
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <!-- Override the default WPF ancestor binding, which reports
+                 FindAncestor errors while TreeViewItem containers detach/recycle. -->
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Padding" Value="5,3" />
             <Setter Property="Margin" Value="0,1" />
             <Setter Property="MinHeight" Value="28" />
@@ -320,8 +327,10 @@
                                   Click="NewProject_Click" />
                         <MenuItem Header="Nouvelle tâche"
                                   Click="NewTask_Click" />
+                        <MenuItem Header="Nouvel incident"
+                                   Click="NewMaintenanceIncident_Click" />
                         <MenuItem Header="Nouvelle intervention"
-                                  Click="NewMaintenanceIntervention_Click" />
+                                   Click="NewMaintenanceIntervention_Click" />
                         <MenuItem Header="Modifier une intervention"
                                   Click="EditMaintenanceIntervention_Click" />
                         <Separator />
@@ -389,6 +398,8 @@
                     <MenuItem Header="Système">
                         <MenuItem Header="Changer de workspace…"
                                   Click="ChangeWorkspace_Click" />
+                        <MenuItem Header="Préférences"
+                                  Click="OpenPreferences_Click" />
                         <Separator />
                         <MenuItem Header="Mise à jour"
                                   Click="OpenUpdate_Click" />
@@ -769,12 +780,17 @@
                         Background="{StaticResource PanelBackgroundBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,0,0,1">
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Disabled">
-                        <ListBox x:Name="DocumentTabsList"
+                    <!-- The ListBox must own scrolling for horizontal item
+                         virtualization; an outer ScrollViewer measured every tab. -->
+                    <ListBox x:Name="DocumentTabsList"
                                  Margin="6,3"
                                  BorderThickness="0"
                                  Background="Transparent"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
                                  SelectionChanged="DocumentTabsList_SelectionChanged"
                                  PreviewMouseLeftButtonDown="DocumentTabsList_PreviewMouseLeftButtonDown"
                                  PreviewMouseMove="DocumentTabsList_PreviewMouseMove"
@@ -784,7 +800,7 @@
                                  Drop="DocumentTabsList_Drop">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
+                                    <VirtualizingStackPanel Orientation="Horizontal" />
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
                             <ListBox.ItemTemplate>
@@ -812,8 +828,7 @@
                                     </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
-                        </ListBox>
-                    </ScrollViewer>
+                    </ListBox>
                 </Border>
 
                 <Border Grid.Row="1"
@@ -833,6 +848,11 @@
                                     Click="OpenMaintenanceHistory_Click"
                                     ToolTip="Consulter les incidents et interventions avec recherche et filtres"
                                     Content="Historique" />
+                            <Button x:Name="NewMaintenanceIncidentButton"
+                                    Visibility="Collapsed" Padding="10,6" Margin="0,0,6,0"
+                                    Click="NewMaintenanceIncident_Click"
+                                    ToolTip="Déclarer un incident dans cette fiche de maintenance"
+                                    Content="Nouvel incident" />
                             <Button x:Name="NewMaintenanceInterventionButton"
                                     Visibility="Collapsed"
                                     Padding="10,6"
@@ -907,6 +927,13 @@
                                     Click="AttachFile_Click"
                                     ToolTip="Ajouter une pièce jointe locale"
                                     Content="Joindre" />
+                            <CheckBox x:Name="SyntaxHighlightingToggle"
+                                      Content="Couleurs"
+                                      VerticalAlignment="Center"
+                                      Margin="12,0,0,0"
+                                      ToolTip="Coloration syntaxique Markdown (sans modifier le fichier)"
+                                      Checked="SyntaxHighlightingToggle_Changed"
+                                      Unchecked="SyntaxHighlightingToggle_Changed" />
                         </StackPanel>
 
                         <TextBlock x:Name="SaveStateText"
@@ -963,7 +990,8 @@
                             <ColumnDefinition x:Name="PreviewColumn" Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBox x:Name="MarkdownEditorTextBox"
+                        <Grid Grid.Column="0">
+                            <TextBox x:Name="MarkdownEditorTextBox"
                                  Grid.Column="0"
                                  Padding="18"
                                  BorderThickness="0"
@@ -982,6 +1010,13 @@
                                  PreviewMouseRightButtonDown="MarkdownEditorTextBox_PreviewMouseRightButtonDown"
                                  ContextMenuOpening="MarkdownEditorTextBox_ContextMenuOpening"
                                  SpellCheck.IsEnabled="False" />
+                            <Canvas x:Name="PrimaryMarkdownMarkers"
+                                    IsHitTestVisible="False"
+                                    ClipToBounds="True" />
+                            <Canvas x:Name="PrimarySyntaxOverlay"
+                                    IsHitTestVisible="False"
+                                    ClipToBounds="True" />
+                        </Grid>
 
                         <Popup x:Name="InternalLinkPopup"
                                Grid.Column="0"
@@ -1107,7 +1142,8 @@
                                     <ColumnDefinition x:Name="SecondaryPreviewColumn" Width="0" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBox x:Name="SecondaryMarkdownEditorTextBox"
+                                <Grid Grid.Column="0">
+                                    <TextBox x:Name="SecondaryMarkdownEditorTextBox"
                                          Grid.Column="0"
                                          Padding="18"
                                          BorderThickness="0"
@@ -1122,6 +1158,13 @@
                                          SelectionChanged="SecondaryMarkdownEditorTextBox_SelectionChanged"
                                          GotKeyboardFocus="SecondaryMarkdownEditorTextBox_GotKeyboardFocus"
                                          SpellCheck.IsEnabled="False" />
+                                    <Canvas x:Name="SecondaryMarkdownMarkers"
+                                            IsHitTestVisible="False"
+                                            ClipToBounds="True" />
+                                    <Canvas x:Name="SecondarySyntaxOverlay"
+                                            IsHitTestVisible="False"
+                                            ClipToBounds="True" />
+                                </Grid>
 
                                 <GridSplitter x:Name="SecondaryPreviewSplitter"
                                               Grid.Column="1"

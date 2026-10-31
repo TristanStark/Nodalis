@@ -19,18 +19,23 @@ public partial class DocxImportPreviewDialog : Window
     private DocxImportCommitRequest? _plannedRequest;
     private DocxImportPlan? _lastPlan;
     private bool _refreshingPlan;
+    private long _planChangeVersion;
 
     /// <summary>
     /// Initializes a new instance of <see cref="DocxImportPreviewDialog"/>.
     /// </summary>
     /// <param name="preview">The <c>preview</c> value.</param>
     /// <param name="planBuilder">The <c>planBuilder</c> value.</param>
+    /// <param name="workspaceRoot">Current workspace used for optional mapping profiles.</param>
     public DocxImportPreviewDialog(
             DocxImportPreview preview,
-            Func<DocxImportCommitRequest, Task<DocxImportPlan>> planBuilder)
+            Func<DocxImportCommitRequest, Task<DocxImportPlan>> planBuilder,
+            string workspaceRoot)
     {
         ArgumentNullException.ThrowIfNull(preview);
         ArgumentNullException.ThrowIfNull(planBuilder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+        _mappingProfileStore = new Nodalis.Infrastructure.Importing.DocxMappingProfileStore(workspaceRoot);
 
         _preview = preview;
         _planBuilder = planBuilder;
@@ -59,6 +64,9 @@ public partial class DocxImportPreviewDialog : Window
         _documentSelectionRoot.SelectionChanged += DocumentSelectionRoot_SelectionChanged;
 
         InitializeComponent();
+        InitializeReimportControls(workspaceRoot);
+        InitializeMappingProfileControls();
+        Loaded += MappingProfilesDialog_Loaded;
 
         DocumentSelectionCheckBox.DataContext =
             _documentSelectionRoot;
@@ -83,8 +91,11 @@ public partial class DocxImportPreviewDialog : Window
             new ComplexityChoice[]
             {
                 new ComplexityChoice(
-                ProjectComplexity.Simple,
-                "Simple"),
+                    ProjectComplexity.UltraSimple,
+                    "Ultra-simple"),
+                new ComplexityChoice(
+                    ProjectComplexity.Simple,
+                    "Simple"),
                 new ComplexityChoice(
                     ProjectComplexity.Medium,
                     "Moyen"),
@@ -93,10 +104,25 @@ public partial class DocxImportPreviewDialog : Window
                     "Complexe")
             };
 
-        ComplexityComboBox.SelectedIndex = 1;
+        ComplexityComboBox.SelectedIndex = 2;
 
         SectionsListBox.ItemsSource =
-            _sections;
+            new System.Windows.Data.ListCollectionView(_sections);
+        MappingSourceList.ItemsSource = _sections;
+        CompareSectionsListBox.ItemsSource = _sections;
+        if (_sections.Count > 0)
+        {
+            CompareSectionsListBox.SelectedIndex = 0;
+        }
+
+        HeadingLevelComboBox.ItemsSource =
+            Enumerable.Range(0, 10)
+                .Select(level => new HeadingChoice(
+                    level == 0 ? null : level,
+                    level == 0 ? "Paragraphe / liste" : "Titre " + level))
+                .ToArray();
+        HeadingLevelComboBox.SelectedIndex = 0;
+        UndoHeadingButton.IsEnabled = false;
 
         if (_sections.Count > 0)
         {
@@ -129,6 +155,11 @@ public partial class DocxImportPreviewDialog : Window
         }
 
         ApplyProjectMode();
+        RefreshMappingDestinations();
+        if (_sections.Count > 0)
+        {
+            MappingSourceList.SelectedIndex = 0;
+        }
 
         SummaryText.Text =
             $"{_sections.Count} section(s) détectée(s) · " +
@@ -218,6 +249,7 @@ public partial class DocxImportPreviewDialog : Window
     {
         RefreshProjectChoices(
             preserveSelection: false);
+        RefreshMappingDestinations();
         InvalidatePlan();
     }
 
@@ -230,6 +262,7 @@ public partial class DocxImportPreviewDialog : Window
             object sender,
             SelectionChangedEventArgs e)
     {
+        RefreshMappingDestinations();
         InvalidatePlan();
     }
 
@@ -255,6 +288,7 @@ public partial class DocxImportPreviewDialog : Window
             RoutedEventArgs e)
     {
         ApplyProjectMode();
+        RefreshMappingDestinations();
         InvalidatePlan();
     }
 
@@ -271,6 +305,14 @@ public partial class DocxImportPreviewDialog : Window
             nameof(SectionRow.Include) or
             nameof(SectionRow.TargetSection))
         {
+            if (!_applyingMappingProfile &&
+                e.PropertyName == nameof(SectionRow.TargetSection) &&
+                sender is SectionRow changed)
+            {
+                _manuallyMappedSectionIndexes.Add(changed.Index);
+                _unresolvedProfileConflictIndexes.Remove(changed.Index);
+            }
+
             InvalidatePlan();
         }
     }
@@ -347,6 +389,7 @@ public partial class DocxImportPreviewDialog : Window
     /// </summary>
     private void InvalidatePlan()
     {
+        _planChangeVersion++;
         _plannedRequest = null;
         _lastPlan = null;
 
@@ -387,17 +430,27 @@ public partial class DocxImportPreviewDialog : Window
             "Import DOCX · prévisualiser",
             async () =>
             {
-                if (!ReferenceEquals(
-                        e.Source,
-                        ImportTabs) ||
-                    !IsLoaded ||
-                    FilesTab.IsSelected != true)
+                if (!ReferenceEquals(e.Source, ImportTabs) || !IsLoaded)
                 {
                     return;
                 }
 
-                await RefreshPlanAsync(
-                    showValidationMessages: false);
+                if (ReimportTab.IsSelected)
+                {
+                    ImportButton.IsEnabled = false;
+                    ImportButton.Content = "Réimport · lecture seule";
+                    return;
+                }
+
+                ImportButton.IsEnabled = !_refreshingPlan;
+                ImportButton.Content = _lastPlan is null
+                    ? "Prévisualiser les fichiers"
+                    : "Valider l'import";
+
+                if (FilesTab.IsSelected)
+                {
+                    await RefreshPlanAsync(showValidationMessages: false);
+                }
             });
     }
 
@@ -415,6 +468,17 @@ public partial class DocxImportPreviewDialog : Window
             "Import DOCX · importer",
             async () =>
             {
+                if (ReimportTab.IsSelected)
+                {
+                    MessageBox.Show(this,
+                        "Le comparateur de réimport est en lecture seule. " +
+                        "Aucune modification ne peut être validée depuis cet onglet.",
+                        "Réimport DOCX",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
                 global::Nodalis.Core.Importing.DocxImportCommitRequest? request = BuildCurrentRequest(
                     showValidationMessages: true);
 
@@ -442,7 +506,10 @@ public partial class DocxImportPreviewDialog : Window
                     return;
                 }
 
-                CommitRequest = request;
+                CommitRequest = request with
+                {
+                    ExpectedPlanFingerprint = _lastPlan.Fingerprint
+                };
                 DialogResult = true;
             });
     }
@@ -492,8 +559,18 @@ public partial class DocxImportPreviewDialog : Window
             PlanTargetText.Text =
                 "Calcul des fichiers qui seront créés ou modifiés…";
 
+            long plannedVersion = _planChangeVersion;
             global::Nodalis.Core.Importing.DocxImportPlan plan = await _planBuilder(
                 request);
+
+            // The source selection, target or mapping can change while the
+            // dry-run awaits filesystem I/O. Never publish an obsolete plan
+            // or allow its fingerprint to be used for a later commit.
+            if (plannedVersion != _planChangeVersion)
+            {
+                PlanTargetText.Text = "Sélection modifiée : recalculez le plan d'import.";
+                return false;
+            }
 
             _plannedRequest = request;
             _lastPlan = plan;
@@ -541,7 +618,7 @@ public partial class DocxImportPreviewDialog : Window
         finally
         {
             _refreshingPlan = false;
-            ImportButton.IsEnabled = true;
+            ImportButton.IsEnabled = !ReimportTab.IsSelected;
 
             if (_lastPlan is null)
             {
@@ -643,6 +720,15 @@ public partial class DocxImportPreviewDialog : Window
             }
         }
 
+        if (_unresolvedProfileConflictIndexes.Count > 0)
+        {
+            Show("Des règles de profil se contredisent pour " +
+                 _unresolvedProfileConflictIndexes.Count +
+                 " section(s). Corrigez leur affectation ou désactivez le profil.",
+                 MappingProfileComboBox);
+            return null;
+        }
+
         global::Nodalis.App.Dialogs.DocxImportPreviewDialog.SectionRow[] included = _sections
             .Where(section =>
                 section.Include)
@@ -682,6 +768,7 @@ public partial class DocxImportPreviewDialog : Window
                 ? NewProjectNameTextBox.Text.Trim()
                 : null,
             NewProjectComplexity = complexity,
+            AppliedMappingProfile = _appliedMappingProfile,
             Sections = _sections
                 .Select(section =>
                     new DocxImportSectionSelection
@@ -717,6 +804,7 @@ public partial class DocxImportPreviewDialog : Window
                 StringComparison.CurrentCulture) ||
             left.NewProjectComplexity !=
             right.NewProjectComplexity ||
+            left.AppliedMappingProfile?.Id != right.AppliedMappingProfile?.Id ||
             left.Sections.Count !=
             right.Sections.Count)
         {
@@ -776,6 +864,26 @@ public partial class DocxImportPreviewDialog : Window
     {
         private string _targetSection = string.Empty;
         private string _markdownPreview = string.Empty;
+        private string _originalPreview = string.Empty;
+
+        /// <summary>Cached selected block count, updated only for an affected section.</summary>
+        public int SelectedBlockCount { get; private set; }
+
+        /// <summary>Full read-only Word text, including excluded blocks.</summary>
+        public string OriginalPreview => _originalPreview;
+
+        /// <summary>Current explicit inclusion and destination visible in the comparison view.</summary>
+        public string TargetStatus =>
+            !Include ? "Ignorée : aucun bloc ne sera importé." :
+            string.IsNullOrWhiteSpace(TargetSection) ?
+                "Destination manquante : sélection à corriger." :
+                "Incluse → " + TargetSection + " · " +
+                SelectedBlockCount + "/" + BlockCount +
+                " blocs Word retenus.";
+
+        /// <summary>Initializes the unedited Word source view once.</summary>
+        public void InitializeOriginalPreview(string original) =>
+            _originalPreview = original;
 
         public required int Index { get; init; }
 
@@ -829,6 +937,10 @@ public partial class DocxImportPreviewDialog : Window
                     this,
                     new PropertyChangedEventArgs(
                         nameof(TargetSection)));
+                PropertyChanged?.Invoke(
+                    this,
+                    new PropertyChangedEventArgs(
+                        nameof(TargetStatus)));
             }
         }
 
@@ -838,9 +950,12 @@ public partial class DocxImportPreviewDialog : Window
         /// Refreshes the live Markdown preview and notifies bindings that the section's tri-state inclusion changed.
         /// </summary>
         /// <param name="markdownPreview">The Markdown produced by the current block selection.</param>
+        /// <param name="selectedBlockCount">Number of retained blocks after the change.</param>
         public void RefreshSelection(
-                string markdownPreview)
+                string markdownPreview,
+                int selectedBlockCount)
         {
+            SelectedBlockCount = selectedBlockCount;
             MarkdownPreview =
                 markdownPreview;
 
@@ -848,6 +963,10 @@ public partial class DocxImportPreviewDialog : Window
                 this,
                 new PropertyChangedEventArgs(
                     nameof(Include)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(
+                    nameof(TargetStatus)));
         }
 
         /// <summary>
@@ -857,8 +976,8 @@ public partial class DocxImportPreviewDialog : Window
         public void InitializeMarkdownPreview(
                 string markdownPreview)
         {
-            _markdownPreview =
-                markdownPreview;
+            _markdownPreview = markdownPreview;
+            SelectedBlockCount = SelectionRoot.GetSelectedBlockIndexes().Count;
         }
     }
 

@@ -20,6 +20,7 @@ public static class WorkspaceLayout
     public const string ImportSourcesDirectoryName = "Sources";
     public const string ImportStagingDirectoryName = ".staging";
     public const string TrashDirectoryName = "Corbeille";
+    public const string ArchivesDirectoryName = "Archives";
     public const string InboxDirectoryName = "Inbox";
 
     public const string GlobalQuickNotesFileName = "Notes rapides.md";

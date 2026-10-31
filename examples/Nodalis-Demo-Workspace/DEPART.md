@@ -29,3 +29,14 @@ Ce workspace est un **jeu de démonstration autonome** qui s'appuie sur l'histoi
 - Glossaires : global, application et projet.
 
 > Les demandes de la 1.7 sont **en préparation** ; les dates futures et les statuts de tâches sont des données de démonstration, pas des engagements de release.
+
+## Qualification réelle de la v1.9 sur develop
+
+Les fiches suivantes contiennent des **tâches à qualifier manuellement** (non fictives, toutes non cochées au départ), visibles dans les tâches du projet **Nodalis - Évolutions 1.x** et dans la vue **Tâches à suivre** :
+
+1. [[Qualification 1.9 - Import DOCX]] — découpage, mapping, réimport, rollback.
+2. [[Qualification 1.9 - Performance WPF]] — fluidité, recherche, rafraîchissements, sauvegardes.
+3. [[Qualification 1.9 - Fonctionnalites connexes]] — jalons, maintenance, archives et arbitrage des P1.
+4. [[Qualification 1.9 - Gate release]] — CI, vérifications, décision de sortie.
+
+**Ne cocher qu'un scénario OK.** Si KO, conserver la tâche ouverte et consigner les conditions de reproduction dans son document puis dans l'issue GitHub indiquée. Tester les pannes et archivages sur une **copie jetable** de ce workspace. Ces tâches ne signifient pas que les développements P1 sont disponibles ou que la release 1.9 est validée.

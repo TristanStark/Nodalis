@@ -16,6 +16,18 @@
     <Color x:Key="NavigationProjectColor">#AF9BF1</Color>
     <Color x:Key="NavigationDocumentColor">#C0C8D7</Color>
     <Color x:Key="NavigationGuideColor">#665A88</Color>
+    <!-- Subtle syntax-navigation accents; keep body text high contrast. -->
+    <Color x:Key="MarkdownHeadingColor">#B59AF5</Color>
+    <Color x:Key="MarkdownPendingTaskColor">#F0C37E</Color>
+    <Color x:Key="MarkdownCompletedTaskColor">#80D0A5</Color>
+    <Color x:Key="MarkdownPriorityColor">#F18C91</Color>
+    <Color x:Key="MarkdownQuoteColor">#80C9D3</Color>
+    <Color x:Key="MarkdownCodeColor">#D7A2DA</Color>
+    <Color x:Key="MarkdownLinkColor">#83AEFF</Color>
+    <Color x:Key="MarkdownStrongColor">#F2D18C</Color>
+    <Color x:Key="MarkdownEmphasisColor">#D5DDA4</Color>
+    <Color x:Key="MarkdownMutedSyntaxColor">#8A93A4</Color>
+    <Color x:Key="MarkdownMetadataColor">#AFC4E8</Color>
 
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource WindowBackgroundColor}" />
     <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{StaticResource PanelBackgroundColor}" />
@@ -30,6 +42,17 @@
     <SolidColorBrush x:Key="NavigationProjectBrush" Color="{StaticResource NavigationProjectColor}" />
     <SolidColorBrush x:Key="NavigationDocumentBrush" Color="{StaticResource NavigationDocumentColor}" />
     <SolidColorBrush x:Key="NavigationGuideBrush" Color="{StaticResource NavigationGuideColor}" />
+    <SolidColorBrush x:Key="MarkdownHeadingBrush" Color="{StaticResource MarkdownHeadingColor}" />
+    <SolidColorBrush x:Key="MarkdownPendingTaskBrush" Color="{StaticResource MarkdownPendingTaskColor}" />
+    <SolidColorBrush x:Key="MarkdownCompletedTaskBrush" Color="{StaticResource MarkdownCompletedTaskColor}" />
+    <SolidColorBrush x:Key="MarkdownPriorityBrush" Color="{StaticResource MarkdownPriorityColor}" />
+    <SolidColorBrush x:Key="MarkdownQuoteBrush" Color="{StaticResource MarkdownQuoteColor}" />
+    <SolidColorBrush x:Key="MarkdownCodeBrush" Color="{StaticResource MarkdownCodeColor}" />
+    <SolidColorBrush x:Key="MarkdownLinkBrush" Color="{StaticResource MarkdownLinkColor}" />
+    <SolidColorBrush x:Key="MarkdownStrongBrush" Color="{StaticResource MarkdownStrongColor}" />
+    <SolidColorBrush x:Key="MarkdownEmphasisBrush" Color="{StaticResource MarkdownEmphasisColor}" />
+    <SolidColorBrush x:Key="MarkdownMutedSyntaxBrush" Color="{StaticResource MarkdownMutedSyntaxColor}" />
+    <SolidColorBrush x:Key="MarkdownMetadataBrush" Color="{StaticResource MarkdownMetadataColor}" />
 
     <!--
         Keyboard focus must remain obvious independently from the Windows theme.

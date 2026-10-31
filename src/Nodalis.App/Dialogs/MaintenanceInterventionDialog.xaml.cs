@@ -11,6 +11,7 @@ namespace Nodalis.App.Dialogs;
 public partial class MaintenanceInterventionDialog : Window
 {
     private readonly MaintenanceRecord? _existing;
+    private readonly MaintenanceRecordKind _kind;
     private bool _initialized;
     private bool _dirty;
 
@@ -21,7 +22,8 @@ public partial class MaintenanceInterventionDialog : Window
     /// <param name="existing">The intervention to edit, or null when creating one.</param>
     public MaintenanceInterventionDialog(
         IReadOnlyList<MaintenanceRecord> incidents,
-        MaintenanceRecord? existing = null)
+        MaintenanceRecord? existing = null,
+        MaintenanceRecordKind kind = MaintenanceRecordKind.Intervention)
     {
         ArgumentNullException.ThrowIfNull(incidents);
         if (existing is not null && existing.Kind != MaintenanceRecordKind.Intervention)
@@ -30,7 +32,20 @@ public partial class MaintenanceInterventionDialog : Window
         }
 
         _existing = existing;
+        _kind = kind;
         InitializeComponent();
+        if (kind == MaintenanceRecordKind.Incident)
+        {
+            if (existing is not null)
+            {
+                throw new ArgumentException("La création d'incident ne modifie pas une intervention.", nameof(existing));
+            }
+
+            Title = "Nouvel incident";
+            FormHeadingTextBlock.Text = "Incident de maintenance";
+            IncidentRelationLabel.Visibility = Visibility.Collapsed;
+            IncidentComboBox.Visibility = Visibility.Collapsed;
+        }
         List<IncidentChoice> choices =
         [
             new IncidentChoice(null, "Aucun incident lié")
@@ -129,8 +144,8 @@ public partial class MaintenanceInterventionDialog : Window
         }
 
         MessageBoxResult choice = MessageBox.Show(this,
-            "Les modifications de l'intervention ne sont pas enregistrées. Les abandonner ?",
-            "Intervention non enregistrée", MessageBoxButton.YesNo,
+            "Les modifications de cette entrée de maintenance ne sont pas enregistrées. Les abandonner ?",
+            "Maintenance non enregistrée", MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
         e.Cancel = choice != MessageBoxResult.Yes;
     }
@@ -164,11 +179,13 @@ public partial class MaintenanceInterventionDialog : Window
 
         Result = new MaintenanceRecord
         {
-            Kind = MaintenanceRecordKind.Intervention,
-            Id = _existing?.Id ?? MaintenanceMarkdownCodec.NewId(MaintenanceRecordKind.Intervention),
+            Kind = _kind,
+            Id = _existing?.Id ?? MaintenanceMarkdownCodec.NewId(_kind),
             Date = DateOnly.FromDateTime(selected),
             Summary = summary,
-            IncidentId = (IncidentComboBox.SelectedItem as IncidentChoice)?.Id,
+            IncidentId = _kind == MaintenanceRecordKind.Intervention
+                ? (IncidentComboBox.SelectedItem as IncidentChoice)?.Id
+                : null,
             Details = details
         };
 

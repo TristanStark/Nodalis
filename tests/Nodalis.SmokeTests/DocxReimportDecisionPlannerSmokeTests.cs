@@ -1,0 +1,364 @@
+using Nodalis.Core.Importing;
+using Nodalis.Infrastructure.Importing;
+
+internal static class DocxReimportDecisionPlannerSmokeTests
+{
+    /// <summary>
+    /// Ensures dry-runs preserve outside notes, reject merged/edited anchors,
+    /// reject bad choices and never perform a disk write.
+    /// </summary>
+    public static void Run()
+    {
+        string baseline = "## Tests\n\nCas initial";
+        string nextWord = "## Tests\n\nCas actualisé Word";
+        string originalDestination = "# Import depuis spec.docx\n\n" +
+            baseline + "\n\n## Notes locales\nNe pas effacer";
+        DocxImportManifestFragment original = Fragment(
+            "Projet/Tests/import.md", baseline, originalDestination);
+
+        DocxReimportReviewedFragment candidate = new DocxReimportReviewedFragment
+        {
+            Association = new DocxReimportSectionAssociation
+            {
+                FragmentId = original.FragmentId,
+                PreviousHeading = "Tests",
+                PreviousSectionIndex = 0,
+                CurrentSectionIndex = 0,
+                Kind = DocxReimportAssociationKind.Manual
+            },
+            Change = new DocxReimportChange
+            {
+                FragmentId = original.FragmentId,
+                DestinationRelativePath = original.DestinationRelativePath,
+                Kind = DocxReimportChangeKind.WordChanged,
+                WordChanged = true
+            },
+            BaseMarkdown = baseline,
+            LatestWordMarkdown = nextWord,
+            CurrentNodalisMarkdown = originalDestination
+        };
+        DocxImportManifest history = Manifest([original]);
+        DocxReimportReview review = Review(history, [candidate]);
+
+        DocxReimportDecisionPlan noDecision =
+            DocxReimportDecisionPlanner.Build(review, history, []);
+        Assert(!noDecision.AllFragmentsResolved && noDecision.Writes.Count == 0,
+            "Word changes without explicit choices must not generate writes.");
+
+        DocxReimportResolution acceptWord = new DocxReimportResolution
+        {
+            FragmentId = original.FragmentId,
+            Action = DocxReimportResolutionAction.UseWord
+        };
+        DocxReimportDecisionPlan preview =
+            DocxReimportDecisionPlanner.Build(review, history, [acceptWord]);
+        Assert(preview.ReviewComplete && preview.Writes.Count == 1 &&
+               preview.Writes[0].ProjectedMarkdown ==
+                   originalDestination.Replace(baseline, nextWord,
+                       StringComparison.Ordinal) &&
+               preview.Writes[0].ProjectedMarkdown.Contains(
+                   "## Notes locales\nNe pas effacer", StringComparison.Ordinal) &&
+               preview.Writes[0].ExpectedCurrentSha256 ==
+                   DocxImportManifestStore.ComputeSha256(originalDestination),
+            "Word replacements may change only the exact imported fragment and must preserve the Markdown surroundings.");
+
+        DocxReimportDecisionPlan manual = DocxReimportDecisionPlanner.Build(
+            review, history,
+            [
+                new DocxReimportResolution
+                {
+                    FragmentId = original.FragmentId,
+                    Action = DocxReimportResolutionAction.ManualMerge,
+                    ManualMarkdown = "## Tests\n\nCas Word avec correction manuelle"
+                }
+            ]);
+        Assert(manual.ReviewComplete && manual.Writes.Count == 1 &&
+               manual.Writes[0].ProjectedMarkdown.Contains(
+                   "correction manuelle", StringComparison.Ordinal),
+            "A complete manual fragment can be previewed before any write.");
+
+        DocxReimportReview unconfirmedHeading = Review(history,
+        [
+            candidate with
+            {
+                Association = candidate.Association with
+                {
+                    Kind = DocxReimportAssociationKind.UniqueHeading,
+                    RequiresConfirmation = true
+                },
+                RequiresExplicitResolution = true
+            }
+        ]);
+        DocxReimportDecisionPlan refuseTentative =
+            DocxReimportDecisionPlanner.Build(unconfirmedHeading, history,
+                [acceptWord]);
+        Assert(!refuseTentative.AllFragmentsResolved &&
+               refuseTentative.Writes.Count == 0 &&
+               refuseTentative.Lines[0].Diagnostic.Contains(
+                   "Confirmez", StringComparison.Ordinal),
+            "An unconfirmed heading match must never authorize Word overwrite.");
+
+        DocxReimportDecisionPlan keep = DocxReimportDecisionPlanner.Build(
+            review, history,
+            [
+                new DocxReimportResolution
+                {
+                    FragmentId = original.FragmentId,
+                    Action = DocxReimportResolutionAction.KeepNodalis
+                }
+            ]);
+        Assert(keep.ReviewComplete && keep.Writes.Count == 0,
+            "Explicitly keeping Nodalis may never write.");
+
+        string userModified = originalDestination.Replace(
+            "Cas initial", "Cas révisé localement", StringComparison.Ordinal);
+        DocxReimportReview concurrent = Review(history,
+        [
+            candidate with
+            {
+                CurrentNodalisMarkdown = userModified,
+                RequiresExplicitResolution = true
+            }
+        ]);
+        DocxReimportDecisionPlan blocked = DocxReimportDecisionPlanner.Build(
+            concurrent, history, [acceptWord]);
+        Assert(!blocked.AllFragmentsResolved && blocked.Writes.Count == 0,
+            "A locally rewritten fragment must never be replaced using a stale anchor.");
+
+        string mergedDocument = "# Import depuis spec.docx\n\n" +
+            "## Tests\n\nCas révisé localement et consolidé avec Word\n\n" +
+            "## Notes locales\nNe pas effacer\n\n" +
+            "## Ajout local conservé\nInformation importante";
+        DocxReimportResolution fullMergeWithoutConsent = new DocxReimportResolution
+        {
+            FragmentId = original.FragmentId,
+            Action = DocxReimportResolutionAction.ManualWholeDocument,
+            ManualMarkdown = mergedDocument
+        };
+        DocxReimportDecisionPlan refusedFullMerge =
+            DocxReimportDecisionPlanner.Build(concurrent, history,
+                [fullMergeWithoutConsent]);
+        Assert(!refusedFullMerge.ReviewComplete &&
+               refusedFullMerge.Writes.Count == 0 &&
+               refusedFullMerge.Lines[0].Diagnostic.Contains(
+                   "Confirmez", StringComparison.Ordinal),
+            "A whole-file merge requires a separate informed approval.");
+
+        DocxReimportDecisionPlan fullMerge =
+            DocxReimportDecisionPlanner.Build(concurrent, history,
+                [fullMergeWithoutConsent with
+                {
+                    ConfirmWholeDocumentReplacement = true
+                }]);
+        Assert(fullMerge.ReviewComplete && fullMerge.Writes.Count == 1 &&
+               fullMerge.Writes[0].ProjectedMarkdown == mergedDocument &&
+               fullMerge.Writes[0].ExpectedCurrentSha256 ==
+                   DocxImportManifestStore.ComputeSha256(userModified) &&
+               fullMerge.Lines[0].Action ==
+                   DocxReimportResolutionAction.ManualWholeDocument,
+            "Confirmed full-document merge must permit an edited anchor only with current-file optimistic hash.");
+
+        DocxImportManifestFragment dangerousBaseline = original with
+        {
+            BaseMarkdown = mergedDocument,
+            FragmentSha256 = DocxImportManifestStore.ComputeSha256(mergedDocument),
+            BaselineCoversWholeDestination = true
+        };
+        DocxImportManifest scopedHistory = Manifest([dangerousBaseline]);
+        DocxReimportReviewedFragment scopedReviewFragment = candidate with
+        {
+            Association = candidate.Association with
+            {
+                FragmentId = dangerousBaseline.FragmentId
+            },
+            CurrentNodalisMarkdown = mergedDocument
+        };
+        DocxReimportReview scopedReview = Review(scopedHistory,
+            [scopedReviewFragment]);
+        DocxReimportDecisionPlan refuseNextWord = DocxReimportDecisionPlanner.Build(
+            scopedReview, scopedHistory, [acceptWord]);
+        Assert(!refuseNextWord.ReviewComplete &&
+               refuseNextWord.Writes.Count == 0 &&
+               refuseNextWord.Lines.Single().Diagnostic.Contains(
+                   "ENTIER", StringComparison.Ordinal),
+            "An already whole-file baseline must never be replaced later by a normal Word action.");
+
+        DocxReimportDecisionPlan safeRepeat = DocxReimportDecisionPlanner.Build(
+            scopedReview, scopedHistory,
+            [fullMergeWithoutConsent with
+            {
+                ConfirmWholeDocumentReplacement = true
+            }]);
+        Assert(safeRepeat.ReviewComplete,
+            "Full-document replacements may only continue with renewed explicit whole-file consent.");
+
+        DocxImportManifestFragment merged = Fragment(
+            original.DestinationRelativePath, "## Recette\n\nCas B",
+            originalDestination);
+        DocxImportManifest shared = Manifest([original, merged]);
+        DocxReimportReview sharedReview = Review(shared,
+        [
+            candidate,
+            candidate with
+            {
+                Association = candidate.Association with
+                {
+                    FragmentId = merged.FragmentId,
+                    PreviousSectionIndex = 1
+                },
+                Change = candidate.Change with { FragmentId = merged.FragmentId },
+                BaseMarkdown = merged.BaseMarkdown
+            }
+        ]);
+        DocxReimportDecisionPlan mergedPlan =
+            DocxReimportDecisionPlanner.Build(sharedReview, shared, [acceptWord]);
+        Assert(mergedPlan.Writes.Count == 0 &&
+               mergedPlan.Lines.Any(line => !line.Resolved &&
+                   line.Diagnostic.Contains("partagent", StringComparison.Ordinal)),
+            "A Word fragment in a multi-section destination must not trigger a whole-file overwrite.");
+
+        DocxReimportDecisionPlan sharedFullMerge =
+            DocxReimportDecisionPlanner.Build(sharedReview, shared,
+                [fullMergeWithoutConsent with
+                {
+                    ConfirmWholeDocumentReplacement = true
+                }]);
+        Assert(sharedFullMerge.Writes.Count == 0 &&
+               sharedFullMerge.Lines.Any(line => !line.Resolved),
+            "A full-document merge cannot silently delete another Word fragment sharing the same Markdown.");
+
+        DocxReimportDecisionPlan deleted = DocxReimportDecisionPlanner.Build(
+            Review(history,
+            [
+                candidate with
+                {
+                    Association = candidate.Association with
+                    {
+                        CurrentSectionIndex = null,
+                        Kind = DocxReimportAssociationKind.ConfirmedMissingFromWord
+                    },
+                    LatestWordMarkdown = null
+                }
+            ]), history,
+            [
+                new DocxReimportResolution
+                {
+                    FragmentId = original.FragmentId,
+                    Action = DocxReimportResolutionAction.KeepHistorical
+                }
+            ]);
+        Assert(deleted.ReviewComplete && deleted.Writes.Count == 0,
+            "A section deleted in Word remains historic Nodalis content.");
+
+        DocxReimportReview withAddedWordSection = review with
+        {
+            Matching = review.Matching with { AddedSectionIndexes = [7] }
+        };
+        DocxReimportDecisionPlan unresolvedAddition =
+            DocxReimportDecisionPlanner.Build(withAddedWordSection, history,
+                [acceptWord]);
+        DocxReimportDecisionPlan explicitlyExcluded =
+            DocxReimportDecisionPlanner.Build(withAddedWordSection, history,
+                [acceptWord], excludedNewSectionIndexes: [7]);
+        Assert(!unresolvedAddition.ReviewComplete &&
+               unresolvedAddition.UnmatchedNewSections.SequenceEqual([7]) &&
+               explicitlyExcluded.ReviewComplete &&
+               explicitlyExcluded.ExcludedNewSectionIndexes.SequenceEqual([7]) &&
+               explicitlyExcluded.UnmatchedNewSections.Count == 0 &&
+               explicitlyExcluded.Writes.Count == 1,
+            "New Word sections must remain pending until explicitly excluded; old fragment writes remain unchanged.");
+
+        bool invalidNewSectionRejected = false;
+        try
+        {
+            DocxReimportDecisionPlanner.Build(withAddedWordSection, history,
+                [acceptWord], excludedNewSectionIndexes: [99]);
+        }
+        catch (InvalidDataException)
+        {
+            invalidNewSectionRejected = true;
+        }
+
+        Assert(invalidNewSectionRejected,
+            "An exclusion must never refer to an unknown Word section.");
+
+        bool duplicateNewSectionRejected = false;
+        try
+        {
+            DocxReimportDecisionPlanner.Build(withAddedWordSection, history,
+                [acceptWord], excludedNewSectionIndexes: [7, 7]);
+        }
+        catch (InvalidDataException)
+        {
+            duplicateNewSectionRejected = true;
+        }
+
+        Assert(duplicateNewSectionRejected,
+            "The same new Word section must not be excluded twice.");
+
+        bool duplicatesRejected = false;
+        try
+        {
+            DocxReimportDecisionPlanner.Build(review, history,
+                [acceptWord, acceptWord]);
+        }
+        catch (InvalidDataException)
+        {
+            duplicatesRejected = true;
+        }
+
+        Assert(duplicatesRejected, "Duplicate decisions must be refused.");
+    }
+
+    /// <summary>Constructs a deterministic previous source fragment.</summary>
+    private static DocxImportManifestFragment Fragment(
+        string destination, string snapshot, string fullDestination) =>
+        new DocxImportManifestFragment
+        {
+            FragmentId = Guid.NewGuid(),
+            SourceSectionIndex = 0,
+            SourceHeading = "Tests",
+            TargetSection = "Tests",
+            DestinationRelativePath = destination,
+            FragmentSha256 = DocxImportManifestStore.ComputeSha256(snapshot),
+            BaseMarkdown = snapshot,
+            DestinationSha256 = DocxImportManifestStore.ComputeSha256(fullDestination)
+        };
+
+    /// <summary>Creates an immutable test import history.</summary>
+    private static DocxImportManifest Manifest(List<DocxImportManifestFragment> fragments) =>
+        new DocxImportManifest
+        {
+            ImportId = Guid.NewGuid(),
+            ProjectId = Guid.NewGuid(),
+            ImportedAtUtc = DateTimeOffset.UtcNow,
+            SourceFileName = "spec.docx",
+            SourceSha256 = new string('a', 64),
+            SourceCopyRelativePath = "Imports/Sources/spec.docx",
+            Fragments = fragments
+        };
+
+    /// <summary>Creates a read-only review for an import history.</summary>
+    private static DocxReimportReview Review(
+        DocxImportManifest history, List<DocxReimportReviewedFragment> fragments) =>
+        new DocxReimportReview
+        {
+            PreviousImportId = history.ImportId,
+            ProjectId = history.ProjectId,
+            Matching = new DocxReimportMatchReport
+            {
+                Associations = fragments.Select(fragment =>
+                    fragment.Association).ToList()
+            },
+            Fragments = fragments
+        };
+
+    /// <summary>Fails a regression when a proposed write loses user data.</summary>
+    private static void Assert(bool condition, string message)
+    {
+        if (!condition)
+        {
+            throw new InvalidOperationException(message);
+        }
+    }
+}

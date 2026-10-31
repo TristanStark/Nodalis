@@ -35,6 +35,56 @@ public static class AtomicFileWriter
     }
 
     /// <summary>
+    /// Atomically creates a new UTF-8 file and never replaces a file that appeared
+    /// after a preview was approved. The temporary file is cleaned on cancellation
+    /// or collision; the caller must ensure the parent directory is allowed.
+    /// </summary>
+    public static async Task WriteNewAllTextAsync(
+        string path,
+        string content,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(content);
+
+        string fullPath = Path.GetFullPath(path);
+        string directory = Path.GetDirectoryName(fullPath)!;
+        if (!Directory.Exists(directory))
+        {
+            throw new DirectoryNotFoundException(directory);
+        }
+
+        string temporaryPath = Path.Combine(directory,
+            "." + Path.GetFileName(fullPath) + "." + Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            await using (FileStream stream = new FileStream(temporaryPath,
+                FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096,
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await using (StreamWriter writer = new StreamWriter(stream,
+                    new UTF8Encoding(false), 4096, leaveOpen: true))
+                {
+                    await writer.WriteAsync(content.AsMemory(), cancellationToken);
+                    await writer.FlushAsync(cancellationToken);
+                }
+
+                stream.Flush(flushToDisk: true);
+            }
+
+            // No-overwrite File.Move is the atomic collision check, not File.Exists.
+            File.Move(temporaryPath, fullPath);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
+    /// <summary>
     /// Performs the <c>WriteAsync</c> operation.
     /// </summary>
     /// <param name="path">The <c>path</c> value.</param>

@@ -127,6 +127,67 @@ public static class MarkdownFrontMatterParser
     }
 
     /// <summary>
+    /// Extracts only the front matter prefix, including its closing delimiter,
+    /// without allocating or parsing the potentially large Markdown body.
+    /// </summary>
+    /// <param name="markdown">The complete source document.</param>
+    /// <returns>The source prefix, or an empty string when no valid closing front matter exists.</returns>
+    public static string GetFrontMatterSignature(string markdown)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+
+        // Most Markdown notes have no front matter. Reject them from the
+        // first non-whitespace character without copying or scanning a long
+        // single-line body, even when that line is several megabytes long.
+        int markerStart = 0;
+        while (markerStart < markdown.Length &&
+               markdown[markerStart] != '\n' &&
+               char.IsWhiteSpace(markdown[markerStart]))
+        {
+            markerStart++;
+        }
+
+        if (markerStart + 3 > markdown.Length ||
+            markdown[markerStart] != '-' ||
+            markdown[markerStart + 1] != '-' ||
+            markdown[markerStart + 2] != '-')
+        {
+            return string.Empty;
+        }
+
+        int firstLineEnd = markdown.IndexOf('\n', markerStart + 3);
+        if (firstLineEnd < 0 ||
+            !markdown.AsSpan(0, firstLineEnd)
+                .Trim().SequenceEqual("---".AsSpan()))
+        {
+            return string.Empty;
+        }
+
+        int lineStart = firstLineEnd + 1;
+        while (lineStart < markdown.Length)
+        {
+            int lineEnd = markdown.IndexOf('\n', lineStart);
+            int contentEnd = lineEnd < 0 ? markdown.Length : lineEnd;
+
+            if (markdown.AsSpan(lineStart, contentEnd - lineStart)
+                .Trim().SequenceEqual("---".AsSpan()))
+            {
+                int prefixEnd = lineEnd < 0 ? markdown.Length : lineEnd + 1;
+                return markdown[..prefixEnd];
+            }
+
+            if (lineEnd < 0)
+            {
+                break;
+            }
+
+            lineStart = lineEnd + 1;
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
     /// Replaces or creates front matter while preserving the document body.
     /// </summary>
     /// <param name="markdown">The original Markdown source.</param>
