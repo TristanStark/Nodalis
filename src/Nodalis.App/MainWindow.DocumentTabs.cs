@@ -1507,10 +1507,15 @@ public partial class MainWindow
             };
 
         close.Click += async (_, _) =>
-            await CloseDocumentTabAsync(
-                tab,
-                "fermer cet onglet",
-                activateNeighbor: true);
+            await RunUiActionAsync(
+                "Fermer un onglet du menu",
+                async () =>
+                {
+                    await CloseDocumentTabAsync(
+                        tab,
+                        "fermer cet onglet",
+                        activateNeighbor: true);
+                });
 
         menu.Items.Add(close);
 
@@ -1522,8 +1527,9 @@ public partial class MainWindow
             };
 
         closeOthers.Click += async (_, _) =>
-            await CloseOtherDocumentTabsAsync(
-                tab);
+            await RunUiActionAsync(
+                "Fermer les autres onglets",
+                () => CloseOtherDocumentTabsAsync(tab));
 
         menu.Items.Add(closeOthers);
 
@@ -1540,8 +1546,9 @@ public partial class MainWindow
             };
 
         closeRight.Click += async (_, _) =>
-            await CloseDocumentTabsToRightAsync(
-                tab);
+            await RunUiActionAsync(
+                "Fermer les onglets à droite",
+                () => CloseDocumentTabsToRightAsync(tab));
 
         menu.Items.Add(closeRight);
         DocumentTabsList.ContextMenu = menu;
