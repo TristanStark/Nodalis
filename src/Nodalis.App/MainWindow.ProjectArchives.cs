@@ -147,6 +147,8 @@ public partial class MainWindow
         StoreActiveDocumentTabState();
         StoreSecondaryDocumentTabState();
         return _documentTabs.Any(tab =>
-            IsProjectPathAncestorOrEqual(projectDirectory, tab.FullPath));
+                IsProjectPathAncestorOrEqual(projectDirectory, tab.FullPath)) ||
+            _projectJourneyTabs.Any(tab =>
+                IsProjectPathAncestorOrEqual(projectDirectory, tab.ProjectDirectory));
     }
 }
