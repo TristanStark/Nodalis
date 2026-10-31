@@ -121,6 +121,7 @@ try
     await MarkdownBulkImportSmokeTests.RunAsync(root);
     await ProjectExportSmokeTests.RunAsync(root);
     await MeetingExtractionSmokeTests.RunAsync(root);
+    MarkdownSyntaxSmokeTests.Run();
     VerifyMarkdownParser();
     VerifyFlowcharts();
     VerifyMarkdownFrontMatter();
