@@ -36,21 +36,34 @@ public sealed class ProjectJourneyService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The current workspace template catalog.</returns>
     public async Task<ProjectJourneyTemplateCatalog> LoadTemplatesAsync(
+        CancellationToken cancellationToken = default) =>
+        (await ReadTemplatesSnapshotAsync(cancellationToken)).Catalog;
+
+    /// <summary>
+    /// Reads the catalog and the SHA-256 of the exact bytes deserialized.
+    /// Built-in defaults have a null revision and never create an override.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Frozen catalog copy with optional optimistic revision.</returns>
+    public async Task<ProjectJourneyTemplateSnapshot> ReadTemplatesSnapshotAsync(
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(_templatePath))
         {
-            return ProjectJourneyDefaults.CreateCatalog();
+            return new ProjectJourneyTemplateSnapshot(
+                ProjectJourneyDefaults.CreateCatalog(), null);
         }
 
         EnsureNoReparsePoints(_templatePath);
-        byte[] bytes = await File.ReadAllBytesAsync(_templatePath, cancellationToken);
+        byte[] bytes = await File.ReadAllBytesAsync(
+            _templatePath, cancellationToken);
         ProjectJourneyTemplateCatalog catalog =
             JsonSerializer.Deserialize<ProjectJourneyTemplateCatalog>(
                 bytes, JsonDefaults.Options) ??
             throw new InvalidDataException("Catalogue de parcours vide.");
         ValidateCatalog(catalog);
-        return catalog;
+        return new ProjectJourneyTemplateSnapshot(
+            catalog, Convert.ToHexString(SHA256.HashData(bytes)));
     }
 
     /// <summary>
