@@ -2,6 +2,9 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Nodalis.Core.Domain;
+using Nodalis.Core.Links;
+using Nodalis.Core.Markdown;
+using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
 
@@ -19,6 +22,8 @@ internal static class ComplexMigrationTransactionSmokeTests
     /// <returns>Transactional migration regression run.</returns>
     public static async Task RunAsync(string root)
     {
+        await VerifyDocumentIdentityAfterMoveAsync(root);
+
         string workspace = Path.Combine(root, "Complex-v2-transaction-smoke");
         string projectRoot = Path.Combine(workspace,
             "Applications", "Test", "Projets", "Complexe historique");
@@ -428,6 +433,174 @@ internal static class ComplexMigrationTransactionSmokeTests
                     secondChoices[0].OriginalFingerprint &&
                 (await executor.ListPendingProjectsAsync()).Count == 0,
                 "Rollback fault must restore the exact original and leave no pending operation.");
+        }
+        finally
+        {
+            if (Directory.Exists(workspace))
+            {
+                Directory.Delete(workspace, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Qualifies GUID continuity with real Nodalis navigation, link rewrites,
+    /// an interrupted publication, later index refresh, and explicit rollback.
+    /// </summary>
+    /// <param name="root">Isolated smoke test parent directory.</param>
+    private static async Task VerifyDocumentIdentityAfterMoveAsync(string root)
+    {
+        string workspace = Path.Combine(root, "Complex-v2-identity-smoke");
+        await new FileSystemWorkspaceStore(workspace)
+            .InitializeAsync("Identités de migration");
+        try
+        {
+            Guid applicationId = Guid.NewGuid();
+            string application = Path.Combine(workspace, "Applications", "Produit");
+            Directory.CreateDirectory(application);
+            await AtomicJsonFile.WriteAsync(Path.Combine(application,
+                WorkspaceLayout.ApplicationManifestFileName),
+                new ApplicationManifest { Id = applicationId, Name = "Produit" });
+
+            string projectRoot = Path.Combine(application, "Projets",
+                "Complexe identités");
+            Directory.CreateDirectory(projectRoot);
+            ProjectManifest manifest = new()
+            {
+                Id = Guid.NewGuid(),
+                Name = "Complexe identités",
+                ApplicationId = applicationId,
+                InitialComplexity = ProjectComplexity.Complex,
+                Sections =
+                [
+                    Section("Jalons", "milestones", true),
+                    Section("Documentation", "documentation", true),
+                    Section("Fonctionnel", "functional", true),
+                    Section("Technique", "technical-complex", true),
+                    Section("Risques", "risks", true),
+                    Section("Dépendances", "dependencies", true),
+                    Section("Exploitation", "operations", true),
+                    Section("Déploiement", "deployment", true),
+                    Section("Réunions", null, false),
+                    Section("Décisions", null, false),
+                    Section("Tests", "tests-complex", true),
+                    Section("Glossaire", "glossary", true)
+                ]
+            };
+            await AtomicJsonFile.WriteAsync(Path.Combine(projectRoot,
+                WorkspaceLayout.ProjectManifestFileName), manifest);
+
+            foreach (string name in new[]
+                     { "Documentation", "Fonctionnel", "Technique", "Risques",
+                       "Dépendances", "Exploitation", "Déploiement", "Réunions",
+                       "Décisions", "Tests" })
+            {
+                string directory = Path.Combine(projectRoot, name);
+                Directory.CreateDirectory(directory);
+                await File.WriteAllTextAsync(
+                    Path.Combine(directory, name + ".md"),
+                    name is "Risques" or "Dépendances"
+                        ? "# Identical text\n"
+                        : "# " + name + "\n");
+            }
+
+            Guid blockId = Guid.NewGuid();
+            string oldTechnique = Path.Combine(projectRoot, "Technique", "Technique.md");
+            await File.WriteAllTextAsync(oldTechnique,
+                "# Technique\n## Critère\n" +
+                MarkdownBlockIdentityCodec.FormatMarker(blockId) +
+                "\n[Glossaire](../Glossaire.md)\n");
+            await File.WriteAllTextAsync(Path.Combine(projectRoot, "Jalons.md"),
+                "# Jalons\n");
+            await File.WriteAllTextAsync(Path.Combine(projectRoot, "Glossaire.md"),
+                "# Glossaire\n");
+            await File.WriteAllTextAsync(Path.Combine(projectRoot, "Présentation.md"),
+                "# Présentation\n[Technique](Technique/Technique.md)\n");
+
+            WorkspaceLinkIndexService links = new(workspace);
+            LinkIndexCatalog before = await links.RefreshAsync();
+            string projectRelative = Path.GetRelativePath(workspace,
+                projectRoot).Replace('\\', '/');
+            string oldTechniquePath = projectRelative + "/Technique/Technique.md";
+            string oldRiskPath = projectRelative + "/Risques/Risques.md";
+            string oldDependencyPath = projectRelative + "/Dépendances/Dépendances.md";
+            Guid techniqueId = before.Targets.Single(item =>
+                item.RelativePath == oldTechniquePath).Id;
+            Guid riskId = before.Targets.Single(item =>
+                item.RelativePath == oldRiskPath).Id;
+            Guid dependencyId = before.Targets.Single(item =>
+                item.RelativePath == oldDependencyPath).Id;
+            Assert(riskId != dependencyId && techniqueId != Guid.Empty,
+                "Cold index must assign distinct identities even to duplicate content.");
+            Assert(BlockIndexQuery.Resolve(before, blockId).Document?.Id == techniqueId,
+                "Criterion must initially be owned by its original document ID.");
+
+            ComplexProjectMigrationPlanService planner = new(workspace);
+            ComplexProjectMigrationPlan plan = await planner.PrepareAsync(projectRoot);
+            Assert(plan.CanExecute && plan.LinkRewrites.Count == 2,
+                "Migration should preview both a moved document edit and root backlink.");
+
+            ComplexProjectMigrationTransactionService interrupted = new(
+                workspace, checkpoint: phase =>
+                {
+                    if (phase == "published")
+                    {
+                        throw new InvalidOperationException(
+                            "Simulated stop before the index can be refreshed.");
+                    }
+                });
+            await RejectAsync(() => interrupted.ApplyAsync(
+                    plan, plan.SourceFingerprint, approved: true),
+                "Simulated interruption after publication must retain the journal.");
+
+            ComplexProjectMigrationTransactionService executor = new(workspace);
+            Assert((await executor.ListPendingProjectsAsync()).Single() == projectRoot,
+                "Published but unconfirmed migration must remain pending.");
+            Assert(await executor.RecoverPendingAsync(approved: true) == 1,
+                "Explicit recovery must complete the already published transaction.");
+
+            string newTechniquePath = projectRelative +
+                "/Documentation/Technique/Technique.md";
+            string newRiskPath = projectRelative + "/Analyse/Risques/Risques.md";
+            string newDependencyPath = projectRelative +
+                "/Analyse/Dépendances/Dépendances.md";
+            LinkIndexCatalog migrated = await new WorkspaceLinkIndexService(workspace)
+                .RefreshAsync();
+            Assert(migrated.Targets.Single(item =>
+                    item.RelativePath == newTechniquePath).Id == techniqueId &&
+                migrated.Targets.Single(item =>
+                    item.RelativePath == newRiskPath).Id == riskId &&
+                migrated.Targets.Single(item =>
+                    item.RelativePath == newDependencyPath).Id == dependencyId &&
+                BlockIndexQuery.Resolve(migrated, blockId).Document?.Id == techniqueId,
+                "Rebuilt index must preserve IDs for moved-and-edited documents, " +
+                "duplicate-content documents and their stable Markdown blocks.");
+
+            LinkIndexCatalog repeated = await links.RefreshAsync();
+            Assert(repeated.Targets.Single(item =>
+                    item.RelativePath == newTechniquePath).Id == techniqueId,
+                "Repeated refresh must not create a second document identity.");
+
+            IReadOnlyList<ComplexProjectMigrationJournal> rollback =
+                await executor.GetRollbackCandidatesAsync(projectRoot);
+            Assert(rollback.Count == 1 &&
+                rollback[0].DocumentIdentities.Any(item =>
+                    item.DocumentId == techniqueId &&
+                    item.OriginalRelativePath == oldTechniquePath &&
+                    item.PublishedRelativePath == newTechniquePath),
+                "Durable journal must retain enough lineage for a future recovery.");
+
+            await executor.RollbackAsync(rollback[0].TransactionId, approved: true);
+            LinkIndexCatalog reverted = await new WorkspaceLinkIndexService(workspace)
+                .RefreshAsync();
+            Assert(reverted.Targets.Single(item =>
+                    item.RelativePath == oldTechniquePath).Id == techniqueId &&
+                reverted.Targets.Single(item =>
+                    item.RelativePath == oldRiskPath).Id == riskId &&
+                reverted.Targets.Single(item =>
+                    item.RelativePath == oldDependencyPath).Id == dependencyId &&
+                BlockIndexQuery.Resolve(reverted, blockId).Document?.Id == techniqueId,
+                "A rolled-back journal must restore original document and block GUIDs.");
         }
         finally
         {
