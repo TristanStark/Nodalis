@@ -219,5 +219,6 @@ public partial class MainWindow
         editor.ScrollToLine(Math.Max(0, heading.HeadingLine - 1));
 
         StatusText.Text = $"Bloc · {heading.Title} · ligne {heading.HeadingLine}";
+        RefreshBlockRelationContext(index, id);
     }
 }

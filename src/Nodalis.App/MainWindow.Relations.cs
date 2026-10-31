@@ -66,23 +66,26 @@ public partial class MainWindow
                             StringComparer.CurrentCultureIgnoreCase)
                         .ToArray();
 
-                if (targets.Length == 0)
+                IReadOnlyList<RelationTargetOption> choices =
+                    RelationTargetIndexQuery.GetSelectable(_linkIndex, source.Id);
+
+                if (choices.Count == 0)
                 {
                     StatusText.Text =
-                        "Aucune autre cible indexée dans le workspace.";
+                        "Aucune cible identifiée et non ambiguë.";
                     return;
                 }
 
                 RelationDialog dialog =
                     new RelationDialog(
-                        targets)
+                        targets, choices)
                     {
                         Owner =
                             this
                     };
 
                 if (dialog.ShowDialog() != true ||
-                    dialog.SelectedTarget is null)
+                    dialog.SelectedTargetOption is not RelationTargetOption selected)
                 {
                     return;
                 }
@@ -93,8 +96,8 @@ public partial class MainWindow
                 string relationLine =
                     MarkdownRelationParser.Format(
                         dialog.RelationType,
-                        dialog.SelectedTarget.Id,
-                        dialog.SelectedTarget.DisplayName);
+                        selected.Id,
+                        selected.DisplayName);
 
                 int insertionIndex =
                     editor.SelectionStart;
@@ -131,7 +134,8 @@ public partial class MainWindow
                 await RefreshLinkIndexAndContextAsync();
 
                 StatusText.Text =
-                    $"Relation ajoutée · {dialog.RelationType} → {dialog.SelectedTarget.DisplayName}";
+                    $"Relation ajoutée · {dialog.RelationType} → {selected.DisplayName}" +
+                    (selected.IsBlock ? " (bloc)" : string.Empty);
             });
     }
 
@@ -209,35 +213,46 @@ public partial class MainWindow
     private RelationContextItemViewModel CreateOutgoingRelationItem(
             TypedRelationEntry relation)
     {
-        LinkTargetEntry? target =
-            relation.TargetId is Guid targetId
-                ? _linkIndex.Targets.FirstOrDefault(candidate =>
-                    candidate.Id == targetId)
-                : null;
+        MarkdownBlockIndexResolution? block = relation.TargetId is Guid id
+            ? BlockIndexQuery.Resolve(_linkIndex, id)
+            : null;
 
-        bool broken =
-            target is null;
+        LinkTargetEntry[] entityCandidates =
+            relation.TargetId is Guid targetId &&
+            block?.Status != LinkResolutionStatus.Ambiguous &&
+            block?.Status != LinkResolutionStatus.Resolved
+                ? _linkIndex.Targets.Where(target =>
+                    target.Id == targetId).Take(2).ToArray()
+                : [];
+
+        LinkTargetEntry? entity = entityCandidates.Length == 1
+            ? entityCandidates[0]
+            : null;
+
+        bool resolvedBlock = block?.Status == LinkResolutionStatus.Resolved;
+        bool ambiguous = block?.Status == LinkResolutionStatus.Ambiguous ||
+            entityCandidates.Length > 1;
+        bool broken = !resolvedBlock && entity is null;
 
         return new RelationContextItemViewModel
         {
-            RelationType =
-                relation.RelationType,
-            Direction =
-                "→",
-            DisplayName =
-                target?.DisplayName ??
-                relation.TargetLabel ??
-                relation.RawTargetId,
-            Detail =
-                broken
+            RelationType = relation.RelationType,
+            Direction = "→",
+            DisplayName = resolvedBlock
+                ? block!.Block!.HeadingTitle
+                : entity?.DisplayName ??
+                  relation.TargetLabel ??
+                  relation.RawTargetId,
+            Detail = ambiguous
+                ? $"GUID ambigu · {relation.RawTargetId}"
+                : broken
                     ? $"Cible introuvable · {relation.RawTargetId}"
-                    : target!.QualifiedName,
-            NavigationTargetId =
-                target?.Id,
-            NavigationLineNumber =
-                null,
-            IsBroken =
-                broken
+                    : resolvedBlock
+                        ? $"{block!.Document!.QualifiedName} › {block.Block!.HeadingTitle}"
+                        : entity!.QualifiedName,
+            NavigationTargetId = broken ? null : relation.TargetId,
+            NavigationLineNumber = null,
+            IsBroken = broken
         };
     }
 
@@ -309,20 +324,108 @@ public partial class MainWindow
                     return;
                 }
 
-                LinkTargetEntry? target =
-                    _linkIndex.Targets.FirstOrDefault(candidate =>
-                        candidate.Id == navigationTargetId);
-
-                if (target is null)
+                MarkdownBlockIndexResolution block =
+                    BlockIndexQuery.Resolve(_linkIndex, navigationTargetId);
+                if (block.Status == LinkResolutionStatus.Ambiguous)
                 {
                     StatusText.Text =
-                        $"⚠ Cible de relation introuvable · {item.DisplayName}";
+                        $"⚠ Cible de relation ambiguë · {item.DisplayName}";
+                    return;
+                }
+
+                if (block.Status == LinkResolutionStatus.Resolved)
+                {
+                    await NavigateToMarkdownBlockAsync(navigationTargetId);
+                    return;
+                }
+
+                LinkTargetEntry[] candidates = _linkIndex.Targets
+                    .Where(candidate => candidate.Id == navigationTargetId)
+                    .Take(2).ToArray();
+
+                if (candidates.Length != 1)
+                {
+                    StatusText.Text =
+                        $"⚠ Cible de relation introuvable ou ambiguë · {item.DisplayName}";
                     return;
                 }
 
                 await NavigateToLinkTargetAsync(
-                    target,
+                    candidates[0],
                     item.NavigationLineNumber);
             });
     }
+
+    /// <summary>
+    /// Shows incoming and outgoing relations of one validated block in the
+    /// existing context panel without creating a second persisted relation view.
+    /// </summary>
+    /// <param name="index">Fresh shared index snapshot used for navigation.</param>
+    /// <param name="blockId">Stable block identity just navigated to.</param>
+    private void RefreshBlockRelationContext(LinkIndexCatalog index, Guid blockId)
+    {
+        BlockIncomingRelationResult incoming =
+            BlockRelationIndexQuery.GetIncoming(index, blockId);
+        BlockOutgoingRelationResult outgoing =
+            BlockRelationIndexQuery.GetOutgoing(index, blockId);
+
+        if (incoming.Resolution.Status != LinkResolutionStatus.Resolved ||
+            outgoing.Source.Status != LinkResolutionStatus.Resolved)
+        {
+            return;
+        }
+
+        List<RelationContextItemViewModel> items = [];
+
+        foreach (BlockOutgoingRelationEntry entry in outgoing.Relations)
+        {
+            items.Add(new RelationContextItemViewModel
+            {
+                RelationType = entry.RelationType,
+                Direction = "→",
+                DisplayName = entry.TargetLabel,
+                Detail = entry.TargetStatus == LinkResolutionStatus.Resolved
+                    ? entry.TargetBlock is not null
+                        ? $"{entry.TargetEntity!.QualifiedName} · bloc"
+                        : entry.TargetEntity?.QualifiedName ?? "Cible"
+                    : entry.TargetStatus == LinkResolutionStatus.Ambiguous
+                        ? "Cible ambiguë"
+                        : "Cible introuvable",
+                NavigationTargetId =
+                    entry.TargetStatus == LinkResolutionStatus.Resolved
+                        ? entry.TargetId : null,
+                IsBroken = entry.TargetStatus != LinkResolutionStatus.Resolved
+            });
+        }
+
+        foreach (ReferenceSearchEntry reference in incoming.Relations)
+        {
+            items.Add(new RelationContextItemViewModel
+            {
+                RelationType = reference.RelationType ?? reference.TypeLabel,
+                Direction = "←",
+                DisplayName = reference.Source.DisplayName,
+                Detail = reference.SourceBlockId is Guid
+                    ? $"{reference.Source.QualifiedName} · bloc source · ligne {reference.LineNumber}"
+                    : $"{reference.Source.QualifiedName} · ligne {reference.LineNumber}",
+                NavigationTargetId = reference.Source.Id,
+                NavigationLineNumber = reference.LineNumber,
+                IsBroken = false
+            });
+        }
+
+        RelationContextItemViewModel[] ordered = items
+            .OrderBy(entry => entry.IsBroken)
+            .ThenBy(entry => entry.RelationType,
+                StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(entry => entry.DisplayName,
+                StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+
+        RelationsList.ItemsSource = ordered;
+        RelationsEmptyText.Visibility =
+            ordered.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        RelationsEmptyText.Text = "Aucune relation pour ce bloc.";
+    }
+
 }
