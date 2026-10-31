@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using Nodalis.Core.Domain;
 using Nodalis.Infrastructure.Persistence;
 
@@ -8,7 +7,7 @@ namespace Nodalis.Infrastructure.Projects;
 
 /// <summary>
 /// Immutable opt-in plan: all source files are fingerprinted before approval.
-/// Blockers are intentionally conservative until relative link rewriting is implemented.
+/// Affected links are blocked until link rewriting is implemented; unaffected links are permitted.
 /// </summary>
 public sealed record ComplexProjectMigrationPlan
 {
@@ -148,23 +147,21 @@ public sealed class ComplexProjectMigrationPlanService
             }
         }
 
-        // Until a complete cross-document/cross-project link rewriter exists,
-        // the first executable subset must not silently invalidate any local
-        // Markdown, wiki, image or HTML reference in the workspace.
-        string[] proposedSources = preview.Moves
-            .Where(move => move.State == ComplexMigrationMoveState.Candidate)
-            .Select(move => move.From)
-            .ToArray();
-
-        if (proposedSources.Length > 0)
+        // Compare the actual target of each supported relative reference before
+        // and after the proposed moves. Safe external or unaffected links do not
+        // unnecessarily block migration; affected references still fail closed.
+        if (preview.Moves.Any(move =>
+                move.State == ComplexMigrationMoveState.Candidate))
         {
-            IReadOnlyList<string> references = await FindUnresolvedLinksAsync(
-                cancellationToken);
-            if (references.Count > 0)
+            ComplexProjectMigrationLinkImpactService linkAudit = new(
+                _workspaceRoot, root, preview.Moves);
+            IReadOnlyList<string> impacted =
+                await linkAudit.FindBlockingReferencesAsync(cancellationToken);
+            if (impacted.Count > 0)
             {
                 blockers.Add("Références Markdown à requalifier avant déplacement (" +
-                    references.Count + ") : " +
-                    string.Join(", ", references.Take(5)));
+                    impacted.Count + ") : " +
+                    string.Join(", ", impacted.Take(5)));
             }
         }
 
@@ -258,67 +255,5 @@ public sealed class ComplexProjectMigrationPlanService
             StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    /// <summary>
-    /// Fail closed for all explicit Markdown links while link rewriting is
-    /// unfinished. Workspace-wide scanning includes external project backlinks.
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Up to twenty sample Markdown paths with references.</returns>
-    private async Task<IReadOnlyList<string>> FindUnresolvedLinksAsync(
-        CancellationToken cancellationToken)
-    {
-        List<string> found = [];
-        foreach (string file in EnumerateTree(_workspaceRoot, cancellationToken))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            FileAttributes attributes = File.GetAttributes(file);
-            if ((attributes & FileAttributes.ReparsePoint) != 0)
-            {
-                throw new InvalidDataException(
-                    "Une jonction du workspace empêche de qualifier tous les backlinks.");
-            }
 
-            if ((attributes & FileAttributes.Directory) != 0 ||
-                !string.Equals(Path.GetExtension(file), ".md",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            string relative = Path.GetRelativePath(
-                _workspaceRoot, file).Replace('\\', '/');
-            string firstPart = relative.Split('/')[0];
-            if (string.Equals(firstPart, WorkspaceLayout.TemplatesDirectoryName,
-                    StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(firstPart, WorkspaceLayout.ImportsDirectoryName,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                // Templates and import journals are not live Markdown sources.
-                continue;
-            }
-
-            bool hasUnresolvedLink = false;
-            await using FileStream input = new(file, FileMode.Open,
-                FileAccess.Read, FileShare.Read, 65536, useAsync: true);
-            using StreamReader reader = new(input);
-            while (await reader.ReadLineAsync(cancellationToken) is string line)
-            {
-                if (line.Contains("[[", StringComparison.Ordinal) ||
-                    line.Contains("](", StringComparison.Ordinal) ||
-                    line.Contains("src=", StringComparison.OrdinalIgnoreCase) ||
-                    line.Contains("href=", StringComparison.OrdinalIgnoreCase))
-                {
-                    hasUnresolvedLink = true;
-                    break;
-                }
-            }
-
-            if (hasUnresolvedLink)
-            {
-                found.Add(relative);
-            }
-        }
-
-        return found;
-    }
 }

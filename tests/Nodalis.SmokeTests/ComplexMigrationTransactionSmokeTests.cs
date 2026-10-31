@@ -115,6 +115,58 @@ internal static class ComplexMigrationTransactionSmokeTests
                     projectRoot) == originalHash,
                 "The fixture must restore its exact content before retry.");
 
+            // Unrelated external links and stable relative paths stay eligible.
+            // These links must not make the entire workspace un-migratable.
+            string originalPresentation = "# Projet\n\nTexte original.\n";
+            await File.WriteAllTextAsync(presentationPath,
+                originalPresentation + "[Site](https://example.org/page)\n" +
+                "![Aide](Glossaire.md)\n");
+            ComplexProjectMigrationPlan safeLinks = await planner.PrepareAsync(
+                projectRoot);
+            Assert(safeLinks.CanExecute,
+                "External URLs and relative references to unmoved files must stay safe.");
+            await File.WriteAllTextAsync(presentationPath, originalPresentation);
+
+            string movedDoc = Path.Combine(projectRoot, "Technique", "Technique.md");
+            string originalMovedDoc = await File.ReadAllTextAsync(movedDoc);
+            await File.WriteAllTextAsync(Path.Combine(projectRoot,
+                "Technique", "capture.png"), "fixture");
+            await File.WriteAllTextAsync(movedDoc,
+                originalMovedDoc + "\n![Image](capture.png)\n");
+            ComplexProjectMigrationPlan together = await planner.PrepareAsync(
+                projectRoot);
+            Assert(together.CanExecute,
+                "Relative links between files moved together must remain valid.");
+            await File.WriteAllTextAsync(movedDoc, originalMovedDoc);
+            File.Delete(Path.Combine(projectRoot, "Technique", "capture.png"));
+
+            await File.WriteAllTextAsync(presentationPath,
+                originalPresentation + "[Technique](Technique/Technique.md)\n");
+            ComplexProjectMigrationPlan affected = await planner.PrepareAsync(
+                projectRoot);
+            Assert(!affected.CanExecute &&
+                affected.Blockers.Any(item =>
+                    item.Contains("lien relatif affecté", StringComparison.Ordinal)),
+                "A stable source pointing to a moved target must block.");
+            await File.WriteAllTextAsync(presentationPath, originalPresentation);
+
+            await File.WriteAllTextAsync(movedDoc,
+                originalMovedDoc + "\n![Glossaire](../Glossaire.md)\n");
+            ComplexProjectMigrationPlan movingSource = await planner.PrepareAsync(
+                projectRoot);
+            Assert(!movingSource.CanExecute,
+                "A moving document referencing an unmoved relative asset must block.");
+            await File.WriteAllTextAsync(movedDoc, originalMovedDoc);
+
+            string backlink = Path.Combine(workspace, "Backlink.md");
+            await File.WriteAllTextAsync(backlink,
+                "[Technique](Applications/Test/Projets/Complexe historique/Technique/Technique.md)");
+            ComplexProjectMigrationPlan externalBacklink = await planner.PrepareAsync(
+                projectRoot);
+            Assert(!externalBacklink.CanExecute,
+                "A backlink outside the migrated project must not be lost.");
+            File.Delete(backlink);
+
             await File.AppendAllTextAsync(presentationPath,
                 "\n[[Technique]]\n");
             ComplexProjectMigrationPlan blocked = await planner.PrepareAsync(

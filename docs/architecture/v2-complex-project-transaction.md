@@ -2,8 +2,9 @@
 
 ## Périmètre actuel
 
-Ce premier moteur exécutable est limité aux projets sans référence Markdown à
-réécrire. Un projet existant n'est jamais migré à l'ouverture, ni par la
+Ce moteur exécutable est limité aux projets sans référence Markdown à
+réécrire. Les liens externes et les chemins relatifs dont la résolution reste
+identique après déplacement sont désormais autorisés. Un projet existant n'est jamais migré à l'ouverture, ni par la
 simple consultation d'un inventaire. Les projets Simple, Moyen et Ultra-simple
 ne sont pas migrables avec ce service.
 
