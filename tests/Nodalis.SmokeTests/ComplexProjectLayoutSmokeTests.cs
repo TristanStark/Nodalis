@@ -95,7 +95,7 @@ internal static class ComplexProjectLayoutSmokeTests
                 new ComplexProjectMigrationPreviewService(workspace);
             ComplexProjectMigrationPreview inventory =
                 await migrations.PreviewAsync(project);
-            Assert(inventory.Moves.Count == 7 &&
+            Assert(inventory.Moves.Count == 8 &&
                 inventory.Moves.All(move => move.State ==
                     ComplexMigrationMoveState.AlreadyPlaced) &&
                 inventory.MissingDirectories.Count == 0,

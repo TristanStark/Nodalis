@@ -140,8 +140,15 @@ public sealed class ComplexProjectMigrationPreviewService
         foreach ((SectionManifest section, string destination) in proposed)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string source = section.RelativeDirectory ??
-                WindowsPathRules.SanitizeSegment(section.Name);
+            bool milestone = string.Equals(section.TemplateKey,
+                "milestones", StringComparison.OrdinalIgnoreCase);
+            string source = milestone
+                ? (section.RelativeDirectory is null
+                    ? "Jalons.md"
+                    : section.RelativeDirectory + "/Jalons.md")
+                : section.RelativeDirectory ??
+                    WindowsPathRules.SanitizeSegment(section.Name);
+
             string from = Resolve(root, source);
             string to = Resolve(root, destination);
 
@@ -152,7 +159,7 @@ public sealed class ComplexProjectMigrationPreviewService
                 state = ComplexMigrationMoveState.Blocked;
                 detail = "Plusieurs sections revendiquent cette destination.";
             }
-            else if (!Directory.Exists(from))
+            else if (milestone ? !File.Exists(from) : !Directory.Exists(from))
             {
                 state = ComplexMigrationMoveState.MissingSource;
                 detail = "Source absente : vérifier un déplacement préalable.";
@@ -179,7 +186,8 @@ public sealed class ComplexProjectMigrationPreviewService
         List<string> missing = Layout.Where(path =>
             !Directory.Exists(Resolve(root, path))).ToList();
         warnings.Add(
-            "Jalons.md reste à la racine jusqu'à l'adaptation des lecteurs et raccourcis.");
+            "Le déplacement des anciens Jalons.md vers Management exige une validation " +
+            "explicite des liens, manifestes et onglets avant tout changement.");
         warnings.Add(
             "Aucun déplacement permis par cet aperçu ; liens Markdown, pièces jointes et " +
             "manifestes exigent une migration approuvée et récupérable.");
@@ -194,6 +202,7 @@ public sealed class ComplexProjectMigrationPreviewService
     {
         return section.TemplateKey?.ToLowerInvariant() switch
         {
+            "milestones" => "Management/Jalons.md",
             "functional" => "Documentation/Fonctionnel",
             "technical-complex" => "Documentation/Technique",
             "risks" => "Analyse/Risques",

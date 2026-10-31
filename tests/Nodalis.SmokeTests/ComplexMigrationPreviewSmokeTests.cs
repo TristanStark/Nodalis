@@ -55,8 +55,10 @@ internal static class ComplexMigrationPreviewSmokeTests
             ComplexProjectMigrationPreviewService service = new(workspace);
             ComplexProjectMigrationPreview preview = await service.PreviewAsync(projectRoot);
             Assert(preview.ProjectId == project.Id &&
-                preview.Moves.Count == 7 &&
-                preview.Moves.Count(item => item.State == ComplexMigrationMoveState.Candidate) == 6 &&
+                preview.Moves.Count == 8 &&
+                preview.Moves.Count(item => item.State == ComplexMigrationMoveState.Candidate) == 7 &&
+                preview.Moves.Single(item => item.SectionName == "Jalons").To ==
+                    "Management/Jalons.md" &&
                 preview.Moves.Single(item => item.SectionName == "Risques").State ==
                     ComplexMigrationMoveState.Blocked &&
                 preview.Moves.Single(item => item.SectionName == "Technique").To ==
