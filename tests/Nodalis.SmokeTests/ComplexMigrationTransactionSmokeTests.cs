@@ -428,6 +428,14 @@ internal static class ComplexMigrationTransactionSmokeTests
                 "Crash must leave one applied and one pending backlink, journaled.");
             await RejectAsync(() => executor.RecoverPendingAsync(approved: false),
                 "Completing partial backlink publication requires a human decision.");
+            await File.AppendAllTextAsync(recoveryB, "Human edit\n");
+            await RejectAsync(() => executor.RecoverPendingAsync(approved: true),
+                "Recovery must refuse to overwrite an externally edited backlink.");
+            Assert((await File.ReadAllTextAsync(recoveryB)).Contains(
+                    "Human edit", StringComparison.Ordinal) &&
+                (await executor.ListPendingProjectsAsync()).Single() == recoverRoot,
+                "Blocked recovery must retain human edits and the pending journal.");
+            await File.WriteAllTextAsync(recoveryB, initialB);
             Assert(await executor.RecoverPendingAsync(approved: true) == 1 &&
                 (await File.ReadAllTextAsync(recoveryB)).Contains(
                     "Management/Jalons.md", StringComparison.Ordinal) &&
@@ -436,8 +444,20 @@ internal static class ComplexMigrationTransactionSmokeTests
 
             ComplexProjectMigrationJournal recoveryJournal =
                 (await executor.GetRollbackCandidatesAsync(recoverRoot)).Single();
-            await executor.RollbackAsync(recoveryJournal.TransactionId,
-                approved: true);
+            ComplexProjectMigrationTransactionService interruptedRollback = new(
+                workspace, checkpoint: name =>
+                {
+                    if (name == "external-rolled-back")
+                    {
+                        throw new InvalidOperationException(
+                            "Simulated stop after restoring one external backlink.");
+                    }
+                });
+            await RejectAsync(() => interruptedRollback.RollbackAsync(
+                    recoveryJournal.TransactionId, approved: true),
+                "An interrupted rollback must surface an error and restore all backlinks.");
+            Assert((await executor.ListPendingProjectsAsync()).Count == 0,
+                "Handled rollback interruption must restore a coherent terminal state.");
             Assert(await File.ReadAllTextAsync(recoveryA) == initialA &&
                 await File.ReadAllTextAsync(recoveryB) == initialB &&
                 File.Exists(Path.Combine(recoverRoot, "Technique", "Technique.md")),

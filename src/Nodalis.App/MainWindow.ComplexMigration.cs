@@ -247,7 +247,8 @@ public partial class MainWindow
                 "Restaurer le projet dans son état antérieur à la migration ?\n\n" +
                 "Transaction : " + candidate.TransactionId.ToString("D") + "\n" +
                 "Empreinte originale : " + candidate.OriginalFingerprint + "\n\n" +
-                "Nodalis refusera si le projet ou sa sauvegarde a changé. " +
+                "Nodalis refusera si le projet, sa sauvegarde ou un backlink externe " +
+                "a changé. Les backlinks seront restaurés avec le projet. " +
                 "La version 2.0 actuelle sera conservée pour inspection.",
                 "Confirmer la restauration Complexe",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
