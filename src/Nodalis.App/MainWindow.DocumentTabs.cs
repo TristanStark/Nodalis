@@ -1,6 +1,11 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Nodalis.Core.Domain;
+using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -903,79 +908,86 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Maps the legacy folder-backed singleton roles to the 1.0 project-root files.
+    /// Resolves old root or folder-backed Jalons/Glossaire paths to an active
+    /// manifest-declared singleton, including Management/Jalons.md. Never
+    /// rewrites a document or follows an ambiguous duplicate source.
     /// </summary>
-    /// <param name="legacyPath">The legacy file path.</param>
-    /// <returns>The canonical existing path, or <see langword="null"/>.</returns>
+    /// <param name="legacyPath">An obsolete path absent from navigation.</param>
+    /// <returns>Existing canonical Markdown path, or null for no safe alias.</returns>
     private static string? TryResolveMigratedSingletonDocumentPath(
-            string legacyPath)
+        string legacyPath)
     {
-        string fullPath =
-            Path.GetFullPath(
-                legacyPath);
-
-        if (File.Exists(
-                fullPath))
+        string fullPath = Path.GetFullPath(legacyPath);
+        if (File.Exists(fullPath))
         {
             return null;
         }
 
-        string? legacyDirectory =
-            Path.GetDirectoryName(
-                fullPath);
-
-        if (string.IsNullOrWhiteSpace(
-                legacyDirectory))
+        string name = Path.GetFileName(fullPath);
+        bool milestone = string.Equals(name, "Jalons.md",
+            StringComparison.OrdinalIgnoreCase);
+        bool glossary = string.Equals(name, WorkspaceLayout.GlobalGlossaryFileName,
+            StringComparison.OrdinalIgnoreCase);
+        if (!milestone && !glossary)
         {
             return null;
         }
 
-        string roleName =
-            Path.GetFileName(
-                legacyDirectory);
-        string fileNameWithoutExtension =
-            Path.GetFileNameWithoutExtension(
-                fullPath);
-
-        bool singletonRole =
-            string.Equals(
-                roleName,
-                "Jalons",
-                StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(
-                roleName,
-                "Glossaire",
-                StringComparison.OrdinalIgnoreCase);
-
-        if (!singletonRole ||
-            !string.Equals(
-                roleName,
-                fileNameWithoutExtension,
-                StringComparison.OrdinalIgnoreCase))
+        string? directory = Path.GetDirectoryName(fullPath);
+        if (directory is null)
         {
             return null;
         }
 
-        string? projectDirectory =
-            Directory.GetParent(
-                legacyDirectory)?.FullName;
+        string roleName = milestone ? "Jalons" : "Glossaire";
+        string projectDirectory = string.Equals(
+                Path.GetFileName(directory), roleName,
+                StringComparison.OrdinalIgnoreCase)
+            ? Directory.GetParent(directory)?.FullName ?? directory
+            : directory;
 
-        if (string.IsNullOrWhiteSpace(
-                projectDirectory))
+        string manifestPath = Path.Combine(
+            projectDirectory, WorkspaceLayout.ProjectManifestFileName);
+        if (!File.Exists(manifestPath))
         {
             return null;
         }
 
-        string canonicalPath =
-            Path.GetFullPath(
-                Path.Combine(
-                    projectDirectory,
-                    roleName + ".md"));
+        try
+        {
+            JsonSerializerOptions options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+            options.Converters.Add(new JsonStringEnumConverter(
+                JsonNamingPolicy.CamelCase));
 
-        return File.Exists(
-                canonicalPath)
-            ? canonicalPath
-            : null;
+            ProjectManifest? project = JsonSerializer.Deserialize<ProjectManifest>(
+                File.ReadAllText(manifestPath), options);
+            SectionManifest? section = project?.Sections.FirstOrDefault(item =>
+                string.Equals(item.TemplateKey,
+                    milestone ? "milestones" : "glossary",
+                    StringComparison.OrdinalIgnoreCase));
+            if (section is null)
+            {
+                return null;
+            }
+
+            ProjectSingletonDocumentResolution resolution =
+                ProjectSingletonDocumentLayout.Resolve(
+                    projectDirectory, section, migrateIfSafe: false);
+
+            return File.Exists(resolution.ActivePath) &&
+                !string.Equals(fullPath, resolution.ActivePath,
+                    StringComparison.OrdinalIgnoreCase)
+                ? resolution.ActivePath
+                : null;
+        }
+        catch (Exception error) when (error is IOException or
+            UnauthorizedAccessException or JsonException or InvalidDataException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
