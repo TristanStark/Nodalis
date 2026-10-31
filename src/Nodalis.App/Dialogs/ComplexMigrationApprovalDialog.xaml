@@ -44,7 +44,7 @@
         </ListBox>
         <StackPanel Grid.Row="2" Margin="0,12,0,0">
             <TextBlock FontSize="11" FontWeight="SemiBold"
-                       Text="LIENS LOCAUX À RÉÉCRIRE DANS LA COPIE"/>
+                       Text="LIENS À RÉÉCRIRE — PROJET ET BACKLINKS EXTERNES"/>
             <TextBox x:Name="RewritesText" IsReadOnly="True" MinHeight="38"
                      MaxHeight="86" Margin="0,5,0,0"
                      TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
@@ -56,7 +56,7 @@
         </StackPanel>
         <StackPanel Grid.Row="3" Margin="0,12,0,0">
             <TextBlock TextWrapping="Wrap"
-                       Text="Les fichiers sont préparés sur une copie. L’original est conservé dans Imports/.complex-v2-migrations ; toute interruption est journalisée. Les liens internes sans ambiguïté sont réécrits dans cette copie ; les backlinks externes et formats inconnus restent bloquants."
+                       Text="Les fichiers sont préparés sur une copie. L’original est conservé dans Imports/.complex-v2-migrations ; toute interruption est journalisée. Les liens internes vérifiables et les backlinks externes sont corrigés à partir de copies sauvegardées, avec récupération contrôlée en cas d’interruption. Les formats ambigus restent bloquants."
                        Foreground="{StaticResource SecondaryTextBrush}"/>
             <TextBlock Text="Pour autoriser cette opération, saisir MIGRER :"
                        FontWeight="SemiBold" Margin="0,9,0,4"/>
