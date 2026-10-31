@@ -741,6 +741,7 @@
                               SizeChanged="NavigationTree_StickySizeChanged"
                               ScrollViewer.ScrollChanged="NavigationTree_StickyScrollChanged"
                               SelectedItemChanged="NavigationTree_SelectedItemChanged"
+                              RequestBringIntoView="NavigationTree_RequestBringIntoView"
                               PreviewMouseRightButtonDown="NavigationTree_PreviewMouseRightButtonDown"
                               ContextMenuOpening="NavigationTree_ContextMenuOpening">
                         <TreeView.ItemsPanel>
