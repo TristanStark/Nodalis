@@ -56,6 +56,7 @@ public sealed class ComplexProjectMigrationTransactionService
     private const string JournalFileName = "journal.json";
     private const string StagingDirectoryName = "staging";
     private const string BackupDirectoryName = "original";
+    private const string PublishedDirectoryName = "previously-published";
 
     private readonly string _workspaceRoot;
     private readonly string _transactionsRoot;
@@ -91,7 +92,7 @@ public sealed class ComplexProjectMigrationTransactionService
         foreach ((string directory, ComplexProjectMigrationJournal journal) in
                  await ReadJournalsAsync(cancellationToken))
         {
-            if (journal.Phase is "completed" or "recovered" or "aborted")
+            if (journal.Phase is "completed" or "recovered" or "aborted" or "rolled-back")
             {
                 continue;
             }
@@ -301,7 +302,7 @@ public sealed class ComplexProjectMigrationTransactionService
         foreach ((string directory, ComplexProjectMigrationJournal journal) in
                  await ReadJournalsAsync(cancellationToken))
         {
-            if (journal.Phase is "completed" or "recovered" or "aborted")
+            if (journal.Phase is "completed" or "recovered" or "aborted" or "rolled-back")
             {
                 continue;
             }
@@ -328,7 +329,8 @@ public sealed class ComplexProjectMigrationTransactionService
             if (Directory.Exists(backup) && !Directory.Exists(projectRoot))
             {
                 Directory.Move(backup, projectRoot);
-                nextPhase = "recovered";
+                nextPhase = journal.Phase == "rollback-prepared"
+                    ? "rolled-back" : "recovered";
             }
             else if (Directory.Exists(backup) && Directory.Exists(projectRoot))
             {
@@ -356,7 +358,8 @@ public sealed class ComplexProjectMigrationTransactionService
                         "La source initiale a changé : réconciliation manuelle requise.");
                 }
 
-                nextPhase = "aborted";
+                nextPhase = journal.Phase == "rollback-prepared"
+                    ? "rolled-back" : "aborted";
             }
             else
             {
@@ -370,6 +373,133 @@ public sealed class ComplexProjectMigrationTransactionService
         }
 
         return count;
+    }
+
+    /// <summary>
+    /// Lists successful migrations with retained originals, newest first.
+    /// </summary>
+    /// <param name="projectDirectory">Active project root.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Completed rollback candidates only, without writes.</returns>
+    public async Task<IReadOnlyList<ComplexProjectMigrationJournal>>
+        GetRollbackCandidatesAsync(
+        string projectDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        string root = Path.GetFullPath(projectDirectory);
+        List<ComplexProjectMigrationJournal> candidates = [];
+        foreach ((string directory, ComplexProjectMigrationJournal journal) in
+                 await ReadJournalsAsync(cancellationToken))
+        {
+            if (journal.Phase == "completed" &&
+                string.Equals(ResolveJournalProject(journal), root,
+                    StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(Path.Combine(directory, BackupDirectoryName)))
+            {
+                candidates.Add(journal);
+            }
+        }
+
+        return candidates.OrderByDescending(item => item.CreatedUtc).ToArray();
+    }
+
+    /// <summary>
+    /// Restores the original project only after explicitly approving its
+    /// precise journal and verifying both original and published fingerprints.
+    /// Preserves the displaced published project for manual inspection.
+    /// </summary>
+    /// <param name="transactionId">Journal selected for rollback.</param>
+    /// <param name="approved">Explicit human confirmation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Restored project path.</returns>
+    public async Task<string> RollbackAsync(
+        Guid transactionId,
+        bool approved,
+        CancellationToken cancellationToken = default)
+    {
+        if (!approved)
+        {
+            throw new InvalidOperationException(
+                "Une restauration exige une approbation humaine explicite.");
+        }
+
+        if (transactionId == Guid.Empty || !Directory.Exists(_transactionsRoot))
+        {
+            throw new InvalidDataException("Transaction de restauration inconnue.");
+        }
+
+        string directory = Path.Combine(_transactionsRoot, transactionId.ToString("N"));
+        string journalPath = Path.Combine(directory, JournalFileName);
+        if (!File.Exists(journalPath))
+        {
+            throw new FileNotFoundException("Journal de migration introuvable.", journalPath);
+        }
+
+        await using FileStream operationLock = new(
+            Path.Combine(_transactionsRoot, ".operation.lock"),
+            FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None,
+            1, useAsync: true);
+
+        ComplexProjectMigrationJournal journal =
+            await AtomicJsonFile.ReadAsync<ComplexProjectMigrationJournal>(
+                journalPath, cancellationToken);
+        if (journal.TransactionId != transactionId || journal.Phase != "completed")
+        {
+            throw new InvalidOperationException(
+                "La restauration exige une migration achevée et non encore restaurée.");
+        }
+
+        string source = ResolveJournalProject(journal);
+        string original = Path.Combine(directory, BackupDirectoryName);
+        string previouslyPublished = Path.Combine(directory, PublishedDirectoryName);
+        if (!Directory.Exists(source) || !Directory.Exists(original) ||
+            Directory.Exists(previouslyPublished) ||
+            (File.GetAttributes(source) & FileAttributes.ReparsePoint) != 0 ||
+            (File.GetAttributes(original) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException(
+                "Une source de restauration manque ou ne peut pas être vérifiée.");
+        }
+
+        string currentHash =
+            await ComplexProjectMigrationPlanService.FingerprintAsync(
+                source, cancellationToken);
+        string backupHash =
+            await ComplexProjectMigrationPlanService.FingerprintAsync(
+                original, cancellationToken);
+        if (!string.Equals(currentHash, journal.StagedFingerprint,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(backupHash, journal.OriginalFingerprint,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Le projet ou sa sauvegarde ont changé : restauration interdite sans vérification manuelle.");
+        }
+
+        journal = journal with { Phase = "rollback-prepared" };
+        await AtomicJsonFile.WriteAsync(journalPath, journal, CancellationToken.None);
+        try
+        {
+            Directory.Move(source, previouslyPublished);
+            _checkpoint?.Invoke("rollback-source-moved");
+            Directory.Move(original, source);
+            await AtomicJsonFile.WriteAsync(
+                journalPath, journal with { Phase = "rolled-back" },
+                CancellationToken.None);
+            return source;
+        }
+        catch
+        {
+            if (!Directory.Exists(source) && Directory.Exists(original))
+            {
+                Directory.Move(original, source);
+                await AtomicJsonFile.WriteAsync(
+                    journalPath, journal with { Phase = "rolled-back" },
+                    CancellationToken.None);
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
