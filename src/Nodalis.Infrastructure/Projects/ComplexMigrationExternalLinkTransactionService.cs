@@ -152,7 +152,7 @@ internal sealed class ComplexMigrationExternalLinkTransactionService
         IReadOnlyList<ComplexMigrationExternalLinkFile> files,
         bool publish, CancellationToken cancellationToken)
     {
-        await AssertReplayableAsync(directory, files, publish, cancellationToken);
+        await AssertBackupsAsync(directory, files, publish, cancellationToken);
         foreach (ComplexMigrationExternalLinkFile item in files)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -185,7 +185,7 @@ internal sealed class ComplexMigrationExternalLinkTransactionService
         IReadOnlyList<ComplexMigrationExternalLinkFile> files, bool publish,
         CancellationToken cancellationToken, Action<string>? checkpoint = null)
     {
-        await AssertBackupsAsync(directory, files, cancellationToken);
+        await AssertReplayableAsync(directory, files, cancellationToken);
         foreach (ComplexMigrationExternalLinkFile item in files)
         {
             cancellationToken.ThrowIfCancellationRequested();
