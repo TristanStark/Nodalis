@@ -250,6 +250,8 @@ public partial class MainWindow : Window
 
         Closed += (_, _) =>
         {
+            _primaryMarkdownLineMarkers.Dispose();
+            _secondaryMarkdownLineMarkers.Dispose();
             _heartbeatMonitor.SetEnabled(false);
             _autosaveRefreshTimer.Stop();
             _glossaryMatchCancellation?.Cancel();
