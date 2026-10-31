@@ -59,3 +59,10 @@ Les GUID d'objets documentaires et de blocs partagent un espace d'identité : un
 `BlockRelationIndexQuery.GetIncoming` construit une projection des relations typées `> Relation: ... | Cible: ... | ID: ...` ciblant un GUID de bloc. Elle utilise exclusivement les relations et cibles de l'index partagé, sans nouvelle source métier, et ne retourne des lignes que lorsque le bloc et le document source sont uniques. La liste des types connus s'enrichit des verbes du Parcours 2.0 (provient de, vérifie, concerne, succède à, corrige, revalide) ; les types libres existants restent autorisés.
 
 **Restant** : associer les relations sortantes à un bloc source plutôt qu'au seul document, ajouter la sélection de blocs dans les formulaires de relation, étendre l'exploration aux blocs, et qualifier l'interface sur Windows.
+
+
+## Première attribution dans l'éditeur (incrément #206)
+
+La palette propose également **Identifier le titre courant (2.0)**. L'utilisateur place son curseur sous un titre Markdown, reçoit un aperçu explicite du marqueur GUID à ajouter, puis confirme ou annule. L'éditeur insère uniquement la nouvelle ligne et réutilise le mécanisme existant de sauvegarde, contrôle de modifications externes, undo et indexation. Les documents existants ne sont jamais modifiés au simple chargement, et les projets en lecture seule restent intacts.
+
+Cette commande ne remplace pas encore le futur dialogue détaillé de relation ou l'assistant de migration ; la qualification visuelle et les cas multi-onglets/édition externe restent ouverts dans #206.

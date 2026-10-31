@@ -5006,6 +5006,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "block.assign",
+                Title = "Identifier le titre courant (2.0)",
+                Subtitle = "Prévisualiser puis attribuer un GUID stable à un titre Markdown",
+                Keywords = ["bloc", "guid", "identifiant", "critère", "test", "titre", "2.0"],
+                ExecuteAsync = AssignCurrentHeadingIdentityAsync
+            },
+            new()
+            {
                 Id = "block.goto",
                 Title = "Atteindre un bloc par ID",
                 Subtitle = "Ouvrir précisément un critère ou test Markdown identifié",

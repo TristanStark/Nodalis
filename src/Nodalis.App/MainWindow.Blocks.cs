@@ -38,6 +38,121 @@ public partial class MainWindow
     }
 
     /// <summary>
+    /// Shows an explicit single-marker preview for the heading nearest the
+    /// caret, then inserts only the new marker using the existing editor
+    /// autosave/conflict machinery. No separate file writer touches open tabs.
+    /// </summary>
+    /// <returns>An asynchronous user-controlled Markdown edit.</returns>
+    private async Task AssignCurrentHeadingIdentityAsync()
+    {
+        if (_workspaceReadOnly)
+        {
+            StatusText.Text = "Workspace en lecture seule : attribution impossible.";
+            return;
+        }
+
+        DocumentTabViewModel? tab = GetFocusedDocumentTab();
+        if (tab is null || tab.IsMissing)
+        {
+            StatusText.Text = "Ouvrez un document Markdown pour identifier un titre.";
+            return;
+        }
+
+        TextBox editor = GetFocusedEditorTextBox();
+        string source = editor.Text;
+        int caret = editor.CaretIndex;
+        MarkdownBlockIdentityScan scan = await Task.Run(
+            () => MarkdownBlockIdentityCodec.Inspect(source));
+
+        if (!ReferenceEquals(tab, GetFocusedDocumentTab()) ||
+            !string.Equals(source, editor.Text, StringComparison.Ordinal))
+        {
+            StatusText.Text = "Document modifié : recommencez la préparation.";
+            return;
+        }
+
+        if (scan.Issues.Count != 0)
+        {
+            StatusText.Text = "Corrigez les identifiants de blocs invalides ou dupliqués avant d'en créer un.";
+            return;
+        }
+
+        MarkdownBlockIdentityEntry? heading = scan.Blocks
+            .LastOrDefault(item => item.HeadingOffset <= caret);
+
+        if (heading is null)
+        {
+            StatusText.Text = "Placez le curseur sous un titre Markdown valide.";
+            return;
+        }
+
+        if (heading.Id is Guid existing)
+        {
+            MessageBox.Show(this,
+                $"Le titre « {heading.Title} » possède déjà l'identifiant :\n{existing:D}",
+                "Bloc déjà identifié", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        LinkIndexCatalog catalog = await _linkIndexService.RefreshAsync();
+        Guid blockId = Guid.NewGuid();
+        while (catalog.Targets.Any(target => target.Id == blockId) ||
+               catalog.Blocks.Any(block => block.Id == blockId))
+        {
+            blockId = Guid.NewGuid();
+        }
+
+        string proposed = await Task.Run(() =>
+            MarkdownBlockIdentityCodec.InsertMarker(source, heading.HeadingLine, blockId));
+
+        // The codec performs one insertion only. Calculate the minimal text
+        // addition off-thread, preserving undo history and cursor position.
+        (int Offset, string InsertedText) insertion = await Task.Run(() =>
+        {
+            int prefix = 0;
+            while (prefix < source.Length && source[prefix] == proposed[prefix])
+            {
+                prefix++;
+            }
+
+            int length = proposed.Length - source.Length;
+            if (length <= 0 ||
+                !source.AsSpan(prefix).SequenceEqual(proposed.AsSpan(prefix + length)))
+            {
+                throw new InvalidDataException("Aucune insertion minimale sûre n'a été trouvée.");
+            }
+
+            return (prefix, proposed.Substring(prefix, length));
+        });
+
+        MessageBoxResult answer = MessageBox.Show(this,
+            $"Identifier le titre « {heading.Title} » (ligne {heading.HeadingLine}) ?\n\n" +
+            $"Ajouter dans ce Markdown :\n{MarkdownBlockIdentityCodec.FormatMarker(blockId)}\n\n" +
+            "Aucun autre contenu ne sera modifié. Confirmer l'insertion ?",
+            "Nodalis 2.0 · attribution explicite",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(tab, GetFocusedDocumentTab()) ||
+            !string.Equals(source, editor.Text, StringComparison.Ordinal))
+        {
+            StatusText.Text = "Document modifié après l'aperçu : aucune insertion effectuée.";
+            return;
+        }
+
+        editor.Select(insertion.Offset, 0);
+        editor.SelectedText = insertion.InsertedText;
+        await SaveFocusedDocumentAsync();
+        await RefreshLinkIndexAndContextAsync();
+        StatusText.Text = $"Bloc identifié · {heading.Title} · {blockId:D}";
+    }
+
+    /// <summary>
     /// Resolves a block against the shared index, opens its document and
     /// revalidates the live text before positioning the caret.
     /// </summary>
