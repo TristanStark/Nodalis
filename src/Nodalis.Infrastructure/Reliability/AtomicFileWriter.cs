@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Nodalis.Infrastructure.Reliability;
@@ -80,6 +81,98 @@ public static class AtomicFileWriter
             if (File.Exists(temporaryPath))
             {
                 File.Delete(temporaryPath);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Replaces a file only while holding a read/share-delete handle on its
+    /// exact approved bytes. The handle denies normal in-place writers between
+    /// the SHA-256 comparison and the same-volume atomic File.Replace call.
+    /// A third-party path rename/replacement can still race this operation.
+    /// </summary>
+    /// <param name="path">Existing destination, never created implicitly.</param>
+    /// <param name="expectedCurrentHash">Approved current byte hash.</param>
+    /// <param name="snapshotPath">Immutable, journaled replacement file.</param>
+    /// <param name="expectedSnapshotHash">Expected replacement byte hash.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="beforeReplace">Optional test-only callback under the read lock.</param>
+    /// <returns>Completed, verified conditional publication.</returns>
+    internal static async Task ReplaceSnapshotIfUnchangedAsync(
+        string path,
+        string expectedCurrentHash,
+        string snapshotPath,
+        string expectedSnapshotHash,
+        CancellationToken cancellationToken,
+        Action? beforeReplace = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(snapshotPath);
+        string destination = Path.GetFullPath(path);
+        string snapshot = Path.GetFullPath(snapshotPath);
+        string directory = Path.GetDirectoryName(destination)!;
+        if (!File.Exists(destination) || !Directory.Exists(directory))
+        {
+            throw new FileNotFoundException(
+                "Le backlink à remplacer n'existe plus.", destination);
+        }
+
+        string temporary = Path.Combine(directory,
+            "." + Path.GetFileName(destination) + "." +
+            Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            // The journal snapshot is copied to the destination volume first.
+            // Only after its SHA-256 is verified do we open the live file.
+            await using (FileStream staged = new(temporary, FileMode.CreateNew,
+                FileAccess.Write, FileShare.None, 65536,
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await using FileStream originalSnapshot = new(snapshot, FileMode.Open,
+                    FileAccess.Read, FileShare.Read, 65536, useAsync: true);
+                await originalSnapshot.CopyToAsync(staged, cancellationToken);
+                await staged.FlushAsync(cancellationToken);
+                staged.Flush(flushToDisk: true);
+            }
+
+            await using (FileStream verifyCopy = new(temporary, FileMode.Open,
+                FileAccess.Read, FileShare.Read, 65536, useAsync: true))
+            {
+                string copyHash = Convert.ToHexString(
+                    await SHA256.HashDataAsync(verifyCopy, cancellationToken));
+                if (!string.Equals(copyHash, expectedSnapshotHash,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Copie de backlink non conforme au journal.");
+                }
+            }
+
+            // Do not allow existing in-place writers or new writers to race
+            // the verified bytes. FileShare.Delete permits Windows ReplaceFile.
+            await using FileStream current = new(destination, FileMode.Open,
+                FileAccess.Read, FileShare.Read | FileShare.Delete,
+                65536, useAsync: true);
+            string currentHash = Convert.ToHexString(
+                await SHA256.HashDataAsync(current, cancellationToken));
+            if (!string.Equals(currentHash, expectedCurrentHash,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Backlink modifié au dernier instant : écrasement refusé : " +
+                    destination);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            beforeReplace?.Invoke();
+            File.Replace(temporary, destination,
+                destinationBackupFileName: null, ignoreMetadataErrors: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary))
+            {
+                File.Delete(temporary);
             }
         }
     }

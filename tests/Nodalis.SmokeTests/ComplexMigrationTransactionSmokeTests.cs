@@ -527,6 +527,44 @@ internal static class ComplexMigrationTransactionSmokeTests
                 await File.ReadAllTextAsync(recoveryB) == initialB,
                 "A second rollback must restore all preflight-protected backlinks.");
 
+            // Under Windows the final checksum and File.Replace must share
+            // a held read handle that rejects concurrent in-place writers.
+            ComplexProjectMigrationPlan lockPlan = await planner.PrepareAsync(
+                recoverRoot);
+            bool attemptedWrite = false;
+            bool concurrentWriteRejected = false;
+            ComplexProjectMigrationTransactionService lockProtected = new(
+                workspace, checkpoint: phase =>
+                {
+                    if (phase == "external-locked" && !attemptedWrite)
+                    {
+                        attemptedWrite = true;
+                        try
+                        {
+                            File.AppendAllText(recoveryA, "Unapproved concurrent edit");
+                        }
+                        catch (IOException)
+                        {
+                            concurrentWriteRejected = true;
+                        }
+                    }
+                });
+            await lockProtected.ApplyAsync(lockPlan,
+                lockPlan.SourceFingerprint, approved: true);
+            Assert(attemptedWrite && concurrentWriteRejected &&
+                !(await File.ReadAllTextAsync(recoveryA)).Contains(
+                    "Unapproved concurrent edit", StringComparison.Ordinal) &&
+                (await File.ReadAllTextAsync(recoveryB)).Contains(
+                    "Management/Jalons.md", StringComparison.Ordinal),
+                "A concurrent in-place writer must be denied during the last " +
+                "hash comparison and File.Replace.");
+            ComplexProjectMigrationJournal lockJournal =
+                (await executor.GetRollbackCandidatesAsync(recoverRoot)).Single();
+            await executor.RollbackAsync(lockJournal.TransactionId, approved: true);
+            Assert(await File.ReadAllTextAsync(recoveryA) == initialA &&
+                await File.ReadAllTextAsync(recoveryB) == initialB,
+                "Conditional publication must retain byte-exact rollback.");
+
             // A second independent legacy project simulates a crash immediately
             // after publication but before the durable published checkpoint.
             string second = Path.Combine(workspace,

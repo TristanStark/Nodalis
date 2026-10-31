@@ -172,9 +172,10 @@ internal sealed class ComplexMigrationExternalLinkTransactionService
 
     /// <summary>
     /// Idempotently converges current external files to the approved version.
-    /// First validates the full inventory, then checks each file again before
-    /// its atomic replacement. A concurrent editor may still race this check;
-    /// a changed later file leaves an explicit pending recovery journal.
+    /// First validates the full inventory, then checks each file again while
+    /// holding a sharing-mode read lock until its atomic replacement.
+    /// Normal in-place writers are excluded; an unrelated atomic path rename
+    /// can still race the check and must be resolved via the pending journal.
     /// </summary>
     /// <param name="directory">Journal transaction folder.</param>
     /// <param name="files">Retained snapshot inventory.</param>
@@ -207,13 +208,9 @@ internal sealed class ComplexMigrationExternalLinkTransactionService
 
             string snapshot = Path.Combine(directory, publish
                 ? StagingDirectoryName : OriginalDirectoryName, item.Slot);
-            await AtomicFileWriter.WriteAsync(source,
-                async (stream, token) =>
-                {
-                    await using FileStream input = new(snapshot, FileMode.Open,
-                        FileAccess.Read, FileShare.Read, 65536, useAsync: true);
-                    await input.CopyToAsync(stream, token);
-                }, cancellationToken);
+            await AtomicFileWriter.ReplaceSnapshotIfUnchangedAsync(
+                source, opposite, snapshot, expected, cancellationToken,
+                () => checkpoint?.Invoke("external-locked"));
 
             if (!string.Equals(await HashAsync(source, CancellationToken.None),
                 expected, StringComparison.OrdinalIgnoreCase))

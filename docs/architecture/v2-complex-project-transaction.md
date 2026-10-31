@@ -113,9 +113,15 @@ la version publiée dans previously-published/.
 - Les syntaxes Markdown/HTML ambiguës ou les fichiers non UTF-8 exigent
   une requalification ; aucun remplacement deviné.
 - Une copie intégrale du projet nécessite un espace disque suffisant.
-- Un autre logiciel peut encore modifier les fichiers en parallèle ;
-  les vérifications d'empreintes et le verrou du moteur limitent ce risque,
-  sans offrir un verrou global sur les logiciels externes.
+- Les backlinks sont désormais remplacés par une écriture conditionnelle :
+  copie temporaire sur le même volume vérifiée par SHA-256, puis relecture du
+  document vivant sous un handle `FileShare.Read | FileShare.Delete` conservé
+  jusqu'à `File.Replace`. Sur Windows, ce handle exclut les écritures directes
+  concurrentes pendant la dernière comparaison et le remplacement.
+- Un logiciel tiers peut encore déplacer ou remplacer atomiquement le chemin
+  lui-même pendant ce contrôle (et les systèmes de fichiers diffèrent).
+  La méthode ne constitue donc **pas** une transaction globale entre éditeurs ;
+  le contrôle de hash après publication et le journal restent nécessaires.
 - Sauvegardes et journaux restent disponibles jusqu'à suppression explicite.
 - La qualification visuelle WPF sous Windows reste nécessaire avant release.
 
