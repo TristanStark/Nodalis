@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Nodalis.Core.Domain;
@@ -144,18 +145,21 @@ internal static class ComplexMigrationTransactionSmokeTests
                 originalPresentation + "[Technique](Technique/Technique.md)\n");
             ComplexProjectMigrationPlan affected = await planner.PrepareAsync(
                 projectRoot);
-            Assert(!affected.CanExecute &&
-                affected.Blockers.Any(item =>
-                    item.Contains("lien relatif affecté", StringComparison.Ordinal)),
-                "A stable source pointing to a moved target must block.");
+            Assert(affected.CanExecute &&
+                affected.LinkRewrites.Count == 1 &&
+                affected.LinkRewrites[0].ReplacementTarget ==
+                    "Documentation/Technique/Technique.md",
+                "A resolvable local target move must propose exactly one safe rewrite.");
             await File.WriteAllTextAsync(presentationPath, originalPresentation);
 
             await File.WriteAllTextAsync(movedDoc,
                 originalMovedDoc + "\n![Glossaire](../Glossaire.md)\n");
             ComplexProjectMigrationPlan movingSource = await planner.PrepareAsync(
                 projectRoot);
-            Assert(!movingSource.CanExecute,
-                "A moving document referencing an unmoved relative asset must block.");
+            Assert(movingSource.CanExecute &&
+                movingSource.LinkRewrites.Count == 1 &&
+                movingSource.LinkRewrites[0].ReplacementTarget == "../../Glossaire.md",
+                "A moved source linking to an unmoved asset must be adjusted.");
             await File.WriteAllTextAsync(movedDoc, originalMovedDoc);
 
             string backlink = Path.Combine(workspace, "Backlink.md");
@@ -221,6 +225,100 @@ internal static class ComplexMigrationTransactionSmokeTests
                     applied.BackupDirectory) == originalHash &&
                 (await executor.ListPendingProjectsAsync()).Count == 0,
                 "Approved publish must preserve GUIDs, all content and an exact original backup.");
+
+            // Transactionally rewrite several links in two project documents.
+            // A BOM and CRLF fixture proves that rewriting changes only the
+            // intended target spans and preserves original byte conventions.
+            string linkedProject = Path.Combine(workspace,
+                "Applications", "Test", "Projets", "Linked Complex");
+            Directory.CreateDirectory(linkedProject);
+            foreach (string entry in Directory.EnumerateFileSystemEntries(
+                         applied.BackupDirectory, "*", SearchOption.AllDirectories))
+            {
+                string relative = Path.GetRelativePath(applied.BackupDirectory, entry);
+                string copy = Path.Combine(linkedProject, relative);
+                if (Directory.Exists(entry))
+                {
+                    Directory.CreateDirectory(copy);
+                }
+                else
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
+                    File.Copy(entry, copy);
+                }
+            }
+
+            string linkedPresentation = Path.Combine(linkedProject, "Présentation.md");
+            string linkedTechnique = Path.Combine(linkedProject,
+                "Technique", "Technique.md");
+            string presentationText = "# Projet\r\n" +
+                "[Technique](<Technique/Technique.md#intro>) et " +
+                "![Jalons](Jalons.md)\r\n" +
+                "<a href=\"Jalons.md\">jalons</a>\r\n";
+            await File.WriteAllTextAsync(linkedPresentation, presentationText,
+                new UTF8Encoding(true));
+            await File.AppendAllTextAsync(linkedTechnique,
+                "\n[Glossaire](../Glossaire.md) et [Jalons](../Jalons.md)\n");
+            string linkOriginalHash =
+                await ComplexProjectMigrationPlanService.FingerprintAsync(linkedProject);
+            ComplexProjectMigrationPlan linkedPlan = await planner.PrepareAsync(
+                linkedProject);
+            Assert(linkedPlan.CanExecute &&
+                linkedPlan.LinkRewrites.Count == 5 &&
+                linkedPlan.LinkRewrites.All(item => item.SourceHash.Length == 64),
+                "Preview must include all five local, byte-fingerprinted repairs.");
+
+            // The approved operation cannot silently absorb a new external
+            // backlink that appeared after the preview.
+            string lateBacklink = Path.Combine(workspace, "late-backlink.md");
+            await File.WriteAllTextAsync(lateBacklink,
+                "[Source](<Applications/Test/Projets/Linked Complex/Technique/Technique.md>)");
+            await RejectAsync(() => executor.ApplyAsync(linkedPlan,
+                    linkedPlan.SourceFingerprint, approved: true),
+                "An external backlink created after planning must invalidate approval.");
+            File.Delete(lateBacklink);
+            Assert(await ComplexProjectMigrationPlanService.FingerprintAsync(
+                    linkedProject) == linkOriginalHash,
+                "Rejected approval must not modify the source project.");
+
+            linkedPlan = await planner.PrepareAsync(linkedProject);
+            ComplexProjectMigrationResult linkedResult = await executor.ApplyAsync(
+                linkedPlan, linkedPlan.SourceFingerprint, approved: true);
+            byte[] publishedBytes = await File.ReadAllBytesAsync(linkedPresentation);
+            string publishedPresentation = await File.ReadAllTextAsync(
+                linkedPresentation);
+            string publishedTechnique = await File.ReadAllTextAsync(
+                Path.Combine(linkedProject, "Documentation", "Technique", "Technique.md"));
+            Assert(publishedBytes.Length > 3 &&
+                publishedBytes[0] == 0xEF && publishedBytes[1] == 0xBB &&
+                publishedBytes[2] == 0xBF &&
+                publishedPresentation.Contains(
+                    "[Technique](<Documentation/Technique/Technique.md#intro>)",
+                    StringComparison.Ordinal) &&
+                publishedPresentation.Contains(
+                    "![Jalons](Management/Jalons.md)",
+                    StringComparison.Ordinal) &&
+                publishedPresentation.Contains(
+                    "href=\"Management/Jalons.md\"", StringComparison.Ordinal) &&
+                publishedPresentation.Contains("\r\n", StringComparison.Ordinal) &&
+                publishedTechnique.Contains(
+                    "[Glossaire](../../Glossaire.md)", StringComparison.Ordinal) &&
+                publishedTechnique.Contains(
+                    "[Jalons](../../Management/Jalons.md)", StringComparison.Ordinal) &&
+                await ComplexProjectMigrationPlanService.FingerprintAsync(
+                    linkedResult.BackupDirectory) == linkOriginalHash,
+                "Published link repairs must preserve anchors, HTML, BOM, CRLF and backup.");
+
+            IReadOnlyList<ComplexProjectMigrationJournal> linkedRollback =
+                await executor.GetRollbackCandidatesAsync(linkedProject);
+            Assert(linkedRollback.Count == 1,
+                "A rewritten migration must retain its original for rollback.");
+            await executor.RollbackAsync(
+                linkedRollback[0].TransactionId, approved: true);
+            Assert(await ComplexProjectMigrationPlanService.FingerprintAsync(
+                    linkedProject) == linkOriginalHash &&
+                File.Exists(Path.Combine(linkedProject, "Technique", "Technique.md")),
+                "Rollback must restore original Markdown bytes and unmodified structure.");
 
             // A second independent legacy project simulates a crash immediately
             // after publication but before the durable published checkpoint.
