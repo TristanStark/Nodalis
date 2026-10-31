@@ -211,12 +211,78 @@ conflits de sauvegarde optimiste.
 opérations ; préparation de prompts non exécutés ; qualification visuelle
 et ergonomique sous Windows.
 
+## Sources, preuves et brouillons de prompts (31/10/2026)
+
+Depuis l'onglet **Parcours projet 2.0**, sélectionner une étape puis une
+opération. Déployer **SOURCES ET PREUVES** pour afficher ses références
+de fichiers, leur disponibilité et les actions suivantes :
+
+- **Lier un fichier…** choisit un fichier **déjà présent dans le
+  workspace**. Une validation du périmètre et des liens symboliques
+  précède la proposition ; un clic sur **Confirmer** n'écrit que
+  `.project-journey.json`, par contrôle de révision SHA-256.
+  Le chemin est enregistré **relativement au workspace**, avec
+  des séparateurs `/` portables ; ni fichier copié ni import implicite.
+- **Ouvrir**, ou double-cliquer, vérifie **à nouveau** le chemin au moment
+  de l'ouverture. Un Markdown navigable s'ouvre dans les onglets
+  d'édition existants avec leur autosave. PDF, images et documents
+  bureautiques connus peuvent s'ouvrir via l'application associée
+  à Windows **après confirmation**. Les extensions exécutables et
+  inconnues ne sont pas lancées par cette commande.
+- **Délier** efface seulement la référence de l'opération, après
+  confirmation, **sans supprimer ou modifier le document source**.
+  Une source déplacée ou manquante reste visible comme telle.
+  Les autres sources et les identifiants stables de l'opération restent
+  préservés. Les projets archivés et les workspaces en lecture seule
+  conservent les actions de consultation mais pas de mutation.
+
+Pour les prompts, sélectionner une opération puis utiliser
+**Associer un prompt…** pour indiquer une clé ASCII de prompt local
+sans extension (par exemple `spec-challenge-v1`), ou `-` pour
+effacer la référence. Les prompts sont les fichiers Markdown
+livrés avec Nodalis, dans `Prompts/`, et déjà copiés au packaging.
+
+**Préparer / copier** déclenche une préparation **à la demande** :
+
+1. Le brouillon reprend la consigne locale liée, le nom de l'étape,
+   le nom de l'opération, son état et son identifiant technique.
+2. Les références textuelles `.md`/`.txt` réellement disponibles
+   sont lues en mode borné (8 fichiers au maximum, 12 000 caractères
+   par fichier, 40 000 caractères d'extraits au total). Les fichiers
+   non textuels sont seulement mentionnés par chemin.
+3. Les sources manquantes, prompts locaux absents, extraits tronqués
+   et références au-delà de la limite sont signalés explicitement.
+   Le contenu des sources est identifié comme **données non fiables**.
+4. Une fenêtre affiche le texte complet en lecture seule et dispose
+   d'un bouton **Copier le brouillon**. Il n'y a **aucune requête IA**,
+   aucune création de fichier temporaire, aucune exécution d'opération
+   ni modification des documents ou de leurs preuves.
+
+Implémentation :
+`ProjectJourneySourcePath` (Core),
+`ProjectJourneySourceService` (chemins réels, liens symboliques),
+`ProjectJourneyEditor` (ajouter/délier/associer),
+`ProjectJourneyPromptPreparationService` (préparation bornée et avertissements),
+`ProjectJourneyPromptDraftDialog` (relecture/copier),
+et événements de navigation vers `MainWindow`.
+
+`ProjectJourneyEvidenceSmokeTests` couvrent les chemins hors workspace,
+les tentatives `..`, les clés de prompt invalides, la stabilité des
+GUIDs, les liens non destructifs, les documents binaires non décodés,
+les sources volumineuses ou absentes, les prompts manquants, la
+relecture du JSON après redémarrage et le refus d'écriture obsolète.
+
+**Qualification visuelle Windows restante :** tester sources Markdown et
+PDF, ouverture depuis un onglet Parcours, fichier supprimé, clic sur
+Délier, aperçu de prompt, copie dans le presse-papiers, mode lecture
+seule et présentation des panneaux sur fenêtre étroite.
+
 ## Suite de l'EPIC #195
 
-1. Ajouter édition guidée des étapes/opérations (ajouter, déplacer, ignorer)
-   avec aperçu/diff, confirmation et contrôle de révision.
-2. Relier les futurs prompts et contrôles sans dupliquer les tâches/jalons.
-3. Ajouter un onglet WPF unique par projet, ouverture depuis palette/worktree,
-   dark mode, clavier, DPI et chargement paresseux.
-4. Qualifier visuellement sous Windows, les fermetures/archives et les
-   performances sur gros workspaces avant toute publication 2.0.
+1. Compléter les relations vers les gates et les jalons existants avec
+   sélection guidée, diagnostics de liens manquants et sans duplication.
+2. Qualifier visuellement sous Windows les vues Parcours, les liens de
+   sources, le presse-papiers, les fermetures/archives, les conflits de
+   révision et les performances sur gros workspaces.
+3. Réserver la publication de Nodalis 2.0 à la qualification humaine
+   des EPICs et à la conformité des workflows Windows.
