@@ -118,10 +118,16 @@ la version publiée dans previously-published/.
   document vivant sous un handle `FileShare.Read | FileShare.Delete` conservé
   jusqu'à `File.Replace`. Sur Windows, ce handle exclut les écritures directes
   concurrentes pendant la dernière comparaison et le remplacement.
-- Un logiciel tiers peut encore déplacer ou remplacer atomiquement le chemin
-  lui-même pendant ce contrôle (et les systèmes de fichiers diffèrent).
-  La méthode ne constitue donc **pas** une transaction globale entre éditeurs ;
-  le contrôle de hash après publication et le journal restent nécessaires.
+- Sur Windows, après le dernier contrôle et avant `File.Replace`, Nodalis
+  compare également l'identité native (volume + index de fichier) du handle
+  verrouillé avec celle d'un **nouveau handle ouvert par le chemin**. Un éditeur
+  ayant substitué un autre fichier, même avec des octets identiques, provoque
+  un refus et la récupération reste explicite. Un test injecte ce déplacement
+  suivi d'une copie conforme sous le même nom.
+- Un logiciel tiers peut encore remplacer atomiquement le chemin **après**
+  ce contrôle d'identité et avant `File.Replace`. La méthode réduit cette
+  fenêtre sans devenir une transaction globale entre éditeurs ; le contrôle
+  de hash après publication et le journal restent nécessaires.
 - Sauvegardes et journaux restent disponibles jusqu'à suppression explicite.
 - La qualification visuelle WPF sous Windows reste nécessaire avant release.
 

@@ -565,6 +565,47 @@ internal static class ComplexMigrationTransactionSmokeTests
                 await File.ReadAllTextAsync(recoveryB) == initialB,
                 "Conditional publication must retain byte-exact rollback.");
 
+            // A Windows editor can atomically replace the *path* without
+            // writing through our protected handle. Even identical bytes must
+            // not conceal that the file itself has changed.
+            ComplexProjectMigrationPlan swappedPlan =
+                await planner.PrepareAsync(recoverRoot);
+            bool replacedPath = false;
+            string relocated = recoveryA + ".editor-backup";
+            ComplexProjectMigrationTransactionService pathSwapper = new(
+                workspace, checkpoint: phase =>
+                {
+                    if (phase == "external-locked" && !replacedPath)
+                    {
+                        replacedPath = true;
+                        File.Move(recoveryA, relocated);
+                        File.Copy(relocated, recoveryA);
+                    }
+                });
+            await RejectAsync(() => pathSwapper.ApplyAsync(swappedPlan,
+                    swappedPlan.SourceFingerprint, approved: true),
+                "A same-content atomic path swap must be detected by file ID.");
+            Assert(replacedPath &&
+                File.Exists(relocated) &&
+                await File.ReadAllTextAsync(recoveryA) == initialA &&
+                await File.ReadAllTextAsync(recoveryB) == initialB &&
+                (await executor.ListPendingProjectsAsync()).Single() == recoverRoot,
+                "A path swap must not overwrite a newly installed file, " +
+                "even if it contains the same bytes.");
+            File.Delete(relocated);
+            Assert(await executor.RecoverPendingAsync(approved: true) == 1 &&
+                (await File.ReadAllTextAsync(recoveryA)).Contains(
+                    "Documentation/Technique/Technique.md",
+                    StringComparison.Ordinal),
+                "The journal must remain explicitly recoverable after a path swap.");
+            ComplexProjectMigrationJournal swappedJournal =
+                (await executor.GetRollbackCandidatesAsync(recoverRoot)).Single();
+            await executor.RollbackAsync(swappedJournal.TransactionId,
+                approved: true);
+            Assert(await File.ReadAllTextAsync(recoveryA) == initialA &&
+                await File.ReadAllTextAsync(recoveryB) == initialB,
+                "Recovery after path swap must retain exact backlinks.");
+
             // A second independent legacy project simulates a crash immediately
             // after publication but before the durable published checkpoint.
             string second = Path.Combine(workspace,

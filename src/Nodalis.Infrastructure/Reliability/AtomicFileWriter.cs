@@ -1,5 +1,7 @@
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace Nodalis.Infrastructure.Reliability;
 
@@ -89,7 +91,9 @@ public static class AtomicFileWriter
     /// Replaces a file only while holding a read/share-delete handle on its
     /// exact approved bytes. The handle denies normal in-place writers between
     /// the SHA-256 comparison and the same-volume atomic File.Replace call.
-    /// A third-party path rename/replacement can still race this operation.
+    /// On Windows the original file ID is also compared with the ID currently
+    /// at that path before replacement; atomic path swaps before this second
+    /// check are rejected even if they contain identical bytes.
     /// </summary>
     /// <param name="path">Existing destination, never created implicitly.</param>
     /// <param name="expectedCurrentHash">Approved current byte hash.</param>
@@ -165,6 +169,39 @@ public static class AtomicFileWriter
 
             cancellationToken.ThrowIfCancellationRequested();
             beforeReplace?.Invoke();
+
+            // A third-party editor can rename the original while our handle
+            // stays valid, then install a *different file with identical bytes*
+            // at its former path. Rehashing the held handle alone misses it.
+            // Compare NTFS file identities after the last test checkpoint.
+            await using (FileStream stillAtPath = new(destination, FileMode.Open,
+                FileAccess.Read, FileShare.Read | FileShare.Delete,
+                65536, useAsync: true))
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    if (ReadWindowsFileIdentity(current.SafeFileHandle) !=
+                        ReadWindowsFileIdentity(stillAtPath.SafeFileHandle))
+                    {
+                        throw new InvalidDataException(
+                            "Backlink remplacé par un autre fichier pendant " +
+                            "la publication : écrasement refusé : " + destination);
+                    }
+                }
+                else
+                {
+                    string pathHash = Convert.ToHexString(
+                        await SHA256.HashDataAsync(stillAtPath, cancellationToken));
+                    if (!string.Equals(pathHash, expectedCurrentHash,
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidDataException(
+                            "Backlink modifié pendant la publication : " +
+                            destination);
+                    }
+                }
+            }
+
             File.Replace(temporary, destination,
                 destinationBackupFileName: null, ignoreMetadataErrors: true);
         }
@@ -175,6 +212,59 @@ public static class AtomicFileWriter
                 File.Delete(temporary);
             }
         }
+    }
+
+    /// <summary>
+    /// Obtains the volume and file-index identity of an already-open Windows
+    /// file, independent of its path and content hash.
+    /// </summary>
+    /// <param name="handle">Open file handle whose identity must be known.</param>
+    /// <returns>Stable identity while the handle remains alive.</returns>
+    private static WindowsFileIdentity ReadWindowsFileIdentity(SafeFileHandle handle)
+    {
+        if (!GetFileInformationByHandle(handle, out WindowsFileInformation details))
+        {
+            throw new IOException(
+                "Impossible de vérifier l'identité Windows du backlink (erreur " +
+                Marshal.GetLastWin32Error() + ").");
+        }
+
+        return new WindowsFileIdentity(details.VolumeSerialNumber,
+            details.FileIndexHigh, details.FileIndexLow);
+    }
+
+    /// <summary>Reads native Windows metadata from an existing file handle.</summary>
+    /// <param name="handle">Valid Windows file handle.</param>
+    /// <param name="information">Returned file metadata.</param>
+    /// <returns>True if the native call succeeded.</returns>
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandle(
+        SafeFileHandle handle, out WindowsFileInformation information);
+
+    private readonly record struct WindowsFileIdentity(
+        uint VolumeSerialNumber, uint FileIndexHigh, uint FileIndexLow);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeFileTime
+    {
+        public uint Low;
+        public uint High;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowsFileInformation
+    {
+        public uint Attributes;
+        public NativeFileTime CreationTime;
+        public NativeFileTime LastAccessTime;
+        public NativeFileTime LastWriteTime;
+        public uint VolumeSerialNumber;
+        public uint SizeHigh;
+        public uint SizeLow;
+        public uint LinkCount;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
     }
 
     /// <summary>
