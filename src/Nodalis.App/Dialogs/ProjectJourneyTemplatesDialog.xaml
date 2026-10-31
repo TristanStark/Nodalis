@@ -174,11 +174,12 @@
                 </Grid>
             </Border>
         </Grid>
-        <DockPanel Grid.Row="2"
-                   Padding="14,10"
-                   Background="{StaticResource PanelBackgroundBrush}"
-                   BorderBrush="{StaticResource BorderBrush}"
-                   BorderThickness="0,1,0,0">
+        <Border Grid.Row="2"
+                Padding="14,10"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <DockPanel>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button x:Name="ReloadButton" Content="Recharger"
                         Click="Reload_Click" Margin="0,0,9,0"
@@ -192,6 +193,7 @@
             <TextBlock x:Name="StatusText" VerticalAlignment="Center"
                        TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}" />
-        </DockPanel>
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>
