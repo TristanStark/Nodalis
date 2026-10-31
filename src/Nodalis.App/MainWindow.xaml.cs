@@ -8700,6 +8700,10 @@ public partial class MainWindow : Window
     {
         using DispatcherHeartbeatMonitor.OperationScope measurement =
             _heartbeatMonitor.TrackOperation("Navigation arborescence");
+        // Preserve an embedded journey view during an unrelated worktree rebuild.
+        // Explicit navigation to a new path still takes precedence.
+        ProjectJourneyTabEntry? journeyBeforeRefresh =
+            openPath is null ? _activeProjectJourneyTab : null;
         // Preserve the selected document/project when refreshing unrelated branches.
         string? targetPath = openPath ?? _selectedNode?.FullPath;
         global::System.Collections.Generic.HashSet<global::System.Guid> expandedIds = GetExpandedNodeIds();
@@ -8750,6 +8754,19 @@ public partial class MainWindow : Window
         }
 
         _selectedNode = target;
+        if (journeyBeforeRefresh is not null &&
+            _projectJourneyTabs.Contains(journeyBeforeRefresh))
+        {
+            // A refresh is not a user decision to leave the active journey.
+            // Avoid revealing an unrelated document and moving worktree scroll.
+            _restoringSelection = true;
+            target.IsSelected = true;
+            _restoringSelection = false;
+            ScheduleWorktreeP1Refresh();
+            ActivateProjectJourneyTab(journeyBeforeRefresh);
+            return;
+        }
+
         target.IsSelected = true;
         ScheduleRevealTreeItem(target);
         ScheduleWorktreeP1Refresh();
