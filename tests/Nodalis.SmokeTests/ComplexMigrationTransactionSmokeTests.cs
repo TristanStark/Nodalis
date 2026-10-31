@@ -487,6 +487,46 @@ internal static class ComplexMigrationTransactionSmokeTests
                 File.Exists(Path.Combine(recoverRoot, "Technique", "Technique.md")),
                 "Recovery followed by rollback must restore every cross-project byte.");
 
+            // A later backlink must be checked BEFORE rewriting the first one.
+            // Inject a human edit after the project directory has been published,
+            // then prove an external multi-file replay never starts partially.
+            ComplexProjectMigrationPlan preflight = await planner.PrepareAsync(
+                recoverRoot);
+            Assert(preflight.CanExecute &&
+                preflight.ExternalLinkRewrites.Count == 2,
+                "Restored recovery fixture should remain migratable.");
+            ComplexProjectMigrationTransactionService latePublishedEdit = new(
+                workspace, checkpoint: phase =>
+                {
+                    if (phase == "published")
+                    {
+                        File.AppendAllText(recoveryB, "\nHuman change after project publish\n");
+                    }
+                });
+            await RejectAsync(() => latePublishedEdit.ApplyAsync(preflight,
+                    preflight.SourceFingerprint, approved: true),
+                "A later external edit after project publication must fail before " +
+                "the first external rewrite.");
+            Assert(await File.ReadAllTextAsync(recoveryA) == initialA &&
+                (await File.ReadAllTextAsync(recoveryB)).Contains(
+                    "Human change after project publish", StringComparison.Ordinal) &&
+                (await executor.ListPendingProjectsAsync()).Single() == recoverRoot,
+                "An invalid later backlink must block the whole external replay.");
+            await File.WriteAllTextAsync(recoveryB, initialB);
+            Assert(await executor.RecoverPendingAsync(approved: true) == 1 &&
+                (await File.ReadAllTextAsync(recoveryA)).Contains(
+                    "Documentation/Technique/Technique.md",
+                    StringComparison.Ordinal) &&
+                (await File.ReadAllTextAsync(recoveryB)).Contains(
+                    "Management/Jalons.md", StringComparison.Ordinal),
+                "Approved recovery must apply both backlink replacements.");
+            ComplexProjectMigrationJournal retried =
+                (await executor.GetRollbackCandidatesAsync(recoverRoot)).Single();
+            await executor.RollbackAsync(retried.TransactionId, approved: true);
+            Assert(await File.ReadAllTextAsync(recoveryA) == initialA &&
+                await File.ReadAllTextAsync(recoveryB) == initialB,
+                "A second rollback must restore all preflight-protected backlinks.");
+
             // A second independent legacy project simulates a crash immediately
             // after publication but before the durable published checkpoint.
             string second = Path.Combine(workspace,
