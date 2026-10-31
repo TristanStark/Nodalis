@@ -27,10 +27,11 @@ la proposition de déplacer le fichier Jalons.md de la racine vers Management,
 sans jamais réaliser l'opération. Notes rapides et Glossaire restent inchangés.
 Les projets Ultra-simples ou Simples ne sont pas concernés par cet inventaire.
 
-La migration effective exigera un assistant de validation, des sauvegardes,
-un journal de reprise, la mise à jour des manifestes, liens relatifs, index,
-onglets ouverts et résolveurs métier. Aucun de ces changements destructifs
-n’est effectué par ce premier incrément.
+Le premier moteur exécutable à périmètre réduit est désormais décrit
+dans v2-complex-project-transaction.md. Il exige une approbation explicite,
+un plan figé, une sauvegarde et un journal. En présence de références Markdown
+à réécrire, il refuse encore toute migration plutôt que déplacer des fichiers
+partiellement.
 
 ## Support des chemins physiques déclarés
 
