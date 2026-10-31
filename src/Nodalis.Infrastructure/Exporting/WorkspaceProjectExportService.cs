@@ -100,10 +100,8 @@ public sealed class WorkspaceProjectExportService
             else
             {
                 string sectionDirectory =
-                    Path.Combine(
-                        projectRoot,
-                        WindowsPathRules.SanitizeSegment(
-                            section.Name));
+                    ProjectSectionDirectoryLayout.Resolve(
+                        projectRoot, section);
 
                 sectionStoragePath =
                     sectionDirectory;
@@ -111,16 +109,8 @@ public sealed class WorkspaceProjectExportService
                     Directory.Exists(
                             sectionDirectory)
                         ? await Task.Run(
-                            () =>
-                                Directory
-                                    .EnumerateFiles(
-                                        sectionDirectory,
-                                        "*.md",
-                                        SearchOption.AllDirectories)
-                                    .OrderBy(
-                                        path => path,
-                                        StringComparer.CurrentCultureIgnoreCase)
-                                    .ToArray(),
+                            () => EnumerateOwnedSectionDocuments(
+                                project, projectRoot, section, sectionDirectory),
                             cancellationToken)
                         : [];
             }
@@ -452,25 +442,15 @@ public sealed class WorkspaceProjectExportService
             else
             {
                 sectionDirectory =
-                    Path.Combine(
-                        projectRoot,
-                        WindowsPathRules.SanitizeSegment(
-                            section.Name));
+                    ProjectSectionDirectoryLayout.Resolve(
+                        projectRoot, section);
 
                 markdownFiles =
                     Directory.Exists(
                             sectionDirectory)
                         ? await Task.Run(
-                            () =>
-                                Directory
-                                    .EnumerateFiles(
-                                        sectionDirectory,
-                                        "*.md",
-                                        SearchOption.AllDirectories)
-                                    .OrderBy(
-                                        path => path,
-                                        StringComparer.CurrentCultureIgnoreCase)
-                                    .ToArray(),
+                            () => EnumerateOwnedSectionDocuments(
+                                project, projectRoot, section, sectionDirectory),
                             cancellationToken)
                         : [];
             }
@@ -560,6 +540,66 @@ public sealed class WorkspaceProjectExportService
             sourceDocumentMap,
             aliasMap,
             attachments);
+    }
+
+    /// <summary>
+    /// Returns Markdown directly owned by a logical section, excluding all
+    /// nested manifest child sections and singleton documents such as Jalons.
+    /// This prevents duplicate export records and alias collisions.
+    /// </summary>
+    /// <param name="project">Canonical project manifest.</param>
+    /// <param name="projectRoot">Root of the project.</param>
+    /// <param name="section">Current manifest section.</param>
+    /// <param name="sectionDirectory">Physical section directory.</param>
+    /// <returns>Ordered unique file paths.</returns>
+    private static string[] EnumerateOwnedSectionDocuments(
+        ProjectManifest project,
+        string projectRoot,
+        SectionManifest section,
+        string sectionDirectory)
+    {
+        if (!Directory.Exists(sectionDirectory))
+        {
+            return [];
+        }
+
+        List<string> childDirectories = [];
+        HashSet<string> singletonFiles = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (SectionManifest other in project.Sections.Where(candidate =>
+                     candidate.Id != section.Id))
+        {
+            if (ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                    other.TemplateKey) is not null)
+            {
+                ProjectSingletonDocumentResolution resolved =
+                    ProjectSingletonDocumentLayout.Resolve(
+                        projectRoot, other, migrateIfSafe: false);
+                singletonFiles.Add(Path.GetFullPath(resolved.ActivePath));
+                continue;
+            }
+
+            string child = ProjectSectionDirectoryLayout.Resolve(projectRoot, other);
+            if (child.StartsWith(
+                Path.TrimEndingDirectorySeparator(sectionDirectory) +
+                    Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                childDirectories.Add(Path.GetFullPath(child));
+            }
+        }
+
+        return Directory.EnumerateFiles(
+                sectionDirectory, "*.md", SearchOption.AllDirectories)
+            .Where(file =>
+                !singletonFiles.Contains(Path.GetFullPath(file)) &&
+                !childDirectories.Any(directory =>
+                    Path.GetFullPath(file).StartsWith(
+                        Path.TrimEndingDirectorySeparator(directory) +
+                            Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(file => file, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
     }
 
     /// <summary>
