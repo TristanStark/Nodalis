@@ -32,6 +32,12 @@ Statut : **prépublication, develop**. Aucune clôture automatique des issues P0
 - [ ] Performance #184/#186 : Markdown 100k+ caractères, 30 onglets, frappe continue/bascule d'onglets/fermeture pendant parsing ; aucun aperçu périmé ni erreur WPF inter-thread
 - [ ] Performance #181/#183/#188 : diagnostics p95/p99, alternance autosave/recherche/vues/navigation, changements externes et génération d'index : aucun catalogue JSON obsolète ni blocage durable
 
+
+- [ ] P0 performance onglets (#184/#185/#190) : ouvrir 30 puis 100 documents, fermer ceux à droite et fermer les autres ; mesurer la durée et le retard Dispatcher, conserver sélection/split, sans gel de plusieurs secondes
+- [ ] P0 sûreté fermeture : plusieurs onglets modifiés, autosave et conflit externe ; vérifier conservation du fichier, refus d'abandon sans confirmation, aucune perte de texte
+- [ ] Retour de veille : laisser plusieurs onglets avec autosave en attente, suspendre/reprendre Windows ; vérifier absence de tempête d'index et fonctionnement du preview/backup, observer mémoire/GC sans conclure sur une seule capture
+- [ ] Binding worktree : vérifier absence des erreurs de liaison WPF FindAncestor/VerticalContentAlignment en créant/recyclant des TreeViewItem sous Visual Studio
+
 ## Critères pour publication
 
 La 1.9 est publiable **uniquement** si le gate #171 est coché, les P0 sont clos après qualification, les P1 retenus ou explicitement reportés, puis merge vers main, tag `v1.9.0` et release avec notes complètes.
