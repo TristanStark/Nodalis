@@ -88,6 +88,7 @@ try
     await VerifySearchAsync(root);
     await VerifyLinksAndBacklinksAsync(root);
     await WorkspacePerformanceSmokeTests.RunAsync(root);
+    await AutosaveBurstSmokeTests.RunAsync(root);
     await VerifyGlossaryAsync(root);
     await VerifyAttachmentsAsync(root);
     await VerifyTasksAsync(root);
