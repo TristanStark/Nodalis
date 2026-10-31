@@ -126,6 +126,7 @@ try
     VerifyFlowcharts();
     VerifyMarkdownFrontMatter();
     VerifyMarkdownOutlineParser();
+    MarkdownBlockIdentitySmokeTests.Run();
     VerifyTypedRelations();
     ImpactAnalysisSmokeTests.Run();
     ImpactReleaseQualificationSmokeTests.Run();
