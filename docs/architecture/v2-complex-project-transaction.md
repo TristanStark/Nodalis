@@ -122,3 +122,9 @@ la version publiée dans previously-published/.
 Tests automatiques : approbation obligatoire, plan périmé, protection des
 liens, GUID stables, sauvegarde exacte, interruption avant/après publication,
 récupération, refus de rollback après édition et restauration interrompue.
+La suite `ComplexMigrationHardKillSmokeTests` déclenche de vraies fins de
+processus Windows après publication du premier backlink, après déplacement
+de la source lors du rollback et après restauration du premier backlink.
+Chaque cas réouvre le workspace depuis le processus parent et exige une
+récupération explicitement approuvée, puis vérifie les octets et chemins
+attendus ainsi que l'absence de journal en attente.

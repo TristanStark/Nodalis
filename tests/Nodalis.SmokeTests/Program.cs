@@ -54,6 +54,13 @@ if (args.Length == 6 && args[0] == "--docx-hardkill-child")
     return;
 }
 
+if (args.Length == 6 && args[0] == "--complex-migration-kill-child")
+{
+    await ComplexMigrationHardKillSmokeTests.RunChildAsync(
+        args[1], args[2], args[3], args[4], Guid.Parse(args[5]));
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--embedding-protocol-fixture")
 {
     await EmbeddingProtocolFixture.ServeAsync(args[1]);
@@ -133,6 +140,7 @@ try
     RelationEditorSnapshotSmokeTests.Run();
     await ComplexMigrationPreviewSmokeTests.RunAsync(root);
     await ComplexMigrationTransactionSmokeTests.RunAsync(root);
+    await ComplexMigrationHardKillSmokeTests.RunAsync(root);
     VerifyTypedRelations();
     ImpactAnalysisSmokeTests.Run();
     ImpactReleaseQualificationSmokeTests.Run();
