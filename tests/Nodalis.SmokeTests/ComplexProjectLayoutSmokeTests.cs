@@ -130,9 +130,15 @@ internal static class ComplexProjectLayoutSmokeTests
             // A prompt created from a nested meeting must still find its owner.
             string presentationFile = Path.Combine(project, "Présentation.md");
             string existingPresentation = await File.ReadAllTextAsync(presentationFile);
-            await File.WriteAllTextAsync(presentationFile, existingPresentation.Replace(
+            string normalizedPresentation = existingPresentation
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace('\r', '\n');
+            string updatedPresentation = normalizedPresentation.Replace(
                 "## Présentation\n\n", "## Présentation\n\nContexte projet.\n\n",
-                StringComparison.Ordinal));
+                StringComparison.Ordinal);
+            Assert(updatedPresentation.Contains("Contexte projet.", StringComparison.Ordinal),
+                "The generated presentation fixture must contain a project introduction.");
+            await File.WriteAllTextAsync(presentationFile, updatedPresentation);
 
             ProjectMeetingPromptService prompt = new(workspace);
             (string promptPath, string promptContent) =
