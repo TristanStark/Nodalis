@@ -163,6 +163,54 @@ doivent être vertes sur le dernier HEAD ; une vérification visuelle
 sur Windows (création, fermeture, tabulation, grand workspace, DPI,
 archivage, lecture seule et conflits externes) demeure indispensable.
 
+## Personnalisation graphique des modèles (31/10/2026)
+
+La commande de palette **« Personnaliser les modèles de Parcours »**
+et le bouton **« Modèles… »** de l'onglet Parcours ouvrent
+`ProjectJourneyTemplatesDialog`, éditeur WPF du catalogue commun au workspace.
+
+- **Lecture et édition sans effet de bord** : `ReadTemplatesSnapshotAsync`
+  retourne la définition et le SHA-256 des **mêmes octets** du fichier
+  `Templates/project-journeys.json`. En l'absence de personnalisation,
+  les modèles Simple (3), Moyen (5) et Complexe (9) sont proposés en
+  mémoire, sans création de fichier.
+- **Choix du modèle** : modifier le nom des profils ; créer/retirer un
+  profil personnalisé pour une complexité explicite, y compris Ultra-simple ;
+  ajouter/renommer/réordonner/retirer étapes et opérations ; associer une
+  clé de prompt optionnelle à une opération (aucune IA n'est exécutée).
+  Les clés logiques ne changent pas lors d'un renommage ou d'un déplacement.
+- **Sauvegarde volontaire unique** : les transformations du Core
+  `ProjectJourneyTemplateEditor` produisent des copies sans mutation des
+  listes d'origine. L'utilisateur dispose des actions **Enregistrer**,
+  **Recharger** (avec avertissement avant de perdre les changements) et
+  **Fermer** (avec avertissement si modifications non enregistrées).
+  Une confirmation récapitule le catalogue avant l'écriture.
+- **Concurrence** : la création est effectuée sans écraser un catalogue
+  apparu entre-temps ; une modification ultérieure exige l'empreinte exacte
+  obtenue lors de la lecture. Une édition externe invalide la révision
+  et impose une relecture explicite ; aucun merge implicite n'existe.
+- **Non-rétroactivité** : les projets déjà dotés de leur propre
+  `.project-journey.json` ne sont **jamais** réinitialisés ni modifiés
+  lorsque le catalogue du workspace est personnalisé.
+- **Initialisation explicite** : sur un nouveau Parcours, la liste des
+  modèles est filtrée selon la complexité du manifeste. Les projets
+  Simple/Moyen/Complexe pré-sélectionnent le modèle par défaut
+  (s'il existe) et peuvent choisir un modèle personnalisé. Les projets
+  Ultra-simples n'ont **aucun modèle sélectionné par défaut** ; un utilisateur
+  peut volontairement choisir un modèle Ultra-simple personnalisé.
+- **Mode lecture seule** : l'éditeur reste consultable sur un workspace
+  non modifiable ; la sauvegarde et les commandes de mutation sont désactivées.
+
+Les tests `ProjectJourneyTemplatesSmokeTests` vérifient la lecture
+sans écriture, les changements de profil/étapes/opérations/clés de prompt,
+la stabilité des clés, le redémarrage, l'opt-in Ultra-simple,
+la conservation des fichiers des projets déjà initialisés et les
+conflits de sauvegarde optimiste.
+
+**Suite** : références de sources et preuves navigables depuis les
+opérations ; préparation de prompts non exécutés ; qualification visuelle
+et ergonomique sous Windows.
+
 ## Suite de l'EPIC #195
 
 1. Ajouter édition guidée des étapes/opérations (ajouter, déplacer, ignorer)
