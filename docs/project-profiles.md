@@ -175,3 +175,8 @@ Notes rapides.md
 ### Commandes de réunions et de décisions
 
 La création des comptes rendus et des Decision Records lit la section correspondante du manifeste de projet : pour un nouveau Complexe, les fichiers sont créés dans `Management/Réunions` et `Management/Décisions`. Les anciens projets et les applications continuent à écrire dans leur dossier `Réunions` ou `Décisions` à la racine. Les listes de décisions savent lire les documents résiduels des deux emplacements et la génération de prompt de réunion remonte au projet propriétaire, même avec un niveau de dossier supplémentaire. Le diagnostic de santé reconnait ces nouveaux chemins.
+
+
+### Jalons sous Management (développement 2.0)
+
+Les **nouveaux** projets Complexes créent désormais leur document de jalons unique à `Management/Jalons.md`. Les projets Simple/Moyen conservent `Jalons.md` à la racine ; les anciens projets Complexes, même ceux créés avec un premier profil 2.0, conservent physiquement leur document existant tant qu'une migration explicite n'a pas été approuvée. Le résolveur de singleton consulte la propriété `relativeDirectory` de la section Jalons et ne déplace **jamais automatiquement** un fichier ancien vers `Management`. Lorsque deux sources sont présentes, l'édition est bloquée et exige une résolution humaine plutôt que choisir une source arbitrairement.

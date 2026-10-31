@@ -1,4 +1,6 @@
 using Nodalis.Core.Domain;
+using Nodalis.Core.Milestones;
+using Nodalis.Infrastructure.Milestones;
 using Nodalis.Core.Meetings;
 using Nodalis.Core.Decisions;
 using Nodalis.Infrastructure.Meetings;
@@ -30,6 +32,10 @@ internal static class ComplexProjectLayoutSmokeTests
             ProjectProfileCatalog current = await templates.LoadProjectProfilesAsync();
             ProjectProfileDefinition builtIn = current.Profiles.Single(
                 profile => profile.Complexity == ProjectComplexity.Complex);
+
+            Assert(builtIn.Sections.Single(section => section.Name == "Jalons")
+                    .RelativeDirectory == "Management",
+                "New built-in Complex profiles must place the unique milestone file in Management.");
 
             Assert(builtIn.Sections.Single(section => section.Name == "Technique")
                     .RelativeDirectory == "Documentation/Technique" &&
@@ -72,6 +78,7 @@ internal static class ComplexProjectLayoutSmokeTests
                 "Analyse/Dépendances/Dépendances.md",
                 "Management/Réunions",
                 "Management/Décisions",
+                "Management/Jalons.md",
                 "Exploitation/Déploiement/Déploiement.md",
                 "Tests/Tests.md"
             ];
@@ -93,13 +100,51 @@ internal static class ComplexProjectLayoutSmokeTests
                 inventory.MissingDirectories.Count == 0,
                 "A newly created v2 Complex layout must not be flagged as needing legacy migration.");
 
-            Assert(File.Exists(Path.Combine(project, "Jalons.md")) &&
+            string managedMilestones = Path.Combine(project, "Management", "Jalons.md");
+            Assert(File.Exists(managedMilestones) &&
+                !File.Exists(Path.Combine(project, "Jalons.md")) &&
                 File.Exists(Path.Combine(project, "Glossaire.md")) &&
                 File.Exists(Path.Combine(project, "Notes rapides.md")) &&
                 !Directory.Exists(Path.Combine(project, "Technique")) &&
                 !Directory.Exists(Path.Combine(project, "Dépendances")) &&
                 !Directory.Exists(Path.Combine(project, "Déploiement")),
-                "Complex must preserve root singleton files and avoid legacy duplicate folders.");
+                "Complex must create one managed milestone file, preserve root glossary and quick notes and avoid legacy duplicate folders.");
+
+            WorkspaceMilestoneService milestoneService = new(workspace);
+            MilestoneItem createdMilestone = await milestoneService.AddAsync(
+                project,
+                new MilestoneDraft
+                {
+                    Name = "Validation structure",
+                    TargetDate = new DateOnly(2026, 11, 15),
+                    Status = "À faire"
+                });
+
+            Assert(createdMilestone.SourceRelativePath.EndsWith(
+                    "/Management/Jalons.md", StringComparison.OrdinalIgnoreCase) &&
+                (await milestoneService.GetMilestonesAsync(project))
+                    .Any(item => item.Id == createdMilestone.Id) &&
+                File.Exists(managedMilestones),
+                "Milestone create/list/calendar sources must resolve nested Management/Jalons.md.");
+
+            // A stale legacy root file must never win over the declared new path.
+            string obsoleteRoot = Path.Combine(project, "Jalons.md");
+            await File.WriteAllTextAsync(obsoleteRoot, "# Obsolete duplicated milestones\n");
+            bool duplicateRefused = false;
+            try
+            {
+                await milestoneService.GetMilestonesAsync(project);
+            }
+            catch (InvalidDataException)
+            {
+                duplicateRefused = true;
+            }
+
+            Assert(duplicateRefused &&
+                File.Exists(obsoleteRoot) &&
+                File.Exists(managedMilestones),
+                "Two competing milestone sources must be refused without changing either.");
+            File.Delete(obsoleteRoot);
 
             WorkspaceMeetingService meetingService = new(workspace);
             MeetingCreationResult meeting = await meetingService.CreateAsync(project,
@@ -263,8 +308,32 @@ internal static class ComplexProjectLayoutSmokeTests
                 .Profiles.Single(profile => profile.Complexity == ProjectComplexity.Complex);
             Assert(upgraded.Sections.Any(section =>
                     section.RelativeDirectory == "Documentation/Technique") &&
+                upgraded.Sections.Single(section => section.Name == "Jalons")
+                    .RelativeDirectory == "Management" &&
                 File.Exists(Path.Combine(project, "Documentation", "Technique", "Technique.md")),
                 "An untouched 1.9 Complex profile must upgrade without migrating existing projects.");
+
+            ProjectProfileDefinition earlyV2 = upgraded with
+            {
+                Sections = upgraded.Sections.Select(section =>
+                    section.TemplateKey == "milestones"
+                        ? section with { RelativeDirectory = null }
+                        : section).ToList()
+            };
+            ProjectProfileCatalog interim = await templates.LoadProjectProfilesAsync();
+            await templates.SaveProjectProfilesAsync(interim with
+            {
+                Profiles = interim.Profiles.Select(profile =>
+                    profile.Complexity == ProjectComplexity.Complex
+                        ? earlyV2 : profile).ToList()
+            });
+            await templates.InitializeDefaultsAsync();
+
+            ProjectProfileDefinition upgradedEarlyV2 = (await templates.LoadProjectProfilesAsync())
+                .Profiles.Single(profile => profile.Complexity == ProjectComplexity.Complex);
+            Assert(upgradedEarlyV2.Sections.Single(section =>
+                    section.TemplateKey == "milestones").RelativeDirectory == "Management",
+                "An untouched early v2 Complex profile must receive the new milestone location.");
 
             ProjectProfileDefinition customized = oldBuiltIn with
             {
