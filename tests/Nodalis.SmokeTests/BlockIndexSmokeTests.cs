@@ -2,6 +2,7 @@ using Nodalis.Core.Links;
 using System.Text.Json.Nodes;
 using Nodalis.Core.Markdown;
 using Nodalis.Infrastructure.Links;
+using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Persistence;
 
 /// <summary>
@@ -106,6 +107,58 @@ internal static class BlockIndexSmokeTests
                 BlockIndexQuery.Resolve(malformed.Catalog, otherId).Status ==
                     LinkResolutionStatus.Missing,
                 "Malformed source markers must be diagnosed and deleted IDs removed.");
+
+            // A two-step approval must never silently change a document.
+            string assignmentPath = Path.Combine(workspaceRoot, "Assignment.md");
+            await File.WriteAllTextAsync(assignmentPath, "# Assignment\n## New block\n");
+            WorkspaceBlockIdentityService assignments = new(workspaceRoot);
+            Guid approvedId = Guid.NewGuid();
+            BlockIdentityAssignmentPreview plan =
+                await assignments.PrepareAsync(assignmentPath, 2, approvedId);
+            Assert(await File.ReadAllTextAsync(assignmentPath) ==
+                "# Assignment\n## New block\n" &&
+                plan.UpdatedMarkdown.Contains(
+                    MarkdownBlockIdentityCodec.FormatMarker(approvedId),
+                    StringComparison.Ordinal),
+                "An approval preview must not mutate the source.");
+
+            bool duplicateRejected = false;
+            try
+            {
+                await assignments.PrepareAsync(assignmentPath, 2, id);
+            }
+            catch (InvalidOperationException)
+            {
+                duplicateRejected = true;
+            }
+
+            Assert(duplicateRejected, "Previously assigned block IDs must be refused.");
+            await File.AppendAllTextAsync(assignmentPath, "External edit\n");
+            bool staleRejected = false;
+            try
+            {
+                await assignments.CommitApprovedAsync(plan);
+            }
+            catch (ExternalModificationException)
+            {
+                staleRejected = true;
+            }
+
+            Assert(staleRejected &&
+                !(await File.ReadAllTextAsync(assignmentPath)).Contains(
+                    MarkdownBlockIdentityCodec.FormatMarker(approvedId),
+                    StringComparison.Ordinal),
+                "An external edit must make a previous approval stale.");
+
+            plan = await assignments.PrepareAsync(assignmentPath, 2, approvedId);
+            Assert(await assignments.CommitApprovedAsync(plan) &&
+                BlockIndexQuery.Resolve(await service.LoadAsync(), approvedId).Document?
+                    .RelativePath == "Assignment.md",
+                "Explicit approval must atomically save and reindex the new marker.");
+            BlockIdentityAssignmentPreview repeat =
+                await assignments.PrepareAsync(assignmentPath, 2, approvedId);
+            Assert(!await assignments.CommitApprovedAsync(repeat),
+                "A repeated approved assignment must be an idempotent no-op.");
 
             File.Delete(moved);
             LinkIndexRefreshResult deleted = await service.RefreshWithMetricsAsync();

@@ -40,3 +40,11 @@ Le schéma de l'index de liens dérivé est passé de 3 à 4. Les nouvelles list
 **Limite** : le service d'écriture transactionnelle, le contrôle de la présence unique d'un ID avant insertion et l'UI de navigation sont encore à développer. Le nouveau schéma n'est pas un stockage métier autonome : il se reconstruit depuis les sources.
 
 **Compatibilité vérifiée en CI** : le contrat de persistance explicite les nouvelles projections dérivées et la migration d'un index v3 (sans `blocks`/`blockIssues`) vers v4. Les identifiants de documents et les alias préexistants restent dans le registre d'identités.
+
+## Service d'attribution explicite (incrément #206)
+
+`WorkspaceBlockIdentityService` ajoute une paire d'opérations : `PrepareAsync` génère un aperçu immuable sans écrire ; `CommitApprovedAsync` applique uniquement cet aperçu explicitement accepté.
+
+Avant l'écriture, le service revérifie l'empreinte de la source, reconstruit le Markdown attendu (une proposition falsifiée est rejetée) et contrôle l'unicité de l'ID dans l'index actualisé. Les appels concurrents du même processus sont sérialisés par workspace et le fichier est sauvegardé via `TextDocumentSession` et `AtomicFileWriter`. Après la sauvegarde, l'index reconstruit la projection du document concerné. Une répétition de la même attribution est un no-op.
+
+**Limite** : les autres processus non coopératifs et les modifications externes intervenant dans la fenêtre entre la vérification globale et la sauvegarde nécessiteront un protocole de verrouillage inter-processus pour la qualification multi-instance. La nouvelle API n'est pas encore exposée dans l'interface WPF ; aucun document n'est modifié automatiquement au chargement.
