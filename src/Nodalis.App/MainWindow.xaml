@@ -983,7 +983,8 @@
                             <ColumnDefinition x:Name="PreviewColumn" Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBox x:Name="MarkdownEditorTextBox"
+                        <Grid Grid.Column="0">
+                            <TextBox x:Name="MarkdownEditorTextBox"
                                  Grid.Column="0"
                                  Padding="18"
                                  BorderThickness="0"
@@ -1002,6 +1003,10 @@
                                  PreviewMouseRightButtonDown="MarkdownEditorTextBox_PreviewMouseRightButtonDown"
                                  ContextMenuOpening="MarkdownEditorTextBox_ContextMenuOpening"
                                  SpellCheck.IsEnabled="False" />
+                            <Canvas x:Name="PrimaryMarkdownMarkers"
+                                    IsHitTestVisible="False"
+                                    ClipToBounds="True" />
+                        </Grid>
 
                         <Popup x:Name="InternalLinkPopup"
                                Grid.Column="0"
@@ -1127,7 +1132,8 @@
                                     <ColumnDefinition x:Name="SecondaryPreviewColumn" Width="0" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBox x:Name="SecondaryMarkdownEditorTextBox"
+                                <Grid Grid.Column="0">
+                                    <TextBox x:Name="SecondaryMarkdownEditorTextBox"
                                          Grid.Column="0"
                                          Padding="18"
                                          BorderThickness="0"
@@ -1142,6 +1148,10 @@
                                          SelectionChanged="SecondaryMarkdownEditorTextBox_SelectionChanged"
                                          GotKeyboardFocus="SecondaryMarkdownEditorTextBox_GotKeyboardFocus"
                                          SpellCheck.IsEnabled="False" />
+                                    <Canvas x:Name="SecondaryMarkdownMarkers"
+                                            IsHitTestVisible="False"
+                                            ClipToBounds="True" />
+                                </Grid>
 
                                 <GridSplitter x:Name="SecondaryPreviewSplitter"
                                               Grid.Column="1"
