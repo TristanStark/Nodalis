@@ -30,19 +30,31 @@
                            TextWrapping="Wrap" />
             </StackPanel>
         </Border>
-        <DockPanel Grid.Row="1"
-                   Margin="16,12,16,10">
+        <WrapPanel Grid.Row="1"
+                   Margin="16,12,16,10"
+                   Orientation="Horizontal">
+            <ComboBox x:Name="ModelCombo"
+                      Width="205" MinHeight="30"
+                      Margin="0,0,8,8"
+                      DisplayMemberPath="Name"
+                      SelectionChanged="ModelCombo_SelectionChanged"
+                      ToolTip="Choisir explicitement le modèle de parcours à initialiser"
+                      AutomationProperties.Name="Modèle du futur parcours" />
             <Button x:Name="InitializeButton"
-                    DockPanel.Dock="Left"
                     Padding="14,7"
-                    Margin="0,0,10,0"
-                    Content="Créer le parcours depuis le modèle"
+                    Margin="0,0,8,8"
+                    Content="Créer depuis le modèle"
                     Click="Initialize_Click" />
-            <Button DockPanel.Dock="Left"
+            <Button x:Name="ManageTemplatesButton"
                     Padding="14,7"
-                    Content="Recharger depuis le disque"
+                    Margin="0,0,8,8"
+                    Content="Modèles…"
+                    Click="ManageTemplates_Click" />
+            <Button Padding="14,7"
+                    Margin="0,0,8,8"
+                    Content="Recharger"
                     Click="Refresh_Click" />
-        </DockPanel>
+        </WrapPanel>
         <Grid Grid.Row="2"
               Margin="16,0,16,12">
             <Grid.ColumnDefinitions>
