@@ -2993,6 +2993,15 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (controlPressed &&
+            e.Key == Key.W &&
+            _activeProjectJourneyTab is not null)
+        {
+            e.Handled = true;
+            CloseProjectJourneyTab(_activeProjectJourneyTab);
+            return;
+        }
+
         DocumentTabViewModel? focusedTab =
             GetFocusedDocumentTab();
 
@@ -8711,6 +8720,7 @@ public partial class MainWindow : Window
         ScheduleStickyWorktreeRefresh();
 
         RefreshDocumentTabsFromNavigation();
+        ReconcileProjectJourneyTabsFromNavigation();
         await RefreshLinkIndexAsync();
 
         if (targetPath is null)
