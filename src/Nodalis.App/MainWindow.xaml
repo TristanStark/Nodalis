@@ -134,6 +134,9 @@
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <!-- Override the default WPF ancestor binding, which reports
+                 FindAncestor errors while TreeViewItem containers detach/recycle. -->
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Padding" Value="5,3" />
             <Setter Property="Margin" Value="0,1" />
             <Setter Property="MinHeight" Value="28" />
