@@ -447,7 +447,7 @@ public sealed class ProjectJourneyService
                     (operation.PromptKey is not null && !IsKey(operation.PromptKey)) ||
                     operation.SourcePaths is null || operation.GateIds is null ||
                     operation.MilestoneIds is null ||
-                    operation.SourcePaths.Any(source => !IsSafeSourcePath(source)) ||
+                    operation.SourcePaths.Any(source => !ProjectJourneySourcePath.IsSafe(source)) ||
                     operation.GateIds.Any(id => id == Guid.Empty) ||
                     operation.MilestoneIds.Any(id => id == Guid.Empty))
                 {
@@ -464,15 +464,6 @@ public sealed class ProjectJourneyService
         !string.IsNullOrWhiteSpace(key) && key.Length <= 80 &&
         key.All(character => char.IsAsciiLetterOrDigit(character) ||
             character is '-' or '_');
-
-    /// <summary>Accepts only workspace-relative, non-traversing source references.</summary>
-    /// <param name="path">Candidate source path.</param>
-    /// <returns>Whether the path is safe to retain.</returns>
-    private static bool IsSafeSourcePath(string? path) =>
-        !string.IsNullOrWhiteSpace(path) && path.Length <= 1024 &&
-        !path.StartsWith('/') && !path.Contains('\\') && !path.Contains(':') &&
-        path.Split('/').All(part => part is not ("" or "." or "..")) &&
-        !path.Any(char.IsControl);
 
     /// <summary>Computes a byte-level hash of the UTF-8 JSON representation.</summary>
     /// <param name="json">Serialized document.</param>
