@@ -408,6 +408,30 @@ internal static class ComplexMigrationTransactionSmokeTests
                 recoveryPlan.ExternalLinkRewrites.Count == 2,
                 "Recovery fixture must require exactly two external publications.");
 
+            // An editor can change an external backlink after the staging
+            // snapshots are written. This must fail before project publication,
+            // leave the human text untouched, and not create a pending journal.
+            ComplexProjectMigrationTransactionService lateEditor = new(
+                workspace, checkpoint: name =>
+                {
+                    if (name == "prepared")
+                    {
+                        File.AppendAllText(recoveryB, "Human change at staging\\n");
+                    }
+                });
+            string recoveryOriginalHash =
+                await ComplexProjectMigrationPlanService.FingerprintAsync(recoverRoot);
+            await RejectAsync(() => lateEditor.ApplyAsync(recoveryPlan,
+                    recoveryPlan.SourceFingerprint, approved: true),
+                "A late external edit must stop the migration before any rename.");
+            Assert((await File.ReadAllTextAsync(recoveryB)).Contains(
+                    "Human change at staging", StringComparison.Ordinal) &&
+                await ComplexProjectMigrationPlanService.FingerprintAsync(
+                    recoverRoot) == recoveryOriginalHash &&
+                (await executor.ListPendingProjectsAsync()).Count == 0,
+                "Refused prepublication must preserve human text and original project.");
+            await File.WriteAllTextAsync(recoveryB, initialB);
+
             ComplexProjectMigrationTransactionService fault = new(
                 workspace, checkpoint: name =>
                 {

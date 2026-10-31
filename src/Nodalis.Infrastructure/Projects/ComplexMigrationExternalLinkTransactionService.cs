@@ -140,9 +140,41 @@ internal sealed class ComplexMigrationExternalLinkTransactionService
     }
 
     /// <summary>
+    /// Prevalidates every external source before touching any of them; a human
+    /// change to a later file must not cause an avoidable partial publication.
+    /// Both old and new hashes are permitted for interrupted, idempotent replays.
+    /// </summary>
+    /// <param name="directory">Private transaction folder.</param>
+    /// <param name="files">All reviewed backlinks.</param>
+    /// <param name="publish">Requested publication or restoration.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    internal async Task AssertReplayableAsync(string directory,
+        IReadOnlyList<ComplexMigrationExternalLinkFile> files,
+        bool publish, CancellationToken cancellationToken)
+    {
+        await AssertReplayableAsync(directory, files, publish, cancellationToken);
+        foreach (ComplexMigrationExternalLinkFile item in files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string source = ResolveLivePath(item.WorkspaceRelativePath);
+            string hash = await HashAsync(source, cancellationToken);
+            string expected = publish ? item.PublishedHash : item.OriginalHash;
+            string opposite = publish ? item.OriginalHash : item.PublishedHash;
+            if (!string.Equals(hash, expected, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(hash, opposite, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Backlink externe modifié : aucune réécriture partielle autorisée : " +
+                    item.WorkspaceRelativePath);
+            }
+        }
+    }
+
+    /// <summary>
     /// Idempotently converges current external files to the approved version.
-    /// Every source is checked before its own atomic replacement, and each
-    /// archive is validated before replacing any live file.
+    /// First validates the full inventory, then checks each file again before
+    /// its atomic replacement. A concurrent editor may still race this check;
+    /// a changed later file leaves an explicit pending recovery journal.
     /// </summary>
     /// <param name="directory">Journal transaction folder.</param>
     /// <param name="files">Retained snapshot inventory.</param>

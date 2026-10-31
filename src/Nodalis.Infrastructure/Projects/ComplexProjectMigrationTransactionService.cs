@@ -215,6 +215,13 @@ public sealed class ComplexProjectMigrationTransactionService
                 journalPath, journal, cancellationToken);
             _checkpoint?.Invoke("prepared");
 
+            // No file in the reviewed external set may already have changed
+            // when we start the project rename. Fail before publishing the
+            // project instead of creating a preventable half-migration.
+            await new ComplexMigrationExternalLinkTransactionService(_workspaceRoot)
+                .AssertStateAsync(transactionDirectory, externalFiles,
+                    published: false, cancellationToken);
+
             Directory.Move(projectRoot, backup);
             _checkpoint?.Invoke("original-moved");
 
@@ -276,9 +283,8 @@ public sealed class ComplexProjectMigrationTransactionService
         }
         catch
         {
-            // A failed publish that left the original directory absent must
-            // restore it immediately. All other states are retained for
-            // explicit, fingerprint-checked recovery.
+            // Restore immediately if the rename of the original succeeded
+            // but the new project has not yet been published.
             if (!Directory.Exists(projectRoot) && Directory.Exists(backup))
             {
                 Directory.Move(backup, projectRoot);
@@ -288,6 +294,21 @@ public sealed class ComplexProjectMigrationTransactionService
                         journalPath, journal with { Phase = "recovered" },
                         CancellationToken.None);
                 }
+            }
+            else if (journal is not null &&
+                !Directory.Exists(backup) && Directory.Exists(projectRoot) &&
+                string.Equals(
+                    await ComplexProjectMigrationPlanService.FingerprintAsync(
+                        projectRoot, CancellationToken.None),
+                    approvedFingerprint, StringComparison.OrdinalIgnoreCase))
+            {
+                // Before the first rename the live project is still the
+                // approved original. No external document has been written.
+                // Mark an ordinary refused prepublish attempt as aborted,
+                // rather than incorrectly demanding recovery at startup.
+                await AtomicJsonFile.WriteAsync(
+                    journalPath, journal with { Phase = "aborted" },
+                    CancellationToken.None);
             }
 
             throw;

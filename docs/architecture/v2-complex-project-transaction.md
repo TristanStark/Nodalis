@@ -75,6 +75,13 @@ la première réconciliation ou une entrée de journal invalide est refusé.
 
 Chaque fichier externe possède ses deux copies, son chemin contrôlé et les
 SHA-256 d'origine et de publication dans le journal **avant toute mutation**.
+Avant de déplacer le projet, Nodalis revérifie **tous** les backlinks
+externes ; si un fichier a été modifié par un autre éditeur depuis la
+préparation, l'opération est refusée sans déplacer le projet et le journal
+est classé `aborted`. Avant chaque reprise, **tout l'inventaire externe**
+est aussi vérifié en une passe avant le premier remplacement (puis chaque
+fichier est revérifié individuellement). Cela réduit les publications
+partielles évitables, sans prétendre verrouiller les logiciels tiers.
 Les onglets externes concernés doivent être fermés. Le journal de transaction
 est écrit AVANT toute bascule :
 
