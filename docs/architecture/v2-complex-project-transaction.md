@@ -38,8 +38,15 @@ empreintes SHA-256 et conservation des ancres et fins de ligne
 (UTF-8 avec ou sans BOM).
 
 Les liens externes, ancres et références qui restent valides ne sont pas
-modifiés. Une syntaxe wiki/indirecte, un chemin encodé/ambigu ou une
-source non UTF-8 reste bloquante.
+modifiés. Les références Markdown **explicites et simples** `[texte][cle]`
+avec une définition unique `[cle]: chemin` (éventuellement encadré de
+`<...>` et suivi d'un titre entre guillemets) sont prises en charge :
+seule la cible de la **définition** est réécrite si le chemin change.
+Les images utilisant cette forme et les backlinks extérieurs sont soumis
+aux mêmes vérifications et sauvegardes transactionnelles.
+Les définitions dupliquées, les usages sans définition et les variantes
+complexes restent bloquants. Une syntaxe wiki, un chemin encodé/ambigu
+ou une source non UTF-8 restent également bloquants.
 Les blocs de code clôturés sont exclus ; les lignes contenant du code inline
 et des liens sont refusées plutôt que réécrites. Templates et journaux
 techniques sont hors périmètre de l'analyse.
@@ -110,8 +117,9 @@ la version publiée dans previously-published/.
   récupération contrôlée. Le passage entre plusieurs fichiers externes n'est
   pas une opération système atomique unique : en cas d'interruption, Nodalis
   bloque les nouvelles migrations jusqu'à récupération explicitement approuvée.
-- Les syntaxes Markdown/HTML ambiguës ou les fichiers non UTF-8 exigent
-  une requalification ; aucun remplacement deviné.
+- Les syntaxes Markdown/HTML ambiguës (dont les références indirectes
+  non explicites ou non résolues) et les fichiers non UTF-8 exigent une
+  requalification ; aucun remplacement deviné.
 - Une copie intégrale du projet nécessite un espace disque suffisant.
 - Les backlinks sont désormais remplacés par une écriture conditionnelle :
   copie temporaire sur le même volume vérifiée par SHA-256, puis relecture du
@@ -140,3 +148,21 @@ de la source lors du rollback et après restauration du premier backlink.
 Chaque cas réouvre le workspace depuis le processus parent et exige une
 récupération explicitement approuvée, puis vérifie les octets et chemins
 attendus ainsi que l'absence de journal en attente.
+
+## Références Markdown qualifiées — 31/10/2026
+
+Le préflight distingue désormais les définitions `[cle]: <chemin>` des
+usages explicites `[libellé][cle]` et `![image][cle]`. Une clé simple
+ASCII, une seule définition par document (sans ambiguïté de casse), un
+chemin littéral et, facultativement, un titre entre guillemets sont
+requis. Le contrôle s'effectue hors blocs de code clôturés et refuse
+les références inconnues ou ambiguës. Le plan indique les offsets
+exacts de la cible dans le document d'origine, puis les rejoue dans
+le staging ou les snapshots des backlinks externes, comme pour les
+liens Markdown directs.
+
+Tests de régression : liens internes, image, lien externe contenant des
+espaces dans le chemin entre chevrons, publication, rollback octet par
+octet, définition dupliquée et référence manquante. Les références
+wiki `[[...]]`, les syntaxes abrégées complexes et les adresses encodées
+ne sont pas interprétées automatiquement.
