@@ -66,3 +66,10 @@ Les GUID d'objets documentaires et de blocs partagent un espace d'identité : un
 La palette propose également **Identifier le titre courant (2.0)**. L'utilisateur place son curseur sous un titre Markdown, reçoit un aperçu explicite du marqueur GUID à ajouter, puis confirme ou annule. L'éditeur insère uniquement la nouvelle ligne et réutilise le mécanisme existant de sauvegarde, contrôle de modifications externes, undo et indexation. Les documents existants ne sont jamais modifiés au simple chargement, et les projets en lecture seule restent intacts.
 
 Cette commande ne remplace pas encore le futur dialogue détaillé de relation ou l'assistant de migration ; la qualification visuelle et les cas multi-onglets/édition externe restent ouverts dans #206.
+
+
+## Identité du bloc source des relations — schéma v5 (#207)
+
+Le registre dérivé des liens passe de v4 à **v5** et conserve pour une relation typée un champ optionnel `SourceBlockId`. Le calcul ne modifie jamais le Markdown : une relation appartient au *titre ATX directement précédent* uniquement si ce titre possède un GUID valide et non dupliqué. Un sous-titre sans marqueur interrompt cette attribution : la relation reste au niveau du document, sans héritage implicite du bloc parent. Un GUID dupliqué désactive l'identification des deux blocs sources concernés.
+
+L'index v4 se reconstruit une seule fois en conservant ses IDs documentaires ; les actualisations suivantes réutilisent les relations des documents non modifiés. La cible reste le GUID explicite déjà inscrit dans la ligne Markdown.

@@ -48,6 +48,9 @@ internal static class BlockIndexSmokeTests
                 resolved.Block?.HeadingLine == 2,
                 "Block resolution must return its stable owning document.");
 
+            Assert(cold.Catalog.Relations.Single().SourceBlockId == otherId,
+                "Relation source ownership must be projected from the unique marked heading.");
+
             BlockIncomingRelationResult inbound =
                 BlockRelationIndexQuery.GetIncoming(cold.Catalog, id);
             Assert(inbound.Resolution.Status == LinkResolutionStatus.Resolved &&
@@ -83,7 +86,7 @@ internal static class BlockIndexSmokeTests
             v3.Remove("blockIssues");
             await File.WriteAllTextAsync(indexPath, v3.ToJsonString());
             LinkIndexCatalog migrated = await service.LoadAsync();
-            Assert(migrated.SchemaVersion == 4 &&
+            Assert(migrated.SchemaVersion == LinkIndexCatalog.CurrentSchemaVersion &&
                 migrated.Blocks.Count == 2 &&
                 migrated.Targets.Single(target =>
                     target.RelativePath == "Criteria.md").Id == resolved.Document?.Id,

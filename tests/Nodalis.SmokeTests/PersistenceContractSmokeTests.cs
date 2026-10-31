@@ -89,12 +89,12 @@ internal static class PersistenceContractSmokeTests
 
         Assert(
             LinkIndexCatalog.CurrentSchemaVersion ==
-                4 &&
+                5 &&
             WorkspaceBackupManifest.CurrentSchemaVersion ==
                 1 &&
             UserPreferences.CurrentSchemaVersion ==
                 1,
-            "Only the link index schema may advance to 4 under the explicit Nodalis 2.0 block-projection contract update.");
+            "The explicit 2.0 source-block projection advances only the link index to v5, leaving workspace schema 1 intact.");
 
         Assert(
             targetRegistry.Category ==
@@ -112,7 +112,7 @@ internal static class PersistenceContractSmokeTests
             blockIndex.IndependentSchemaVersion == LinkIndexCatalog.CurrentSchemaVersion &&
             blockIssues.Category == PersistenceContractCategory.DerivedCache &&
             blockIssues.Rebuildable,
-            "Version 4 must declare canonical block markers and rebuildable derived block projections.");
+            "Version 5 preserves canonical block markers and rebuildable derived block projections.");
 
         Assert(
             referenceIndex.Category ==

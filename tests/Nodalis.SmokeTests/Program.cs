@@ -128,6 +128,7 @@ try
     VerifyMarkdownOutlineParser();
     MarkdownBlockIdentitySmokeTests.Run();
     await BlockIndexSmokeTests.RunAsync(root);
+    BlockRelationSourceSmokeTests.Run();
     VerifyTypedRelations();
     ImpactAnalysisSmokeTests.Run();
     ImpactReleaseQualificationSmokeTests.Run();
