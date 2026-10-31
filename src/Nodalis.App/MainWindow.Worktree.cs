@@ -12,6 +12,32 @@ namespace Nodalis.App;
 /// <summary>Presentation-only worktree navigation actions; no workspace mutation.</summary>
 public partial class MainWindow
 {
+    private bool _allowExplicitWorktreeBringIntoView;
+
+    /// <summary>
+    /// Keeps the explorer's manually chosen scroll position when another
+    /// document tab updates the selected TreeViewItem programmatically.
+    /// Keyboard navigation inside the tree and explicit reveal still scroll.
+    /// </summary>
+    /// <param name="sender">The worktree requesting the scroll.</param>
+    /// <param name="e">WPF's request to bring a selected row into view.</param>
+    private void NavigationTree_RequestBringIntoView(
+        object sender,
+        RequestBringIntoViewEventArgs e)
+    {
+        if (_allowExplicitWorktreeBringIntoView ||
+            NavigationTree.IsKeyboardFocusWithin)
+        {
+            return;
+        }
+
+        if (e.OriginalSource is DependencyObject origin &&
+            FindVisualParent<TreeViewItem>(origin) is not null)
+        {
+            e.Handled = true;
+        }
+    }
+
     /// <summary>Creates an application now that its grouping row is not displayed.</summary>
     /// <param name="sender">New application button.</param>
     /// <param name="e">Click event.</param>
@@ -120,7 +146,18 @@ public partial class MainWindow
             DispatcherPriority.Loaded,
             new Action(() => RunUiAction(
                 "Explorateur · révéler la sélection",
-                () => RevealTreeItemContainer(node),
+                () =>
+                {
+                    _allowExplicitWorktreeBringIntoView = true;
+                    try
+                    {
+                        RevealTreeItemContainer(node);
+                    }
+                    finally
+                    {
+                        _allowExplicitWorktreeBringIntoView = false;
+                    }
+                },
                 showDialog: false)));
     }
 
