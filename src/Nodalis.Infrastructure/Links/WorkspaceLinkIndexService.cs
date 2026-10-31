@@ -1005,13 +1005,18 @@ public sealed class WorkspaceLinkIndexService
                 }
             }
 
-            foreach (MarkdownRelationEntry relation in MarkdownRelationParser.Parse(
-                         markdown))
+            IReadOnlyList<MarkdownRelationSourceBinding> relationBindings =
+                MarkdownRelationSourceResolver.Bind(
+                    MarkdownRelationParser.Parse(markdown), scan);
+
+            foreach (MarkdownRelationSourceBinding binding in relationBindings)
             {
+                MarkdownRelationEntry relation = binding.Relation;
                 relations.Add(
                     new TypedRelationEntry
                     {
                         SourceId = source.Id,
+                        SourceBlockId = binding.SourceBlockId,
                         TargetId = relation.TargetId,
                         RawTargetId = relation.RawTargetId,
                         RelationType = relation.RelationType,

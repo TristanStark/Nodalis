@@ -11,6 +11,12 @@ public sealed record TypedRelationEntry
     public required Guid SourceId { get; init; }
 
     /// <summary>
+    /// Optional source-block GUID only when the immediate enclosing Markdown
+    /// heading has a unique, valid identity. Null means document-level source.
+    /// </summary>
+    public Guid? SourceBlockId { get; init; }
+
+    /// <summary>
     /// Gets the stable target identifier when it could be parsed.
     /// </summary>
     public Guid? TargetId { get; init; }
