@@ -86,6 +86,48 @@ internal sealed class PreviousLinkTargetLookup
             : null;
     }
 
+    /// <summary>
+    /// Reconnects an approved moved document to its old GUID even if an
+    /// approved Markdown repair changed its content hash at the same time.
+    /// </summary>
+    /// <param name="matchedIds">Already claimed document GUIDs.</param>
+    /// <param name="relativePath">New workspace-relative path.</param>
+    /// <param name="scopeIdentity">Resolved project scope.</param>
+    /// <param name="contentHash">SHA-256 of current file bytes.</param>
+    /// <param name="routes">Durable terminal migration routes.</param>
+    /// <returns>Prior document identity, or null if not a recognized move.</returns>
+    internal LinkTargetEntry? MatchByMigration(
+        ISet<Guid> matchedIds,
+        string relativePath,
+        string scopeIdentity,
+        string contentHash,
+        IReadOnlyDictionary<string, Nodalis.Infrastructure.Projects.ComplexMigrationIdentityRoute>
+            routes)
+    {
+        if (!routes.TryGetValue(relativePath, out
+                Nodalis.Infrastructure.Projects.ComplexMigrationIdentityRoute? route) ||
+            !_byId.TryGetValue(route.DocumentId, out LinkTargetEntry? previous) ||
+            previous.Kind != LinkTargetKind.Document ||
+            !string.Equals(previous.RelativePath, route.PreviousPath,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(previous.ScopeIdentity, scopeIdentity,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (matchedIds.Contains(route.DocumentId) ||
+            !string.Equals(contentHash, route.CurrentHash,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Identité du document déplacé ambiguë ou modifiée : " +
+                relativePath);
+        }
+
+        return previous;
+    }
+
     /// <summary>Finds a unique hash within the scope before trying the full workspace.</summary>
     internal LinkTargetEntry? MatchByHash(
         ISet<Guid> matchedIds,

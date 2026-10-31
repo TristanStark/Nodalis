@@ -6,6 +6,7 @@ using Nodalis.Core.Markdown;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Relations;
 using Nodalis.Infrastructure.Navigation;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Persistence;
 
 namespace Nodalis.Infrastructure.Links;
@@ -218,6 +219,9 @@ public sealed class WorkspaceLinkIndexService
         RefreshCounters counters = new RefreshCounters();
         PreviousLinkTargetLookup previousLookup =
             new PreviousLinkTargetLookup(previous.Targets);
+        IReadOnlyDictionary<string, ComplexMigrationIdentityRoute> relocations =
+            await new ComplexMigrationDocumentIdentityService(_workspaceRoot)
+                .ReadActiveRoutesAsync(cancellationToken);
 
         await CollectTargetsAsync(
             navigation,
@@ -225,6 +229,7 @@ public sealed class WorkspaceLinkIndexService
             scopeIdentity: $"workspace:{navigation.Id:D}",
             scopeRootPath: _workspaceRoot,
             previousLookup,
+            relocations,
             matchedPreviousIds,
             targets,
             counters,
@@ -613,6 +618,7 @@ public sealed class WorkspaceLinkIndexService
     /// <param name="scopeIdentity">The <c>scopeIdentity</c> value.</param>
     /// <param name="scopeRootPath">The <c>scopeRootPath</c> value.</param>
     /// <param name="previousLookup">One lookup for previous targets during this refresh.</param>
+    /// <param name="relocations">Explicit terminal journal location transitions.</param>
     /// <param name="matchedPreviousIds">The <c>matchedPreviousIds</c> value.</param>
     /// <param name="targets">The <c>targets</c> value.</param>
     /// <param name="cancellationToken">The <c>cancellationToken</c> value.</param>
@@ -623,6 +629,7 @@ public sealed class WorkspaceLinkIndexService
             string scopeIdentity,
             string scopeRootPath,
             PreviousLinkTargetLookup previousLookup,
+            IReadOnlyDictionary<string, ComplexMigrationIdentityRoute> relocations,
             ISet<Guid> matchedPreviousIds,
             ICollection<LinkTargetEntry> targets,
             RefreshCounters counters,
@@ -749,6 +756,12 @@ public sealed class WorkspaceLinkIndexService
                     cancellationToken);
                 counters.HashedDocuments++;
 
+                existing ??= previousLookup.MatchByMigration(
+                    matchedPreviousIds,
+                    relativePath,
+                    currentScopeIdentity,
+                    contentHash,
+                    relocations);
                 existing ??= previousLookup.MatchByHash(
                     matchedPreviousIds,
                     currentScopeIdentity,
@@ -808,6 +821,7 @@ public sealed class WorkspaceLinkIndexService
                 currentScopeIdentity,
                 currentScopeRootPath,
                 previousLookup,
+                relocations,
                 matchedPreviousIds,
                 targets,
                 counters,

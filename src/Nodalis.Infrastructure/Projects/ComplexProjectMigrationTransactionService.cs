@@ -22,6 +22,9 @@ public sealed record ComplexProjectMigrationJournal
     /// <summary>Last durable transaction checkpoint.</summary>
     public required string Phase { get; init; }
 
+    /// <summary>Original GUIDs and file hashes for documents moved by this migration.</summary>
+    public IReadOnlyList<ComplexMigrationDocumentIdentity> DocumentIdentities { get; init; } = [];
+
     /// <summary>Time this approved journal was first recorded.</summary>
     public DateTimeOffset CreatedUtc { get; init; } = DateTimeOffset.UtcNow;
 }
@@ -175,6 +178,9 @@ public sealed class ComplexProjectMigrationTransactionService
             await ComplexProjectMigrationLinkRewriteApplier.ApplyAsync(
                 stage, plan.LinkRewrites, cancellationToken);
             await ApplyStagedLayoutAsync(stage, plan, cancellationToken);
+            IReadOnlyList<ComplexMigrationDocumentIdentity> identities =
+                await new ComplexMigrationDocumentIdentityService(_workspaceRoot)
+                    .CaptureAsync(projectRoot, stage, plan.Moves, cancellationToken);
             string stagedHash =
                 await ComplexProjectMigrationPlanService.FingerprintAsync(
                     stage, cancellationToken);
@@ -194,6 +200,7 @@ public sealed class ComplexProjectMigrationTransactionService
                 ProjectRelativePath = projectRelative,
                 OriginalFingerprint = approvedFingerprint,
                 StagedFingerprint = stagedHash,
+                DocumentIdentities = identities,
                 Phase = "prepared"
             };
             await AtomicJsonFile.WriteAsync(

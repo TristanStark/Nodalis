@@ -59,6 +59,17 @@ fichier et des offsets exacts. Ensuite les sections physiques sont déplacées
 dans cette copie seulement, les identifiants de sections existantes sont
 conservés et les nouveaux conteneurs obtiennent de nouveaux GUID.
 
+Avant publication, l'index partagé est actualisé. La transaction capture pour
+chaque document Markdown déplacé son GUID, ses chemins source/cible et les
+empreintes de ses octets **avant/après** réécriture. Cette provenance est
+enregistrée dans `journal.json`, avant toute bascule. Lors du prochain
+rafraîchissement, le même index réutilise le GUID original même lorsque le
+chemin **et** le contenu ont changé ensemble ; les relations et blocs sont
+reprojetés sous cet identifiant. Les journaux terminés sont pris en compte
+aussi après un redémarrage ; les restaurations approuvées renversent la
+direction du mapping. Une collision de GUID, un changement d'empreinte avant
+la première réconciliation ou une entrée de journal invalide est refusé.
+
 Après une nouvelle vérification de l'empreinte originale, le journal est
 écrit AVANT les deux renommages de répertoires sur le même volume :
 
