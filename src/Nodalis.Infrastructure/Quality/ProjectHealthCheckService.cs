@@ -926,18 +926,19 @@ public sealed class ProjectHealthCheckService
             ProjectHealthOptions options,
             ICollection<ProjectHealthIssue> issues)
     {
-        string meetingPrefix =
-            WorkspaceMeetingDirectoryName +
-            "/";
+        string[] meetingPrefixes =
+        [
+            WorkspaceMeetingDirectoryName + "/",
+            "Management/" + WorkspaceMeetingDirectoryName + "/"
+        ];
 
         DocumentSnapshot[] meetingDocuments =
             documents
                 .Where(document =>
-                    document.ProjectRelativePath.StartsWith(
-                        meetingPrefix,
-                        StringComparison.CurrentCultureIgnoreCase) &&
-                    document.ProjectRelativePath.Count(character =>
-                        character == '/') == 1)
+                    meetingPrefixes.Any(prefix =>
+                        document.ProjectRelativePath.StartsWith(
+                            prefix, StringComparison.CurrentCultureIgnoreCase) &&
+                        !document.ProjectRelativePath[prefix.Length..].Contains('/')))
                 .ToArray();
 
         DateOnly? latestDate =
@@ -1394,13 +1395,11 @@ public sealed class ProjectHealthCheckService
     private static bool IsDecisionDocument(
             DocumentSnapshot document)
     {
-        string prefix =
-            WorkspaceDecisionDirectoryName +
-            "/";
-
-        return document.ProjectRelativePath.StartsWith(
-            prefix,
-            StringComparison.CurrentCultureIgnoreCase);
+        string relative = document.ProjectRelativePath;
+        return relative.StartsWith(WorkspaceDecisionDirectoryName + "/",
+                StringComparison.CurrentCultureIgnoreCase) ||
+            relative.StartsWith("Management/" + WorkspaceDecisionDirectoryName + "/",
+                StringComparison.CurrentCultureIgnoreCase);
     }
 
     /// <summary>
@@ -1442,6 +1441,12 @@ public sealed class ProjectHealthCheckService
                 StringComparison.CurrentCultureIgnoreCase) ||
             document.ProjectRelativePath.StartsWith(
                 WorkspaceMeetingDirectoryName + "/",
+                StringComparison.CurrentCultureIgnoreCase) ||
+            document.ProjectRelativePath.StartsWith(
+                "Management/" + WorkspaceDecisionDirectoryName + "/",
+                StringComparison.CurrentCultureIgnoreCase) ||
+            document.ProjectRelativePath.StartsWith(
+                "Management/" + WorkspaceMeetingDirectoryName + "/",
                 StringComparison.CurrentCultureIgnoreCase))
         {
             return true;
@@ -1453,7 +1458,7 @@ public sealed class ProjectHealthCheckService
                 WindowsPathRules.SanitizeSegment(
                     section.Name);
             string canonicalPath =
-                sectionSegment +
+                (section.RelativeDirectory ?? sectionSegment) +
                 "/" +
                 sectionSegment +
                 ".md";
@@ -1506,8 +1511,7 @@ public sealed class ProjectHealthCheckService
         }
 
         return normalized.StartsWith(
-            safeSectionName +
-            "/",
+            (section.RelativeDirectory ?? safeSectionName) + "/",
             StringComparison.CurrentCultureIgnoreCase);
     }
 
