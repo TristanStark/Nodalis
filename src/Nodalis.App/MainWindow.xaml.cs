@@ -2735,12 +2735,10 @@ public partial class MainWindow : Window
             object? sender,
             EventArgs e)
     {
-        Dispatcher.BeginInvoke(async () =>
-            await RunUiActionAsync(
-                "Autosave · finalisation",
-                () =>
-                    HandleDocumentTabAutosaveSavedAsync(
-                        sender)));
+        // Persisting the data has already succeeded. Coalesce UI/index work
+        // instead of scheduling a full workspace scan for every open tab.
+        Dispatcher.BeginInvoke(() =>
+            QueueDocumentAutosaveRefresh(sender));
     }
 
     /// <summary>
