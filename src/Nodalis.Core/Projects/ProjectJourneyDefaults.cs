@@ -90,14 +90,14 @@ public static class ProjectJourneyDefaults
     /// <returns>A fresh stage definition.</returns>
     private static ProjectJourneyStepTemplate Step(string key, string name,
         int order, params (string Key, string Name)[] operations) => new()
-    {
-        Key = key,
-        Name = name,
-        Order = order,
-        Operations = operations.Select(item => new ProjectJourneyOperationTemplate
         {
-            Key = item.Key,
-            Name = item.Name
-        }).ToList()
-    };
+            Key = key,
+            Name = name,
+            Order = order,
+            Operations = operations.Select(item => new ProjectJourneyOperationTemplate
+            {
+                Key = item.Key,
+                Name = item.Name
+            }).ToList()
+        };
 }
