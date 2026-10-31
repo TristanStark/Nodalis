@@ -8,6 +8,8 @@ public sealed record EditorPreferences
 
     public bool LivePreview { get; init; } = true;
 
+    public bool SyntaxHighlightingEnabled { get; init; } = true;
+
     public int FontSize { get; init; } = 14;
 
     public int AutosaveDelayMilliseconds { get; init; } = 750;
