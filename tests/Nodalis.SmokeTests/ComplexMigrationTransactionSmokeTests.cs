@@ -208,7 +208,11 @@ internal static class ComplexMigrationTransactionSmokeTests
                     item.ReplacementTarget.Contains("Documentation/Technique/",
                         StringComparison.Ordinal)),
                 "Simple reference definitions must be qualified, including images " +
-                "and a backlink in another document.");
+                "and a backlink in another document. Eligible=" +
+                referencePlan.CanExecute + ", local=" +
+                referencePlan.LinkRewrites.Count + ", external=" +
+                referencePlan.ExternalLinkRewrites.Count + ", blockers=" +
+                string.Join(" | ", referencePlan.Blockers));
 
             ComplexProjectMigrationTransactionService referenceExecutor = new(
                 workspace);
