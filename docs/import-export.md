@@ -5,6 +5,10 @@ en place pendant un import.
 
 ## Import DOCX
 
+**Version 1.9.0 :** l'assistant propose un arbre de titres Word modifiable, l'affectation manuelle des branches vers des sections/documents et l'exclusion de blocs. Le plan complet, les médias, la provenance et les changements du réimport sont inspectables avant confirmation. Le DOCX original reste inchangé. Voir les [notes de version](release-notes-1.9.md) et [l'aide au mapping](docx-1.9-mapping.md).
+
+
+
 L'import DOCX suit une séquence de prévisualisation avant toute écriture métier :
 
 1. le fichier source est copié dans la zone locale Imports/Sources ;
@@ -19,13 +23,13 @@ document.
 
 Le fichier DOCX original reste inchangé, y compris en cas d'échec.
 
-Depuis la v1.9 (développement sur `develop`), chaque import avancé validé
+Depuis la v1.9 stable, chaque import avancé validé
 conserve aussi un manifeste de provenance local (`.nodalis-imports/*.json`)
 dans le projet : origine SHA-256, sélection, destinations et snapshots.
 Voir [DOCX v1.9 — Traçabilité des imports](docx-1.9-provenance.md).
 Le réimport différentiel et l'arbitrage des conflits sont prévus séparément (#164).
 
-### Protection des documents Word en v1.9 (#165, en développement)
+### Protection des documents Word en v1.9 (#165)
 
 Avant toute interprétation, l'import DOCX valide l'archive ZIP : chemins
 relatifs, unicité des entrées, absence de liens symboliques, limites sur
