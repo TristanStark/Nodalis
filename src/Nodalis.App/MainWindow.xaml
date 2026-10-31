@@ -130,6 +130,10 @@
         </Style>
         <Style TargetType="{x:Type TreeViewItem}"
                BasedOn="{StaticResource {x:Type TreeViewItem}}">
+            <!-- Handle at the item itself, BEFORE its ScrollViewer ancestor
+                 processes the bubbling RequestBringIntoView event. -->
+            <EventSetter Event="RequestBringIntoView"
+                         Handler="NavigationTree_RequestBringIntoView" />
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -741,7 +745,6 @@
                               SizeChanged="NavigationTree_StickySizeChanged"
                               ScrollViewer.ScrollChanged="NavigationTree_StickyScrollChanged"
                               SelectedItemChanged="NavigationTree_SelectedItemChanged"
-                              RequestBringIntoView="NavigationTree_RequestBringIntoView"
                               PreviewMouseRightButtonDown="NavigationTree_PreviewMouseRightButtonDown"
                               ContextMenuOpening="NavigationTree_ContextMenuOpening">
                         <TreeView.ItemsPanel>
