@@ -205,6 +205,7 @@ public partial class MainWindow : Window
         };
 
         InitializeEditorSplit();
+        RegisterPowerNotifications();
 
         MarkdownEditorTextBox.FontSize = preferences.Editor.FontSize;
         MarkdownEditorTextBox.IsReadOnly =
@@ -242,7 +243,9 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _heartbeatMonitor.SetEnabled(false);
+            _autosaveRefreshTimer.Stop();
             _glossaryMatchCancellation?.Cancel();
+            _previewParseCancellation?.Cancel();
         };
 
         Loaded += async (_, _) =>
