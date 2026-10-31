@@ -5,7 +5,7 @@ de projet, conçu autour d'un workspace unique, de Markdown et de liens internes
 
 ## État
 
-Développement initial en cours sur la branche `develop`.
+**Version stable : v1.9.0**, publiée sur la branche `main`. Les évolutions futures se poursuivent sur `develop`.
 
 Le socle actuellement disponible comprend :
 - WPF / C# et dark mode ;
@@ -104,6 +104,9 @@ Le sommaire complet de la documentation 1.0 se trouve dans `docs/README.md`.
 
 ## Versions stables
 
+- **v1.9.0 — Import DOCX avancé et performances** : structure Word, mapping des sections, réimport avec résolution de conflits, durcissement WPF et coloration Markdown. Voir les [notes de version](docs/release-notes-1.9.md), le [guide DOCX](docs/import-export.md) et le [guide éditeur coloré](docs/markdown-editor-syntax.md).
+- **v1.8.0 — Recherche hybride** : fusion lexicale/sémantique et gestion des index. Voir les [notes de version](docs/release-notes-1.8.md).
+
 - **v1.7.0 — Recherche sémantique locale** : indexation volontaire, pont Ollama facultatif, passages Markdown, extraits et purge des vecteurs. Voir [notes de version](docs/release-notes-1.7.md) et [guide](docs/semantic-1.7-guide.md).
 - **v1.6.0 — Documents composites** : inclusion de documents Markdown et de sections,
   aperçu vivant, liens de provenance, exports et impression hors ligne.
@@ -114,10 +117,10 @@ Le sommaire complet de la documentation 1.0 se trouve dans `docs/README.md`.
 - **v1.4.0 — Analyse d'impact** :
   [guide et graphe des dépendances](docs/impact-user-guide-1.4.md).
 
-La prochaine version en cours sur `develop` est **1.8 — Recherche hybride lexicale/sémantique et contrôle de l'index** (EPIC #127 ; #148–#150).
+La version **1.9.0** est la dernière stable ; voir [GitHub Releases](https://github.com/TristanStark/Nodalis/releases) pour le binaire portable et les sommes de contrôle. XLSX et VSDX restent en backlog.
 
 ## Workspace de démonstration
 
-Un [workspace de démonstration autonome](examples/Nodalis-Demo-Workspace/) illustre les fonctionnalités Nodalis jusqu'à la v1.7.0 : documents Markdown liés, tâches, jalons, réunions et Decision Records, incidents et interventions, analyse d'impact, vues dynamiques, documents composites et illustrations locales. Il comprend un projet Ultra-simple et un sous-projet 1.7 préparatoire.
+Un [workspace de démonstration autonome](examples/Nodalis-Demo-Workspace/) illustre les fonctionnalités Nodalis jusqu'à la v1.9.0 : documents Markdown liés, tâches, jalons, réunions et Decision Records, incidents et interventions, analyse d'impact, vues dynamiques, documents composites et illustrations locales. Il comprend un projet Ultra-simple et un sous-projet 1.7 préparatoire.
 
 Voir le [guide d'ouverture et les limites des données fictives](examples/README-workspace-demo.md). Vérifier les identités et liens sous Windows avec `./examples/verify-demo-workspace.ps1` avant une démonstration publique.
