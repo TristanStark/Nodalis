@@ -23,6 +23,31 @@ public partial class MainWindow
         ProjectJourneyTabsList.ItemsSource = _projectJourneyTabs;
     }
 
+    /// <summary>
+    /// Opens the workspace-wide catalog editor; saved changes apply only to
+    /// future journey initializations, not to existing project documents.
+    /// </summary>
+    /// <returns>Completed user-reviewed template action.</returns>
+    private async Task ManageJourneyTemplatesAsync()
+    {
+        ProjectJourneyTemplatesDialog dialog = new(
+            _root.FullPath, _workspaceReadOnly)
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+        if (dialog.Changed)
+        {
+            if (_activeProjectJourneyTab is ProjectJourneyTabEntry tab)
+            {
+                await tab.View.RefreshTemplatesAsync();
+            }
+
+            StatusText.Text =
+                "Modèles de parcours enregistrés · projets existants inchangés.";
+        }
+    }
+
     /// <summary>Opens the selected project's journey from the Worktree header.</summary>
     /// <param name="sender">Worktree command.</param>
     /// <param name="e">Click event.</param>
