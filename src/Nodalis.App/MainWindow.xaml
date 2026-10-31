@@ -780,9 +780,50 @@
                         Background="{StaticResource PanelBackgroundBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,0,0,1">
-                    <!-- The ListBox must own scrolling for horizontal item
-                         virtualization; an outer ScrollViewer measured every tab. -->
-                    <ListBox x:Name="DocumentTabsList"
+                    <!-- Project journeys are lightweight view tabs; Markdown
+                         tabs retain their own independent autosave sessions. -->
+                    <DockPanel LastChildFill="True">
+                        <ListBox x:Name="ProjectJourneyTabsList"
+                                 DockPanel.Dock="Left"
+                                 MaxWidth="330"
+                                 Margin="6,3,0,3"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                 SelectionChanged="ProjectJourneyTabsList_SelectionChanged"
+                                 AutomationProperties.Name="Onglets de parcours projet">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid MinWidth="135" MaxWidth="230" Margin="2,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="28" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Margin="8,0,6,0"
+                                                   VerticalAlignment="Center"
+                                                   Text="{Binding TabTitle}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding FullPath}" />
+                                        <Button Grid.Column="1"
+                                                Width="24" Height="24"
+                                                Padding="0"
+                                                Tag="{Binding}"
+                                                Click="CloseProjectJourneyTab_Click"
+                                                ToolTip="Fermer l'onglet Parcours"
+                                                Content="×" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <!-- The Markdown ListBox owns its own virtualized scrolling.
+                             Never wrap it in a global ScrollViewer. -->
+                        <ListBox x:Name="DocumentTabsList"
                                  Margin="6,3"
                                  BorderThickness="0"
                                  Background="Transparent"
@@ -829,6 +870,7 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                     </ListBox>
+                    </DockPanel>
                 </Border>
 
                 <Border Grid.Row="1"
@@ -1187,6 +1229,11 @@
                         </Grid>
                     </Border>
                 </Grid>
+
+                <ContentControl x:Name="ProjectJourneyHost"
+                                Grid.Row="3"
+                                Visibility="Collapsed"
+                                Background="{StaticResource WindowBackgroundBrush}" />
 
                 <ScrollViewer x:Name="DashboardHost"
                               Grid.Row="3"
