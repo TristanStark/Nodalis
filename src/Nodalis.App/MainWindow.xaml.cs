@@ -148,6 +148,8 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(diagnosticsService);
 
         InitializeComponent();
+        InitializeMarkdownSyntaxOverlays(
+            preferences.Editor.SyntaxHighlightingEnabled);
         _primaryMarkdownLineMarkers = new MarkdownEditorLineMarkers(
             MarkdownEditorTextBox,
             PrimaryMarkdownMarkers);
@@ -250,6 +252,7 @@ public partial class MainWindow : Window
 
         Closed += (_, _) =>
         {
+            DisposeMarkdownSyntaxOverlays();
             _primaryMarkdownLineMarkers.Dispose();
             _secondaryMarkdownLineMarkers.Dispose();
             _heartbeatMonitor.SetEnabled(false);
@@ -372,6 +375,8 @@ public partial class MainWindow : Window
                         Editor = _preferences.Editor with
                         {
                             LivePreview = _previewVisible,
+                            SyntaxHighlightingEnabled =
+                                SyntaxHighlightingToggle.IsChecked == true,
                             WordWrap =
                                 MarkdownEditorTextBox.TextWrapping ==
                                 TextWrapping.Wrap,
