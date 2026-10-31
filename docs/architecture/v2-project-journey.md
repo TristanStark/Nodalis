@@ -121,6 +121,48 @@ réutilisable par projet. Il reste à développer l'onglet intégré,
 les liens cliquables vers les sources, l'édition des modèles du workspace
 dans l'interface et la qualification visuelle WPF par l'utilisateur.
 
+## Onglets Parcours intégrés (31/10/2026)
+
+L'éditeur du parcours est maintenant un composant WPF réutilisable
+(`ProjectJourneyView`), également hébergeable dans la fenêtre historique.
+La commande de palette **Parcours projet 2.0** et le bouton discret **▦**
+dans l'en-tête de l'Explorateur ouvrent désormais une **vue intégrée
+dans la zone centrale de Nodalis**, avec un onglet par GUID de projet.
+
+Comportement et invariants :
+
+- Deux ouvertures du **même projet** réactivent son seul onglet : il n'y
+  a ni deuxième éditeur ni deuxième session de sauvegarde.
+- La bande des Parcours est adjacente à la bande Markdown, sans
+  transformer le JSON du Parcours en document Markdown éditable.
+  Les onglets Markdown conservent leurs sessions et contrôleurs
+  d'autosave existants ; basculer de l'un à l'autre n'écrit rien.
+- Un clic sur un autre document, projet ou accueil quitte seulement
+  l'affichage du Parcours. L'onglet reste réutilisable et sa fermeture
+  explicite dispose de la vue, sans suppression de données.
+  `Ctrl+W` ferme l'onglet Parcours actif.
+- La reconstruction du Worktree sans navigation explicite conserve
+  le Parcours actif et évite de forcer un changement de document.
+- Une collision de GUID entre plusieurs projets **bloque l'ouverture**.
+  Un renommage, déplacement ou retrait de projet détecté lors de la
+  reconstruction du Worktree invalide l'onglet lié à l'ancien chemin.
+- L'archivage et la réouverture demandent à fermer les onglets Parcours
+  concernés (ainsi que les onglets documents) avant toute relocalisation.
+- Le changement de workspace et la fermeture de l'application libèrent
+  toutes les vues Parcours. La création des vues est paresseuse, sur
+  ouverture explicite. Aucun rescan de workspace n'est lancé sur le
+  scroll de l'Explorateur.
+
+L'éditeur réutilise les mêmes méthodes de confirmation, empreintes
+SHA-256 et validations que le premier dialogue modal. Ce n'est pas un
+service IA ni un planificateur automatique : états et opérations
+restent contrôlés manuellement.
+
+**Qualification :** la compilation WPF/XAML et les régressions existantes
+doivent être vertes sur le dernier HEAD ; une vérification visuelle
+sur Windows (création, fermeture, tabulation, grand workspace, DPI,
+archivage, lecture seule et conflits externes) demeure indispensable.
+
 ## Suite de l'EPIC #195
 
 1. Ajouter édition guidée des étapes/opérations (ajouter, déplacer, ignorer)
