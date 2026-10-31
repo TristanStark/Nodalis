@@ -439,6 +439,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="EXPLORATEUR"
                                    VerticalAlignment="Center"
@@ -463,6 +464,7 @@
                         <Button Grid.Column="2"
                                 Style="{StaticResource WorktreeHeaderButtonStyle}"
                                 Click="CreateApplication_Click"
+                                Margin="0,0,4,0"
                                 ToolTip="Nouvelle application"
                                 AutomationProperties.Name="Créer une application">
                             <Path Width="16" Height="16"
@@ -473,6 +475,12 @@
                                   StrokeEndLineCap="Round"
                                   Data="M 8,2 L 8,14 M 2,8 L 14,8" />
                         </Button>
+                        <Button Grid.Column="3"
+                                Style="{StaticResource WorktreeHeaderButtonStyle}"
+                                Click="OpenProjectJourney_Click"
+                                Content="▦"
+                                ToolTip="Parcours du projet sélectionné · Nodalis 2.0"
+                                AutomationProperties.Name="Ouvrir le parcours du projet" />
                     </Grid>
 
                     <!-- P1 filter and display modes; all operate on the existing tree VM. -->
