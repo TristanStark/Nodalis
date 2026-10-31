@@ -73,3 +73,12 @@ Cette commande ne remplace pas encore le futur dialogue détaillé de relation o
 Le registre dérivé des liens passe de v4 à **v5** et conserve pour une relation typée un champ optionnel `SourceBlockId`. Le calcul ne modifie jamais le Markdown : une relation appartient au *titre ATX directement précédent* uniquement si ce titre possède un GUID valide et non dupliqué. Un sous-titre sans marqueur interrompt cette attribution : la relation reste au niveau du document, sans héritage implicite du bloc parent. Un GUID dupliqué désactive l'identification des deux blocs sources concernés.
 
 L'index v4 se reconstruit une seule fois en conservant ses IDs documentaires ; les actualisations suivantes réutilisent les relations des documents non modifiés. La cible reste le GUID explicite déjà inscrit dans la ligne Markdown.
+
+
+## Relations bidirectionnelles et dialogue de sélection (#207)
+
+La recherche de cibles dans le dialogue Relation accepte désormais documents, projets et blocs identifiés, par nom, chemin ou GUID, avec aperçu du type et de l'identifiant. L'ensemble est calculé depuis l'index partagé, et limité visuellement aux 100 premiers résultats pour éviter les listes WPF volumineuses. Les GUID en collision sont exclus. Après confirmation, Nodalis revérifie la cible avant insertion ; une modification ou une disparition annule l'opération.
+
+Le panneau Contexte sait afficher les relations entrantes et sortantes du bloc consulté via « Atteindre un bloc par ID ». Les relations cassées ou ambiguës apparaissent comme telles ; le double-clic vers une cible bloc passe par la navigation avec revérification du marqueur dans le Markdown ouvert. Le document reste la source de vérité, et aucun lien n'est créé automatiquement.
+
+Les nouveaux tests couvrent la migration v4→v5, l'ambiguïté entre catégories, les 175 blocs successifs d'un document volumineux, l'imbrication des titres et les sources sans identifiant.

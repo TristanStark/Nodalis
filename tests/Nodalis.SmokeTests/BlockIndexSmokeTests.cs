@@ -93,6 +93,10 @@ internal static class BlockIndexSmokeTests
                     .Any(choice => choice.Id == id),
                 "Cross-kind GUID collisions must be hidden from selection.");
 
+            Assert(BlockRelationIndexQuery.GetOutgoing(crossKindCollision, otherId)
+                    .Relations.Single().TargetStatus == LinkResolutionStatus.Ambiguous,
+                "Cross-kind collisions must remain ambiguous in outgoing relations.");
+
             Assert(BlockIndexQuery.Resolve(crossKindCollision, id).Status ==
                 LinkResolutionStatus.Ambiguous &&
                 BlockRelationIndexQuery.GetIncoming(crossKindCollision, id)
@@ -113,6 +117,29 @@ internal static class BlockIndexSmokeTests
                 migrated.Targets.Single(target =>
                     target.RelativePath == "Criteria.md").Id == resolved.Document?.Id,
                 "Schema v3 must reconstruct block indexes while retaining document IDs.");
+
+            // A persisted v4 projection lacks sourceBlockId and must be
+            // rebuilt once without losing document identities.
+            JsonObject v4 = JsonNode.Parse(await File.ReadAllTextAsync(indexPath))!.AsObject();
+            v4["schemaVersion"] = 4;
+            if (v4["relations"] is JsonArray oldRelations)
+            {
+                foreach (JsonNode? relation in oldRelations)
+                {
+                    if (relation is JsonObject relationObject)
+                    {
+                        relationObject.Remove("sourceBlockId");
+                    }
+                }
+            }
+
+            await File.WriteAllTextAsync(indexPath, v4.ToJsonString());
+            LinkIndexCatalog upgraded = await service.LoadAsync();
+            Assert(upgraded.SchemaVersion == LinkIndexCatalog.CurrentSchemaVersion &&
+                upgraded.Relations.Single().SourceBlockId == otherId &&
+                upgraded.Targets.Single(target =>
+                    target.RelativePath == "Criteria.md").Id == resolved.Document?.Id,
+                "v4-to-v5 migration must rebuild relation sources but preserve document IDs.");
 
             LinkIndexRefreshResult warm = await service.RefreshWithMetricsAsync();
             Assert(warm.Metrics.ParsedDocuments == 0 &&

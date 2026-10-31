@@ -1,3 +1,4 @@
+using System.Text;
 using Nodalis.Core.Markdown;
 using Nodalis.Core.Relations;
 
@@ -60,6 +61,28 @@ internal static class BlockRelationSourceSmokeTests
                 MarkdownBlockIdentityCodec.Inspect(fenced));
         Check(clean.Count == 1 && clean[0].SourceBlockId == nested,
             "Relations inside fenced code and fake headings must remain ignored.");
+
+        StringBuilder largeDocument = new StringBuilder("# Large regression\n");
+        List<Guid> expected = [];
+        for (int index = 0; index < 175; index++)
+        {
+            Guid blockId = Guid.NewGuid();
+            expected.Add(blockId);
+            largeDocument.Append("## Scenario ").Append(index).Append('\n')
+                .Append(MarkdownBlockIdentityCodec.FormatMarker(blockId)).Append('\n')
+                .Append(MarkdownRelationParser.Format("vérifie", target, "criterion"))
+                .Append('\n');
+        }
+
+        string largeSource = largeDocument.ToString();
+        IReadOnlyList<MarkdownRelationSourceBinding> largeBindings =
+            MarkdownRelationSourceResolver.Bind(
+                MarkdownRelationParser.Parse(largeSource),
+                MarkdownBlockIdentityCodec.Inspect(largeSource));
+        Check(largeBindings.Count == expected.Count &&
+            largeBindings.Select(binding => binding.SourceBlockId)
+                .SequenceEqual(expected.Select(id => (Guid?)id)),
+            "175 consecutive marked headings must bind exactly to their own relations.");
     }
 
     /// <summary>Throws on incorrect conservative source attribution.</summary>

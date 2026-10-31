@@ -66,8 +66,17 @@ public partial class MainWindow
                             StringComparer.CurrentCultureIgnoreCase)
                         .ToArray();
 
+                DocumentTabViewModel? sourceTab = GetFocusedDocumentTab();
+                if (sourceTab is null || sourceTab.IsMissing || sourceTab.HasConflict)
+                {
+                    StatusText.Text = "Résolvez le document ou son conflit avant une relation.";
+                    return;
+                }
+
+                LinkIndexCatalog snapshot = _linkIndex;
                 IReadOnlyList<RelationTargetOption> choices =
-                    RelationTargetIndexQuery.GetSelectable(_linkIndex, source.Id);
+                    await Task.Run(() =>
+                        RelationTargetIndexQuery.GetSelectable(snapshot, source.Id));
 
                 if (choices.Count == 0)
                 {
@@ -87,6 +96,28 @@ public partial class MainWindow
                 if (dialog.ShowDialog() != true ||
                     dialog.SelectedTargetOption is not RelationTargetOption selected)
                 {
+                    return;
+                }
+
+                if (!ReferenceEquals(sourceTab, GetFocusedDocumentTab()) ||
+                    sourceTab.HasConflict)
+                {
+                    StatusText.Text = "Le document source a changé pendant la sélection.";
+                    return;
+                }
+
+                LinkIndexCatalog currentIndex = await _linkIndexService.RefreshAsync();
+                IReadOnlyList<RelationTargetOption> currentChoices = await Task.Run(() =>
+                    RelationTargetIndexQuery.GetSelectable(currentIndex, source.Id));
+
+                if (!currentChoices.Any(target =>
+                    target.Id == selected.Id &&
+                    target.IsBlock == selected.IsBlock &&
+                    target.DocumentId == selected.DocumentId &&
+                    string.Equals(target.QualifiedName, selected.QualifiedName,
+                        StringComparison.Ordinal)))
+                {
+                    StatusText.Text = "La cible a changé depuis son choix : aucune relation ajoutée.";
                     return;
                 }
 
