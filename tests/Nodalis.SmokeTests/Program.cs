@@ -129,6 +129,7 @@ try
     MarkdownBlockIdentitySmokeTests.Run();
     await BlockIndexSmokeTests.RunAsync(root);
     BlockRelationSourceSmokeTests.Run();
+    RelationEditorSnapshotSmokeTests.Run();
     VerifyTypedRelations();
     ImpactAnalysisSmokeTests.Run();
     ImpactReleaseQualificationSmokeTests.Run();

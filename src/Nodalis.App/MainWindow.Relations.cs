@@ -68,11 +68,22 @@ public partial class MainWindow
                         .ToArray();
 
                 DocumentTabViewModel? sourceTab = GetFocusedDocumentTab();
-                if (sourceTab is null || sourceTab.IsMissing || sourceTab.HasConflict)
+                if (_workspaceReadOnly || sourceTab is null ||
+                    sourceTab.IsMissing || sourceTab.HasConflict ||
+                    GetFocusedEditorTextBox().IsReadOnly)
                 {
                     StatusText.Text = "Résolvez le document ou son conflit avant une relation.";
                     return;
                 }
+
+                TextBox sourceEditor = GetFocusedEditorTextBox();
+                RelationEditorSnapshot sourceRevision =
+                    RelationEditorSnapshot.Capture(
+                        sourceTab.DocumentId,
+                        sourceTab.FullPath,
+                        sourceEditor.Text,
+                        sourceEditor.SelectionStart,
+                        sourceEditor.SelectionLength);
 
                 LinkIndexCatalog snapshot = _linkIndex;
                 IReadOnlyList<RelationTargetOption> choices =
@@ -100,10 +111,9 @@ public partial class MainWindow
                     return;
                 }
 
-                if (!ReferenceEquals(sourceTab, GetFocusedDocumentTab()) ||
-                    sourceTab.HasConflict)
+                if (!IsCurrentRelationSource(sourceTab, sourceEditor, sourceRevision))
                 {
-                    StatusText.Text = "Le document source a changé pendant la sélection.";
+                    StatusText.Text = "Le document source ou le curseur a changé : aucune insertion.";
                     return;
                 }
 
@@ -122,8 +132,21 @@ public partial class MainWindow
                     return;
                 }
 
-                TextBox editor =
-                    GetFocusedEditorTextBox();
+                if (await sourceTab.Session.HasExternalChangesAsync())
+                {
+                    StatusText.Text =
+                        "Modification externe du Markdown source : aucune relation ajoutée.";
+                    return;
+                }
+
+                if (!IsCurrentRelationSource(sourceTab, sourceEditor, sourceRevision))
+                {
+                    StatusText.Text =
+                        "Le document source a changé pendant la vérification : aucune insertion.";
+                    return;
+                }
+
+                TextBox editor = sourceEditor;
 
                 string relationLine =
                     MarkdownRelationParser.Format(
@@ -458,6 +481,34 @@ public partial class MainWindow
         RelationsEmptyText.Visibility =
             ordered.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         RelationsEmptyText.Text = "Aucune relation pour ce bloc.";
+    }
+
+
+    /// <summary>
+    /// Verifies a previously approved relation still points to the same
+    /// focused document, editor contents and selection before any mutation.
+    /// </summary>
+    /// <param name="tab">The document tab selected before the modal dialog.</param>
+    /// <param name="editor">The source editor selected before the modal dialog.</param>
+    /// <param name="snapshot">Immutable source/selection snapshot.</param>
+    /// <returns>True only when the exact source editor revision is still active.</returns>
+    private bool IsCurrentRelationSource(
+        DocumentTabViewModel tab,
+        TextBox editor,
+        RelationEditorSnapshot snapshot)
+    {
+        return !_workspaceReadOnly &&
+            !tab.IsMissing &&
+            !tab.HasConflict &&
+            !editor.IsReadOnly &&
+            ReferenceEquals(tab, GetFocusedDocumentTab()) &&
+            ReferenceEquals(editor, GetFocusedEditorTextBox()) &&
+            snapshot.Matches(
+                tab.DocumentId,
+                tab.FullPath,
+                editor.Text,
+                editor.SelectionStart,
+                editor.SelectionLength);
     }
 
 }

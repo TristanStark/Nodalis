@@ -82,3 +82,8 @@ La recherche de cibles dans le dialogue Relation accepte désormais documents, p
 Le panneau Contexte sait afficher les relations entrantes et sortantes du bloc consulté via « Atteindre un bloc par ID ». Les relations cassées ou ambiguës apparaissent comme telles ; le double-clic vers une cible bloc passe par la navigation avec revérification du marqueur dans le Markdown ouvert. Le document reste la source de vérité, et aucun lien n'est créé automatiquement.
 
 Les nouveaux tests couvrent la migration v4→v5, l'ambiguïté entre catégories, les 175 blocs successifs d'un document volumineux, l'imbrication des titres et les sources sans identifiant.
+
+
+## Confirmation de relation : garde source et modifications externes (#207)
+
+Avant l’ouverture du sélecteur, la commande WPF fige le GUID du document source, son chemin, le texte et la sélection. Après validation de la cible et relecture de l’index, elle refuse toute insertion si la source, le curseur ou la sélection diffèrent du snapshot. La session documentaire existante compare également sa révision disque avant de modifier l’éditeur ; le mécanisme d’autosave détecte encore les conflits entre cette vérification et l’écriture. Cette protection évite les mauvaises attributions lors d’un changement d’onglet, d’une actualisation extérieure ou d’une insertion décalée. Elle **ne constitue pas** un verrou global entre plusieurs instances de Nodalis : la sérialisation des écritures inter-processus reste à étudier.
