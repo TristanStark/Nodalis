@@ -4910,6 +4910,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.complex-v2-migrate",
+                Title = "Migrer un projet Complexe vers la structure 2.0",
+                Subtitle = "Empreintes, blocages, sauvegarde et approbation explicite",
+                Keywords = ["complexe", "migration", "sauvegarde", "reprise", "arborescence"],
+                ExecuteAsync = MigrateComplexProjectAsync
+            },
+            new()
+            {
                 Id = "project.restore",
                 Title = "Réouvrir un projet archivé",
                 Subtitle = "Restaurer le projet sélectionné à son emplacement d'origine",
