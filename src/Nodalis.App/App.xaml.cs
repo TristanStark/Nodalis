@@ -10,6 +10,7 @@ using Nodalis.Infrastructure.Compatibility;
 using Nodalis.Infrastructure.Migrations;
 using Nodalis.Infrastructure.Navigation;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Settings;
 using Nodalis.Infrastructure.Templates;
@@ -116,6 +117,37 @@ public partial class App : Application
 
             if (!access.Value.IsReadOnly)
             {
+                ComplexProjectMigrationTransactionService recovery = new(
+                    access.Value.EffectiveWorkspacePath);
+                IReadOnlyList<string> pendingMigrations =
+                    await recovery.ListPendingProjectsAsync();
+
+                if (pendingMigrations.Count > 0)
+                {
+                    MessageBoxResult approval = MessageBox.Show(
+                        pendingMigrations.Count +
+                        " migration(s) de projets Complexes ont été interrompues.\n\n" +
+                        "La récupération vérifie les empreintes et restaure le projet " +
+                        "d'origine s'il est absent ; elle ne remplace jamais un " +
+                        "projet modifié après publication.\n\n" +
+                        "Exécuter la récupération vérifiée ?",
+                        "Récupération migration Complexe 2.0",
+                        MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                    if (approval != MessageBoxResult.Yes)
+                    {
+                        MessageBox.Show(
+                            "Le workspace reste inchangé. Nodalis doit terminer ou " +
+                            "qualifier la récupération avant de l'ouvrir en écriture.",
+                            "Migration en attente", MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                        Shutdown();
+                        return;
+                    }
+
+                    await recovery.RecoverPendingAsync(approved: true);
+                }
+
                 if (_diagnosticsService.PreviousSessionEndedUnexpectedly)
                 {
                     _diagnosticsService.RecoverOrphanedAtomicWriteFiles(
