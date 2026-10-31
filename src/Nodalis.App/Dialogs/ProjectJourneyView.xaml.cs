@@ -65,14 +65,34 @@ public partial class ProjectJourneyView : UserControl
     private async Task ReloadAsync(Guid? selectedStepId)
     {
         _snapshot = await _service.ReadAsync(_projectDirectory);
-        _preview = _snapshot is null
+        ProjectJourneyTemplate[] applicable = _snapshot is null
+            ? (await _service.ListApplicableTemplatesAsync(_projectDirectory)).ToArray()
+            : [];
+        ProjectJourneyTemplate? suggested = _snapshot is null
             ? await _service.PreviewDefaultAsync(_projectDirectory)
             : null;
+        _painting = true;
+        try
+        {
+            ModelCombo.ItemsSource = applicable;
+            ModelCombo.SelectedItem = applicable.FirstOrDefault(item =>
+                suggested is not null &&
+                string.Equals(item.Key, suggested.Key,
+                    StringComparison.OrdinalIgnoreCase));
+            _preview = ModelCombo.SelectedItem as ProjectJourneyTemplate;
+        }
+        finally
+        {
+            _painting = false;
+        }
+
         Render(selectedStepId);
         StatusText.Text = _snapshot is null
-            ? _preview is null
-                ? "Aucun parcours par défaut. Les projets Ultra-simples restent inchangés."
-                : "Aucun parcours créé. Le modèle reste une proposition sans écriture."
+            ? _preview is not null
+                ? "Aucun parcours créé · modèle proposé sans écriture."
+                : applicable.Length > 0
+                    ? "Choisissez explicitement un modèle avant d'initialiser."
+                    : "Aucun modèle applicable. Vous pouvez personnaliser les modèles."
             : _readOnly
                 ? "Projet archivé ou workspace en lecture seule : consultation uniquement."
                 : "Modifications individuelles soumises à confirmation et contrôle SHA-256.";
@@ -143,6 +163,8 @@ public partial class ProjectJourneyView : UserControl
         bool operation = stage && SelectedOperation() is not null;
         InitializeButton.IsEnabled = !_busy && !_readOnly &&
             _snapshot is null && _preview is not null;
+        ModelCombo.IsEnabled = !_busy && !_readOnly && _snapshot is null;
+        ManageTemplatesButton.IsEnabled = !_busy;
         AddStepButton.IsEnabled = editable;
         RenameStepButton.IsEnabled = stage;
         RemoveStepButton.IsEnabled = stage;
@@ -282,6 +304,38 @@ public partial class ProjectJourneyView : UserControl
         }
     }
 
+    /// <summary>Updates the non-persisted model preview when a user chooses it.</summary>
+    /// <param name="sender">Model selector.</param>
+    /// <param name="e">Selection change.</param>
+    private void ModelCombo_SelectionChanged(
+        object sender, SelectionChangedEventArgs e)
+    {
+        if (_painting)
+        {
+            return;
+        }
+
+        _preview = ModelCombo.SelectedItem as ProjectJourneyTemplate;
+        Render(SelectedStep()?.Id);
+    }
+
+    /// <summary>Opens the shared workspace template editor on user request.</summary>
+    /// <param name="sender">Manage models button.</param>
+    /// <param name="e">Click event.</param>
+    private async void ManageTemplates_Click(object sender, RoutedEventArgs e) =>
+        await RunActionAsync(async () =>
+        {
+            ProjectJourneyTemplatesDialog dialog = new(_workspaceRoot, _readOnly)
+            {
+                Owner = Window.GetWindow(this)
+            };
+            dialog.ShowDialog();
+            if (dialog.Changed && _snapshot is null)
+            {
+                await ReloadAsync(null);
+            }
+        }, "Personnaliser les modèles");
+
     /// <summary>Creates a journey only after explicit confirmation.</summary>
     /// <param name="sender">Initialize command.</param>
     /// <param name="e">Click event.</param>
@@ -299,9 +353,11 @@ public partial class ProjectJourneyView : UserControl
                 return;
             }
 
-            _snapshot = await _service.InitializeAsync(_projectDirectory);
+            _snapshot = await _service.InitializeAsync(
+                _projectDirectory, _preview.Key);
             Changed = true;
             _preview = null;
+            ModelCombo.SelectedItem = null;
             Render(null);
             StatusText.Text = "Parcours initialisé · " +
                 _snapshot.Document.Steps.Count + " étape(s).";
