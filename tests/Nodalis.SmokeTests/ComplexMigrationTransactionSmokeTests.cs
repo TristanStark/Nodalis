@@ -191,11 +191,13 @@ internal static class ComplexMigrationTransactionSmokeTests
                 "[screen]: <Technique/capture.png>\n";
             string referenceExternal = Path.Combine(workspace,
                 "Reference externe.md");
-            string referenceExternalContent = "[Ouvrir][tech]\n\n" +
+            string referenceExternalContent = "\uFEFF[Ouvrir][tech]\r\n\r\n" +
                 "[tech]: <Applications/Test/Projets/Complexe historique/" +
-                "Technique/Technique.md> \"Source\"\n";
+                "Technique/Technique.md> \"Source\"\r\n";
             await File.WriteAllTextAsync(presentationPath, referenceContent);
             await File.WriteAllTextAsync(referenceExternal, referenceExternalContent);
+            byte[] originalReferenceBytes = await File.ReadAllBytesAsync(
+                referenceExternal);
             ComplexProjectMigrationPlan referencePlan = await planner.PrepareAsync(
                 projectRoot);
             Assert(referencePlan.CanExecute &&
@@ -222,7 +224,11 @@ internal static class ComplexMigrationTransactionSmokeTests
                     "/Documentation/Technique/Technique.md> \"Source\"",
                     StringComparison.Ordinal) &&
                 File.Exists(Path.Combine(projectRoot,
-                    "Documentation", "Technique", "capture.png")),
+                    "Documentation", "Technique", "capture.png")) &&
+                (await File.ReadAllBytesAsync(referenceExternal))
+                    .AsSpan(0, 3).SequenceEqual([0xEF, 0xBB, 0xBF]) &&
+                (await File.ReadAllTextAsync(referenceExternal)).Contains(
+                    "\r\n[tech]:", StringComparison.Ordinal),
                 "Approved reference rewrites must preserve the definition label, " +
                 "optional title, image and external backlink.");
 
@@ -232,8 +238,8 @@ internal static class ComplexMigrationTransactionSmokeTests
             await referenceExecutor.RollbackAsync(referenceJournal.TransactionId,
                 approved: true);
             Assert(await File.ReadAllTextAsync(presentationPath) == referenceContent &&
-                await File.ReadAllTextAsync(referenceExternal) ==
-                    referenceExternalContent &&
+                (await File.ReadAllBytesAsync(referenceExternal))
+                    .SequenceEqual(originalReferenceBytes) &&
                 await File.ReadAllTextAsync(referenceImage) == "reference image",
                 "Reference-style migration must restore the precise originals.");
             File.Delete(referenceExternal);
