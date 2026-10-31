@@ -40,6 +40,7 @@ public partial class MainWindow
     private void InitializeDocumentTabs()
     {
         DocumentTabsList.ItemsSource = _documentTabs;
+        InitializeProjectJourneyTabs();
         _autosaveRefreshTimer = new DispatcherTimer(
             TimeSpan.FromMilliseconds(220),
             DispatcherPriority.Background,
@@ -174,6 +175,7 @@ public partial class MainWindow
             bool synchronizeNavigation)
     {
         ArgumentNullException.ThrowIfNull(tab);
+        DeactivateProjectJourneyTabView();
 
         if (!ReferenceEquals(
                 _activeDocumentTab,
@@ -365,6 +367,7 @@ public partial class MainWindow
     /// </summary>
     private void DeactivateDocumentTabView()
     {
+        DeactivateProjectJourneyTabView();
         StoreActiveDocumentTabState();
         StoreSecondaryDocumentTabState();
 
@@ -694,6 +697,7 @@ public partial class MainWindow
     /// <returns>A task representing disposal.</returns>
     private async Task DisposeAllDocumentTabsAsync()
     {
+        DisposeAllProjectJourneyTabs();
         StoreSecondaryDocumentTabState();
         DetachSecondaryDocumentTabView();
 
@@ -1772,7 +1776,7 @@ public partial class MainWindow
     private void UpdateDocumentTabsVisibility()
     {
         DocumentTabsHost.Visibility =
-            _documentTabs.Count == 0
+            _documentTabs.Count == 0 && _projectJourneyTabs.Count == 0
                 ? Visibility.Collapsed
                 : Visibility.Visible;
     }
