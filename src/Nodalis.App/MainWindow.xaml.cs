@@ -1585,7 +1585,9 @@ public partial class MainWindow : Window
         }
 
         _selectedNode = node;
-        ScheduleRevealTreeItem(node);
+        // Selecting a visible tree row (or syncing selection from an editor
+        // tab) must not queue a delayed BringIntoView that scrolls away from
+        // the user's current position. The explicit reveal command owns that.
         ScheduleStickyWorktreeRefresh();
         ScheduleWorktreeP1Refresh();
         await RunUiActionAsync(
