@@ -49,11 +49,21 @@ public sealed class ComplexProjectMigrationLinkImpactService
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static readonly Regex ReferenceDefinitionPattern = new(
-        @"^\s{0,3}\[[^\]]+\]:\s*\S+",
+        @"^\uFEFF?\s{0,3}\[[^\]]+\]:\s*\S+",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    // Only simple, explicit reference labels and literal destinations are safe
+    // to map without a full Markdown parser. All other forms still fail closed.
+    private static readonly Regex SimpleReferenceDefinitionPattern = new(
+        @"^\uFEFF?\s{0,3}\[(?<label>[A-Za-z0-9_-]+)\]:[ \t]+(?<target><[^>\r\n]*>|[^\s\r\n]+)(?:[ \t]+(?:""[^""\r\n]*""|'[^'\r\n]*'))?[ \t]*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly Regex ReferenceUsagePattern = new(
         @"\]\[[^\]\r\n]+\]",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex SimpleReferenceUsagePattern = new(
+        @"!?\[[^\]\r\n]+\]\[(?<label>[A-Za-z0-9_-]+)\]",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly Regex HtmlAttributePattern = new(
@@ -144,6 +154,9 @@ public sealed class ComplexProjectMigrationLinkImpactService
             string projectRelative = internalDocument
                 ? Path.GetRelativePath(_projectRoot, file).Replace('\\', '/')
                 : string.Empty;
+            HashSet<string> referenceDefinitions = new(
+                StringComparer.OrdinalIgnoreCase);
+            List<(string Label, int Line)> referenceUsages = [];
             bool inFence = false;
             char fenceChar = '\0';
             int fenceLength = 0;
@@ -190,19 +203,43 @@ public sealed class ComplexProjectMigrationLinkImpactService
                 if (!inFence)
                 {
                     string context = workspaceRelative + ":" + lineNumber;
+                    Match definition = SimpleReferenceDefinitionPattern.Match(line);
+                    MatchCollection usages = ReferenceUsagePattern.Matches(line);
+                    MatchCollection simpleUsages =
+                        SimpleReferenceUsagePattern.Matches(line);
                     if (line.Contains("[[", StringComparison.Ordinal) ||
-                        ReferenceDefinitionPattern.IsMatch(line) ||
-                        ReferenceUsagePattern.IsMatch(line))
+                        (ReferenceDefinitionPattern.IsMatch(line) && !definition.Success) ||
+                        usages.Count != simpleUsages.Count ||
+                        (definition.Success && line.Contains((char)96)))
                     {
                         blockers.Add(context + " : référence wiki/indirecte non qualifiée.");
                     }
                     else
                     {
+                        if (definition.Success)
+                        {
+                            string label = definition.Groups["label"].Value;
+                            if (!referenceDefinitions.Add(label))
+                            {
+                                blockers.Add(context + " : définition Markdown dupliquée : " +
+                                    label);
+                            }
+                        }
+                        else
+                        {
+                            foreach (Match usage in simpleUsages)
+                            {
+                                referenceUsages.Add((
+                                    usage.Groups["label"].Value, lineNumber));
+                            }
+                        }
+
                         MatchCollection markdown = MarkdownLinkPattern.Matches(line);
                         MatchCollection html = HtmlLinkPattern.Matches(line);
                         bool ambiguous = markdown.Count != Regex.Matches(
                             line, @"\]\(").Count ||
-                            html.Count != HtmlAttributePattern.Matches(line).Count;
+                            html.Count != HtmlAttributePattern.Matches(line).Count ||
+                            (definition.Success && (markdown.Count != 0 || html.Count != 0));
 
                         // Inline code can contain syntactically valid text that
                         // must never be silently rewritten as a live link.
@@ -218,8 +255,10 @@ public sealed class ComplexProjectMigrationLinkImpactService
                         }
                         else
                         {
-                            foreach (Match match in markdown.Cast<Match>()
-                                         .Concat(html.Cast<Match>()))
+                            IEnumerable<Match> targets = definition.Success
+                                ? [definition]
+                                : markdown.Cast<Match>().Concat(html.Cast<Match>());
+                            foreach (Match match in targets)
                             {
                                 Group capture = match.Groups["target"];
                                 LinkChange change = EvaluateTarget(file, capture.Value);
@@ -248,6 +287,15 @@ public sealed class ComplexProjectMigrationLinkImpactService
                 }
 
                 offset = end + 1;
+            }
+
+            foreach ((string label, int usageLine) in referenceUsages)
+            {
+                if (!referenceDefinitions.Contains(label))
+                {
+                    blockers.Add(workspaceRelative + ":" + usageLine +
+                        " : référence Markdown sans définition simple : " + label);
+                }
             }
         }
 
