@@ -170,3 +170,8 @@ Notes rapides.md
 ```
 
 **Important** : `Jalons.md` reste pour l'instant à la racine, pour préserver les résolveurs existants avant sa future transition vers `Management/Jalons.md`. Le profil Simple/Moyen/Ultra-simple n'est pas modifié. La première initialisation 2.0 met à jour **uniquement** un profil Complexe identique au profil intégré 1.9 ; toute personnalisation (ordre, type, libellé, sections) interdit son remplacement automatique. Les projets existants ne sont jamais déplacés lors de la mise à jour d'un profil. Dans l'éditeur de profils, un chemin physique déclaré est conservé lors des modifications du libellé et visible dans le détail des sections.
+
+
+### Commandes de réunions et de décisions
+
+La création des comptes rendus et des Decision Records lit la section correspondante du manifeste de projet : pour un nouveau Complexe, les fichiers sont créés dans `Management/Réunions` et `Management/Décisions`. Les anciens projets et les applications continuent à écrire dans leur dossier `Réunions` ou `Décisions` à la racine. Les listes de décisions savent lire les documents résiduels des deux emplacements et la génération de prompt de réunion remonte au projet propriétaire, même avec un niveau de dossier supplémentaire. Le diagnostic de santé reconnait ces nouveaux chemins.

@@ -1,4 +1,8 @@
 using Nodalis.Core.Domain;
+using Nodalis.Core.Meetings;
+using Nodalis.Core.Decisions;
+using Nodalis.Infrastructure.Meetings;
+using Nodalis.Infrastructure.Decisions;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Templates;
@@ -97,6 +101,55 @@ internal static class ComplexProjectLayoutSmokeTests
                 !Directory.Exists(Path.Combine(project, "Déploiement")),
                 "Complex must preserve root singleton files and avoid legacy duplicate folders.");
 
+            WorkspaceMeetingService meetingService = new(workspace);
+            MeetingCreationResult meeting = await meetingService.CreateAsync(project,
+                new MeetingDraft
+                {
+                    Title = "Revue de conception",
+                    Date = new DateOnly(2026, 10, 31),
+                    AiSummary = "La nouvelle structure est validée."
+                });
+            WorkspaceDecisionService decisionService = new(workspace);
+            DecisionCreationResult decision = await decisionService.CreateAsync(project,
+                new DecisionDraft
+                {
+                    Title = "Architecture retenue",
+                    Decision = "Conserver les GUID des sections.",
+                    Date = new DateOnly(2026, 10, 31)
+                });
+
+            Assert(Path.GetDirectoryName(meeting.FilePath) ==
+                    Path.Combine(project, "Management", "Réunions") &&
+                Path.GetDirectoryName(decision.FilePath) ==
+                    Path.Combine(project, "Management", "Décisions") &&
+                !Directory.Exists(Path.Combine(project, "Réunions")) &&
+                !Directory.Exists(Path.Combine(project, "Décisions")) &&
+                (await decisionService.GetDecisionsAsync(project)).Count == 1,
+                "New Complex meetings and decisions must use declared Management folders.");
+
+            // A prompt created from a nested meeting must still find its owner.
+            string presentationFile = Path.Combine(project, "Présentation.md");
+            string existingPresentation = await File.ReadAllTextAsync(presentationFile);
+            await File.WriteAllTextAsync(presentationFile, existingPresentation.Replace(
+                "## Présentation\n\n", "## Présentation\n\nContexte projet.\n\n",
+                StringComparison.Ordinal));
+
+            ProjectMeetingPromptService prompt = new(workspace);
+            (string promptPath, string promptContent) =
+                await prompt.GenerateAsync(meeting.FilePath);
+            try
+            {
+                Assert(File.Exists(promptPath) &&
+                    promptContent.Contains("Contexte projet.", StringComparison.Ordinal) &&
+                    promptContent.Contains("La nouvelle structure est validée.",
+                        StringComparison.Ordinal),
+                    "Nested project meetings must support the existing project update prompt.");
+            }
+            finally
+            {
+                File.Delete(promptPath);
+            }
+
             WorkspaceProjectStructureService structure = new(workspace);
             ProjectStructureState state = await structure.GetStructureAsync(project);
             ProjectSectionState documentation = state.Sections.Single(
@@ -153,6 +206,32 @@ internal static class ComplexProjectLayoutSmokeTests
             Assert(parentDeleteRejected &&
                 Directory.Exists(documentation.DirectoryPath),
                 "Deleting a parent containing declared child sections must be refused.");
+
+            ProjectCreationResult medium = await creator.CreateAsync(
+                new ProjectCreationRequest
+                {
+                    Name = "Moyen historique",
+                    Complexity = ProjectComplexity.Medium,
+                    Target = destination
+                });
+
+            MeetingCreationResult mediumMeeting = await meetingService.CreateAsync(
+                medium.ProjectDirectory,
+                new MeetingDraft { Title = "Comité moyen" });
+            DecisionCreationResult mediumDecision = await decisionService.CreateAsync(
+                medium.ProjectDirectory,
+                new DecisionDraft
+                {
+                    Title = "Décision moyenne",
+                    Decision = "Préserver la structure existante."
+                });
+
+            Assert(Path.GetDirectoryName(mediumMeeting.FilePath) ==
+                    Path.Combine(medium.ProjectDirectory, "Réunions") &&
+                Path.GetDirectoryName(mediumDecision.FilePath) ==
+                    Path.Combine(medium.ProjectDirectory, "Décisions") &&
+                (await decisionService.GetDecisionsAsync(medium.ProjectDirectory)).Count == 1,
+                "Older project profiles must retain root meeting and decision collections.");
 
             ProjectCreationResult ultra = await creator.CreateAsync(new ProjectCreationRequest
             {
