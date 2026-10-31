@@ -49,9 +49,9 @@ public static class ProjectSectionDirectoryLayout
         ArgumentException.ThrowIfNullOrWhiteSpace(relativeDirectory);
 
         if (Path.IsPathRooted(relativeDirectory) ||
-            relativeDirectory.Contains('\\', StringComparison.Ordinal) ||
-            relativeDirectory.Contains(':', StringComparison.Ordinal) ||
-            relativeDirectory.Contains('\0', StringComparison.Ordinal))
+            relativeDirectory.Contains('\\') ||
+            relativeDirectory.Contains(':') ||
+            relativeDirectory.Contains('\0'))
         {
             throw new InvalidDataException("Chemin de section non relatif ou non portable.");
         }
