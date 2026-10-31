@@ -160,7 +160,7 @@ internal static class ComplexMigrationTransactionSmokeTests
 
             string backlink = Path.Combine(workspace, "Backlink.md");
             await File.WriteAllTextAsync(backlink,
-                "[Technique](Applications/Test/Projets/Complexe historique/Technique/Technique.md)");
+                "[Technique](<Applications/Test/Projets/Complexe historique/Technique/Technique.md>)");
             ComplexProjectMigrationPlan externalBacklink = await planner.PrepareAsync(
                 projectRoot);
             Assert(!externalBacklink.CanExecute,
