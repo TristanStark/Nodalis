@@ -1,8 +1,17 @@
-# Nodalis 1.0 — guide utilisateur
+# Nodalis v1.9 — guide utilisateur
 
 Nodalis est une application Windows locale de prise de notes et d'aide à la
 gestion de projet. Les données restent dans un workspace normal composé
 principalement de Markdown et de JSON.
+
+## Nouveautés v1.9.0
+
+- **Documents Word volumineux :** choisissez un DOCX, contrôlez sa structure, associez les sous-sections à Technique/Tests/Recette ou à des fichiers personnalisés, puis examinez le plan de création avant validation.
+- **Réimport sûr :** examinez les différences Word/Nodalis et résolvez les conflits avant de confirmer ; conservez une sauvegarde du workspace pour les premiers essais.
+- **Éditeur Markdown :** l'option **Couleurs** dans la barre d'outils différencie titres, liens, emphases, code, tâches et métadonnées ; désactivez-la pour utiliser le rendu texte classique.
+- **Performances :** navigation, édition multi-onglets et mises à jour asynchrones optimisées. La recette Windows est documentée dans [la checklist 1.9](release-checklist-1.9.md).
+
+Voir les [notes de version v1.9.0](release-notes-1.9.md), le [guide des imports](import-export.md) et le [guide de l'éditeur coloré](markdown-editor-syntax.md). Les imports XLSX et VSDX ne sont pas disponibles dans cette version.
 
 ## 1. Installer et démarrer
 
@@ -140,7 +149,7 @@ Les valeurs contenant des espaces peuvent être placées entre guillemets.
 
 La commande **Ctrl+P → Configurer la recherche sémantique locale** permet de définir un fournisseur d'embeddings installé localement et de consentir à son utilisation. **Ctrl+P → Rechercher par le sens (local)** indexe uniquement le périmètre approuvé et affiche des extraits reliés à leurs sources. Sans activation et fournisseur compatible, la recherche exacte/fuzzy reste disponible. La commande **Effacer le cache sémantique** supprime uniquement les vecteurs dérivés, pas les Markdown.
 
-Guide : [Recherche sémantique locale 1.7](semantic-1.7-guide.md). La recherche hybride combinée est prévue en 1.8.
+Guide : [Recherche sémantique locale 1.7](semantic-1.7-guide.md). La recherche hybride combinée est disponible depuis la version 1.8.
 
 ## 8. Tâches, Kanban, jalons et calendrier
 
