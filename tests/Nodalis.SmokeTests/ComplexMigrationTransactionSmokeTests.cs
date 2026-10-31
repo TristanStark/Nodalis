@@ -218,6 +218,66 @@ internal static class ComplexMigrationTransactionSmokeTests
                 (await executor.ListPendingProjectsAsync()).Count == 0 &&
                 File.Exists(Path.Combine(second, "Management", "Jalons.md")),
                 "Fingerprint-checked recovery must finalize a valid published project.");
+
+            // An explicit post-success rollback requires that both sides
+            // still match their journal, so a human edit is never overwritten.
+            IReadOnlyList<ComplexProjectMigrationJournal> rollbackChoices =
+                await executor.GetRollbackCandidatesAsync(projectRoot);
+            Assert(rollbackChoices.Count == 1 &&
+                rollbackChoices[0].OriginalFingerprint == originalHash,
+                "A completed migration must expose its exact retained original.");
+
+            await RejectAsync(() => executor.RollbackAsync(
+                    rollbackChoices[0].TransactionId, approved: false),
+                "Rolling back without approval must never move any project.");
+
+            string activeMilestones = Path.Combine(projectRoot,
+                "Management", "Jalons.md");
+            byte[] beforeEdit = await File.ReadAllBytesAsync(activeMilestones);
+            await File.AppendAllTextAsync(activeMilestones, "\nExternal edit\n");
+            await RejectAsync(() => executor.RollbackAsync(
+                    rollbackChoices[0].TransactionId, approved: true),
+                "A modified published project must be protected from rollback.");
+            Assert((await File.ReadAllTextAsync(activeMilestones))
+                .Contains("External edit", StringComparison.Ordinal),
+                "Denied rollback must retain all human edits.");
+            await File.WriteAllBytesAsync(activeMilestones, beforeEdit);
+
+            string restored = await executor.RollbackAsync(
+                rollbackChoices[0].TransactionId, approved: true);
+            Assert(restored == projectRoot &&
+                await ComplexProjectMigrationPlanService.FingerprintAsync(
+                    projectRoot) == originalHash &&
+                File.Exists(Path.Combine(projectRoot, "Jalons.md")) &&
+                !File.Exists(activeMilestones) &&
+                (await executor.GetRollbackCandidatesAsync(projectRoot)).Count == 0,
+                "Approved rollback must recover exact original file bytes, paths and manifest.");
+
+            // A failure between the two rollback renames must also restore
+            // the original immediately without deleting the published copy.
+            IReadOnlyList<ComplexProjectMigrationJournal> secondChoices =
+                await executor.GetRollbackCandidatesAsync(second);
+            Assert(secondChoices.Count == 1,
+                "Recovered published migrations must retain rollback candidates.");
+
+            ComplexProjectMigrationTransactionService failedRollback = new(
+                workspace, checkpoint: phase =>
+                {
+                    if (phase == "rollback-source-moved")
+                    {
+                        throw new InvalidOperationException(
+                            "Simulated hard stop before restoring original.");
+                    }
+                });
+            await RejectAsync(() => failedRollback.RollbackAsync(
+                    secondChoices[0].TransactionId, approved: true),
+                "A rollback interruption must surface an explicit error.");
+            Assert(Directory.Exists(second) &&
+                File.Exists(Path.Combine(second, "Jalons.md")) &&
+                await ComplexProjectMigrationPlanService.FingerprintAsync(second) ==
+                    secondChoices[0].OriginalFingerprint &&
+                (await executor.ListPendingProjectsAsync()).Count == 0,
+                "Rollback fault must restore the exact original and leave no pending operation.");
         }
         finally
         {
