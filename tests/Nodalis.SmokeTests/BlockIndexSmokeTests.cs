@@ -60,6 +60,16 @@ internal static class BlockIndexSmokeTests
                 inbound.Relations[0].LineNumber == 4,
                 "Typed relations to blocks must be resolved from the existing index.");
 
+            IReadOnlyList<RelationTargetOption> choices =
+                RelationTargetIndexQuery.GetSelectable(cold.Catalog,
+                    cold.Catalog.Targets.Single(target =>
+                        target.RelativePath == "Tests.md").Id);
+            Assert(choices.Any(choice => choice.IsBlock && choice.Id == id) &&
+                   choices.Any(choice => choice.IsBlock && choice.Id == otherId) &&
+                   !choices.Any(choice => !choice.IsBlock &&
+                       choice.DisplayName == "Tests"),
+                "Document and uniquely identified block targets must be searchable together.");
+
             BlockOutgoingRelationResult outbound =
                 BlockRelationIndexQuery.GetOutgoing(cold.Catalog, otherId);
             Assert(outbound.Source.Status == LinkResolutionStatus.Resolved &&
@@ -79,6 +89,10 @@ internal static class BlockIndexSmokeTests
                     QualifiedName = "Fake"
                 }).ToList()
             };
+            Assert(!RelationTargetIndexQuery.GetSelectable(crossKindCollision)
+                    .Any(choice => choice.Id == id),
+                "Cross-kind GUID collisions must be hidden from selection.");
+
             Assert(BlockIndexQuery.Resolve(crossKindCollision, id).Status ==
                 LinkResolutionStatus.Ambiguous &&
                 BlockRelationIndexQuery.GetIncoming(crossKindCollision, id)
