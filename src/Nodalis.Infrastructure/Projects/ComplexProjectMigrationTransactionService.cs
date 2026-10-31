@@ -25,6 +25,9 @@ public sealed record ComplexProjectMigrationJournal
     /// <summary>Original GUIDs and file hashes for documents moved by this migration.</summary>
     public IReadOnlyList<ComplexMigrationDocumentIdentity> DocumentIdentities { get; init; } = [];
 
+    /// <summary>Exact external originals and proposed bytes, retained for recovery.</summary>
+    public IReadOnlyList<ComplexMigrationExternalLinkFile> ExternalLinkFiles { get; init; } = [];
+
     /// <summary>Time this approved journal was first recorded.</summary>
     public DateTimeOffset CreatedUtc { get; init; } = DateTimeOffset.UtcNow;
 }
@@ -49,9 +52,9 @@ public sealed record ComplexProjectMigrationResult
 }
 
 /// <summary>
-/// Applies only link-free, fingerprinted Complex v2 migrations via staging and
-/// two same-volume directory renames. The original is retained as an immutable
-/// recovery source; an interrupted publish is never silently discarded.
+/// Publishes fingerprinted Complex v2 projects and recoverable, individually
+/// atomic external backlink repairs. The original and every external document
+/// snapshot are retained; incomplete work requires explicit recovery.
 /// </summary>
 public sealed class ComplexProjectMigrationTransactionService
 {
@@ -178,6 +181,10 @@ public sealed class ComplexProjectMigrationTransactionService
             await ComplexProjectMigrationLinkRewriteApplier.ApplyAsync(
                 stage, plan.LinkRewrites, cancellationToken);
             await ApplyStagedLayoutAsync(stage, plan, cancellationToken);
+            IReadOnlyList<ComplexMigrationExternalLinkFile> externalFiles =
+                await new ComplexMigrationExternalLinkTransactionService(_workspaceRoot)
+                    .PrepareAsync(transactionDirectory, plan.ExternalLinkRewrites,
+                        cancellationToken);
             IReadOnlyList<ComplexMigrationDocumentIdentity> identities =
                 await new ComplexMigrationDocumentIdentityService(_workspaceRoot)
                     .CaptureAsync(projectRoot, stage, plan.Moves, cancellationToken);
@@ -201,6 +208,7 @@ public sealed class ComplexProjectMigrationTransactionService
                 OriginalFingerprint = approvedFingerprint,
                 StagedFingerprint = stagedHash,
                 DocumentIdentities = identities,
+                ExternalLinkFiles = externalFiles,
                 Phase = "prepared"
             };
             await AtomicJsonFile.WriteAsync(
@@ -236,6 +244,12 @@ public sealed class ComplexProjectMigrationTransactionService
             journal = journal with { Phase = "published" };
             await AtomicJsonFile.WriteAsync(
                 journalPath, journal, CancellationToken.None);
+
+            // Journal and both external copies are durable before the first
+            // backlink is replaced. Recovery can replay a partly published set.
+            await new ComplexMigrationExternalLinkTransactionService(_workspaceRoot)
+                .ReplayAsync(transactionDirectory, externalFiles, publish: true,
+                    CancellationToken.None, _checkpoint);
 
             string resultHash =
                 await ComplexProjectMigrationPlanService.FingerprintAsync(
@@ -338,6 +352,13 @@ public sealed class ComplexProjectMigrationTransactionService
             if (Directory.Exists(backup) && !Directory.Exists(projectRoot))
             {
                 Directory.Move(backup, projectRoot);
+                if (journal.Phase == "rollback-prepared")
+                {
+                    await new ComplexMigrationExternalLinkTransactionService(_workspaceRoot)
+                        .ReplayAsync(directory, journal.ExternalLinkFiles,
+                            publish: false, cancellationToken);
+                }
+
                 nextPhase = journal.Phase == "rollback-prepared"
                     ? "rolled-back" : "recovered";
             }
@@ -353,6 +374,9 @@ public sealed class ComplexProjectMigrationTransactionService
                         "Le projet publié contient des changements externes : aucune restauration automatique.");
                 }
 
+                await new ComplexMigrationExternalLinkTransactionService(_workspaceRoot)
+                    .ReplayAsync(directory, journal.ExternalLinkFiles, publish: true,
+                        cancellationToken);
                 nextPhase = "completed";
             }
             else if (Directory.Exists(projectRoot) && !Directory.Exists(backup))
@@ -365,6 +389,13 @@ public sealed class ComplexProjectMigrationTransactionService
                 {
                     throw new InvalidDataException(
                         "La source initiale a changé : réconciliation manuelle requise.");
+                }
+
+                if (journal.Phase == "rollback-prepared")
+                {
+                    await new ComplexMigrationExternalLinkTransactionService(_workspaceRoot)
+                        .ReplayAsync(directory, journal.ExternalLinkFiles,
+                            publish: false, cancellationToken);
                 }
 
                 nextPhase = journal.Phase == "rollback-prepared"
@@ -485,6 +516,10 @@ public sealed class ComplexProjectMigrationTransactionService
                 "Le projet ou sa sauvegarde ont changé : restauration interdite sans vérification manuelle.");
         }
 
+        ComplexMigrationExternalLinkTransactionService external = new(_workspaceRoot);
+        await external.AssertStateAsync(directory, journal.ExternalLinkFiles,
+            published: true, cancellationToken);
+
         journal = journal with { Phase = "rollback-prepared" };
         await AtomicJsonFile.WriteAsync(journalPath, journal, CancellationToken.None);
         try
@@ -492,6 +527,8 @@ public sealed class ComplexProjectMigrationTransactionService
             Directory.Move(source, previouslyPublished);
             _checkpoint?.Invoke("rollback-source-moved");
             Directory.Move(original, source);
+            await external.ReplayAsync(directory, journal.ExternalLinkFiles,
+                publish: false, CancellationToken.None, _checkpoint);
             await AtomicJsonFile.WriteAsync(
                 journalPath, journal with { Phase = "rolled-back" },
                 CancellationToken.None);
@@ -502,6 +539,15 @@ public sealed class ComplexProjectMigrationTransactionService
             if (!Directory.Exists(source) && Directory.Exists(original))
             {
                 Directory.Move(original, source);
+            }
+
+            // Never mark a transaction rolled back until its external backlink
+            // copies are also restored. Pending state forces human recovery.
+            if (Directory.Exists(source) &&
+                !Directory.Exists(original))
+            {
+                await external.ReplayAsync(directory, journal.ExternalLinkFiles,
+                    publish: false, CancellationToken.None);
                 await AtomicJsonFile.WriteAsync(
                     journalPath, journal with { Phase = "rolled-back" },
                     CancellationToken.None);
@@ -692,6 +738,7 @@ public sealed class ComplexProjectMigrationTransactionService
             latest.ProjectId == approved.ProjectId &&
             latest.Moves.SequenceEqual(approved.Moves) &&
             latest.LinkRewrites.SequenceEqual(approved.LinkRewrites) &&
+            latest.ExternalLinkRewrites.SequenceEqual(approved.ExternalLinkRewrites) &&
             string.Equals(latest.SourceFingerprint,
                 approved.SourceFingerprint, StringComparison.OrdinalIgnoreCase);
     }

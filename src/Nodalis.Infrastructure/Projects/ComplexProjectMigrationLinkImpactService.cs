@@ -27,12 +27,16 @@ public sealed record ComplexMigrationLinkRewrite(
 /// <param name="Blockers">Unsupported syntax and affected references outside the project.</param>
 public sealed record ComplexMigrationLinkAudit(
     IReadOnlyList<ComplexMigrationLinkRewrite> Rewrites,
-    IReadOnlyList<string> Blockers);
+    IReadOnlyList<string> Blockers)
+{
+    /// <summary>Exact path rewrites in documents outside the migrated project.</summary>
+    public IReadOnlyList<ComplexMigrationLinkRewrite> ExternalRewrites { get; init; } = [];
+}
 
 /// <summary>
 /// Simulates project moves on both link sources and destinations. Affected
-/// internal, plain relative targets are proposed for editing in staging;
-/// external backlinks and unknown syntax fail closed. Never writes a file.
+/// internal and external plain relative targets are proposed for exact
+/// staging edits; unsupported syntax fails closed. Never writes a file.
 /// </summary>
 public sealed class ComplexProjectMigrationLinkImpactService
 {
@@ -92,6 +96,7 @@ public sealed class ComplexProjectMigrationLinkImpactService
         CancellationToken cancellationToken = default)
     {
         List<ComplexMigrationLinkRewrite> rewrites = [];
+        List<ComplexMigrationLinkRewrite> externalRewrites = [];
         List<string> blockers = [];
         foreach (string file in ComplexProjectMigrationPlanService.EnumerateTree(
                      _workspaceRoot, cancellationToken))
@@ -224,18 +229,17 @@ public sealed class ComplexProjectMigrationLinkImpactService
                                 }
                                 else if (change.Replacement is not null)
                                 {
-                                    if (!internalDocument)
+                                    ComplexMigrationLinkRewrite rewrite = new(
+                                        projectRelative, workspaceRelative,
+                                        lineNumber, offset + capture.Index,
+                                        capture.Value, change.Replacement, hash);
+                                    if (internalDocument)
                                     {
-                                        blockers.Add(context +
-                                            " : backlink extérieur à réécrire : " +
-                                            capture.Value);
+                                        rewrites.Add(rewrite);
                                     }
                                     else
                                     {
-                                        rewrites.Add(new ComplexMigrationLinkRewrite(
-                                            projectRelative, workspaceRelative,
-                                            lineNumber, offset + capture.Index,
-                                            capture.Value, change.Replacement, hash));
+                                        externalRewrites.Add(rewrite);
                                     }
                                 }
                             }
@@ -250,7 +254,13 @@ public sealed class ComplexProjectMigrationLinkImpactService
         return new ComplexMigrationLinkAudit(
             rewrites.OrderBy(item => item.WorkspaceRelativePath,
                 StringComparer.OrdinalIgnoreCase).ThenBy(item => item.Offset).ToArray(),
-            blockers.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+            blockers.Distinct(StringComparer.OrdinalIgnoreCase).ToArray())
+        {
+            ExternalRewrites = externalRewrites
+                .OrderBy(item => item.WorkspaceRelativePath,
+                    StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.Offset).ToArray()
+        };
     }
 
     /// <summary>Legacy convenience API for consumers needing blockers only.</summary>

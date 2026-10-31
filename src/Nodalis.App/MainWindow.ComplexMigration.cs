@@ -105,6 +105,22 @@ public partial class MainWindow
             ComplexProjectMigrationPlan plan = await Task.Run(
                 () => planner.PrepareAsync(projectDirectory));
 
+            HashSet<string> externalPaths = plan.ExternalLinkRewrites
+                .Select(item => Path.GetFullPath(Path.Combine(_root.FullPath,
+                    item.WorkspaceRelativePath.Replace('/',
+                        Path.DirectorySeparatorChar))))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (_documentTabs.Any(tab => externalPaths.Contains(
+                    Path.GetFullPath(tab.FullPath))))
+            {
+                MessageBox.Show(this,
+                    "Enregistrez et fermez les documents externes concernés par " +
+                    "des backlinks avant de préparer une migration.",
+                    "Migration Complexe 2.0", MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             ComplexMigrationApprovalDialog dialog = new(plan)
             {
                 Owner = this
@@ -120,8 +136,9 @@ public partial class MainWindow
                 "Vous confirmez la migration du projet vers la structure Complexe 2.0 ?\n\n" +
                 "Empreinte vérifiée : " + plan.SourceFingerprint + "\n\n" +
                 "L'original sera conservé pour restauration. " +
-                plan.LinkRewrites.Count + " lien(s) local(aux) seront réécrits dans " +
-                "la copie de staging après une nouvelle vérification.",
+                plan.LinkRewrites.Count + " lien(s) local(aux) et " +
+                plan.ExternalLinkRewrites.Count + " backlink(s) externe(s) seront " +
+                "réécrits avec des sauvegardes individuelles et un journal récupérable.",
                 "Confirmer la migration Complexe", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes)
             {
@@ -210,6 +227,22 @@ public partial class MainWindow
             }
 
             ComplexProjectMigrationJournal candidate = choices[0];
+            HashSet<string> externalPaths = candidate.ExternalLinkFiles
+                .Select(item => Path.GetFullPath(Path.Combine(_root.FullPath,
+                    item.WorkspaceRelativePath.Replace('/',
+                        Path.DirectorySeparatorChar))))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (_documentTabs.Any(tab => externalPaths.Contains(
+                    Path.GetFullPath(tab.FullPath))))
+            {
+                MessageBox.Show(this,
+                    "Fermez les documents portant des backlinks avant de restaurer " +
+                    "le projet. Ils seront restaurés avec lui.",
+                    "Restauration Complexe 2.0", MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             if (MessageBox.Show(this,
                 "Restaurer le projet dans son état antérieur à la migration ?\n\n" +
                 "Transaction : " + candidate.TransactionId.ToString("D") + "\n" +

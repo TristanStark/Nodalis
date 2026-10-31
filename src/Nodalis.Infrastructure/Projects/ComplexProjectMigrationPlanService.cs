@@ -35,6 +35,9 @@ public sealed record ComplexProjectMigrationPlan
     /// <summary>Hash-protected project-local rewrites approved with the migration.</summary>
     public IReadOnlyList<ComplexMigrationLinkRewrite> LinkRewrites { get; init; } = [];
 
+    /// <summary>Cross-project backlinks requiring separate durable file snapshots.</summary>
+    public IReadOnlyList<ComplexMigrationLinkRewrite> ExternalLinkRewrites { get; init; } = [];
+
     /// <summary>True only for at least one safe, eligible move.</summary>
     public bool CanExecute =>
         Blockers.Count == 0 &&
@@ -150,9 +153,9 @@ public sealed class ComplexProjectMigrationPlanService
             }
         }
 
-        // Only project-local, unambiguous link repairs can join the durable
-        // staging transaction. External backlinks still require a future
-        // workspace-wide multi-file transaction and remain blockers.
+        // Unambiguous local and cross-project link repairs are frozen into
+        // one journal: a project staging copy plus separate durable external
+        // file snapshots that are published under explicit recovery control.
         ComplexMigrationLinkAudit linkAnalysis = new([], []);
         if (preview.Moves.Any(move =>
                 move.State == ComplexMigrationMoveState.Candidate))
@@ -178,6 +181,7 @@ public sealed class ComplexProjectMigrationPlanService
             Moves = preview.Moves,
             MissingDirectories = preview.MissingDirectories,
             LinkRewrites = linkAnalysis.Rewrites,
+            ExternalLinkRewrites = linkAnalysis.ExternalRewrites,
             Blockers = blockers.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             Warnings = warnings
         };

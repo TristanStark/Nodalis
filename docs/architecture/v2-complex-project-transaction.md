@@ -2,9 +2,9 @@
 
 ## Périmètre actuel
 
-Ce moteur exécutable est limité aux projets sans référence Markdown à
-réécrire. Les liens externes et les chemins relatifs dont la résolution reste
-identique après déplacement sont désormais autorisés. Un projet existant n'est jamais migré à l'ouverture, ni par la
+Le moteur de migration traite les liens Markdown internes et les backlinks
+explicites d'autres projets, à condition que chaque remplacement soit prouvé
+par empreinte, sauvegardé et accepté par l'utilisateur. Un projet existant n'est jamais migré à l'ouverture, ni par la
 simple consultation d'un inventaire. Les projets Simple, Moyen et Ultra-simple
 ne sont pas migrables avec ce service.
 
@@ -32,13 +32,14 @@ vides et les hashes du contenu de tous les fichiers du projet.
 
 Le préflight identifie et prévisualise les chemins relatifs Markdown (y
 compris images) et les attributs HTML cités qui changeraient de destination.
-Il propose des remplacements exacts seulement pour les documents **situés
-dans le projet migré**, avec positions de texte, empreintes SHA-256 et
-conservation des ancres et fins de ligne (UTF-8 avec ou sans BOM).
+Il propose les remplacements exacts pour les documents **du projet migré**
+et les backlinks **dans d'autres projets**, avec positions de texte,
+empreintes SHA-256 et conservation des ancres et fins de ligne
+(UTF-8 avec ou sans BOM).
 
 Les liens externes, ancres et références qui restent valides ne sont pas
-modifiés. Toute référence affectée **depuis un autre projet**, une syntaxe
-wiki/indirecte, un chemin encodé/ambigu ou une source non UTF-8 reste bloquante.
+modifiés. Une syntaxe wiki/indirecte, un chemin encodé/ambigu ou une
+source non UTF-8 reste bloquante.
 Les blocs de code clôturés sont exclus ; les lignes contenant du code inline
 et des liens sont refusées plutôt que réécrites. Templates et journaux
 techniques sont hors périmètre de l'analyse.
@@ -52,6 +53,8 @@ Une transaction approuvée conserve les données dans :
       original/
       staging/                  si publication non achevée
       previously-published/     après restauration
+      external-original/        sauvegardes exactes des backlinks externes
+      external-staging/         backlinks corrigés, prêts à publication
 
 Le projet est copié en staging. Les références locales approuvées sont
 réécrites **uniquement dans cette copie**, après contrôle du SHA-256 de chaque
@@ -70,13 +73,23 @@ aussi après un redémarrage ; les restaurations approuvées renversent la
 direction du mapping. Une collision de GUID, un changement d'empreinte avant
 la première réconciliation ou une entrée de journal invalide est refusé.
 
-Après une nouvelle vérification de l'empreinte originale, le journal est
-écrit AVANT les deux renommages de répertoires sur le même volume :
+Chaque fichier externe possède ses deux copies, son chemin contrôlé et les
+SHA-256 d'origine et de publication dans le journal **avant toute mutation**.
+Les onglets externes concernés doivent être fermés. Le journal de transaction
+est écrit AVANT toute bascule :
 
-1. Original vers original/ dans le dossier de transaction.
+1. Original du projet vers `original/` dans le dossier de transaction.
 2. Revérification de l'original conservé.
 3. Staging vers l'emplacement initial du projet.
-4. Vérification de l'empreinte publiée et journal terminé.
+4. Remplacement atomique individuel des backlinks externes, seulement si leur
+   empreinte correspond encore exactement à l'une des deux versions approuvées.
+5. Vérification des empreintes du projet et fin de transaction.
+
+Un arrêt entre deux remplacements externes laisse la transaction **en attente**.
+Une récupération explicite vérifie puis termine les remplacements restant à
+appliquer ; un changement humain depuis la migration fait refuser le replay.
+Une restauration approuvée rétablit aussi les octets exacts de chaque backlink.
+Les deux copies externes sont conservées avec l'original du projet.
 
 L'original est conservé sans purge automatique. En cas de crash, Nodalis
 demande explicitement une récupération au démarrage avant d'ouvrir le
@@ -86,8 +99,10 @@ la version publiée dans previously-published/.
 
 ## Limites et qualification
 
-- Les références nécessitant une réécriture **hors du projet** bloquent
-  encore l'exécution ; aucun demi-déplacement inter-projets n'est permis.
+- Les backlinks dans d'autres projets sont désormais réécrits avec journal et
+  récupération contrôlée. Le passage entre plusieurs fichiers externes n'est
+  pas une opération système atomique unique : en cas d'interruption, Nodalis
+  bloque les nouvelles migrations jusqu'à récupération explicitement approuvée.
 - Les syntaxes Markdown/HTML ambiguës ou les fichiers non UTF-8 exigent
   une requalification ; aucun remplacement deviné.
 - Une copie intégrale du projet nécessite un espace disque suffisant.
