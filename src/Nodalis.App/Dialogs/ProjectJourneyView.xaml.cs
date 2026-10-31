@@ -620,6 +620,180 @@ public partial class ProjectJourneyView : UserControl
             }
         }, "Retirer une opération");
 
+    /// <summary>Refreshes the open/unlink button for the selected source.</summary>
+    /// <param name="sender">Source list.</param>
+    /// <param name="e">Selection change.</param>
+    private void SourcesList_SelectionChanged(
+        object sender, SelectionChangedEventArgs e)
+    {
+        if (!_painting)
+        {
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>Opens a source only on a user's explicit double-click.</summary>
+    /// <param name="sender">Source list.</param>
+    /// <param name="e">Mouse action.</param>
+    private void SourcesList_MouseDoubleClick(
+        object sender, MouseButtonEventArgs e) => RequestOpenSource();
+
+    /// <summary>Links an existing file without importing or copying it.</summary>
+    /// <param name="sender">Link button.</param>
+    /// <param name="e">Click event.</param>
+    private async void LinkSource_Click(object sender, RoutedEventArgs e) =>
+        await RunActionAsync(async () =>
+        {
+            ProjectJourneyStep? step = SelectedStep();
+            ProjectJourneyOperation? operation = SelectedOperation();
+            if (_readOnly || step is null || operation is null)
+            {
+                return;
+            }
+
+            OpenFileDialog dialog = new()
+            {
+                Title = "Lier une preuve ou un document existant du workspace",
+                InitialDirectory = _projectDirectory,
+                CheckFileExists = true,
+                Multiselect = false,
+                Filter = "Tous les fichiers (*.*)|*.*|Documents Markdown (*.md)|*.md"
+            };
+            if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+            {
+                return;
+            }
+
+            string reference = _sources.GetReferenceForExistingFile(dialog.FileName);
+            if (operation.SourcePaths.Any(item => string.Equals(item,
+                    reference, StringComparison.OrdinalIgnoreCase)))
+            {
+                StatusText.Text = "Cette source est déjà reliée à l'opération.";
+                return;
+            }
+
+            await CommitAsync("Lier le fichier existant « " + reference +
+                " » à l'opération « " + operation.Name + " »",
+                doc => ProjectJourneyEditor.AddSource(doc, step.Id,
+                    operation.Id, reference), step.Id, operation.Id);
+        }, "Lier une source existante");
+
+    /// <summary>Opens the selected source without editing the journey file.</summary>
+    /// <param name="sender">Open button.</param>
+    /// <param name="e">Click event.</param>
+    private void OpenSource_Click(object sender, RoutedEventArgs e) =>
+        RequestOpenSource();
+
+    /// <summary>
+    /// Routes a deliberate open request to the workspace shell, which must
+    /// revalidate file containment, existence and type before opening.
+    /// </summary>
+    private void RequestOpenSource()
+    {
+        JourneySourceRow? source = SelectedSource();
+        if (source is null)
+        {
+            return;
+        }
+
+        if (SourceOpenRequested is null)
+        {
+            MessageBox.Show(Window.GetWindow(this),
+                "Ouvrez le Parcours dans l'espace de travail pour consulter " +
+                "les fichiers liés à ses opérations.",
+                "Source du Parcours", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        SourceOpenRequested.Invoke(this,
+            new ProjectJourneySourceOpenRequestedEventArgs(source.RelativePath));
+    }
+
+    /// <summary>Removes only the source reference after confirmation.</summary>
+    /// <param name="sender">Unlink button.</param>
+    /// <param name="e">Click event.</param>
+    private async void UnlinkSource_Click(object sender, RoutedEventArgs e) =>
+        await RunActionAsync(async () =>
+        {
+            ProjectJourneyStep? step = SelectedStep();
+            ProjectJourneyOperation? operation = SelectedOperation();
+            JourneySourceRow? source = SelectedSource();
+            if (_readOnly || step is null || operation is null || source is null)
+            {
+                return;
+            }
+
+            await CommitAsync("Délier « " + source.RelativePath +
+                " » de « " + operation.Name + " » (le fichier sera conservé)",
+                doc => ProjectJourneyEditor.RemoveSource(doc, step.Id,
+                    operation.Id, source.RelativePath),
+                step.Id, operation.Id);
+        }, "Délier une source");
+
+    /// <summary>Changes the prompt reference, without invoking a model.</summary>
+    /// <param name="sender">Prompt assignment button.</param>
+    /// <param name="e">Click event.</param>
+    private async void SetOperationPrompt_Click(
+        object sender, RoutedEventArgs e) =>
+        await RunActionAsync(async () =>
+        {
+            ProjectJourneyStep? step = SelectedStep();
+            ProjectJourneyOperation? operation = SelectedOperation();
+            if (_readOnly || step is null || operation is null)
+            {
+                return;
+            }
+
+            TextPromptDialog dialog = new("Associer un prompt local",
+                "Clé d'un prompt Markdown local ; « - » pour retirer le lien :",
+                operation.PromptKey ?? "-")
+            {
+                Owner = Window.GetWindow(this)
+            };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            string? promptKey = dialog.Value == "-" ? null : dialog.Value;
+            await CommitAsync("Changer la référence de prompt de « " +
+                operation.Name + " » en « " + (promptKey ?? "aucun") +
+                " » (aucune IA ne sera exécutée)",
+                doc => ProjectJourneyEditor.SetPromptKey(doc, step.Id,
+                    operation.Id, promptKey), step.Id, operation.Id);
+        }, "Associer un prompt");
+
+    /// <summary>
+    /// Creates a bounded local draft for manual inspection/copy only.
+    /// This never writes a workspace file or starts an AI request.
+    /// </summary>
+    /// <param name="sender">Prepare button.</param>
+    /// <param name="e">Click event.</param>
+    private async void PrepareOperationPrompt_Click(
+        object sender, RoutedEventArgs e) =>
+        await RunActionAsync(async () =>
+        {
+            ProjectJourneyStep? step = SelectedStep();
+            ProjectJourneyOperation? operation = SelectedOperation();
+            if (step is null || operation is null)
+            {
+                return;
+            }
+
+            ProjectJourneyPromptPreparationService preparer = new(
+                _workspaceRoot, Path.Combine(AppContext.BaseDirectory, "Prompts"));
+            ProjectJourneyPromptDraft draft = await preparer.PrepareAsync(
+                step, operation);
+            ProjectJourneyPromptDraftDialog dialog = new(draft)
+            {
+                Owner = Window.GetWindow(this)
+            };
+            dialog.ShowDialog();
+        }, "Préparer un prompt sans IA");
+
+    private sealed record JourneySourceRow(string RelativePath, string Availability);
+
     private sealed record JourneyStepRow(
         ProjectJourneyStep Step, string Name, string StatusLabel);
 
@@ -633,4 +807,18 @@ public partial class ProjectJourneyView : UserControl
         CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 
+}
+
+/// <summary>Explicit request to open a stored source path in the main workspace.</summary>
+public sealed class ProjectJourneySourceOpenRequestedEventArgs : EventArgs
+{
+    /// <summary>Creates a source navigation request.</summary>
+    /// <param name="relativePath">Portable workspace-relative source.</param>
+    public ProjectJourneySourceOpenRequestedEventArgs(string relativePath)
+    {
+        RelativePath = ProjectJourneySourcePath.RequireSafe(relativePath);
+    }
+
+    /// <summary>Gets the stored, non-owning relative source reference.</summary>
+    public string RelativePath { get; }
 }
