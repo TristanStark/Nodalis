@@ -259,7 +259,8 @@ public partial class TemplateProfileEditorDialog : Window
                         new ProfileSectionRow(
                             section.Name,
                             section.TemplateKey,
-                            section.IsSingleton))
+                            section.IsSingleton,
+                            section.RelativeDirectory))
                     .ToList();
 
             ProfileSectionsList.ItemsSource =
@@ -1025,7 +1026,9 @@ public partial class TemplateProfileEditorDialog : Window
                             string.IsNullOrWhiteSpace(
                                 section.TemplateKey)
                                 ? null
-                                : section.TemplateKey
+                                : section.TemplateKey,
+                        RelativeDirectory =
+                            section.RelativeDirectory
                     })
                 .ToList();
 
@@ -1372,10 +1375,12 @@ public partial class TemplateProfileEditorDialog : Window
         /// <param name="name">The section name.</param>
         /// <param name="templateKey">The optional initial template key.</param>
         /// <param name="isSingleton">Whether the initial template is a singleton document.</param>
+        /// <param name="relativeDirectory">Optional explicit physical folder from the profile.</param>
         public ProfileSectionRow(
                 string name,
                 string? templateKey,
-                bool isSingleton)
+                bool isSingleton,
+                string? relativeDirectory = null)
         {
             Name =
                 name;
@@ -1383,6 +1388,8 @@ public partial class TemplateProfileEditorDialog : Window
                 templateKey;
             IsSingleton =
                 isSingleton;
+            RelativeDirectory =
+                relativeDirectory;
         }
 
         public string Name { get; set; }
@@ -1391,12 +1398,17 @@ public partial class TemplateProfileEditorDialog : Window
 
         public bool IsSingleton { get; set; }
 
+        public string? RelativeDirectory { get; }
+
         public string Detail =>
             (TemplateKey is null
                 ? "Aucun template"
                 : $"Template : {TemplateKey}") +
             (IsSingleton
                 ? " · document unique"
-                : string.Empty);
+                : string.Empty) +
+            (RelativeDirectory is null
+                ? string.Empty
+                : $" · Dossier physique : {RelativeDirectory}");
     }
 }

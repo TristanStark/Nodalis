@@ -2,6 +2,7 @@ using Nodalis.Core.Abstractions;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Templates;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.Templates;
@@ -663,9 +664,22 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                     $"Project profile '{profile.DisplayName}' contains duplicate section '{duplicateSection.Key}'.");
             }
 
-            foreach (ProjectSectionTemplateDefinition section in
-                     profile.Sections)
+            HashSet<string> occupiedPaths = new(StringComparer.OrdinalIgnoreCase);
+            foreach (ProjectSectionTemplateDefinition section in profile.Sections)
             {
+                string path = section.RelativeDirectory is null
+                    ? WindowsPathRules.SanitizeSegment(section.Name)
+                    : ProjectSectionDirectoryLayout.ValidateRelativeDirectory(
+                        section.RelativeDirectory);
+
+                // Singleton roles are canonical root files, not folders.
+                if (section.TemplateKey is not "milestones" and not "glossary" &&
+                    !occupiedPaths.Add(path))
+                {
+                    throw new InvalidDataException(
+                        $"Le profil « {profile.DisplayName} » utilise deux fois le dossier « {path} ».");
+                }
+
                 if (string.IsNullOrWhiteSpace(
                         section.Name))
                 {
