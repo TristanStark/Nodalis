@@ -60,6 +60,7 @@ public static class BlockRelationIndexQuery
                 Excerpt = relation.Excerpt,
                 TypeLabel = $"Relation · {relation.RelationType}",
                 RelationType = relation.RelationType,
+                SourceBlockId = ResolveIncomingSourceBlock(catalog, relation, source),
                 IsSameScope = string.Equals(
                     source.ScopeIdentity,
                     target.Document.ScopeIdentity,
@@ -75,4 +76,111 @@ public static class BlockRelationIndexQuery
                 StringComparer.CurrentCultureIgnoreCase)
             .ToArray());
     }
+
+    /// <summary>
+    /// Validates that a relation's persisted source block belongs uniquely to
+    /// the source document. Ambiguous or moved-outside references are omitted.
+    /// </summary>
+    /// <param name="catalog">Index snapshot.</param>
+    /// <param name="relation">Relation carrying an optional source block ID.</param>
+    /// <param name="source">Uniquely identified source document.</param>
+    /// <returns>A verified block ID or null.</returns>
+    private static Guid? ResolveIncomingSourceBlock(
+        LinkIndexCatalog catalog,
+        Nodalis.Core.Relations.TypedRelationEntry relation,
+        LinkTargetEntry source)
+    {
+        if (relation.SourceBlockId is not Guid id)
+        {
+            return null;
+        }
+
+        MarkdownBlockIndexResolution resolution = BlockIndexQuery.Resolve(catalog, id);
+        return resolution.Status == LinkResolutionStatus.Resolved &&
+            resolution.Document?.Id == source.Id ? id : null;
+    }
+
+    /// <summary>
+    /// Returns typed relations originating in one uniquely identified Markdown
+    /// block. Targets are resolved as either blocks or workspace entities.
+    /// Missing and ambiguous target IDs remain visible as diagnostics.
+    /// </summary>
+    /// <param name="catalog">Shared workspace index snapshot.</param>
+    /// <param name="blockId">Stable source block GUID.</param>
+    /// <returns>Block resolution and outgoing typed relations.</returns>
+    public static BlockOutgoingRelationResult GetOutgoing(
+        LinkIndexCatalog catalog, Guid blockId)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+
+        MarkdownBlockIndexResolution source = BlockIndexQuery.Resolve(catalog, blockId);
+        if (source.Status != LinkResolutionStatus.Resolved ||
+            source.Document is null)
+        {
+            return new BlockOutgoingRelationResult(source, []);
+        }
+
+        List<BlockOutgoingRelationEntry> entries = [];
+        foreach (Nodalis.Core.Relations.TypedRelationEntry relation in catalog.Relations)
+        {
+            if (relation.SourceBlockId != blockId ||
+                relation.SourceId != source.Document.Id)
+            {
+                continue;
+            }
+
+            LinkResolutionStatus status = LinkResolutionStatus.Missing;
+            IndexedMarkdownBlock? targetBlock = null;
+            LinkTargetEntry? targetEntity = null;
+
+            if (relation.TargetId is Guid targetId)
+            {
+                MarkdownBlockIndexResolution blockResolution =
+                    BlockIndexQuery.Resolve(catalog, targetId);
+
+                if (blockResolution.Status == LinkResolutionStatus.Resolved)
+                {
+                    targetBlock = blockResolution.Block;
+                    targetEntity = blockResolution.Document;
+                    status = LinkResolutionStatus.Resolved;
+                }
+                else if (blockResolution.Status == LinkResolutionStatus.Ambiguous)
+                {
+                    status = LinkResolutionStatus.Ambiguous;
+                }
+                else
+                {
+                    LinkTargetEntry[] candidates = catalog.Targets
+                        .Where(target => target.Id == targetId).ToArray();
+                    if (candidates.Length == 1)
+                    {
+                        status = LinkResolutionStatus.Resolved;
+                        targetEntity = candidates[0];
+                    }
+                    else if (candidates.Length > 1)
+                    {
+                        status = LinkResolutionStatus.Ambiguous;
+                    }
+                }
+            }
+
+            entries.Add(new BlockOutgoingRelationEntry
+            {
+                RelationType = relation.RelationType,
+                LineNumber = relation.LineNumber,
+                TargetId = relation.TargetId,
+                TargetStatus = status,
+                TargetBlock = targetBlock,
+                TargetEntity = targetEntity,
+                TargetLabel = targetBlock?.HeadingTitle ??
+                    targetEntity?.DisplayName ??
+                    relation.TargetLabel ??
+                    relation.RawTargetId
+            });
+        }
+
+        return new BlockOutgoingRelationResult(source, entries
+            .OrderBy(entry => entry.LineNumber).ToArray());
+    }
+
 }

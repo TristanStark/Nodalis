@@ -60,6 +60,14 @@ internal static class BlockIndexSmokeTests
                 inbound.Relations[0].LineNumber == 4,
                 "Typed relations to blocks must be resolved from the existing index.");
 
+            BlockOutgoingRelationResult outbound =
+                BlockRelationIndexQuery.GetOutgoing(cold.Catalog, otherId);
+            Assert(outbound.Source.Status == LinkResolutionStatus.Resolved &&
+                outbound.Relations.Count == 1 &&
+                outbound.Relations[0].TargetStatus == LinkResolutionStatus.Resolved &&
+                outbound.Relations[0].TargetBlock?.Id == id,
+                "Typed relations must support outbound block-to-block navigation.");
+
             LinkIndexCatalog crossKindCollision = cold.Catalog with
             {
                 Targets = cold.Catalog.Targets.Append(new LinkTargetEntry

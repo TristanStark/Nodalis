@@ -31,6 +31,12 @@ public sealed record ReferenceSearchEntry
     public string? RelationType { get; init; }
 
     /// <summary>
+    /// The unique, validated source block when this relation belongs directly
+    /// to an identified heading; null for legacy/document-level relationships.
+    /// </summary>
+    public Guid? SourceBlockId { get; init; }
+
+    /// <summary>
     /// Gets whether the source and target belong to the same indexed scope.
     /// </summary>
     public bool IsSameScope { get; init; }
