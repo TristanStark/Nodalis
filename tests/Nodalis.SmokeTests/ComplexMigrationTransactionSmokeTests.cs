@@ -176,8 +176,8 @@ internal static class ComplexMigrationTransactionSmokeTests
             string second = Path.Combine(workspace,
                 "Applications", "Test", "Projets", "Crash replica");
             Directory.CreateDirectory(second);
-            foreach (string entry in ComplexProjectMigrationPlanService.EnumerateTree(
-                         applied.BackupDirectory, CancellationToken.None))
+            foreach (string entry in Directory.EnumerateFileSystemEntries(
+                         applied.BackupDirectory, "*", SearchOption.AllDirectories))
             {
                 string relative = Path.GetRelativePath(applied.BackupDirectory, entry);
                 string copy = Path.Combine(second, relative);
