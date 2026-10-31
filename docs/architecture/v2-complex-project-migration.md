@@ -29,3 +29,7 @@ La migration effective exigera un assistant de validation, des sauvegardes,
 un journal de reprise, la mise à jour des manifestes, liens relatifs, index,
 onglets ouverts et résolveurs DOCX. Aucun de ces changements destructifs
 n’est effectué par ce premier incrément.
+
+## Support des chemins physiques déclarés
+
+Les projets récents peuvent stocker `relativeDirectory` dans chaque section de `.project.json`. Les sections préexistantes, pour lesquelles il reste absent, conservent leur résolution v1.9 par nom. L’éditeur de structure et l’explorateur utilisent ce chemin physique pour charger et déplacer les documents ; les documents de sous-sections ne sont pas comptés deux fois dans les sections parentes. Le renommage d’un libellé de section au chemin explicite ne déplace pas automatiquement son dossier (afin de préserver les liens). Toute suppression de section contenant d’autres sections déclarées est refusée jusqu’à une opération explicite.

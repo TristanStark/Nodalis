@@ -125,7 +125,8 @@ public sealed class WorkspaceProjectStructureService
                     CreateSectionState(
                         directory,
                         section,
-                        manifest.InitialComplexity))
+                        manifest.InitialComplexity,
+                        manifest.Sections))
                 .ToArray();
 
         return new ProjectStructureState
@@ -700,11 +701,14 @@ public sealed class WorkspaceProjectStructureService
         }
 
         SectionManifest? sourceSection =
-            manifest.Sections.FirstOrDefault(section =>
-                IsDocumentInSection(
-                    directory,
-                    section,
-                    source));
+            manifest.Sections
+                .Where(section => IsDocumentInSection(directory, section, source))
+                .OrderByDescending(section =>
+                    ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                        section.TemplateKey) is not null
+                        ? int.MaxValue
+                        : ResolveSectionDirectory(directory, section).Length)
+                .FirstOrDefault();
 
         if (sourceSection is null)
         {
@@ -845,6 +849,20 @@ public sealed class WorkspaceProjectStructureService
                 directory,
                 section);
 
+        if (manifest.Sections.Any(candidate =>
+            candidate.Id != section.Id &&
+            ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                candidate.TemplateKey) is null &&
+            IsInsideOrEqual(
+                ResolveSectionDirectory(directory, candidate), sourceDirectory) &&
+            !string.Equals(
+                ResolveSectionDirectory(directory, candidate), sourceDirectory,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException(
+                "Cette section contient des sous-sections déclarées : déplacez-les explicitement avant suppression.");
+        }
+
         string[] entries =
             Directory.Exists(
                     sourceDirectory)
@@ -884,6 +902,13 @@ public sealed class WorkspaceProjectStructureService
                 ResolveSectionDirectory(
                     directory,
                     targetSection);
+
+            if (IsInsideOrEqual(targetDirectory, sourceDirectory) ||
+                IsInsideOrEqual(sourceDirectory, targetDirectory))
+            {
+                throw new InvalidOperationException(
+                    "Impossible de fusionner une section avec sa propre arborescence.");
+            }
 
             Directory.CreateDirectory(
                 targetDirectory);
@@ -1050,7 +1075,8 @@ public sealed class WorkspaceProjectStructureService
     private static ProjectSectionState CreateSectionState(
             string projectDirectory,
             SectionManifest section,
-            ProjectComplexity complexity)
+            ProjectComplexity complexity,
+            IReadOnlyList<SectionManifest>? allSections = null)
     {
         string? rootDocumentFileName =
             ProjectSingletonDocumentLayout.GetRootDocumentFileName(
@@ -1094,6 +1120,18 @@ public sealed class WorkspaceProjectStructureService
                             sectionDirectory,
                             "*.md",
                             SearchOption.AllDirectories)
+                        .Where(path =>
+                            allSections is null ||
+                            !allSections.Any(other =>
+                                other.Id != section.Id &&
+                                ProjectSingletonDocumentLayout.GetRootDocumentFileName(
+                                    other.TemplateKey) is null &&
+                                IsInsideOrEqual(
+                                    path,
+                                    ResolveSectionDirectory(projectDirectory, other)) &&
+                                IsInsideOrEqual(
+                                    ResolveSectionDirectory(projectDirectory, other),
+                                    sectionDirectory)))
                         .Select(path =>
                             NormalizeRelativePath(
                                 Path.GetRelativePath(
@@ -1293,10 +1331,7 @@ public sealed class WorkspaceProjectStructureService
     private static string ResolveSectionDirectory(
             string projectDirectory,
             SectionManifest section) =>
-        Path.Combine(
-            projectDirectory,
-            WindowsPathRules.SanitizeSegment(
-                section.Name));
+        ProjectSectionDirectoryLayout.Resolve(projectDirectory, section);
 
     /// <summary>
     /// Creates standard template variables for a section added after project creation.
