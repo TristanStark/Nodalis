@@ -45,6 +45,17 @@ public static class BlockIndexQuery
             };
         }
 
+        // A block ID must not also identify an application, project or
+        // document. Relations cannot safely infer the intended target kind.
+        if (catalog.Targets.Any(target => target.Id == id))
+        {
+            return new MarkdownBlockIndexResolution
+            {
+                Status = LinkResolutionStatus.Ambiguous,
+                Candidates = candidates
+            };
+        }
+
         IndexedMarkdownBlock candidate = candidates[0];
         List<LinkTargetEntry> owners = catalog.Targets
             .Where(target => target.Kind == LinkTargetKind.Document &&

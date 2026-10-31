@@ -48,3 +48,14 @@ Le schéma de l'index de liens dérivé est passé de 3 à 4. Les nouvelles list
 Avant l'écriture, le service revérifie l'empreinte de la source, reconstruit le Markdown attendu (une proposition falsifiée est rejetée) et contrôle l'unicité de l'ID dans l'index actualisé. Les appels concurrents du même processus sont sérialisés par workspace et le fichier est sauvegardé via `TextDocumentSession` et `AtomicFileWriter`. Après la sauvegarde, l'index reconstruit la projection du document concerné. Une répétition de la même attribution est un no-op.
 
 **Limite** : les autres processus non coopératifs et les modifications externes intervenant dans la fenêtre entre la vérification globale et la sauvegarde nécessiteront un protocole de verrouillage inter-processus pour la qualification multi-instance. La nouvelle API n'est pas encore exposée dans l'interface WPF ; aucun document n'est modifié automatiquement au chargement.
+
+ 
+## Navigation et relations entrantes vers les blocs (phase suivante #206)
+
+La palette WPF propose désormais **Atteindre un bloc par ID**. Après résolution par `BlockIndexQuery`, Nodalis vérifie que le document ouvert est bien celui du bloc puis relit la position du marqueur dans le texte de l'éditeur, sur un worker. Une collision ou une disparition est affichée ; aucun positionnement arbitraire, aucune écriture et aucun nouveau nœud dans le Worktree.
+
+Les GUID d'objets documentaires et de blocs partagent un espace d'identité : un même GUID ne peut pas légitimement représenter à la fois un document et un bloc. Les nouvelles attributions refusent cette collision et les lectures existantes la signalent comme ambiguë.
+
+`BlockRelationIndexQuery.GetIncoming` construit une projection des relations typées `> Relation: ... | Cible: ... | ID: ...` ciblant un GUID de bloc. Elle utilise exclusivement les relations et cibles de l'index partagé, sans nouvelle source métier, et ne retourne des lignes que lorsque le bloc et le document source sont uniques. La liste des types connus s'enrichit des verbes du Parcours 2.0 (provient de, vérifie, concerne, succède à, corrige, revalide) ; les types libres existants restent autorisés.
+
+**Restant** : associer les relations sortantes à un bloc source plutôt qu'au seul document, ajouter la sélection de blocs dans les formulaires de relation, étendre l'exploration aux blocs, et qualifier l'interface sur Windows.

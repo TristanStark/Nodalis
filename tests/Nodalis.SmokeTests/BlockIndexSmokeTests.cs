@@ -1,6 +1,7 @@
 using Nodalis.Core.Links;
 using System.Text.Json.Nodes;
 using Nodalis.Core.Markdown;
+using Nodalis.Core.Relations;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Reliability;
 using Nodalis.Infrastructure.Persistence;
@@ -31,7 +32,8 @@ internal static class BlockIndexSmokeTests
                 MarkdownBlockIdentityCodec.FormatMarker(id) + "\nValidated\n";
             await File.WriteAllTextAsync(first, markdown);
             await File.WriteAllTextAsync(second, "# Tests\n## Case\n" +
-                MarkdownBlockIdentityCodec.FormatMarker(otherId) + "\nReady\n");
+                MarkdownBlockIdentityCodec.FormatMarker(otherId) + "\n" +
+                MarkdownRelationParser.Format("vérifie", id, "Criterion") + "\nReady\n");
 
             WorkspaceLinkIndexService service = new WorkspaceLinkIndexService(workspaceRoot);
             LinkIndexRefreshResult cold = await service.RefreshWithMetricsAsync();
@@ -45,6 +47,32 @@ internal static class BlockIndexSmokeTests
                 resolved.Document?.RelativePath == "Criteria.md" &&
                 resolved.Block?.HeadingLine == 2,
                 "Block resolution must return its stable owning document.");
+
+            BlockIncomingRelationResult inbound =
+                BlockRelationIndexQuery.GetIncoming(cold.Catalog, id);
+            Assert(inbound.Resolution.Status == LinkResolutionStatus.Resolved &&
+                inbound.Relations.Count == 1 &&
+                inbound.Relations[0].Source.RelativePath == "Tests.md" &&
+                inbound.Relations[0].RelationType == "vérifie" &&
+                inbound.Relations[0].LineNumber == 4,
+                "Typed relations to blocks must be resolved from the existing index.");
+
+            LinkIndexCatalog crossKindCollision = cold.Catalog with
+            {
+                Targets = cold.Catalog.Targets.Append(new LinkTargetEntry
+                {
+                    Id = id,
+                    Kind = LinkTargetKind.Document,
+                    RelativePath = "Fake.md",
+                    DisplayName = "Fake",
+                    QualifiedName = "Fake"
+                }).ToList()
+            };
+            Assert(BlockIndexQuery.Resolve(crossKindCollision, id).Status ==
+                LinkResolutionStatus.Ambiguous &&
+                BlockRelationIndexQuery.GetIncoming(crossKindCollision, id)
+                    .Relations.Count == 0,
+                "A GUID duplicated between a block and document must be ambiguous.");
 
             // Simulate the exact v1.9 schema v3 payload: document target IDs
             // must survive while block projections are reconstructed.
@@ -133,6 +161,21 @@ internal static class BlockIndexSmokeTests
             }
 
             Assert(duplicateRejected, "Previously assigned block IDs must be refused.");
+
+            bool documentIdRejected = false;
+            try
+            {
+                Guid documentId = (await service.LoadAsync()).Targets.Single(target =>
+                    target.RelativePath == "Tests.md").Id;
+                await assignments.PrepareAsync(assignmentPath, 2, documentId);
+            }
+            catch (InvalidOperationException)
+            {
+                documentIdRejected = true;
+            }
+
+            Assert(documentIdRejected,
+                "Block IDs cannot reuse an existing document target GUID.");
             await File.AppendAllTextAsync(assignmentPath, "External edit\n");
             bool staleRejected = false;
             try

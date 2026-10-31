@@ -59,7 +59,9 @@ public sealed class WorkspaceBlockIdentityService
         string updated = MarkdownBlockIdentityCodec.InsertMarker(
             session.Content, headingLine, blockId);
         LinkIndexCatalog catalog = await _links.RefreshAsync(cancellationToken);
-        if (updated != session.Content && catalog.Blocks.Any(block => block.Id == blockId))
+        if (updated != session.Content &&
+            (catalog.Blocks.Any(block => block.Id == blockId) ||
+             catalog.Targets.Any(target => target.Id == blockId)))
         {
             throw new InvalidOperationException(
                 "Un autre bloc porte déjà cet identifiant.");
@@ -114,7 +116,8 @@ public sealed class WorkspaceBlockIdentityService
             }
 
             LinkIndexCatalog catalog = await _links.RefreshAsync(cancellationToken);
-            if (catalog.Blocks.Any(block => block.Id == approved.BlockId))
+            if (catalog.Blocks.Any(block => block.Id == approved.BlockId) ||
+                catalog.Targets.Any(target => target.Id == approved.BlockId))
             {
                 throw new InvalidOperationException(
                     "Cet identifiant a été utilisé depuis la préparation.");

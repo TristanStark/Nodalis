@@ -9,6 +9,12 @@ public static class RelationTypeCatalog
     private static readonly string[] InitialTypes =
     [
         "dépend de",
+        "provient de",
+        "vérifie",
+        "concerne",
+        "succède à",
+        "corrige",
+        "revalide",
         "remplace",
         "implémente",
         "teste",
