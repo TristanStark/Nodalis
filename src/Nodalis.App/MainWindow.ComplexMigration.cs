@@ -159,4 +159,89 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Restores the most recent completed project migration only while the
+    /// project and retained original are still fingerprint-identical to the
+    /// approved transaction journal. Refuses open document tabs.
+    /// </summary>
+    /// <returns>Rollback approval, transaction and navigation refresh task.</returns>
+    private async Task RollbackComplexProjectMigrationAsync()
+    {
+        if (_workspaceReadOnly)
+        {
+            StatusText.Text = "Workspace en lecture seule : restauration interdite.";
+            return;
+        }
+
+        WorkspaceProjectStructureService structure = new(_root.FullPath);
+        string? projectDirectory = structure.GetProjectDirectoryForContext(
+            _selectedNode?.FullPath);
+        if (projectDirectory is null)
+        {
+            StatusText.Text =
+                "Sélectionnez un projet Complexe précédemment migré.";
+            return;
+        }
+
+        if (_documentTabs.Any(tab => IsProjectPathAncestorOrEqual(
+                projectDirectory, tab.FullPath)))
+        {
+            MessageBox.Show(this,
+                "Enregistrez et fermez les documents ouverts dans ce projet " +
+                "avant de restaurer sa structure précédente.",
+                "Restauration Complexe 2.0", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        ComplexProjectMigrationTransactionService executor = new(_root.FullPath);
+        try
+        {
+            IReadOnlyList<ComplexProjectMigrationJournal> choices =
+                await executor.GetRollbackCandidatesAsync(projectDirectory);
+            if (choices.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "Aucune sauvegarde transactionnelle disponible pour ce projet.",
+                    "Restauration Complexe 2.0", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            ComplexProjectMigrationJournal candidate = choices[0];
+            if (MessageBox.Show(this,
+                "Restaurer le projet dans son état antérieur à la migration ?\n\n" +
+                "Transaction : " + candidate.TransactionId.ToString("D") + "\n" +
+                "Empreinte originale : " + candidate.OriginalFingerprint + "\n\n" +
+                "Nodalis refusera si le projet ou sa sauvegarde a changé. " +
+                "La version 2.0 actuelle sera conservée pour inspection.",
+                "Confirmer la restauration Complexe",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            StatusText.Text = "Restauration Complexe · vérification des empreintes…";
+            string restored = await Task.Run(
+                () => executor.RollbackAsync(candidate.TransactionId,
+                    approved: true));
+            await RefreshNavigationAsync(restored);
+            await RefreshLinkIndexAndContextAsync();
+            StatusText.Text =
+                "Structure Complexe antérieure restaurée ; copie publiée conservée.";
+        }
+        catch (Exception exception) when (exception is IOException or
+            UnauthorizedAccessException or InvalidDataException or
+            InvalidOperationException)
+        {
+            MessageBox.Show(this,
+                exception.Message +
+                "\n\nAucun projet modifié ne sera écrasé automatiquement.",
+                "Restauration Complexe 2.0", MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            StatusText.Text = "Restauration Complexe · opération refusée.";
+        }
+    }
+
 }

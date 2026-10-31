@@ -4918,6 +4918,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.complex-v2-rollback",
+                Title = "Restaurer un projet Complexe avant migration",
+                Subtitle = "Rollback approuvé et vérifié par les empreintes du journal",
+                Keywords = ["complexe", "rollback", "restaurer", "sauvegarde", "migration"],
+                ExecuteAsync = RollbackComplexProjectMigrationAsync
+            },
+            new()
+            {
                 Id = "project.restore",
                 Title = "Réouvrir un projet archivé",
                 Subtitle = "Restaurer le projet sélectionné à son emplacement d'origine",
