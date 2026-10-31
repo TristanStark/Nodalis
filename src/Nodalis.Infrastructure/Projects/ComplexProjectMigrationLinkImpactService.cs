@@ -11,7 +11,7 @@ namespace Nodalis.Infrastructure.Projects;
 public sealed class ComplexProjectMigrationLinkImpactService
 {
     private static readonly Regex MarkdownLinkPattern = new(
-        @"!?\[[^\]\r\n]*\]\(\s*(?<target><[^>\r\n]*>|[^\s\)\r\n]+)",
+        @"!?\[[^\]\r\n]*\]\(\s*(?<target><[^>\r\n]*>|[^\s\)\r\n]+)(?:\s+(?:""[^""]*""|\x27[^\x27]*\x27))?\s*\)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly Regex HtmlLinkPattern = new(
