@@ -673,8 +673,17 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                         section.RelativeDirectory);
 
                 // Singleton roles are canonical root files, not folders.
-                if (section.TemplateKey is not "milestones" and not "glossary" &&
-                    !occupiedPaths.Add(path))
+                bool rootDocument = string.Equals(section.TemplateKey,
+                        "milestones", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(section.TemplateKey,
+                        "glossary", StringComparison.OrdinalIgnoreCase);
+                if (rootDocument && section.RelativeDirectory is not null)
+                {
+                    throw new InvalidDataException(
+                        $"La section « {section.Name} » doit rester un document racine.");
+                }
+
+                if (!rootDocument && !occupiedPaths.Add(path))
                 {
                     throw new InvalidDataException(
                         $"Le profil « {profile.DisplayName} » utilise deux fois le dossier « {path} ».");

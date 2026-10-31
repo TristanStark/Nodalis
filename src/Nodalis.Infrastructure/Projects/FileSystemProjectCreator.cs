@@ -312,5 +312,36 @@ public sealed class FileSystemProjectCreator : IProjectCreator
             throw new InvalidDataException(
                 $"Project profile '{profile.DisplayName}' contains an unnamed section.");
         }
+
+        HashSet<string> physicalDirectories = new(
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (ProjectSectionTemplateDefinition section in profile.Sections)
+        {
+            bool rootDocument = ProjectSingletonDocumentLayout
+                .GetRootDocumentFileName(section.TemplateKey) is not null;
+
+            if (rootDocument && section.RelativeDirectory is not null)
+            {
+                throw new InvalidDataException(
+                    $"La section « {section.Name} » est un document racine protégé.");
+            }
+
+            if (rootDocument)
+            {
+                continue;
+            }
+
+            string directory = section.RelativeDirectory is null
+                ? WindowsPathRules.SanitizeSegment(section.Name)
+                : ProjectSectionDirectoryLayout.ValidateRelativeDirectory(
+                    section.RelativeDirectory);
+
+            if (!physicalDirectories.Add(directory))
+            {
+                throw new InvalidDataException(
+                    $"Le profil « {profile.DisplayName} » contient deux sections au même emplacement « {directory} ».");
+            }
+        }
     }
 }
