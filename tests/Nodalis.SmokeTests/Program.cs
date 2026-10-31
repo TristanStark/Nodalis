@@ -132,6 +132,7 @@ try
     BlockRelationSourceSmokeTests.Run();
     RelationEditorSnapshotSmokeTests.Run();
     await ComplexMigrationPreviewSmokeTests.RunAsync(root);
+    await ComplexMigrationTransactionSmokeTests.RunAsync(root);
     VerifyTypedRelations();
     ImpactAnalysisSmokeTests.Run();
     ImpactReleaseQualificationSmokeTests.Run();
