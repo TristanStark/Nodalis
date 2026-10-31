@@ -23,6 +23,14 @@ public partial class MainWindow
         ProjectJourneyTabsList.ItemsSource = _projectJourneyTabs;
     }
 
+    /// <summary>Opens the selected project's journey from the Worktree header.</summary>
+    /// <param name="sender">Worktree command.</param>
+    /// <param name="e">Click event.</param>
+    private async void OpenProjectJourney_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync("Parcours projet", OpenProjectJourneyAsync);
+    }
+
     /// <summary>
     /// Opens or activates the project journey, without creating JSON while
     /// navigating and without attaching a Markdown session or autosave.
@@ -37,6 +45,20 @@ public partial class MainWindow
                 "Sélectionnez un projet ou un document appartenant à un projet.",
                 "Parcours projet · Nodalis 2.0",
                 MessageBoxButton.OK, MessageBoxImage.Information);
+            return Task.CompletedTask;
+        }
+
+        // A duplicated project GUID would make the tab identity ambiguous.
+        // Refuse to reuse a view for the wrong source folder.
+        int sameIdProjects = _root.DescendantsAndSelf().Count(node =>
+            node.Kind == WorkspaceNodeKind.Project && node.Id == project.Id);
+        if (sameIdProjects != 1)
+        {
+            MessageBox.Show(this,
+                "Cet identifiant de projet est absent ou partagé par plusieurs dossiers. " +
+                "Résolvez la collision avant d'ouvrir le parcours.",
+                "Parcours projet · identifiant ambigu",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
             return Task.CompletedTask;
         }
 
@@ -210,6 +232,7 @@ public partial class MainWindow
         Dictionary<Guid, string> projectPaths = _root.DescendantsAndSelf()
             .Where(node => node.Kind == WorkspaceNodeKind.Project)
             .GroupBy(node => node.Id)
+            .Where(group => group.Count() == 1)
             .ToDictionary(group => group.Key, group => group.First().FullPath);
         foreach (ProjectJourneyTabEntry tab in _projectJourneyTabs.ToArray())
         {
