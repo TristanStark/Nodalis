@@ -186,6 +186,87 @@ public static class ProjectJourneyEditor
             return step with { Operations = operations };
         });
 
+    /// <summary>
+    /// Links an existing source by a portable, workspace-relative path.
+    /// No source file is copied, edited, imported or created.
+    /// </summary>
+    /// <param name="document">Current journey.</param>
+    /// <param name="stepId">Owning stage.</param>
+    /// <param name="operationId">Operation.</param>
+    /// <param name="relativePath">Validated workspace-relative source.</param>
+    /// <returns>New journey with one non-owning reference.</returns>
+    public static ProjectJourneyDocument AddSource(
+        ProjectJourneyDocument document, Guid stepId, Guid operationId,
+        string relativePath)
+    {
+        string source = ProjectJourneySourcePath.RequireSafe(relativePath);
+        return UpdateOperation(document, stepId, operationId, operation =>
+        {
+            if (operation.SourcePaths.Any(path => string.Equals(
+                    path, source, StringComparison.OrdinalIgnoreCase)))
+            {
+                return operation;
+            }
+
+            return operation with
+            {
+                SourcePaths = [.. operation.SourcePaths, source]
+            };
+        });
+    }
+
+    /// <summary>
+    /// Removes only a non-owning source reference. The underlying file and
+    /// its contents are never deleted.
+    /// </summary>
+    /// <param name="document">Current journey.</param>
+    /// <param name="stepId">Owning stage.</param>
+    /// <param name="operationId">Operation.</param>
+    /// <param name="relativePath">Exact stored source path.</param>
+    /// <returns>New journey without that source reference.</returns>
+    public static ProjectJourneyDocument RemoveSource(
+        ProjectJourneyDocument document, Guid stepId, Guid operationId,
+        string relativePath)
+    {
+        ProjectJourneySourcePath.RequireSafe(relativePath);
+        return UpdateOperation(document, stepId, operationId, operation =>
+        {
+            List<string> paths = operation.SourcePaths.ToList();
+            if (paths.RemoveAll(path => string.Equals(
+                    path, relativePath, StringComparison.OrdinalIgnoreCase)) == 0)
+            {
+                throw new KeyNotFoundException("Référence de source introuvable.");
+            }
+
+            return operation with { SourcePaths = paths };
+        });
+    }
+
+    /// <summary>
+    /// Links a named local Markdown prompt to an operation, without reading
+    /// it, copying its content or invoking any AI service.
+    /// </summary>
+    /// <param name="document">Current journey.</param>
+    /// <param name="stepId">Owning stage.</param>
+    /// <param name="operationId">Operation.</param>
+    /// <param name="promptKey">Portable prompt key; null clears the link.</param>
+    /// <returns>New journey with the reviewed prompt reference.</returns>
+    public static ProjectJourneyDocument SetPromptKey(
+        ProjectJourneyDocument document, Guid stepId, Guid operationId,
+        string? promptKey)
+    {
+        if (promptKey is not null &&
+            (promptKey.Length is < 1 or > 80 ||
+             !promptKey.All(character => char.IsAsciiLetterOrDigit(character) ||
+                 character is '-' or '_')))
+        {
+            throw new ArgumentException("Clé de prompt invalide.", nameof(promptKey));
+        }
+
+        return UpdateOperation(document, stepId, operationId,
+            operation => operation with { PromptKey = promptKey });
+    }
+
     /// <summary>Updates a single operation while preserving its surrounding stage.</summary>
     /// <param name="document">Current journey snapshot.</param>
     /// <param name="stepId">Owning stage ID.</param>
