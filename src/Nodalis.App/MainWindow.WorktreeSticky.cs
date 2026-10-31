@@ -51,10 +51,13 @@ public partial class MainWindow
         ScrollChangedEventArgs e)
     {
         if (Math.Abs(e.VerticalChange) > 0 &&
+            Math.Abs(e.ExtentHeightChange) < double.Epsilon &&
+            Math.Abs(e.ViewportHeightChange) < double.Epsilon &&
             !_allowExplicitWorktreeBringIntoView)
         {
-            // A user who scrolled after asking for a reveal owns the viewport:
-            // invalidate any deferred BringIntoView from the previous context.
+            // Treat a scroll as a new viewport intent only when the size of
+            // the content/viewport stayed fixed. Structural relayout can
+            // otherwise cancel an intentional reveal before it is rendered.
             _worktreeRevealSequence++;
         }
 
