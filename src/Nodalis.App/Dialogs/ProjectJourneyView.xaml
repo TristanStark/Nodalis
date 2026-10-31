@@ -128,6 +128,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock x:Name="SelectedStepText"
                                Text="Sélectionnez une étape"
@@ -172,6 +174,65 @@
                         <Button x:Name="RemoveOperationButton" Content="Retirer"
                                 Margin="0,0,7,7" Padding="10,5"
                                 Click="RemoveOperation_Click" />
+                    </WrapPanel>
+                    <Expander Grid.Row="5"
+                              Header="SOURCES ET PREUVES"
+                              Margin="0,6,0,6"
+                              Foreground="{StaticResource PrimaryTextBrush}"
+                              Background="{StaticResource PanelBackgroundBrush}"
+                              ToolTip="Références à des fichiers existants du workspace, sans copie">
+                        <StackPanel>
+                            <ListBox x:Name="SourcesList"
+                                     MaxHeight="145"
+                                     MinHeight="48"
+                                     Margin="0,7,0,7"
+                                     SelectionChanged="SourcesList_SelectionChanged"
+                                     MouseDoubleClick="SourcesList_MouseDoubleClick">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="5,5">
+                                            <TextBlock Text="{Binding RelativePath}"
+                                                       TextWrapping="Wrap"
+                                                       FontSize="11" />
+                                            <TextBlock Text="{Binding Availability}"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource SecondaryTextBrush}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <WrapPanel>
+                                <Button x:Name="LinkSourceButton"
+                                        Content="Lier un fichier…"
+                                        Margin="0,0,7,7" Padding="10,5"
+                                        Click="LinkSource_Click" />
+                                <Button x:Name="OpenSourceButton"
+                                        Content="Ouvrir"
+                                        Margin="0,0,7,7" Padding="10,5"
+                                        Click="OpenSource_Click" />
+                                <Button x:Name="UnlinkSourceButton"
+                                        Content="Délier"
+                                        Margin="0,0,7,7" Padding="10,5"
+                                        Click="UnlinkSource_Click" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Expander>
+                    <WrapPanel Grid.Row="6" Margin="0,4,0,0">
+                        <TextBlock x:Name="PromptKeyText"
+                                   Text="Prompt : —"
+                                   VerticalAlignment="Center"
+                                   FontSize="11"
+                                   Margin="0,0,8,7"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <Button x:Name="SetOperationPromptButton"
+                                Content="Associer un prompt…"
+                                Margin="0,0,7,7" Padding="10,5"
+                                Click="SetOperationPrompt_Click" />
+                        <Button x:Name="PrepareOperationPromptButton"
+                                Content="Préparer / copier"
+                                Margin="0,0,7,7" Padding="10,5"
+                                Click="PrepareOperationPrompt_Click" />
                     </WrapPanel>
                 </Grid>
             </Border>
