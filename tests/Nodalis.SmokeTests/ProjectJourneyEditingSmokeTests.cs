@@ -101,8 +101,6 @@ internal static class ProjectJourneyEditingSmokeTests
 
             // Existing references to evidence must survive reordering of the
             // containing stage and its repeatable operations.
-            ProjectJourneyStep stage = changed.Steps.Single(step =>
-                step.Id == added.Id);
             changed = changed with
             {
                 Steps = changed.Steps.Select(step => step.Id == added.Id
