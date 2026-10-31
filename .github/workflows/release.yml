@@ -28,6 +28,7 @@ jobs:
         contains(github.event.head_commit.message, '[publish v1.5.0]') ||
         contains(github.event.head_commit.message, '[publish v1.6.0]') ||
         contains(github.event.head_commit.message, '[publish v1.7.0]') ||
+        contains(github.event.head_commit.message, '[publish v1.9.0]') ||
         contains(github.event.head_commit.message, '[publish v1.8.0]')))
     runs-on: windows-latest
 
@@ -45,7 +46,10 @@ jobs:
         shell: pwsh
         run: |
           if ("${{ github.ref }}" -eq "refs/heads/main") {
-            if ("${{ contains(github.event.head_commit.message, '[publish v1.8.0]') }}" -eq "true") {
+            if ("${{ contains(github.event.head_commit.message, '[publish v1.9.0]') }}" -eq "true") {
+              $version = "1.9.0"
+            }
+            elseif ("${{ contains(github.event.head_commit.message, '[publish v1.8.0]') }}" -eq "true") {
               $version = "1.8.0"
             }
             elseif ("${{ contains(github.event.head_commit.message, '[publish v1.7.0]') }}" -eq "true") {
@@ -223,7 +227,8 @@ jobs:
           if-no-files-found: error
 
       - name: Create annotated stable tag from the accepted main commit
-        if: ${{ github.ref == 'refs/heads/main' && (contains(github.event.head_commit.message, '[publish v1.4.0]') || contains(github.event.head_commit.message, '[publish v1.5.0]') || contains(github.event.head_commit.message, '[publish v1.6.0]') || contains(github.event.head_commit.message, '[publish v1.7.0]') || contains(github.event.head_commit.message, '[publish v1.8.0]')) }}
+        if: ${{ github.ref == 'refs/heads/main' && (contains(github.event.head_commit.message, '[publish v1.4.0]') || contains(github.event.head_commit.message, '[publish v1.5.0]') || contains(github.event.head_commit.message, '[publish v1.6.0]') || contains(github.event.head_commit.message, '[publish v1.7.0]') || contains(github.event.head_commit.message, '[publish v1.9.0]') ||
+        contains(github.event.head_commit.message, '[publish v1.8.0]')) }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -235,7 +240,9 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Tag $tag already exists: refusing to move or duplicate a release tag."
           }
-          $message = if ($tag -eq "v1.8.0") {
+          $message = if ($tag -eq "v1.9.0") {
+            "Nodalis v1.9.0 - Import DOCX avance, mapping des sections, reimport securise, performances WPF et editeur Markdown colore. Version qualifiee."
+          } elseif ($tag -eq "v1.8.0") {
             "Nodalis v1.8.0 - Recherche hybride lexicale et semantique, index incremental, gestion du cache, quotas et evaluations reproductibles."
           } elseif ($tag -eq "v1.7.0") {
             "Nodalis v1.7.0 - Recherche semantique locale : fournisseur Ollama facultatif, consentement explicite, segmentation Markdown, index vectoriel effacable et sources navigables."
@@ -256,7 +263,8 @@ jobs:
           }
 
       - name: Publish GitHub release with detailed notes
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && (contains(github.event.head_commit.message, '[publish v1.4.0]') || contains(github.event.head_commit.message, '[publish v1.5.0]') || contains(github.event.head_commit.message, '[publish v1.6.0]') || contains(github.event.head_commit.message, '[publish v1.7.0]') || contains(github.event.head_commit.message, '[publish v1.8.0]'))) }}
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && (contains(github.event.head_commit.message, '[publish v1.4.0]') || contains(github.event.head_commit.message, '[publish v1.5.0]') || contains(github.event.head_commit.message, '[publish v1.6.0]') || contains(github.event.head_commit.message, '[publish v1.7.0]') || contains(github.event.head_commit.message, '[publish v1.9.0]') ||
+        contains(github.event.head_commit.message, '[publish v1.8.0]'))) }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -277,6 +285,9 @@ jobs:
           }
           elseif ($version -eq "1.8.0") {
             gh release create $tag "artifacts/Nodalis-win-x64.zip" "artifacts/SHA256SUMS.txt" --title "Nodalis v1.8.0 — Recherche hybride" --notes-file "docs/release-notes-1.8.md" --verify-tag
+          }
+          elseif ($version -eq "1.9.0") {
+            gh release create $tag "artifacts/Nodalis-win-x64.zip" "artifacts/SHA256SUMS.txt" --title "Nodalis v1.9.0 — Import DOCX avancé et performances" --notes-file "docs/release-notes-1.9.md" --verify-tag
           }
           else {
             gh release create $tag "artifacts/Nodalis-win-x64.zip" "artifacts/SHA256SUMS.txt" --title "Nodalis $version" --generate-notes
