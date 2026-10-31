@@ -187,6 +187,13 @@ internal sealed class MarkdownSyntaxOverlay : IDisposable
             return;
         }
 
+        // Never leave a stale visual snapshot over the native selection/caret.
+        // WPF draws the live source until this viewport is recolored.
+        if (_overlay.Children.Count > 0)
+        {
+            RestoreNativeText();
+        }
+
         _refreshTimer.Stop();
         _refreshTimer.Start();
     }
@@ -342,9 +349,7 @@ internal sealed class MarkdownSyntaxOverlay : IDisposable
             _overlay.Children.Add(newLines[index]);
         }
 
-        _editor.Foreground = _colors[(int)MarkdownSyntaxKind.Text] == Brushes.Transparent
-            ? _originalForeground
-            : Brushes.Transparent;
+        _editor.Foreground = Brushes.Transparent;
         return true;
     }
 
