@@ -79,6 +79,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _previewTimer;
     private CancellationTokenSource? _previewParseCancellation;
     private long _previewEditRevision;
+    private readonly MarkdownEditorLineMarkers _primaryMarkdownLineMarkers;
+    private readonly MarkdownEditorLineMarkers _secondaryMarkdownLineMarkers;
     private readonly DispatcherTimer _backupTimer;
     private readonly bool _workspaceReadOnly;
     private readonly string? _workspaceAccessMessage;
@@ -146,6 +148,12 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(diagnosticsService);
 
         InitializeComponent();
+        _primaryMarkdownLineMarkers = new MarkdownEditorLineMarkers(
+            MarkdownEditorTextBox,
+            PrimaryMarkdownMarkers);
+        _secondaryMarkdownLineMarkers = new MarkdownEditorLineMarkers(
+            SecondaryMarkdownEditorTextBox,
+            SecondaryMarkdownMarkers);
         InitializeContextMenus();
         InitializeDocumentTabs();
         InitializeDocumentOutline();
