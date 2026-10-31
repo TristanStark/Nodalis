@@ -1,6 +1,7 @@
 using Nodalis.Core.Domain;
 using Nodalis.Core.Milestones;
 using Nodalis.Infrastructure.Milestones;
+using Nodalis.Infrastructure.Exporting;
 using Nodalis.Core.Meetings;
 using Nodalis.Core.Decisions;
 using Nodalis.Infrastructure.Meetings;
@@ -233,6 +234,22 @@ internal static class ComplexProjectLayoutSmokeTests
                 projectNode.Children.Count(child => child.DisplayName == "Documentation") == 1 &&
                 projectNode.Children.All(child => child.Id != technical.Id),
                 "Explorer must nest sections with stable manifest identities, not duplicate roots.");
+
+            WorkspaceProjectExportService exporter = new(workspace);
+            global::Nodalis.Core.Exporting.ProjectExportPreview exportPreview =
+                await exporter.PreparePreviewAsync(project);
+            Assert(exportPreview.Sections.Single(section => section.Name == "Jalons")
+                    .DocumentCount == 1 &&
+                exportPreview.Sections.Single(section => section.Name == "Management")
+                    .DocumentCount == 0 &&
+                exportPreview.Sections.Single(section => section.Name == "Documentation")
+                    .DocumentCount == 1 &&
+                exportPreview.Sections.Single(section => section.Name == "Technique")
+                    .DocumentCount == 1 &&
+                exportPreview.MarkdownDocumentCount ==
+                    Directory.EnumerateFiles(project, "*.md",
+                        SearchOption.AllDirectories).Count() - 2,
+                "Project export preview must count nested documents once and avoid child duplication.");
 
             string source = Path.Combine(technical.DirectoryPath, "Scenario.md");
             await File.WriteAllTextAsync(source, "# Scenario\n");

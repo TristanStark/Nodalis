@@ -4515,6 +4515,56 @@ static async Task VerifyDocxImportAnalysisAsync(string root)
                 StringComparison.Ordinal),
             "Validated DOCX imports must write only selected blocks while preserving links and complete tables.");
 
+        // A DOCX import which creates a Complex v2 project must agree on
+        // physical paths before and after the user-approved fingerprint.
+        DocxImportPreview complexPreview = await previewService.PreparePreviewAsync(
+            sourcePath);
+        DocxImportSectionPreview complexSection = complexPreview.Sections.Single(section =>
+            section.SuggestedTargetSection == "Technique");
+        DocxImportCommitRequest complexRequest = new DocxImportCommitRequest
+        {
+            ApplicationId = application.Id,
+            NewProjectName = "Projet Complexe DOCX v2",
+            NewProjectComplexity = ProjectComplexity.Complex,
+            Sections =
+            [
+                new DocxImportSectionSelection
+                {
+                    SectionIndex = complexSection.Index,
+                    Include = true,
+                    TargetSection = "Technique"
+                }
+            ]
+        };
+
+        DocxImportPlan complexPlan = await previewService.BuildPlanAsync(
+            complexPreview, complexRequest);
+        Assert(complexPlan.CreatesProject &&
+            complexPlan.Changes.Any(change =>
+                change.RelativePath.EndsWith(
+                    "/Management/Jalons.md", StringComparison.OrdinalIgnoreCase)) &&
+            complexPlan.Changes.Any(change =>
+                change.RelativePath.Contains(
+                    "/Documentation/Technique/Import - ",
+                    StringComparison.OrdinalIgnoreCase)),
+            "The approved DOCX plan must show nested v2 milestone and technical paths.");
+
+        DocxImportCommitResult complexCommit = await previewService.CommitAsync(
+            complexPreview,
+            complexRequest with { ExpectedPlanFingerprint = complexPlan.Fingerprint });
+
+        Assert(File.Exists(Path.Combine(complexCommit.ProjectDirectory,
+                    "Management", "Jalons.md")) &&
+            !File.Exists(Path.Combine(complexCommit.ProjectDirectory, "Jalons.md")) &&
+            complexCommit.GeneratedFiles.Count == 1 &&
+            complexCommit.GeneratedFiles[0].StartsWith(
+                Path.Combine(complexCommit.ProjectDirectory,
+                    "Documentation", "Technique") + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase) &&
+            File.Exists(complexCommit.GeneratedFiles[0]) &&
+            !Directory.Exists(Path.Combine(complexCommit.ProjectDirectory, "Technique")),
+            "DOCX commit must honor approved nested destinations with no root duplicates.");
+
         global::Nodalis.Core.Importing.ParsedDocxDocument proposedDocument = new ParsedDocxDocument
         {
             Headers =
