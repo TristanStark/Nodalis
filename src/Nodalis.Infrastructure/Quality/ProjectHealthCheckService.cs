@@ -338,15 +338,19 @@ public sealed class ProjectHealthCheckService
                     resolution.BlockingEntries.Select(
                         Path.GetFileName));
 
+            string warning = section.RelativeDirectory is null
+                ? $"Le rôle « {section.Name} » utilise encore son ancien dossier car il contient d'autres éléments ({blockingNames}). Déplacez-les explicitement avant de convertir ce rôle en fichier racine."
+                : $"Le rôle « {section.Name} » utilise toujours {Path.GetFileName(resolution.ActivePath)} hors de l'emplacement déclaré « {section.RelativeDirectory} ». Une migration explicite est nécessaire.";
+
             issues.Add(
                 CreateIssue(
                     ProjectHealthSeverity.Warning,
                     "ROOT_DOCUMENT_MIGRATION_BLOCKED",
-                    $"Le rôle « {section.Name} » utilise encore son ancien dossier car il contient d'autres éléments ({blockingNames}). Déplacez-les explicitement avant de convertir ce rôle en fichier racine.",
+                    warning,
                     NormalizeRelativePath(
                         Path.GetRelativePath(
                             _workspaceRoot,
-                            resolution.LegacyDirectoryPath))));
+                            resolution.ActivePath))));
         }
     }
 
@@ -804,8 +808,8 @@ public sealed class ProjectHealthCheckService
                     _workspaceRoot,
                     Path.Combine(
                         projectDirectory,
-                        WindowsPathRules.SanitizeSegment(
-                            testSections[0].Name))));
+                        testSections[0].RelativeDirectory ??
+                            WindowsPathRules.SanitizeSegment(testSections[0].Name))));
 
         issues.Add(
             CreateIssue(
@@ -1422,6 +1426,10 @@ public sealed class ProjectHealthCheckService
                 StringComparison.OrdinalIgnoreCase) ||
             string.Equals(
                 document.ProjectRelativePath,
+                "Management/Jalons.md",
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                document.ProjectRelativePath,
                 WorkspaceLayout.GlobalGlossaryFileName,
                 StringComparison.OrdinalIgnoreCase) ||
             string.Equals(
@@ -1497,16 +1505,16 @@ public sealed class ProjectHealthCheckService
 
         if (rootDocumentFileName is not null)
         {
-            return string.Equals(
-                       normalized,
-                       rootDocumentFileName,
+            string declaredPath = section.RelativeDirectory is null
+                ? rootDocumentFileName
+                : section.RelativeDirectory + "/" + rootDocumentFileName;
+
+            return string.Equals(normalized, declaredPath,
                        StringComparison.CurrentCultureIgnoreCase) ||
-                   string.Equals(
-                       normalized,
-                       safeSectionName +
-                       "/" +
-                       safeSectionName +
-                       ".md",
+                   string.Equals(normalized, rootDocumentFileName,
+                       StringComparison.CurrentCultureIgnoreCase) ||
+                   string.Equals(normalized, safeSectionName + "/" +
+                       safeSectionName + ".md",
                        StringComparison.CurrentCultureIgnoreCase);
         }
 

@@ -379,15 +379,13 @@ public sealed partial class WorkspaceIntegrityDiagnosticService
                             section,
                             migrateIfSafe: false);
 
-                    if (!string.Equals(
-                            Path.GetDirectoryName(
-                                resolution.ActivePath),
-                            projectDirectory,
+                    if (string.Equals(
+                            Path.GetDirectoryName(resolution.ActivePath),
+                            resolution.LegacyDirectoryPath,
                             StringComparison.OrdinalIgnoreCase))
                     {
                         declaredSectionDirectories.Add(
-                            Path.GetFullPath(
-                                resolution.LegacyDirectoryPath));
+                            Path.GetFullPath(resolution.LegacyDirectoryPath));
                     }
 
                     AddIdentity(
@@ -405,7 +403,7 @@ public sealed partial class WorkspaceIntegrityDiagnosticService
                         issues.Add(CreateIssue(
                             WorkspaceIntegritySeverity.Error,
                             "SECTION_DOCUMENT_MISSING",
-                            $"Le rôle « {section.Name} » est déclaré dans le projet mais son document racine est absent.",
+                            $"Le rôle « {section.Name} » est déclaré dans le projet mais son document canonique est absent.",
                             NormalizeRelativePath(
                                 resolution.PreferredPath),
                             section.Id));
@@ -416,9 +414,11 @@ public sealed partial class WorkspaceIntegrityDiagnosticService
                         issues.Add(CreateIssue(
                             WorkspaceIntegritySeverity.Warning,
                             "ROOT_DOCUMENT_MIGRATION_BLOCKED",
-                            $"L'ancien dossier « {section.Name} » contient d'autres éléments et ne peut pas être aplati automatiquement sans décision utilisateur.",
+                            section.RelativeDirectory is null
+                                ? $"L'ancien dossier « {section.Name} » contient d'autres éléments et ne peut pas être aplati automatiquement sans décision utilisateur."
+                                : $"Le rôle « {section.Name} » utilise un fichier hors du dossier déclaré « {section.RelativeDirectory} » ; migration explicite requise.",
                             NormalizeRelativePath(
-                                resolution.LegacyDirectoryPath),
+                                resolution.ActivePath),
                             section.Id));
                     }
 
@@ -426,14 +426,17 @@ public sealed partial class WorkspaceIntegrityDiagnosticService
                 }
 
                 string expectedDirectory =
-                    Path.Combine(
-                        projectDirectory,
-                        WindowsPathRules.SanitizeSegment(
-                            section.Name));
+                    ProjectSectionDirectoryLayout.Resolve(projectDirectory, section);
 
-                declaredSectionDirectories.Add(
-                    Path.GetFullPath(
-                        expectedDirectory));
+                declaredSectionDirectories.Add(Path.GetFullPath(expectedDirectory));
+
+                string relativeDirectory = Path.GetRelativePath(
+                    projectDirectory, expectedDirectory);
+                string firstSegment = relativeDirectory.Split(
+                    Path.DirectorySeparatorChar,
+                    StringSplitOptions.RemoveEmptyEntries)[0];
+                declaredSectionDirectories.Add(Path.GetFullPath(
+                    Path.Combine(projectDirectory, firstSegment)));
 
                 AddIdentity(
                     identities,

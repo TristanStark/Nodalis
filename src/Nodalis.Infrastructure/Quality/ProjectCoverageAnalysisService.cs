@@ -857,10 +857,7 @@ public sealed partial class ProjectCoverageAnalysisService
 
         foreach (DocumentSnapshot document in documents.Where(document =>
                      milestoneSections.Any(section =>
-                         IsInTopLevelDirectory(
-                             document.ProjectRelativePath,
-                             WindowsPathRules.SanitizeSegment(
-                                 section.Name)))))
+                         IsDocumentInSection(document.ProjectRelativePath, section))))
         {
             int nameColumn =
                 -1;
@@ -1332,22 +1329,22 @@ public sealed partial class ProjectCoverageAnalysisService
 
         if (rootDocumentFileName is not null)
         {
-            return string.Equals(
-                       normalized,
-                       rootDocumentFileName,
+            string declaredPath = section.RelativeDirectory is null
+                ? rootDocumentFileName
+                : section.RelativeDirectory + "/" + rootDocumentFileName;
+
+            return string.Equals(normalized, declaredPath,
                        StringComparison.CurrentCultureIgnoreCase) ||
-                   string.Equals(
-                       normalized,
-                       safeSectionName +
-                       "/" +
-                       safeSectionName +
-                       ".md",
+                   string.Equals(normalized, rootDocumentFileName,
+                       StringComparison.CurrentCultureIgnoreCase) ||
+                   string.Equals(normalized, safeSectionName + "/" +
+                       safeSectionName + ".md",
                        StringComparison.CurrentCultureIgnoreCase);
         }
 
         return IsInTopLevelDirectory(
             normalized,
-            safeSectionName);
+            section.RelativeDirectory ?? safeSectionName);
     }
 
     /// <summary>
