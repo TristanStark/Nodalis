@@ -161,9 +161,9 @@ public partial class MainWindow
                     () =>
                     {
                         _allowExplicitWorktreeBringIntoView = true;
-                    try
-                    {
-                        RevealTreeItemContainer(node);
+                        try
+                        {
+                            RevealTreeItemContainer(node);
                         }
                         finally
                         {
