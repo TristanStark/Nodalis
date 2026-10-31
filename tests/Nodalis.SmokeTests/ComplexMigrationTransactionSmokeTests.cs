@@ -214,6 +214,8 @@ internal static class ComplexMigrationTransactionSmokeTests
                 workspace);
             await referenceExecutor.ApplyAsync(referencePlan,
                 referencePlan.SourceFingerprint, approved: true);
+            byte[] publishedReferenceBytes = await File.ReadAllBytesAsync(
+                referenceExternal);
             Assert((await File.ReadAllTextAsync(presentationPath)).Contains(
                     "[tech]: <Documentation/Technique/Technique.md> \"Documentation\"",
                     StringComparison.Ordinal) &&
@@ -225,8 +227,10 @@ internal static class ComplexMigrationTransactionSmokeTests
                     StringComparison.Ordinal) &&
                 File.Exists(Path.Combine(projectRoot,
                     "Documentation", "Technique", "capture.png")) &&
-                (await File.ReadAllBytesAsync(referenceExternal))
-                    .AsSpan(0, 3).SequenceEqual([0xEF, 0xBB, 0xBF]) &&
+                publishedReferenceBytes.Length > 3 &&
+                publishedReferenceBytes[0] == 0xEF &&
+                publishedReferenceBytes[1] == 0xBB &&
+                publishedReferenceBytes[2] == 0xBF &&
                 (await File.ReadAllTextAsync(referenceExternal)).Contains(
                     "\r\n[tech]:", StringComparison.Ordinal),
                 "Approved reference rewrites must preserve the definition label, " +
