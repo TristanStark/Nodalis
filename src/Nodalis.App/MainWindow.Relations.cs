@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Nodalis.App.Dialogs;
+using Nodalis.App.Editor;
 using Nodalis.App.Relations;
 using Nodalis.Core.Links;
 using Nodalis.Core.Navigation;
