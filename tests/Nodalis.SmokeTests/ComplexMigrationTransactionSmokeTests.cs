@@ -455,12 +455,17 @@ internal static class ComplexMigrationTransactionSmokeTests
             .InitializeAsync("Identités de migration");
         try
         {
+            JsonSerializerOptions serializer = new(JsonSerializerDefaults.Web);
+            serializer.Converters.Add(
+                new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
             Guid applicationId = Guid.NewGuid();
             string application = Path.Combine(workspace, "Applications", "Produit");
             Directory.CreateDirectory(application);
-            await AtomicJsonFile.WriteAsync(Path.Combine(application,
+            await File.WriteAllTextAsync(Path.Combine(application,
                 WorkspaceLayout.ApplicationManifestFileName),
-                new ApplicationManifest { Id = applicationId, Name = "Produit" });
+                JsonSerializer.Serialize(
+                    new ApplicationManifest { Id = applicationId, Name = "Produit" },
+                    serializer));
 
             string projectRoot = Path.Combine(application, "Projets",
                 "Complexe identités");
@@ -487,8 +492,9 @@ internal static class ComplexMigrationTransactionSmokeTests
                     Section("Glossaire", "glossary", true)
                 ]
             };
-            await AtomicJsonFile.WriteAsync(Path.Combine(projectRoot,
-                WorkspaceLayout.ProjectManifestFileName), manifest);
+            await File.WriteAllTextAsync(Path.Combine(projectRoot,
+                WorkspaceLayout.ProjectManifestFileName),
+                JsonSerializer.Serialize(manifest, serializer));
 
             foreach (string name in new[]
                      { "Documentation", "Fonctionnel", "Technique", "Risques",
