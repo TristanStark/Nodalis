@@ -4919,6 +4919,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.journey-templates-v2",
+                Title = "Personnaliser les modèles de Parcours",
+                Subtitle = "Éditer les modèles du workspace sans modifier les projets existants",
+                Keywords = ["modèles", "parcours", "templates", "simple", "complexe", "personnaliser"],
+                ExecuteAsync = ManageJourneyTemplatesAsync
+            },
+            new()
+            {
                 Id = "project.complex-v2-preview",
                 Title = "Prévisualiser la structure Complexe 2.0",
                 Subtitle = "Inventaire en lecture seule des déplacements et conflits éventuels",
