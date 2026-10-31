@@ -2,6 +2,9 @@ using Nodalis.Core.Markdown;
 
 internal static class MarkdownSyntaxSmokeTests
 {
+    /// <summary>
+    /// Verifies syntax coloring for common Markdown structures and contiguous spans.
+    /// </summary>
     public static void Run()
     {
         AssertKind("# Titre majeur", 3, MarkdownSyntaxKind.Heading);
@@ -54,6 +57,12 @@ internal static class MarkdownSyntaxSmokeTests
         }
     }
 
+    /// <summary>
+    /// Checks the assigned syntax role at one position in a source line.
+    /// </summary>
+    /// <param name="source">The Markdown line under test.</param>
+    /// <param name="position">A character position inside that line.</param>
+    /// <param name="expected">The required syntax role.</param>
     private static void AssertKind(
         string source,
         int position,
