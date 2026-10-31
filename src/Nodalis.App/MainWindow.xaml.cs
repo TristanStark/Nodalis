@@ -4902,6 +4902,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.journey-v2",
+                Title = "Parcours projet 2.0",
+                Subtitle = "Consulter et personnaliser les étapes et opérations du projet",
+                Keywords = ["parcours", "projet", "étapes", "statut", "opérations", "pilotage"],
+                ExecuteAsync = OpenProjectJourneyAsync
+            },
+            new()
+            {
                 Id = "project.complex-v2-preview",
                 Title = "Prévisualiser la structure Complexe 2.0",
                 Subtitle = "Inventaire en lecture seule des déplacements et conflits éventuels",
