@@ -83,7 +83,8 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                     IsSingleton = section.IsSingleton,
                     TemplateKey = string.IsNullOrWhiteSpace(section.TemplateKey)
                         ? null
-                        : section.TemplateKey.Trim()
+                        : section.TemplateKey.Trim(),
+                    RelativeDirectory = section.RelativeDirectory
                 })
                 .ToList();
 
@@ -162,10 +163,7 @@ public sealed class FileSystemProjectCreator : IProjectCreator
 
                 string sectionDirectory =
                     rootDocumentFileName is null
-                        ? Path.Combine(
-                            stagingDirectory,
-                            WindowsPathRules.SanitizeSegment(
-                                section.Name))
+                        ? ProjectSectionDirectoryLayout.Resolve(stagingDirectory, section)
                         : stagingDirectory;
 
                 if (rootDocumentFileName is null)

@@ -52,6 +52,8 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         await EnsureMissingBuiltInProjectProfilesAsync(
             cancellationToken);
 
+        await UpgradeUnmodifiedComplexProfileAsync(cancellationToken);
+
         foreach (global::System.Collections.Generic.KeyValuePair<string, string> template in CreateDefaultTemplateFiles())
         {
             string path = ResolveTemplatePath(template.Key);
@@ -839,6 +841,75 @@ public sealed class FileSystemTemplateStore : ITemplateStore
     }
 
     /// <summary>
+    /// Updates only an untouched, exact 1.9 Complex built-in profile. Customized
+    /// profiles, even those changing a single name/order/role, stay untouched.
+    /// Existing project manifests and files are never edited by this upgrade.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Profile-only template upgrade task.</returns>
+    private async Task UpgradeUnmodifiedComplexProfileAsync(
+        CancellationToken cancellationToken)
+    {
+        ProjectProfileCatalog current = await LoadProjectProfilesAsync(cancellationToken);
+        ProjectProfileDefinition? complex = current.Profiles.FirstOrDefault(profile =>
+            profile.Complexity == ProjectComplexity.Complex);
+
+        if (complex is null ||
+            !string.Equals(complex.DisplayName, "Complexe", StringComparison.Ordinal) ||
+            !IsLegacyComplexBuiltInSections(complex.Sections))
+        {
+            return;
+        }
+
+        ProjectProfileDefinition modern = CreateDefaultProjectProfiles().Profiles
+            .Single(profile => profile.Complexity == ProjectComplexity.Complex);
+
+        await SaveProjectProfilesAsync(current with
+        {
+            Profiles = current.Profiles
+                .Select(profile => profile.Complexity == ProjectComplexity.Complex
+                    ? modern : profile)
+                .ToList()
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Matches the exact legacy built-in Complex section set and order,
+    /// refusing to reconfigure any user-customized project profile.
+    /// </summary>
+    /// <param name="sections">Persisted legacy profile sections.</param>
+    /// <returns>True only for the unchanged shipped 1.9 profile.</returns>
+    private static bool IsLegacyComplexBuiltInSections(
+        IReadOnlyList<ProjectSectionTemplateDefinition> sections)
+    {
+        (string Name, int Order, string? Template, bool Singleton)[] legacy =
+        [
+            ("Jalons", 10, "milestones", true),
+            ("Documentation", 20, "documentation", true),
+            ("Fonctionnel", 30, "functional", true),
+            ("Technique", 40, "technical-complex", true),
+            ("Exploitation", 50, "operations", true),
+            ("Déploiement", 60, "deployment", true),
+            ("Glossaire", 70, "glossary", true),
+            ("Tests", 80, "tests-complex", true),
+            ("Réunions", 90, null, false),
+            ("Décisions", 100, null, false),
+            ("Risques", 110, "risks", true),
+            ("Dépendances", 120, "dependencies", true)
+        ];
+
+        return sections.Count == legacy.Length &&
+            sections.OrderBy(section => section.Order)
+                .Zip(legacy, (section, expected) =>
+                    section.Name == expected.Name &&
+                    section.Order == expected.Order &&
+                    section.TemplateKey == expected.Template &&
+                    section.IsSingleton == expected.Singleton &&
+                    section.RelativeDirectory is null)
+                .All(matches => matches);
+    }
+
+    /// <summary>
     /// Adds newly shipped built-in templates to an existing workspace catalog without overwriting user edits.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -1089,13 +1160,15 @@ public sealed class FileSystemTemplateStore : ITemplateStore
             string name,
             int order,
             string? templateKey = null,
-            bool singleton = true) =>
+            bool singleton = true,
+            string? relativeDirectory = null) =>
             new()
             {
                 Name = name,
                 Order = order,
                 IsSingleton = singleton,
-                TemplateKey = templateKey
+                TemplateKey = templateKey,
+                RelativeDirectory = relativeDirectory
             };
 
         return new ProjectProfileCatalog
@@ -1137,17 +1210,21 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                     Sections =
                     [
                         Section("Jalons", 10, "milestones"),
-                        Section("Documentation", 20, "documentation"),
-                        Section("Fonctionnel", 30, "functional"),
-                        Section("Technique", 40, "technical-complex"),
-                        Section("Exploitation", 50, "operations"),
-                        Section("Déploiement", 60, "deployment"),
-                        Section("Glossaire", 70, "glossary"),
-                        Section("Tests", 80, "tests-complex"),
-                        Section("Réunions", 90, singleton: false),
-                        Section("Décisions", 100, singleton: false),
-                        Section("Risques", 110, "risks"),
-                        Section("Dépendances", 120, "dependencies")
+                        Section("Documentation", 20, "documentation", relativeDirectory: "Documentation"),
+                        Section("Exigences", 25, singleton: false, relativeDirectory: "Documentation/Exigences"),
+                        Section("Fonctionnel", 30, "functional", relativeDirectory: "Documentation/Fonctionnel"),
+                        Section("Technique", 40, "technical-complex", relativeDirectory: "Documentation/Technique"),
+                        Section("Architecture", 45, singleton: false, relativeDirectory: "Documentation/Technique/Architecture"),
+                        Section("Analyse", 50, singleton: false, relativeDirectory: "Analyse"),
+                        Section("Risques", 55, "risks", relativeDirectory: "Analyse/Risques"),
+                        Section("Dépendances", 60, "dependencies", relativeDirectory: "Analyse/Dépendances"),
+                        Section("Management", 65, singleton: false, relativeDirectory: "Management"),
+                        Section("Réunions", 70, singleton: false, relativeDirectory: "Management/Réunions"),
+                        Section("Décisions", 75, singleton: false, relativeDirectory: "Management/Décisions"),
+                        Section("Exploitation", 80, "operations", relativeDirectory: "Exploitation"),
+                        Section("Déploiement", 85, "deployment", relativeDirectory: "Exploitation/Déploiement"),
+                        Section("Glossaire", 90, "glossary"),
+                        Section("Tests", 100, "tests-complex", relativeDirectory: "Tests")
                     ]
                 },
                 new ProjectProfileDefinition

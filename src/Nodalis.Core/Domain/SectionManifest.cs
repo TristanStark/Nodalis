@@ -11,4 +11,7 @@ public sealed record SectionManifest
     public bool IsSingleton { get; init; }
 
     public string? TemplateKey { get; init; }
+
+    /// <summary>Optional explicit project-relative section directory; null uses legacy name-based layout.</summary>
+    public string? RelativeDirectory { get; init; }
 }
