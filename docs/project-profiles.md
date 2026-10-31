@@ -141,3 +141,32 @@ Nodalis ne remodèle jamais silencieusement un projet déjà créé.
 Lors d'une mise à jour de Nodalis, le profil Ultra-simple est ajouté aux
 workspaces existants sans écraser les profils personnalisés. Les anciennes
 valeurs de complexité restent inchangées dans les manifestes persistés.
+
+
+## Nouveaux projets Complexes — organisation 2.0 (develop)
+
+Seul le profil intégré **Complexe** non personnalisé reçoit à la création la nouvelle hiérarchie. Les sections répertoriées dans le profil possèdent un champ optionnel `relativeDirectory`, de sorte que les anciens manifestes ne changent ni chemin ni schéma et que les utilisateurs puissent toujours ajouter librement des dossiers.
+
+```text
+Documentation/
+  Documentation.md
+  Exigences/
+  Fonctionnel/Fonctionnel.md
+  Technique/Technique.md
+    Architecture/
+Analyse/
+  Risques/Risques.md
+  Dépendances/Dépendances.md
+Management/
+  Réunions/
+  Décisions/
+Exploitation/
+  Exploitation.md
+  Déploiement/Déploiement.md
+Tests/Tests.md
+Jalons.md
+Glossaire.md
+Notes rapides.md
+```
+
+**Important** : `Jalons.md` reste pour l'instant à la racine, pour préserver les résolveurs existants avant sa future transition vers `Management/Jalons.md`. Le profil Simple/Moyen/Ultra-simple n'est pas modifié. La première initialisation 2.0 met à jour **uniquement** un profil Complexe identique au profil intégré 1.9 ; toute personnalisation (ordre, type, libellé, sections) interdit son remplacement automatique. Les projets existants ne sont jamais déplacés lors de la mise à jour d'un profil. Dans l'éditeur de profils, un chemin physique déclaré est conservé lors des modifications du libellé et visible dans le détail des sections.
