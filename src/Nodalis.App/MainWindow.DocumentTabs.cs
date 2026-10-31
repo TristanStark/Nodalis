@@ -4,6 +4,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Nodalis.App.Diagnostics;
 using Nodalis.App.Editor;
 using Nodalis.App.Navigation;
@@ -24,6 +25,9 @@ public partial class MainWindow
     private DocumentTabViewModel? _draggedDocumentTab;
     private bool _bulkTabCloseInProgress;
     private readonly HashSet<DocumentTabViewModel> _bulkClosingTabs = [];
+    private readonly HashSet<DocumentAutosaveController> _pendingAutosaveRefreshes = [];
+    private DispatcherTimer _autosaveRefreshTimer = null!;
+    private bool _autosaveRefreshRunning;
 
     /// <summary>
     /// Initializes the document tab strip after the window controls are created.
@@ -31,6 +35,14 @@ public partial class MainWindow
     private void InitializeDocumentTabs()
     {
         DocumentTabsList.ItemsSource = _documentTabs;
+        _autosaveRefreshTimer = new DispatcherTimer(
+            TimeSpan.FromMilliseconds(220),
+            DispatcherPriority.Background,
+            AutosaveRefreshTimer_Tick,
+            Dispatcher)
+        {
+            IsEnabled = false
+        };
         UpdateDocumentTabsVisibility();
     }
 
@@ -143,6 +155,7 @@ public partial class MainWindow
         autosave.ConflictDetected -= Autosave_ConflictDetected;
         autosave.SaveFailed -= Autosave_SaveFailed;
         _autosaveTabs.Remove(autosave);
+        _pendingAutosaveRefreshes.Remove(autosave);
     }
 
     /// <summary>
@@ -1012,121 +1025,80 @@ public partial class MainWindow
     /// </summary>
     /// <param name="sender">The autosave controller that raised the event.</param>
     /// <returns>A task representing contextual refresh work.</returns>
-    private async Task HandleDocumentTabAutosaveSavedAsync(
-            object? sender)
+    private async Task HandleDocumentTabAutosaveSavedBatchAsync(
+            IReadOnlyList<DocumentAutosaveController> controllers)
     {
         using DispatcherHeartbeatMonitor.OperationScope measurement =
-            _heartbeatMonitor.TrackOperation("Autosave contextes");
-        if (sender is not DocumentAutosaveController autosave ||
-            !_autosaveTabs.TryGetValue(
-                autosave,
-                out DocumentTabViewModel? tab) ||
-            _bulkClosingTabs.Contains(tab))
-        {
-            // Batch close handles flush outcomes and performs one final index refresh.
-            return;
-        }
+            _heartbeatMonitor.TrackOperation("Autosave contextes groupés");
 
-        tab.IsDirty =
-            !string.Equals(
+        List<DocumentTabViewModel> changed = [];
+        foreach (DocumentAutosaveController autosave in controllers)
+        {
+            if (!_autosaveTabs.TryGetValue(autosave, out DocumentTabViewModel? tab) ||
+                _bulkClosingTabs.Contains(tab))
+            {
+                continue;
+            }
+
+            tab.IsDirty = !string.Equals(
                 tab.Content,
                 tab.Session.Content,
                 StringComparison.Ordinal);
+            tab.HasConflict = false;
 
-        tab.HasConflict = false;
+            if (ReferenceEquals(tab, _secondaryDocumentTab))
+            {
+                UpdateSecondarySaveState(tab);
+            }
 
-        if (ReferenceEquals(
-                tab,
-                _secondaryDocumentTab))
-        {
-            UpdateSecondarySaveState(
-                tab);
-        }
+            if (ReferenceEquals(tab, _activeDocumentTab))
+            {
+                _documentDirty = tab.IsDirty;
+                SaveStateText.Text = tab.IsDirty ? "Modification…" : "Enregistré";
+                if (!tab.IsDirty)
+                {
+                    StatusText.Text = "Enregistré localement";
+                }
+            }
 
-        if (!ReferenceEquals(
-                tab,
-                _activeDocumentTab))
-        {
             if (!tab.IsDirty)
             {
-                WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
-                await RefreshLinkIndexAsync();
+                changed.Add(tab);
+            }
+        }
 
-                // The user can return to Home while another tab's autosave
-                // finishes. Keep visible task/milestone lists consistent,
-                // reusing the index just rebuilt for this saved revision.
-                if (DashboardHost.Visibility == Visibility.Visible)
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            // One versioned rebuild per burst, even if many tab timers resume
+            // simultaneously after a machine sleep. Never discard an actual save.
+            WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
+            await RefreshLinkIndexAsync();
+
+            if (_activeDocumentTab is DocumentTabViewModel foreground)
+            {
+                UpdateLinkContext(foreground.FullPath);
+
+                bool reloadGlossary = _glossaryScopes.Count == 0 ||
+                    changed.Any(tab => _glossaryScopes.Any(scope =>
+                        string.Equals(scope.FilePath, tab.FullPath, StringComparison.OrdinalIgnoreCase)));
+                if (reloadGlossary)
                 {
-                    await RefreshDashboardBusinessAsync(_linkIndex);
-                }
-
-                // A background tab may have changed links targeting the
-                // foreground document. Update backlinks without a preview render.
-                if (_activeDocumentTab is DocumentTabViewModel foreground)
-                {
-                    UpdateLinkContext(foreground.FullPath);
-
-                    bool activeGlossaryChanged = _glossaryScopes.Any(scope =>
-                        string.Equals(scope.FilePath, tab.FullPath,
-                            StringComparison.OrdinalIgnoreCase));
-                    if (activeGlossaryChanged)
+                    await RefreshGlossaryContextAsync(foreground.FullPath);
+                    if (ReferenceEquals(foreground, _activeDocumentTab))
                     {
-                        await RefreshGlossaryContextAsync(foreground.FullPath);
-                        if (ReferenceEquals(foreground, _activeDocumentTab))
-                        {
-                            UpdateGlossaryAnnotations();
-                        }
+                        UpdateGlossaryAnnotations();
                     }
                 }
             }
 
-            return;
-        }
-
-        _documentDirty =
-            tab.IsDirty;
-
-        SaveStateText.Text =
-            tab.IsDirty
-                ? "Modification…"
-                : "Enregistré";
-
-        if (tab.IsDirty)
-        {
-            return;
-        }
-
-        StatusText.Text =
-            "Enregistré localement";
-
-        try
-        {
-            // The preview timer already rendered this text revision. Indexing
-            // updates backlinks, but must not rebuild the same FlowDocument.
-            WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
-            await RefreshLinkIndexAndContextAsync(renderPreview: false);
-
-            // Glossary definitions are scoped files, not arbitrary note text.
-            // Only reload them when editing a source of the active glossary.
-            bool glossarySourceChanged = _glossaryScopes.Count == 0 ||
-                _glossaryScopes.Any(scope => string.Equals(
-                    scope.FilePath, tab.FullPath,
-                    StringComparison.OrdinalIgnoreCase));
-            if (glossarySourceChanged && ReferenceEquals(tab, _activeDocumentTab))
-            {
-                await RefreshGlossaryContextAsync(tab.FullPath);
-                if (ReferenceEquals(tab, _activeDocumentTab))
-                {
-                    UpdateGlossaryAnnotations();
-                }
-            }
-
-            // A document hides the global dashboard: do not rebuild the same
-            // task/milestone lists until ShowDashboard makes them visible.
             if (DashboardHost.Visibility == Visibility.Visible)
             {
-                await RefreshDashboardTasksAsync(_linkIndex);
-                await RefreshDashboardMilestonesAsync(_linkIndex);
+                await RefreshDashboardBusinessAsync(_linkIndex);
             }
         }
         catch (Exception exception) when (
@@ -1136,6 +1108,60 @@ public partial class MainWindow
         {
             StatusText.Text =
                 $"Enregistré · index liens indisponible : {exception.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Records a completed save without creating one expensive refresh per tab.
+    /// </summary>
+    /// <param name="sender">The autosave controller that completed the save.</param>
+    private void QueueDocumentAutosaveRefresh(object? sender)
+    {
+        if (sender is not DocumentAutosaveController autosave ||
+            !_autosaveTabs.TryGetValue(autosave, out DocumentTabViewModel? tab) ||
+            _bulkClosingTabs.Contains(tab))
+        {
+            return;
+        }
+
+        _pendingAutosaveRefreshes.Add(autosave);
+        _autosaveRefreshTimer.Stop();
+        if (!_autosaveRefreshRunning)
+        {
+            _autosaveRefreshTimer.Start();
+        }
+    }
+
+    /// <summary>
+    /// Coalesces completed autosaves into one index/context update and allows a
+    /// trailing batch if another save completes while the refresh is running.
+    /// </summary>
+    /// <param name="sender">The debounce timer.</param>
+    /// <param name="e">The timer event.</param>
+    private async void AutosaveRefreshTimer_Tick(object? sender, EventArgs e)
+    {
+        _autosaveRefreshTimer.Stop();
+        if (_autosaveRefreshRunning || _pendingAutosaveRefreshes.Count == 0)
+        {
+            return;
+        }
+
+        _autosaveRefreshRunning = true;
+        DocumentAutosaveController[] batch = _pendingAutosaveRefreshes.ToArray();
+        _pendingAutosaveRefreshes.Clear();
+        try
+        {
+            await RunUiActionAsync(
+                "Autosave · finalisation groupée",
+                () => HandleDocumentTabAutosaveSavedBatchAsync(batch));
+        }
+        finally
+        {
+            _autosaveRefreshRunning = false;
+            if (_pendingAutosaveRefreshes.Count > 0)
+            {
+                _autosaveRefreshTimer.Start();
+            }
         }
     }
 
