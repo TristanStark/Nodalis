@@ -330,3 +330,42 @@ du dernier onglet, pas d'onglet fantôme, disparition des diagnostics de binding
 Comparer avant/après le temps de fermeture et le retard Dispatcher p95/p99/max.
 Laisser Nodalis ouvert avant mise en veille puis mesurer la reprise et le nombre
 de refresh / sauvegardes sans attribuer à priori le ralentissement à la RAM.
+
+
+## Scroll du worktree conservé lors des changements d'onglets (#187, 31 octobre 2026)
+
+**Régression constatée en vidéo (53 secondes) :** lors des bascules entre notes
+déjà ouvertes appartenant à différentes applications/projets, le worktree
+effectue de grands sauts de scroll vers le haut ou le bas. Les freezes
+précédents sont signalés comme résolus, mais cette navigation automatique
+perturbe la lecture du volet gauche.
+
+Correctifs dans `develop` :
+
+- `NavigationTree_SelectedItemChanged` n'enfile plus un `BringIntoView`
+  différé après chaque sélection : cliquer une ligne déjà visible ne
+  demande pas de nouveau déplacement du viewport.
+- Le style `TreeViewItem` intercepte `RequestBringIntoView` **au niveau de
+  la ligne**, avant que son ancêtre `ScrollViewer` ne le traite : une
+  sélection programmatique depuis l'éditeur ne déplace pas le scroll.
+  La navigation clavier lorsque le worktree a le focus reste native ;
+  « Révéler dans l'explorateur » et clic sur un en-tête épinglé restent
+  les actions explicites de repositionnement.
+- Un callback `SelectedItemChanged` tardif ne rouvre plus le même document
+  déjà demandé par l'onglet actif.
+- Les demandes différées d'affichage ignorent une cible devenue obsolète
+  ou invalidée par un scroll ultérieur.
+- La projection du filtre du worktree n'est plus recalculée si racine,
+  recherche et application visible sont inchangées. Cela évite les
+  ré-expansions involontaires de branches et le churn du TreeView virtualisé.
+- Les listes Favoris/Documents récents ne sont plus rebondées lorsque les
+  lignes de raccourci n'ont pas réellement changé.
+
+**Validation manuelle Windows (sans présumer du résultat) :**
+ouvrir 20–50 onglets de différents projets ; placer le worktree à mi-scroll ;
+basculer plusieurs fois entre les onglets sans toucher à l'explorateur ;
+l'offset et les branches repliées doivent rester stables, même lorsque
+le document sélectionné est hors de l'écran du worktree. Vérifier ensuite
+que « Révéler dans l'explorateur » scrolle volontairement jusqu'au document,
+que le bouton d'en-tête épinglé revient au dossier, que les flèches clavier
+font défiler normalement, et que les filtres/replis manuels restent fonctionnels.
