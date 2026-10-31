@@ -22,6 +22,8 @@ public partial class MainWindow
     private bool _suppressDocumentTabSelection;
     private Point _documentTabDragStart;
     private DocumentTabViewModel? _draggedDocumentTab;
+    private bool _bulkTabCloseInProgress;
+    private readonly HashSet<DocumentTabViewModel> _bulkClosingTabs = [];
 
     /// <summary>
     /// Initializes the document tab strip after the window controls are created.
@@ -444,6 +446,10 @@ public partial class MainWindow
             bool activateNeighbor)
     {
         ArgumentNullException.ThrowIfNull(tab);
+        if (_bulkTabCloseInProgress)
+        {
+            return false;
+        }
 
         if (ReferenceEquals(
                 _activeDocumentTab,
@@ -1014,8 +1020,10 @@ public partial class MainWindow
         if (sender is not DocumentAutosaveController autosave ||
             !_autosaveTabs.TryGetValue(
                 autosave,
-                out DocumentTabViewModel? tab))
+                out DocumentTabViewModel? tab) ||
+            _bulkClosingTabs.Contains(tab))
         {
+            // Batch close handles flush outcomes and performs one final index refresh.
             return;
         }
 
@@ -1518,64 +1526,199 @@ public partial class MainWindow
     /// </summary>
     /// <param name="survivor">The tab to keep.</param>
     /// <returns>A task representing close operations.</returns>
-    private async Task CloseOtherDocumentTabsAsync(
+    private Task CloseOtherDocumentTabsAsync(
+            DocumentTabViewModel survivor) =>
+        CloseDocumentTabBatchAsync(
+            survivor,
+            _documentTabs.Where(tab => !ReferenceEquals(tab, survivor)).ToArray());
+
+    /// <summary>
+    /// Closes all tabs to the right of the survivor without repeated WPF layouts.
+    /// </summary>
+    /// <param name="survivor">The reference tab.</param>
+    /// <returns>The completed batch close.</returns>
+    private Task CloseDocumentTabsToRightAsync(
             DocumentTabViewModel survivor)
     {
-        foreach (DocumentTabViewModel tab in _documentTabs
-                     .Where(candidate =>
-                         !ReferenceEquals(
-                             candidate,
-                             survivor))
-                     .ToArray())
-        {
-            if (!await CloseDocumentTabAsync(
-                    tab,
-                    "fermer cet onglet",
-                    activateNeighbor: false))
-            {
-                return;
-            }
-        }
-
-        await ActivateDocumentTabAsync(
-            survivor,
-            synchronizeNavigation: true);
+        int index = _documentTabs.IndexOf(survivor);
+        return index < 0
+            ? Task.CompletedTask
+            : CloseDocumentTabBatchAsync(
+                survivor,
+                _documentTabs.Skip(index + 1).ToArray());
     }
 
     /// <summary>
-    /// Closes every tab positioned to the right of the requested survivor.
+    /// Checks all pending saves before removing many tabs with one ListBox rebinding.
+    /// No dirty document is discarded without explicit confirmation.
     /// </summary>
-    /// <param name="survivor">The reference tab.</param>
-    /// <returns>A task representing close operations.</returns>
-    private async Task CloseDocumentTabsToRightAsync(
-            DocumentTabViewModel survivor)
+    /// <param name="survivor">The tab to keep and display.</param>
+    /// <param name="candidates">Snapshot of the tabs to remove.</param>
+    /// <returns>The completed batch close.</returns>
+    private async Task CloseDocumentTabBatchAsync(
+            DocumentTabViewModel survivor,
+            IReadOnlyList<DocumentTabViewModel> candidates)
     {
-        int index =
-            _documentTabs.IndexOf(survivor);
-
-        if (index < 0)
+        if (_bulkTabCloseInProgress ||
+            candidates.Count == 0 ||
+            !_documentTabs.Contains(survivor))
         {
             return;
         }
 
-        DocumentTabViewModel[] tabs = _documentTabs
-            .Skip(index + 1)
-            .ToArray();
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Fermeture groupée onglets");
 
-        foreach (DocumentTabViewModel tab in tabs)
+        DocumentTabViewModel[] closing = candidates
+            .Where(tab => !ReferenceEquals(tab, survivor) && _documentTabs.Contains(tab))
+            .Distinct()
+            .ToArray();
+        if (closing.Length == 0)
         {
-            if (!await CloseDocumentTabAsync(
-                    tab,
-                    "fermer cet onglet",
-                    activateNeighbor: false))
-            {
-                return;
-            }
+            return;
         }
 
-        await ActivateDocumentTabAsync(
-            survivor,
-            synchronizeNavigation: true);
+        _bulkTabCloseInProgress = true;
+        DocumentTabsList.IsEnabled = false;
+        foreach (DocumentTabViewModel tab in closing)
+        {
+            _bulkClosingTabs.Add(tab);
+        }
+
+        try
+        {
+            StoreActiveDocumentTabState();
+            StoreSecondaryDocumentTabState();
+
+            bool savedAnyChanges = false;
+            List<DocumentTabViewModel> unsaved = [];
+            foreach (DocumentTabViewModel tab in closing)
+            {
+                savedAnyChanges |= tab.IsDirty ||
+                    !string.Equals(tab.Content, tab.Session.Content, StringComparison.Ordinal);
+
+                try
+                {
+                    await tab.Autosave.FlushAsync();
+                }
+                catch (Exception exception) when (
+                    RecoverableExceptionPolicy.CanContinue(exception))
+                {
+                    ReportRecoverableUiError(
+                        "Enregistrement avant fermeture groupée",
+                        exception,
+                        showDialog: false);
+                }
+
+                tab.IsDirty = !string.Equals(
+                    tab.Content,
+                    tab.Session.Content,
+                    StringComparison.Ordinal);
+                if (tab.IsDirty)
+                {
+                    unsaved.Add(tab);
+                }
+            }
+
+            if (unsaved.Count > 0)
+            {
+                string names = string.Join(
+                    ", ",
+                    unsaved.Take(5).Select(tab => tab.DisplayName));
+                string suffix = unsaved.Count > 5 ? "…" : string.Empty;
+                MessageBoxResult answer = MessageBox.Show(
+                    this,
+                    $"{unsaved.Count} onglet(s) non enregistrés : {names}{suffix}.\n\n" +
+                    "Les fermer entraînera la perte de leurs modifications locales. Continuer ?",
+                    "Modifications non enregistrées",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (answer != MessageBoxResult.Yes)
+                {
+                    if (savedAnyChanges)
+                    {
+                        WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
+                        await RefreshLinkIndexAsync();
+                    }
+
+                    return;
+                }
+            }
+
+            HashSet<DocumentTabViewModel> removed = closing.ToHashSet();
+            DocumentTabViewModel[] retained = _documentTabs
+                .Where(tab => !removed.Contains(tab))
+                .ToArray();
+
+            if (_secondaryDocumentTab is not null &&
+                (removed.Contains(_secondaryDocumentTab) ||
+                 ReferenceEquals(_secondaryDocumentTab, survivor)))
+            {
+                DetachSecondaryDocumentTabView();
+            }
+
+            if (_activeDocumentTab is not null &&
+                removed.Contains(_activeDocumentTab))
+            {
+                _activeDocumentTab = null;
+                _documentSession = null;
+                _autosave = null;
+                _documentDirty = false;
+                _conflictWarningShown = false;
+            }
+
+            foreach (DocumentTabViewModel tab in closing)
+            {
+                UnregisterDocumentTabAutosave(tab.Autosave);
+                await tab.Autosave.DisposeAsync();
+            }
+
+            // The horizontal ListBox has nonvirtualized items: repeated Remove()
+            // relayouts every remaining tab. Detaching once avoids N visual passes.
+            _suppressDocumentTabSelection = true;
+            try
+            {
+                DocumentTabsList.ItemsSource = null;
+                _documentTabs.Clear();
+                foreach (DocumentTabViewModel tab in retained)
+                {
+                    _documentTabs.Add(tab);
+                }
+
+                DocumentTabsList.ItemsSource = _documentTabs;
+                DocumentTabsList.SelectedItem = survivor;
+                DocumentTabsList.ContextMenu = null;
+                UpdateDocumentTabsVisibility();
+            }
+            finally
+            {
+                _suppressDocumentTabSelection = false;
+            }
+
+            if (!ReferenceEquals(_activeDocumentTab, survivor))
+            {
+                await ActivateDocumentTabAsync(
+                    survivor,
+                    synchronizeNavigation: true);
+            }
+
+            if (savedAnyChanges)
+            {
+                WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
+                await RefreshLinkIndexAsync();
+                if (_activeDocumentTab is not null)
+                {
+                    UpdateLinkContext(_activeDocumentTab.FullPath);
+                }
+            }
+        }
+        finally
+        {
+            _bulkClosingTabs.Clear();
+            _bulkTabCloseInProgress = false;
+            DocumentTabsList.IsEnabled = true;
+        }
     }
 
     /// <summary>
