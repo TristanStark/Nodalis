@@ -83,6 +83,7 @@ try
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
     await ComplexProjectLayoutSmokeTests.RunAsync(root);
+    await ProjectJourneySmokeTests.RunAsync(root);
     await ProjectArchivesSmokeTests.RunAsync(root);
     await VerifyProjectStructureAsync(root);
     await VerifyApplicationStructureAsync(root);
