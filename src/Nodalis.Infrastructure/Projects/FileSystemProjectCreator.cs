@@ -161,16 +161,17 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                     ProjectSingletonDocumentLayout.GetRootDocumentFileName(
                         section.TemplateKey);
 
-                string sectionDirectory =
-                    rootDocumentFileName is null
-                        ? ProjectSectionDirectoryLayout.Resolve(stagingDirectory, section)
-                        : stagingDirectory;
+                string documentPath = rootDocumentFileName is null
+                    ? Path.Combine(
+                        ProjectSectionDirectoryLayout.Resolve(stagingDirectory, section),
+                        WindowsPathRules.SanitizeSegment(section.Name) + ".md")
+                    : ProjectSingletonDocumentLayout.Resolve(
+                        stagingDirectory, section, migrateIfSafe: false).PreferredPath;
 
-                if (rootDocumentFileName is null)
-                {
-                    Directory.CreateDirectory(
-                        sectionDirectory);
-                }
+                string sectionDirectory = Path.GetDirectoryName(documentPath)
+                    ?? throw new InvalidDataException("Destination de section invalide.");
+
+                Directory.CreateDirectory(sectionDirectory);
 
                 if (section.TemplateKey is null)
                 {
@@ -194,16 +195,8 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                     variables,
                     cancellationToken);
 
-                string documentFileName =
-                    rootDocumentFileName ??
-                    WindowsPathRules.SanitizeSegment(
-                        section.Name) +
-                    ".md";
-
                 await AtomicFileWriter.WriteAllTextAsync(
-                    Path.Combine(
-                        sectionDirectory,
-                        documentFileName),
+                    documentPath,
                     content,
                     cancellationToken);
             }
@@ -323,8 +316,15 @@ public sealed class FileSystemProjectCreator : IProjectCreator
 
             if (rootDocument && section.RelativeDirectory is not null)
             {
-                throw new InvalidDataException(
-                    $"La section « {section.Name} » est un document racine protégé.");
+                if (!string.Equals(section.TemplateKey, "milestones",
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        $"La section « {section.Name} » est un document racine protégé.");
+                }
+
+                ProjectSectionDirectoryLayout.ValidateRelativeDirectory(
+                    section.RelativeDirectory);
             }
 
             if (rootDocument)

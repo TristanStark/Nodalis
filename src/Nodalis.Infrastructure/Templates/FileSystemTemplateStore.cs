@@ -679,8 +679,15 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                         "glossary", StringComparison.OrdinalIgnoreCase);
                 if (rootDocument && section.RelativeDirectory is not null)
                 {
-                    throw new InvalidDataException(
-                        $"La section « {section.Name} » doit rester un document racine.");
+                    if (!string.Equals(section.TemplateKey, "milestones",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidDataException(
+                            $"La section « {section.Name} » doit rester un document racine.");
+                    }
+
+                    ProjectSectionDirectoryLayout.ValidateRelativeDirectory(
+                        section.RelativeDirectory);
                 }
 
                 if (!rootDocument && !occupiedPaths.Add(path))
@@ -879,7 +886,8 @@ public sealed class FileSystemTemplateStore : ITemplateStore
 
         if (complex is null ||
             !string.Equals(complex.DisplayName, "Complexe", StringComparison.Ordinal) ||
-            !IsLegacyComplexBuiltInSections(complex.Sections))
+            (!IsLegacyComplexBuiltInSections(complex.Sections) &&
+             !IsEarlyV2ComplexBuiltInSections(complex.Sections)))
         {
             return;
         }
@@ -930,6 +938,36 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                     section.IsSingleton == expected.Singleton &&
                     section.RelativeDirectory is null)
                 .All(matches => matches);
+    }
+
+    /// <summary>
+    /// Recognizes only the exact first 2.0 Complex default (all relative paths
+    /// already present except Management/Jalons), preserving custom profiles.
+    /// </summary>
+    /// <param name="sections">Current section profile definitions.</param>
+    /// <returns>True if the profile is the untouched initial 2.0 release.</returns>
+    private static bool IsEarlyV2ComplexBuiltInSections(
+        IReadOnlyList<ProjectSectionTemplateDefinition> sections)
+    {
+        ProjectSectionTemplateDefinition[] modern =
+            CreateDefaultProjectProfiles().Profiles
+                .Single(profile => profile.Complexity == ProjectComplexity.Complex)
+                .Sections.OrderBy(section => section.Order).ToArray();
+
+        ProjectSectionTemplateDefinition[] earlier =
+            sections.OrderBy(section => section.Order).ToArray();
+
+        return earlier.Length == modern.Length &&
+            earlier.Zip(modern, (candidate, expected) =>
+                string.Equals(candidate.Name, expected.Name, StringComparison.Ordinal) &&
+                candidate.Order == expected.Order &&
+                candidate.TemplateKey == expected.TemplateKey &&
+                candidate.IsSingleton == expected.IsSingleton &&
+                string.Equals(candidate.RelativeDirectory,
+                    string.Equals(candidate.TemplateKey, "milestones",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? null : expected.RelativeDirectory,
+                    StringComparison.Ordinal)).All(matches => matches);
     }
 
     /// <summary>
@@ -1232,7 +1270,7 @@ public sealed class FileSystemTemplateStore : ITemplateStore
                     DisplayName = "Complexe",
                     Sections =
                     [
-                        Section("Jalons", 10, "milestones"),
+                        Section("Jalons", 10, "milestones", relativeDirectory: "Management"),
                         Section("Documentation", 20, "documentation", relativeDirectory: "Documentation"),
                         Section("Exigences", 25, singleton: false, relativeDirectory: "Documentation/Exigences"),
                         Section("Fonctionnel", 30, "functional", relativeDirectory: "Documentation/Fonctionnel"),

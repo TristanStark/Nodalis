@@ -74,6 +74,11 @@ public static class ProjectSingletonDocumentLayout
         ArgumentNullException.ThrowIfNull(
             section);
 
+        if (section.RelativeDirectory is not null)
+        {
+            return ResolveExplicitMilestoneDirectory(projectDirectory, section);
+        }
+
         return Resolve(
             projectDirectory,
             section.Name,
@@ -214,4 +219,63 @@ public static class ProjectSingletonDocumentLayout
                 true
         };
     }
+
+    /// <summary>
+    /// Reads an explicitly nested milestone location without ever moving
+    /// legacy root files. Migration to Management is opt-in, not a side
+    /// effect of opening the tree or the milestone editor.
+    /// </summary>
+    /// <param name="projectDirectory">Owning project directory.</param>
+    /// <param name="section">Milestone section with a portable relative folder.</param>
+    /// <returns>Active source and preferred target, with conflict diagnostics.</returns>
+    private static ProjectSingletonDocumentResolution ResolveExplicitMilestoneDirectory(
+        string projectDirectory,
+        SectionManifest section)
+    {
+        if (!string.Equals(section.TemplateKey, "milestones",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Seuls les jalons peuvent définir un dossier de document singleton.");
+        }
+
+        string relative = ProjectSectionDirectoryLayout.ValidateRelativeDirectory(
+            section.RelativeDirectory!);
+        string root = Path.GetFullPath(projectDirectory);
+        string preferred = Path.Combine(root,
+            relative.Replace('/', Path.DirectorySeparatorChar), "Jalons.md");
+        string previousRoot = Path.Combine(root, "Jalons.md");
+        string legacyName = WindowsPathRules.SanitizeSegment(section.Name);
+        string legacyDirectory = Path.Combine(root, legacyName);
+        string legacyDocument = Path.Combine(
+            legacyDirectory, legacyName + ".md");
+
+        bool hasPreferred = File.Exists(preferred);
+        bool hasRoot = File.Exists(previousRoot);
+        bool hasLegacy = File.Exists(legacyDocument);
+        int numberOfSources = (hasPreferred ? 1 : 0) +
+            (hasRoot ? 1 : 0) + (hasLegacy ? 1 : 0);
+
+        if (numberOfSources > 1)
+        {
+            throw new InvalidDataException(
+                "Plusieurs fichiers Jalons ont été trouvés. Choisissez explicitement " +
+                "le document canonique avant de modifier des jalons.");
+        }
+
+        string active = hasPreferred
+            ? preferred
+            : hasRoot
+                ? previousRoot
+                : hasLegacy ? legacyDocument : preferred;
+
+        return new ProjectSingletonDocumentResolution
+        {
+            PreferredPath = preferred,
+            ActivePath = active,
+            LegacyDirectoryPath = legacyDirectory,
+            RequiresManualMigration = numberOfSources == 1 && !hasPreferred
+        };
+    }
+
 }
