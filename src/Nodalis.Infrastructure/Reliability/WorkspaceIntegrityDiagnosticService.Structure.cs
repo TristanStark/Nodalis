@@ -373,11 +373,22 @@ public sealed partial class WorkspaceIntegrityDiagnosticService
 
                 if (rootDocumentFileName is not null)
                 {
-                    ProjectSingletonDocumentResolution resolution =
-                        ProjectSingletonDocumentLayout.Resolve(
-                            projectDirectory,
-                            section,
-                            migrateIfSafe: false);
+                    ProjectSingletonDocumentResolution resolution;
+                    try
+                    {
+                        resolution = ProjectSingletonDocumentLayout.Resolve(
+                            projectDirectory, section, migrateIfSafe: false);
+                    }
+                    catch (InvalidDataException error)
+                    {
+                        issues.Add(CreateIssue(
+                            WorkspaceIntegritySeverity.Error,
+                            "SINGLETON_SOURCE_AMBIGUOUS",
+                            error.Message,
+                            NormalizeRelativePath(projectDirectory),
+                            section.Id));
+                        continue;
+                    }
 
                     if (string.Equals(
                             Path.GetDirectoryName(resolution.ActivePath),

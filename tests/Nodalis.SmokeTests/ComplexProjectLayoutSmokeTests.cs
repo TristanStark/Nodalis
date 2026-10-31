@@ -2,6 +2,7 @@ using Nodalis.Core.Domain;
 using Nodalis.Core.Milestones;
 using Nodalis.Infrastructure.Milestones;
 using Nodalis.Infrastructure.Exporting;
+using Nodalis.Infrastructure.Quality;
 using Nodalis.Core.Meetings;
 using Nodalis.Core.Decisions;
 using Nodalis.Infrastructure.Meetings;
@@ -145,6 +146,14 @@ internal static class ComplexProjectLayoutSmokeTests
                 File.Exists(obsoleteRoot) &&
                 File.Exists(managedMilestones),
                 "Two competing milestone sources must be refused without changing either.");
+
+            ProjectHealthCheckService health = new(workspace);
+            global::Nodalis.Core.Quality.ProjectHealthReport duplicateHealth =
+                await health.ScanAsync(project);
+            Assert(duplicateHealth.Issues.Any(issue =>
+                    issue.Code == "SINGLETON_SOURCE_AMBIGUOUS"),
+                "Project health must report competing milestone sources instead of crashing.");
+
             File.Delete(obsoleteRoot);
 
             WorkspaceMeetingService meetingService = new(workspace);

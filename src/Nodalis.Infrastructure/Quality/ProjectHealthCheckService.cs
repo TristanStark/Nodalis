@@ -321,11 +321,22 @@ public sealed class ProjectHealthCheckService
                      ProjectSingletonDocumentLayout.GetRootDocumentFileName(
                          section.TemplateKey) is not null))
         {
-            ProjectSingletonDocumentResolution resolution =
-                ProjectSingletonDocumentLayout.Resolve(
-                    projectDirectory,
-                    section,
-                    migrateIfSafe: false);
+            ProjectSingletonDocumentResolution resolution;
+            try
+            {
+                resolution = ProjectSingletonDocumentLayout.Resolve(
+                    projectDirectory, section, migrateIfSafe: false);
+            }
+            catch (InvalidDataException error)
+            {
+                issues.Add(CreateIssue(
+                    ProjectHealthSeverity.Error,
+                    "SINGLETON_SOURCE_AMBIGUOUS",
+                    $"Le rôle « {section.Name} » possède plusieurs fichiers candidats : {error.Message}",
+                    NormalizeRelativePath(Path.GetRelativePath(
+                        _workspaceRoot, projectDirectory))));
+                continue;
+            }
 
             if (!resolution.RequiresManualMigration)
             {
