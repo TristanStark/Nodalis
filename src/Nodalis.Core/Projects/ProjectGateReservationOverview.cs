@@ -71,8 +71,10 @@ public static class ProjectGateReservationOverviewBuilder
             (ProjectGateReservationEvent? Latest, int Count)> history = [];
         foreach (ProjectGateReservationEvent change in registry.ReservationEvents)
         {
-            var key = (change.DecisionId, change.ReservationId);
-            history.TryGetValue(key, out var current);
+            (Guid DecisionId, Guid ReservationId) key =
+                (change.DecisionId, change.ReservationId);
+            history.TryGetValue(key,
+                out (ProjectGateReservationEvent? Latest, int Count) current);
             history[key] = (change, current.Count + 1);
         }
 
@@ -82,7 +84,7 @@ public static class ProjectGateReservationOverviewBuilder
             foreach (ProjectGateReservation reservation in decision.Reservations)
             {
                 history.TryGetValue((decision.Id, reservation.Id),
-                    out var changes);
+                    out (ProjectGateReservationEvent? Latest, int Count) changes);
                 bool isOpen = changes.Latest is null ||
                     changes.Latest.Kind == ProjectGateReservationEventKind.Reopened;
                 rows.Add(new ProjectGateReservationOverviewRow
