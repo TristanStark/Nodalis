@@ -94,7 +94,19 @@ public partial class ProjectRiskRegistryDialog : Window
                 "",
                 "Source : " + entry.RelativePath,
                 "",
-                "Aucune validation, mitigation ni modification automatique."
+                "Historique de qualification humaine : " +
+                    entry.Reviews.Count + " avis",
+                .. entry.Reviews.Select(review =>
+                    review.RecordedUtc.ToLocalTime()
+                        .ToString("dd/MM/yyyy HH:mm") +
+                    " · " + review.Kind +
+                    " · P=" + review.Rating.Probability +
+                    " × I=" + review.Rating.Impact +
+                    " · " + review.Actor +
+                    " · " + review.Rationale),
+                "",
+                "La première évaluation reste figée. Aucun score ni " +
+                    "changement de cycle de vie automatique."
             ]);
         }
 
@@ -106,7 +118,12 @@ public partial class ProjectRiskRegistryDialog : Window
     {
         CreateRiskButton.IsEnabled = !_busy && !_readOnly &&
             _catalog?.NextReference is not null;
-        OpenRiskButton.IsEnabled = !_busy && SelectedRisk() is not null;
+        ProjectRiskEntry? entry = SelectedRisk();
+        OpenRiskButton.IsEnabled = !_busy && entry is not null;
+        InitialReviewButton.IsEnabled = !_busy && !_readOnly &&
+            entry is not null && entry.Reviews.Count == 0;
+        ResidualReviewButton.IsEnabled = !_busy && !_readOnly &&
+            entry is not null && entry.Reviews.Count > 0;
     }
 
     /// <summary>Routes asynchronous errors to the existing WPF error boundary.</summary>
@@ -175,6 +192,76 @@ public partial class ProjectRiskRegistryDialog : Window
             StatusText.Text = "Risque " + created.Card.Reference +
                 " créé · GUID conservé · criticité non évaluée.";
         }, "Créer un risque");
+
+    /// <summary>
+    /// Submits one human assessment through the shared atomic source service.
+    /// The user explicitly confirms the numbers and provenance after review;
+    /// every old assessment remains in the risk Markdown as a frozen event.
+    /// </summary>
+    /// <param name="kind">Initial review or residual requalification.</param>
+    /// <returns>Completed action or unchanged source on cancellation.</returns>
+    private async Task ReviewRiskAsync(ProjectRiskReviewKind kind)
+    {
+        if (_readOnly || SelectedRisk() is not ProjectRiskEntry selected ||
+            kind == ProjectRiskReviewKind.Initial &&
+                selected.Reviews.Count != 0 ||
+            kind == ProjectRiskReviewKind.Residual &&
+                selected.Reviews.Count == 0)
+        {
+            return;
+        }
+
+        ProjectRiskReviewDialog dialog = new(selected, kind) { Owner = this };
+        if (dialog.ShowDialog() != true ||
+            dialog.Rating is not ProjectRiskRating rating ||
+            dialog.Actor is not string actor ||
+            dialog.Rationale is not string rationale)
+        {
+            return;
+        }
+
+        if (MessageBox.Show(this,
+            "Confirmer l'avis humain sur " + selected.Card.Reference +
+            " — " + selected.Card.Title + " ?\n\n" +
+            "Type : " + (kind == ProjectRiskReviewKind.Initial
+                ? "première qualification (figée définitivement)"
+                : "réévaluation résiduelle historisée") +
+            "\nProbabilité : " + rating.Probability +
+            "\nImpact : " + rating.Impact +
+            "\nCriticité : " + ProjectRiskMatrix.Evaluate(rating) +
+            "\nAuteur : " + actor +
+            "\nJustification : " + rationale +
+            "\n\nLe fichier Markdown du risque sera le seul document " +
+            "modifié. L'historique précédent restera intact. Aucun gate, " +
+            "incident, jalon ni tâche ne sera modifié.",
+            "Risque · approbation humaine",
+            MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectRiskEntry saved = await _service.ReviewAsync(
+            _projectDirectory, selected, kind, rating, actor, rationale);
+        Changed = true;
+        await ReloadAsync(saved.Card.Id);
+        StatusText.Text = saved.Card.Reference + " · avis enregistré " +
+            "avec contrôle SHA-256 et historique append-only.";
+    }
+
+    /// <summary>Requests the immutable first risk assessment.</summary>
+    /// <param name="sender">Initial review button.</param>
+    /// <param name="e">WPF action.</param>
+    private async void InitialReview_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(() => ReviewRiskAsync(ProjectRiskReviewKind.Initial),
+            "Qualifier la criticité initiale");
+
+    /// <summary>Requests a new independent residual rating.</summary>
+    /// <param name="sender">Residual review button.</param>
+    /// <param name="e">WPF action.</param>
+    private async void ResidualReview_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(() => ReviewRiskAsync(ProjectRiskReviewKind.Residual),
+            "Réévaluer la criticité résiduelle");
 
     /// <summary>Opens the selected Markdown file in the existing editor.</summary>
     /// <param name="sender">Open button.</param>
