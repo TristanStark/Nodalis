@@ -111,6 +111,27 @@ public static class ProjectGateValidation
                 }
             }
 
+            bool approval = decision.Verdict is ProjectGateVerdict.Go or
+                ProjectGateVerdict.GoWithReservations;
+            if (approval && (decision.Evidence.Count == 0 ||
+                decision.Assessments.Count == 0))
+            {
+                throw new InvalidDataException(
+                    "Décision GO sans critères évalués ni preuve figée interdite.");
+            }
+
+            if (decision.Verdict == ProjectGateVerdict.Go &&
+                decision.Assessments.Any(item =>
+                    item.Status is ProjectGateCriterionStatus.Deviation or
+                        ProjectGateCriterionStatus.Unknown ||
+                    !item.Optional && item.Status !=
+                        ProjectGateCriterionStatus.Conform))
+            {
+                throw new InvalidDataException(
+                    "Un GO historique ne peut contenir d'écart, d'inconnu " +
+                    "ni de critère obligatoire non conforme.");
+            }
+
             if (decision.Verdict == ProjectGateVerdict.GoWithReservations &&
                 decision.Reservations.Count == 0 ||
                 decision.Verdict != ProjectGateVerdict.GoWithReservations &&
