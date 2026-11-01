@@ -82,7 +82,54 @@ Un GO ne termine pas un jalon, un GO sous réserves ne lève aucune
 réserve et un verdict ne rend pas le Parcours techniquement bloquant.
 Les réserves et les décisions sont des objets distincts.
 
-## 4. Tests et qualification Windows
+## 4. Levée et réouverture des réserves — deuxième tranche
+
+Après une décision **GO sous réserves**, chaque réserve porte un GUID
+propre et reste **ouverte** jusqu'à l'ajout d'un événement humain.
+
+La décision d'origine et son verdict ne sont **jamais réécrits**.
+Le registre conserve désormais, dans le champ JSON facultatif
+`ReservationEvents`, une liste **append-only** d'événements distincts :
+
+- `Lifted` : levée par une personne identifiée, avec motif détaillé,
+  horodatage UTC, GUID d'événement et **au moins une preuve locale**
+  dont le SHA-256 est figé au moment de la qualification.
+- `Reopened` : réouverture par une personne identifiée avec motif
+  détaillé ; une nouvelle preuve peut être ajoutée mais reste facultative.
+- L'état courant n'est pas stocké dans la décision : il est **projeté**
+  à partir de l'historique. Sans événement, la réserve est ouverte ;
+  après `Lifted`, elle est levée ; après `Reopened`, elle est ouverte.
+
+Les transitions répétées et incohérentes (lever deux fois, réouvrir
+une réserve déjà ouverte), les GUIDs orphelins, les preuves dangereuses
+et les événements modifiés ou supprimés sont rejetés. Les événements
+sont ajoutés uniquement après **confirmation humaine** et sauvegarde
+optimiste SHA-256. Les anciens registres, dépourvus de
+`ReservationEvents`, restent lisibles et affichent leurs réserves
+initiales comme ouvertes, sans migration implicite.
+
+### Qualification via WPF
+
+Dans **Gates…**, sélectionner le gate puis **la décision historique**
+qui contient la réserve. La zone **RÉSERVES · état courant calculé**
+affiche l'état et le dernier auteur. Sélectionner la réserve :
+
+1. Pour une réserve ouverte, cliquer **Lever la réserve…**.
+   Renseigner l'auteur, un motif d'au moins 10 caractères et
+   sélectionner un fichier de preuve existant du workspace.
+2. Pour une réserve déjà levée, cliquer **Réouvrir la réserve…**.
+   Renseigner l'auteur et le motif, et éventuellement une nouvelle preuve.
+3. Contrôler la demande dans la boîte de confirmation, puis valider.
+   Le dossier de décision reste sélectionné. L'historique séparé
+   conserve chaque acteur, motif, date et empreinte de preuve.
+
+La levée n'implique **ni GO définitif, ni clôture du jalon, ni validation
+automatique d'une MEP**. Une réouverture ne change pas le verdict
+historique GO sous réserves. La synchronisation d'une éventuelle tâche
+ou d'un risque lié à la réserve restera un développement séparé, jamais
+une transformation automatique de verdict.
+
+## 5. Tests et qualification Windows
 
 La suite ProjectGateRegistrySmokeTests est branchée dans
 tests/Nodalis.SmokeTests/Program.cs. Elle vérifie la lecture sans
@@ -91,6 +138,11 @@ SHA-256, les chemins hors workspace, les gros fichiers refusés, les
 GO sans preuve/inconnu refusés, les GO conditionnels historisés, les
 révisions concurrentes, l'immutabilité des décisions, les références
 non propriétaires et la conservation des anciennes empreintes.
+Elle couvre également la lecture de l'ancien JSON sans historique,
+le refus de lever sans preuve, le rejet des transitions répétées
+ou vers une réserve étrangère, la levée/réouverture, le refus
+d'effacer ou de modifier un ancien événement, les conflits SHA et
+la conservation du verdict initial après relecture du registre.
 
 Qualification visuelle restant à effectuer :
 - Ouvrir sans créer de registre, puis proposer les cinq standards.
@@ -102,18 +154,26 @@ Qualification visuelle restant à effectuer :
   verdict et son SHA même lorsque le gate ou le document a changé.
 - Lier, ouvrir, délier un gate depuis le Parcours : aucun document
   ni état du jalon ne doit être affecté.
+- Sur une décision GO sous réserves, sélectionner une réserve
+  **Ouverte**, la lever avec motif et preuve, vérifier le verdict intact.
+  Réouvrir avec un autre motif puis vérifier la chronologie des deux
+  événements et les SHA figés ; retenter une transition identique :
+  elle doit être refusée.
+- Recharger/redémarrer et vérifier l'état courant calculé, la
+  sélection du dossier, les projets archivés et les conflits SHA.
 - Tester conflit SHA externe, archive/lecture seule, DPI, fenêtre
   étroite, gros workspace et changement de documents.
 
-## 5. Travaux restants (#202)
+## 6. Travaux restants (#202)
 
-Cette tranche n'épuise pas l'EPIC. Restent notamment : un cycle de vie
-explicite pour lever/réouvrir des réserves avec identité humaine et
-historique, les associations guidées avec jalons dont le GUID est
-réellement persisté, les synthèses issues des registres futurs
-exigences/risques/tests/incidents (#198–#201), les requalifications
-conditionnelles au périmètre/version/procédure/rollback/environnement,
-ainsi que la qualification finale des interactions WPF.
+Ces deux tranches n'épuisent pas l'EPIC. Restent notamment :
+la vue transverse des réserves par projet, leurs liens vers tâches,
+risques et incidents avec responsables/échéances, les associations
+guidées avec jalons dont le GUID est réellement persisté, les
+synthèses issues des futurs registres exigences/risques/tests/incidents
+(#198–#201), les requalifications conditionnelles au
+périmètre/version/procédure/rollback/environnement et la qualification
+finale des interactions WPF.
 
 **Aucun verdict automatique, aucune réécriture de décision historique,
 aucune fermeture de jalon, aucun merge ou tag 2.0 avant recette.**
