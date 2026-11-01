@@ -182,6 +182,105 @@ public static class ProjectGateEditor
     }
 
     /// <summary>
+    /// Returns the current state of an original reservation from the separate
+    /// event history. Merely reading it can never modify the original verdict.
+    /// </summary>
+    /// <param name="registry">Current validated register.</param>
+    /// <param name="decisionId">Historical GO-with-reservations decision.</param>
+    /// <param name="reservationId">Original reservation ID.</param>
+    /// <returns>Calculated state and the latest explicit human event.</returns>
+    public static ProjectGateReservationState GetReservationState(
+        ProjectGateRegistry registry, Guid decisionId, Guid reservationId)
+    {
+        ProjectGateValidation.Validate(registry);
+        ProjectGateDecision decision = registry.Decisions.SingleOrDefault(item =>
+            item.Id == decisionId) ??
+            throw new KeyNotFoundException("Décision d'origine introuvable.");
+        if (decision.Reservations.All(item => item.Id != reservationId))
+        {
+            throw new KeyNotFoundException("Réserve d'origine introuvable.");
+        }
+
+        ProjectGateReservationEvent? last = registry.ReservationEvents.LastOrDefault(
+            item => item.DecisionId == decisionId &&
+                item.ReservationId == reservationId);
+        return new ProjectGateReservationState(decisionId, reservationId,
+            last is null || last.Kind == ProjectGateReservationEventKind.Reopened,
+            last);
+    }
+
+    /// <summary>
+    /// Appends an explicit lift or reopening. A lift requires reviewed proof;
+    /// no event edits its decision, reservation text, verdict or milestone.
+    /// </summary>
+    /// <param name="registry">Current register.</param>
+    /// <param name="decisionId">Owning historical decision.</param>
+    /// <param name="reservationId">Original reservation ID.</param>
+    /// <param name="kind">Human action.</param>
+    /// <param name="actor">Human responsible for the action.</param>
+    /// <param name="rationale">Explicit reason and qualification.</param>
+    /// <param name="evidence">Fingerprinted local evidence; required for lift.</param>
+    /// <returns>Fresh register with one additional immutable event.</returns>
+    public static ProjectGateRegistry AppendReservationEvent(
+        ProjectGateRegistry registry, Guid decisionId, Guid reservationId,
+        ProjectGateReservationEventKind kind, string actor, string rationale,
+        IReadOnlyList<ProjectGateEvidenceSnapshot> evidence)
+    {
+        ProjectGateReservationState current =
+            GetReservationState(registry, decisionId, reservationId);
+        if (!Enum.IsDefined(kind))
+        {
+            throw new InvalidDataException("Type d'événement de réserve invalide.");
+        }
+
+        if (kind == ProjectGateReservationEventKind.Lifted && !current.IsOpen ||
+            kind == ProjectGateReservationEventKind.Reopened && current.IsOpen)
+        {
+            throw new InvalidOperationException(
+                "Cette transition de réserve a déjà été effectuée. " +
+                "Actualisez le registre avant de poursuivre.");
+        }
+
+        ArgumentNullException.ThrowIfNull(evidence);
+        if (kind == ProjectGateReservationEventKind.Lifted && evidence.Count == 0)
+        {
+            throw new InvalidDataException(
+                "La levée d'une réserve exige une preuve revue par un humain.");
+        }
+
+        string reviewedActor = ProjectGateValidation.RequireText(
+            actor, 120, nameof(actor));
+        string reviewedReason = ProjectGateValidation.RequireText(
+            rationale, 4000, nameof(rationale));
+        if (reviewedReason.Length < 10)
+        {
+            throw new InvalidDataException(
+                "Motif de qualification requis (10 caractères minimum).");
+        }
+
+        ProjectGateRegistry changed = registry with
+        {
+            ReservationEvents =
+            [
+                .. registry.ReservationEvents,
+                new ProjectGateReservationEvent
+                {
+                    Id = Guid.NewGuid(),
+                    DecisionId = decisionId,
+                    ReservationId = reservationId,
+                    Kind = kind,
+                    Actor = reviewedActor,
+                    Rationale = reviewedReason,
+                    RecordedUtc = DateTimeOffset.UtcNow,
+                    Evidence = evidence.Select(item => item with { }).ToList()
+                }
+            ]
+        };
+        ProjectGateValidation.Validate(changed);
+        return changed;
+    }
+
+    /// <summary>
     /// Adds a non-owning milestone association to a gate. Callers must verify
     /// that the milestone has a real, unique persisted ID in the project.
     /// </summary>
