@@ -149,6 +149,7 @@ public static class ProjectGateValidation
 
         ValidateReservationEvents(registry);
         ValidateIncidentLinkEvents(registry);
+        ValidateRiskLinkEvents(registry);
     }
 
     /// <summary>
@@ -293,6 +294,71 @@ public static class ProjectGateValidation
 
             state[key] = (
                 item.Kind == ProjectGateReservationIncidentLinkKind.Linked,
+                item.RecordedUtc);
+        }
+    }
+
+    /// <summary>
+    /// Replays the append-only risk associations against immutable reservation
+    /// IDs without claiming target files still exist. Newly linked GUIDs are
+    /// verified against the live project RIS catalog by the save service.
+    /// </summary>
+    /// <param name="registry">Untrusted gate registry.</param>
+    private static void ValidateRiskLinkEvents(ProjectGateRegistry registry)
+    {
+        if (registry.RiskLinkEvents is null)
+        {
+            throw new InvalidDataException(
+                "Historique des liens risque absent ou invalide.");
+        }
+
+        Dictionary<(Guid Decision, Guid Reservation), DateTimeOffset> origins = [];
+        foreach (ProjectGateDecision decision in registry.Decisions)
+        {
+            foreach (ProjectGateReservation reservation in decision.Reservations)
+            {
+                origins.Add((decision.Id, reservation.Id), decision.RecordedUtc);
+            }
+        }
+
+        HashSet<Guid> eventIds = [];
+        Dictionary<(Guid Decision, Guid Reservation, Guid Risk),
+            (bool Linked, DateTimeOffset LastTime)> state = [];
+        foreach (ProjectGateReservationRiskLinkEvent item in registry.RiskLinkEvents)
+        {
+            if (item is null || item.Id == Guid.Empty ||
+                !eventIds.Add(item.Id) ||
+                item.RiskId == Guid.Empty ||
+                !Enum.IsDefined(item.Kind) ||
+                !IsText(item.Actor, 120) ||
+                !IsText(item.Rationale, 4000) ||
+                item.Rationale.Trim().Length < 10 ||
+                item.RecordedUtc == default ||
+                !origins.TryGetValue((item.DecisionId, item.ReservationId),
+                    out DateTimeOffset origin) ||
+                item.RecordedUtc < origin)
+            {
+                throw new InvalidDataException(
+                    "Lien risque/réserve invalide ou hors décision.");
+            }
+
+            (Guid Decision, Guid Reservation, Guid Risk) key =
+                (item.DecisionId, item.ReservationId, item.RiskId);
+            state.TryGetValue(key,
+                out (bool Linked, DateTimeOffset LastTime) prior);
+            if (prior.LastTime != default && item.RecordedUtc < prior.LastTime ||
+                item.Kind == ProjectGateReservationRiskLinkKind.Linked &&
+                    prior.Linked ||
+                item.Kind == ProjectGateReservationRiskLinkKind.Unlinked &&
+                    !prior.Linked)
+            {
+                throw new InvalidDataException(
+                    "Historique risque/réserve incohérent : doublon, " +
+                    "suppression sans lien ou dates désordonnées.");
+            }
+
+            state[key] = (
+                item.Kind == ProjectGateReservationRiskLinkKind.Linked,
                 item.RecordedUtc);
         }
     }

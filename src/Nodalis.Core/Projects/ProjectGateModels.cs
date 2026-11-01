@@ -41,6 +41,10 @@ public sealed record ProjectGateRegistry
     /// <summary>Independent, append-only incident association history.</summary>
     public List<ProjectGateReservationIncidentLinkEvent> IncidentLinkEvents
     { get; init; } = [];
+
+    /// <summary>Independent append-only links to project-owned risk GUIDs.</summary>
+    public List<ProjectGateReservationRiskLinkEvent> RiskLinkEvents
+    { get; init; } = [];
 }
 
 /// <summary>One named review point with stable identity and editable future criteria.</summary>
@@ -186,6 +190,36 @@ public sealed record ProjectGateReservationIncidentLinkEvent
     public required ProjectGateReservationIncidentLinkKind Kind { get; init; }
     public DateTimeOffset RecordedUtc { get; init; } = DateTimeOffset.UtcNow;
     public required string Actor { get; init; }
+    public required string Rationale { get; init; }
+}
+
+/// <summary>Human-reviewed association with a stable project risk identity.</summary>
+public enum ProjectGateReservationRiskLinkKind
+{
+    Linked,
+    Unlinked
+}
+
+/// <summary>
+/// Audited reversible link between a frozen reservation and a canonical
+/// project RIS GUID. No human verdict or risk score is inferred from it.
+/// </summary>
+public sealed record ProjectGateReservationRiskLinkEvent
+{
+    public required Guid Id { get; init; }
+
+    public required Guid DecisionId { get; init; }
+
+    public required Guid ReservationId { get; init; }
+
+    public required Guid RiskId { get; init; }
+
+    public required ProjectGateReservationRiskLinkKind Kind { get; init; }
+
+    public DateTimeOffset RecordedUtc { get; init; } = DateTimeOffset.UtcNow;
+
+    public required string Actor { get; init; }
+
     public required string Rationale { get; init; }
 }
 

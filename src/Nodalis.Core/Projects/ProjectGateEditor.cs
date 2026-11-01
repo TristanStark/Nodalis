@@ -438,6 +438,108 @@ public static class ProjectGateEditor
         return updated;
     }
 
+    /// <summary>
+    /// Projects only currently associated risk GUIDs on a particular
+    /// immutable reservation, preserving old unlink events in the registry.
+    /// </summary>
+    /// <param name="registry">Validated human decision catalog.</param>
+    /// <param name="decisionId">Frozen decision identity.</param>
+    /// <param name="reservationId">Frozen reservation identity.</param>
+    /// <returns>Sorted unique canonical risk GUIDs.</returns>
+    public static IReadOnlyList<Guid> GetLinkedRiskIds(
+        ProjectGateRegistry registry, Guid decisionId, Guid reservationId)
+    {
+        ProjectGateValidation.Validate(registry);
+        if (!registry.Decisions.Any(decision => decision.Id == decisionId &&
+            decision.Reservations.Any(reservation =>
+                reservation.Id == reservationId)))
+        {
+            throw new KeyNotFoundException("Réserve d'origine introuvable.");
+        }
+
+        HashSet<Guid> current = [];
+        foreach (ProjectGateReservationRiskLinkEvent item in
+            registry.RiskLinkEvents.Where(item =>
+                item.DecisionId == decisionId &&
+                item.ReservationId == reservationId))
+        {
+            if (item.Kind == ProjectGateReservationRiskLinkKind.Linked)
+            {
+                current.Add(item.RiskId);
+            }
+            else
+            {
+                current.Remove(item.RiskId);
+            }
+        }
+
+        return current.OrderBy(id => id).ToArray();
+    }
+
+    /// <summary>
+    /// Appends a human-approved reversible risk association. Source ownership
+    /// and uniqueness are revalidated at save time, not inferred from a name.
+    /// </summary>
+    /// <param name="registry">Prior validated gate registry.</param>
+    /// <param name="decisionId">Original decision GUID.</param>
+    /// <param name="reservationId">Original reservation GUID.</param>
+    /// <param name="riskId">Canonical Markdown risk GUID.</param>
+    /// <param name="kind">Link or unlink.</param>
+    /// <param name="actor">Explicit human reviewer.</param>
+    /// <param name="rationale">Mandatory reason.</param>
+    /// <returns>Copy with exactly one additional event.</returns>
+    public static ProjectGateRegistry AppendRiskLinkEvent(
+        ProjectGateRegistry registry, Guid decisionId, Guid reservationId,
+        Guid riskId, ProjectGateReservationRiskLinkKind kind,
+        string actor, string rationale)
+    {
+        if (riskId == Guid.Empty || !Enum.IsDefined(kind))
+        {
+            throw new InvalidDataException(
+                "Identifiant de risque ou action invalide.");
+        }
+
+        IReadOnlyList<Guid> linked =
+            GetLinkedRiskIds(registry, decisionId, reservationId);
+        bool wasLinked = linked.Contains(riskId);
+        if (kind == ProjectGateReservationRiskLinkKind.Linked && wasLinked ||
+            kind == ProjectGateReservationRiskLinkKind.Unlinked && !wasLinked)
+        {
+            throw new InvalidOperationException(
+                "Le lien est déjà dans cet état : actualisez le registre.");
+        }
+
+        string reviewedActor = ProjectGateValidation.RequireText(
+            actor, 120, nameof(actor));
+        string reviewedReason = ProjectGateValidation.RequireText(
+            rationale, 4000, nameof(rationale));
+        if (reviewedReason.Trim().Length < 10)
+        {
+            throw new InvalidDataException(
+                "Justification humaine requise (10 caractères minimum).");
+        }
+
+        ProjectGateRegistry changed = registry with
+        {
+            RiskLinkEvents =
+            [
+                .. registry.RiskLinkEvents,
+                new ProjectGateReservationRiskLinkEvent
+                {
+                    Id = Guid.NewGuid(),
+                    DecisionId = decisionId,
+                    ReservationId = reservationId,
+                    RiskId = riskId,
+                    Kind = kind,
+                    Actor = reviewedActor,
+                    Rationale = reviewedReason
+                }
+            ]
+        };
+        ProjectGateValidation.Validate(changed);
+        return changed;
+    }
+
     /// <summary>Updates one gate definition, preserving all decision history.</summary>
     /// <param name="registry">Current registry.</param>
     /// <param name="gateId">Existing gate.</param>
