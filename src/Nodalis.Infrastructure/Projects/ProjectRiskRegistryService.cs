@@ -23,6 +23,14 @@ public sealed record ProjectRiskEntry(
     public IReadOnlyList<ProjectRiskQualificationEvent> Qualifications
     { get; init; } = [];
 
+    /// <summary>Explicit treatment history, independent from human scores.</summary>
+    public IReadOnlyList<ProjectRiskTreatmentEvent> Treatments
+    { get; init; } = [];
+
+    /// <summary>The current human-approved treatment plan, or null.</summary>
+    public ProjectRiskTreatmentPlan? CurrentTreatment =>
+        Treatments.Count == 0 ? null : Treatments[^1].Plan;
+
     /// <summary>Compact risk label and independent evaluation state.</summary>
     public string Label => Card.Reference + " · " + Card.Title;
 
@@ -169,6 +177,7 @@ public sealed class ProjectRiskRegistryService
         ProjectRiskReviewHistory existing =
             ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
         ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
         if (existing.Card.Id != snapshot.Card.Id ||
             existing.Card.ProjectId != snapshot.Card.ProjectId)
         {
@@ -216,6 +225,7 @@ public sealed class ProjectRiskRegistryService
             await OpenVerifiedRiskAsync(
                 projectDirectory, snapshot, cancellationToken);
         ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
         ProjectRiskQualificationHistory old =
             ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
         if (old.Card.Id != snapshot.Card.Id ||
@@ -241,6 +251,58 @@ public sealed class ProjectRiskRegistryService
         {
             Card = saved.Card,
             Qualifications = saved.Events,
+            SourceSha256 = session.Revision.Sha256
+        };
+    }
+
+    /// <summary>
+    /// Commits one explicitly confirmed risk-treatment plan or revision, with
+    /// source SHA and project isolation identical to scoring/qualification.
+    /// Does not change the score, business decision or risk lifecycle.
+    /// </summary>
+    /// <param name="projectDirectory">Project holding this risk.</param>
+    /// <param name="snapshot">Previously displayed risk and exact source SHA.</param>
+    /// <param name="plan">New human-owned treatment strategy and measures.</param>
+    /// <param name="actor">Person reviewing the plan.</param>
+    /// <param name="rationale">Reason for the treatment choice or revision.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Saved read-only risk projection, including full treatment history.</returns>
+    public async Task<ProjectRiskEntry> PlanTreatmentAsync(
+        string projectDirectory, ProjectRiskEntry snapshot,
+        ProjectRiskTreatmentPlan plan, string actor,
+        string rationale, CancellationToken cancellationToken = default)
+    {
+        (ProjectRiskEntry current, TextDocumentSession session) =
+            await OpenVerifiedRiskAsync(
+                projectDirectory, snapshot, cancellationToken);
+        ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        ProjectRiskTreatmentHistory previous =
+            ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
+        if (previous.Card.Id != snapshot.Card.Id ||
+            previous.Card.ProjectId != snapshot.Card.ProjectId)
+        {
+            throw new InvalidDataException(
+                "Identité du risque modifiée avant validation du plan.");
+        }
+
+        string updated = ProjectRiskTreatmentMarkdownCodec.Append(
+            session.Content, plan, actor, rationale);
+        if (Encoding.UTF8.GetByteCount(updated) > MaxRiskBytes)
+        {
+            throw new InvalidDataException(
+                "Le nouveau plan dépasse la taille maximale de la fiche.");
+        }
+
+        await session.SaveAsync(updated, cancellationToken);
+        ProjectRiskTreatmentHistory saved =
+            ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
+        ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        return current with
+        {
+            Card = saved.Card,
+            Treatments = saved.Events,
             SourceSha256 = session.Revision.Sha256
         };
     }
@@ -383,6 +445,8 @@ public sealed class ProjectRiskRegistryService
                     ProjectRiskReviewMarkdownCodec.Inspect(markdown);
                 ProjectRiskQualificationHistory qualifications =
                     ProjectRiskQualificationMarkdownCodec.Inspect(markdown);
+                ProjectRiskTreatmentHistory treatment =
+                    ProjectRiskTreatmentMarkdownCodec.Inspect(markdown);
                 ProjectRiskCard card = history.Card;
                 if (card.ProjectId != projectId)
                 {
@@ -394,6 +458,7 @@ public sealed class ProjectRiskRegistryService
                 {
                     Reviews = history.Events,
                     Qualifications = qualifications.Events,
+                    Treatments = treatment.Events,
                     SourceSha256 = Convert.ToHexString(SHA256.HashData(bytes))
                 });
                 highest = Math.Max(highest,
