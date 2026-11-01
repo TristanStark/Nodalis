@@ -49,6 +49,7 @@ internal static class ProjectGateRiskLinksSmokeTests
                 "Gate candidates must derive from same-project canonical RIS.");
 
             ProjectGateRegistryService service = new(workspace);
+            ProjectRiskGateBacklinkService backlinks = new(workspace);
             ProjectGateRegistrySnapshot original = await service.ReadAsync(
                 project.ProjectDirectory);
             ProjectGateRegistry gates = ProjectGateEditor.CreateGate(
@@ -151,6 +152,18 @@ internal static class ProjectGateRiskLinksSmokeTests
 
             ProjectGateRegistrySnapshot first = await service.SaveAsync(
                 project.ProjectDirectory, linked, saved.Sha256);
+            ProjectRiskGateBacklinkCatalog reverse =
+                await backlinks.ListAsync(project.ProjectDirectory, localRisk);
+            Assert(reverse.RiskId == localRisk.Card.Id &&
+                reverse.Links.Count == 1 &&
+                reverse.Links[0].GateId == gateId &&
+                reverse.Links[0].DecisionId == decisionId &&
+                reverse.Links[0].ReservationId == reservationId &&
+                reverse.Links[0].IsLinked &&
+                reverse.Links[0].IsOpen &&
+                reverse.Links[0].Verdict ==
+                    ProjectGateVerdict.GoWithReservations,
+                "Reverse RIS/Gate view must preserve original human verdict.");
             Assert(first.Registry.Decisions.Single().Verdict ==
                     ProjectGateVerdict.GoWithReservations &&
                 first.Registry.ReservationEvents.Count == 0 &&
@@ -179,16 +192,33 @@ internal static class ProjectGateRiskLinksSmokeTests
             Assert(ProjectGateEditor.GetLinkedRiskIds(
                     second.Registry, decisionId, reservationId).Count == 2,
                 "Two independent project risks can be linked to one reservation.");
+            ProjectGateRegistry withLift = ProjectGateEditor.AppendReservationEvent(
+                second.Registry, decisionId, reservationId,
+                ProjectGateReservationEventKind.Lifted, actor,
+                "La réserve est levée après vérification humaine indépendante.",
+                [proof]);
+            ProjectGateRegistrySnapshot lifted = await service.SaveAsync(
+                project.ProjectDirectory, withLift, second.Sha256);
+            ProjectRiskGateBacklinkCatalog afterLift =
+                await backlinks.ListAsync(project.ProjectDirectory, secondRisk);
+            Assert(afterLift.Links.Count == 1 &&
+                afterLift.Links[0].IsLinked &&
+                !afterLift.Links[0].IsOpen &&
+                afterLift.Links[0].Verdict ==
+                    ProjectGateVerdict.GoWithReservations &&
+                lifted.Registry.ReservationEvents.Count == 1,
+                "Lifting a reservation must not unlink RIS or change verdict.");
 
             // Source removed AFTER approval must not block explicit unlink.
             File.Delete(riskPath);
             ProjectGateRegistry removed = ProjectGateEditor.AppendRiskLinkEvent(
-                second.Registry, decisionId, reservationId,
+                lifted.Registry, decisionId, reservationId,
                 localRisk.Card.Id, ProjectGateReservationRiskLinkKind.Unlinked,
                 actor, "Le document RIS a disparu, dissociation manuelle requise.");
             ProjectGateRegistrySnapshot third = await service.SaveAsync(
-                project.ProjectDirectory, removed, second.Sha256);
+                project.ProjectDirectory, removed, lifted.Sha256);
             Assert(third.Registry.RiskLinkEvents.Count == 3 &&
+                third.Registry.ReservationEvents.Count == 1 &&
                 ProjectGateEditor.GetLinkedRiskIds(
                     third.Registry, decisionId, reservationId)
                     .SequenceEqual([secondRisk.Card.Id]),
@@ -200,6 +230,13 @@ internal static class ProjectGateRiskLinksSmokeTests
                     actor, "Relier une source supprimée doit rester interdit."),
                 third.Sha256),
                 "Removed risk source cannot be relinked.");
+
+            ProjectRiskGateBacklinkCatalog afterUnlink =
+                await backlinks.ListAsync(project.ProjectDirectory, secondRisk);
+            Assert(afterUnlink.Links.Count == 1 &&
+                afterUnlink.Links[0].IsLinked &&
+                !afterUnlink.Links[0].IsOpen,
+                "Orphan unlink never affects another risk's backlink.");
 
             // Explicitly copied RIS with duplicate GUID cannot be linked.
             string secondRiskFile = Path.Combine(project.ProjectDirectory,
