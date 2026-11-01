@@ -11,6 +11,15 @@ public sealed record TaskItem
     public required Guid Id { get; init; }
 
     /// <summary>
+    /// Persistent human-approved Markdown task GUID, when one is explicitly
+    /// present in the source. Null for legacy position-derived occurrences.
+    /// </summary>
+    public Guid? PersistentId { get; init; }
+
+    /// <summary>Whether this task can be referenced by a stable external link.</summary>
+    public bool HasPersistentIdentity => PersistentId is not null;
+
+    /// <summary>
     /// Gets the identifier of the source Markdown document.
     /// </summary>
     public required Guid SourceDocumentId { get; init; }
