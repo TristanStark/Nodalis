@@ -19,6 +19,13 @@ public sealed record TaskItem
     /// <summary>Whether this task can be referenced by a stable external link.</summary>
     public bool HasPersistentIdentity => PersistentId is not null;
 
+    /// <summary>
+    /// A linkable project task may inspect RIS backlinks only by a persisted
+    /// GUID, never by its legacy occurrence ID or global application scope.
+    /// </summary>
+    public bool CanShowRiskBacklinks =>
+        PersistentId is not null && ProjectId is not null;
+
     /// <summary>Shows a durable ID or indicates explicit adoption is needed.</summary>
     public string PersistentIdentityDisplay =>
         PersistentId is Guid id

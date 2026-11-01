@@ -220,6 +220,22 @@
                                 </Button>
                                 <Button Margin="0,6,0,0"
                                         Padding="10,5" Tag="{Binding}"
+                                        Click="ShowRiskBacklinks_Click"
+                                        Content="Risques liés…"
+                                        ToolTip="Voir les risques et mesures associés à cet ID stable">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CanShowRiskBacklinks}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Margin="0,6,0,0"
+                                        Padding="10,5" Tag="{Binding}"
                                         Click="CopyIdentity_Click"
                                         Content="Copier l'ID">
                                     <Button.Style>

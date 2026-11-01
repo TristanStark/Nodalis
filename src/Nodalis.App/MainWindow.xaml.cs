@@ -6436,11 +6436,16 @@ public partial class MainWindow : Window
             Owner = this
         };
 
-        if (dialog.ShowDialog() == true &&
-            dialog.SelectedTask is not null)
+        if (dialog.ShowDialog() == true)
         {
-            await NavigateToTaskAsync(
-                dialog.SelectedTask);
+            if (dialog.SelectedRiskPath is string riskPath)
+            {
+                await OpenProjectJourneySourceAsync(riskPath);
+            }
+            else if (dialog.SelectedTask is not null)
+            {
+                await NavigateToTaskAsync(dialog.SelectedTask);
+            }
         }
     }
 

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Tasks;
 using Nodalis.Infrastructure.Tasks;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.App.Reliability;
 
 namespace Nodalis.App.Dialogs;
@@ -85,6 +86,12 @@ public partial class TaskListDialog : Window
     /// Gets the task selected for navigation when the dialog is accepted.
     /// </summary>
     public TaskItem? SelectedTask { get; private set; }
+
+    /// <summary>
+    /// Canonical RIS Markdown requested from the read-only backlink dialog,
+    /// never a title-derived link or an unverified external path.
+    /// </summary>
+    public string? SelectedRiskPath { get; private set; }
 
     /// <summary>
     /// Reloads tasks when the completed-task option changes.
@@ -385,6 +392,39 @@ public partial class TaskListDialog : Window
             {
                 StatusText.Text = exception.Message;
                 await RefreshAsync();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Shows risk associations for a stable project task. The parent dialog
+    /// closes only when the user selects a verified risk Markdown source.
+    /// </summary>
+    /// <param name="sender">Per-task backlinks command.</param>
+    /// <param name="e">WPF routed click.</param>
+    private async void ShowRiskBacklinks_Click(object sender, RoutedEventArgs e)
+    {
+        await UiActionGuard.RunAsync(this, "Tâches · risques liés", async () =>
+        {
+            if (sender is not Button { Tag: TaskItem task } ||
+                !task.CanShowRiskBacklinks)
+            {
+                return;
+            }
+
+            ProjectRiskTaskBacklinkService service = new(_tasks.WorkspaceRoot);
+            ProjectRiskTaskBacklinkCatalog backlinks =
+                await service.ListAsync(task);
+            ProjectRiskTaskBacklinksDialog dialog = new(task, backlinks)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() == true &&
+                dialog.SelectedRiskPath is string path)
+            {
+                SelectedRiskPath = path;
+                SelectedTask = null;
+                DialogResult = true;
             }
         });
     }
