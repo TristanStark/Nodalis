@@ -259,11 +259,50 @@ lien obsolète, édition et dissociation sans mutation du jalon.
 À qualifier visuellement sous Windows : fenêtre étroite, DPI, clavier,
 confirmations, archivage et retour à l'état sans lien.
 
-## 8. Travaux restants (#202)
+## 8. Première tranche des relations réserves ↔ incidents (01/11/2026)
+
+Une réserve d'un **GO sous réserves** peut être reliée manuellement à
+un incident structuré `INC-<GUID>` de la **Fiche de Maintenance.md**
+du même projet. L'action est déclenchée depuis **Incidents liés…** sur
+la réserve sélectionnée : liste des incidents admissibles, diagnostic
+des sources manquantes, auteur et justification exigés, puis
+**confirmation distincte** avant la sauvegarde.
+
+- La décision, ses réserves initiales, les statuts de jalons et la
+  fiche Markdown sont inchangés. Les actions de lien et dissociation
+  sont enregistrées dans le registre via `IncidentLinkEvents`, une
+  chronologie **append-only** avec identités stables, acteur, motif
+  et horodatage. Ancien JSON sans champ : liste vide.
+- L'index des candidats lit **une seule fiche connue, uniquement à la
+  demande**. Aucun parcours récursif du workspace, ni rafraîchissement
+  à chaque frappe ou scroll. Les enregistrements incomplets, GUID
+  dupliqués ou étrangers au projet sont exclus. L'accès aux fichiers
+  suit les contrôles de confinement existants.
+- Le service de sauvegarde requalifie **tous les nouveaux événements
+  d'association**, à partir des incidents réellement présents, avant
+  de persister. Le contrôle SHA-256 et l'interdiction de modifier les
+  anciens événements sont toujours en vigueur. Un lien devenu obsolète
+  est visible et **peut être dissocié**, sans réécriture historique ni
+  blocage des autres modifications du registre.
+- Aucun incident n'est clos ni ne provoque la levée d'une réserve ;
+  l'humain conserve une décision de levée avec preuve distincte.
+  Les tâches checkbox et les dossiers de risques ne sont **pas**
+  encore raccordés : leurs identités doivent d'abord être stabilisées
+  sans recourir à la ligne, au titre ou à un ID calculé.
+
+La suite `ProjectGateIncidentLinksSmokeTests` vérifie les GUID
+canoniques, le refus d'une provenance inter-projet, la non-mutation
+des sources, les liens dupliqués, la suppression historique interdite,
+la désassociation et le refus de relier un incident disparu.
+
+**Recette visuelle Windows restante :** présence/absence de fiche,
+projet archivé en consultation, sélection au clavier et au DPI élevé,
+rafraîchissement du registre et conservation du verdict.
+
+## 9. Travaux restants (#202)
 
 Ces deux tranches n'épuisent pas l'EPIC. Restent notamment :
-l'extension éventuelle de la vue à tout le workspace, les liens
-vérifiés vers tâches, risques et incidents, la qualification visuelle des liens guidés gates/jalons, les
+l'extension éventuelle de la vue à tout le workspace, les liens vérifiés vers tâches et risques, la qualification visuelle des liens guidés gates/jalons, les
 synthèses issues des futurs registres exigences/risques/tests/incidents
 (#198–#201), les requalifications conditionnelles au
 périmètre/version/procédure/rollback/environnement et la qualification

@@ -189,6 +189,10 @@
                                 Content="Réouvrir la réserve…"
                                 Padding="12,7" Margin="0,0,7,6"
                                 Click="ReopenReservation_Click" />
+                        <Button x:Name="IncidentLinksButton"
+                                Content="Incidents liés…"
+                                Padding="12,7" Margin="0,0,7,6"
+                                Click="IncidentLinks_Click" />
                     </WrapPanel>
                 </Grid>
             </Border>

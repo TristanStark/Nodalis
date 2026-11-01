@@ -18,6 +18,7 @@ public partial class ProjectGateRegistryDialog : Window
     private readonly string _serviceWorkspaceRoot;
     private readonly ProjectJourneySourceService _sources;
     private readonly ProjectJourneyMilestoneCatalogService _milestones;
+    private readonly ProjectGateIncidentCatalogService _incidents;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private readonly bool _allowSelection;
@@ -47,6 +48,7 @@ public partial class ProjectGateRegistryDialog : Window
         _serviceWorkspaceRoot = Path.GetFullPath(workspaceRoot);
         _sources = new ProjectJourneySourceService(workspaceRoot);
         _milestones = new ProjectJourneyMilestoneCatalogService(workspaceRoot);
+        _incidents = new ProjectGateIncidentCatalogService(workspaceRoot);
         _projectDirectory = Path.GetFullPath(projectDirectory);
         _readOnly = readOnly;
         _allowSelection = allowSelection;
@@ -198,6 +200,30 @@ public partial class ProjectGateRegistryDialog : Window
 
             ProjectGateReservationEvent[] events = registry.ReservationEvents
                 .Where(item => item.DecisionId == decision.Id).ToArray();
+            // Audit-only incident links are projected once for this decision.
+            // Repainting the dialog never opens or scans Markdown files.
+            Dictionary<Guid, HashSet<string>> activeIncidentLinks = [];
+            foreach (ProjectGateReservationIncidentLinkEvent change in
+                registry.IncidentLinkEvents.Where(item =>
+                    item.DecisionId == decision.Id))
+            {
+                if (!activeIncidentLinks.TryGetValue(change.ReservationId,
+                    out HashSet<string>? set))
+                {
+                    set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    activeIncidentLinks.Add(change.ReservationId, set);
+                }
+
+                if (change.Kind == ProjectGateReservationIncidentLinkKind.Linked)
+                {
+                    set.Add(change.IncidentId);
+                }
+                else
+                {
+                    set.Remove(change.IncidentId);
+                }
+            }
+
             lines.Add("Historique séparé des actions humaines sur les réserves :");
             foreach (ProjectGateReservationEvent item in events)
             {
@@ -220,10 +246,14 @@ public partial class ProjectGateRegistryDialog : Window
                     last.Kind == ProjectGateReservationEventKind.Reopened;
                 return new ReservationRow(decision.Id, reservation, open,
                     (open ? "Ouverte · " : "Levée · ") + reservation.Description,
-                    last is null
+                    (last is null
                         ? "Initiale · aucun événement de qualification"
                         : "Dernière action : " + last.RecordedUtc.ToLocalTime()
-                            .ToString("dd/MM/yyyy HH:mm") + " · " + last.Actor);
+                            .ToString("dd/MM/yyyy HH:mm") + " · " + last.Actor) +
+                    " · " + (activeIncidentLinks.TryGetValue(reservation.Id,
+                        out HashSet<string>? linkedIncidents)
+                            ? linkedIncidents.Count : 0) +
+                    " incident(s) associé(s)");
             }).ToArray();
             ReservationsList.ItemsSource = rows;
             ReservationsList.SelectedItem = rows.FirstOrDefault(item =>
@@ -260,6 +290,8 @@ public partial class ProjectGateRegistryDialog : Window
             ReservationsList.SelectedItem is ReservationRow open && open.IsOpen;
         ReopenReservationButton.IsEnabled = canEdit &&
             ReservationsList.SelectedItem is ReservationRow closed && !closed.IsOpen;
+        IncidentLinksButton.IsEnabled = !_busy && _snapshot is not null &&
+            ReservationsList.SelectedItem is ReservationRow;
     }
 
     /// <summary>Runs all async WPF actions inside the existing error boundary.</summary>
@@ -682,6 +714,69 @@ public partial class ProjectGateRegistryDialog : Window
             ". Aucune décision, tâche ni aucun jalon n'est modifié.",
             historical.Decision.GateId, historical.Decision.Id);
     }
+
+    /// <summary>
+    /// Opens a read-only-first manager of incident associations. The selected
+    /// canonical incident is revalidated by the service before persistence;
+    /// the original decision and its reservations are never rewritten.
+    /// </summary>
+    /// <param name="sender">Incident links button.</param>
+    /// <param name="e">Click event.</param>
+    private async void IncidentLinks_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (_snapshot is null ||
+                ReservationsList.SelectedItem is not ReservationRow row ||
+                HistoryList.SelectedItem is not HistoryRow history ||
+                row.DecisionId != history.Decision.Id)
+            {
+                return;
+            }
+
+            ProjectGateIncidentCatalog catalog = await _incidents.ListAsync(
+                _projectDirectory);
+            IReadOnlyList<string> existing = ProjectGateEditor.GetLinkedIncidentIds(
+                _snapshot.Registry, row.DecisionId, row.Reservation.Id);
+            ProjectGateReservationIncidentLinksDialog dialog = new(
+                row.Reservation.Description, catalog, existing, _readOnly)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true ||
+                dialog.IncidentId is not string incidentId ||
+                dialog.Actor is not string actor ||
+                dialog.Rationale is not string rationale ||
+                dialog.ChangeKind is not
+                    ProjectGateReservationIncidentLinkKind kind)
+            {
+                return;
+            }
+
+            ProjectGateRegistry proposed =
+                ProjectGateEditor.AppendIncidentLinkEvent(
+                    _snapshot.Registry, row.DecisionId, row.Reservation.Id,
+                    incidentId, kind, actor, rationale);
+            await SaveApprovedAsync(proposed,
+                (kind == ProjectGateReservationIncidentLinkKind.Linked
+                    ? "ASSOCIER" : "DISSOCIER") +
+                " l'incident " + incidentId +
+                " de la réserve « " + row.Reservation.Description + " » ?" +
+                Environment.NewLine + "Auteur : " + actor +
+                Environment.NewLine + "Justification : " + rationale +
+                Environment.NewLine +
+                "La fiche de maintenance et le verdict historique " +
+                "resteront inchangés.",
+                history.Decision.GateId, row.DecisionId);
+            // Keep the original reservation selected after the gate repaint.
+            ReservationRow? selected = ReservationsList.Items
+                .OfType<ReservationRow>().FirstOrDefault(item =>
+                    item.DecisionId == row.DecisionId &&
+                    item.Reservation.Id == row.Reservation.Id);
+            if (selected is not null)
+            {
+                ReservationsList.SelectedItem = selected;
+            }
+        }, "Associer ou dissocier un incident");
 
     /// <summary>Updates action buttons after choosing a reservation.</summary>
     /// <param name="sender">Reservation list.</param>
