@@ -328,8 +328,8 @@ internal static class ProjectGateRegistrySmokeTests
                 ReservationEvents = [.. lifted.ReservationEvents,
                     firstEvent with { Id = Guid.NewGuid() }]
             };
-            await RejectAsync(() => Task.FromResult(
-                Task.Run(() => ProjectGateValidation.Validate(invalidEvent))),
+            await RejectAsync(() => Task.Run(() =>
+                ProjectGateValidation.Validate(invalidEvent)),
                 "Forged consecutive lifting events must not validate.");
 
             ProjectGateRegistry reopened = ProjectGateEditor.AppendReservationEvent(
