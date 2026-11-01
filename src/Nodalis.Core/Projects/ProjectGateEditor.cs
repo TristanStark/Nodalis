@@ -105,7 +105,8 @@ public static class ProjectGateEditor
                 !Enum.IsDefined(assessment.Status) ||
                 !string.Equals(assessment.Name, criterion.Name,
                     StringComparison.Ordinal) ||
-                assessment.Comment.Length > 4000)
+                assessment.Optional != criterion.Optional ||
+                assessment.Comment is null || assessment.Comment.Length > 4000)
             {
                 throw new InvalidDataException(
                     "Les évaluations ne correspondent pas aux critères du gate.");
@@ -121,20 +122,25 @@ public static class ProjectGateEditor
         bool approval = review.Verdict is ProjectGateVerdict.Go or
             ProjectGateVerdict.GoWithReservations;
         if (approval && (gate.Criteria.Count == 0 ||
-            review.Evidence.Count == 0 ||
-            review.Assessments.Any(item =>
+            review.Evidence.Count == 0))
+        {
+            throw new InvalidDataException(
+                "Un GO ou GO sous réserves exige des critères qualifiés " +
+                "et au moins une preuve examinée.");
+        }
+
+        if (review.Verdict == ProjectGateVerdict.Go &&
+            (review.Assessments.Any(item =>
                 item.Status is ProjectGateCriterionStatus.Deviation or
-                    ProjectGateCriterionStatus.Unknown) &&
-                review.Verdict == ProjectGateVerdict.Go ||
-            gate.Criteria.Any(criterion => !criterion.Optional &&
+                    ProjectGateCriterionStatus.Unknown) ||
+             gate.Criteria.Any(criterion => !criterion.Optional &&
                 review.Assessments.Single(item =>
                     item.CriterionId == criterion.Id).Status !=
                 ProjectGateCriterionStatus.Conform)))
         {
             throw new InvalidDataException(
-                "Un GO exige des preuves et la conformité explicite de tous " +
-                "les critères obligatoires ; les inconnues et écarts " +
-                "interdisent un GO sans réserves.");
+                "Un GO sans réserves exige la conformité explicite de " +
+                "tous les critères obligatoires, sans écart ni inconnue.");
         }
 
         if (review.Verdict == ProjectGateVerdict.GoWithReservations &&
