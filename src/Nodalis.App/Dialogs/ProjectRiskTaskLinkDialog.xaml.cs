@@ -73,6 +73,14 @@ public partial class ProjectRiskTaskLinkDialog : Window
     /// <summary>Reason for this reversible link event.</summary>
     public string? Rationale { get; private set; }
 
+    /// <summary>
+    /// Verified project-local Markdown source, set only on explicit navigation.
+    /// </summary>
+    public string? SelectedTaskSourcePath { get; private set; }
+
+    /// <summary>Source line hint, never a stable task identifier.</summary>
+    public int? SelectedTaskSourceLine { get; private set; }
+
     /// <summary>Recomputes choices from in-memory verified task snapshots.</summary>
     /// <param name="sender">Choice change control.</param>
     /// <param name="e">WPF selection event.</param>
@@ -112,12 +120,55 @@ public partial class ProjectRiskTaskLinkDialog : Window
 
         TaskCombo.ItemsSource = options;
         TaskCombo.SelectedIndex = options.Length == 0 ? -1 : 0;
+        UpdateOpenTaskButton();
         CandidatesText.Text = options.Length == 0
             ? ActionCombo.SelectedIndex == 0
                 ? "Aucune tâche éligible : attribuez un ID stable à une tâche " +
                   "du projet depuis la vue Tâches, ou vérifiez les doublons."
                 : "Aucune tâche actuellement liée à cette mesure."
             : options.Length + " tâche(s) disponible(s) pour cette opération.";
+    }
+
+    /// <summary>Offers navigation only for currently resolved project tasks.</summary>
+    private void UpdateOpenTaskButton()
+    {
+        if (OpenTaskButton is not null)
+        {
+            OpenTaskButton.IsEnabled =
+                TaskCombo?.SelectedItem is TaskOption option &&
+                _tasks.Any(task => task.PersistentId == option.Id);
+        }
+    }
+
+    /// <summary>Tracks task picker changes without doing filesystem I/O.</summary>
+    /// <param name="sender">Task selection control.</param>
+    /// <param name="e">Selection event.</param>
+    private void Task_Changed(object sender, SelectionChangedEventArgs e) =>
+        UpdateOpenTaskButton();
+
+    /// <summary>
+    /// Returns an existing task source for normal journey navigation.
+    /// Does not link, unlink, or modify any Markdown content.
+    /// </summary>
+    /// <param name="sender">Open task command.</param>
+    /// <param name="e">WPF event.</param>
+    private void OpenTask_Click(object sender, RoutedEventArgs e)
+    {
+        if (TaskCombo.SelectedItem is not TaskOption option)
+        {
+            return;
+        }
+
+        TaskItem? task = _tasks.SingleOrDefault(item =>
+            item.PersistentId == option.Id);
+        if (task is null)
+        {
+            return;
+        }
+
+        SelectedTaskSourcePath = task.SourceRelativePath;
+        SelectedTaskSourceLine = task.LineNumber;
+        DialogResult = true;
     }
 
     /// <summary>Captures a proposal, without modifying any source.</summary>

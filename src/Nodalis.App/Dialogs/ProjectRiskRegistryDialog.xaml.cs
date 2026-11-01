@@ -39,6 +39,12 @@ public partial class ProjectRiskRegistryDialog : Window
     /// <summary>Existing safe source selected for Markdown navigation.</summary>
     public string? SelectedRiskPath { get; private set; }
 
+    /// <summary>Selected linked task source requested for navigation.</summary>
+    public string? SelectedLinkedTaskPath { get; private set; }
+
+    /// <summary>Optional source-line hint for selected linked task.</summary>
+    public int? SelectedLinkedTaskLine { get; private set; }
+
     /// <summary>Whether an explicitly approved risk file was created.</summary>
     public bool Changed { get; private set; }
 
@@ -516,8 +522,20 @@ public partial class ProjectRiskRegistryDialog : Window
         {
             Owner = this
         };
-        if (dialog.ShowDialog() != true ||
-            dialog.Kind is not ProjectRiskMeasureKind kind ||
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (dialog.SelectedTaskSourcePath is string linkedPath)
+        {
+            SelectedLinkedTaskPath = linkedPath;
+            SelectedLinkedTaskLine = dialog.SelectedTaskSourceLine;
+            DialogResult = true;
+            return;
+        }
+
+        if (dialog.Kind is not ProjectRiskMeasureKind kind ||
             dialog.Action is not ProjectRiskTaskLinkAction action ||
             dialog.TaskId is not Guid taskId ||
             dialog.Actor is not string actor ||

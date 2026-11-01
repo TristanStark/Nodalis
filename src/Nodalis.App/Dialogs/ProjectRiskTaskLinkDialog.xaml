@@ -29,7 +29,8 @@
                 <TextBlock Text="Tâche du projet (GUID persistant uniquement)"
                            FontWeight="SemiBold" />
                 <ComboBox x:Name="TaskCombo" Margin="0,5,0,12"
-                          MinHeight="34" DisplayMemberPath="Label" />
+                          MinHeight="34" DisplayMemberPath="Label"
+                          SelectionChanged="Task_Changed" />
                 <TextBlock x:Name="CandidatesText" TextWrapping="Wrap"
                            Foreground="{StaticResource SecondaryTextBrush}"
                            Margin="0,0,0,12" />
@@ -48,6 +49,10 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button Content="Annuler" Padding="12,8"
                         Margin="0,0,8,0" Click="Cancel_Click" />
+                <Button x:Name="OpenTaskButton"
+                        Content="Ouvrir la tâche" Padding="12,8"
+                        Margin="0,0,8,0" Click="OpenTask_Click"
+                        ToolTip="Ouvrir le Markdown de la tâche sélectionnée dans Nodalis" />
                 <Button Content="Proposer la relation" Padding="12,8"
                         Click="Accept_Click" />
             </StackPanel>

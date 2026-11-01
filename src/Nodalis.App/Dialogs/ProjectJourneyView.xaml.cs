@@ -915,12 +915,15 @@ public partial class ProjectJourneyView : UserControl
                 Owner = Window.GetWindow(this)
             };
             dialog.ShowDialog();
-            if (dialog.SelectedRiskPath is string path)
+            string? source = dialog.SelectedLinkedTaskPath ??
+                dialog.SelectedRiskPath;
+            if (source is string path)
             {
                 if (SourceOpenRequested is not null)
                 {
                     SourceOpenRequested.Invoke(this,
-                        new ProjectJourneySourceOpenRequestedEventArgs(path));
+                        new ProjectJourneySourceOpenRequestedEventArgs(
+                            path, dialog.SelectedLinkedTaskLine));
                 }
                 else
                 {
