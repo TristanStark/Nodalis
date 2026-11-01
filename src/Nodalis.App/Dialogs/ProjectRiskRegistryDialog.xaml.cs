@@ -30,6 +30,7 @@ public partial class ProjectRiskRegistryDialog : Window
         _projectDirectory = Path.GetFullPath(projectDirectory);
         _readOnly = readOnly;
         InitializeComponent();
+        FilterCombo.SelectedIndex = 0;
         Loaded += async (_, _) => await GuardAsync(
             () => ReloadAsync(null), "Charger les risques");
     }
@@ -51,10 +52,7 @@ public partial class ProjectRiskRegistryDialog : Window
     private async Task ReloadAsync(Guid? selectedId)
     {
         _catalog = await _service.ListAsync(_projectDirectory);
-        ProjectRiskEntry[] entries = _catalog.Risks.ToArray();
-        RisksList.ItemsSource = entries;
-        RisksList.SelectedItem = entries.FirstOrDefault(item =>
-            item.Card.Id == selectedId) ?? entries.FirstOrDefault();
+        RefreshFilteredRows(selectedId);
         DiagnosticsText.Text = _catalog.Diagnostics.Count == 0
             ? "Aucun document ignoré."
             : _catalog.Diagnostics.Count +
@@ -62,9 +60,73 @@ public partial class ProjectRiskRegistryDialog : Window
               string.Join(Environment.NewLine, _catalog.Diagnostics.Take(6));
         StatusText.Text = _readOnly
             ? "Projet en lecture seule · aucun fichier modifiable."
-            : entries.Length + " risque(s) avec GUID stable · prochaine référence : " +
+            : _catalog.Risks.Count + " risque(s) avec GUID stable · prochaine référence : " +
               (_catalog.NextReference ?? "aucune");
         UpdateButtons();
+    }
+
+    /// <summary>
+    /// Computes risk subsets from one immutable local catalog without
+    /// rescanning the workspace on every typed character or selection.
+    /// </summary>
+    /// <param name="selectedId">Optional risk identity to keep selected.</param>
+    private void RefreshFilteredRows(Guid? selectedId)
+    {
+        if (_catalog is null)
+        {
+            return;
+        }
+
+        string term = SearchBox.Text.Trim();
+        int index = FilterCombo.SelectedIndex;
+        ProjectRiskEntry[] entries = _catalog.Risks.Where(item =>
+            (term.Length == 0 ||
+             item.Card.Reference.Contains(term,
+                 StringComparison.CurrentCultureIgnoreCase) ||
+             item.Card.Title.Contains(term,
+                 StringComparison.CurrentCultureIgnoreCase)) &&
+            (index switch
+            {
+                1 => item.Reviews.Count == 0,
+                2 => item.Reviews.Count > 0 &&
+                    ProjectRiskMatrix.Evaluate(item.Card.Residual) ==
+                        ProjectRiskSeverity.Unassessed,
+                3 => ProjectRiskMatrix.Evaluate(item.Card.Initial) ==
+                        ProjectRiskSeverity.High ||
+                    ProjectRiskMatrix.Evaluate(item.Card.Residual) ==
+                        ProjectRiskSeverity.High,
+                4 => ProjectRiskMatrix.Evaluate(item.Card.Initial) ==
+                        ProjectRiskSeverity.Moderate ||
+                    ProjectRiskMatrix.Evaluate(item.Card.Residual) ==
+                        ProjectRiskSeverity.Moderate,
+                5 => ProjectRiskMatrix.Evaluate(item.Card.Initial) ==
+                        ProjectRiskSeverity.Low ||
+                    ProjectRiskMatrix.Evaluate(item.Card.Residual) ==
+                        ProjectRiskSeverity.Low,
+                6 => item.Card.Lifecycle == ProjectRiskLifecycle.Monitoring,
+                7 => item.Card.Lifecycle == ProjectRiskLifecycle.Closed,
+                8 => item.Card.Qualification == ProjectRiskQualification.ToReview,
+                _ => true
+            })).ToArray();
+        RisksList.ItemsSource = entries;
+        RisksList.SelectedItem = entries.FirstOrDefault(item =>
+            item.Card.Id == selectedId) ?? entries.FirstOrDefault();
+        CountsText.Text = entries.Length + "/" + _catalog.Risks.Count +
+            " affiché(s) · " +
+            _catalog.Risks.Count(item => item.Reviews.Count == 0) +
+            " sans avis initial";
+        PaintSelection();
+    }
+
+    /// <summary>Updates only the in-memory subset when the filter changes.</summary>
+    /// <param name="sender">Filter source control.</param>
+    /// <param name="e">Selection or text change event.</param>
+    private void Filter_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_busy)
+        {
+            RefreshFilteredRows(SelectedRisk()?.Card.Id);
+        }
     }
 
     /// <summary>Updates right pane without any disk access.</summary>

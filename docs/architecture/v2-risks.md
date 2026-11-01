@@ -10,7 +10,10 @@ réévaluation prévu par #199.
 Ouvrir le **Parcours** d'un projet, puis **Risques…** dans la barre d'actions.
 Le registre sombre est une **vue ponctuelle du projet** (pas un rescannage
 du workspace à chaque modification WPF). Il affiche les fichiers structurés
-de `Analyse/Risques`. Les projets Complexes récents possèdent déjà
+de `Analyse/Risques`. Les filtres « sans évaluation initiale »,
+« résiduel non évalué », criticité (initiale **ou** résiduelle),
+surveillance, clôture et qualification à faire sont **purement mémoire**.
+La recherche par code RIS/titre ne déclenche aucun accès disque. Les projets Complexes récents possèdent déjà
 `Analyse/Risques/Risques.md` : c'est un **ancien tableau conservé**, et
 non un risque individu automatiquement importé.
 
