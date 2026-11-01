@@ -24,6 +24,8 @@ public partial class ProjectGateRegistryDialog : Window
     private readonly bool _readOnly;
     private readonly bool _allowSelection;
     private readonly Guid? _initialGateId;
+    private readonly Guid? _initialDecisionId;
+    private readonly Guid? _initialReservationId;
     private readonly List<string> _suggestedEvidence;
     private ProjectGateRegistrySnapshot? _snapshot;
     private ProjectJourneyMilestoneCatalog? _milestoneCatalog;
@@ -37,10 +39,14 @@ public partial class ProjectGateRegistryDialog : Window
     /// <param name="suggestedEvidence">Existing operation source references.</param>
     /// <param name="allowSelection">May return a gate to link to the operation.</param>
     /// <param name="initialGateId">Existing gate to highlight in the registry.</param>
+    /// <param name="initialDecisionId">Optional frozen decision to highlight.</param>
+    /// <param name="initialReservationId">Optional reservation to highlight.</param>
     public ProjectGateRegistryDialog(string workspaceRoot,
         string projectDirectory, bool readOnly,
         IReadOnlyList<string> suggestedEvidence, bool allowSelection,
-        Guid? initialGateId = null)
+        Guid? initialGateId = null,
+        Guid? initialDecisionId = null,
+        Guid? initialReservationId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
@@ -55,12 +61,15 @@ public partial class ProjectGateRegistryDialog : Window
         _readOnly = readOnly;
         _allowSelection = allowSelection;
         _initialGateId = initialGateId;
+        _initialDecisionId = initialDecisionId;
+        _initialReservationId = initialReservationId;
         _suggestedEvidence = suggestedEvidence
             .Where(ProjectJourneySourcePath.IsSafe)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         InitializeComponent();
         Loaded += async (_, _) => await GuardAsync(
-            () => ReloadAsync(_initialGateId), "Charger le registre des gates");
+            () => ReloadAsync(_initialGateId, _initialDecisionId,
+                _initialReservationId), "Charger le registre des gates");
     }
 
     /// <summary>Chosen gate ID when the user explicitly selects one.</summary>
@@ -76,10 +85,24 @@ public partial class ProjectGateRegistryDialog : Window
     /// <summary>Displays a read-only, unmodified registry.</summary>
     /// <param name="selectedId">Optional gate to reselect.</param>
     /// <returns>Completed read.</returns>
-    private async Task ReloadAsync(Guid? selectedId)
+    private async Task ReloadAsync(Guid? selectedId,
+        Guid? selectedDecisionId = null, Guid? selectedReservationId = null)
     {
         _snapshot = await _service.ReadAsync(_projectDirectory);
-        Paint(selectedId);
+        Paint(selectedId, selectedDecisionId);
+        if (selectedReservationId is Guid reservationId)
+        {
+            ReservationRow? row = ReservationsList.Items
+                .OfType<ReservationRow>().FirstOrDefault(item =>
+                    item.DecisionId == selectedDecisionId &&
+                    item.Reservation.Id == reservationId);
+            if (row is not null)
+            {
+                ReservationsList.SelectedItem = row;
+                UpdateButtons();
+            }
+        }
+
         StatusText.Text = _readOnly
             ? "Consultation uniquement · workspace/projet en lecture seule."
             : _snapshot.Sha256 is null

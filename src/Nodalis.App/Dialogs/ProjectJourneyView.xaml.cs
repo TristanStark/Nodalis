@@ -907,7 +907,7 @@ public partial class ProjectJourneyView : UserControl
     /// <param name="sender">Risk registry command.</param>
     /// <param name="e">Click event.</param>
     private async void RiskRegistry_Click(object sender, RoutedEventArgs e) =>
-        await RunActionAsync(() =>
+        await RunActionAsync(async () =>
         {
             ProjectRiskRegistryDialog dialog = new(
                 _workspaceRoot, _projectDirectory, _readOnly)
@@ -935,7 +935,12 @@ public partial class ProjectJourneyView : UserControl
                 }
             }
 
-            return Task.CompletedTask;
+            if (dialog.SelectedGateId is Guid gateId &&
+                dialog.SelectedGateDecisionId is Guid decisionId &&
+                dialog.SelectedGateReservationId is Guid reservationId)
+            {
+                await OpenGatesDialogAsync(gateId, decisionId, reservationId);
+            }
         }, "Consulter les risques du projet");
 
     /// <summary>Opens the canonical gate registry and permits an explicit link.</summary>
@@ -952,7 +957,8 @@ public partial class ProjectJourneyView : UserControl
     /// </summary>
     /// <param name="initialGateId">Gate to inspect in immutable history.</param>
     /// <returns>Completed explicit management or link action.</returns>
-    private async Task OpenGatesDialogAsync(Guid? initialGateId)
+    private async Task OpenGatesDialogAsync(Guid? initialGateId,
+        Guid? initialDecisionId = null, Guid? initialReservationId = null)
     {
         ProjectJourneyStep? step = SelectedStep();
         ProjectJourneyOperation? operation = SelectedOperation();
@@ -961,7 +967,9 @@ public partial class ProjectJourneyView : UserControl
             operation?.SourcePaths ?? [], allowSelection:
                 !_readOnly && _snapshot is not null &&
                 step is not null && operation is not null,
-            initialGateId: initialGateId)
+            initialGateId: initialGateId,
+            initialDecisionId: initialDecisionId,
+            initialReservationId: initialReservationId)
         {
             Owner = Window.GetWindow(this)
         };
