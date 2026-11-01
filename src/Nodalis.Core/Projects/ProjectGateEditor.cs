@@ -330,6 +330,114 @@ public static class ProjectGateEditor
         });
     }
 
+    /// <summary>
+    /// Returns currently linked, immutable incident identities for a reservation.
+    /// No incident state is inferred from the relationship.
+    /// </summary>
+    /// <param name="registry">Validated gate register.</param>
+    /// <param name="decisionId">Original human decision ID.</param>
+    /// <param name="reservationId">Original reservation ID.</param>
+    /// <returns>Active canonical incident IDs, never source paths.</returns>
+    public static IReadOnlyList<string> GetLinkedIncidentIds(
+        ProjectGateRegistry registry, Guid decisionId, Guid reservationId)
+    {
+        ProjectGateValidation.Validate(registry);
+        if (!registry.Decisions.Any(item => item.Id == decisionId &&
+            item.Reservations.Any(reservation => reservation.Id == reservationId)))
+        {
+            throw new KeyNotFoundException("Réserve d'origine introuvable.");
+        }
+
+        HashSet<string> current = new(StringComparer.OrdinalIgnoreCase);
+        foreach (ProjectGateReservationIncidentLinkEvent change in
+            registry.IncidentLinkEvents)
+        {
+            if (change.DecisionId == decisionId &&
+                change.ReservationId == reservationId)
+            {
+                if (change.Kind == ProjectGateReservationIncidentLinkKind.Linked)
+                {
+                    current.Add(change.IncidentId);
+                }
+                else
+                {
+                    current.Remove(change.IncidentId);
+                }
+            }
+        }
+
+        return current.OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Records human approval to associate/dissociate a stable incident ID.
+    /// The source existence/scope must also be verified by SaveAsync.
+    /// </summary>
+    /// <param name="registry">Current register.</param>
+    /// <param name="decisionId">Original historical decision.</param>
+    /// <param name="reservationId">Original reservation.</param>
+    /// <param name="incidentId">Canonical INC-prefixed GUID.</param>
+    /// <param name="kind">Link or unlink.</param>
+    /// <param name="actor">Human performing the operation.</param>
+    /// <param name="rationale">Reason for this relation.</param>
+    /// <returns>New register with one append-only audit event.</returns>
+    public static ProjectGateRegistry AppendIncidentLinkEvent(
+        ProjectGateRegistry registry, Guid decisionId, Guid reservationId,
+        string incidentId, ProjectGateReservationIncidentLinkKind kind,
+        string actor, string rationale)
+    {
+        if (!ProjectGateValidation.IsIncidentId(incidentId) ||
+            !Enum.IsDefined(kind))
+        {
+            throw new InvalidDataException("Identifiant ou action d'incident invalide.");
+        }
+
+        IReadOnlyList<string> linked = GetLinkedIncidentIds(
+            registry, decisionId, reservationId);
+        bool alreadyLinked = linked.Contains(incidentId,
+            StringComparer.OrdinalIgnoreCase);
+        if (kind == ProjectGateReservationIncidentLinkKind.Linked &&
+                alreadyLinked ||
+            kind == ProjectGateReservationIncidentLinkKind.Unlinked &&
+                !alreadyLinked)
+        {
+            throw new InvalidOperationException(
+                "Ce lien est déjà dans cet état. Actualisez le registre.");
+        }
+
+        string reviewedActor = ProjectGateValidation.RequireText(
+            actor, 120, nameof(actor));
+        string reviewedReason = ProjectGateValidation.RequireText(
+            rationale, 4000, nameof(rationale));
+        if (reviewedReason.Length < 10)
+        {
+            throw new InvalidDataException(
+                "Justification du lien requise (au moins 10 caractères).");
+        }
+
+        ProjectGateRegistry updated = registry with
+        {
+            IncidentLinkEvents =
+            [
+                .. registry.IncidentLinkEvents,
+                new ProjectGateReservationIncidentLinkEvent
+                {
+                    Id = Guid.NewGuid(),
+                    DecisionId = decisionId,
+                    ReservationId = reservationId,
+                    IncidentId = "INC-" +
+                        Guid.ParseExact(incidentId[4..], "N").ToString("N"),
+                    Kind = kind,
+                    Actor = reviewedActor,
+                    Rationale = reviewedReason
+                }
+            ]
+        };
+        ProjectGateValidation.Validate(updated);
+        return updated;
+    }
+
     /// <summary>Updates one gate definition, preserving all decision history.</summary>
     /// <param name="registry">Current registry.</param>
     /// <param name="gateId">Existing gate.</param>

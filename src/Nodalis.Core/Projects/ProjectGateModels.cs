@@ -37,6 +37,10 @@ public sealed record ProjectGateRegistry
     /// Existing v1 registries deserialize with an empty history.
     /// </summary>
     public List<ProjectGateReservationEvent> ReservationEvents { get; init; } = [];
+
+    /// <summary>Independent, append-only incident association history.</summary>
+    public List<ProjectGateReservationIncidentLinkEvent> IncidentLinkEvents
+    { get; init; } = [];
 }
 
 /// <summary>One named review point with stable identity and editable future criteria.</summary>
@@ -160,6 +164,29 @@ public sealed record ProjectGateReservationEvent
 
     /// <summary>Reviewed, frozen evidence; lifting requires at least one proof.</summary>
     public List<ProjectGateEvidenceSnapshot> Evidence { get; init; } = [];
+}
+
+/// <summary>Explicit manual linking or unlinking of a canonical incident.</summary>
+public enum ProjectGateReservationIncidentLinkKind
+{
+    Linked,
+    Unlinked
+}
+
+/// <summary>
+/// Audited incident association with a reservation from an immutable
+/// historical decision. Incidents remain owned by canonical Markdown.
+/// </summary>
+public sealed record ProjectGateReservationIncidentLinkEvent
+{
+    public required Guid Id { get; init; }
+    public required Guid DecisionId { get; init; }
+    public required Guid ReservationId { get; init; }
+    public required string IncidentId { get; init; }
+    public required ProjectGateReservationIncidentLinkKind Kind { get; init; }
+    public DateTimeOffset RecordedUtc { get; init; } = DateTimeOffset.UtcNow;
+    public required string Actor { get; init; }
+    public required string Rationale { get; init; }
 }
 
 /// <summary>Calculated current state, never written over the decision.</summary>

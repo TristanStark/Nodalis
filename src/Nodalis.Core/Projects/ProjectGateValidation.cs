@@ -148,6 +148,7 @@ public static class ProjectGateValidation
         }
 
         ValidateReservationEvents(registry);
+        ValidateIncidentLinkEvents(registry);
     }
 
     /// <summary>
@@ -217,6 +218,82 @@ public static class ProjectGateValidation
             state[(item.DecisionId, item.ReservationId)] =
                 item.Kind == ProjectGateReservationEventKind.Reopened;
             lastTime[item.ReservationId] = item.RecordedUtc;
+        }
+    }
+
+    /// <summary>
+    /// Checks typed, stable, portable canonical incident identities. No
+    /// derived task position or filename is ever treated as an incident ID.
+    /// </summary>
+    /// <param name="id">Incident marker stored in maintenance Markdown.</param>
+    /// <returns>Whether this is a valid non-empty INC-prefixed GUID.</returns>
+    public static bool IsIncidentId(string? id) =>
+        id is { Length: 36 } &&
+        id.StartsWith("INC-", StringComparison.OrdinalIgnoreCase) &&
+        Guid.TryParseExact(id[4..], "N", out Guid parsed) &&
+        parsed != Guid.Empty;
+
+    /// <summary>
+    /// Replays all association events, rejecting orphans, duplicate actions,
+    /// retroactive timestamps and tampered identifiers without touching files.
+    /// </summary>
+    /// <param name="registry">Canonical gate register.</param>
+    private static void ValidateIncidentLinkEvents(ProjectGateRegistry registry)
+    {
+        if (registry.IncidentLinkEvents is null)
+        {
+            throw new InvalidDataException("Historique des liens incident absent.");
+        }
+
+        Dictionary<(Guid Decision, Guid Reservation), DateTimeOffset> origins = [];
+        foreach (ProjectGateDecision decision in registry.Decisions)
+        {
+            foreach (ProjectGateReservation reservation in decision.Reservations)
+            {
+                origins.Add((decision.Id, reservation.Id), decision.RecordedUtc);
+            }
+        }
+
+        HashSet<Guid> eventIds = [];
+        Dictionary<(Guid Decision, Guid Reservation, string Incident),
+            (bool Linked, DateTimeOffset LastTime)> state = [];
+        foreach (ProjectGateReservationIncidentLinkEvent item in
+            registry.IncidentLinkEvents)
+        {
+            if (item is null || item.Id == Guid.Empty ||
+                !eventIds.Add(item.Id) || item.RecordedUtc == default ||
+                !Enum.IsDefined(item.Kind) ||
+                !IsIncidentId(item.IncidentId) ||
+                !IsText(item.Actor, 120) ||
+                !IsText(item.Rationale, 4000) ||
+                item.Rationale.Trim().Length < 10 ||
+                !origins.TryGetValue((item.DecisionId, item.ReservationId),
+                    out DateTimeOffset origin) ||
+                item.RecordedUtc < origin)
+            {
+                throw new InvalidDataException(
+                    "Lien incident de réserve invalide ou orphelin.");
+            }
+
+            (Guid Decision, Guid Reservation, string Incident) key =
+                (item.DecisionId, item.ReservationId,
+                    item.IncidentId.ToUpperInvariant());
+            state.TryGetValue(key,
+                out (bool Linked, DateTimeOffset LastTime) prior);
+            if (prior.LastTime != default && item.RecordedUtc < prior.LastTime ||
+                item.Kind == ProjectGateReservationIncidentLinkKind.Linked &&
+                    prior.Linked ||
+                item.Kind == ProjectGateReservationIncidentLinkKind.Unlinked &&
+                    !prior.Linked)
+            {
+                throw new InvalidDataException(
+                    "Historique incident incohérent : lien dupliqué, " +
+                    "dissociation orpheline ou date réordonnée.");
+            }
+
+            state[key] = (
+                item.Kind == ProjectGateReservationIncidentLinkKind.Linked,
+                item.RecordedUtc);
         }
     }
 

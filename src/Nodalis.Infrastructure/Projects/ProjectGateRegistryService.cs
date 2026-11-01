@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Nodalis.Core.Domain;
+using Nodalis.Core.Maintenance;
 using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Reliability;
@@ -19,6 +20,7 @@ public sealed class ProjectGateRegistryService
     private readonly string _workspaceRoot;
     private readonly ProjectJourneySourceService _sources;
     private readonly ProjectJourneyMilestoneCatalogService _milestones;
+    private readonly ProjectGateIncidentCatalogService _incidents;
 
     /// <summary>Creates a workspace-scoped gate registry service.</summary>
     /// <param name="workspaceRoot">Current workspace directory.</param>
@@ -29,6 +31,7 @@ public sealed class ProjectGateRegistryService
             Path.GetFullPath(workspaceRoot));
         _sources = new ProjectJourneySourceService(_workspaceRoot);
         _milestones = new ProjectJourneyMilestoneCatalogService(_workspaceRoot);
+        _incidents = new ProjectGateIncidentCatalogService(_workspaceRoot);
     }
 
     /// <summary>
@@ -138,6 +141,44 @@ public sealed class ProjectGateRegistryService
                 throw new InvalidDataException(
                     "Un événement historique de réserve ne peut être effacé " +
                     "ou réécrit.");
+            }
+        }
+
+        // Incident relationships are an independent append-only audit stream.
+        // A modified or removed historical link is always rejected.
+        for (int index = 0; index < old.Registry.IncidentLinkEvents.Count; index++)
+        {
+            if (index >= registry.IncidentLinkEvents.Count ||
+                !string.Equals(
+                    JsonSerializer.Serialize(old.Registry.IncidentLinkEvents[index],
+                        JsonDefaults.Options),
+                    JsonSerializer.Serialize(registry.IncidentLinkEvents[index],
+                        JsonDefaults.Options),
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "Un lien incident historique ne peut être réécrit.");
+            }
+        }
+
+        ProjectGateReservationIncidentLinkEvent[] addedLinks =
+            registry.IncidentLinkEvents
+                .Skip(old.Registry.IncidentLinkEvents.Count)
+                .Where(item =>
+                    item.Kind == ProjectGateReservationIncidentLinkKind.Linked)
+                .ToArray();
+        if (addedLinks.Length > 0)
+        {
+            ProjectGateIncidentCatalog catalog = await _incidents.ListAsync(
+                directory, cancellationToken);
+            HashSet<string> eligible = catalog.Candidates
+                .Select(item => item.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (addedLinks.Any(item => !eligible.Contains(item.IncidentId)))
+            {
+                throw new InvalidDataException(
+                    "Incident absent, incomplet, dupliqué ou hors projet. " +
+                    "Aucune nouvelle relation enregistrée.");
             }
         }
 
