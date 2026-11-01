@@ -18,6 +18,7 @@ public sealed class ProjectGateRegistryService
 
     private readonly string _workspaceRoot;
     private readonly ProjectJourneySourceService _sources;
+    private readonly ProjectJourneyMilestoneCatalogService _milestones;
 
     /// <summary>Creates a workspace-scoped gate registry service.</summary>
     /// <param name="workspaceRoot">Current workspace directory.</param>
@@ -27,6 +28,7 @@ public sealed class ProjectGateRegistryService
         _workspaceRoot = Path.TrimEndingDirectorySeparator(
             Path.GetFullPath(workspaceRoot));
         _sources = new ProjectJourneySourceService(_workspaceRoot);
+        _milestones = new ProjectJourneyMilestoneCatalogService(_workspaceRoot);
     }
 
     /// <summary>
@@ -136,6 +138,38 @@ public sealed class ProjectGateRegistryService
                 throw new InvalidDataException(
                     "Un événement historique de réserve ne peut être effacé " +
                     "ou réécrit.");
+            }
+        }
+
+        // A newly linked ID must be a real, project-local, unambiguous
+        // persisted Markdown GUID. Verify once per write, not once per row.
+        // Existing references may become stale: allow unrelated edits and
+        // explicit unlink without rewriting or migrating source milestones.
+        HashSet<Guid> newReferences = [];
+        foreach (ProjectGateDefinition gate in registry.Gates)
+        {
+            ProjectGateDefinition? previous = old.Registry.Gates.FirstOrDefault(
+                item => item.Id == gate.Id);
+            foreach (Guid id in gate.MilestoneIds)
+            {
+                if (previous is null || !previous.MilestoneIds.Contains(id))
+                {
+                    newReferences.Add(id);
+                }
+            }
+        }
+
+        if (newReferences.Count > 0)
+        {
+            ProjectJourneyMilestoneCatalog catalog =
+                await _milestones.ListAsync(directory, cancellationToken);
+            HashSet<Guid> eligible = catalog.Candidates.Select(item => item.Id)
+                .ToHashSet();
+            if (newReferences.Any(id => !eligible.Contains(id)))
+            {
+                throw new InvalidDataException(
+                    "Lien refusé : jalon absent, sans GUID enregistré, " +
+                    "dupliqué ou extérieur au projet. Actualisez les jalons.");
             }
         }
 

@@ -228,12 +228,42 @@ déplacées ou ambiguës. La vue transversale actuelle concerne le
 4. Tester grande liste, fenêtre étroite, DPI, projet archivé/lecture
    seule, et fermeture du dialogue sans mutation.
 
-## 7. Travaux restants (#202)
+## 7. Liens guidés gates ↔ jalons (01/11/2026)
+
+Le gate permet maintenant d'**associer** et **dissocier** un jalon
+existant du projet depuis le registre WPF. Le sélecteur est partagé
+avec le Parcours : seules les lignes avec un GUID réellement persisté,
+unique et provenant du projet peuvent être liées. Les anciennes lignes
+sans ID et les GUID dupliqués ne sont pas modifiés automatiquement.
+
+- L'affichage initial n'effectue aucun scan des Markdown. Le bouton
+  **Actualiser les jalons** (ou **Associer un jalon**) effectue une seule
+  lecture explicite ; noms/statuts et références devenues ambiguës
+  sont alors affichés.
+- `ProjectGateRegistryService.SaveAsync` revalide les GUID **nouveaux**
+  avant écriture, dans une seule consultation du catalogue. Une
+  référence étrangère, absente, non persistée ou ambiguë est refusée.
+  Le contrôle de concurrence SHA-256 du registre reste obligatoire.
+- Une relation existante peut devenir obsolète après réorganisation
+  du fichier : elle est conservée avec diagnostic pour permettre une
+  dissociation ou une édition non liée. Aucun GUID n'est remplacé
+  automatiquement ; la source du jalon reste intacte.
+- La relation est non propriétaire : ni jalon terminé, ni nouvel
+  historique GO, ni changement de statut du Parcours. Aucun
+  verrou multi-fichiers n'est prétendu entre le contrôle de la source
+  Markdown et l'écriture JSON.
+
+`ProjectGateMilestoneLinksSmokeTests` couvre les GUID uniques,
+doublons, références étrangères/inventées, idempotence, relecture,
+lien obsolète, édition et dissociation sans mutation du jalon.
+À qualifier visuellement sous Windows : fenêtre étroite, DPI, clavier,
+confirmations, archivage et retour à l'état sans lien.
+
+## 8. Travaux restants (#202)
 
 Ces deux tranches n'épuisent pas l'EPIC. Restent notamment :
 l'extension éventuelle de la vue à tout le workspace, les liens
-vérifiés vers tâches, risques et incidents, les associations
-guidées avec jalons dont le GUID est réellement persisté, les
+vérifiés vers tâches, risques et incidents, la qualification visuelle des liens guidés gates/jalons, les
 synthèses issues des futurs registres exigences/risques/tests/incidents
 (#198–#201), les requalifications conditionnelles au
 périmètre/version/procédure/rollback/environnement et la qualification

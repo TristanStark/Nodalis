@@ -70,6 +70,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
@@ -91,11 +92,40 @@
                     <ListBox Grid.Row="3" x:Name="CriteriaList"
                              Margin="0,0,0,8" MaxHeight="150"
                              DisplayMemberPath="Name" />
-                    <TextBlock Grid.Row="4" Text="DÉCISIONS FIGÉES · HISTORIQUE"
+                    <StackPanel Grid.Row="4" Margin="0,4,0,6">
+                        <TextBlock Text="JALONS ASSOCIÉS · liens non propriétaires"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                        <WrapPanel Margin="0,6,0,3">
+                            <Button x:Name="LinkMilestoneButton"
+                                    Content="Associer un jalon…"
+                                    Padding="10,5" Margin="0,0,6,5"
+                                    Click="LinkMilestone_Click" />
+                            <Button x:Name="UnlinkMilestoneButton"
+                                    Content="Dissocier le jalon"
+                                    Padding="10,5" Margin="0,0,6,5"
+                                    Click="UnlinkMilestone_Click" />
+                            <Button x:Name="RefreshMilestonesButton"
+                                    Content="Actualiser les jalons"
+                                    Padding="10,5" Margin="0,0,6,5"
+                                    Click="RefreshMilestones_Click" />
+                        </WrapPanel>
+                        <ListBox x:Name="LinkedMilestonesList" MinHeight="32"
+                                 MaxHeight="84"
+                                 SelectionChanged="LinkedMilestonesList_SelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Label}"
+                                               Margin="6,4" TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                    <TextBlock Grid.Row="5" Text="DÉCISIONS FIGÉES · HISTORIQUE"
                                FontSize="11" FontWeight="SemiBold"
                                Margin="0,10,0,6"
                                Foreground="{StaticResource SecondaryTextBrush}" />
-                    <Grid Grid.Row="5">
+                    <Grid Grid.Row="6">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="2*" />
                             <RowDefinition Height="*" />
@@ -144,7 +174,7 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </Grid>
-                    <WrapPanel Grid.Row="6" Margin="0,10,0,0">
+                    <WrapPanel Grid.Row="7" Margin="0,10,0,0">
                         <Button x:Name="RecordDecisionButton" Content="Consigner une décision…"
                                 Padding="12,7" Click="RecordDecision_Click"
                                 Margin="0,0,7,0" />

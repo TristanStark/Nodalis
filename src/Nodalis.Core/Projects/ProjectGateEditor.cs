@@ -303,6 +303,33 @@ public static class ProjectGateEditor
                 : gate with { MilestoneIds = [.. gate.MilestoneIds, milestoneId] });
     }
 
+    /// <summary>
+    /// Removes one non-owning milestone link from the gate without changing
+    /// source milestones or any immutable human decision.
+    /// </summary>
+    /// <param name="registry">Current registry.</param>
+    /// <param name="gateId">Gate containing the association.</param>
+    /// <param name="milestoneId">Stable ID to dissociate.</param>
+    /// <returns>Registry without the selected association.</returns>
+    public static ProjectGateRegistry UnlinkMilestone(
+        ProjectGateRegistry registry, Guid gateId, Guid milestoneId)
+    {
+        return UpdateGate(registry, gateId, gate =>
+        {
+            if (!gate.MilestoneIds.Contains(milestoneId))
+            {
+                throw new KeyNotFoundException(
+                    "Ce jalon n'est plus associé au gate. Actualisez le registre.");
+            }
+
+            return gate with
+            {
+                MilestoneIds = gate.MilestoneIds
+                    .Where(item => item != milestoneId).ToList()
+            };
+        });
+    }
+
     /// <summary>Updates one gate definition, preserving all decision history.</summary>
     /// <param name="registry">Current registry.</param>
     /// <param name="gateId">Existing gate.</param>

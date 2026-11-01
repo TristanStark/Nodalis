@@ -17,12 +17,14 @@ public partial class ProjectGateRegistryDialog : Window
     private readonly ProjectGateRegistryService _service;
     private readonly string _serviceWorkspaceRoot;
     private readonly ProjectJourneySourceService _sources;
+    private readonly ProjectJourneyMilestoneCatalogService _milestones;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private readonly bool _allowSelection;
     private readonly Guid? _initialGateId;
     private readonly List<string> _suggestedEvidence;
     private ProjectGateRegistrySnapshot? _snapshot;
+    private ProjectJourneyMilestoneCatalog? _milestoneCatalog;
     private bool _busy;
     private bool _painting;
 
@@ -44,6 +46,7 @@ public partial class ProjectGateRegistryDialog : Window
         _service = new ProjectGateRegistryService(workspaceRoot);
         _serviceWorkspaceRoot = Path.GetFullPath(workspaceRoot);
         _sources = new ProjectJourneySourceService(workspaceRoot);
+        _milestones = new ProjectJourneyMilestoneCatalogService(workspaceRoot);
         _projectDirectory = Path.GetFullPath(projectDirectory);
         _readOnly = readOnly;
         _allowSelection = allowSelection;
@@ -123,6 +126,18 @@ public partial class ProjectGateRegistryDialog : Window
             CriteriaList.ItemsSource = gate?.Criteria.Select(item =>
                 new CriterionDisplay(item.Name +
                     (item.Optional ? " · facultatif" : " · obligatoire"))).ToArray();
+            LinkedMilestonesList.ItemsSource = gate?.MilestoneIds.Select(id =>
+            {
+                ProjectJourneyMilestoneCandidate? candidate =
+                    _milestoneCatalog?.Candidates.FirstOrDefault(
+                        item => item.Id == id);
+                string label = candidate is not null
+                    ? candidate.Label + " · " + candidate.Location
+                    : _milestoneCatalog is null
+                        ? id.ToString("D") + " · actualiser pour afficher le jalon"
+                        : id.ToString("D") + " · lien absent ou ambigu";
+                return new MilestoneLinkRow(id, label);
+            }).ToArray();
             ProjectGateDecision[] decisions = _snapshot?.Registry.Decisions
                 .Where(item => item.GateId == gate?.Id).Reverse().ToArray() ?? [];
             HistoryRow[] history = decisions.Select(item => new HistoryRow(item,
@@ -234,6 +249,10 @@ public partial class ProjectGateRegistryDialog : Window
         AddGateButton.IsEnabled = canEdit;
         AddDefaultsButton.IsEnabled = canEdit;
         AddCriterionButton.IsEnabled = canEdit && selected;
+        LinkMilestoneButton.IsEnabled = canEdit && selected;
+        UnlinkMilestoneButton.IsEnabled = canEdit &&
+            LinkedMilestonesList.SelectedItem is MilestoneLinkRow;
+        RefreshMilestonesButton.IsEnabled = selected;
         AddProofButton.IsEnabled = canEdit && selected;
         RecordDecisionButton.IsEnabled = canEdit && selected;
         ChooseGateButton.IsEnabled = selected && _allowSelection && !_readOnly;
@@ -413,6 +432,104 @@ public partial class ProjectGateRegistryDialog : Window
                 gate.Name + " » ?\nLes décisions précédentes restent intactes.",
                 gate.Id);
         }, "Ajouter un critère");
+
+    /// <summary>Reads real milestone identities only on an explicit command.</summary>
+    /// <param name="sender">Refresh button.</param>
+    /// <param name="e">Click event.</param>
+    private async void RefreshMilestones_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            _milestoneCatalog = await _milestones.ListAsync(_projectDirectory);
+            PaintSelection();
+            StatusText.Text = _milestoneCatalog.Candidates.Count +
+                " jalon(s) avec GUID stable · " +
+                _milestoneCatalog.LegacyWithoutStableId + " sans ID · " +
+                _milestoneCatalog.DuplicateIds.Count +
+                " ID dupliqué(s) · aucune source modifiée.";
+        }, "Actualiser les jalons");
+
+    /// <summary>
+    /// Presents a verified project milestone and persists only its stable GUID.
+    /// A second validation on SaveAsync guards against stale/forged selection.
+    /// </summary>
+    /// <param name="sender">Link button.</param>
+    /// <param name="e">Click event.</param>
+    private async void LinkMilestone_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            ProjectGateDefinition? gate = CurrentGate();
+            if (_snapshot is null || gate is null)
+            {
+                return;
+            }
+
+            _milestoneCatalog = await _milestones.ListAsync(_projectDirectory);
+            PaintSelection();
+            ProjectJourneyMilestoneCandidate[] candidates =
+                _milestoneCatalog.Candidates
+                    .Where(item => !gate.MilestoneIds.Contains(item.Id))
+                    .ToArray();
+            if (candidates.Length == 0)
+            {
+                StatusText.Text = "Aucun jalon supplémentaire avec GUID " +
+                    "unique et enregistré n'est disponible dans ce projet.";
+                return;
+            }
+
+            ProjectJourneyMilestonePickerDialog dialog = new(
+                candidates, _milestoneCatalog.LegacyWithoutStableId,
+                _milestoneCatalog.DuplicateIds.Count)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true ||
+                dialog.SelectedMilestone is not ProjectJourneyMilestoneCandidate choice)
+            {
+                return;
+            }
+
+            await _milestones.RequireCurrentAsync(_projectDirectory, choice.Id);
+            ProjectGateRegistry proposed = ProjectGateEditor.LinkMilestone(
+                _snapshot.Registry, gate.Id, choice.Id);
+            await SaveApprovedAsync(proposed,
+                "Associer le jalon « " + choice.Name + " » au gate « " +
+                gate.Name + " » ?" + Environment.NewLine +
+                "Seul le lien GUID dans le registre sera ajouté.", gate.Id);
+        }, "Associer un jalon");
+
+    /// <summary>Removes a gate reference without changing the milestone.</summary>
+    /// <param name="sender">Unlink button.</param>
+    /// <param name="e">Click event.</param>
+    private async void UnlinkMilestone_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            ProjectGateDefinition? gate = CurrentGate();
+            if (_snapshot is null || gate is null ||
+                LinkedMilestonesList.SelectedItem is not MilestoneLinkRow choice)
+            {
+                return;
+            }
+
+            ProjectGateRegistry proposed = ProjectGateEditor.UnlinkMilestone(
+                _snapshot.Registry, gate.Id, choice.Id);
+            await SaveApprovedAsync(proposed,
+                "Dissocier « " + choice.Label + " » du gate « " +
+                gate.Name + " » ?" + Environment.NewLine +
+                "Le jalon et les anciennes décisions restent inchangés.",
+                gate.Id);
+        }, "Dissocier un jalon");
+
+    /// <summary>Refreshes action eligibility after link selection.</summary>
+    /// <param name="sender">Milestone link list.</param>
+    /// <param name="e">Selection event.</param>
+    private void LinkedMilestonesList_SelectionChanged(
+        object sender, SelectionChangedEventArgs e)
+    {
+        if (!_painting)
+        {
+            UpdateButtons();
+        }
+    }
 
     /// <summary>Offers an existing workspace file as optional decision evidence.</summary>
     /// <param name="sender">Add proof button.</param>
@@ -696,6 +813,8 @@ public partial class ProjectGateRegistryDialog : Window
         ProjectGateDefinition Gate, string Name, string Summary);
 
     private sealed record CriterionDisplay(string Name);
+
+    private sealed record MilestoneLinkRow(Guid Id, string Label);
 
     private sealed record HistoryRow(
         ProjectGateDecision Decision, string Label, string Summary);
