@@ -1,9 +1,9 @@
 # Nodalis 2.0 — risques canoniques (EPIC #199)
 
-Statut : **premier incrément fonctionnel sur `develop`**, sans release 2.0.
-Ce lot pose l'identité durable des risques et la création explicite des fiches,
-sans prétendre fournir déjà tout le cycle de qualification, mitigation et
-réévaluation prévu par #199.
+Statut : **développement incrémental sur `develop`**, sans release 2.0.
+Identité portable, création des fiches RIS, évaluations humaines historisées,
+qualification métier indépendante, et registre filtrable sont implémentés.
+Les mesures structurées, liens métier et la clôture guidée restent à faire.
 
 ## 1. Accès et emplacement
 
@@ -62,14 +62,14 @@ une lecture n'invente pas le second score. Les composantes initiale et
 résiduelle n'interfèrent pas : finir une tâche ne peut pas abaisser
 un score, fermer un incident ne valide pas un risque.
 
-**Limitations actuelles importantes :** les évaluations humaine
-initiale/résiduelle et l'historique append-only sont désormais
-intégrés, mais **les décisions de qualification métier, les mesures,
-les rattachements aux réserves/tâches/incidents, les synthèses et
-la clôture guidée** restent à développer. Les avis sont audités dans
-le Markdown, sans signature cryptographique extérieure.
+**Limitations actuelles importantes :** les évaluations humaines,
+la qualification métier et leurs historiques append-only sont intégrés,
+mais **les mesures structurées, les rattachements aux
+réserves/tâches/incidents, les synthèses avancées et la clôture guidée**
+restent à développer. Les avis sont audités dans le Markdown, sans
+signature cryptographique extérieure.
 
-## 4. Qualification humaine et réévaluation (incrément suivant)
+## 4. Criticité : qualification humaine et réévaluation
 
 Le bouton **Qualifier l'initiale…** apparaît sur une fiche RIS non
 encore évaluée. La personne choisit explicitement **probabilité et
@@ -114,7 +114,78 @@ comme non qualifiable, jamais présenté comme validé.
 > détecte les incohérences structurelles, mais ne garantit pas une
 > preuve d'authenticité contre un éditeur de fichiers malveillant.
 
-## 5. Sécurité et performances
+## 5. Qualification métier indépendante (incrément suivant)
+
+Le registre **Risques…** propose une nouvelle action **« Décider du
+statut… »**. Elle est entièrement distincte des commandes de criticité
+initiale et résiduelle. Le décideur choisit explicitement :
+
+- **À qualifier** (`ToReview`) : risque en attente de décision métier,
+  y compris après une **requalification motivée** ;
+- **Validé** (`Validated`) : le risque est reconnu comme pertinent,
+  sans présumer son niveau de criticité ni une mitigation terminée ;
+- **Rejeté** (`Rejected`) : le risque est écarté au terme d'une
+  décision humaine, sans suppression de fiche ni altération des scores.
+
+Chaque changement exige un **nouveau statut différent**, un
+**décideur identifié**, une **justification d'au moins 10 caractères**
+et une **confirmation finale** résumant ancien statut, nouveau statut,
+acteur et motif. L'utilisateur peut revenir à « À qualifier » après
+validation/rejet en créant une *nouvelle décision*, jamais en effaçant
+une décision antérieure. La fenêtre permet de relire toutes les
+transitions, leurs dates, auteurs et raisons.
+
+### Persistance des deux chronologies indépendantes
+
+Le fichier `RIS-xxxx.md` conserve deux journaux distincts :
+
+1. `<!-- nodalis:risk-qualification:start -->` jusqu'à
+   `<!-- nodalis:risk-qualification:end -->` : une ligne de commentaire
+   JSON par décision métier avec ancien état, nouvel état, GUID stable,
+   auteur, raison et date UTC ;
+2. `<!-- nodalis:risk-history:start -->` jusqu'à
+   `<!-- nodalis:risk-history:end -->` : évaluations initiales et
+   résiduelles de la matrice 1–3 × 1–3.
+
+Lorsqu'ils coexistent, le **journal métier précède le journal de
+criticité**, qui reste dernier. Les éléments de contexte Markdown
+restent libres **avant ces blocs**.
+
+Le service relit les deux journaux pour vérifier que le
+`qualification:` du YAML correspond à la dernière décision, et
+que les scores sont cohérents avec les avis de criticité.
+Une qualification `Validated` ou `Rejected` inscrite à la main
+sans événement correspondant n'est **pas fiable** : le document est
+signalé dans les diagnostics plutôt que validé silencieusement.
+Les transitions dupliquées, états inconnus, anciennes valeurs
+incohérentes, GUIDs invalides et fragments d'historique sont rejetés.
+
+Tout nouveau choix passe par la même vérification du **projet
+propriétaire, GUID du risque, dossier canonique et SHA-256 exact**
+que l'évaluation de criticité. Les projets archivés sont
+consultables mais les commandes d'écriture sont refusées. La
+modification du statut métier ne touche **ni l'initiale, ni la
+résiduelle, ni le cycle de vie, ni les tâches, ni les incidents,
+ni les Gates**. Aucun état n'est déduit par une IA.
+
+### Qualification manuelle à effectuer
+
+Dans un projet de test :
+
+1. créer une fiche RIS et confirmer qu'elle est `ToReview` et
+   `Unassessed` pour les deux criticités ;
+2. valider le statut métier **sans** saisir de score ; le score doit
+   rester non évalué ;
+3. qualifier ensuite l'initiale à 3×3 puis changer le statut en
+   `Rejected` ; l'initiale doit rester à 9 et son historique intact ;
+4. réévaluer la résiduelle à 1×2, puis revenir à `ToReview`
+   par décision motivée ; les deux journaux doivent rester visibles ;
+5. tester Annuler, recharger après une modification externe
+   du Markdown, et ouvrir la fiche dans l'éditeur ;
+6. vérifier les archives en lecture seule, DPI élevé, clavier,
+   petite fenêtre et absence de saut du Worktree.
+
+## 6. Sécurité et performances
 
 - Vérification du manifeste `.project.json` et de l'appartenance du
   projet au workspace, sans traversée hors racine ou lien symbolique.
@@ -127,7 +198,7 @@ comme non qualifiable, jamais présenté comme validé.
 - Catalogue recalculé seulement via **Recharger** ou après création.
   Aucune IA ni réseau nécessaire.
 
-## 6. Tests automatiques et recette Windows
+## 7. Tests automatiques et recette Windows
 
 `ProjectRiskRegistrySmokeTests`, branché dans `Program.cs`,
 vérifie la lecture non destructive d'un projet Complexe comprenant
@@ -141,6 +212,11 @@ première évaluation figée, les réévaluations résiduelles avec
 horodatage et auteur, la conservation des commentaires libres,
 les modifications concurrentes, le refus des évaluations
 non historisées et le filtrage des sources d'un autre projet.
+
+La suite `ProjectRiskQualificationSmokeTests` vérifie la séparation
+stricte des deux journaux, toutes les transitions métier, les
+modifications externes, les tentatives de réécriture du YAML, les
+états incohérents et le refus d'un projet tiers.
 
 Recette visuelle **encore à faire** : risque créé puis rouvert,
 onglets Markdown existants intacts, fenêtre étroite, DPI élevé, clavier,
