@@ -140,35 +140,88 @@ public partial class ProjectGateRegistryDialog : Window
         UpdateButtons();
     }
 
-    /// <summary>Shows the frozen decision file contents without editing it.</summary>
+    /// <summary>
+    /// Shows the frozen original verdict and the separately appended human
+    /// reservation history. Neither view modifies the original record.
+    /// </summary>
     private void PaintDecisionDetail()
     {
-        if (HistoryList.SelectedItem is not HistoryRow row)
+        bool wasPainting = _painting;
+        _painting = true;
+        try
         {
-            DecisionDetailsBox.Text = "Aucune décision enregistrée.";
-            return;
+            if (HistoryList.SelectedItem is not HistoryRow row ||
+                _snapshot is null)
+            {
+                DecisionDetailsBox.Text = "Aucune décision enregistrée.";
+                ReservationsList.ItemsSource = null;
+                return;
+            }
+
+            ProjectGateDecision decision = row.Decision;
+            ProjectGateRegistry registry = _snapshot.Registry;
+            List<string> lines =
+            [
+                "Verdict INITIAL : " + VerdictName(decision.Verdict),
+                "Auteur : " + decision.Actor,
+                "Périmètre : " + decision.Scope,
+                "Version : " + (decision.Version ?? "non précisée"),
+                "Environnement : " + (decision.Environment ?? "non précisé"),
+                "Justification : " + decision.Rationale,
+                "Critères à la date de décision :"
+            ];
+            lines.AddRange(decision.Assessments.Select(item =>
+                "  - " + item.Name + " : " + item.Status + " " + item.Comment));
+            lines.Add("Preuves initiales figées (SHA-256) :");
+            lines.AddRange(decision.Evidence.Select(item =>
+                "  - " + item.RelativePath + " [" + item.Sha256 + "]"));
+            lines.Add("Réserves initialement enregistrées :");
+            lines.AddRange(decision.Reservations.Select(item =>
+                "  - " + item.Id + " · " + item.Description));
+
+            ProjectGateReservationEvent[] events = registry.ReservationEvents
+                .Where(item => item.DecisionId == decision.Id).ToArray();
+            lines.Add("Historique séparé des actions humaines sur les réserves :");
+            foreach (ProjectGateReservationEvent item in events)
+            {
+                lines.Add("  - " + item.RecordedUtc.ToLocalTime()
+                    .ToString("dd/MM/yyyy HH:mm") + " · " + item.Kind +
+                    " · " + item.Actor + " · " + item.Rationale);
+                lines.AddRange(item.Evidence.Select(proof =>
+                    "      preuve : " + proof.RelativePath + " [" +
+                    proof.Sha256 + "]"));
+            }
+
+            DecisionDetailsBox.Text = string.Join(Environment.NewLine, lines);
+            Guid? selectedReservation = (ReservationsList.SelectedItem
+                as ReservationRow)?.Reservation.Id;
+            ReservationRow[] rows = decision.Reservations.Select(reservation =>
+            {
+                ProjectGateReservationEvent? last = events.LastOrDefault(item =>
+                    item.ReservationId == reservation.Id);
+                bool open = last is null ||
+                    last.Kind == ProjectGateReservationEventKind.Reopened;
+                return new ReservationRow(decision.Id, reservation, open,
+                    (open ? "Ouverte · " : "Levée · ") + reservation.Description,
+                    last is null
+                        ? "Initiale · aucun événement de qualification"
+                        : "Dernière action : " + last.RecordedUtc.ToLocalTime()
+                            .ToString("dd/MM/yyyy HH:mm") + " · " + last.Actor);
+            }).ToArray();
+            ReservationsList.ItemsSource = rows;
+            ReservationsList.SelectedItem = rows.FirstOrDefault(item =>
+                item.Reservation.Id == selectedReservation) ??
+                rows.FirstOrDefault();
+        }
+        finally
+        {
+            _painting = wasPainting;
         }
 
-        ProjectGateDecision decision = row.Decision;
-        List<string> lines =
-        [
-            "Verdict : " + VerdictName(decision.Verdict),
-            "Auteur : " + decision.Actor,
-            "Périmètre : " + decision.Scope,
-            "Version : " + (decision.Version ?? "non précisée"),
-            "Environnement : " + (decision.Environment ?? "non précisé"),
-            "Justification : " + decision.Rationale,
-            "Critères à la date de décision :"
-        ];
-        lines.AddRange(decision.Assessments.Select(item =>
-            "  - " + item.Name + " : " + item.Status + " " + item.Comment));
-        lines.Add("Preuves figées (SHA-256) :");
-        lines.AddRange(decision.Evidence.Select(item =>
-            "  - " + item.RelativePath + " [" + item.Sha256 + "]"));
-        lines.Add("Réserves enregistrées :");
-        lines.AddRange(decision.Reservations.Select(item =>
-            "  - " + item.Id + " · " + item.Description));
-        DecisionDetailsBox.Text = string.Join(Environment.NewLine, lines);
+        if (!_painting)
+        {
+            UpdateButtons();
+        }
     }
 
     /// <summary>Enables only contextually meaningful commands.</summary>
