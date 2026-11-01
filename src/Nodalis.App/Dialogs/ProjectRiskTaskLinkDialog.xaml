@@ -1,0 +1,59 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectRiskTaskLinkDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Tâches liées aux mesures · Nodalis 2.0"
+        Width="790" Height="635" MinWidth="570" MinHeight="490"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="HeadingText" FontSize="18"
+                       FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock x:Name="SummaryText" Margin="0,6,0,0"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,4,10,8">
+                <TextBlock Text="Opération sur le lien" FontWeight="SemiBold" />
+                <ComboBox x:Name="ActionCombo" Margin="0,5,0,12"
+                          MinHeight="34" SelectionChanged="Selection_Changed" />
+                <TextBlock Text="Mesure de la version actuelle du plan"
+                           FontWeight="SemiBold" />
+                <ComboBox x:Name="MeasureCombo" Margin="0,5,0,12"
+                          MinHeight="34" SelectionChanged="Selection_Changed" />
+                <TextBlock Text="Tâche du projet (GUID persistant uniquement)"
+                           FontWeight="SemiBold" />
+                <ComboBox x:Name="TaskCombo" Margin="0,5,0,12"
+                          MinHeight="34" DisplayMemberPath="Label" />
+                <TextBlock x:Name="CandidatesText" TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Margin="0,0,0,12" />
+                <TextBlock Text="Décideur" FontWeight="SemiBold" />
+                <TextBox x:Name="ActorBox" Margin="0,5,0,12"
+                         MaxLength="120" />
+                <TextBlock Text="Motif du lien ou de sa suppression"
+                           FontWeight="SemiBold" />
+                <TextBox x:Name="RationaleBox" Margin="0,5,0,12"
+                         MinHeight="85" TextWrapping="Wrap"
+                         AcceptsReturn="True" MaxLength="4000"
+                         VerticalScrollBarVisibility="Auto" />
+            </StackPanel>
+        </ScrollViewer>
+        <DockPanel Grid.Row="2" Margin="0,12,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Annuler" Padding="12,8"
+                        Margin="0,0,8,0" Click="Cancel_Click" />
+                <Button Content="Proposer la relation" Padding="12,8"
+                        Click="Accept_Click" />
+            </StackPanel>
+            <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Aucune coche ou évaluation automatique." />
+        </DockPanel>
+    </Grid>
+</Window>

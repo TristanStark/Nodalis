@@ -114,6 +114,11 @@
                 <Button x:Name="CreateRiskButton" Content="Nouveau risque…"
                         Padding="12,7" Margin="0,0,8,0"
                         Click="CreateRisk_Click" />
+                <Button x:Name="TaskLinksButton"
+                        Content="Tâches liées…"
+                        Padding="12,7" Margin="0,0,8,6"
+                        Click="TaskLinks_Click"
+                        ToolTip="Associer ou délier une tâche à l'une des mesures du plan" />
                 <Button x:Name="MeasureButton"
                         Content="Suivi des mesures…"
                         Padding="12,7" Margin="0,0,8,6"

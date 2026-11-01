@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Nodalis.App.Reliability;
 using Nodalis.Core.Risks;
+using Nodalis.Core.Tasks;
 using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
@@ -193,6 +194,22 @@ public partial class ProjectRiskRegistryDialog : Window
                     : Enum.GetValues<ProjectRiskMeasureKind>().Select(kind =>
                         " • " + kind + " : " + entry.MeasureStatus(kind))),
                 "",
+                "Relations tâches du plan actuel : " +
+                    (entry.CurrentTreatment is null ? "aucun plan" :
+                        entry.TaskLinks.Count + " événements au total"),
+                .. (entry.CurrentTreatment is null
+                    ? Array.Empty<string>()
+                    : Enum.GetValues<ProjectRiskMeasureKind>().Select(kind =>
+                        " • " + kind + " : " +
+                        entry.LinkedTaskIds(kind).Count + " tâche(s) liée(s)")),
+                .. entry.TaskLinks.Select(link =>
+                    link.RecordedUtc.ToLocalTime()
+                        .ToString("dd/MM/yyyy HH:mm") +
+                    " · " + link.Action + " · " + link.Kind +
+                    " · Plan " + link.TreatmentId.ToString("D") +
+                    " · Task " + link.TaskId.ToString("D") +
+                    " · " + link.Actor + " · " + link.Rationale),
+                "",
                 "Historique des mesures : " + entry.MeasureEvents.Count +
                     " déclaration(s)",
                 .. entry.MeasureEvents.Select(measure =>
@@ -247,6 +264,8 @@ public partial class ProjectRiskRegistryDialog : Window
         TreatmentButton.IsEnabled = !_busy && !_readOnly &&
             entry is not null;
         MeasureButton.IsEnabled = !_busy && !_readOnly &&
+            entry?.CurrentTreatment is not null;
+        TaskLinksButton.IsEnabled = !_busy && !_readOnly &&
             entry?.CurrentTreatment is not null;
         InitialReviewButton.IsEnabled = !_busy && !_readOnly &&
             entry is not null && entry.Reviews.Count == 0;
@@ -477,6 +496,77 @@ public partial class ProjectRiskRegistryDialog : Window
         StatusText.Text = saved.Card.Reference +
             " · plan historisé, criticités et statut inchangés.";
     }
+
+    /// <summary>
+    /// Links or unlinks a genuine project task by its stable GUID, with
+    /// human review of both source and destination, no task mutation.
+    /// </summary>
+    /// <returns>Saved explicit relation or unchanged risk on cancellation.</returns>
+    private async Task EditTaskLinksAsync()
+    {
+        if (_readOnly || SelectedRisk() is not ProjectRiskEntry selected ||
+            selected.CurrentTreatment is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<TaskItem> candidates =
+            await _service.ListLinkableTasksAsync(_projectDirectory);
+        ProjectRiskTaskLinkDialog dialog = new(selected, candidates)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true ||
+            dialog.Kind is not ProjectRiskMeasureKind kind ||
+            dialog.Action is not ProjectRiskTaskLinkAction action ||
+            dialog.TaskId is not Guid taskId ||
+            dialog.Actor is not string actor ||
+            dialog.Rationale is not string rationale)
+        {
+            return;
+        }
+
+        string taskLabel = candidates.FirstOrDefault(
+            item => item.PersistentId == taskId)?.Text ??
+            "(source déplacée ou non résolue)";
+        if (MessageBox.Show(this,
+            (action == ProjectRiskTaskLinkAction.Link
+                ? "Confirmer le rattachement de la tâche ?" :
+                "Confirmer la dissociation de la tâche ?") +
+            "\n\nRisque : " + selected.Card.Reference +
+            " — " + selected.Card.Title +
+            "\nVersion du plan : " + selected.Treatments[^1].Id.ToString("D") +
+            "\nMesure : " + kind +
+            "\nTâche : " + taskLabel +
+            "\nGUID de tâche : " + taskId.ToString("D") +
+            "\nDécideur : " + actor +
+            "\nMotif : " + PreviewMeasure(rationale) +
+            "\n\nSeul le Markdown RIS sera modifié. " +
+            "Aucune checkbox, criticité, qualification métier, " +
+            "gate ou mesure ne changera automatiquement. " +
+            "La relation est historisée et réversible.",
+            "Relation tâche/mesure · confirmation humaine",
+            MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectRiskEntry saved = await _service.ChangeTaskLinkAsync(
+            _projectDirectory, selected, kind, taskId,
+            action, actor, rationale);
+        Changed = true;
+        await ReloadAsync(saved.Card.Id);
+        StatusText.Text = saved.Card.Reference + " · " + action +
+            " " + taskId.ToString("D") +
+            " · relation historisée, tâches non modifiées.";
+    }
+
+    /// <summary>Opens the source-verified task/measure association dialog.</summary>
+    /// <param name="sender">User command.</param>
+    /// <param name="e">WPF routed event.</param>
+    private async void TaskLinks_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(EditTaskLinksAsync, "Lier des tâches aux mesures");
 
     /// <summary>
     /// Records a manually reviewed progress transition for a measure of the
