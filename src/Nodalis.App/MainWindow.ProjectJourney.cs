@@ -186,7 +186,7 @@ public partial class MainWindow
         object? sender, ProjectJourneySourceOpenRequestedEventArgs e)
     {
         await RunUiActionAsync("Parcours projet · ouvrir une preuve",
-            () => OpenProjectJourneySourceAsync(e.RelativePath));
+            () => OpenProjectJourneySourceAsync(e.RelativePath, e.LineNumber));
     }
 
     /// <summary>
@@ -195,8 +195,10 @@ public partial class MainWindow
     /// known document/image file types. Executables are never launched.
     /// </summary>
     /// <param name="reference">Portable relative reference.</param>
+    /// <param name="lineNumber">Optional canonical Markdown source line.</param>
     /// <returns>Completed user-initiated navigation.</returns>
-    private async Task OpenProjectJourneySourceAsync(string reference)
+    private async Task OpenProjectJourneySourceAsync(
+        string reference, int? lineNumber = null)
     {
         ProjectJourneySourceService sources = new(_root.FullPath);
         string path = sources.ResolveExistingFile(reference);
@@ -218,6 +220,11 @@ public partial class MainWindow
                 node.IsSelected = true;
                 _restoringSelection = false;
                 await OpenDocumentAsync(node);
+                if (lineNumber is int line && line > 0)
+                {
+                    MoveCaretToLine(line);
+                }
+
                 StatusText.Text = "Preuve ouverte dans Nodalis · " + reference;
                 return;
             }
