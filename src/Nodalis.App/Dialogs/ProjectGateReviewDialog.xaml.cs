@@ -186,10 +186,14 @@ public partial class ProjectGateReviewDialog : Window
     /// <summary>Explicit, initially unchecked source selection.</summary>
     private sealed class ProofRow
     {
+        /// <summary>Creates one unchecked, explicitly selectable proof.</summary>
+        /// <param name="relativePath">Safe workspace-relative source.</param>
         public ProofRow(string relativePath) => RelativePath = relativePath;
 
+        /// <summary>Portable proof path.</summary>
         public string RelativePath { get; }
 
+        /// <summary>Only checked references are fingerprinted.</summary>
         public bool Selected { get; set; }
     }
 }
