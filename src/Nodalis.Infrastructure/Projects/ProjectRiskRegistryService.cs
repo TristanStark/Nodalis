@@ -2,7 +2,9 @@ using System.Security.Cryptography;
 using System.Text;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Risks;
+using Nodalis.Core.Tasks;
 using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Tasks;
 using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.Projects;
@@ -34,6 +36,38 @@ public sealed record ProjectRiskEntry(
     /// <summary>Human progress events across all recorded plan versions.</summary>
     public IReadOnlyList<ProjectRiskMeasureEvent> MeasureEvents
     { get; init; } = [];
+
+    /// <summary>Human-reviewed task link/unlink events across treatment versions.</summary>
+    public IReadOnlyList<ProjectRiskTaskLinkEvent> TaskLinks
+    { get; init; } = [];
+
+    /// <summary>Stable linked task GUIDs on a slot of the current plan.</summary>
+    /// <param name="kind">Named measure of the current treatment.</param>
+    /// <returns>Durable IDs, even if their sources have since disappeared.</returns>
+    public IReadOnlyList<Guid> LinkedTaskIds(ProjectRiskMeasureKind kind)
+    {
+        if (Treatments.Count == 0)
+        {
+            return [];
+        }
+
+        Guid planId = Treatments[^1].Id;
+        HashSet<Guid> ids = [];
+        foreach (ProjectRiskTaskLinkEvent item in TaskLinks.Where(item =>
+            item.TreatmentId == planId && item.Kind == kind))
+        {
+            if (item.Action == ProjectRiskTaskLinkAction.Link)
+            {
+                ids.Add(item.TaskId);
+            }
+            else
+            {
+                ids.Remove(item.TaskId);
+            }
+        }
+
+        return ids.OrderBy(id => id).ToArray();
+    }
 
     /// <summary>Gets explicit progress for a slot of the CURRENT plan only.</summary>
     /// <param name="kind">Named prevention, mitigation or contingency slot.</param>
@@ -199,6 +233,7 @@ public sealed class ProjectRiskRegistryService
         ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
         ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
         ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
+        ProjectRiskTaskLinkMarkdownCodec.Inspect(session.Content);
         if (existing.Card.Id != snapshot.Card.Id ||
             existing.Card.ProjectId != snapshot.Card.ProjectId)
         {
@@ -248,6 +283,7 @@ public sealed class ProjectRiskRegistryService
         ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
         ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
         ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
+        ProjectRiskTaskLinkMarkdownCodec.Inspect(session.Content);
         ProjectRiskQualificationHistory old =
             ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
         if (old.Card.Id != snapshot.Card.Id ||
@@ -300,6 +336,7 @@ public sealed class ProjectRiskRegistryService
         ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
         ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
         ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
+        ProjectRiskTaskLinkMarkdownCodec.Inspect(session.Content);
         ProjectRiskTreatmentHistory previous =
             ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
         if (previous.Card.Id != snapshot.Card.Id ||
@@ -357,6 +394,7 @@ public sealed class ProjectRiskRegistryService
         ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
         ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
         ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
+        ProjectRiskTaskLinkMarkdownCodec.Inspect(session.Content);
         ProjectRiskMeasureHistory old =
             ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
         if (old.Card.Id != snapshot.Card.Id ||
@@ -383,6 +421,121 @@ public sealed class ProjectRiskRegistryService
         {
             Card = saved.Card,
             MeasureEvents = saved.Events,
+            SourceSha256 = session.Revision.Sha256
+        };
+    }
+
+    /// <summary>
+    /// Lists uniquely identified project tasks from the shared task index.
+    /// Refresh is explicitly requested; no UI paint rescans the workspace.
+    /// Legacy or duplicated IDs are intentionally never eligible to link.
+    /// </summary>
+    /// <param name="projectDirectory">Verified project to constrain candidates.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Project-owned tasks with a unique, durable GUID.</returns>
+    public async Task<IReadOnlyList<TaskItem>> ListLinkableTasksAsync(
+        string projectDirectory, CancellationToken cancellationToken = default)
+    {
+        (string directory, ProjectManifest manifest) =
+            await ResolveProjectAsync(projectDirectory, cancellationToken);
+        WorkspaceTaskService service = new(_workspaceRoot);
+        IReadOnlyList<TaskItem> tasks = await service.GetTasksAsync(
+            directory, includeCompleted: true,
+            cancellationToken: cancellationToken);
+        return tasks.Where(task =>
+            task.ProjectId == manifest.Id &&
+            task.PersistentId is not null &&
+            _sources.IsAvailable(task.SourceRelativePath))
+            .OrderBy(task => task.Text, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Appends an explicitly confirmed reversible relation between ONE
+    /// current-plan measure and a verified, project-owned task PersistentId.
+    /// An unlink remains possible when the task has been moved or deleted.
+    /// No task, score, status or other source file is ever written.
+    /// </summary>
+    /// <param name="projectDirectory">Project owning the risk and target task.</param>
+    /// <param name="snapshot">Displayed risk with exact source SHA.</param>
+    /// <param name="kind">Named measure of the current plan version.</param>
+    /// <param name="taskId">Stable, unique task PersistentId.</param>
+    /// <param name="action">Explicit Link or Unlink choice.</param>
+    /// <param name="actor">Human who reviewed the relationship.</param>
+    /// <param name="rationale">Motivation for this change.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Saved risk with intact existing histories.</returns>
+    public async Task<ProjectRiskEntry> ChangeTaskLinkAsync(
+        string projectDirectory, ProjectRiskEntry snapshot,
+        ProjectRiskMeasureKind kind, Guid taskId,
+        ProjectRiskTaskLinkAction action, string actor,
+        string rationale, CancellationToken cancellationToken = default)
+    {
+        (ProjectRiskEntry current, TextDocumentSession session) =
+            await OpenVerifiedRiskAsync(
+                projectDirectory, snapshot, cancellationToken);
+        ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
+        ProjectRiskTreatmentHistory plans =
+            ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
+        ProjectRiskTaskLinkMarkdownCodec.Inspect(session.Content);
+        if (plans.Card.Id != snapshot.Card.Id ||
+            plans.Card.ProjectId != snapshot.Card.ProjectId)
+        {
+            throw new InvalidDataException(
+                "Identité du risque modifiée avant la liaison.");
+        }
+
+        if (!Enum.IsDefined(action))
+        {
+            throw new InvalidDataException("Action de relation non reconnue.");
+        }
+
+        if (action == ProjectRiskTaskLinkAction.Link)
+        {
+            IReadOnlyList<TaskItem> eligible = await ListLinkableTasksAsync(
+                projectDirectory, cancellationToken);
+            TaskItem[] matching = eligible.Where(item =>
+                item.PersistentId == taskId).ToArray();
+            if (matching.Length != 1)
+            {
+                throw new InvalidDataException(
+                    "Tâche absente, hors projet, sans GUID stable ou " +
+                    "dupliquée dans le workspace : liaison refusée.");
+            }
+
+            string taskFile = _sources.ResolveExistingFile(
+                matching[0].SourceRelativePath);
+            TaskPersistentIdentityScan check =
+                TaskPersistentIdentityCodec.Inspect(
+                    await File.ReadAllLinesAsync(taskFile, cancellationToken));
+            if (check.Issues.Count > 0 ||
+                check.Entries.Count(item => item.Id == taskId) != 1)
+            {
+                throw new InvalidDataException(
+                    "GUID de tâche invalide ou ambigu dans la source.");
+            }
+        }
+
+        string updated = ProjectRiskTaskLinkMarkdownCodec.Append(
+            session.Content, kind, taskId, action, actor, rationale);
+        if (Encoding.UTF8.GetByteCount(updated) > MaxRiskBytes)
+        {
+            throw new InvalidDataException(
+                "Le journal de relations dépasse la taille de la fiche.");
+        }
+
+        await session.SaveAsync(updated, cancellationToken);
+        ProjectRiskTaskLinkHistory saved =
+            ProjectRiskTaskLinkMarkdownCodec.Inspect(session.Content);
+        ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
+        ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        return current with
+        {
+            Card = saved.Card,
+            TaskLinks = saved.Events,
             SourceSha256 = session.Revision.Sha256
         };
     }
@@ -529,6 +682,8 @@ public sealed class ProjectRiskRegistryService
                     ProjectRiskTreatmentMarkdownCodec.Inspect(markdown);
                 ProjectRiskMeasureHistory measures =
                     ProjectRiskMeasureMarkdownCodec.Inspect(markdown);
+                ProjectRiskTaskLinkHistory taskLinks =
+                    ProjectRiskTaskLinkMarkdownCodec.Inspect(markdown);
                 ProjectRiskCard card = history.Card;
                 if (card.ProjectId != projectId)
                 {
@@ -542,6 +697,7 @@ public sealed class ProjectRiskRegistryService
                     Qualifications = qualifications.Events,
                     Treatments = treatment.Events,
                     MeasureEvents = measures.Events,
+                    TaskLinks = taskLinks.Events,
                     SourceSha256 = Convert.ToHexString(SHA256.HashData(bytes))
                 });
                 highest = Math.Max(highest,
