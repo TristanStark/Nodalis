@@ -91,6 +91,7 @@ try
     await ProjectGateRegistrySmokeTests.RunAsync(root);
     await ProjectGateMilestoneLinksSmokeTests.RunAsync(root);
     await ProjectGateIncidentLinksSmokeTests.RunAsync(root);
+    await ProjectRiskRegistrySmokeTests.RunAsync(root);
     ProjectGateReservationOverviewSmokeTests.Run();
     await ProjectArchivesSmokeTests.RunAsync(root);
     await VerifyProjectStructureAsync(root);
