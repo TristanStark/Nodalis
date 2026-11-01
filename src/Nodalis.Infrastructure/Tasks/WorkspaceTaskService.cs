@@ -160,16 +160,16 @@ public sealed partial class WorkspaceTaskService
                     continue;
                 }
 
-                Guid? persistentId = idsByLine[index + 1];
-                if (persistentId is Guid ambiguous &&
-                    duplicatesInDocument.Contains(ambiguous))
-                {
-                    persistentId = null;
-                }
+                Guid? parsedId = idsByLine[index + 1];
+                Guid? persistentId = parsedId is Guid ambiguous &&
+                    duplicatesInDocument.Contains(ambiguous)
+                    ? null : parsedId;
 
-                string rawBody = match.Groups["body"].Value.Trim();
-                string body = rawBody;
-                if (persistentId is not null)
+                string body = match.Groups["body"].Value.Trim();
+                // Even on a duplicated GUID, keep the readable task text
+                // free of the hidden marker. Only its relational identity is
+                // revoked until the user resolves the reported collision.
+                if (parsedId is not null)
                 {
                     TaskPersistentIdentityCodec.ReadMarker(lines[index],
                         out string cleanLine);
