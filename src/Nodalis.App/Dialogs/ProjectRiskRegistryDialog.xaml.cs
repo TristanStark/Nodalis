@@ -1,0 +1,216 @@
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using Nodalis.App.Reliability;
+using Nodalis.Core.Risks;
+using Nodalis.Infrastructure.Projects;
+
+namespace Nodalis.App.Dialogs;
+
+/// <summary>
+/// Human-driven project risk browser with read-only discovery and explicit
+/// creation of one canonical Markdown file. It never infers risk scores.
+/// </summary>
+public partial class ProjectRiskRegistryDialog : Window
+{
+    private readonly ProjectRiskRegistryService _service;
+    private readonly string _projectDirectory;
+    private readonly bool _readOnly;
+    private ProjectRiskCatalog? _catalog;
+    private bool _busy;
+
+    /// <summary>Initializes a safe project-scoped risk manager.</summary>
+    /// <param name="workspaceRoot">Single workspace.</param>
+    /// <param name="projectDirectory">Canonical project location.</param>
+    /// <param name="readOnly">Workspace or archive consultation mode.</param>
+    public ProjectRiskRegistryDialog(
+        string workspaceRoot, string projectDirectory, bool readOnly)
+    {
+        _service = new ProjectRiskRegistryService(workspaceRoot);
+        _projectDirectory = Path.GetFullPath(projectDirectory);
+        _readOnly = readOnly;
+        InitializeComponent();
+        Loaded += async (_, _) => await GuardAsync(
+            () => ReloadAsync(null), "Charger les risques");
+    }
+
+    /// <summary>Existing safe source selected for Markdown navigation.</summary>
+    public string? SelectedRiskPath { get; private set; }
+
+    /// <summary>Whether an explicitly approved risk file was created.</summary>
+    public bool Changed { get; private set; }
+
+    /// <summary>Selected risk from the current validated in-memory catalog.</summary>
+    /// <returns>Risk entry, or null.</returns>
+    private ProjectRiskEntry? SelectedRisk() =>
+        RisksList.SelectedItem as ProjectRiskEntry;
+
+    /// <summary>Reads risk cards once per command and retains identity selection.</summary>
+    /// <param name="selectedId">Previously selected stable risk identity.</param>
+    /// <returns>Completed read without side effects.</returns>
+    private async Task ReloadAsync(Guid? selectedId)
+    {
+        _catalog = await _service.ListAsync(_projectDirectory);
+        ProjectRiskEntry[] entries = _catalog.Risks.ToArray();
+        RisksList.ItemsSource = entries;
+        RisksList.SelectedItem = entries.FirstOrDefault(item =>
+            item.Card.Id == selectedId) ?? entries.FirstOrDefault();
+        DiagnosticsText.Text = _catalog.Diagnostics.Count == 0
+            ? "Aucun document ignoré."
+            : _catalog.Diagnostics.Count +
+              " document(s) ignoré(s) :\n" +
+              string.Join(Environment.NewLine, _catalog.Diagnostics.Take(6));
+        StatusText.Text = _readOnly
+            ? "Projet en lecture seule · aucun fichier modifiable."
+            : entries.Length + " risque(s) avec GUID stable · prochaine référence : " +
+              (_catalog.NextReference ?? "aucune");
+        UpdateButtons();
+    }
+
+    /// <summary>Updates right pane without any disk access.</summary>
+    private void PaintSelection()
+    {
+        ProjectRiskEntry? entry = SelectedRisk();
+        if (entry is null)
+        {
+            RiskDetailsBox.Text = "Aucune fiche structurée sélectionnée.\n" +
+                "Les anciens documents ne sont jamais convertis automatiquement.";
+        }
+        else
+        {
+            ProjectRiskCard card = entry.Card;
+            RiskDetailsBox.Text = string.Join(Environment.NewLine,
+            [
+                "Référence : " + card.Reference,
+                "GUID : " + card.Id.ToString("D"),
+                "Projet : " + card.ProjectId.ToString("D"),
+                "Titre : " + card.Title,
+                "Qualification : " + card.Qualification,
+                "Cycle de vie : " + card.Lifecycle,
+                "Initiale : " + ProjectRiskMatrix.Evaluate(card.Initial),
+                "Résiduelle : " + ProjectRiskMatrix.Evaluate(card.Residual),
+                "Créée le : " + card.CreatedUtc.ToLocalTime()
+                    .ToString("dd/MM/yyyy HH:mm"),
+                "",
+                "Source : " + entry.RelativePath,
+                "",
+                "Aucune validation, mitigation ni modification automatique."
+            ]);
+        }
+
+        UpdateButtons();
+    }
+
+    /// <summary>Disables unsafe commands during asynchronous operations.</summary>
+    private void UpdateButtons()
+    {
+        CreateRiskButton.IsEnabled = !_busy && !_readOnly &&
+            _catalog?.NextReference is not null;
+        OpenRiskButton.IsEnabled = !_busy && SelectedRisk() is not null;
+    }
+
+    /// <summary>Routes asynchronous errors to the existing WPF error boundary.</summary>
+    /// <param name="action">One explicit action.</param>
+    /// <param name="context">Action label.</param>
+    /// <returns>Completed guarded work.</returns>
+    private async Task GuardAsync(Func<Task> action, string context)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            await UiActionGuard.RunAsync(this, "Risques · " + context, action);
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>Proposes creation of one unassessed risk after human confirmation.</summary>
+    /// <param name="sender">Create button.</param>
+    /// <param name="e">Click event.</param>
+    private async void CreateRisk_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (_readOnly || _catalog?.NextReference is not string next)
+            {
+                return;
+            }
+
+            TextPromptDialog prompt = new(
+                "Créer une fiche de risque", "Titre du nouveau risque :")
+            {
+                Owner = this
+            };
+            if (prompt.ShowDialog() != true || prompt.Value is not string title)
+            {
+                return;
+            }
+
+            if (MessageBox.Show(this,
+                "Créer « " + next + " — " + title.Trim() +
+                " » dans Analyse/Risques ?\n\n" +
+                "Une seule fiche Markdown sera ajoutée. Aucune évaluation " +
+                "automatique : criticité initiale et résiduelle restent " +
+                "non évaluées. Les anciennes fiches et tous les gates " +
+                "restent inchangés.",
+                "Créer un risque · confirmer",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            ProjectRiskEntry created = await _service.CreateAsync(
+                _projectDirectory, title);
+            Changed = true;
+            await ReloadAsync(created.Card.Id);
+            StatusText.Text = "Risque " + created.Card.Reference +
+                " créé · GUID conservé · criticité non évaluée.";
+        }, "Créer un risque");
+
+    /// <summary>Opens the selected Markdown file in the existing editor.</summary>
+    /// <param name="sender">Open button.</param>
+    /// <param name="e">Click event.</param>
+    private void OpenRisk_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedRisk() is not ProjectRiskEntry entry)
+        {
+            return;
+        }
+
+        SelectedRiskPath = entry.RelativePath;
+        DialogResult = true;
+    }
+
+    /// <summary>Updates the details on in-memory selection change.</summary>
+    /// <param name="sender">Risk list.</param>
+    /// <param name="e">Selection event.</param>
+    private void RisksList_SelectionChanged(
+        object sender, SelectionChangedEventArgs e)
+    {
+        PaintSelection();
+    }
+
+    /// <summary>Refreshes only on user command.</summary>
+    /// <param name="sender">Refresh button.</param>
+    /// <param name="e">Click event.</param>
+    private async void Reload_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(() => ReloadAsync(SelectedRisk()?.Card.Id),
+            "Recharger les risques");
+
+    /// <summary>Closes the view without changing sources.</summary>
+    /// <param name="sender">Close button.</param>
+    /// <param name="e">Click event.</param>
+    private void Close_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+}

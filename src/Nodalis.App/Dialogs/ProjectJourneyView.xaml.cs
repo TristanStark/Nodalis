@@ -5,6 +5,7 @@ using System.Windows.Input;
 using Microsoft.Win32;
 using Nodalis.App.Reliability;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Risks;
 using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
@@ -200,6 +201,7 @@ public partial class ProjectJourneyView : UserControl
             _snapshot is null && _preview is not null;
         ModelCombo.IsEnabled = !_busy && !_readOnly && _snapshot is null;
         ManageTemplatesButton.IsEnabled = !_busy;
+        RiskRegistryButton.IsEnabled = !_busy;
         AddStepButton.IsEnabled = editable;
         RenameStepButton.IsEnabled = stage;
         RemoveStepButton.IsEnabled = stage;
@@ -896,6 +898,42 @@ public partial class ProjectJourneyView : UserControl
             };
             dialog.ShowDialog();
         }, "Préparer un prompt sans IA");
+
+    /// <summary>
+    /// Opens a project-scoped read-only risk register with explicit creation.
+    /// Selecting a source navigates in the existing Markdown editor; risks do
+    /// not become synthetic journey documents or alter the current stage.
+    /// </summary>
+    /// <param name="sender">Risk registry command.</param>
+    /// <param name="e">Click event.</param>
+    private async void RiskRegistry_Click(object sender, RoutedEventArgs e) =>
+        await RunActionAsync(() =>
+        {
+            ProjectRiskRegistryDialog dialog = new(
+                _workspaceRoot, _projectDirectory, _readOnly)
+            {
+                Owner = Window.GetWindow(this)
+            };
+            dialog.ShowDialog();
+            if (dialog.SelectedRiskPath is string path)
+            {
+                if (SourceOpenRequested is not null)
+                {
+                    SourceOpenRequested.Invoke(this,
+                        new ProjectJourneySourceOpenRequestedEventArgs(path));
+                }
+                else
+                {
+                    MessageBox.Show(Window.GetWindow(this),
+                        "Le projet ne dispose pas actuellement de navigation " +
+                        "vers l'éditeur de documents.",
+                        "Ouvrir une fiche de risque",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+
+            return Task.CompletedTask;
+        }, "Consulter les risques du projet");
 
     /// <summary>Opens the canonical gate registry and permits an explicit link.</summary>
     /// <param name="sender">Gate registry button.</param>

@@ -50,6 +50,12 @@
                     Margin="0,0,8,8"
                     Content="Modèles…"
                     Click="ManageTemplates_Click" />
+            <Button x:Name="RiskRegistryButton"
+                    Padding="14,7"
+                    Margin="0,0,8,8"
+                    Content="Risques…"
+                    Click="RiskRegistry_Click"
+                    ToolTip="Consulter ou créer une fiche RIS dans Analyse/Risques" />
             <Button Padding="14,7"
                     Margin="0,0,8,8"
                     Content="Recharger"
