@@ -1,4 +1,5 @@
 using Nodalis.Core.Domain;
+using Nodalis.Core.Projects;
 using Nodalis.Core.Risks;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
@@ -126,7 +127,7 @@ internal static class ProjectRiskRegistrySmokeTests
             ProjectRiskCard foreignCard = parsed with
             {
                 Id = Guid.NewGuid(),
-                ProjectId = foreign.ProjectId,
+                ProjectId = foreign.Project.Id,
                 Reference = "RIS-0090",
                 Title = "Risque d'un autre projet"
             };
