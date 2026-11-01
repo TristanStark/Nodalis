@@ -64,6 +64,9 @@ public sealed record ProjectGateCriterionAssessment
     /// <summary>Frozen label: future gate edits never affect this decision.</summary>
     public required string Name { get; init; }
 
+    /// <summary>Requirement optionality frozen at decision time.</summary>
+    public bool Optional { get; init; }
+
     public required ProjectGateCriterionStatus Status { get; init; }
 
     public string Comment { get; init; } = string.Empty;
