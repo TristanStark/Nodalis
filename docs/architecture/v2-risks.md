@@ -317,16 +317,22 @@ relecture. Le service refuse les projets archivés et les GUID
 étrangers, toute mesure sans plan, et les preuves manquantes lors
 d'une déclaration `Completed`.
 
-**Limitation intentionnelle pour les tâches :** le moteur Markdown
-a désormais un **GUID permanent facultatif** de checkbox
+**Relations explicites vers les tâches :** le moteur Markdown
+dispose d'un **GUID permanent facultatif** de checkbox
 (`TaskItem.PersistentId`), créé sur une nouvelle tâche ou attribué
 explicitement à une ancienne tâche. Les anciens `TaskItem.Id` sans
-`PersistentId` restent dérivés de l'occurrence et **ne doivent jamais
-être utilisés comme clé relationnelle**. Le raccordement aux mesures
-attendra le contrôle du lien typé
-`(risque GUID, version plan GUID, rubrique, tâche PersistentId)`
-et la qualification des collisions. Voir
-[contrat des identités de tâches](v2-task-identities.md).
+`PersistentId` restent dérivés de l'occurrence et **ne sont jamais
+utilisés comme clés relationnelles**.
+
+Depuis **Risques… → Tâches liées…**, un opérateur peut désormais
+**lier ou délier** une tâche au quadruplet
+`(risque GUID, version plan GUID, rubrique, tâche PersistentId)`.
+Le service vérifie les collisions, l'appartenance au projet et
+la présence physique du marqueur dans la source avant une création.
+Les liens historiques survivent aux changements de plan et la
+dissociation d'un GUID orphelin exige un choix humain. Voir
+[contrat des identités de tâches](v2-task-identities.md) et
+[relations typées RIS/tâches](v2-risk-task-links.md).
 Une mesure terminée ne coche ni ne ferme aucune tâche.
 
 **Recette visuelle à réaliser :** créer un plan ; déclarer la prévention
