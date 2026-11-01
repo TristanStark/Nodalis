@@ -323,7 +323,8 @@ public sealed class ProjectRiskRegistryService
                     int.Parse(card.Reference[4..],
                         System.Globalization.CultureInfo.InvariantCulture));
             }
-            catch (InvalidDataException exception)
+            catch (Exception exception) when (exception is
+                InvalidDataException or DecoderFallbackException)
             {
                 diagnostics.Add(relative + " : " + exception.Message);
             }

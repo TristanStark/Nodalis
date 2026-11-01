@@ -101,7 +101,7 @@ public static class ProjectRiskReviewMarkdownCodec
                 ProjectRiskMatrix.Evaluate(item.Rating) ==
                     ProjectRiskSeverity.Unassessed ||
                 !IsHumanText(item.Actor, 120, 1) ||
-                !IsHumanText(item.Rationale, 4000, 10) ||
+                !IsHumanText(item.Rationale, 4000, 10, allowNewlines: true) ||
                 item.RecordedUtc == default || item.RecordedUtc < lastTime)
             {
                 throw new InvalidDataException(
@@ -161,7 +161,7 @@ public static class ProjectRiskReviewMarkdownCodec
         if (!Enum.IsDefined(kind) || rating is null ||
             ProjectRiskMatrix.Evaluate(rating) == ProjectRiskSeverity.Unassessed ||
             !IsHumanText(actor, 120, 1) ||
-            !IsHumanText(rationale, 4000, 10))
+            !IsHumanText(rationale, 4000, 10, allowNewlines: true))
         {
             throw new InvalidDataException(
                 "Probabilité, impact, auteur et justification humaine requis.");
@@ -250,11 +250,14 @@ public static class ProjectRiskReviewMarkdownCodec
     /// <param name="value">Candidate human text.</param>
     /// <param name="max">Maximum length.</param>
     /// <param name="min">Minimum nonspace length.</param>
+    /// <param name="allowNewlines">Whether the reason can include paragraphs.</param>
     /// <returns>Whether the human field is acceptable.</returns>
-    private static bool IsHumanText(string? value, int max, int min) =>
+    private static bool IsHumanText(
+        string? value, int max, int min, bool allowNewlines = false) =>
         value is not null &&
         value.Length <= max && value.Trim().Length >= min &&
-        !value.Any(char.IsControl);
+        !value.Any(character => char.IsControl(character) &&
+            (!allowNewlines || character is not ('\r' or '\n')));
 
     /// <summary>Formats unknown and numeric paired risk rating values.</summary>
     /// <param name="value">Null or scale entry.</param>

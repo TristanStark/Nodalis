@@ -81,12 +81,13 @@ public partial class ProjectRiskReviewDialog : Window
             ActorBox.Text.Any(char.IsControl) ||
             string.IsNullOrWhiteSpace(RationaleBox.Text) ||
             RationaleBox.Text.Trim().Length < 10 ||
-            RationaleBox.Text.Any(char.IsControl))
+            RationaleBox.Text.Any(character => char.IsControl(character) &&
+                character is not ('\r' or '\n')))
         {
             MessageBox.Show(this,
                 "Choisissez une probabilité et un impact entre 1 et 3, " +
                 "puis précisez un auteur et une justification d'au moins " +
-                "10 caractères sur une seule ligne.",
+                "10 caractères. Le nom doit tenir sur une ligne.",
                 "Avis humain requis", MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;

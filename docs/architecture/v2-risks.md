@@ -59,16 +59,59 @@ une lecture n'invente pas le second score. Les composantes initiale et
 résiduelle n'interfèrent pas : finir une tâche ne peut pas abaisser
 un score, fermer un incident ne valide pas un risque.
 
-**Limitations actuelles importantes :** le formulaire WPF permet la
-création et la consultation, mais pas encore une **revue humaine
-historisée** des scores. La première évaluation validée, l'immutabilité
-de cette évaluation, les réévaluations motivées, les mesures,
-les rattachements aux réserves/tâches/incidents, les synthèses et la
-clôture guidée restent des **tranches à développer**. La présence de
-valeurs dans la fiche Markdown ne constitue pas un dossier de
-qualification signé.
+**Limitations actuelles importantes :** les évaluations humaine
+initiale/résiduelle et l'historique append-only sont désormais
+intégrés, mais **les décisions de qualification métier, les mesures,
+les rattachements aux réserves/tâches/incidents, les synthèses et
+la clôture guidée** restent à développer. Les avis sont audités dans
+le Markdown, sans signature cryptographique extérieure.
 
-## 4. Sécurité et performances
+## 4. Qualification humaine et réévaluation (incrément suivant)
+
+Le bouton **Qualifier l'initiale…** apparaît sur une fiche RIS non
+encore évaluée. La personne choisit explicitement **probabilité et
+impact 1..3**, puis renseigne son nom et une justification motivée.
+Le dialogue prévisualise le score et demande **une seconde
+confirmation** avant l'écriture. La première évaluation ainsi
+validée devient **figée** : impossible de la remplacer dans Nodalis.
+
+Après cet avis initial, le bouton **Réévaluer la résiduelle…** permet
+autant de qualifications humaines successives que le contrat
+d'historique le permet (maximum 256, dont la première évaluation).
+Chaque nouvelle évaluation est indépendante et n'altère jamais
+l'initiale. La variation du score ne découle d'aucune tâche ou
+incident clos. Le cycle de vie et la qualification métier restent
+deux dimensions indépendantes : approuver une criticité ne clôt ni
+ne valide automatiquement tout le risque.
+
+**Persistance :** la fiche Markdown reste l'unique source canonique.
+Nodalis ne change que les deux champs YAML correspondant à
+l'évaluation approuvée ; un journal de commentaires HTML à la fin
+du fichier contient les événements JSON avec GUID d'avis, GUID
+du risque, type d'avis, valeurs, auteur, motif et horodatage UTC.
+L'historique est **append-only au niveau de l'interface et du
+service**. La lecture recalcule les scores à partir des événements
+et refuse un YAML incohérent, une chronologie invalide, un doublon
+ou une première évaluation modifiée. L'utilisateur peut continuer
+à modifier librement les sections de contexte et de mesures **avant
+le bloc historique**.
+
+La sauvegarde exige le **SHA-256 exact** de la fiche affichée,
+vérifie à nouveau l'appartenance au projet et son GUID, puis écrit
+atomiquement sous contrôle de révision via
+`TextDocumentSession`. Une modification externe nécessite une
+relecture explicite ; aucun écrasement ni fusion silencieuse.
+Un risque au YAML évalué mais sans avis historisé est signalé
+comme non qualifiable, jamais présenté comme validé.
+
+> Limite de confiance : ce journal Markdown n'est pas une
+> signature cryptographique extérieure. Un utilisateur qui édite
+> directement les fichiers peut les falsifier intentionnellement.
+> Nodalis protège les modifications réalisées par ses commandes et
+> détecte les incohérences structurelles, mais ne garantit pas une
+> preuve d'authenticité contre un éditeur de fichiers malveillant.
+
+## 5. Sécurité et performances
 
 - Vérification du manifeste `.project.json` et de l'appartenance du
   projet au workspace, sans traversée hors racine ou lien symbolique.
@@ -81,7 +124,7 @@ qualification signé.
 - Catalogue recalculé seulement via **Recharger** ou après création.
   Aucune IA ni réseau nécessaire.
 
-## 5. Tests automatiques et recette Windows
+## 6. Tests automatiques et recette Windows
 
 `ProjectRiskRegistrySmokeTests`, branché dans `Program.cs`,
 vérifie la lecture non destructive d'un projet Complexe comprenant
@@ -89,6 +132,12 @@ déjà un tableau de risques, le refus d'injection dans le titre,
 la matrice (dont `Unassessed`), la création guidée, les GUID stables,
 la double création, les collisions, les risques d'un autre projet,
 les en-têtes dupliqués et le refus des chemins extérieurs.
+
+La suite `ProjectRiskReviewSmokeTests` vérifie également la
+première évaluation figée, les réévaluations résiduelles avec
+horodatage et auteur, la conservation des commentaires libres,
+les modifications concurrentes, le refus des évaluations
+non historisées et le filtrage des sources d'un autre projet.
 
 Recette visuelle **encore à faire** : risque créé puis rouvert,
 onglets Markdown existants intacts, fenêtre étroite, DPI élevé, clavier,
