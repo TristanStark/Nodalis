@@ -33,11 +33,20 @@ internal static class ProjectRiskRegistrySmokeTests
             string directory = Path.Combine(project.ProjectDirectory,
                 "Analyse", "Risques");
 
+            // Complex projects already ship an Analyse/Risques/Risques.md
+            // legacy table: browsing may diagnose it, never convert or rewrite it.
+            string[] existingFiles = Directory.Exists(directory)
+                ? Directory.GetFiles(directory, "*.md") : [];
+            Dictionary<string, string> existingText = existingFiles.ToDictionary(
+                item => item, item => File.ReadAllText(item));
             ProjectRiskCatalog empty = await service.ListAsync(
                 project.ProjectDirectory);
-            Assert(empty.Risks.Count == 0 && empty.Diagnostics.Count == 0 &&
-                empty.NextReference == "RIS-0001" && !Directory.Exists(directory),
-                "A read must not create risk directories or migrate legacy data.");
+            Assert(empty.Risks.Count == 0 &&
+                empty.NextReference == "RIS-0001" &&
+                existingFiles.SequenceEqual(Directory.Exists(directory)
+                    ? Directory.GetFiles(directory, "*.md") : []) &&
+                existingText.All(item => File.ReadAllText(item.Key) == item.Value),
+                "Reading must preserve all initial Complex profile documents.");
 
             Assert(ProjectRiskMatrix.Evaluate(new(null, null)) ==
                     ProjectRiskSeverity.Unassessed &&
@@ -63,8 +72,11 @@ internal static class ProjectRiskRegistrySmokeTests
             await RejectAsync(() => service.CreateAsync(
                 project.ProjectDirectory, "Newline\ninjected"),
                 "Multiline title must not inject frontmatter.");
-            Assert(!Directory.Exists(directory),
-                "Rejected creation must not create risk folders.");
+            Assert(existingText.All(item =>
+                    File.ReadAllText(item.Key) == item.Value) &&
+                existingFiles.SequenceEqual(Directory.Exists(directory)
+                    ? Directory.GetFiles(directory, "*.md") : []),
+                "Rejected creation must leave all initial files unchanged.");
 
             // Existing legacy risk notes are never repurposed as v2 risk data.
             Directory.CreateDirectory(directory);
@@ -73,7 +85,7 @@ internal static class ProjectRiskRegistrySmokeTests
             await File.WriteAllTextAsync(legacyFile, legacy);
             ProjectRiskCatalog before = await service.ListAsync(
                 project.ProjectDirectory);
-            Assert(before.Diagnostics.Count == 1 &&
+            Assert(before.Diagnostics.Count == empty.Diagnostics.Count + 1 &&
                 before.Risks.Count == 0 && before.NextReference == "RIS-0002",
                 "Legacy files must be diagnostics and reserve their filenames.");
             ProjectRiskEntry created = await service.CreateAsync(
@@ -136,7 +148,7 @@ internal static class ProjectRiskRegistrySmokeTests
             ProjectRiskCatalog withAlien = await service.ListAsync(
                 project.ProjectDirectory);
             Assert(withAlien.Risks.Count == 2 &&
-                withAlien.Diagnostics.Count == 2 &&
+                withAlien.Diagnostics.Count == before.Diagnostics.Count + 1 &&
                 withAlien.NextReference == "RIS-0091",
                 "Foreign risks must be diagnosed and never rewritten.");
             File.Delete(alienPath);
