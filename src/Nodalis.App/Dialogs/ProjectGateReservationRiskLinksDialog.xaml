@@ -1,0 +1,79 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectGateReservationRiskLinksDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Réserve · risques associés" Width="770" Height="650"
+        MinWidth="550" MinHeight="450"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0">
+            <TextBlock FontSize="18" FontWeight="SemiBold"
+                       Text="Risques liés à la réserve · Nodalis 2.0" />
+            <TextBlock x:Name="DescriptionText" Margin="0,8,0,5"
+                       TextWrapping="Wrap" />
+            <TextBlock x:Name="DiagnosticsText" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}" />
+        </StackPanel>
+        <TextBlock Grid.Row="1" Margin="0,14,0,5" FontWeight="SemiBold"
+                   Text="RISQUES CANONIQUES DU PROJET NON ENCORE ASSOCIÉS" />
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <ListBox x:Name="AvailableList" Grid.Row="0"
+                     SelectionChanged="Selection_Changed">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="6,4">
+                            <TextBlock Text="{Binding Label}" FontWeight="SemiBold"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Summary}" FontSize="11"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock Grid.Row="1" Margin="0,12,0,6" FontWeight="SemiBold"
+                       Text="RISQUES ASSOCIÉS · liens calculés depuis l'historique" />
+            <ListBox x:Name="LinkedList" Grid.Row="2"
+                     SelectionChanged="Selection_Changed"
+                     DisplayMemberPath="Label" />
+        </Grid>
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock Text="Auteur" VerticalAlignment="Center"
+                       Margin="0,0,10,7" />
+            <TextBox x:Name="ActorBox" Grid.Column="1"
+                     MaxLength="120" Margin="0,0,0,7" />
+            <TextBlock Grid.Row="1" Text="Motif"
+                       VerticalAlignment="Center" Margin="0,0,10,0" />
+            <TextBox x:Name="RationaleBox" Grid.Row="1" Grid.Column="1"
+                     Height="78" MaxLength="4000" AcceptsReturn="True"
+                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+        </Grid>
+        <StackPanel Grid.Row="4" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="LinkButton" Content="Associer"
+                    Padding="12,7" Margin="0,0,7,0" Click="Link_Click" />
+            <Button x:Name="UnlinkButton" Content="Dissocier"
+                    Padding="12,7" Margin="0,0,7,0" Click="Unlink_Click" />
+            <Button Content="Fermer" Padding="12,7" Click="Close_Click" />
+        </StackPanel>
+    </Grid>
+</Window>
