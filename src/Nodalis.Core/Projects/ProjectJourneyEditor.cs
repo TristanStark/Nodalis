@@ -326,9 +326,29 @@ public static class ProjectJourneyEditor
     }
 
     /// <summary>
-    /// Removes a previously persisted gate relation. Until a validated gate
-    /// registry exists (EPIC #202), adding arbitrary gate IDs is forbidden;
-    /// removing an orphan never grants or revokes a gate decision.
+    /// Links one gate with an ID confirmed in the canonical project registry.
+    /// Does not create a gate, change its verdict or change a milestone.
+    /// Callers must resolve the same project's registry before this command.
+    /// </summary>
+    /// <param name="document">Current journey.</param>
+    /// <param name="stepId">Owning stage.</param>
+    /// <param name="operationId">Owning operation.</param>
+    /// <param name="gateId">Verified existing gate identity.</param>
+    /// <returns>New journey with a non-owning gate reference.</returns>
+    public static ProjectJourneyDocument AddGateLink(
+        ProjectJourneyDocument document, Guid stepId, Guid operationId,
+        Guid gateId)
+    {
+        RequireRelatedId(gateId);
+        return UpdateOperation(document, stepId, operationId, operation =>
+            operation.GateIds.Contains(gateId)
+                ? operation
+                : operation with { GateIds = [.. operation.GateIds, gateId] });
+    }
+
+    /// <summary>
+    /// Removes a previously persisted gate relation; removing an orphan
+    /// never grants or revokes a gate decision.
     /// </summary>
     /// <param name="document">Current journey.</param>
     /// <param name="stepId">Owning stage.</param>
