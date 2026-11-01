@@ -105,6 +105,7 @@ public partial class ProjectGateReviewDialog : Window
                 {
                     CriterionId = item.Id,
                     Name = item.PersistedName,
+                    Optional = item.Optional,
                     Status = item.Status,
                     Comment = item.Comment
                 }).ToList(),
@@ -166,6 +167,7 @@ public partial class ProjectGateReviewDialog : Window
             Name = criterion.Name + (criterion.Optional ? " (facultatif)" : "");
             // The persisted label must not include the display-only suffix.
             PersistedName = criterion.Name;
+            Optional = criterion.Optional;
         }
 
         public Guid Id { get; }
@@ -173,6 +175,8 @@ public partial class ProjectGateReviewDialog : Window
         public string Name { get; }
 
         public string PersistedName { get; }
+
+        public bool Optional { get; }
 
         public ProjectGateCriterionStatus Status { get; set; } =
             ProjectGateCriterionStatus.Unknown;
