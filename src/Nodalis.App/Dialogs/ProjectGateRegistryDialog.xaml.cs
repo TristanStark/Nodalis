@@ -19,6 +19,7 @@ public partial class ProjectGateRegistryDialog : Window
     private readonly ProjectJourneySourceService _sources;
     private readonly ProjectJourneyMilestoneCatalogService _milestones;
     private readonly ProjectGateIncidentCatalogService _incidents;
+    private readonly ProjectRiskRegistryService _risks;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private readonly bool _allowSelection;
@@ -49,6 +50,7 @@ public partial class ProjectGateRegistryDialog : Window
         _sources = new ProjectJourneySourceService(workspaceRoot);
         _milestones = new ProjectJourneyMilestoneCatalogService(workspaceRoot);
         _incidents = new ProjectGateIncidentCatalogService(workspaceRoot);
+        _risks = new ProjectRiskRegistryService(workspaceRoot);
         _projectDirectory = Path.GetFullPath(projectDirectory);
         _readOnly = readOnly;
         _allowSelection = allowSelection;
@@ -203,6 +205,27 @@ public partial class ProjectGateRegistryDialog : Window
             // Audit-only incident links are projected once for this decision.
             // Repainting the dialog never opens or scans Markdown files.
             Dictionary<Guid, HashSet<string>> activeIncidentLinks = [];
+            Dictionary<Guid, HashSet<Guid>> activeRiskLinks = [];
+            foreach (ProjectGateReservationRiskLinkEvent change in
+                registry.RiskLinkEvents.Where(item =>
+                    item.DecisionId == decision.Id))
+            {
+                if (!activeRiskLinks.TryGetValue(change.ReservationId,
+                    out HashSet<Guid>? set))
+                {
+                    set = [];
+                    activeRiskLinks.Add(change.ReservationId, set);
+                }
+
+                if (change.Kind == ProjectGateReservationRiskLinkKind.Linked)
+                {
+                    set.Add(change.RiskId);
+                }
+                else
+                {
+                    set.Remove(change.RiskId);
+                }
+            }
             foreach (ProjectGateReservationIncidentLinkEvent change in
                 registry.IncidentLinkEvents.Where(item =>
                     item.DecisionId == decision.Id))
@@ -253,7 +276,11 @@ public partial class ProjectGateRegistryDialog : Window
                     " · " + (activeIncidentLinks.TryGetValue(reservation.Id,
                         out HashSet<string>? linkedIncidents)
                             ? linkedIncidents.Count : 0) +
-                    " incident(s) associé(s)");
+                    " incident(s) associé(s) · " +
+                    (activeRiskLinks.TryGetValue(reservation.Id,
+                        out HashSet<Guid>? linkedRisks)
+                            ? linkedRisks.Count : 0) +
+                    " risque(s) associé(s)");
             }).ToArray();
             ReservationsList.ItemsSource = rows;
             ReservationsList.SelectedItem = rows.FirstOrDefault(item =>
@@ -291,6 +318,8 @@ public partial class ProjectGateRegistryDialog : Window
         ReopenReservationButton.IsEnabled = canEdit &&
             ReservationsList.SelectedItem is ReservationRow closed && !closed.IsOpen;
         IncidentLinksButton.IsEnabled = !_busy && _snapshot is not null &&
+            ReservationsList.SelectedItem is ReservationRow;
+        RiskLinksButton.IsEnabled = !_busy && _snapshot is not null &&
             ReservationsList.SelectedItem is ReservationRow;
     }
 
@@ -777,6 +806,72 @@ public partial class ProjectGateRegistryDialog : Window
                 ReservationsList.SelectedItem = selected;
             }
         }, "Associer ou dissocier un incident");
+
+    /// <summary>
+    /// Explicit human association between a frozen Gate reservation and one
+    /// project-owned RIS GUID. The original verdict and RIS stay unchanged.
+    /// </summary>
+    /// <param name="sender">Association command.</param>
+    /// <param name="e">WPF routed event.</param>
+    private async void RiskLinks_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (_snapshot is null ||
+                ReservationsList.SelectedItem is not ReservationRow row ||
+                HistoryList.SelectedItem is not HistoryRow history ||
+                row.DecisionId != history.Decision.Id)
+            {
+                return;
+            }
+
+            ProjectRiskCatalog catalog = await _risks.ListAsync(
+                _projectDirectory);
+            IReadOnlyList<Guid> linked = ProjectGateEditor.GetLinkedRiskIds(
+                _snapshot.Registry, row.DecisionId, row.Reservation.Id);
+            ProjectGateReservationRiskLinksDialog dialog = new(
+                row.Reservation.Description, catalog, linked, _readOnly)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true ||
+                dialog.RiskId is not Guid riskId ||
+                dialog.Actor is not string actor ||
+                dialog.Rationale is not string rationale ||
+                dialog.ChangeKind is not ProjectGateReservationRiskLinkKind kind)
+            {
+                return;
+            }
+
+            ProjectGateRegistry proposed = ProjectGateEditor.AppendRiskLinkEvent(
+                _snapshot.Registry, row.DecisionId, row.Reservation.Id,
+                riskId, kind, actor, rationale);
+            string label = catalog.Risks.FirstOrDefault(item =>
+                item.Card.Id == riskId)?.Label ??
+                riskId.ToString("D") + " · source absente";
+            await SaveApprovedAsync(proposed,
+                (kind == ProjectGateReservationRiskLinkKind.Linked
+                    ? "ASSOCIER" : "DISSOCIER") +
+                " le RIS « " + label + " » à la réserve « " +
+                row.Reservation.Description + " » ?" +
+                Environment.NewLine + "Décision : " +
+                history.Decision.Id.ToString("D") +
+                Environment.NewLine + "Réserve : " +
+                row.Reservation.Id.ToString("D") +
+                Environment.NewLine + "Auteur : " + actor +
+                Environment.NewLine + "Motif : " + rationale +
+                Environment.NewLine +
+                "Aucune fiche RIS, décision Go/No-Go, mesure, tâche " +
+                "ou levée de réserve ne sera modifiée.",
+                history.Decision.GateId, row.DecisionId);
+            ReservationRow? restored = ReservationsList.Items
+                .OfType<ReservationRow>().FirstOrDefault(item =>
+                    item.DecisionId == row.DecisionId &&
+                    item.Reservation.Id == row.Reservation.Id);
+            if (restored is not null)
+            {
+                ReservationsList.SelectedItem = restored;
+            }
+        }, "Associer ou dissocier un RIS");
 
     /// <summary>Updates action buttons after choosing a reservation.</summary>
     /// <param name="sender">Reservation list.</param>

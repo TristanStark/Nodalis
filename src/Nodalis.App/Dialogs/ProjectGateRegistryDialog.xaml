@@ -193,6 +193,10 @@
                                 Content="Incidents liés…"
                                 Padding="12,7" Margin="0,0,7,6"
                                 Click="IncidentLinks_Click" />
+                        <Button x:Name="RiskLinksButton" Content="Risques liés…"
+                                Padding="12,7" Margin="0,0,7,6"
+                                Click="RiskLinks_Click"
+                                ToolTip="Lier des risques RIS canoniques à cette réserve" />
                     </WrapPanel>
                 </Grid>
             </Border>
