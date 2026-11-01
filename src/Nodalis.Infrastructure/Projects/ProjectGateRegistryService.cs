@@ -121,6 +121,24 @@ public sealed class ProjectGateRegistryService
             }
         }
 
+        // Reservation actions are append-only just like the verdicts. A
+        // caller submitting a rewritten historical event is never trusted.
+        for (int index = 0; index < old.Registry.ReservationEvents.Count; index++)
+        {
+            if (index >= registry.ReservationEvents.Count ||
+                !string.Equals(
+                    JsonSerializer.Serialize(old.Registry.ReservationEvents[index],
+                        JsonDefaults.Options),
+                    JsonSerializer.Serialize(registry.ReservationEvents[index],
+                        JsonDefaults.Options),
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "Un événement historique de réserve ne peut être effacé " +
+                    "ou réécrit.");
+            }
+        }
+
         string json = JsonSerializer.Serialize(registry, JsonDefaults.Options);
         string sha = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(json)));
