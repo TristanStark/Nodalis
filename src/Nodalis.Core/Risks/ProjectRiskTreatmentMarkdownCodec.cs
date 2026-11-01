@@ -32,7 +32,8 @@ public static class ProjectRiskTreatmentMarkdownCodec
         int start = normalized.IndexOf(startLine, StringComparison.Ordinal);
         if (start < 0)
         {
-            if (normalized.Contains("nodalis:risk-treatment:", StringComparison.Ordinal) ||
+            if (card.TreatmentHeadId is not null ||
+                normalized.Contains("nodalis:risk-treatment:", StringComparison.Ordinal) ||
                 normalized.Contains("nodalis:risk-treatment-event:", StringComparison.Ordinal))
             {
                 throw new InvalidDataException(
@@ -123,6 +124,12 @@ public static class ProjectRiskTreatmentMarkdownCodec
             previousTime = item.RecordedUtc;
         }
 
+        if (events.Count == 0 || card.TreatmentHeadId != events[^1].Id)
+        {
+            throw new InvalidDataException(
+                "Tête de traitement et dernière révision incohérentes.");
+        }
+
         return new ProjectRiskTreatmentHistory(card, events);
     }
 
@@ -185,6 +192,8 @@ public static class ProjectRiskTreatmentMarkdownCodec
             ? "\r\n" : "\n";
         string eventLine = EventPrefix + JsonSerializer.Serialize(item) +
             EventSuffix;
+        string withHead = UpdateHead(
+            markdown, old.Card.TreatmentHeadId, item.Id);
         string updated;
         if (old.Events.Count == 0)
         {
@@ -192,28 +201,28 @@ public static class ProjectRiskTreatmentMarkdownCodec
                 newline + EndMarker + newline;
             string qualificationAnchor = newline + QualificationStart + newline;
             string ratingAnchor = newline + RatingStart + newline;
-            int qualificationPosition = markdown.IndexOf(
+            int qualificationPosition = withHead.IndexOf(
                 qualificationAnchor, StringComparison.Ordinal);
-            int ratingPosition = markdown.IndexOf(
+            int ratingPosition = withHead.IndexOf(
                 ratingAnchor, StringComparison.Ordinal);
             int position = qualificationPosition >= 0
                 ? qualificationPosition : ratingPosition;
             updated = position >= 0
-                ? markdown[..position] + block + markdown[position..]
-                : markdown + block;
+                ? withHead[..position] + block + withHead[position..]
+                : withHead + block;
         }
         else
         {
             string close = newline + EndMarker;
-            int position = markdown.IndexOf(close, StringComparison.Ordinal);
+            int position = withHead.IndexOf(close, StringComparison.Ordinal);
             if (position < 0)
             {
                 throw new InvalidDataException(
                     "Fin du journal de traitement introuvable.");
             }
 
-            updated = markdown[..position] + newline + eventLine +
-                markdown[position..];
+            updated = withHead[..position] + newline + eventLine +
+                withHead[position..];
         }
 
         ProjectRiskTreatmentHistory verified = Inspect(updated);
@@ -227,6 +236,73 @@ public static class ProjectRiskTreatmentMarkdownCodec
         }
 
         return updated;
+    }
+
+    /// <summary>
+    /// Updates the protected last-event head in the canonical frontmatter.
+    /// Legacy 12-field files gain the optional field only on explicit action;
+    /// new files already include its initial null marker.
+    /// </summary>
+    /// <param name="markdown">Existing unchanged source.</param>
+    /// <param name="previous">Verified old treatment head.</param>
+    /// <param name="next">New human-reviewed plan event GUID.</param>
+    /// <returns>Markdown with one updated or added head scalar.</returns>
+    private static string UpdateHead(
+        string markdown, Guid? previous, Guid next)
+    {
+        const string anchor = "\n" + "treatment-head-id: ";
+        int headerEnd = markdown.IndexOf("\n---", 3, StringComparison.Ordinal);
+        if (headerEnd < 0)
+        {
+            throw new InvalidDataException(
+                "En-tête de risque introuvable pour la révision.");
+        }
+
+        int start = markdown.IndexOf(anchor, StringComparison.Ordinal);
+        if (start >= 0 && start < headerEnd)
+        {
+            int again = markdown.IndexOf(
+                anchor, start + anchor.Length, StringComparison.Ordinal);
+            if (again >= 0 && again < headerEnd)
+            {
+                throw new InvalidDataException(
+                    "Plusieurs identifiants de tête dans le risque.");
+            }
+
+            int valueStart = start + anchor.Length;
+            int valueEnd = markdown.IndexOf('\n', valueStart);
+            if (valueEnd < 0 || valueEnd > headerEnd)
+            {
+                throw new InvalidDataException(
+                    "Tête de traitement tronquée.");
+            }
+
+            int contentEnd = valueEnd > valueStart &&
+                markdown[valueEnd - 1] == '\r' ? valueEnd - 1 : valueEnd;
+            string oldValue = previous?.ToString("D") ?? "null";
+            if (markdown[valueStart..contentEnd] != oldValue)
+            {
+                throw new InvalidDataException(
+                    "Tête de traitement modifiée depuis la lecture.");
+            }
+
+            return markdown[..valueStart] + next.ToString("D") +
+                markdown[contentEnd..];
+        }
+
+        if (previous is not null)
+        {
+            throw new InvalidDataException(
+                "Tête de traitement manquante malgré un historique.");
+        }
+
+        string newline = markdown.Contains("\r\n", StringComparison.Ordinal)
+            ? "\r\n" : "\n";
+        int insertAt = headerEnd > 0 && markdown[headerEnd - 1] == '\r'
+            ? headerEnd - 1 : headerEnd;
+        return markdown[..insertAt] + newline +
+            "treatment-head-id: " + next.ToString("D") +
+            markdown[insertAt..];
     }
 
     /// <summary>Checks a complete plan without inferring any missing measure.</summary>

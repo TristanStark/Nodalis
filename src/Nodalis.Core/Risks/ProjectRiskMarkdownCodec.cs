@@ -37,7 +37,8 @@ public static class ProjectRiskMarkdownCodec
             card.CreatedUtc == default ||
             !Enum.IsDefined(card.Qualification) ||
             !Enum.IsDefined(card.Lifecycle) ||
-            card.Initial is null || card.Residual is null)
+            card.Initial is null || card.Residual is null ||
+            card.TreatmentHeadId == Guid.Empty)
         {
             throw new InvalidDataException("Fiche de risque invalide.");
         }
@@ -78,6 +79,8 @@ public static class ProjectRiskMarkdownCodec
             .Append("residual-impact: ").AppendLine(
                 card.Residual.Impact?.ToString(CultureInfo.InvariantCulture) ??
                 "null")
+            .Append("treatment-head-id: ").AppendLine(
+                card.TreatmentHeadId?.ToString("D") ?? "null")
             .AppendLine("---")
             .Append("# ").Append(card.Reference).Append(" — ")
             .AppendLine(card.Title)
@@ -141,7 +144,8 @@ public static class ProjectRiskMarkdownCodec
             }
         }
 
-        if (!closed || fields.Count != 12 ||
+        if (!closed || fields.Count is not (12 or 13) ||
+            fields.Count == 13 && !fields.ContainsKey("treatment-head-id") ||
             !fields.TryGetValue("nodalis-risk-schema", out string? schema) ||
             schema != "1")
         {
@@ -179,7 +183,10 @@ public static class ProjectRiskMarkdownCodec
                     ReadRatingPart(fields["initial-impact"])),
                 Residual = new ProjectRiskRating(
                     ReadRatingPart(fields["residual-probability"]),
-                    ReadRatingPart(fields["residual-impact"]))
+                    ReadRatingPart(fields["residual-impact"])),
+                TreatmentHeadId = fields.TryGetValue("treatment-head-id",
+                    out string? headText) && headText != "null"
+                    ? Guid.ParseExact(headText!, "D") : null
             };
             Validate(card);
             return card;

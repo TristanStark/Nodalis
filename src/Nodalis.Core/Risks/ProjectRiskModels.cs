@@ -62,6 +62,12 @@ public sealed record ProjectRiskCard
 
     /// <summary>Later human reassessment. Never inferred from a closed task.</summary>
     public ProjectRiskRating Residual { get; init; } = new(null, null);
+
+    /// <summary>
+    /// GUID of the latest verified treatment event; null before any plan.
+    /// Prevents deleting a final append-only revision without detection.
+    /// </summary>
+    public Guid? TreatmentHeadId { get; init; }
 }
 
 /// <summary>Pure, deterministic matrix: no score is generated for unknowns.</summary>
