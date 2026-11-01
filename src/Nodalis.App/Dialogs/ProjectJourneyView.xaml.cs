@@ -18,6 +18,7 @@ public partial class ProjectJourneyView : UserControl
     private readonly ProjectJourneyService _service;
     private readonly ProjectJourneySourceService _sources;
     private readonly ProjectJourneyMilestoneCatalogService _milestones;
+    private readonly ProjectGateRegistryService _gates;
     private readonly string _workspaceRoot;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
@@ -38,6 +39,7 @@ public partial class ProjectJourneyView : UserControl
     private ProjectJourneySnapshot? _snapshot;
     private ProjectJourneyTemplate? _preview;
     private ProjectJourneyMilestoneCatalog? _milestoneCatalog;
+    private ProjectGateRegistrySnapshot? _gateSnapshot;
     private bool _painting;
     private bool _busy;
 
@@ -59,6 +61,7 @@ public partial class ProjectJourneyView : UserControl
         _service = new ProjectJourneyService(_workspaceRoot);
         _sources = new ProjectJourneySourceService(_workspaceRoot);
         _milestones = new ProjectJourneyMilestoneCatalogService(_workspaceRoot);
+        _gates = new ProjectGateRegistryService(_workspaceRoot);
         InitializeComponent();
         StatusCombo.ItemsSource = _statuses;
         ProjectNameText.Text = "Parcours · " + Path.GetFileName(_projectDirectory);
@@ -92,6 +95,7 @@ public partial class ProjectJourneyView : UserControl
     {
         _snapshot = await _service.ReadAsync(_projectDirectory);
         _milestoneCatalog = null;
+        _gateSnapshot = null;
         ProjectJourneyTemplate[] applicable = _snapshot is null
             ? (await _service.ListApplicableTemplatesAsync(_projectDirectory)).ToArray()
             : [];
@@ -212,10 +216,14 @@ public partial class ProjectJourneyView : UserControl
         UnlinkSourceButton.IsEnabled = operation && SelectedSource() is not null;
         RefreshRelationsButton.IsEnabled = viewableOperation;
         LinkMilestoneButton.IsEnabled = operation;
+        GateRegistryButton.IsEnabled = !_busy;
         OpenRelationButton.IsEnabled = viewableOperation &&
             SelectedRelation() is JourneyRelationRow selected &&
-            selected.Kind == JourneyRelationKind.Milestone &&
-            selected.Milestone is not null;
+            (selected.Kind == JourneyRelationKind.Milestone &&
+             selected.Milestone is not null ||
+             selected.Kind == JourneyRelationKind.Gate &&
+             _gateSnapshot?.Registry.Gates.Any(item =>
+                 item.Id == selected.Id) == true);
         UnlinkRelationButton.IsEnabled = operation && SelectedRelation() is not null;
         SetOperationPromptButton.IsEnabled = operation;
         PrepareOperationPromptButton.IsEnabled = viewableOperation;
@@ -267,8 +275,7 @@ public partial class ProjectJourneyView : UserControl
 
     /// <summary>
     /// Renders current references without scanning the workspace. An explicit
-    /// "Actualiser" click resolves canonical milestone identities off-thread.
-    /// Gates remain unverified until a real gate registry is delivered.
+    /// "Actualiser" click resolves canonical milestone and gate identities.
     /// </summary>
     private void RenderRelations()
     {
@@ -300,11 +307,23 @@ public partial class ProjectJourneyView : UserControl
 
                 foreach (Guid id in operation.GateIds)
                 {
+                    ProjectGateDefinition? gate = _gateSnapshot?.Registry.Gates
+                        .FirstOrDefault(item => item.Id == id);
+                    ProjectGateDecision? latest = _gateSnapshot?.Registry.Decisions
+                        .LastOrDefault(item => item.GateId == id);
+                    string detail = gate is null
+                        ? _gateSnapshot is null
+                            ? "Non vérifié · cliquer Actualiser"
+                            : "Gate introuvable dans le registre canonique"
+                        : latest is null
+                            ? "Sans décision humaine · aucun GO implicite"
+                            : "Dernier verdict historique : " + latest.Verdict +
+                              " · " + latest.RecordedUtc.ToLocalTime()
+                                  .ToString("dd/MM/yyyy HH:mm");
                     rows.Add(new JourneyRelationRow(
                         JourneyRelationKind.Gate, id,
-                        "Gate · " + id.ToString("D"),
-                        "Référence conservée · registre de gates #202 non disponible",
-                        null));
+                        "Gate · " + (gate?.Name ?? id.ToString("D")),
+                        detail, null));
                 }
             }
 
@@ -918,10 +937,13 @@ public partial class ProjectJourneyView : UserControl
         }
 
         _milestoneCatalog = await _milestones.ListAsync(_projectDirectory);
+        _gateSnapshot = await _gates.ReadAsync(_projectDirectory);
         RenderRelations();
         UpdateButtons();
         StatusText.Text = _milestoneCatalog.Candidates.Count +
-            " jalon(s) avec identité stable disponibles · aucun document modifié.";
+            " jalon(s) avec identité stable · " +
+            _gateSnapshot.Registry.Gates.Count +
+            " gate(s) enregistrés · aucune décision automatique.";
     }
 
     /// <summary>
