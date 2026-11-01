@@ -2,8 +2,9 @@
 
 Statut : **développement incrémental sur `develop`**, sans release 2.0.
 Identité portable, création des fiches RIS, évaluations humaines historisées,
-qualification métier indépendante, et registre filtrable sont implémentés.
-Les mesures structurées, liens métier et la clôture guidée restent à faire.
+qualification métier indépendante, plans de traitement versionnés et registre
+filtrable sont implémentés. Les liens métier, la réalisation des mesures et
+la clôture guidée restent à développer.
 
 ## 1. Accès et emplacement
 
@@ -64,7 +65,7 @@ un score, fermer un incident ne valide pas un risque.
 
 **Limitations actuelles importantes :** les évaluations humaines,
 la qualification métier et leurs historiques append-only sont intégrés,
-mais **les mesures structurées, les rattachements aux
+mais **l'exécution/suivi des mesures, les rattachements aux
 réserves/tâches/incidents, les synthèses avancées et la clôture guidée**
 restent à développer. Les avis sont audités dans le Markdown, sans
 signature cryptographique extérieure.
@@ -185,7 +186,88 @@ Dans un projet de test :
 6. vérifier les archives en lecture seule, DPI élevé, clavier,
    petite fenêtre et absence de saut du Worktree.
 
-## 6. Sécurité et performances
+## 6. Plans de traitement humains et versions immuables (incrément #199)
+
+Depuis **Parcours → Risques…**, sélectionner un risque et ouvrir
+**« Plan de traitement… »**. Le formulaire ne déduit aucune stratégie
+des scores : une personne choisit **Éviter, Réduire, Transférer ou
+Accepter**, indique le **responsable du traitement** et complète trois
+rubriques distinctes :
+
+- **Prévention / probabilité** : moyens destinés à éviter le déclenchement.
+- **Réduction / transfert** : moyens de limiter ou transférer les conséquences.
+- **Contingence** : procédure applicable si le risque survient.
+
+Les trois rubriques sont toujours requises (8 caractères minimum). Si une
+mesure ne s'applique pas, l'auteur l'indique et l'explique explicitement,
+plutôt que Nodalis invente une stratégie. L'utilisateur fournit ensuite
+l'**auteur de la revue** et la **justification de l'approbation ou de la
+révision** (10 caractères minimum), puis confirme une dernière fois la
+stratégie, le responsable et les mesures. Annuler ne modifie rien.
+
+Un risque neuf n'a **aucun plan implicite**. Une nouvelle proposition
+sauvegarde un **événement de plan** avec GUID d'avis, GUID canonique du
+risque, stratégie, responsable, mesures, acteur, motif et date UTC.
+Une révision se fait par le même formulaire prérempli, **uniquement avec
+un contenu changé**, et ajoute une entrée ; l'ancien plan reste
+consultable avec son identité. `PreviousId` relie les révisions
+successives.
+
+### Persistance et sécurité
+
+Le fichier `RIS-xxxx.md` contient un troisième journal :
+`<!-- nodalis:risk-treatment:start -->` jusqu'à
+`<!-- nodalis:risk-treatment:end -->`. Il précède le journal de
+qualification métier, lui-même avant le journal de criticité lorsqu'ils
+sont tous présents. Ce format a été vérifié pour les plans créés
+**avant ou après** les deux autres types d'avis.
+
+L'en-tête possède le champ optionnel `treatment-head-id` : l'ID de
+la **dernière révision**. Un risque sans traitement porte `null` ou,
+pour une ancienne fiche v2 non migrée, ne possède pas ce champ. Le
+premier plan approuvé ajoute ce champ sur les anciennes fiches ;
+**la simple lecture ne migre rien**. Le replay du journal doit
+retrouver exactement la tête annoncée, les `PreviousId`, le projet
+et l'ordre temporel. Une suppression de la dernière entrée sans mise
+à jour de l'en-tête, une rupture de chaîne ou une source ambiguë sont
+rejetées, sans réparation silencieuse.
+
+La commande `ProjectRiskRegistryService.PlanTreatmentAsync` réutilise
+la vérification **GUID de projet/risque, chemin canonique, unicité,
+SHA-256 affiché**, et la sauvegarde atomique avec contrôle de révision.
+Elle ne change **ni la qualification métier, ni la criticité initiale,
+ni la criticité résiduelle, ni le cycle de vie**, ni les tâches,
+incidents, gates et jalons. L'archive est consultable, mais aucun plan
+ne peut y être modifié.
+
+Ces journaux garantissent le respect des invariants par les commandes
+Nodalis ; comme pour les autres avis, ils ne remplacent pas une
+signature cryptographique externe contre une personne qui manipule
+directement tous les champs d'un fichier Markdown.
+
+### Qualification manuelle du plan
+
+1. Créer un RIS puis enregistrer une stratégie `Reduce` avec un
+   responsable, trois mesures et une justification.
+2. Qualifier le statut métier et la première criticité, puis **réviser**
+   le plan en `Transfer` ; vérifier que les deux versions restent
+   consultables et que la criticité/qualification ne changent pas.
+3. Réévaluer la résiduelle puis revenir à `ToReview` : les **trois
+   journaux** doivent rester lisibles et le plan courant inchangé.
+4. Essayer une révision identique ou avec une mesure vide : vérifier
+   le refus et l'absence d'écriture.
+5. Modifier une note Markdown hors journal pendant que le formulaire
+   est ouvert : vérifier le rejet SHA, la conservation de la note et
+   la nécessité de recharger le registre.
+6. Vérifier le mode archive, les écrans étroits, le DPI, la navigation
+   clavier, les documents ouverts et l'absence de gel du Worktree.
+
+**Non couvert à ce stade :** lier les mesures à des tâches stables,
+attester leur exécution, affecter des preuves et fermer le risque
+selon une procédure guidée. Ce sont les incréments suivants, pas
+des automatismes cachés derrière la validation d'un plan.
+
+## 7. Sécurité et performances
 
 - Vérification du manifeste `.project.json` et de l'appartenance du
   projet au workspace, sans traversée hors racine ou lien symbolique.
@@ -198,7 +280,7 @@ Dans un projet de test :
 - Catalogue recalculé seulement via **Recharger** ou après création.
   Aucune IA ni réseau nécessaire.
 
-## 7. Tests automatiques et recette Windows
+## 8. Tests automatiques et recette Windows
 
 `ProjectRiskRegistrySmokeTests`, branché dans `Program.cs`,
 vérifie la lecture non destructive d'un projet Complexe comprenant
@@ -217,6 +299,12 @@ La suite `ProjectRiskQualificationSmokeTests` vérifie la séparation
 stricte des deux journaux, toutes les transitions métier, les
 modifications externes, les tentatives de réécriture du YAML, les
 états incohérents et le refus d'un projet tiers.
+
+La suite `ProjectRiskTreatmentSmokeTests` couvre les quatre
+stratégies, l'obligation des mesures, la chaîne des révisions GUID,
+la validation de `treatment-head-id`, les créations de plans avant et
+après les autres journaux, les conflits de sources et les tentatives
+d'altération d'un historique.
 
 Recette visuelle **encore à faire** : risque créé puis rouvert,
 onglets Markdown existants intacts, fenêtre étroite, DPI élevé, clavier,
