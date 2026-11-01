@@ -98,11 +98,16 @@ doivent continuer à fonctionner avec les tâches sans marqueur.
 6. Vérifier le clavier, le DPI, les fichiers Markdown déjà ouverts
    dans l'éditeur, le Worktree et l'absence de freeze.
 
-**Limite explicite :** même si la nouvelle identité des tâches est
-désormais persistante, l'index de liens typés et la vérification du
-couple `(risque, version de plan, mesure, tâche)` ne sont pas encore
-implémentés dans cet incrément. Aucun lien automatique tâche→mesure
-n'est créé et l'état d'une mesure n'est jamais déduit de la case cochée.
+**Relations et navigation :** le contrat
+`(risque GUID, version de plan GUID, mesure, tâche PersistentId)`
+est maintenant opérationnel avec accord humain et journal d'événements
+réversibles dans la fiche RIS. Les tâches ne sont **jamais**
+cochées par cette relation et l'état des mesures n'est jamais
+déduit de la case Markdown. Les backlinks
+**« Tâches → Risques liés… »** et le parcours
+**« Risques → Tâches liées… → Ouvrir la tâche »** sont désormais
+disponibles et n'écrivent aucun fichier lors de la navigation.
+Voir [relations et navigation RIS/tâches](v2-risk-task-links.md).
 
 **Mise en production :** interdite avant la qualification visuelle et
 l'accord utilisateur ; aucun merge `main`, tag ou release 2.0.

@@ -137,6 +137,62 @@ DPI élevé, sélection des rubriques, tâches avec ID et sans ID,
 plusieurs documents ouverts, déplacement entre fichiers et
 changements depuis l'éditeur WPF.
 
-**Prochain incrément :** projection navigable des backlinks tâches
-vers les RIS et les réserves des Gates, puis contrôle de la
-provenance documentaire. Pas de libération automatique de réserve.
+## 7. Navigation bidirectionnelle (incrément suivant)
+
+Les fiches RIS et les tâches conservent les mêmes GUID, mais Nodalis
+offre maintenant également une **projection inverse, strictement
+consultative**, pour naviguer dans les deux sens :
+
+- **Tâches → Risques :** dans la liste des tâches, une tâche avec
+  `PersistentId` et `ProjectId` propose **« Risques liés… »**.
+  Le service résout l'ID stable **une seule fois à la demande**,
+  revérifie son unicité globale, le projet d'appartenance et le
+  chemin de source, puis relit seulement le registre des RIS du
+  projet concerné. Aucune recherche n'est déclenchée au scroll
+  ou au survol d'une ligne.
+- La fenêtre affiche les liens **du plan actuel**, ceux d'**anciens
+  plans** et les liens **explicitement déliés**. Une déliaison reste
+  un élément historique mais n'est jamais présentée comme active.
+  Chaque ligne montre la référence RIS, la mesure, le statut et
+  le GUID de version du plan.
+- Le bouton **« Ouvrir la fiche RIS »** ramène l'utilisateur dans
+  l'éditeur Markdown habituel. Le chemin source est relu et
+  contrôlé par la navigation du workspace avant ouverture.
+- **Risques → Tâches :** dans **Risques… → Tâches liées…**,
+  sélectionner la rubrique, puis une tâche résolue et cliquer
+  **« Ouvrir la tâche »**. Le Markdown de la tâche s'ouvre
+  dans l'éditeur avec le numéro de ligne comme simple indication
+  de navigation. Les GUID orphelins ou ambigus ne sont pas
+  proposés comme destinations cliquables.
+
+La projection ne réécrit **aucun fichier** et ne crée aucun lien.
+Si le GUID de tâche est supprimé, dupliqué, transféré à un autre
+projet ou ne peut plus être vérifié dans le catalogue, la réponse
+est vide avec diagnostic plutôt que de rediriger l'utilisateur
+vers une fiche du mauvais projet. Le journal RIS, lui, garde
+ses relations historiques pour examen.
+
+Le service `ProjectRiskTaskBacklinkService` renvoie les statuts
+`Lié · plan actuel`, `Lié · ancien plan` et
+`Délié · historique uniquement`. Cette distinction n'infère
+ni l'avancement réel d'une tâche, ni la criticité ou la
+qualification d'un risque, ni l'état d'une réserve de Gate.
+
+**Tests automatisés :**
+`ProjectRiskTaskBacklinkSmokeTests` vérifie les backlinks
+sans lien implicite, la résolution du même GUID après déplacement
+du fichier, la déliaison historisée, la révision de plan,
+le retour des associations au plan courant, le refus de
+doublons de GUID entre projets, la disparition d'une source
+et l'absence d'écriture dans les fichiers.
+
+**Recette Windows requise :** depuis Tâches, ouvrir « Risques liés… »,
+ouvrir le RIS dans l'éditeur, revenir au registre du projet,
+ouvrir « Tâches liées… » puis la source de tâche. Tester
+également DPI, clavier, fenêtre étroite, déplacement de fichier,
+onglets déjà ouverts et tâche sans `PersistentId`. Vérifier
+que les fenêtres ne rafraîchissent pas continuellement le Worktree.
+
+**Prochaine étape :** backlinks et relations sûres avec les
+réserves des Gates, contrôle de provenance et gestion des
+sources orphelines. Pas de libération automatique de réserve.
