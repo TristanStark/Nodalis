@@ -31,6 +31,12 @@ public sealed record ProjectGateRegistry
 
     /// <summary>Append-only history; no decision may be replaced or erased.</summary>
     public List<ProjectGateDecision> Decisions { get; init; } = [];
+
+    /// <summary>
+    /// Separate append-only human history of reservation lifting/reopening.
+    /// Existing v1 registries deserialize with an empty history.
+    /// </summary>
+    public List<ProjectGateReservationEvent> ReservationEvents { get; init; } = [];
 }
 
 /// <summary>One named review point with stable identity and editable future criteria.</summary>
@@ -124,6 +130,42 @@ public sealed record ProjectGateDecision
 
     public List<ProjectGateReservation> Reservations { get; init; } = [];
 }
+
+/// <summary>Explicit human change of a reservation's current state.</summary>
+public enum ProjectGateReservationEventKind
+{
+    Lifted,
+    Reopened
+}
+
+/// <summary>
+/// Immutable reservation lifecycle event. The originating GO-with-reservations
+/// verdict and reservation description remain frozen in their decision.
+/// </summary>
+public sealed record ProjectGateReservationEvent
+{
+    public required Guid Id { get; init; }
+
+    public required Guid DecisionId { get; init; }
+
+    public required Guid ReservationId { get; init; }
+
+    public required ProjectGateReservationEventKind Kind { get; init; }
+
+    public DateTimeOffset RecordedUtc { get; init; } = DateTimeOffset.UtcNow;
+
+    public required string Actor { get; init; }
+
+    public required string Rationale { get; init; }
+
+    /// <summary>Reviewed, frozen evidence; lifting requires at least one proof.</summary>
+    public List<ProjectGateEvidenceSnapshot> Evidence { get; init; } = [];
+}
+
+/// <summary>Calculated current state, never written over the decision.</summary>
+public sealed record ProjectGateReservationState(
+    Guid DecisionId, Guid ReservationId, bool IsOpen,
+    ProjectGateReservationEvent? LatestEvent);
 
 /// <summary>Registry and exact disk revision; null revision means no registry yet.</summary>
 public sealed record ProjectGateRegistrySnapshot(
