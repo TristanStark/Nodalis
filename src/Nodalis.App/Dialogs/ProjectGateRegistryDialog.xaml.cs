@@ -15,6 +15,7 @@ namespace Nodalis.App.Dialogs;
 public partial class ProjectGateRegistryDialog : Window
 {
     private readonly ProjectGateRegistryService _service;
+    private readonly string _serviceWorkspaceRoot;
     private readonly ProjectJourneySourceService _sources;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
@@ -41,6 +42,7 @@ public partial class ProjectGateRegistryDialog : Window
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
         ArgumentNullException.ThrowIfNull(suggestedEvidence);
         _service = new ProjectGateRegistryService(workspaceRoot);
+        _serviceWorkspaceRoot = Path.GetFullPath(workspaceRoot);
         _sources = new ProjectJourneySourceService(workspaceRoot);
         _projectDirectory = Path.GetFullPath(projectDirectory);
         _readOnly = readOnly;
@@ -487,6 +489,95 @@ public partial class ProjectGateRegistryDialog : Window
                 gate.Id);
         }, "Consigner une décision humaine");
 
+    /// <summary>Starts a reviewed lift of the selected reservation.</summary>
+    /// <param name="sender">Lift button.</param>
+    /// <param name="e">Click event.</param>
+    private async void LiftReservation_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(() => QualifyReservationAsync(
+            ProjectGateReservationEventKind.Lifted),
+            "Lever une réserve après qualification humaine");
+
+    /// <summary>Starts a reviewed reopening of the selected reservation.</summary>
+    /// <param name="sender">Reopen button.</param>
+    /// <param name="e">Click event.</param>
+    private async void ReopenReservation_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(() => QualifyReservationAsync(
+            ProjectGateReservationEventKind.Reopened),
+            "Réouvrir une réserve");
+
+    /// <summary>
+    /// Collects explicit human sign-off then fingerprints local proof and
+    /// appends a SHA-guarded event, without touching the original verdict.
+    /// </summary>
+    /// <param name="kind">Lift or reopen requested by the user.</param>
+    /// <returns>Completed explicit review and conditional persistence.</returns>
+    private async Task QualifyReservationAsync(ProjectGateReservationEventKind kind)
+    {
+        if (_readOnly || _snapshot is null ||
+            HistoryList.SelectedItem is not HistoryRow historical ||
+            ReservationsList.SelectedItem is not ReservationRow selected ||
+            historical.Decision.Id != selected.DecisionId)
+        {
+            return;
+        }
+
+        ProjectGateReservationState current =
+            ProjectGateEditor.GetReservationState(_snapshot.Registry,
+                selected.DecisionId, selected.Reservation.Id);
+        if (current.IsOpen !=
+            (kind == ProjectGateReservationEventKind.Lifted))
+        {
+            throw new InvalidOperationException(
+                "L'état de la réserve a changé : rechargez le registre.");
+        }
+
+        ProjectGateReservationActionDialog dialog = new(
+            _serviceWorkspaceRoot, _projectDirectory, selected.Reservation, kind)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true ||
+            dialog.Actor is null || dialog.Rationale is null)
+        {
+            return;
+        }
+
+        List<ProjectGateEvidenceSnapshot> proofs = [];
+        if (dialog.EvidencePath is string path)
+        {
+            proofs.Add(await _service.CaptureEvidenceAsync(path));
+        }
+
+        ProjectGateRegistry proposed = ProjectGateEditor.AppendReservationEvent(
+            _snapshot.Registry, selected.DecisionId, selected.Reservation.Id,
+            kind, dialog.Actor, dialog.Rationale, proofs);
+        string label = kind == ProjectGateReservationEventKind.Lifted
+            ? "LEVER" : "RÉOUVRIR";
+        await SaveApprovedAsync(proposed,
+            label + " la réserve de la décision historique « " +
+            historical.Decision.GateName + " » ?\n" +
+            "Réserve : " + selected.Reservation.Description + "\n" +
+            "Auteur : " + dialog.Actor + "\n" +
+            "Motif : " + dialog.Rationale + "\n" +
+            "Preuves SHA-256 : " + proofs.Count +
+            "\n\nLe verdict initial restera " +
+            VerdictName(historical.Decision.Verdict) +
+            ". Aucune décision, tâche ni aucun jalon n'est modifié.",
+            historical.Decision.GateId, historical.Decision.Id);
+    }
+
+    /// <summary>Updates action buttons after choosing a reservation.</summary>
+    /// <param name="sender">Reservation list.</param>
+    /// <param name="e">Selection change.</param>
+    private void ReservationsList_SelectionChanged(
+        object sender, SelectionChangedEventArgs e)
+    {
+        if (!_painting)
+        {
+            UpdateButtons();
+        }
+    }
+
     /// <summary>Returns an existing gate for relation linking, without editing it.</summary>
     /// <param name="sender">Link button.</param>
     /// <param name="e">Click event.</param>
@@ -549,6 +640,11 @@ public partial class ProjectGateRegistryDialog : Window
             ProjectGateVerdict.NoGo => "NO-GO",
             _ => "Reporté"
         };
+
+    /// <summary>Read-only state of an original reservation in a selected dossier.</summary>
+    private sealed record ReservationRow(
+        Guid DecisionId, ProjectGateReservation Reservation, bool IsOpen,
+        string Label, string Detail);
 
     private sealed record GateRow(
         ProjectGateDefinition Gate, string Name, string Summary);
