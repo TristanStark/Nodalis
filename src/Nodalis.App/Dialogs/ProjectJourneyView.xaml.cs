@@ -897,6 +897,71 @@ public partial class ProjectJourneyView : UserControl
             dialog.ShowDialog();
         }, "Préparer un prompt sans IA");
 
+    /// <summary>Opens the canonical gate registry and permits an explicit link.</summary>
+    /// <param name="sender">Gate registry button.</param>
+    /// <param name="e">Click event.</param>
+    private async void GateRegistry_Click(object sender, RoutedEventArgs e) =>
+        await RunActionAsync(() => OpenGatesDialogAsync(null),
+            "Consulter le registre des gates");
+
+    /// <summary>
+    /// Opens a reviewed local registry editor without creating a gate
+    /// automatically. On explicit selection, revalidates the identity then
+    /// creates only a non-owning operation link under the journey SHA.
+    /// </summary>
+    /// <param name="initialGateId">Gate to inspect in immutable history.</param>
+    /// <returns>Completed explicit management or link action.</returns>
+    private async Task OpenGatesDialogAsync(Guid? initialGateId)
+    {
+        ProjectJourneyStep? step = SelectedStep();
+        ProjectJourneyOperation? operation = SelectedOperation();
+        ProjectGateRegistryDialog dialog = new(
+            _workspaceRoot, _projectDirectory, _readOnly,
+            operation?.SourcePaths ?? [], allowSelection:
+                !_readOnly && _snapshot is not null &&
+                step is not null && operation is not null,
+            initialGateId: initialGateId)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        dialog.ShowDialog();
+        _gateSnapshot = await _gates.ReadAsync(_projectDirectory);
+        RenderRelations();
+        UpdateButtons();
+        if (dialog.SelectedGateId is not Guid gateId ||
+            _readOnly || step is null || operation is null)
+        {
+            if (dialog.Changed)
+            {
+                StatusText.Text =
+                    "Registre des gates modifié · historique et Parcours conservés.";
+            }
+
+            return;
+        }
+
+        ProjectGateDefinition? verified = _gateSnapshot.Registry.Gates
+            .SingleOrDefault(item => item.Id == gateId);
+        if (verified is null)
+        {
+            throw new InvalidDataException(
+                "Le gate choisi a été modifié ou supprimé : relecture requise.");
+        }
+
+        if (operation.GateIds.Contains(gateId))
+        {
+            StatusText.Text = "Le gate est déjà lié à cette opération.";
+            return;
+        }
+
+        await CommitAsync("Associer le gate existant « " + verified.Name +
+            " » (" + gateId.ToString("D") + ") à l'opération « " +
+            operation.Name + " ».\nAucune décision ni aucun jalon " +
+            "ne sera automatiquement validé.",
+            doc => ProjectJourneyEditor.AddGateLink(doc,
+                step.Id, operation.Id, gateId), step.Id, operation.Id);
+    }
+
     /// <summary>Recomputes commands for the selected milestone or gate link.</summary>
     /// <param name="sender">Relation list.</param>
     /// <param name="e">Selection change.</param>
@@ -1012,9 +1077,14 @@ public partial class ProjectJourneyView : UserControl
     private async Task OpenSelectedRelationAsync()
     {
         JourneyRelationRow? selected = SelectedRelation();
-        if (selected is null ||
-            selected.Kind != JourneyRelationKind.Milestone)
+        if (selected is null)
         {
+            return;
+        }
+
+        if (selected.Kind == JourneyRelationKind.Gate)
+        {
+            await OpenGatesDialogAsync(selected.Id);
             return;
         }
 
