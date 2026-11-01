@@ -315,19 +315,27 @@ Les commandes pures
 réutilisent le champ existant `MilestoneIds` :
 pas de modification du schéma ni de table de relations parallèle.
 
-### Gates et décisions
+### Gates et décisions (première tranche #202)
 
-Le champ existant `GateIds` est conservé et affiché, mais
-**aucun registre de gates v2 stable n'est encore disponible** :
-sa matérialisation est prévue dans [#202](https://github.com/TristanStark/Nodalis/issues/202).
+Le champ `GateIds` est désormais résolu dans le registre canonique
+par projet `.project-gates.json`, dont la création est **explicite**.
+Le bouton **Gates…** ouvre une fenêtre sombre dédiée avec les points de
+contrôle, leurs critères, les dossiers de décision humaine figés et
+l'activation volontaire des cinq modèles standards.
 
-Un GUID de gate éventuellement présent est affiché **comme référence
-non résolue**, et **n'est jamais présenté comme un Go**, une preuve de
-validation ou une autorisation de MEP. La seule mutation autorisée dans
-ce lot est **Délier**, après confirmation, qui retire la référence
-du Parcours et **ne modifie aucune décision ni aucun état de gate**.
-La création de liens vers de nouveaux gates sera branchée une fois
-leurs identités et leur registre canonique réellement disponibles.
+Un gate possédant un GUID réel peut être lié à une opération (SHA-256 du
+Parcours vérifié). La liste affiche le **dernier verdict historique**
+d'un gate résolu et conserve les références disparues comme telles ;
+un statut historique n'est jamais interprété comme une autorisation
+actuelle. L'action **Ouvrir** affiche l'historique du gate, et
+**Délier** ne supprime jamais sa décision.
+
+La préparation, les critères qualifiés, les empreintes des preuves et
+la conservation de l'historique sont détaillés dans
+[Registre des gates v2](v2-gates.md). Le cycle de levée des réserves,
+les requalifications automatiques **suggérées mais jamais décidées** et
+les synthèses des futurs registres restent à développer au sein de
+l'EPIC [#202](https://github.com/TristanStark/Nodalis/issues/202).
 
 ### Tests de non-régression
 
@@ -348,9 +356,9 @@ et les grandes listes.
 
 ## Suite de l'EPIC #195
 
-1. Brancher les références de gates sur le futur registre canonique
-   #202, lorsque de véritables identifiants et décisions seront disponibles,
-   sans inventer de Go/No-Go.
+1. Compléter le registre des gates #202 : cycle de vie de réserves,
+   requalification humaine versionnée, rapprochement jalons et synthèses
+   calculées des exigences, tests, risques et déploiements.
 2. Qualifier visuellement sous Windows les vues Parcours, les liens de
    sources, le presse-papiers, les fermetures/archives, les conflits de
    révision et les performances sur gros workspaces.
