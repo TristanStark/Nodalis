@@ -998,9 +998,6 @@ public partial class ProjectJourneyView : UserControl
 
         ProjectJourneyMilestoneCandidate milestone =
             await _milestones.RequireCurrentAsync(_projectDirectory, selected.Id);
-        _milestoneCatalog = await _milestones.ListAsync(_projectDirectory);
-        RenderRelations();
-        UpdateButtons();
 
         if (SourceOpenRequested is null)
         {
