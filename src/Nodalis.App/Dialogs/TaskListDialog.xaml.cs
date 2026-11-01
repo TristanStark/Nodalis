@@ -341,6 +341,68 @@ public partial class TaskListDialog : Window
     }
 
     /// <summary>
+    /// Assigns a stable technical GUID to one legacy checkbox after explicit
+    /// confirmation; the rest of the document is never migrated.
+    /// </summary>
+    /// <param name="sender">Identity assignment button.</param>
+    /// <param name="e">WPF event.</param>
+    private async void AssignIdentity_Click(object sender, RoutedEventArgs e)
+    {
+        await UiActionGuard.RunAsync(this, "Tâches · identité stable", async () =>
+        {
+            if (sender is not Button button ||
+                button.Tag is not TaskItem task ||
+                task.PersistentId is not null)
+            {
+                return;
+            }
+
+            if (MessageBox.Show(this,
+                "Attribuer un GUID persistant à cette tâche ?\n\n" +
+                task.Text + "\n\n" +
+                "Un commentaire HTML invisible sera ajouté uniquement " +
+                "à cette checkbox Markdown. Aucun autre document ni " +
+                "tâche ne sera migré. Ce GUID restera identique si " +
+                "la tâche change de position.\n\n" +
+                "Une source obsolète ou ambiguë sera refusée.",
+                "Tâche · confirmer l'identité",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                Guid assigned = await _tasks.AssignPersistentIdentityAsync(task);
+                await RefreshAsync();
+                StatusText.Text = "Identité stable attribuée : " +
+                    assigned.ToString("D");
+            }
+            catch (Exception exception) when (exception is IOException or
+                UnauthorizedAccessException or InvalidOperationException or
+                InvalidDataException or TaskSourceConflictException)
+            {
+                StatusText.Text = exception.Message;
+                await RefreshAsync();
+            }
+        });
+    }
+
+    /// <summary>Copies one explicit persistent task identity, never a derived ID.</summary>
+    /// <param name="sender">Copy command.</param>
+    /// <param name="e">WPF event.</param>
+    private void CopyIdentity_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button &&
+            button.Tag is TaskItem { PersistentId: Guid id })
+        {
+            Clipboard.SetText(id.ToString("D"));
+            StatusText.Text = "ID de tâche stable copié.";
+        }
+    }
+
+    /// <summary>
     /// Accepts the selected task for source navigation on double-click.
     /// </summary>
     /// <param name="sender">The task list.</param>

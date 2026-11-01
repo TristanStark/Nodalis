@@ -167,6 +167,12 @@
                                 </WrapPanel>
 
                                 <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding PersistentIdentityDisplay}"
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource SecondaryTextBrush}" />
+
+                                <TextBlock Margin="0,4,0,0"
                                            Text="{Binding SourceRelativePath}"
                                            FontSize="10"
                                            Foreground="{StaticResource SecondaryTextBrush}"
@@ -196,6 +202,37 @@
                                         Tag="{Binding}"
                                         Click="EditTask_Click"
                                         Content="Modifier" />
+                                <Button Margin="0,6,0,0"
+                                        Padding="10,5" Tag="{Binding}"
+                                        Click="AssignIdentity_Click"
+                                        ToolTip="Écrire un GUID dans cette seule checkbox, après confirmation"
+                                        Content="Attribuer un ID">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasPersistentIdentity}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Margin="0,6,0,0"
+                                        Padding="10,5" Tag="{Binding}"
+                                        Click="CopyIdentity_Click"
+                                        Content="Copier l'ID">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasPersistentIdentity}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </StackPanel>
                         </Grid>
                     </Border>
