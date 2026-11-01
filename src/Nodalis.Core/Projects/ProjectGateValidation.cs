@@ -141,6 +141,83 @@ public static class ProjectGateValidation
                     "Réserves incompatibles avec le verdict.");
             }
         }
+
+        if (registry.ReservationEvents is null)
+        {
+            throw new InvalidDataException("Historique des réserves invalide.");
+        }
+
+        ValidateReservationEvents(registry);
+    }
+
+    /// <summary>
+    /// Replays append-only reservation transitions without altering an
+    /// original decision or deriving any Go/No-Go from their current states.
+    /// </summary>
+    /// <param name="registry">Registry including original reservations.</param>
+    private static void ValidateReservationEvents(ProjectGateRegistry registry)
+    {
+        Dictionary<(Guid Decision, Guid Reservation), bool> state = [];
+        Dictionary<Guid, DateTimeOffset> lastTime = [];
+        foreach (ProjectGateDecision decision in registry.Decisions)
+        {
+            foreach (ProjectGateReservation reservation in decision.Reservations)
+            {
+                state.Add((decision.Id, reservation.Id), true);
+                lastTime.Add(reservation.Id, decision.RecordedUtc);
+            }
+        }
+
+        HashSet<Guid> eventIds = [];
+        foreach (ProjectGateReservationEvent item in registry.ReservationEvents)
+        {
+            if (item is null || item.Id == Guid.Empty ||
+                !eventIds.Add(item.Id) || item.DecisionId == Guid.Empty ||
+                item.ReservationId == Guid.Empty ||
+                !Enum.IsDefined(item.Kind) ||
+                !IsText(item.Actor, 120) ||
+                !IsText(item.Rationale, 4000) ||
+                item.Rationale.Trim().Length < 10 ||
+                item.RecordedUtc == default || item.Evidence is null ||
+                !state.TryGetValue((item.DecisionId, item.ReservationId),
+                    out bool open) ||
+                item.RecordedUtc < lastTime[item.ReservationId])
+            {
+                throw new InvalidDataException(
+                    "Événement de réserve absent, falsifié ou orphelin.");
+            }
+
+            if (item.Kind == ProjectGateReservationEventKind.Lifted && !open ||
+                item.Kind == ProjectGateReservationEventKind.Reopened && open)
+            {
+                throw new InvalidDataException(
+                    "Transitions de réserves incohérentes ou dupliquées.");
+            }
+
+            if (item.Kind == ProjectGateReservationEventKind.Lifted &&
+                item.Evidence.Count == 0)
+            {
+                throw new InvalidDataException(
+                    "Levée de réserve sans preuve historisée.");
+            }
+
+            HashSet<string> paths = new(StringComparer.OrdinalIgnoreCase);
+            foreach (ProjectGateEvidenceSnapshot proof in item.Evidence)
+            {
+                if (proof is null ||
+                    !ProjectJourneySourcePath.IsSafe(proof.RelativePath) ||
+                    !IsSha256(proof.Sha256) ||
+                    !paths.Add(proof.RelativePath))
+                {
+                    throw new InvalidDataException(
+                        "Preuve de réserve non sûre ou dupliquée.");
+                }
+            }
+
+            state[(item.DecisionId, item.ReservationId)] =
+                item.Kind == ProjectGateReservationEventKind.Reopened;
+            lastTime[item.ReservationId] = item.RecordedUtc;
+        }
     }
 
     /// <summary>Requires a bounded non-control-text label.</summary>
