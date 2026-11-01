@@ -878,6 +878,186 @@ public partial class ProjectJourneyView : UserControl
             dialog.ShowDialog();
         }, "Préparer un prompt sans IA");
 
+    /// <summary>Recomputes commands for the selected milestone or gate link.</summary>
+    /// <param name="sender">Relation list.</param>
+    /// <param name="e">Selection change.</param>
+    private void RelationsList_SelectionChanged(
+        object sender, SelectionChangedEventArgs e)
+    {
+        if (!_painting)
+        {
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>Opens a linked, verified milestone on explicit double-click.</summary>
+    /// <param name="sender">Relation list.</param>
+    /// <param name="e">Mouse double-click.</param>
+    private async void RelationsList_MouseDoubleClick(
+        object sender, MouseButtonEventArgs e) =>
+        await RunActionAsync(OpenSelectedRelationAsync,
+            "Ouvrir le jalon existant");
+
+    /// <summary>
+    /// Reads the milestone catalog only on user request; never on render,
+    /// selection change or worktree scroll.
+    /// </summary>
+    /// <param name="sender">Refresh button.</param>
+    /// <param name="e">Click event.</param>
+    private async void RefreshRelations_Click(object sender, RoutedEventArgs e) =>
+        await RunActionAsync(RefreshRelationsAsync,
+            "Actualiser les liens vers les jalons");
+
+    /// <summary>Refreshes only read-only relation diagnostics.</summary>
+    /// <returns>Completed catalog lookup.</returns>
+    private async Task RefreshRelationsAsync()
+    {
+        if (_snapshot is null)
+        {
+            return;
+        }
+
+        _milestoneCatalog = await _milestones.ListAsync(_projectDirectory);
+        RenderRelations();
+        UpdateButtons();
+        StatusText.Text = _milestoneCatalog.Candidates.Count +
+            " jalon(s) avec identité stable disponibles · aucun document modifié.";
+    }
+
+    /// <summary>
+    /// Offers only existing project milestones with a physical stable GUID.
+    /// Revalidates the choice before a SHA-protected journey-only commit.
+    /// </summary>
+    /// <param name="sender">Link button.</param>
+    /// <param name="e">Click event.</param>
+    private async void LinkMilestone_Click(object sender, RoutedEventArgs e) =>
+        await RunActionAsync(async () =>
+        {
+            ProjectJourneyStep? step = SelectedStep();
+            ProjectJourneyOperation? operation = SelectedOperation();
+            if (_readOnly || step is null || operation is null)
+            {
+                return;
+            }
+
+            _milestoneCatalog = await _milestones.ListAsync(_projectDirectory);
+            ProjectJourneyMilestoneCandidate[] candidates = _milestoneCatalog
+                .Candidates.Where(item => !operation.MilestoneIds.Contains(item.Id))
+                .ToArray();
+            RenderRelations();
+            if (candidates.Length == 0)
+            {
+                MessageBox.Show(Window.GetWindow(this),
+                    "Aucun jalon non lié avec GUID persistant n'est disponible." +
+                    "\n\nLes lignes anciennes, sans colonne Id ou avec GUID dupliqué, " +
+                    "ne sont pas proposées. Corrigez-les via le module Jalons.",
+                    "Jalons du Parcours", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            ProjectJourneyMilestonePickerDialog dialog = new(candidates,
+                _milestoneCatalog.LegacyWithoutStableId,
+                _milestoneCatalog.DuplicateIds.Count)
+            {
+                Owner = Window.GetWindow(this)
+            };
+            if (dialog.ShowDialog() != true || dialog.SelectedMilestone is null)
+            {
+                return;
+            }
+
+            ProjectJourneyMilestoneCandidate selected =
+                await _milestones.RequireCurrentAsync(_projectDirectory,
+                    dialog.SelectedMilestone.Id);
+            await CommitAsync("Lier le jalon existant « " + selected.Name +
+                " » (" + selected.Id.ToString("D") + ") à l'opération « " +
+                operation.Name + " ».\nSon statut et son fichier ne seront pas modifiés.",
+                doc => ProjectJourneyEditor.AddMilestoneLink(doc,
+                    step.Id, operation.Id, selected.Id),
+                step.Id, operation.Id);
+        }, "Lier un jalon existant");
+
+    /// <summary>Opens the selected verified milestone via existing editor tabs.</summary>
+    /// <param name="sender">Open button.</param>
+    /// <param name="e">Click event.</param>
+    private async void OpenRelation_Click(object sender, RoutedEventArgs e) =>
+        await RunActionAsync(OpenSelectedRelationAsync,
+            "Ouvrir le jalon existant");
+
+    /// <summary>Rechecks the milestone ID at open time before navigation.</summary>
+    /// <returns>Completed navigation request.</returns>
+    private async Task OpenSelectedRelationAsync()
+    {
+        JourneyRelationRow? selected = SelectedRelation();
+        if (selected is null ||
+            selected.Kind != JourneyRelationKind.Milestone)
+        {
+            return;
+        }
+
+        ProjectJourneyMilestoneCandidate milestone =
+            await _milestones.RequireCurrentAsync(_projectDirectory, selected.Id);
+        _milestoneCatalog = await _milestones.ListAsync(_projectDirectory);
+        RenderRelations();
+        UpdateButtons();
+
+        if (SourceOpenRequested is null)
+        {
+            MessageBox.Show(Window.GetWindow(this),
+                "La navigation vers le jalon nécessite un Parcours intégré " +
+                "dans la fenêtre principale de Nodalis.",
+                "Ouvrir le jalon", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        SourceOpenRequested.Invoke(this,
+            new ProjectJourneySourceOpenRequestedEventArgs(
+                milestone.SourceRelativePath, milestone.LineNumber));
+    }
+
+    /// <summary>
+    /// Removes a single link while keeping the milestone or gate record
+    /// untouched. Gate links are never interpreted as a Go/No-Go decision.
+    /// </summary>
+    /// <param name="sender">Unlink button.</param>
+    /// <param name="e">Click event.</param>
+    private async void UnlinkRelation_Click(object sender, RoutedEventArgs e) =>
+        await RunActionAsync(async () =>
+        {
+            ProjectJourneyStep? step = SelectedStep();
+            ProjectJourneyOperation? operation = SelectedOperation();
+            JourneyRelationRow? relation = SelectedRelation();
+            if (_readOnly || step is null || operation is null || relation is null)
+            {
+                return;
+            }
+
+            string kind = relation.Kind == JourneyRelationKind.Milestone
+                ? "jalon" : "gate";
+            await CommitAsync("Délier la référence de " + kind + " « " +
+                relation.Label + " ».\nAucun objet, statut ou contrôle ne sera modifié.",
+                doc => relation.Kind == JourneyRelationKind.Milestone
+                    ? ProjectJourneyEditor.RemoveMilestoneLink(
+                        doc, step.Id, operation.Id, relation.Id)
+                    : ProjectJourneyEditor.RemoveGateLink(
+                        doc, step.Id, operation.Id, relation.Id),
+                step.Id, operation.Id);
+        }, "Délier une relation");
+
+    /// <summary>Distinguishes milestone links from unresolved gate references.</summary>
+    private enum JourneyRelationKind
+    {
+        Milestone,
+        Gate
+    }
+
+    /// <summary>UI-only description of a stored reference, not a new entity.</summary>
+    private sealed record JourneyRelationRow(
+        JourneyRelationKind Kind, Guid Id, string Label, string Detail,
+        ProjectJourneyMilestoneCandidate? Milestone);
+
     private sealed record JourneySourceRow(string RelativePath, string Availability);
 
     private sealed record JourneyStepRow(
@@ -900,11 +1080,21 @@ public sealed class ProjectJourneySourceOpenRequestedEventArgs : EventArgs
 {
     /// <summary>Creates a source navigation request.</summary>
     /// <param name="relativePath">Portable workspace-relative source.</param>
-    public ProjectJourneySourceOpenRequestedEventArgs(string relativePath)
+    public ProjectJourneySourceOpenRequestedEventArgs(
+        string relativePath, int? lineNumber = null)
     {
         RelativePath = ProjectJourneySourcePath.RequireSafe(relativePath);
+        if (lineNumber is < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(lineNumber));
+        }
+
+        LineNumber = lineNumber;
     }
 
     /// <summary>Gets the stored, non-owning relative source reference.</summary>
     public string RelativePath { get; }
+
+    /// <summary>Optional Markdown line for a canonical milestone row.</summary>
+    public int? LineNumber { get; }
 }
