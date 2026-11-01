@@ -1,0 +1,55 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectJourneyMilestonePickerDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Lier un jalon existant · Parcours"
+        Width="690" Height="520"
+        MinWidth="500" MinHeight="350"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock Text="Choisir un jalon existant du projet"
+                   FontSize="18" FontWeight="SemiBold" />
+        <TextBlock x:Name="DiagnosticsText"
+                   Grid.Row="1" Margin="0,9,0,10"
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource SecondaryTextBrush}" />
+        <ListBox x:Name="MilestonesList"
+                 Grid.Row="2"
+                 SelectionChanged="MilestonesList_SelectionChanged"
+                 MouseDoubleClick="MilestonesList_MouseDoubleClick">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="8,8">
+                        <TextBlock Text="{Binding Label}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Location}"
+                                   Margin="0,3,0,0" FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource SecondaryTextBrush}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        <DockPanel Grid.Row="3" Margin="0,14,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="ChooseButton" Content="Choisir ce jalon"
+                        Padding="14,8" Margin="0,0,9,0"
+                        Click="Choose_Click"
+                        IsEnabled="False" />
+                <Button Content="Annuler" Padding="14,8"
+                        Click="Cancel_Click" />
+            </StackPanel>
+            <TextBlock Text="Sélection uniquement. Aucun jalon ne sera modifié."
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center"
+                       Foreground="{StaticResource SecondaryTextBrush}" />
+        </DockPanel>
+    </Grid>
+</Window>
