@@ -260,8 +260,12 @@
                                         Content="Lier un jalon…"
                                         Margin="0,0,7,7" Padding="10,5"
                                         Click="LinkMilestone_Click" />
+                                <Button x:Name="GateRegistryButton"
+                                        Content="Gates…"
+                                        Margin="0,0,7,7" Padding="10,5"
+                                        Click="GateRegistry_Click" />
                                 <Button x:Name="OpenRelationButton"
-                                        Content="Ouvrir le jalon"
+                                        Content="Ouvrir"
                                         Margin="0,0,7,7" Padding="10,5"
                                         Click="OpenRelation_Click" />
                                 <Button x:Name="UnlinkRelationButton"
