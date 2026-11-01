@@ -35,6 +35,8 @@
                     <ComboBoxItem Content="Sous surveillance" />
                     <ComboBoxItem Content="Clôturés" />
                     <ComboBoxItem Content="Qualification à faire" />
+                    <ComboBoxItem Content="Mesures bloquées" />
+                    <ComboBoxItem Content="Mesures non terminées" />
                 </ComboBox>
                 <TextBlock x:Name="CountsText" VerticalAlignment="Center"
                            Margin="0,0,0,6" TextWrapping="Wrap"
@@ -112,6 +114,11 @@
                 <Button x:Name="CreateRiskButton" Content="Nouveau risque…"
                         Padding="12,7" Margin="0,0,8,0"
                         Click="CreateRisk_Click" />
+                <Button x:Name="MeasureButton"
+                        Content="Suivi des mesures…"
+                        Padding="12,7" Margin="0,0,8,6"
+                        Click="Measure_Click"
+                        ToolTip="Historiser explicitement l'avancement du plan courant" />
                 <Button x:Name="TreatmentButton"
                         Content="Plan de traitement…"
                         Padding="12,7" Margin="0,0,8,6"

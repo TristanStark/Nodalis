@@ -106,6 +106,14 @@ public partial class ProjectRiskRegistryDialog : Window
                 6 => item.Card.Lifecycle == ProjectRiskLifecycle.Monitoring,
                 7 => item.Card.Lifecycle == ProjectRiskLifecycle.Closed,
                 8 => item.Card.Qualification == ProjectRiskQualification.ToReview,
+                9 => item.Treatments.Count > 0 &&
+                    Enum.GetValues<ProjectRiskMeasureKind>().Any(kind =>
+                        item.MeasureStatus(kind) ==
+                            ProjectRiskMeasureStatus.Blocked),
+                10 => item.Treatments.Count > 0 &&
+                    Enum.GetValues<ProjectRiskMeasureKind>().Any(kind =>
+                        item.MeasureStatus(kind) !=
+                            ProjectRiskMeasureStatus.Completed),
                 _ => true
             })).ToArray();
         RisksList.ItemsSource = entries;
@@ -177,6 +185,27 @@ public partial class ProjectRiskRegistryDialog : Window
                 "Contingence : " +
                     (entry.CurrentTreatment?.Contingency ?? "non définie"),
                 "",
+                "Suivi du plan actuel : " +
+                    (entry.CurrentTreatment is null ? "aucun plan" :
+                        "version " + entry.Treatments[^1].Id.ToString("D")),
+                .. (entry.CurrentTreatment is null
+                    ? Array.Empty<string>()
+                    : Enum.GetValues<ProjectRiskMeasureKind>().Select(kind =>
+                        " • " + kind + " : " + entry.MeasureStatus(kind))),
+                "",
+                "Historique des mesures : " + entry.MeasureEvents.Count +
+                    " déclaration(s)",
+                .. entry.MeasureEvents.Select(measure =>
+                    measure.RecordedUtc.ToLocalTime()
+                        .ToString("dd/MM/yyyy HH:mm") +
+                    " · " + measure.Kind +
+                    " · " + measure.PreviousStatus + " → " + measure.Status +
+                    " · Plan " + measure.TreatmentId.ToString("D") +
+                    " · " + measure.Actor +
+                    " · " + measure.Rationale +
+                    (measure.Evidence is null ? "" :
+                        " · Preuve : " + measure.Evidence)),
+                "",
                 "Historique des plans : " + entry.Treatments.Count +
                     " version(s)",
                 .. entry.Treatments.Select(treatment =>
@@ -217,6 +246,8 @@ public partial class ProjectRiskRegistryDialog : Window
             entry is not null;
         TreatmentButton.IsEnabled = !_busy && !_readOnly &&
             entry is not null;
+        MeasureButton.IsEnabled = !_busy && !_readOnly &&
+            entry?.CurrentTreatment is not null;
         InitialReviewButton.IsEnabled = !_busy && !_readOnly &&
             entry is not null && entry.Reviews.Count == 0;
         ResidualReviewButton.IsEnabled = !_busy && !_readOnly &&
@@ -446,6 +477,67 @@ public partial class ProjectRiskRegistryDialog : Window
         StatusText.Text = saved.Card.Reference +
             " · plan historisé, criticités et statut inchangés.";
     }
+
+    /// <summary>
+    /// Records a manually reviewed progress transition for a measure of the
+    /// CURRENT treatment version, never by reading a Markdown task checkbox.
+    /// </summary>
+    /// <returns>Completed user action or unchanged risk on cancellation.</returns>
+    private async Task TrackMeasureAsync()
+    {
+        if (_readOnly || SelectedRisk() is not ProjectRiskEntry selected ||
+            selected.CurrentTreatment is null)
+        {
+            return;
+        }
+
+        ProjectRiskMeasureDialog dialog = new(selected) { Owner = this };
+        if (dialog.ShowDialog() != true ||
+            dialog.Kind is not ProjectRiskMeasureKind kind ||
+            dialog.Status is not ProjectRiskMeasureStatus status ||
+            dialog.Actor is not string actor ||
+            dialog.Rationale is not string rationale)
+        {
+            return;
+        }
+
+        if (MessageBox.Show(this,
+            "Enregistrer la progression de la mesure pour " +
+            selected.Card.Reference + " ?\n\n" +
+            "Version du plan : " + selected.Treatments[^1].Id.ToString("D") +
+            "\nMesure : " + kind +
+            "\nÉtat précédent : " + selected.MeasureStatus(kind) +
+            "\nNouvel état : " + status +
+            "\nAuteur : " + actor +
+            "\nMotif : " + PreviewMeasure(rationale) +
+            "\nPreuve : " +
+                (dialog.Evidence is null ? "non renseignée" :
+                    PreviewMeasure(dialog.Evidence)) +
+            "\n\nCette déclaration est historisée dans la fiche RIS. " +
+            "Elle ne modifie ni la criticité, ni le statut métier, ni les " +
+            "tâches, incidents ou Gates. En cas de révision du plan, " +
+            "le nouveau plan redémarre avec des mesures en attente.",
+            "Mesure de risque · confirmation humaine",
+            MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectRiskEntry saved = await _service.UpdateMeasureAsync(
+            _projectDirectory, selected, kind, status, actor,
+            rationale, dialog.Evidence);
+        Changed = true;
+        await ReloadAsync(saved.Card.Id);
+        StatusText.Text = saved.Card.Reference + " · " + kind +
+            " → " + status + " · événement audité, scores inchangés.";
+    }
+
+    /// <summary>Opens the measure progress form only for active plan versions.</summary>
+    /// <param name="sender">Measure command.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void Measure_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(TrackMeasureAsync, "Suivi des mesures");
 
     /// <summary>Shows a bounded readable excerpt in the approval dialog.</summary>
     /// <param name="value">Full human measure entered in the form.</param>
