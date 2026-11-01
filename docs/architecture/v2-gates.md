@@ -286,9 +286,12 @@ des sources manquantes, auteur et justification exigés, puis
   blocage des autres modifications du registre.
 - Aucun incident n'est clos ni ne provoque la levée d'une réserve ;
   l'humain conserve une décision de levée avec preuve distincte.
-  Les tâches checkbox et les dossiers de risques ne sont **pas**
-  encore raccordés : leurs identités doivent d'abord être stabilisées
-  sans recourir à la ligne, au titre ou à un ID calculé.
+  Les tâches checkbox et les dossiers de risques étaient
+  historiquement sans identité relationnelle fiable ; ces identités
+  ont maintenant un contrat distinct dans la version 2.0.
+  Les liens risques ↔ réserves utilisent exclusivement les GUIDs
+  de fiche RIS et une validation humaine décrite dans
+  [v2-gate-risk-links.md](v2-gate-risk-links.md).
 
 La suite `ProjectGateIncidentLinksSmokeTests` vérifie les GUID
 canoniques, le refus d'une provenance inter-projet, la non-mutation
@@ -299,10 +302,32 @@ la désassociation et le refus de relier un incident disparu.
 projet archivé en consultation, sélection au clavier et au DPI élevé,
 rafraîchissement du registre et conservation du verdict.
 
-## 9. Travaux restants (#202)
+## 9. Risques canoniques et réserves de Gates (01/11/2026)
 
-Ces deux tranches n'épuisent pas l'EPIC. Restent notamment :
-l'extension éventuelle de la vue à tout le workspace, les liens vérifiés vers tâches et risques, la qualification visuelle des liens guidés gates/jalons, les
+Le nouveau lien **réversible, historisé et soumis à confirmation**
+associe les GUIDs de `(décision, réserve, risque RIS)`. Depuis
+une réserve de Gate, **« Risques liés… »** affiche les fiches
+canoniques et autorise `Linked/Unlinked` avec auteur et motif.
+L'enregistrement valide l'unicité et la propriété projet des
+nouveaux RIS, préserve les événements passés et utilise le SHA
+du registre Gate. Une cible absente peut être dissociée.
+
+La fiche RIS propose à son tour **« Réserves Gates… »**, projection
+en lecture seule distinguant le statut de la relation, la levée
+de la réserve et le verdict initial. Le bouton **« Ouvrir le Gate »**
+revient à la décision et à la réserve historisées. Depuis le Gate,
+**« Ouvrir la fiche RIS »** navigue vers le Markdown sécurisé.
+
+Ces liens ne valident ni les Gates, ni les risques, ni les tâches,
+ni les mesures, ni les levées de réserve. Voir
+[contrat complet et recette Windows](v2-gate-risk-links.md).
+
+## 10. Travaux restants (#202)
+
+Les incréments actuels n'épuisent pas l'EPIC. Restent notamment :
+l'extension éventuelle de la vue à tout le workspace, les liens
+vérifiés vers tâches (distincts des RIS), la qualification
+visuelle des liens guidés Gates/jalons/risques, les
 synthèses issues des futurs registres exigences/risques/tests/incidents
 (#198–#201), les requalifications conditionnelles au
 périmètre/version/procédure/rollback/environnement et la qualification

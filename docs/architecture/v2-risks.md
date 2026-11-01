@@ -393,7 +393,12 @@ onglets Markdown existants intacts, fenêtre étroite, DPI élevé, clavier,
 projet Ultra-simple, archives en lecture seule et plusieurs milliers
 de fiches sans gel ni saut de Worktree.
 
-**Gates #202 et réserves :** ne pas fabriquer un lien vers un simple
-`Risques.md` ou une ligne de tableau. Le rattachement à une réserve
-attendra l'usage fiable du `risk-id` de fiche v2 et la qualification
-des événements de relation. Aucun merge vers `main`, tag ni release 2.0.
+**Gates #202 et réserves :** le rattachement utilise maintenant
+uniquement le `risk-id` canonique de fiche v2, jamais le tableau
+legacy `Risques.md` ou le nom/titre du document. Les liens sont
+historiés dans le registre des Gates après contrôle humain du
+projet, de la décision et de la réserve. Depuis le RIS, le bouton
+**« Réserves Gates… »** retrouve les relations actives ou anciennes
+et navigue à la décision d'origine. Voir
+[liens RIS ↔ réserves Gates](v2-gate-risk-links.md).
+Aucun merge vers `main`, tag ni release 2.0.
