@@ -18,6 +18,7 @@ public partial class TaskListDialog : Window
     private const string AllOwnersLabel = "Tous responsables";
 
     private readonly WorkspaceTaskService _tasks;
+    private readonly string _workspaceRoot;
     private readonly string? _contextPath;
     private readonly Func<string, TaskMetadataUpdate, Task<TaskItem>> _createTaskAsync;
     private readonly Func<TaskItem, bool, Task> _toggleTaskAsync;
@@ -58,8 +59,9 @@ public partial class TaskListDialog : Window
         ArgumentNullException.ThrowIfNull(
             promoteMeetingActionAsync);
 
+        _workspaceRoot = Path.GetFullPath(workspaceRoot);
         _tasks = new WorkspaceTaskService(
-            workspaceRoot);
+            _workspaceRoot);
         _contextPath =
             contextPath;
         _createTaskAsync =
@@ -412,7 +414,7 @@ public partial class TaskListDialog : Window
                 return;
             }
 
-            ProjectRiskTaskBacklinkService service = new(_tasks.WorkspaceRoot);
+            ProjectRiskTaskBacklinkService service = new(_workspaceRoot);
             ProjectRiskTaskBacklinkCatalog backlinks =
                 await service.ListAsync(task);
             ProjectRiskTaskBacklinksDialog dialog = new(task, backlinks)
