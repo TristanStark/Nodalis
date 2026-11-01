@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.Persistence;
@@ -10,6 +12,15 @@ using Nodalis.Infrastructure.Projects;
 /// </summary>
 internal static class ProjectGateRegistrySmokeTests
 {
+    // Match the production serializer without relying on its internal type.
+    private static readonly JsonSerializerOptions GateJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+    };
+
     /// <summary>Exercises the project gates from first read to review history.</summary>
     /// <param name="root">Disposable test root.</param>
     /// <returns>Completed gate registry regression suite.</returns>
@@ -216,7 +227,7 @@ internal static class ProjectGateRegistrySmokeTests
             // Older v1 JSON documents lack reservationEvents entirely.
             // New versions must read them without migration or disk writes.
             string oldJson = System.Text.Json.JsonSerializer.Serialize(
-                reread.Registry, JsonDefaults.Options);
+                reread.Registry, GateJsonOptions);
             System.Text.Json.Nodes.JsonObject oldDocument =
                 System.Text.Json.Nodes.JsonNode.Parse(oldJson)!.AsObject();
             bool removed = oldDocument.Remove("reservationEvents") ||
@@ -224,7 +235,7 @@ internal static class ProjectGateRegistrySmokeTests
             Assert(removed, "The optional reservation history must be serialized.");
             ProjectGateRegistry oldStyle = System.Text.Json.JsonSerializer
                 .Deserialize<ProjectGateRegistry>(
-                    oldDocument.ToJsonString(), JsonDefaults.Options)!;
+                    oldDocument.ToJsonString(), GateJsonOptions)!;
             ProjectGateValidation.Validate(oldStyle);
             Assert(oldStyle.ReservationEvents.Count == 0 &&
                 oldStyle.Decisions.Count == 2,
@@ -237,7 +248,7 @@ internal static class ProjectGateRegistrySmokeTests
             Guid decisionId = conditionalDecision.Id;
             Guid reservationId = reservation.Id;
             string frozenDecision = System.Text.Json.JsonSerializer.Serialize(
-                conditionalDecision, JsonDefaults.Options);
+                conditionalDecision, GateJsonOptions);
             ProjectGateReservationState state =
                 ProjectGateEditor.GetReservationState(
                     reread.Registry, decisionId, reservationId);
@@ -287,7 +298,7 @@ internal static class ProjectGateRegistrySmokeTests
                     ProjectGateVerdict.GoWithReservations &&
                 System.Text.Json.JsonSerializer.Serialize(
                     lifted.Decisions.Single(item => item.Id == decisionId),
-                    JsonDefaults.Options) == frozenDecision,
+                    GateJsonOptions) == frozenDecision,
                 "A human lift must preserve original verdict and frozen reservation.");
 
             await RejectAsync(() => Task.FromResult(
@@ -352,7 +363,7 @@ internal static class ProjectGateRegistrySmokeTests
                     rereadEvents, decisionId, reservationId).IsOpen &&
                 System.Text.Json.JsonSerializer.Serialize(
                     rereadEvents.Decisions.Single(item => item.Id == decisionId),
-                    JsonDefaults.Options) == frozenDecision,
+                    GateJsonOptions) == frozenDecision,
                 "Restart must preserve distinct history, original GO and open state.");
 
             await RejectAsync(() => gates.SaveAsync(
