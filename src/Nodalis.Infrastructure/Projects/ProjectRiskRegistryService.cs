@@ -19,6 +19,10 @@ public sealed record ProjectRiskEntry(
     /// <summary>Chronological, human-approved rating events from this Markdown.</summary>
     public IReadOnlyList<ProjectRiskReviewEvent> Reviews { get; init; } = [];
 
+    /// <summary>Human business-qualification decisions, distinct from scoring.</summary>
+    public IReadOnlyList<ProjectRiskQualificationEvent> Qualifications
+    { get; init; } = [];
+
     /// <summary>Compact risk label and independent evaluation state.</summary>
     public string Label => Card.Reference + " · " + Card.Title;
 
@@ -159,6 +163,101 @@ public sealed class ProjectRiskRegistryService
         string actor, string rationale,
         CancellationToken cancellationToken = default)
     {
+        (ProjectRiskEntry current, TextDocumentSession session) =
+            await OpenVerifiedRiskAsync(
+                projectDirectory, snapshot, cancellationToken);
+        ProjectRiskReviewHistory existing =
+            ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        if (existing.Card.Id != snapshot.Card.Id ||
+            existing.Card.ProjectId != snapshot.Card.ProjectId)
+        {
+            throw new InvalidDataException(
+                "Identité de risque modifiée depuis la sélection.");
+        }
+
+        string updated = ProjectRiskReviewMarkdownCodec.Append(
+            session.Content, kind, rating, actor, rationale);
+        if (Encoding.UTF8.GetByteCount(updated) > MaxRiskBytes)
+        {
+            throw new InvalidDataException(
+                "Cette qualification dépasse la taille maximale de la fiche.");
+        }
+
+        await session.SaveAsync(updated, cancellationToken);
+        ProjectRiskReviewHistory saved =
+            ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        return current with
+        {
+            Card = saved.Card,
+            Reviews = saved.Events,
+            SourceSha256 = session.Revision.Sha256
+        };
+    }
+
+    /// <summary>
+    /// Commits one human business-state change without touching any risk
+    /// rating, lifecycle, incident, task, or gate. All past decisions remain
+    /// in the source and a stale source is never silently overwritten.
+    /// </summary>
+    /// <param name="projectDirectory">Canonical project folder.</param>
+    /// <param name="snapshot">Previously displayed stable risk and SHA.</param>
+    /// <param name="qualification">Human-selected ToReview/Validated/Rejected.</param>
+    /// <param name="actor">Human decision maker.</param>
+    /// <param name="rationale">Explicit justification of the decision.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Saved source projection and the full qualification history.</returns>
+    public async Task<ProjectRiskEntry> QualifyAsync(
+        string projectDirectory, ProjectRiskEntry snapshot,
+        ProjectRiskQualification qualification, string actor,
+        string rationale, CancellationToken cancellationToken = default)
+    {
+        (ProjectRiskEntry current, TextDocumentSession session) =
+            await OpenVerifiedRiskAsync(
+                projectDirectory, snapshot, cancellationToken);
+        ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        ProjectRiskQualificationHistory old =
+            ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        if (old.Card.Id != snapshot.Card.Id ||
+            old.Card.ProjectId != snapshot.Card.ProjectId)
+        {
+            throw new InvalidDataException(
+                "Identité du risque modifiée avant décision métier.");
+        }
+
+        string updated = ProjectRiskQualificationMarkdownCodec.Append(
+            session.Content, qualification, actor, rationale);
+        if (Encoding.UTF8.GetByteCount(updated) > MaxRiskBytes)
+        {
+            throw new InvalidDataException(
+                "Le journal de qualification dépasse la taille de la fiche.");
+        }
+
+        await session.SaveAsync(updated, cancellationToken);
+        ProjectRiskQualificationHistory saved =
+            ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        return current with
+        {
+            Card = saved.Card,
+            Qualifications = saved.Events,
+            SourceSha256 = session.Revision.Sha256
+        };
+    }
+
+    /// <summary>
+    /// Revalidates the previously displayed GUID, project ownership, canonical
+    /// local source path, unique identity, SHA and source bytes before editing.
+    /// </summary>
+    /// <param name="projectDirectory">Existing active project.</param>
+    /// <param name="snapshot">Risk selection and exact verified SHA.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Latest equivalent catalog entry and guarded document session.</returns>
+    private async Task<(ProjectRiskEntry Current, TextDocumentSession Session)>
+        OpenVerifiedRiskAsync(
+            string projectDirectory, ProjectRiskEntry snapshot,
+            CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(snapshot);
         (string directory, ProjectManifest manifest) = await ResolveProjectAsync(
             projectDirectory, cancellationToken);
@@ -166,7 +265,7 @@ public sealed class ProjectRiskRegistryService
             manifest.ArchiveOriginalRelativePath is not null)
         {
             throw new InvalidOperationException(
-                "Les évaluations d'un projet archivé sont en lecture seule.");
+                "Un risque archivé est consultable mais aucune décision n'y est modifiable.");
         }
 
         if (snapshot.Card.ProjectId != manifest.Id ||
@@ -215,32 +314,7 @@ public sealed class ProjectRiskRegistryService
                 "Le document a changé pendant la préparation de l'avis.");
         }
 
-        ProjectRiskReviewHistory existing =
-            ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
-        if (existing.Card.Id != snapshot.Card.Id ||
-            existing.Card.ProjectId != manifest.Id)
-        {
-            throw new InvalidDataException(
-                "Identité de risque modifiée depuis la sélection.");
-        }
-
-        string updated = ProjectRiskReviewMarkdownCodec.Append(
-            session.Content, kind, rating, actor, rationale);
-        if (Encoding.UTF8.GetByteCount(updated) > MaxRiskBytes)
-        {
-            throw new InvalidDataException(
-                "Cette qualification dépasse la taille maximale de la fiche.");
-        }
-
-        await session.SaveAsync(updated, cancellationToken);
-        ProjectRiskReviewHistory saved =
-            ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
-        return current with
-        {
-            Card = saved.Card,
-            Reviews = saved.Events,
-            SourceSha256 = session.Revision.Sha256
-        };
+        return (current, session);
     }
 
     /// <summary>Reads and validates the requested risk directory once.</summary>
@@ -307,6 +381,8 @@ public sealed class ProjectRiskRegistryService
                 string markdown = new UTF8Encoding(false, true).GetString(bytes);
                 ProjectRiskReviewHistory history =
                     ProjectRiskReviewMarkdownCodec.Inspect(markdown);
+                ProjectRiskQualificationHistory qualifications =
+                    ProjectRiskQualificationMarkdownCodec.Inspect(markdown);
                 ProjectRiskCard card = history.Card;
                 if (card.ProjectId != projectId)
                 {
@@ -317,6 +393,7 @@ public sealed class ProjectRiskRegistryService
                 found.Add(new ProjectRiskEntry(card, relative)
                 {
                     Reviews = history.Events,
+                    Qualifications = qualifications.Events,
                     SourceSha256 = Convert.ToHexString(SHA256.HashData(bytes))
                 });
                 highest = Math.Max(highest,
