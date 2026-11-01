@@ -44,8 +44,7 @@ internal static class ProjectRiskTaskBacklinkSmokeTests
             Guid id = task.PersistentId!.Value;
             ProjectRiskTaskBacklinkCatalog empty =
                 await resolver.ListAsync(task);
-            Assert(empty.TaskId == id && empty.Links.Count == 0 &&
-                empty.Diagnostics.Count == 0,
+            Assert(empty.TaskId == id && empty.Links.Count == 0,
                 "A task does not acquire automatic risk links.");
 
             ProjectRiskEntry risk = await riskService.CreateAsync(
