@@ -19,6 +19,7 @@ public partial class ProjectGateRegistryDialog : Window
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private readonly bool _allowSelection;
+    private readonly Guid? _initialGateId;
     private readonly List<string> _suggestedEvidence;
     private ProjectGateRegistrySnapshot? _snapshot;
     private bool _busy;
@@ -30,9 +31,11 @@ public partial class ProjectGateRegistryDialog : Window
     /// <param name="readOnly">Whether the workspace is read-only.</param>
     /// <param name="suggestedEvidence">Existing operation source references.</param>
     /// <param name="allowSelection">May return a gate to link to the operation.</param>
+    /// <param name="initialGateId">Existing gate to highlight in the registry.</param>
     public ProjectGateRegistryDialog(string workspaceRoot,
         string projectDirectory, bool readOnly,
-        IReadOnlyList<string> suggestedEvidence, bool allowSelection)
+        IReadOnlyList<string> suggestedEvidence, bool allowSelection,
+        Guid? initialGateId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
@@ -42,12 +45,13 @@ public partial class ProjectGateRegistryDialog : Window
         _projectDirectory = Path.GetFullPath(projectDirectory);
         _readOnly = readOnly;
         _allowSelection = allowSelection;
+        _initialGateId = initialGateId;
         _suggestedEvidence = suggestedEvidence
             .Where(ProjectJourneySourcePath.IsSafe)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         InitializeComponent();
         Loaded += async (_, _) => await GuardAsync(
-            () => ReloadAsync(null), "Charger le registre des gates");
+            () => ReloadAsync(_initialGateId), "Charger le registre des gates");
     }
 
     /// <summary>Chosen gate ID when the user explicitly selects one.</summary>
