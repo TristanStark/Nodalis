@@ -80,7 +80,7 @@ public partial class ProjectGateRegistryDialog : Window
 
     /// <summary>Refreshes the selection without touching underlying files.</summary>
     /// <param name="selectedId">Optional gate to retain.</param>
-    private void Paint(Guid? selectedId)
+    private void Paint(Guid? selectedId, Guid? selectedDecisionId = null)
     {
         _painting = true;
         try
@@ -99,7 +99,7 @@ public partial class ProjectGateRegistryDialog : Window
             GatesList.ItemsSource = rows;
             GatesList.SelectedItem = rows.FirstOrDefault(item =>
                 item.Gate.Id == selectedId) ?? rows.FirstOrDefault();
-            PaintSelection();
+            PaintSelection(selectedDecisionId);
         }
         finally
         {
@@ -110,7 +110,7 @@ public partial class ProjectGateRegistryDialog : Window
     }
 
     /// <summary>Refreshes criteria and immutable history for one gate.</summary>
-    private void PaintSelection()
+    private void PaintSelection(Guid? selectedDecisionId = null)
     {
         bool wasPainting = _painting;
         _painting = true;
@@ -128,7 +128,8 @@ public partial class ProjectGateRegistryDialog : Window
                 item.RecordedUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm"),
                 item.Actor + " · " + item.Scope)).ToArray();
             HistoryList.ItemsSource = history;
-            HistoryList.SelectedIndex = history.Length > 0 ? 0 : -1;
+            HistoryList.SelectedItem = history.FirstOrDefault(item =>
+                item.Decision.Id == selectedDecisionId) ?? history.FirstOrDefault();
             PaintDecisionDetail();
         }
         finally
@@ -181,6 +182,10 @@ public partial class ProjectGateRegistryDialog : Window
         AddProofButton.IsEnabled = canEdit && selected;
         RecordDecisionButton.IsEnabled = canEdit && selected;
         ChooseGateButton.IsEnabled = selected && _allowSelection && !_readOnly;
+        LiftReservationButton.IsEnabled = canEdit &&
+            ReservationsList.SelectedItem is ReservationRow open && open.IsOpen;
+        ReopenReservationButton.IsEnabled = canEdit &&
+            ReservationsList.SelectedItem is ReservationRow closed && !closed.IsOpen;
     }
 
     /// <summary>Runs all async WPF actions inside the existing error boundary.</summary>
@@ -216,7 +221,8 @@ public partial class ProjectGateRegistryDialog : Window
     /// <param name="selectedId">Gate to reselect.</param>
     /// <returns>Completed save.</returns>
     private async Task SaveApprovedAsync(ProjectGateRegistry proposed,
-        string description, Guid? selectedId)
+        string description, Guid? selectedId,
+        Guid? selectedDecisionId = null)
     {
         if (_readOnly || _snapshot is null)
         {
@@ -240,7 +246,7 @@ public partial class ProjectGateRegistryDialog : Window
             _snapshot = await _service.SaveAsync(_projectDirectory,
                 proposed, _snapshot.Sha256);
             Changed = true;
-            Paint(selectedId);
+            Paint(selectedId, selectedDecisionId);
             StatusText.Text = "Registre enregistré sous contrôle SHA-256.";
         }
         catch (Exception exception) when (exception is IOException or
