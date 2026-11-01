@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Risks;
 using Nodalis.Infrastructure.Persistence;
@@ -11,6 +13,12 @@ namespace Nodalis.Infrastructure.Projects;
 public sealed record ProjectRiskEntry(
     ProjectRiskCard Card, string RelativePath)
 {
+    /// <summary>Exact source revision returned on the last verified listing.</summary>
+    public string SourceSha256 { get; init; } = string.Empty;
+
+    /// <summary>Chronological, human-approved rating events from this Markdown.</summary>
+    public IReadOnlyList<ProjectRiskReviewEvent> Reviews { get; init; } = [];
+
     /// <summary>Compact risk label and independent evaluation state.</summary>
     public string Label => Card.Reference + " · " + Card.Title;
 
@@ -124,7 +132,115 @@ public sealed class ProjectRiskRegistryService
         await AtomicFileWriter.WriteNewAllTextAsync(path, markdown,
             cancellationToken);
         string relative = _sources.GetReferenceForExistingFile(path);
-        return new ProjectRiskEntry(card, relative);
+        return new ProjectRiskEntry(card, relative)
+        {
+            SourceSha256 = Convert.ToHexString(SHA256.HashData(
+                Encoding.UTF8.GetBytes(markdown)))
+        };
+    }
+
+    /// <summary>
+    /// Commits one human-approved rating event to the selected Markdown risk.
+    /// Requires the exact source hash previously displayed, project-local
+    /// unique identity, active project, and atomic source revision.
+    /// A changed document is rejected, not reinterpreted or overwritten.
+    /// </summary>
+    /// <param name="projectDirectory">Current project location.</param>
+    /// <param name="snapshot">Previously read and displayed risk.</param>
+    /// <param name="kind">Initial or residual human review.</param>
+    /// <param name="rating">Explicit probability and impact, both 1..3.</param>
+    /// <param name="actor">Named human reviewer.</param>
+    /// <param name="rationale">Human review justification.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Verified saved revision and complete review history.</returns>
+    public async Task<ProjectRiskEntry> ReviewAsync(
+        string projectDirectory, ProjectRiskEntry snapshot,
+        ProjectRiskReviewKind kind, ProjectRiskRating rating,
+        string actor, string rationale,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        (string directory, ProjectManifest manifest) = await ResolveProjectAsync(
+            projectDirectory, cancellationToken);
+        if (manifest.ArchivedUtc.HasValue ||
+            manifest.ArchiveOriginalRelativePath is not null)
+        {
+            throw new InvalidOperationException(
+                "Les évaluations d'un projet archivé sont en lecture seule.");
+        }
+
+        if (snapshot.Card.ProjectId != manifest.Id ||
+            snapshot.Card.Id == Guid.Empty ||
+            snapshot.SourceSha256.Length != 64 ||
+            !snapshot.SourceSha256.All(Uri.IsHexDigit))
+        {
+            throw new InvalidDataException(
+                "Sélection de risque non vérifiée pour ce projet.");
+        }
+
+        ProjectRiskCatalog latest = await ListInProjectAsync(
+            directory, manifest.Id, cancellationToken);
+        ProjectRiskEntry? current = latest.Risks.SingleOrDefault(item =>
+            item.Card.Id == snapshot.Card.Id &&
+            string.Equals(item.RelativePath, snapshot.RelativePath,
+                StringComparison.OrdinalIgnoreCase));
+        if (current is null ||
+            !string.Equals(current.SourceSha256, snapshot.SourceSha256,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Fiche de risque modifiée, déplacée ou devenue ambiguë : " +
+                "rechargez le registre avant de qualifier.");
+        }
+
+        string full = _sources.ResolveExistingFile(current.RelativePath);
+        string knownFolder = Path.GetFullPath(Path.Combine(
+            directory, AnalysisFolder, RisksFolder));
+        if (!string.Equals(
+            Path.TrimEndingDirectorySeparator(
+                Path.GetDirectoryName(full) ?? string.Empty),
+            Path.TrimEndingDirectorySeparator(knownFolder),
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Seules les fiches du dossier canonique sont qualifiables.");
+        }
+
+        TextDocumentSession session = await TextDocumentSession.OpenAsync(
+            full, cancellationToken);
+        if (!string.Equals(session.Revision.Sha256, snapshot.SourceSha256,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Le document a changé pendant la préparation de l'avis.");
+        }
+
+        ProjectRiskReviewHistory existing =
+            ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        if (existing.Card.Id != snapshot.Card.Id ||
+            existing.Card.ProjectId != manifest.Id)
+        {
+            throw new InvalidDataException(
+                "Identité de risque modifiée depuis la sélection.");
+        }
+
+        string updated = ProjectRiskReviewMarkdownCodec.Append(
+            session.Content, kind, rating, actor, rationale);
+        if (Encoding.UTF8.GetByteCount(updated) > MaxRiskBytes)
+        {
+            throw new InvalidDataException(
+                "Cette qualification dépasse la taille maximale de la fiche.");
+        }
+
+        await session.SaveAsync(updated, cancellationToken);
+        ProjectRiskReviewHistory saved =
+            ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        return current with
+        {
+            Card = saved.Card,
+            Reviews = saved.Events,
+            SourceSha256 = session.Revision.Sha256
+        };
     }
 
     /// <summary>Reads and validates the requested risk directory once.</summary>
@@ -186,16 +302,23 @@ public sealed class ProjectRiskRegistryService
 
             try
             {
-                string markdown = await File.ReadAllTextAsync(
+                byte[] bytes = await File.ReadAllBytesAsync(
                     actualPath, cancellationToken);
-                ProjectRiskCard card = ProjectRiskMarkdownCodec.Parse(markdown);
+                string markdown = new UTF8Encoding(false, true).GetString(bytes);
+                ProjectRiskReviewHistory history =
+                    ProjectRiskReviewMarkdownCodec.Inspect(markdown);
+                ProjectRiskCard card = history.Card;
                 if (card.ProjectId != projectId)
                 {
                     diagnostics.Add(relative + " : risque d'un autre projet.");
                     continue;
                 }
 
-                found.Add(new ProjectRiskEntry(card, relative));
+                found.Add(new ProjectRiskEntry(card, relative)
+                {
+                    Reviews = history.Events,
+                    SourceSha256 = Convert.ToHexString(SHA256.HashData(bytes))
+                });
                 highest = Math.Max(highest,
                     int.Parse(card.Reference[4..],
                         System.Globalization.CultureInfo.InvariantCulture));
