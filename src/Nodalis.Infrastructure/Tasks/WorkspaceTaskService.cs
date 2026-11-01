@@ -2,9 +2,12 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using Nodalis.Core.Domain;
 using Nodalis.Core.Links;
 using Nodalis.Core.Tasks;
 using Nodalis.Infrastructure.Links;
+using Nodalis.Infrastructure.Persistence;
+using Nodalis.Infrastructure.Projects;
 using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.Tasks;
@@ -20,7 +23,8 @@ public sealed partial class WorkspaceTaskService
         string Fingerprint, string RelativePath,
         Guid? ProjectId, string? ProjectName,
         Guid? ApplicationId, string? ApplicationName,
-        IReadOnlyList<TaskItem> Items);
+        IReadOnlyList<TaskItem> Items,
+        IReadOnlyList<string> IdentityDiagnostics);
 
     /// <summary>Number of unchanged task sources reused during the last completed refresh.</summary>
     public int LastReusedDocumentCount { get; private set; }
@@ -80,6 +84,7 @@ public sealed partial class WorkspaceTaskService
         Dictionary<Guid, CachedTaskDocument> nextCache = [];
         int reused = 0;
         int parsed = 0;
+        List<string> identityDiagnostics = [];
 
         foreach (global::Nodalis.Core.Links.LinkTargetEntry document in links.Targets.Where(target =>
                      target.Kind == LinkTargetKind.Document))
@@ -111,6 +116,7 @@ public sealed partial class WorkspaceTaskService
                 cached.ApplicationName == application?.DisplayName)
             {
                 tasks.AddRange(cached.Items);
+                identityDiagnostics.AddRange(cached.IdentityDiagnostics);
                 nextCache[document.Id] = cached;
                 reused++;
                 continue;
@@ -118,6 +124,19 @@ public sealed partial class WorkspaceTaskService
 
             string[] lines = await File.ReadAllLinesAsync(fullPath, cancellationToken);
             List<TaskItem> documentTasks = [];
+            TaskPersistentIdentityScan scan =
+                TaskPersistentIdentityCodec.Inspect(lines);
+            Dictionary<int, Guid?> idsByLine = scan.Entries
+                .ToDictionary(entry => entry.LineNumber, entry => entry.Id);
+            HashSet<Guid> duplicatesInDocument = scan.Entries
+                .Where(entry => entry.Id is not null)
+                .GroupBy(entry => entry.Id!.Value)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key).ToHashSet();
+            string[] warnings = scan.Issues.Select(issue =>
+                document.RelativePath + ":" + issue.LineNumber +
+                " : " + issue.Message).ToArray();
+            identityDiagnostics.AddRange(warnings);
             parsed++;
             for (int index = 0;
                  index < lines.Length;
@@ -126,7 +145,8 @@ public sealed partial class WorkspaceTaskService
                 global::System.Text.RegularExpressions.Match match = CheckboxPattern().Match(
                     lines[index]);
 
-                if (!match.Success)
+                if (!match.Success ||
+                    !idsByLine.ContainsKey(index + 1))
                 {
                     continue;
                 }
@@ -140,7 +160,22 @@ public sealed partial class WorkspaceTaskService
                     continue;
                 }
 
-                string body = match.Groups["body"].Value.Trim();
+                Guid? persistentId = idsByLine[index + 1];
+                if (persistentId is Guid ambiguous &&
+                    duplicatesInDocument.Contains(ambiguous))
+                {
+                    persistentId = null;
+                }
+
+                string rawBody = match.Groups["body"].Value.Trim();
+                string body = rawBody;
+                if (persistentId is not null)
+                {
+                    TaskPersistentIdentityCodec.ReadMarker(lines[index],
+                        out string cleanLine);
+                    body = CheckboxPattern().Match(cleanLine)
+                        .Groups["body"].Value.Trim();
+                }
                 (
                     string Text,
                     string? Owner,
@@ -153,10 +188,11 @@ public sealed partial class WorkspaceTaskService
 
                 documentTasks.Add(new TaskItem
                 {
-                    Id = CreateTaskId(
+                    Id = persistentId ?? CreateTaskId(
                         document.Id,
                         index + 1,
                         body),
+                    PersistentId = persistentId,
                     SourceDocumentId = document.Id,
                     SourceRelativePath = document.RelativePath,
                     LineNumber = index + 1,
@@ -183,8 +219,38 @@ public sealed partial class WorkspaceTaskService
                 nextCache[document.Id] = new CachedTaskDocument(
                     newFingerprint, document.RelativePath,
                     project?.Id, project?.DisplayName,
-                    application?.Id, application?.DisplayName, documentTasks);
+                    application?.Id, application?.DisplayName,
+                    documentTasks, warnings);
             }
+        }
+
+        // Duplicated GUIDs across documents cannot be used as relational IDs.
+        // Continue displaying their checkbox text, but remove any claim of
+        // persistent identity until a human resolves the collision.
+        Guid[] crossDocumentIds = tasks
+            .Where(task => task.PersistentId is not null)
+            .GroupBy(task => task.PersistentId!.Value)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key).ToArray();
+        HashSet<Guid> conflicting = crossDocumentIds.ToHashSet();
+        foreach (Guid repeated in crossDocumentIds)
+        {
+            identityDiagnostics.Add(
+                "GUID de tâche présent plusieurs fois dans le workspace : " +
+                repeated.ToString("D") + ". Liaison interdite.");
+        }
+
+        if (conflicting.Count != 0)
+        {
+            tasks = tasks.Select(task =>
+                task.PersistentId is Guid id && conflicting.Contains(id)
+                    ? task with
+                    {
+                        Id = CreateTaskId(task.SourceDocumentId,
+                            task.LineNumber, task.RawLine),
+                        PersistentId = null
+                    }
+                    : task).ToList();
         }
 
         // Publish an all-or-nothing derived snapshot only after a complete
@@ -196,6 +262,7 @@ public sealed partial class WorkspaceTaskService
         return new TaskCollection
         {
             UpdatedUtc = DateTimeOffset.UtcNow,
+            IdentityDiagnostics = identityDiagnostics,
             Tasks = tasks
                 .OrderBy(task => task.IsCompleted)
                 .ThenBy(task => task.DueDate ?? DateOnly.MaxValue)
@@ -363,8 +430,9 @@ public sealed partial class WorkspaceTaskService
             status,
             tags);
 
-        string rawLine =
-            $"- [ ] {body}";
+        Guid persistentId = Guid.NewGuid();
+        string rawLine = TaskPersistentIdentityCodec.InsertMarker(
+            $"- [ ] {body}", persistentId);
         int lineIndex =
             lines.Count;
 
@@ -539,10 +607,11 @@ public sealed partial class WorkspaceTaskService
         }
 
         sourceLines[sourceLineIndex] =
-            sourceMatch.Groups["prefix"].Value +
-            sourceMatch.Groups["checked"].Value +
-            "] " +
-            body;
+            TaskPersistentIdentityCodec.PreserveMarker(
+                sourceLines[sourceLineIndex],
+                sourceMatch.Groups["prefix"].Value +
+                sourceMatch.Groups["checked"].Value +
+                "] " + body);
 
         string taskDocumentPath = Path.Combine(
             projectDirectory,
@@ -614,10 +683,11 @@ public sealed partial class WorkspaceTaskService
             }
 
             taskLines[promotedTaskLineIndex] =
-                existingTaskMatch.Groups["prefix"].Value +
-                existingTaskMatch.Groups["checked"].Value +
-                "] " +
-                body;
+                TaskPersistentIdentityCodec.PreserveMarker(
+                    taskLines[promotedTaskLineIndex],
+                    existingTaskMatch.Groups["prefix"].Value +
+                    existingTaskMatch.Groups["checked"].Value +
+                    "] " + body);
 
             taskLines[taskMarkerIndex] =
                 "  " + BuildPromotionMarker(
@@ -645,8 +715,9 @@ public sealed partial class WorkspaceTaskService
             }
 
             promotedTaskLineIndex = taskLines.Count;
-            taskLines.Add(
-                $"- [{(task.IsCompleted ? "x" : " ")}] {body}");
+            taskLines.Add(TaskPersistentIdentityCodec.InsertMarker(
+                $"- [{(task.IsCompleted ? "x" : " ")}] {body}",
+                Guid.NewGuid()));
             taskLines.Add(
                 "  " + BuildPromotionMarker(
                     MeetingActionTaskMarkerPrefix,
@@ -901,10 +972,11 @@ public sealed partial class WorkspaceTaskService
         }
 
         string updatedLine =
-            match.Groups["prefix"].Value +
-            match.Groups["checked"].Value +
-            "] " +
-            body;
+            TaskPersistentIdentityCodec.PreserveMarker(
+                lines[index],
+                match.Groups["prefix"].Value +
+                match.Groups["checked"].Value +
+                "] " + body);
 
         if (string.Equals(
                 updatedLine,
@@ -1641,6 +1713,33 @@ public sealed partial class WorkspaceTaskService
             TaskItem task,
             string fullPath)
     {
+        if (task.PersistentId is Guid stable)
+        {
+            int[] identified = lines
+                .Select((line, position) => (line, position))
+                .Where(item =>
+                {
+                    try
+                    {
+                        return TaskPersistentIdentityCodec.ReadMarker(
+                            item.line, out string _) == stable;
+                    }
+                    catch (InvalidDataException)
+                    {
+                        return false;
+                    }
+                })
+                .Select(item => item.position).ToArray();
+            if (identified.Length != 1 ||
+                !string.Equals(lines[identified[0]], task.RawLine,
+                    StringComparison.Ordinal))
+            {
+                throw new TaskSourceConflictException(fullPath);
+            }
+
+            return identified[0];
+        }
+
         int index =
             task.LineNumber -
             1;
