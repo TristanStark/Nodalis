@@ -31,6 +31,26 @@ public sealed record ProjectRiskEntry(
     public ProjectRiskTreatmentPlan? CurrentTreatment =>
         Treatments.Count == 0 ? null : Treatments[^1].Plan;
 
+    /// <summary>Human progress events across all recorded plan versions.</summary>
+    public IReadOnlyList<ProjectRiskMeasureEvent> MeasureEvents
+    { get; init; } = [];
+
+    /// <summary>Gets explicit progress for a slot of the CURRENT plan only.</summary>
+    /// <param name="kind">Named prevention, mitigation or contingency slot.</param>
+    /// <returns>Human status, or Pending when no event exists for this version.</returns>
+    public ProjectRiskMeasureStatus MeasureStatus(ProjectRiskMeasureKind kind)
+    {
+        if (Treatments.Count == 0)
+        {
+            return ProjectRiskMeasureStatus.Pending;
+        }
+
+        Guid planId = Treatments[^1].Id;
+        return MeasureEvents.LastOrDefault(item =>
+            item.TreatmentId == planId && item.Kind == kind)?.Status ??
+            ProjectRiskMeasureStatus.Pending;
+    }
+
     /// <summary>Compact risk label and independent evaluation state.</summary>
     public string Label => Card.Reference + " · " + Card.Title;
 
@@ -178,6 +198,7 @@ public sealed class ProjectRiskRegistryService
             ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
         ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
         ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
+        ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
         if (existing.Card.Id != snapshot.Card.Id ||
             existing.Card.ProjectId != snapshot.Card.ProjectId)
         {
@@ -226,6 +247,7 @@ public sealed class ProjectRiskRegistryService
                 projectDirectory, snapshot, cancellationToken);
         ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
         ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
+        ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
         ProjectRiskQualificationHistory old =
             ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
         if (old.Card.Id != snapshot.Card.Id ||
@@ -277,6 +299,7 @@ public sealed class ProjectRiskRegistryService
                 projectDirectory, snapshot, cancellationToken);
         ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
         ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
         ProjectRiskTreatmentHistory previous =
             ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
         if (previous.Card.Id != snapshot.Card.Id ||
@@ -297,12 +320,69 @@ public sealed class ProjectRiskRegistryService
         await session.SaveAsync(updated, cancellationToken);
         ProjectRiskTreatmentHistory saved =
             ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
+        ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
         ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
         ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
         return current with
         {
             Card = saved.Card,
             Treatments = saved.Events,
+            SourceSha256 = session.Revision.Sha256
+        };
+    }
+
+    /// <summary>
+    /// Records exactly one human progress statement on a named treatment
+    /// measure, with project/SHA confinement and atomic source revisions.
+    /// No Markdown task is inferred or marked completed.
+    /// </summary>
+    /// <param name="projectDirectory">Owning project directory.</param>
+    /// <param name="snapshot">Previously displayed risk and source revision.</param>
+    /// <param name="kind">Named slot in the latest treatment plan.</param>
+    /// <param name="status">Explicit human-chosen progress status.</param>
+    /// <param name="actor">Person declaring the status.</param>
+    /// <param name="rationale">Required reason for the transition.</param>
+    /// <param name="evidence">Description of proof when marking completed.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Revalidated record and complete measure history.</returns>
+    public async Task<ProjectRiskEntry> UpdateMeasureAsync(
+        string projectDirectory, ProjectRiskEntry snapshot,
+        ProjectRiskMeasureKind kind, ProjectRiskMeasureStatus status,
+        string actor, string rationale, string? evidence,
+        CancellationToken cancellationToken = default)
+    {
+        (ProjectRiskEntry current, TextDocumentSession session) =
+            await OpenVerifiedRiskAsync(
+                projectDirectory, snapshot, cancellationToken);
+        ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        ProjectRiskTreatmentMarkdownCodec.Inspect(session.Content);
+        ProjectRiskMeasureHistory old =
+            ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
+        if (old.Card.Id != snapshot.Card.Id ||
+            old.Card.ProjectId != snapshot.Card.ProjectId)
+        {
+            throw new InvalidDataException(
+                "Identité de risque modifiée avant le suivi d'exécution.");
+        }
+
+        string updated = ProjectRiskMeasureMarkdownCodec.Append(
+            session.Content, kind, status, actor, rationale, evidence);
+        if (Encoding.UTF8.GetByteCount(updated) > MaxRiskBytes)
+        {
+            throw new InvalidDataException(
+                "Le journal des mesures dépasse la taille maximale de la fiche.");
+        }
+
+        await session.SaveAsync(updated, cancellationToken);
+        ProjectRiskMeasureHistory saved =
+            ProjectRiskMeasureMarkdownCodec.Inspect(session.Content);
+        ProjectRiskQualificationMarkdownCodec.Inspect(session.Content);
+        ProjectRiskReviewMarkdownCodec.Inspect(session.Content);
+        return current with
+        {
+            Card = saved.Card,
+            MeasureEvents = saved.Events,
             SourceSha256 = session.Revision.Sha256
         };
     }
@@ -447,6 +527,8 @@ public sealed class ProjectRiskRegistryService
                     ProjectRiskQualificationMarkdownCodec.Inspect(markdown);
                 ProjectRiskTreatmentHistory treatment =
                     ProjectRiskTreatmentMarkdownCodec.Inspect(markdown);
+                ProjectRiskMeasureHistory measures =
+                    ProjectRiskMeasureMarkdownCodec.Inspect(markdown);
                 ProjectRiskCard card = history.Card;
                 if (card.ProjectId != projectId)
                 {
@@ -459,6 +541,7 @@ public sealed class ProjectRiskRegistryService
                     Reviews = history.Events,
                     Qualifications = qualifications.Events,
                     Treatments = treatment.Events,
+                    MeasureEvents = measures.Events,
                     SourceSha256 = Convert.ToHexString(SHA256.HashData(bytes))
                 });
                 highest = Math.Max(highest,
