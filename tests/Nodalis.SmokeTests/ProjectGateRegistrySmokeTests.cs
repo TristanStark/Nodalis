@@ -213,6 +213,156 @@ internal static class ProjectGateRegistrySmokeTests
                 reread.Registry.Decisions[1].Reservations.Single().Owner == "Qualité",
                 "Decisions, evidence and reservations must survive a restart.");
 
+            // Older v1 JSON documents lack reservationEvents entirely.
+            // New versions must read them without migration or disk writes.
+            string oldJson = System.Text.Json.JsonSerializer.Serialize(
+                reread.Registry, JsonDefaults.Options);
+            System.Text.Json.Nodes.JsonObject oldDocument =
+                System.Text.Json.Nodes.JsonNode.Parse(oldJson)!.AsObject();
+            bool removed = oldDocument.Remove("reservationEvents") ||
+                oldDocument.Remove("ReservationEvents");
+            Assert(removed, "The optional reservation history must be serialized.");
+            ProjectGateRegistry oldStyle = System.Text.Json.JsonSerializer
+                .Deserialize<ProjectGateRegistry>(
+                    oldDocument.ToJsonString(), JsonDefaults.Options)!;
+            ProjectGateValidation.Validate(oldStyle);
+            Assert(oldStyle.ReservationEvents.Count == 0 &&
+                oldStyle.Decisions.Count == 2,
+                "Existing registries without the new optional field must load.");
+
+            ProjectGateDecision conditionalDecision =
+                reread.Registry.Decisions[1];
+            ProjectGateReservation reservation =
+                conditionalDecision.Reservations.Single();
+            Guid decisionId = conditionalDecision.Id;
+            Guid reservationId = reservation.Id;
+            string frozenDecision = System.Text.Json.JsonSerializer.Serialize(
+                conditionalDecision, JsonDefaults.Options);
+            ProjectGateReservationState state =
+                ProjectGateEditor.GetReservationState(
+                    reread.Registry, decisionId, reservationId);
+            Assert(state.IsOpen && state.LatestEvent is null &&
+                reread.Registry.ReservationEvents.Count == 0,
+                "A conditional GO starts with an open reservation.");
+
+            await RejectAsync(() => Task.FromResult(
+                ProjectGateEditor.AppendReservationEvent(
+                    reread.Registry, decisionId, reservationId,
+                    ProjectGateReservationEventKind.Lifted,
+                    "Qualité", "Preuve manquante à la levée", [])),
+                "A reservation may not be lifted without reviewed evidence.");
+            await RejectAsync(() => Task.FromResult(
+                ProjectGateEditor.AppendReservationEvent(
+                    reread.Registry, decisionId, reservationId,
+                    ProjectGateReservationEventKind.Reopened,
+                    "Qualité", "Réouverture avant levée interdite", [])),
+                "A still-open reservation cannot be reopened.");
+            await RejectAsync(() => Task.FromResult(
+                ProjectGateEditor.AppendReservationEvent(
+                    reread.Registry, decisionId, Guid.NewGuid(),
+                    ProjectGateReservationEventKind.Lifted,
+                    "Qualité", "Réserve inexistante hors décision", [proof])),
+                "An unrelated reservation GUID may not receive an event.");
+            await RejectAsync(() => Task.FromResult(
+                ProjectGateEditor.AppendReservationEvent(
+                    reread.Registry, first.Id, reservationId,
+                    ProjectGateReservationEventKind.Lifted,
+                    "Qualité", "Réserve attribuée à une autre décision", [proof])),
+                "Reservation identity must be bound to the originating decision.");
+
+            ProjectGateRegistry lifted = ProjectGateEditor.AppendReservationEvent(
+                reread.Registry, decisionId, reservationId,
+                ProjectGateReservationEventKind.Lifted,
+                "Responsable qualité",
+                "Recette entièrement requalifiée après vérification manuelle.",
+                [proof]);
+            ProjectGateReservationEvent firstEvent =
+                lifted.ReservationEvents.Single();
+            Assert(!ProjectGateEditor.GetReservationState(
+                    lifted, decisionId, reservationId).IsOpen &&
+                firstEvent.Kind == ProjectGateReservationEventKind.Lifted &&
+                firstEvent.Evidence.Single().Sha256 == expectedHash &&
+                lifted.Decisions.Single(item =>
+                    item.Id == decisionId).Verdict ==
+                    ProjectGateVerdict.GoWithReservations &&
+                System.Text.Json.JsonSerializer.Serialize(
+                    lifted.Decisions.Single(item => item.Id == decisionId),
+                    JsonDefaults.Options) == frozenDecision,
+                "A human lift must preserve original verdict and frozen reservation.");
+
+            await RejectAsync(() => Task.FromResult(
+                ProjectGateEditor.AppendReservationEvent(
+                    lifted, decisionId, reservationId,
+                    ProjectGateReservationEventKind.Lifted,
+                    "Qualité", "Même levée répétée interdites", [proof])),
+                "Duplicate lifting must be denied.");
+            await RejectAsync(() => Task.FromResult(
+                ProjectGateEditor.AppendReservationEvent(
+                    lifted, decisionId, reservationId,
+                    ProjectGateReservationEventKind.Reopened,
+                    "Qualité", "Court", [])),
+                "A reopened reservation must have a sufficiently detailed reason.");
+
+            ProjectGateRegistrySnapshot liftedSaved = await gates.SaveAsync(
+                project.ProjectDirectory, lifted, reread.Sha256);
+            await RejectAsync(() => gates.SaveAsync(
+                project.ProjectDirectory, reread.Registry, liftedSaved.Sha256),
+                "A saved lift cannot be erased by providing an old registry.");
+            ProjectGateRegistry eventTampered = liftedSaved.Registry with
+            {
+                ReservationEvents = liftedSaved.Registry.ReservationEvents
+                    .Select(item => item with
+                    {
+                        Rationale = "Motif historique changé frauduleusement."
+                    }).ToList()
+            };
+            await RejectAsync(() => gates.SaveAsync(
+                project.ProjectDirectory, eventTampered, liftedSaved.Sha256),
+                "Saved reservation events cannot be rewritten.");
+            await RejectAsync(() => gates.SaveAsync(
+                project.ProjectDirectory, lifted,
+                reread.Sha256),
+                "A stale SHA cannot overwrite a new reservation event.");
+            ProjectGateRegistry invalidEvent = lifted with
+            {
+                ReservationEvents = [.. lifted.ReservationEvents,
+                    firstEvent with { Id = Guid.NewGuid() }]
+            };
+            await RejectAsync(() => Task.FromResult(
+                ValidateInvalid(invalidEvent)),
+                "Forged consecutive lifting events must not validate.");
+
+            ProjectGateRegistry reopened = ProjectGateEditor.AppendReservationEvent(
+                liftedSaved.Registry, decisionId, reservationId,
+                ProjectGateReservationEventKind.Reopened,
+                "Responsable exploitation",
+                "Écart critique détecté après la qualification initiale.",
+                []);
+            Assert(reopened.ReservationEvents.Count == 2 &&
+                ProjectGateEditor.GetReservationState(
+                    reopened, decisionId, reservationId).IsOpen &&
+                reopened.ReservationEvents[0].Id == firstEvent.Id,
+                "Human reopening must be appended, keeping the lifting event.");
+            ProjectGateRegistrySnapshot reopenedSaved = await gates.SaveAsync(
+                project.ProjectDirectory, reopened, liftedSaved.Sha256);
+            ProjectGateRegistry rereadEvents = (await new ProjectGateRegistryService(
+                workspace).ReadAsync(project.ProjectDirectory)).Registry;
+            Assert(rereadEvents.ReservationEvents.Count == 2 &&
+                ProjectGateEditor.GetReservationState(
+                    rereadEvents, decisionId, reservationId).IsOpen &&
+                System.Text.Json.JsonSerializer.Serialize(
+                    rereadEvents.Decisions.Single(item => item.Id == decisionId),
+                    JsonDefaults.Options) == frozenDecision,
+                "Restart must preserve distinct history, original GO and open state.");
+
+            await RejectAsync(() => gates.SaveAsync(
+                project.ProjectDirectory,
+                reopenedSaved.Registry with
+                {
+                    ReservationEvents = [reopenedSaved.Registry.ReservationEvents[1]]
+                }, reopenedSaved.Sha256),
+                "Removing a past event in a sequence must be denied.");
+
             ProjectJourneyService journeys = new(workspace);
             ProjectJourneySnapshot journey = await journeys.InitializeAsync(
                 project.ProjectDirectory);
