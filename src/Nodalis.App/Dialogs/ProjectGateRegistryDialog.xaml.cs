@@ -75,6 +75,9 @@ public partial class ProjectGateRegistryDialog : Window
     /// <summary>Chosen gate ID when the user explicitly selects one.</summary>
     public Guid? SelectedGateId { get; private set; }
 
+    /// <summary>Canonical risk Markdown opened from a reservation relation.</summary>
+    public string? SelectedRiskPath { get; private set; }
+
     /// <summary>Whether any registry change was accepted and persisted.</summary>
     public bool Changed { get; private set; }
 
@@ -856,8 +859,19 @@ public partial class ProjectGateRegistryDialog : Window
             {
                 Owner = this
             };
-            if (dialog.ShowDialog() != true ||
-                dialog.RiskId is not Guid riskId ||
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            if (dialog.SelectedRiskSourcePath is string riskPath)
+            {
+                SelectedRiskPath = riskPath;
+                DialogResult = true;
+                return;
+            }
+
+            if (dialog.RiskId is not Guid riskId ||
                 dialog.Actor is not string actor ||
                 dialog.Rationale is not string rationale ||
                 dialog.ChangeKind is not ProjectGateReservationRiskLinkKind kind)

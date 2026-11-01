@@ -974,6 +974,13 @@ public partial class ProjectJourneyView : UserControl
             Owner = Window.GetWindow(this)
         };
         dialog.ShowDialog();
+        if (dialog.SelectedRiskPath is string selectedRiskPath &&
+            SourceOpenRequested is not null)
+        {
+            SourceOpenRequested.Invoke(this,
+                new ProjectJourneySourceOpenRequestedEventArgs(selectedRiskPath));
+        }
+
         _gateSnapshot = await _gates.ReadAsync(_projectDirectory);
         RenderRelations();
         UpdateButtons();

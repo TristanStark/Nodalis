@@ -73,6 +73,8 @@
                     Padding="12,7" Margin="0,0,7,0" Click="Link_Click" />
             <Button x:Name="UnlinkButton" Content="Dissocier"
                     Padding="12,7" Margin="0,0,7,0" Click="Unlink_Click" />
+            <Button x:Name="OpenRiskButton" Content="Ouvrir la fiche RIS"
+                    Padding="12,7" Margin="0,0,7,0" Click="OpenRisk_Click" />
             <Button Content="Fermer" Padding="12,7" Click="Close_Click" />
         </StackPanel>
     </Grid>

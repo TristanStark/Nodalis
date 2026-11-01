@@ -16,7 +16,8 @@ public partial class ProjectGateReservationRiskLinksDialog : Window
     /// <summary>Risk GUID with source label, or unresolved legacy link.</summary>
     /// <param name="Id">Canonical stable risk GUID.</param>
     /// <param name="Label">Display text or missing-source warning.</param>
-    private sealed record RiskLinkRow(Guid Id, string Label);
+    private sealed record RiskLinkRow(
+        Guid Id, string Label, string? RelativePath);
 
     /// <summary>Builds candidate and linked lists from one frozen snapshot.</summary>
     /// <param name="description">Original reservation description.</param>
@@ -46,7 +47,8 @@ public partial class ProjectGateReservationRiskLinksDialog : Window
                 item.Card.Id == id);
             return new RiskLinkRow(id, risk is null
                 ? id.ToString("D") + " · RIS absent ou ambigu"
-                : risk.Label + " · " + risk.Summary);
+                : risk.Label + " · " + risk.Summary,
+                risk?.RelativePath);
         }).ToArray();
         if (readOnly)
         {
@@ -69,6 +71,9 @@ public partial class ProjectGateReservationRiskLinksDialog : Window
     /// <summary>Mandatory human motive.</summary>
     public string? Rationale { get; private set; }
 
+    /// <summary>Validated canonical risk source selected for navigation only.</summary>
+    public string? SelectedRiskSourcePath { get; private set; }
+
     /// <summary>Enables actions only for eligible rows outside archive mode.</summary>
     private void UpdateButtons()
     {
@@ -76,13 +81,29 @@ public partial class ProjectGateReservationRiskLinksDialog : Window
             AvailableList.SelectedItem is ProjectRiskEntry;
         UnlinkButton.IsEnabled = !_readOnly &&
             LinkedList.SelectedItem is RiskLinkRow;
+        OpenRiskButton.IsEnabled =
+            AvailableList.SelectedItem is ProjectRiskEntry ||
+            LinkedList.SelectedItem is RiskLinkRow { RelativePath: not null };
     }
 
     /// <summary>Recomputes buttons on selection only; no filesystem scanning.</summary>
     /// <param name="sender">Risk selection control.</param>
     /// <param name="e">WPF selection event.</param>
-    private void Selection_Changed(object sender, SelectionChangedEventArgs e) =>
+    private void Selection_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender == AvailableList &&
+            AvailableList.SelectedItem is ProjectRiskEntry)
+        {
+            LinkedList.SelectedItem = null;
+        }
+        else if (sender == LinkedList &&
+            LinkedList.SelectedItem is RiskLinkRow)
+        {
+            AvailableList.SelectedItem = null;
+        }
+
         UpdateButtons();
+    }
 
     /// <summary>Proposes one canonical-risk link, never by title/filename.</summary>
     /// <param name="sender">Link button.</param>
@@ -137,6 +158,24 @@ public partial class ProjectGateReservationRiskLinksDialog : Window
         Actor = actor;
         Rationale = rationale;
         DialogResult = true;
+    }
+
+    /// <summary>
+    /// Returns the selected resolved RIS source for normal Markdown navigation.
+    /// Orphan GUIDs are not navigable and never generate fallback paths.
+    /// </summary>
+    /// <param name="sender">Open source command.</param>
+    /// <param name="e">WPF routed event.</param>
+    private void OpenRisk_Click(object sender, RoutedEventArgs e)
+    {
+        string? path = AvailableList.SelectedItem is ProjectRiskEntry risk
+            ? risk.RelativePath
+            : (LinkedList.SelectedItem as RiskLinkRow)?.RelativePath;
+        if (path is not null)
+        {
+            SelectedRiskSourcePath = path;
+            DialogResult = true;
+        }
     }
 
     /// <summary>Leaves every source untouched.</summary>
