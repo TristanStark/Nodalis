@@ -475,6 +475,110 @@ public sealed partial class WorkspaceTaskService
     }
 
     /// <summary>
+    /// Assigns a persistent GUID ONLY on explicit user request. This method
+    /// never migrates an entire document or workspace during a read, refuses
+    /// malformed/ambiguous IDs, archived projects and foreign sources, and
+    /// saves atomically with optimistic source revision validation.
+    /// </summary>
+    /// <param name="task">Previously selected legacy task source snapshot.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>New persistent ID embedded in the exact checkbox source.</returns>
+    public async Task<Guid> AssignPersistentIdentityAsync(
+        TaskItem task, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        if (task.PersistentId is not null ||
+            task.ProjectId is not Guid projectId)
+        {
+            throw new InvalidOperationException(
+                "Seule une tâche de projet sans identité stable peut être identifiée.");
+        }
+
+        // Trust neither an arbitrary caller-provided path nor source aliases.
+        LinkIndexCatalog links = await _linkIndex.RefreshAsync(
+            cancellationToken);
+        LinkTargetEntry document = links.Targets.SingleOrDefault(item =>
+            item.Kind == LinkTargetKind.Document &&
+            item.Id == task.SourceDocumentId &&
+            string.Equals(item.RelativePath, task.SourceRelativePath,
+                StringComparison.OrdinalIgnoreCase)) ??
+            throw new InvalidDataException(
+                "La source sélectionnée ne correspond plus à l'index.");
+        LinkTargetEntry project = links.Targets.SingleOrDefault(item =>
+            item.Kind == LinkTargetKind.Project && item.Id == projectId) ??
+            throw new InvalidDataException(
+                "Le projet de la tâche est introuvable.");
+        if (!IsRelativeAncestor(project.RelativePath,
+                document.RelativePath))
+        {
+            throw new InvalidDataException(
+                "La tâche ne se trouve pas dans son projet propriétaire.");
+        }
+
+        ProjectJourneySourceService sources = new(_workspaceRoot);
+        string source = sources.ResolveExistingFile(document.RelativePath);
+        string directory = ResolveWorkspacePath(project.RelativePath);
+        string manifestPath = Path.Combine(directory,
+            WorkspaceLayout.ProjectManifestFileName);
+        sources.GetReferenceForExistingFile(manifestPath);
+        ProjectManifest manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+            manifestPath, cancellationToken);
+        if (manifest.Id != projectId ||
+            manifest.ArchivedUtc is not null ||
+            manifest.ArchiveOriginalRelativePath is not null)
+        {
+            throw new InvalidOperationException(
+                "Le projet est archivé ou son identité a changé.");
+        }
+
+        TextDocumentSession session = await TextDocumentSession.OpenAsync(
+            source, cancellationToken);
+        List<string> lines = SplitDocumentLines(
+            session.Content, out string newline, out bool trailing);
+        TaskPersistentIdentityScan scan =
+            TaskPersistentIdentityCodec.Inspect(lines);
+        if (scan.Issues.Count != 0)
+        {
+            throw new InvalidDataException(
+                "Marqueurs de tâches ambigus ou invalides : " +
+                "corrigez le document avant d'ajouter une identité.");
+        }
+
+        int lineIndex = ResolveTaskLineIndex(lines, task, source);
+        if (!scan.Entries.Any(item => item.LineNumber == lineIndex + 1))
+        {
+            throw new InvalidDataException(
+                "Cette tâche se trouve dans un bloc de code Markdown.");
+        }
+
+        int identical = scan.Entries.Count(item =>
+            string.Equals(item.RawLine, task.RawLine, StringComparison.Ordinal));
+        if (identical != 1)
+        {
+            throw new TaskSourceConflictException(source);
+        }
+
+        if (TaskPersistentIdentityCodec.ReadMarker(
+            lines[lineIndex], out string _) is not null)
+        {
+            throw new TaskSourceConflictException(source);
+        }
+
+        Guid assigned = Guid.NewGuid();
+        // Never reuse an existing GUID in this document even on a GUID collision.
+        while (scan.Entries.Any(item => item.Id == assigned))
+        {
+            assigned = Guid.NewGuid();
+        }
+
+        lines[lineIndex] = TaskPersistentIdentityCodec.InsertMarker(
+            lines[lineIndex], assigned);
+        await session.SaveAsync(JoinDocumentLines(
+            lines, newline, trailing), cancellationToken);
+        return assigned;
+    }
+
+    /// <summary>
     /// Promotes one project meeting action into the project's dedicated task document while retaining bidirectional links.
     /// </summary>
     /// <param name="task">The meeting checkbox action to promote.</param>

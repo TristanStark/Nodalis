@@ -19,6 +19,12 @@ public sealed record TaskItem
     /// <summary>Whether this task can be referenced by a stable external link.</summary>
     public bool HasPersistentIdentity => PersistentId is not null;
 
+    /// <summary>Shows a durable ID or indicates explicit adoption is needed.</summary>
+    public string PersistentIdentityDisplay =>
+        PersistentId is Guid id
+            ? "ID stable : " + id.ToString("D")
+            : "Sans identité persistante";
+
     /// <summary>
     /// Gets the identifier of the source Markdown document.
     /// </summary>
