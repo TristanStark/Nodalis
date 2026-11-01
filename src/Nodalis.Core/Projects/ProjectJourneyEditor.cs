@@ -267,6 +267,103 @@ public static class ProjectJourneyEditor
             operation => operation with { PromptKey = promptKey });
     }
 
+    /// <summary>
+    /// Adds a non-owning relation to an existing persisted milestone GUID.
+    /// The caller must validate that the milestone truly exists in the
+    /// project's canonical Markdown table before proposing this edit.
+    /// </summary>
+    /// <param name="document">Current journey.</param>
+    /// <param name="stepId">Owning stage.</param>
+    /// <param name="operationId">Operation to link.</param>
+    /// <param name="milestoneId">Verified persisted milestone identity.</param>
+    /// <returns>New journey with a single relation.</returns>
+    public static ProjectJourneyDocument AddMilestoneLink(
+        ProjectJourneyDocument document, Guid stepId, Guid operationId,
+        Guid milestoneId)
+    {
+        RequireRelatedId(milestoneId);
+        return UpdateOperation(document, stepId, operationId, operation =>
+        {
+            if (operation.MilestoneIds.Contains(milestoneId))
+            {
+                return operation;
+            }
+
+            return operation with
+            {
+                MilestoneIds = [.. operation.MilestoneIds, milestoneId]
+            };
+        });
+    }
+
+    /// <summary>
+    /// Removes only the milestone relation, not the milestone, its tasks,
+    /// dependencies, dates or other references.
+    /// </summary>
+    /// <param name="document">Current journey.</param>
+    /// <param name="stepId">Owning stage.</param>
+    /// <param name="operationId">Operation to unlink.</param>
+    /// <param name="milestoneId">Stored relation identifier.</param>
+    /// <returns>New journey without the selected relation.</returns>
+    public static ProjectJourneyDocument RemoveMilestoneLink(
+        ProjectJourneyDocument document, Guid stepId, Guid operationId,
+        Guid milestoneId)
+    {
+        RequireRelatedId(milestoneId);
+        return UpdateOperation(document, stepId, operationId, operation =>
+        {
+            if (!operation.MilestoneIds.Contains(milestoneId))
+            {
+                throw new KeyNotFoundException("Lien vers le jalon introuvable.");
+            }
+
+            return operation with
+            {
+                MilestoneIds = operation.MilestoneIds.Where(id =>
+                    id != milestoneId).ToList()
+            };
+        });
+    }
+
+    /// <summary>
+    /// Removes a previously persisted gate relation. Until a validated gate
+    /// registry exists (EPIC #202), adding arbitrary gate IDs is forbidden;
+    /// removing an orphan never grants or revokes a gate decision.
+    /// </summary>
+    /// <param name="document">Current journey.</param>
+    /// <param name="stepId">Owning stage.</param>
+    /// <param name="operationId">Operation to unlink.</param>
+    /// <param name="gateId">Existing stored gate identity.</param>
+    /// <returns>New journey with the reference removed only.</returns>
+    public static ProjectJourneyDocument RemoveGateLink(
+        ProjectJourneyDocument document, Guid stepId, Guid operationId,
+        Guid gateId)
+    {
+        RequireRelatedId(gateId);
+        return UpdateOperation(document, stepId, operationId, operation =>
+        {
+            if (!operation.GateIds.Contains(gateId))
+            {
+                throw new KeyNotFoundException("Lien vers le gate introuvable.");
+            }
+
+            return operation with
+            {
+                GateIds = operation.GateIds.Where(id => id != gateId).ToList()
+            };
+        });
+    }
+
+    /// <summary>Rejects empty relation identities.</summary>
+    /// <param name="id">Candidate linked GUID.</param>
+    private static void RequireRelatedId(Guid id)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("Identifiant de relation vide.", nameof(id));
+        }
+    }
+
     /// <summary>Updates a single operation while preserving its surrounding stage.</summary>
     /// <param name="document">Current journey snapshot.</param>
     /// <param name="stepId">Owning stage ID.</param>
