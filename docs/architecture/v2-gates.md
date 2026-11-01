@@ -164,11 +164,75 @@ Qualification visuelle restant à effectuer :
 - Tester conflit SHA externe, archive/lecture seule, DPI, fenêtre
   étroite, gros workspace et changement de documents.
 
-## 6. Travaux restants (#202)
+## 6. Vue transversale des réserves du projet — troisième tranche
+
+La fenêtre **Gates…** propose **Vue des réserves…**. Cette commande
+charge une fois le registre canonique du projet courant, puis construit
+une projection **en lecture seule** des réserves de toutes les décisions
+historiques, tous gates confondus.
+
+L'écran affiche les compteurs **Ouvertes**, **Levées**, **En retard**
+et **Sans responsable**. La recherche textuelle porte sur la
+description, le gate et le responsable. Les filtres permettent de
+voir uniquement les réserves ouvertes, levées, en retard ou ouvertes
+sans responsable. Une réserve levée n'est pas comptée en retard.
+
+Chaque ligne indique description, gate, responsable, date cible et état
+projeté. Le détail conserve les GUID du gate, de la décision et de la
+réserve, le verdict historique et le dernier événement de qualification.
+**Ouvrir le dossier…** ou le double-clic revient à la décision d'origine
+dans le registre et sélectionne la réserve correspondante : aucune
+décision ni tâche n'est créée.
+
+### Contrat de performances
+
+- Un seul chargement explicite du registre ; aucun balayage du Worktree
+  ni accès disque pendant recherche, filtre, sélection ou défilement.
+- ProjectGateReservationOverviewBuilder valide une seule fois le
+  registre et projette les événements en une passe indexée par
+  (DecisionId, ReservationId), puis trie les lignes.
+- Ordre : ouvertes, en retard, échéance la plus proche, décision la
+  plus récente, GUID de départage.
+- Le dépassement d'échéance dépend de la date locale fournie au calcul.
+  Une réserve est en retard uniquement si elle est ouverte et si sa
+  date cible est strictement antérieure au jour ; ce statut n'est pas
+  enregistré comme modification de décision.
+
+ProjectGateReservationOverviewSmokeTests vérifie la projection sur
+plusieurs gates et décisions, les réouvertures successives, le comptage
+sans doublon, les échéances, l'absence de responsable et l'immutabilité
+des décisions. Ce test est branché à la suite smoke Windows.
+
+### Liens vers tâches, incidents et risques
+
+Les tâches Markdown sont actuellement identifiées à partir de leur
+document, leur ligne et leur texte, ce qui peut être fragile lors
+d'une réorganisation. Les risques sont souvent de simples documents
+Markdown sans ID métier stable. Certains incidents structurés disposent
+de leur propre identifiant, mais nécessitent une résolution contextualisée.
+
+Aucun lien métier fragile n'est créé dans cette tranche. Les futurs
+liens réserve → tâche / risque / incident exigeront un identifiant
+garanti ou une provenance réconciliable, avec diagnostics des références
+déplacées ou ambiguës. La vue transversale actuelle concerne le
+**projet ouvert**, et non un index global recalculé à chaque frappe.
+
+### Qualification humaine
+
+1. Créer des décisions sur plusieurs gates, avec échéances
+   passées/futures et responsables renseignés/non renseignés.
+2. Lever et réouvrir une réserve ; vérifier les quatre compteurs.
+   Une réserve levée ne doit plus être en retard.
+3. Rechercher par description/gate/responsable et ouvrir son dossier ;
+   vérifier la bonne décision et la bonne réserve sélectionnées.
+4. Tester grande liste, fenêtre étroite, DPI, projet archivé/lecture
+   seule, et fermeture du dialogue sans mutation.
+
+## 7. Travaux restants (#202)
 
 Ces deux tranches n'épuisent pas l'EPIC. Restent notamment :
-la vue transverse des réserves par projet, leurs liens vers tâches,
-risques et incidents avec responsables/échéances, les associations
+l'extension éventuelle de la vue à tout le workspace, les liens
+vérifiés vers tâches, risques et incidents, les associations
 guidées avec jalons dont le GUID est réellement persisté, les
 synthèses issues des futurs registres exigences/risques/tests/incidents
 (#198–#201), les requalifications conditionnelles au
