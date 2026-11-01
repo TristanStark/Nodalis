@@ -98,6 +98,7 @@ try
     await ProjectRiskMeasureSmokeTests.RunAsync(root);
     await PersistentTaskIdentitySmokeTests.RunAsync(root);
     await ProjectRiskTaskLinkSmokeTests.RunAsync(root);
+    await ProjectRiskTaskBacklinkSmokeTests.RunAsync(root);
     ProjectGateReservationOverviewSmokeTests.Run();
     await ProjectArchivesSmokeTests.RunAsync(root);
     await VerifyProjectStructureAsync(root);
