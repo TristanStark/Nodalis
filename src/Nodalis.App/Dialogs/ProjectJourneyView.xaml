@@ -130,6 +130,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock x:Name="SelectedStepText"
                                Text="Sélectionnez une étape"
@@ -217,7 +218,60 @@
                             </WrapPanel>
                         </StackPanel>
                     </Expander>
-                    <WrapPanel Grid.Row="6" Margin="0,4,0,0">
+                    <Expander Grid.Row="6"
+                              Header="RELATIONS · JALONS ET GATES"
+                              Margin="0,6,0,6"
+                              MaxHeight="230"
+                              Foreground="{StaticResource PrimaryTextBrush}"
+                              Background="{StaticResource PanelBackgroundBrush}"
+                              ToolTip="Liens non propriétaires : ni jalon ni gate ne sont modifiés ici">
+                        <StackPanel>
+                            <TextBlock x:Name="RelationsDiagnosticsText"
+                                       Margin="0,5,0,4"
+                                       FontSize="11"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource SecondaryTextBrush}" />
+                            <ListBox x:Name="RelationsList"
+                                     MaxHeight="92" MinHeight="38"
+                                     Margin="0,3,0,7"
+                                     SelectionChanged="RelationsList_SelectionChanged"
+                                     MouseDoubleClick="RelationsList_MouseDoubleClick">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="5,5">
+                                            <TextBlock Text="{Binding Label}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Detail}"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       FontSize="10"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <WrapPanel>
+                                <Button x:Name="RefreshRelationsButton"
+                                        Content="Actualiser"
+                                        Margin="0,0,7,7" Padding="10,5"
+                                        Click="RefreshRelations_Click" />
+                                <Button x:Name="LinkMilestoneButton"
+                                        Content="Lier un jalon…"
+                                        Margin="0,0,7,7" Padding="10,5"
+                                        Click="LinkMilestone_Click" />
+                                <Button x:Name="OpenRelationButton"
+                                        Content="Ouvrir le jalon"
+                                        Margin="0,0,7,7" Padding="10,5"
+                                        Click="OpenRelation_Click" />
+                                <Button x:Name="UnlinkRelationButton"
+                                        Content="Délier"
+                                        Margin="0,0,7,7" Padding="10,5"
+                                        Click="UnlinkRelation_Click" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Expander>
+                    <WrapPanel Grid.Row="7" Margin="0,4,0,0">
                         <TextBlock x:Name="PromptKeyText"
                                    Text="Prompt : —"
                                    VerticalAlignment="Center"
