@@ -17,6 +17,7 @@ public partial class ProjectJourneyView : UserControl
 {
     private readonly ProjectJourneyService _service;
     private readonly ProjectJourneySourceService _sources;
+    private readonly ProjectJourneyMilestoneCatalogService _milestones;
     private readonly string _workspaceRoot;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
@@ -36,6 +37,7 @@ public partial class ProjectJourneyView : UserControl
 
     private ProjectJourneySnapshot? _snapshot;
     private ProjectJourneyTemplate? _preview;
+    private ProjectJourneyMilestoneCatalog? _milestoneCatalog;
     private bool _painting;
     private bool _busy;
 
@@ -56,6 +58,7 @@ public partial class ProjectJourneyView : UserControl
             StringComparison.OrdinalIgnoreCase);
         _service = new ProjectJourneyService(_workspaceRoot);
         _sources = new ProjectJourneySourceService(_workspaceRoot);
+        _milestones = new ProjectJourneyMilestoneCatalogService(_workspaceRoot);
         InitializeComponent();
         StatusCombo.ItemsSource = _statuses;
         ProjectNameText.Text = "Parcours · " + Path.GetFileName(_projectDirectory);
@@ -88,6 +91,7 @@ public partial class ProjectJourneyView : UserControl
     private async Task ReloadAsync(Guid? selectedStepId)
     {
         _snapshot = await _service.ReadAsync(_projectDirectory);
+        _milestoneCatalog = null;
         ProjectJourneyTemplate[] applicable = _snapshot is null
             ? (await _service.ListApplicableTemplatesAsync(_projectDirectory)).ToArray()
             : [];
@@ -206,6 +210,13 @@ public partial class ProjectJourneyView : UserControl
         LinkSourceButton.IsEnabled = operation;
         OpenSourceButton.IsEnabled = viewableOperation && SelectedSource() is not null;
         UnlinkSourceButton.IsEnabled = operation && SelectedSource() is not null;
+        RefreshRelationsButton.IsEnabled = viewableOperation;
+        LinkMilestoneButton.IsEnabled = operation;
+        OpenRelationButton.IsEnabled = viewableOperation &&
+            SelectedRelation() is JourneyRelationRow selected &&
+            selected.Kind == JourneyRelationKind.Milestone &&
+            selected.Milestone is not null;
+        UnlinkRelationButton.IsEnabled = operation && SelectedRelation() is not null;
         SetOperationPromptButton.IsEnabled = operation;
         PrepareOperationPromptButton.IsEnabled = viewableOperation;
     }
@@ -224,6 +235,10 @@ public partial class ProjectJourneyView : UserControl
     private JourneySourceRow? SelectedSource() =>
         SourcesList.SelectedItem as JourneySourceRow;
 
+    /// <summary>Gets the selected existing relation or unresolved gate reference.</summary>
+    private JourneyRelationRow? SelectedRelation() =>
+        RelationsList.SelectedItem as JourneyRelationRow;
+
     /// <summary>Displays availability of source references without reading their bytes.</summary>
     private void RenderEvidence()
     {
@@ -237,6 +252,7 @@ public partial class ProjectJourneyView : UserControl
                     ? "Fichier présent dans le workspace"
                     : "Introuvable ou chemin non sûr")).ToArray();
             SourcesList.SelectedIndex = operation?.SourcePaths.Count > 0 ? 0 : -1;
+            RenderRelations();
             PromptKeyText.Text = operation is null
                 ? "Prompt : —"
                 : "Prompt : " + (operation.PromptKey ?? "aucun");
@@ -247,6 +263,76 @@ public partial class ProjectJourneyView : UserControl
         }
 
         UpdateButtons();
+    }
+
+    /// <summary>
+    /// Renders current references without scanning the workspace. An explicit
+    /// "Actualiser" click resolves canonical milestone identities off-thread.
+    /// Gates remain unverified until a real gate registry is delivered.
+    /// </summary>
+    private void RenderRelations()
+    {
+        bool wasPainting = _painting;
+        _painting = true;
+        try
+        {
+            ProjectJourneyOperation? operation = SelectedOperation();
+            Guid? selectedId = SelectedRelation()?.Id;
+            List<JourneyRelationRow> rows = [];
+            if (operation is not null)
+            {
+                foreach (Guid id in operation.MilestoneIds)
+                {
+                    ProjectJourneyMilestoneCandidate? found =
+                        _milestoneCatalog?.Candidates.FirstOrDefault(candidate =>
+                            candidate.Id == id);
+                    string label = found is not null
+                        ? "Jalon · " + found.Label
+                        : "Jalon · " + id.ToString("D");
+                    string detail = found is not null
+                        ? found.Location
+                        : _milestoneCatalog is null
+                            ? "Non vérifié · cliquer Actualiser"
+                            : "Introuvable ou ID non persistant · lien à vérifier";
+                    rows.Add(new JourneyRelationRow(
+                        JourneyRelationKind.Milestone, id, label, detail, found));
+                }
+
+                foreach (Guid id in operation.GateIds)
+                {
+                    rows.Add(new JourneyRelationRow(
+                        JourneyRelationKind.Gate, id,
+                        "Gate · " + id.ToString("D"),
+                        "Référence conservée · registre de gates #202 non disponible",
+                        null));
+                }
+            }
+
+            RelationsList.ItemsSource = rows;
+            RelationsList.SelectedItem = rows.FirstOrDefault(row =>
+                row.Id == selectedId) ?? rows.FirstOrDefault();
+            int legacy = _milestoneCatalog?.LegacyWithoutStableId ?? 0;
+            int duplicates = _milestoneCatalog?.DuplicateIds.Count ?? 0;
+            int missing = _milestoneCatalog is null || operation is null ? 0 :
+                operation.MilestoneIds.Count(id => !_milestoneCatalog.Candidates
+                    .Any(item => item.Id == id));
+            RelationsDiagnosticsText.Text = operation is null
+                ? "Sélectionnez une opération."
+                : operation.MilestoneIds.Count + " jalon(s) · " +
+                  operation.GateIds.Count + " gate(s). " +
+                  (_milestoneCatalog is null
+                    ? "Cliquez Actualiser pour vérifier les jalons."
+                    : missing + " référence(s) de jalon à vérifier · " +
+                      legacy + " ancienne(s) ligne(s) sans GUID stable · " +
+                      duplicates + " GUID dupliqué(s).") +
+                  (operation.GateIds.Count > 0
+                    ? " Gates : aucun Go/No-Go implicite."
+                    : "");
+        }
+        finally
+        {
+            _painting = wasPainting;
+        }
     }
 
     /// <summary>Uses the shared recoverable-error boundary and serializes UI changes.</summary>
