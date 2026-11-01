@@ -15,6 +15,7 @@ namespace Nodalis.App.Dialogs;
 public partial class ProjectRiskRegistryDialog : Window
 {
     private readonly ProjectRiskRegistryService _service;
+    private readonly string _serviceWorkspaceRoot;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private ProjectRiskCatalog? _catalog;
@@ -27,7 +28,8 @@ public partial class ProjectRiskRegistryDialog : Window
     public ProjectRiskRegistryDialog(
         string workspaceRoot, string projectDirectory, bool readOnly)
     {
-        _service = new ProjectRiskRegistryService(workspaceRoot);
+        _serviceWorkspaceRoot = Path.GetFullPath(workspaceRoot);
+        _service = new ProjectRiskRegistryService(_serviceWorkspaceRoot);
         _projectDirectory = Path.GetFullPath(projectDirectory);
         _readOnly = readOnly;
         InitializeComponent();
@@ -38,6 +40,15 @@ public partial class ProjectRiskRegistryDialog : Window
 
     /// <summary>Existing safe source selected for Markdown navigation.</summary>
     public string? SelectedRiskPath { get; private set; }
+
+    /// <summary>Selected Gate from a read-only risk/reservation backlink.</summary>
+    public Guid? SelectedGateId { get; private set; }
+
+    /// <summary>Exact frozen decision selected from risk backlinks.</summary>
+    public Guid? SelectedGateDecisionId { get; private set; }
+
+    /// <summary>Exact reservation selected from risk backlinks.</summary>
+    public Guid? SelectedGateReservationId { get; private set; }
 
     /// <summary>Selected linked task source requested for navigation.</summary>
     public string? SelectedLinkedTaskPath { get; private set; }
@@ -273,6 +284,7 @@ public partial class ProjectRiskRegistryDialog : Window
             entry?.CurrentTreatment is not null;
         TaskLinksButton.IsEnabled = !_busy && !_readOnly &&
             entry?.CurrentTreatment is not null;
+        GateReservationsButton.IsEnabled = !_busy && entry is not null;
         InitialReviewButton.IsEnabled = !_busy && !_readOnly &&
             entry is not null && entry.Reviews.Count == 0;
         ResidualReviewButton.IsEnabled = !_busy && !_readOnly &&
@@ -683,6 +695,41 @@ public partial class ProjectRiskRegistryDialog : Window
     private async void ResidualReview_Click(object sender, RoutedEventArgs e) =>
         await GuardAsync(() => ReviewRiskAsync(ProjectRiskReviewKind.Residual),
             "Réévaluer la criticité résiduelle");
+
+    /// <summary>
+    /// Looks up human Gate reservation associations on explicit user request,
+    /// never during RIS list repaint, and returns a stable target for the
+    /// existing Gate registry navigation if the operator selects one.
+    /// </summary>
+    /// <param name="sender">Risk-side Gate backlinks command.</param>
+    /// <param name="e">WPF click.</param>
+    private async void GateReservations_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (SelectedRisk() is not ProjectRiskEntry risk)
+            {
+                return;
+            }
+
+            ProjectRiskGateBacklinkService service = new(
+                _serviceWorkspaceRoot);
+            ProjectRiskGateBacklinkCatalog catalog =
+                await service.ListAsync(_projectDirectory, risk);
+            ProjectRiskGateBacklinksDialog dialog = new(risk, catalog)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() == true &&
+                dialog.SelectedGateId is Guid gateId &&
+                dialog.SelectedDecisionId is Guid decisionId &&
+                dialog.SelectedReservationId is Guid reservationId)
+            {
+                SelectedGateId = gateId;
+                SelectedGateDecisionId = decisionId;
+                SelectedGateReservationId = reservationId;
+                DialogResult = true;
+            }
+        }, "Consulter les réserves Gates du risque");
 
     /// <summary>Opens the selected Markdown file in the existing editor.</summary>
     /// <param name="sender">Open button.</param>

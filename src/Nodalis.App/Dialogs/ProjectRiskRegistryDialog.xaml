@@ -114,6 +114,11 @@
                 <Button x:Name="CreateRiskButton" Content="Nouveau risque…"
                         Padding="12,7" Margin="0,0,8,0"
                         Click="CreateRisk_Click" />
+                <Button x:Name="GateReservationsButton"
+                        Content="Réserves Gates…"
+                        Padding="12,7" Margin="0,0,8,6"
+                        Click="GateReservations_Click"
+                        ToolTip="Consulter les réserves de Gate liées à ce RIS" />
                 <Button x:Name="TaskLinksButton"
                         Content="Tâches liées…"
                         Padding="12,7" Margin="0,0,8,6"
