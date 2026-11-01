@@ -652,5 +652,18 @@ public partial class TaskListDialog : Window
             visible.Length == 0
                 ? "Aucune tâche ne correspond aux filtres."
                 : $"{visible.Length} tâche(s) · {overdueCount} en retard";
+
+        if (_tasks.LastIdentityDiagnostics.Count > 0)
+        {
+            StatusText.Text += " · ⚠ " +
+                _tasks.LastIdentityDiagnostics.Count +
+                " identité(s) à contrôler (survoler pour les détails)";
+            StatusText.ToolTip = string.Join(Environment.NewLine,
+                _tasks.LastIdentityDiagnostics.Take(20));
+        }
+        else
+        {
+            StatusText.ToolTip = null;
+        }
     }
 }

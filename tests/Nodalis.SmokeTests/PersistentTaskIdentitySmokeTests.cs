@@ -176,6 +176,20 @@ internal static class PersistentTaskIdentitySmokeTests
             await RejectAsync(() => service.SetCompletedAsync(rewritten, false),
                 "Stale task metadata must not overwrite subsequent edits.");
 
+            // Moving the same Markdown checkbox to a different project-owned
+            // file preserves its ID even when the link-index document changes.
+            string movedFile = Path.Combine(project.ProjectDirectory,
+                "Tâches déplacées.md");
+            File.Move(legacyFile, movedFile);
+            TaskItem moved = (await service.GetTasksAsync(
+                project.ProjectDirectory, includeCompleted: true))
+                .Single(task => task.PersistentId == adoptedId);
+            Assert(moved.Id == adoptedId &&
+                moved.SourceRelativePath.EndsWith(
+                    "Tâches déplacées.md", StringComparison.OrdinalIgnoreCase) &&
+                moved.Text == "Documenter l'opération",
+                "Moving a task's source file must not change its stable GUID.");
+
             // Same GUID appearing in two separate files is ambiguous, so
             // neither occurrence is safe as a durable relation target.
             string collisionFile = Path.Combine(project.ProjectDirectory,

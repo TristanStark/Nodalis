@@ -33,6 +33,12 @@ public sealed partial class WorkspaceTaskService
     public int LastParsedDocumentCount { get; private set; }
 
     /// <summary>
+    /// Most recent workspace identity issues, including cross-document GUID
+    /// collisions. Read-only diagnostics: no IDs are regenerated on refresh.
+    /// </summary>
+    public IReadOnlyList<string> LastIdentityDiagnostics { get; private set; } = [];
+
+    /// <summary>
     /// Initializes a new instance of <see cref="WorkspaceTaskService"/>.
     /// </summary>
     /// <param name="workspaceRoot">The <c>workspaceRoot</c> value.</param>
@@ -257,6 +263,7 @@ public sealed partial class WorkspaceTaskService
         // refresh. Deleted documents naturally disappear from the next cache.
         cancellationToken.ThrowIfCancellationRequested();
         _cachedDocuments = nextCache;
+        LastIdentityDiagnostics = identityDiagnostics;
         LastReusedDocumentCount = reused;
         LastParsedDocumentCount = parsed;
         return new TaskCollection
