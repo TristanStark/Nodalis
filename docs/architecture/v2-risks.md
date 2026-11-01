@@ -2,9 +2,10 @@
 
 Statut : **développement incrémental sur `develop`**, sans release 2.0.
 Identité portable, création des fiches RIS, évaluations humaines historisées,
-qualification métier indépendante, plans de traitement versionnés et registre
-filtrable sont implémentés. Les liens métier, la réalisation des mesures et
-la clôture guidée restent à développer.
+qualification métier indépendante, plans de traitement versionnés,
+suivi humain des mesures et registre filtrable sont implémentés. Les
+liens métier avec des tâches à identité persistante, la collecte formalisée
+des preuves et la clôture guidée restent à développer.
 
 ## 1. Accès et emplacement
 
@@ -65,8 +66,8 @@ un score, fermer un incident ne valide pas un risque.
 
 **Limitations actuelles importantes :** les évaluations humaines,
 la qualification métier et leurs historiques append-only sont intégrés,
-mais **l'exécution/suivi des mesures, les rattachements aux
-réserves/tâches/incidents, les synthèses avancées et la clôture guidée**
+mais **la liaison sûre des mesures aux tâches/incidents/réserves Gates,
+la formalisation de leurs preuves, les synthèses avancées et la clôture guidée**
 restent à développer. Les avis sont audités dans le Markdown, sans
 signature cryptographique extérieure.
 
@@ -267,7 +268,73 @@ attester leur exécution, affecter des preuves et fermer le risque
 selon une procédure guidée. Ce sont les incréments suivants, pas
 des automatismes cachés derrière la validation d'un plan.
 
-## 7. Sécurité et performances
+## 7. Avancement humain des trois mesures (incrément suivant)
+
+Une fiche RIS avec un plan de traitement possède trois **rubriques
+de mesure** : prévention, réduction/transfert, contingence. Le nouveau bouton
+**« Suivi des mesures… »** apparaît seulement si un plan existe. La personne
+choisit explicitement une rubrique, puis déclare l'état **En attente,
+En cours, Bloquée ou Terminée** avec un auteur et une motivation. Déclarer
+**Terminée** exige également une **preuve textuelle motivée** d'au moins
+10 caractères (référence de PV, explication de vérification, etc.).
+Cette preuve est une *déclaration humaine*, pas un document authentifié
+automatiquement. Rien n'est déduit d'une case Markdown cochée, d'un
+incident terminé ou d'une réévaluation de criticité. Une mesure peut être
+rouverte par une nouvelle déclaration, sans effacer la précédente.
+
+### Identité stable et révision de plan
+
+Chaque événement de mesure possède son GUID, celui du risque et surtout
+le **GUID immuable de la version de plan** dans laquelle la mesure a été
+définie. La paire `(version de plan, rubrique)` identifie une mesure
+même si le nom du risque ou sa fiche est déplacé.
+
+- Une nouvelle version de traitement **ne copie pas** les états `Completed`
+  de l'ancienne version : les trois rubriques repartent en `Pending`.
+- Les états de l'ancienne version et leurs preuves restent dans
+  l'historique, consultables.
+- Deux rubriques du même plan progressent indépendamment ; terminer la
+  prévention ne termine pas le plan de contingence.
+- Les plans, décisions métier et évaluations initiales/résiduelles restent
+  **inchangés** lorsque la progression d'une mesure évolue.
+
+L'historique est porté dans le même Markdown canonique, dans
+`<!-- nodalis:risk-measures:start -->` …
+`<!-- nodalis:risk-measures:end -->` **avant le journal de traitement**.
+La première ligne du journal porte un `risk-measures-head` pointant
+vers le dernier événement ; chaque événement possède également un
+`PreviousId` global et un état antérieur attendu. Cela détecte
+un événement manquant, y compris la suppression du dernier événement,
+et vérifie les changements de statut *dans la même version de plan*.
+
+### Vérifications et restrictions
+
+La commande `UpdateMeasureAsync` revalide le projet propriétaire,
+le chemin canonique, la source et le **SHA-256 précis** ayant été
+présenté à l'utilisateur. Si le Markdown a changé depuis l'ouverture
+du formulaire, la commande refuse la modification et exige une
+relecture. Le service refuse les projets archivés et les GUID
+étrangers, toute mesure sans plan, et les preuves manquantes lors
+d'une déclaration `Completed`.
+
+**Limitation intentionnelle pour les tâches :** le `TaskItem.Id`
+du moteur Markdown actuel est dérivé de l'occurrence de la tâche,
+et n'est pas encore une identité persistante garantie après déplacement
+ou réordonnancement de lignes. Par conséquent, cet incrément
+**n'enregistre aucun lien tâche ↔ mesure** utilisant ce GUID fragile.
+Cette relation attendra l'introduction/qualification des identifiants
+techniques de tâches stables. Une mesure terminée ne coche ni ne
+ferme aucune tâche.
+
+**Recette visuelle à réaliser :** créer un plan ; déclarer la prévention
+`InProgress`, puis `Completed` avec une preuve ; constater que les deux
+autres rubriques restent `Pending`. Réviser le plan ; constater que le
+nouveau plan possède trois états `Pending`, avec maintien de
+l'historique de l'ancienne version. Tester les actions Annuler,
+les champs incomplets, un refus de fichier modifié depuis le
+chargement, le mode archive en lecture seule, le clavier et le DPI.
+
+## 8. Sécurité et performances
 
 - Vérification du manifeste `.project.json` et de l'appartenance du
   projet au workspace, sans traversée hors racine ou lien symbolique.
@@ -280,7 +347,7 @@ des automatismes cachés derrière la validation d'un plan.
 - Catalogue recalculé seulement via **Recharger** ou après création.
   Aucune IA ni réseau nécessaire.
 
-## 8. Tests automatiques et recette Windows
+## 9. Tests automatiques et recette Windows
 
 `ProjectRiskRegistrySmokeTests`, branché dans `Program.cs`,
 vérifie la lecture non destructive d'un projet Complexe comprenant
@@ -305,6 +372,12 @@ stratégies, l'obligation des mesures, la chaîne des révisions GUID,
 la validation de `treatment-head-id`, les créations de plans avant et
 après les autres journaux, les conflits de sources et les tentatives
 d'altération d'un historique.
+
+La suite `ProjectRiskMeasureSmokeTests` couvre notamment la preuve
+obligatoire pour `Completed`, les quatre états, les trois rubriques,
+la chaîne des événements, les versions successives du plan, les
+révisions concurrentes, les périmètres de projets et le diagnostic
+sans migration des journaux altérés.
 
 Recette visuelle **encore à faire** : risque créé puis rouvert,
 onglets Markdown existants intacts, fenêtre étroite, DPI élevé, clavier,
