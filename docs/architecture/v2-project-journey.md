@@ -277,10 +277,80 @@ PDF, ouverture depuis un onglet Parcours, fichier supprimé, clic sur
 Délier, aperçu de prompt, copie dans le presse-papiers, mode lecture
 seule et présentation des panneaux sur fenêtre étroite.
 
+## Relations guidées vers les jalons et références de gates (01/11/2026)
+
+L'onglet Parcours affiche désormais une section repliable
+**RELATIONS · JALONS ET GATES**, spécifique à l'opération sélectionnée.
+
+### Jalons existants
+
+- **Actualiser** consulte les jalons du projet **sur action explicite** :
+  l'interface n'analyse pas les fichiers du workspace sur chaque sélection
+  d'opération, rafraîchissement du Worktree ou événement de scroll.
+- **Lier un jalon…** propose uniquement les jalons du projet qui
+  possèdent un GUID effectivement enregistré dans la colonne
+  `Id`/`Identifiant` du tableau Markdown canonique.
+  Les identifiants de repli calculés à partir d'une ligne ancienne,
+  les GUID dupliqués et les jalons appartenant à d'autres projets
+  sont **exclus**. Le dialogue indique combien de lignes anciennes et
+  de GUID ambigus demandent correction via le module Jalons.
+- Après sélection, Nodalis **revalide le jalon contre la source actuelle**
+  puis présente une confirmation de l'ajout de relation au Parcours.
+  La seule écriture conditionnelle (SHA-256) vise
+  `.project-journey.json` ; ni la date, ni le statut, ni la source
+  de `Jalons.md` ne sont changés. Les GUID d'opération restent stables.
+- **Ouvrir le jalon** (ou double-clic) revalide son identité
+  puis ouvre le Markdown concerné dans l'éditeur existant, à la ligne
+  canonique du jalon. Les onglets Markdown et leur autosave restent
+  indépendants de l'onglet Parcours.
+- **Délier** retire **uniquement** le GUID de la liste de relations,
+  après confirmation. Il ne supprime ni le jalon ni ses dépendances.
+- Si un jalon référencé disparaît ou devient ambigu, la liste l'affiche
+  comme **« Introuvable ou ID non persistant »** après actualisation.
+  Aucune suppression automatique du lien n'a lieu.
+
+Les commandes pures
+`ProjectJourneyEditor.AddMilestoneLink` et
+`ProjectJourneyEditor.RemoveMilestoneLink`
+réutilisent le champ existant `MilestoneIds` :
+pas de modification du schéma ni de table de relations parallèle.
+
+### Gates et décisions
+
+Le champ existant `GateIds` est conservé et affiché, mais
+**aucun registre de gates v2 stable n'est encore disponible** :
+sa matérialisation est prévue dans [#202](https://github.com/TristanStark/Nodalis/issues/202).
+
+Un GUID de gate éventuellement présent est affiché **comme référence
+non résolue**, et **n'est jamais présenté comme un Go**, une preuve de
+validation ou une autorisation de MEP. La seule mutation autorisée dans
+ce lot est **Délier**, après confirmation, qui retire la référence
+du Parcours et **ne modifie aucune décision ni aucun état de gate**.
+La création de liens vers de nouveaux gates sera branchée une fois
+leurs identités et leur registre canonique réellement disponibles.
+
+### Tests de non-régression
+
+`ProjectJourneyMilestoneLinksSmokeTests` couvre :
+les GUID persistés, les lignes anciennes sans ID,
+les GUID dupliqués, les jalons d'autres projets,
+la navigation vers les lignes sources, les modifications externes,
+les références perdues, l'absence de modification des fichiers
+`Jalons.md`, les retraits non destructifs des liens
+jalons/gates et le rejet des mises à jour obsolètes.
+
+**Qualification humaine Windows attendue** : sélectionner un jalon
+avec GUID, lier, actualiser, ouvrir à la bonne ligne, délier ;
+vérifier que le Markdown des jalons est identique avant/après ;
+tester un jalon sans ID, deux GUID identiques, un jalon effacé,
+un onglet Parcours archivé, les vues en lecture seule, le DPI
+et les grandes listes.
+
 ## Suite de l'EPIC #195
 
-1. Compléter les relations vers les gates et les jalons existants avec
-   sélection guidée, diagnostics de liens manquants et sans duplication.
+1. Brancher les références de gates sur le futur registre canonique
+   #202, lorsque de véritables identifiants et décisions seront disponibles,
+   sans inventer de Go/No-Go.
 2. Qualifier visuellement sous Windows les vues Parcours, les liens de
    sources, le presse-papiers, les fermetures/archives, les conflits de
    révision et les performances sur gros workspaces.
