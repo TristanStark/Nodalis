@@ -166,16 +166,16 @@ internal static class ProjectRiskTreatmentSmokeTests
 
             // Editing or dropping a chained historical event must be detected.
             string secondLine = finalSource.Split('\n').Single(line =>
-                line.Contains(second.Treatments[1].Id.ToString("D"),
-                    StringComparison.OrdinalIgnoreCase));
+                line.Contains("\"Id\":\"" + second.Treatments[1].Id.ToString("D") +
+                    "\"", StringComparison.OrdinalIgnoreCase));
             string corrupted = finalSource.Replace(secondLine + "\n",
                 string.Empty, StringComparison.Ordinal);
             await RejectAsync(() => Task.FromResult(
                 ProjectRiskTreatmentMarkdownCodec.Inspect(corrupted)),
                 "A silently removed treatment revision must not be valid.");
             string firstLine = finalSource.Split('\n').Single(line =>
-                line.Contains(first.Treatments[0].Id.ToString("D"),
-                    StringComparison.OrdinalIgnoreCase));
+                line.Contains("\"Id\":\"" + first.Treatments[0].Id.ToString("D") +
+                    "\"", StringComparison.OrdinalIgnoreCase));
             await RejectAsync(() => Task.FromResult(
                 ProjectRiskTreatmentMarkdownCodec.Inspect(
                     finalSource.Replace(firstLine + "\n",

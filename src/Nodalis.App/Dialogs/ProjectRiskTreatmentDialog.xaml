@@ -1,0 +1,72 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectRiskTreatmentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Plan de traitement d'un risque · Nodalis 2.0"
+        Width="795" Height="760" MinWidth="580" MinHeight="500"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock x:Name="HeadingText" FontSize="18"
+                       FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock x:Name="ExplanationText" Margin="0,6,0,0"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,4,10,8">
+                <TextBlock Text="Stratégie de traitement"
+                           FontWeight="SemiBold" />
+                <ComboBox x:Name="StrategyCombo" Margin="0,5,0,12"
+                          MinHeight="34" />
+                <TextBlock Text="Responsable du traitement"
+                           FontWeight="SemiBold" />
+                <TextBox x:Name="OwnerBox" Margin="0,5,0,12"
+                         MaxLength="120" />
+                <TextBlock Text="Prévention / probabilité"
+                           FontWeight="SemiBold" />
+                <TextBox x:Name="PreventionBox" Margin="0,5,0,12"
+                         MinHeight="64" MaxLength="2000"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" />
+                <TextBlock Text="Réduction des conséquences / transfert"
+                           FontWeight="SemiBold" />
+                <TextBox x:Name="MitigationBox" Margin="0,5,0,12"
+                         MinHeight="64" MaxLength="2000"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" />
+                <TextBlock Text="Contingence si le risque survient"
+                           FontWeight="SemiBold" />
+                <TextBox x:Name="ContingencyBox" Margin="0,5,0,12"
+                         MinHeight="64" MaxLength="2000"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" />
+                <TextBlock Text="Auteur de cette décision de traitement"
+                           FontWeight="SemiBold" />
+                <TextBox x:Name="ActorBox" Margin="0,5,0,12"
+                         MaxLength="120" />
+                <TextBlock Text="Justification (10 caractères minimum)"
+                           FontWeight="SemiBold" />
+                <TextBox x:Name="RationaleBox" Margin="0,5,0,12"
+                         MinHeight="70" MaxLength="4000"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" />
+            </StackPanel>
+        </ScrollViewer>
+        <DockPanel Grid.Row="2" Margin="0,12,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Annuler" Padding="12,8"
+                        Margin="0,0,8,0" Click="Cancel_Click" />
+                <Button Content="Proposer le plan" Padding="12,8"
+                        Click="Accept_Click" />
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" VerticalAlignment="Center"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Aucune mise à jour automatique de la criticité." />
+        </DockPanel>
+    </Grid>
+</Window>

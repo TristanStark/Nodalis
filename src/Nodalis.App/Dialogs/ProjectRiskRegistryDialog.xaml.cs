@@ -149,6 +149,10 @@ public partial class ProjectRiskRegistryDialog : Window
                 "Titre : " + card.Title,
                 "Qualification métier : " + card.Qualification,
                 "Cycle de vie : " + card.Lifecycle,
+                "Traitement : " + (entry.CurrentTreatment?.Strategy.ToString() ??
+                    "non défini"),
+                "Responsable : " + (entry.CurrentTreatment?.Owner ??
+                    "non désigné"),
                 "Initiale : " + ProjectRiskMatrix.Evaluate(card.Initial),
                 "Résiduelle : " + ProjectRiskMatrix.Evaluate(card.Residual),
                 "Créée le : " + card.CreatedUtc.ToLocalTime()
@@ -164,6 +168,24 @@ public partial class ProjectRiskRegistryDialog : Window
                     " · " + decision.Previous + " → " + decision.Status +
                     " · " + decision.Actor +
                     " · " + decision.Rationale),
+                "",
+                "Plan de traitement courant :",
+                "Prévention : " + (entry.CurrentTreatment?.Prevention ??
+                    "non définie"),
+                "Réduction / transfert : " +
+                    (entry.CurrentTreatment?.Mitigation ?? "non définie"),
+                "Contingence : " +
+                    (entry.CurrentTreatment?.Contingency ?? "non définie"),
+                "",
+                "Historique des plans : " + entry.Treatments.Count +
+                    " version(s)",
+                .. entry.Treatments.Select(treatment =>
+                    treatment.RecordedUtc.ToLocalTime()
+                        .ToString("dd/MM/yyyy HH:mm") +
+                    " · " + treatment.Plan.Strategy +
+                    " · " + treatment.Plan.Owner +
+                    " · " + treatment.Actor +
+                    " · " + treatment.Rationale),
                 "",
                 "Historique de criticité humaine : " +
                     entry.Reviews.Count + " avis",
@@ -192,6 +214,8 @@ public partial class ProjectRiskRegistryDialog : Window
         ProjectRiskEntry? entry = SelectedRisk();
         OpenRiskButton.IsEnabled = !_busy && entry is not null;
         QualificationButton.IsEnabled = !_busy && !_readOnly &&
+            entry is not null;
+        TreatmentButton.IsEnabled = !_busy && !_readOnly &&
             entry is not null;
         InitialReviewButton.IsEnabled = !_busy && !_readOnly &&
             entry is not null && entry.Reviews.Count == 0;
@@ -371,6 +395,73 @@ public partial class ProjectRiskRegistryDialog : Window
         StatusText.Text = saved.Card.Reference +
             " · décision métier historisée, scores inchangés.";
     }
+
+    /// <summary>
+    /// Requests a human treatment plan, with explicit strategy, measures,
+    /// owner and revision reason, separately from business and rating events.
+    /// </summary>
+    /// <returns>Completed reviewed action or no source changes.</returns>
+    private async Task EditTreatmentAsync()
+    {
+        if (_readOnly || SelectedRisk() is not ProjectRiskEntry selected)
+        {
+            return;
+        }
+
+        ProjectRiskTreatmentDialog dialog = new(selected) { Owner = this };
+        if (dialog.ShowDialog() != true ||
+            dialog.Plan is not ProjectRiskTreatmentPlan plan ||
+            dialog.Actor is not string actor ||
+            dialog.Rationale is not string rationale)
+        {
+            return;
+        }
+
+        if (MessageBox.Show(this,
+            (selected.Treatments.Count == 0
+                ? "Enregistrer un premier plan de traitement pour "
+                : "Historiser une révision du plan de traitement pour ") +
+            selected.Card.Reference + " — " + selected.Card.Title + " ?\n\n" +
+            "Stratégie : " + plan.Strategy +
+            "\nResponsable : " + plan.Owner +
+            "\nPrévention : " + PreviewMeasure(plan.Prevention) +
+            "\nRéduction / transfert : " + PreviewMeasure(plan.Mitigation) +
+            "\nContingence : " + PreviewMeasure(plan.Contingency) +
+            "\nAuteur : " + actor +
+            "\nMotif : " + PreviewMeasure(rationale) +
+            "\n\nL'historique précédent reste intact. " +
+            "Aucun score, statut métier, incident, tâche ni gate ne sera " +
+            "modifié. Seule la fiche Markdown de ce risque est enregistrée.",
+            "Risque · valider le plan de traitement",
+            MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectRiskEntry saved = await _service.PlanTreatmentAsync(
+            _projectDirectory, selected, plan, actor, rationale);
+        Changed = true;
+        await ReloadAsync(saved.Card.Id);
+        StatusText.Text = saved.Card.Reference +
+            " · plan historisé, criticités et statut inchangés.";
+    }
+
+    /// <summary>Shows a bounded readable excerpt in the approval dialog.</summary>
+    /// <param name="value">Full human measure entered in the form.</param>
+    /// <returns>Single-line preview that cannot overflow a dialog.</returns>
+    private static string PreviewMeasure(string value)
+    {
+        string line = value.Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal);
+        return line.Length > 180 ? line[..180] + "…" : line;
+    }
+
+    /// <summary>Starts the explicit human treatment review.</summary>
+    /// <param name="sender">Treatment command.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void Treatment_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(EditTreatmentAsync, "Plan de traitement");
 
     /// <summary>Requests human confirmation of the business risk status.</summary>
     /// <param name="sender">Decision command.</param>

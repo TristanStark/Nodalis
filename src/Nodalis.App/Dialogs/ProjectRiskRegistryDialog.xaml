@@ -112,6 +112,11 @@
                 <Button x:Name="CreateRiskButton" Content="Nouveau risque…"
                         Padding="12,7" Margin="0,0,8,0"
                         Click="CreateRisk_Click" />
+                <Button x:Name="TreatmentButton"
+                        Content="Plan de traitement…"
+                        Padding="12,7" Margin="0,0,8,6"
+                        Click="Treatment_Click"
+                        ToolTip="Choisir ou réviser la stratégie et les mesures du risque" />
                 <Button x:Name="QualificationButton"
                         Content="Décider du statut…"
                         Padding="12,7" Margin="0,0,8,6"
