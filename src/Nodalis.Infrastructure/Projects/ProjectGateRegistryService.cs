@@ -21,6 +21,7 @@ public sealed class ProjectGateRegistryService
     private readonly ProjectJourneySourceService _sources;
     private readonly ProjectJourneyMilestoneCatalogService _milestones;
     private readonly ProjectGateIncidentCatalogService _incidents;
+    private readonly ProjectRiskRegistryService _risks;
 
     /// <summary>Creates a workspace-scoped gate registry service.</summary>
     /// <param name="workspaceRoot">Current workspace directory.</param>
@@ -32,6 +33,7 @@ public sealed class ProjectGateRegistryService
         _sources = new ProjectJourneySourceService(_workspaceRoot);
         _milestones = new ProjectJourneyMilestoneCatalogService(_workspaceRoot);
         _incidents = new ProjectGateIncidentCatalogService(_workspaceRoot);
+        _risks = new ProjectRiskRegistryService(_workspaceRoot);
     }
 
     /// <summary>
@@ -179,6 +181,44 @@ public sealed class ProjectGateRegistryService
                 throw new InvalidDataException(
                     "Incident absent, incomplet, dupliqué ou hors projet. " +
                     "Aucune nouvelle relation enregistrée.");
+            }
+        }
+
+        // Risk links are separately audited and append-only. Old source
+        // references may become missing: only NEW Link events require source
+        // validation; unlink remains possible after a RIS was removed.
+        for (int index = 0; index < old.Registry.RiskLinkEvents.Count; index++)
+        {
+            if (index >= registry.RiskLinkEvents.Count ||
+                !string.Equals(
+                    JsonSerializer.Serialize(old.Registry.RiskLinkEvents[index],
+                        JsonDefaults.Options),
+                    JsonSerializer.Serialize(registry.RiskLinkEvents[index],
+                        JsonDefaults.Options),
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "Un lien risque/réserve historique ne peut être réécrit.");
+            }
+        }
+
+        ProjectGateReservationRiskLinkEvent[] newRiskLinks =
+            registry.RiskLinkEvents
+                .Skip(old.Registry.RiskLinkEvents.Count)
+                .Where(item =>
+                    item.Kind == ProjectGateReservationRiskLinkKind.Linked)
+                .ToArray();
+        if (newRiskLinks.Length > 0)
+        {
+            ProjectRiskCatalog catalog = await _risks.ListAsync(
+                directory, cancellationToken);
+            HashSet<Guid> eligible = catalog.Risks.Select(item =>
+                item.Card.Id).ToHashSet();
+            if (newRiskLinks.Any(item => !eligible.Contains(item.RiskId)))
+            {
+                throw new InvalidDataException(
+                    "Liaison refusée : risque absent, sans GUID canonique, " +
+                    "dupliqué, malformé ou appartenant à un autre projet.");
             }
         }
 
