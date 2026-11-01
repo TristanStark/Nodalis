@@ -617,6 +617,52 @@ public partial class ProjectGateRegistryDialog : Window
         }
     }
 
+    /// <summary>
+    /// Opens an on-demand project-wide projection. The register is re-read
+    /// only once for this user command; typing and filtering stay in memory.
+    /// Navigation returns stable IDs to this existing historical view.
+    /// </summary>
+    /// <param name="sender">Overview button.</param>
+    /// <param name="e">Click event.</param>
+    private async void OverviewReservations_Click(
+        object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            Guid? previousGate = CurrentGate()?.Id;
+            _snapshot = await _service.ReadAsync(_projectDirectory);
+            Paint(previousGate);
+            ProjectGateReservationOverview overview =
+                ProjectGateReservationOverviewBuilder.Build(
+                    _snapshot.Registry, DateOnly.FromDateTime(DateTime.Today));
+            ProjectGateReservationOverviewDialog dialog = new(overview)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true ||
+                dialog.SelectedGateId is not Guid gateId ||
+                dialog.SelectedDecisionId is not Guid decisionId ||
+                dialog.SelectedReservationId is not Guid reservationId)
+            {
+                return;
+            }
+
+            // The overview never mutates the registry; the destination
+            // is the original decision, not a synthetic reservation object.
+            Paint(gateId, decisionId);
+            ReservationRow? selected = ReservationsList.Items
+                .OfType<ReservationRow>().FirstOrDefault(item =>
+                    item.DecisionId == decisionId &&
+                    item.Reservation.Id == reservationId);
+            if (selected is not null)
+            {
+                ReservationsList.SelectedItem = selected;
+                UpdateButtons();
+            }
+
+            StatusText.Text = "Réserve retrouvée dans sa décision d'origine · " +
+                "aucun verdict ni document modifié.";
+        }, "Consulter la vue transversale des réserves");
+
     /// <summary>Re-reads the register only on an explicit user action.</summary>
     /// <param name="sender">Reload button.</param>
     /// <param name="e">Click event.</param>
