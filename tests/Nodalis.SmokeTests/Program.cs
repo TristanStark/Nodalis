@@ -88,6 +88,7 @@ try
     await ProjectJourneyTemplatesSmokeTests.RunAsync(root);
     await ProjectJourneyEvidenceSmokeTests.RunAsync(root);
     await ProjectJourneyMilestoneLinksSmokeTests.RunAsync(root);
+    await ProjectGateRegistrySmokeTests.RunAsync(root);
     await ProjectArchivesSmokeTests.RunAsync(root);
     await VerifyProjectStructureAsync(root);
     await VerifyApplicationStructureAsync(root);
