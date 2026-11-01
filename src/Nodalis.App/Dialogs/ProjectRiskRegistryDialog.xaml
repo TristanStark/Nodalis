@@ -101,11 +101,21 @@
                 </Grid>
             </Border>
         </Grid>
-        <DockPanel Grid.Row="2" Margin="0,12,0,0">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <WrapPanel Grid.Row="0" Orientation="Horizontal"
+                       HorizontalAlignment="Right"
+                       Margin="0,0,0,6">
                 <Button x:Name="CreateRiskButton" Content="Nouveau risque…"
                         Padding="12,7" Margin="0,0,8,0"
                         Click="CreateRisk_Click" />
+                <Button x:Name="QualificationButton"
+                        Content="Décider du statut…"
+                        Padding="12,7" Margin="0,0,8,6"
+                        Click="Qualification_Click" />
                 <Button x:Name="InitialReviewButton"
                         Content="Qualifier l'initiale…"
                         Padding="12,7" Margin="0,0,8,0"
@@ -121,11 +131,12 @@
                         Click="Reload_Click" />
                 <Button Content="Fermer" Padding="12,7"
                         Click="Close_Click" />
-            </StackPanel>
-            <TextBlock x:Name="StatusText" VerticalAlignment="Center"
+            </WrapPanel>
+            <TextBlock x:Name="StatusText" Grid.Row="1"
+                       VerticalAlignment="Center"
                        TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}"
                        Text="Lecture du registre sans création de fichier…" />
-        </DockPanel>
+        </Grid>
     </Grid>
 </Window>

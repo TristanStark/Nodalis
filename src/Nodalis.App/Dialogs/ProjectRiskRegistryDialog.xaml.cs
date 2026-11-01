@@ -147,7 +147,7 @@ public partial class ProjectRiskRegistryDialog : Window
                 "GUID : " + card.Id.ToString("D"),
                 "Projet : " + card.ProjectId.ToString("D"),
                 "Titre : " + card.Title,
-                "Qualification : " + card.Qualification,
+                "Qualification métier : " + card.Qualification,
                 "Cycle de vie : " + card.Lifecycle,
                 "Initiale : " + ProjectRiskMatrix.Evaluate(card.Initial),
                 "Résiduelle : " + ProjectRiskMatrix.Evaluate(card.Residual),
@@ -156,7 +156,16 @@ public partial class ProjectRiskRegistryDialog : Window
                 "",
                 "Source : " + entry.RelativePath,
                 "",
-                "Historique de qualification humaine : " +
+                "Décisions métier (sans effet sur criticité) : " +
+                    entry.Qualifications.Count,
+                .. entry.Qualifications.Select(decision =>
+                    decision.RecordedUtc.ToLocalTime()
+                        .ToString("dd/MM/yyyy HH:mm") +
+                    " · " + decision.Previous + " → " + decision.Status +
+                    " · " + decision.Actor +
+                    " · " + decision.Rationale),
+                "",
+                "Historique de criticité humaine : " +
                     entry.Reviews.Count + " avis",
                 .. entry.Reviews.Select(review =>
                     review.RecordedUtc.ToLocalTime()
@@ -182,6 +191,8 @@ public partial class ProjectRiskRegistryDialog : Window
             _catalog?.NextReference is not null;
         ProjectRiskEntry? entry = SelectedRisk();
         OpenRiskButton.IsEnabled = !_busy && entry is not null;
+        QualificationButton.IsEnabled = !_busy && !_readOnly &&
+            entry is not null;
         InitialReviewButton.IsEnabled = !_busy && !_readOnly &&
             entry is not null && entry.Reviews.Count == 0;
         ResidualReviewButton.IsEnabled = !_busy && !_readOnly &&
@@ -310,6 +321,63 @@ public partial class ProjectRiskRegistryDialog : Window
         StatusText.Text = saved.Card.Reference + " · avis enregistré " +
             "avec contrôle SHA-256 et historique append-only.";
     }
+
+    /// <summary>
+    /// Records one human business-qualification decision without touching
+    /// ratings, lifecycle, linked incidents or other project documents.
+    /// </summary>
+    /// <returns>Completed decision or unchanged source on cancel.</returns>
+    private async Task DecideQualificationAsync()
+    {
+        if (_readOnly || SelectedRisk() is not ProjectRiskEntry selected)
+        {
+            return;
+        }
+
+        ProjectRiskQualificationDialog dialog = new(selected)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true ||
+            dialog.Qualification is not ProjectRiskQualification qualification ||
+            dialog.Actor is not string actor ||
+            dialog.Rationale is not string rationale)
+        {
+            return;
+        }
+
+        if (MessageBox.Show(this,
+            "Consigner la décision métier sur " + selected.Card.Reference +
+            " — " + selected.Card.Title + " ?\n\n" +
+            "Ancien statut : " + selected.Card.Qualification +
+            "\nNouveau statut : " + qualification +
+            "\nDécideur : " + actor +
+            "\nJustification : " + rationale +
+            "\n\nSeule la fiche Markdown de ce risque sera modifiée. " +
+            "Aucune criticité, aucun cycle de vie, ni tâche, incident, " +
+            "gate ou jalon ne sera automatiquement changé. " +
+            "Cette décision restera dans l'historique.",
+            "Risque · décision métier explicite",
+            MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectRiskEntry saved = await _service.QualifyAsync(
+            _projectDirectory, selected, qualification, actor, rationale);
+        Changed = true;
+        await ReloadAsync(saved.Card.Id);
+        StatusText.Text = saved.Card.Reference +
+            " · décision métier historisée, scores inchangés.";
+    }
+
+    /// <summary>Requests human confirmation of the business risk status.</summary>
+    /// <param name="sender">Decision command.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void Qualification_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(DecideQualificationAsync,
+            "Décider du statut métier");
 
     /// <summary>Requests the immutable first risk assessment.</summary>
     /// <param name="sender">Initial review button.</param>
