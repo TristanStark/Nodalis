@@ -2573,6 +2573,16 @@ static async Task VerifyGlossaryAsync(string root)
     Assert(
         glossaryCancelled,
         "Canceled background glossary annotation matching must stop before publishing.");
+
+    using CancellationTokenSource canceledContext = new();
+    canceledContext.Cancel();
+    await AssertThrowsAsync<OperationCanceledException>(
+        () => glossary.ResolveScopesAsync(root,
+            project.OverviewFilePath, canceledContext.Token),
+        "Canceled glossary scope reads must stop before inspecting manifests.");
+    await AssertThrowsAsync<OperationCanceledException>(
+        () => glossary.LoadEntriesAsync(scopes[0], canceledContext.Token),
+        "Canceled glossary file reads must stop before publishing entries.");
 }
 
 static async Task VerifyAttachmentsAsync(string root)

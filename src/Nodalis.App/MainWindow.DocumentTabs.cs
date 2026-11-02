@@ -181,6 +181,8 @@ public partial class MainWindow
     {
         ArgumentNullException.ThrowIfNull(tab);
         long activationRevision = ++_documentTabActivationRevision;
+        _glossaryContextRevision++;
+        _glossaryContextCancellation?.Cancel();
         // A preview parse started for the prior tab may still be running.
         // Reject its result and coalesce bursts into one new parse.
         _previewEditRevision++;
@@ -414,6 +416,12 @@ public partial class MainWindow
     /// </summary>
     private void DeactivateDocumentTabView()
     {
+        _documentTabActivationRevision++;
+        _glossaryContextRevision++;
+        _glossaryContextCancellation?.Cancel();
+        _glossaryMatchCancellation?.Cancel();
+        _previewEditRevision++;
+        _previewParseCancellation?.Cancel();
         DeactivateProjectJourneyTabView();
         StoreActiveDocumentTabState();
         StoreSecondaryDocumentTabState();

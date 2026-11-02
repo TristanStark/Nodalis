@@ -112,6 +112,7 @@ public partial class MainWindow : Window
     private long _glossaryAnnotationRevision;
     private long _glossaryContextRevision;
     private CancellationTokenSource? _glossaryMatchCancellation;
+    private CancellationTokenSource? _glossaryContextCancellation;
     private readonly ToolTip _glossaryToolTip = new ToolTip
     {
         StaysOpen = true,
@@ -258,6 +259,7 @@ public partial class MainWindow : Window
             _heartbeatMonitor.SetEnabled(false);
             _autosaveRefreshTimer.Stop();
             _glossaryMatchCancellation?.Cancel();
+            _glossaryContextCancellation?.Cancel();
             _previewParseCancellation?.Cancel();
         };
 
@@ -5357,25 +5359,47 @@ public partial class MainWindow : Window
         using DispatcherHeartbeatMonitor.OperationScope measurement =
             _heartbeatMonitor.TrackOperation("Lecture glossaire");
         long revision = ++_glossaryContextRevision;
-        IReadOnlyList<GlossaryScope> scopes = await _glossaryService.ResolveScopesAsync(
-            _root.FullPath,
-            contextPath);
-
-        List<GlossaryEntry> entries = [];
-        foreach (GlossaryScope scope in scopes)
+        _glossaryContextCancellation?.Cancel();
+        using CancellationTokenSource cancellation = new();
+        _glossaryContextCancellation = cancellation;
+        try
         {
-            entries.AddRange(await _glossaryService.LoadEntriesAsync(scope));
-        }
+            // This can read multiple manifest and Markdown files. A tab
+            // switch cancels obsolete I/O rather than merely suppressing
+            // its final result after all files have been read.
+            IReadOnlyList<GlossaryScope> scopes =
+                await _glossaryService.ResolveScopesAsync(
+                    _root.FullPath, contextPath, cancellation.Token);
+            List<GlossaryEntry> entries = [];
+            foreach (GlossaryScope scope in scopes)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                entries.AddRange(await _glossaryService.LoadEntriesAsync(
+                    scope, cancellation.Token));
+            }
 
-        // Another tab or scope may have requested a newer context while the
-        // disk reads were in progress; never publish an obsolete glossary.
-        if (revision != _glossaryContextRevision)
+            if (revision != _glossaryContextRevision ||
+                cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _glossaryScopes = scopes;
+            _glossaryEntries = entries;
+        }
+        catch (OperationCanceledException) when (
+            cancellation.IsCancellationRequested)
         {
-            return;
+            // An older tab's glossary read was superseded. Its source list
+            // and annotations must not replace the current editor context.
         }
-
-        _glossaryScopes = scopes;
-        _glossaryEntries = entries;
+        finally
+        {
+            if (ReferenceEquals(_glossaryContextCancellation, cancellation))
+            {
+                _glossaryContextCancellation = null;
+            }
+        }
     }
 
     /// <summary>

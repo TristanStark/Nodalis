@@ -582,3 +582,21 @@ contenu, ses correspondances et son aperçu sont publiés par le
 timer asynchrone uniquement pour la révision/identité courante.
 Une réactivation du même onglet ne vide pas inutilement son
 affichage. Aucun contenu ni modification non sauvegardée n'est effacé.
+
+
+### Annulation des lectures de glossaires obsolètes (02/11/2026)
+
+Une rafale de changements d'onglets pouvait encore lire tous les
+glossaires de plusieurs projets, puis écarter seulement le résultat
+périmé. Le contexte utilise désormais un **CancellationTokenSource**
+par lecture et transmet son jeton à `ResolveScopesAsync` et aux
+`LoadEntriesAsync` des trois niveaux (projet/application/global).
+Lorsqu'un autre onglet prend la main ou que la vue document est quittée,
+les anciennes lectures et les anciens parsings sont annulés
+immédiatement. Une révision et le contrôle de l'identité de la requête
+empêchent toujours la publication d'une réponse obsolète.
+
+La fenêtre annule aussi ces travaux à sa fermeture. Les tests
+automatisés exercent l'annulation des lectures de scope et de fichier
+sur un workspace fictif. Aucun chemin utilisateur ni contenu Markdown
+n'entre dans les mesures de durée.
