@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Nodalis.App.Diagnostics;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Navigation;
 
@@ -115,6 +116,8 @@ public partial class MainWindow
             return;
         }
 
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Worktree · en-têtes persistants");
         _worktreeScrollViewport ??=
             FindVisualDescendant<ScrollContentPresenter>(NavigationTree);
         if (_worktreeScrollViewport is null ||

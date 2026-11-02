@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using Nodalis.App.Diagnostics;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Navigation;
 
@@ -132,6 +133,8 @@ public partial class MainWindow
         }
 
         _worktreeDisplayUpdating = true;
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Worktree · projection du filtre");
         try
         {
             string query = WorktreeFilterBox.Text.Trim();
@@ -321,6 +324,8 @@ public partial class MainWindow
             return;
         }
 
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Worktree · favoris et récents");
         IReadOnlyList<QuickOpenEntry> entries = BuildQuickOpenEntries();
         if (WorktreeFavoritesExpander.IsExpanded)
         {

@@ -369,3 +369,29 @@ le document sélectionné est hors de l'écran du worktree. Vérifier ensuite
 que « Révéler dans l'explorateur » scrolle volontairement jusqu'au document,
 que le bouton d'en-tête épinglé revient au dossier, que les flèches clavier
 font défiler normalement, et que les filtres/replis manuels restent fonctionnels.
+
+
+### Profilage ciblé du Worktree 2.0 (02/11/2026)
+
+Dans **Diagnostics locaux**, activer les mesures Dispatcher puis reproduire
+les scénarios qui provoquent des gels. Trois catégories fixes, ne contenant
+aucune donnée utilisateur, sont désormais conservées en mémoire (128
+durées maximum par catégorie) : **Worktree · en-têtes persistants**,
+**Worktree · projection du filtre** et **Worktree · favoris et récents**.
+Le rapport donne n, p50, p95 et p99 en millisecondes, plus les
+retards de heartbeat et les collectes GC. Le suivi est désactivable et
+la construction du rapport reste **à la demande** ; rien n'est envoyé
+sur le réseau.
+
+Protocole de qualification recommandé : ouvrir une trentaine d'onglets
+puis en fermer plusieurs, changer rapidement d'applications et d'onglets,
+faire défiler 1 000+ projets, taper/effacer plusieurs filtres, sortir de
+veille et reproduire les mêmes opérations sans débogueur. Noter les
+retards > 200 ms et les catégories immédiatement voisines, sans supposer
+qu'une corrélation prouve la cause d'un gel.
+
+Les positions des nœuds visibles sont mises en cache et mises à jour
+lors des changements de filtre, puis validées par identité avant usage.
+La suppression des recherches O(nombre de frères) pendant le scroll
+est un gain structurel attendu, **pas** un SLA ni un gain de latence
+mesuré sur une machine utilisateur.

@@ -63,6 +63,11 @@ if (-not $worktreeP1.Contains('_worktreeP1RefreshPending') -or
     -not $worktreeP1.Contains('candidate.VisibleSiblingIndex')) {
     $failures.Add("Worktree tab refreshes and visibility checks must remain coalesced and indexed.")
 }
+if (-not $stickyWorktree.Contains('TrackOperation("Worktree · en-têtes persistants")') -or
+    -not $worktreeP1.Contains('TrackOperation("Worktree · projection du filtre")') -or
+    -not $worktreeP1.Contains('TrackOperation("Worktree · favoris et récents")')) {
+    $failures.Add("Worktree must keep privacy-safe duration probes for scroll, filtering and shortcuts.")
+}
 
 $requiredThemeTokens = @(
     'NodalisWindowStyle',
