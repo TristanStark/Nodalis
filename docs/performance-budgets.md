@@ -616,3 +616,16 @@ Le smoke test utilise un glossaire de **250 termes fictifs** :
 l'inventaire des termes, les définitions et les numéros de ligne
 doivent être identiques avec et sans worker. Aucune donnée métier ni
 capture utilisateur n'entre dans les fixtures.
+
+
+### Arrêt coopératif du parseur de glossaire (02/11/2026)
+
+Le `CancellationToken` transmis lors du chargement de glossaire
+atteint maintenant aussi l'analyse de son texte Markdown, et non
+seulement `ReadAllTextAsync`. Une annulation est vérifiée avant la
+normalisation des lignes, tous les 128 lignes et avant publication
+du catalogue. Cela évite qu'un gros glossaire provenant d'un
+onglet abandonné continue inutilement à occuper le worker.
+L'ancienne API `Parse(markdown, scope)` reste compatible grâce
+au paramètre optionnel. Les tests vérifient le refus d'un parsing
+déjà annulé et l'identité du contenu produit avec/sans worker.

@@ -187,7 +187,8 @@ public sealed class GlossaryService
 
         return Parse(
             markdown,
-            scope);
+            scope,
+            cancellationToken);
     }
 
     /// <summary>
@@ -341,13 +342,16 @@ public sealed class GlossaryService
     /// </summary>
     /// <param name="markdown">The <c>markdown</c> value.</param>
     /// <param name="scope">The <c>scope</c> value.</param>
+    /// <param name="cancellationToken">Stops parsing a superseded glossary.</param>
     /// <returns>The result of the operation.</returns>
     public static IReadOnlyList<GlossaryEntry> Parse(
             string markdown,
-            GlossaryScope scope)
+            GlossaryScope scope,
+            CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(markdown);
         ArgumentNullException.ThrowIfNull(scope);
+        cancellationToken.ThrowIfCancellationRequested();
 
         string[] lines = markdown
             .Replace("\r\n", "\n", StringComparison.Ordinal)
@@ -362,6 +366,11 @@ public sealed class GlossaryService
              index < lines.Length;
              index++)
         {
+            if ((index & 127) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             string line = lines[index];
 
             if (line.StartsWith(
@@ -463,6 +472,7 @@ public sealed class GlossaryService
             }
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         AddCurrentIfMeaningful(
             entries,
             current,

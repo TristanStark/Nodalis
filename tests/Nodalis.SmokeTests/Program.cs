@@ -2601,6 +2601,20 @@ static async Task VerifyGlossaryAsync(string root)
         await glossary.LoadEntriesAsync(largeGlossaryScope);
     IReadOnlyList<GlossaryEntry> workerEntries = await Task.Run(
         () => glossary.LoadEntriesAsync(largeGlossaryScope));
+    using CancellationTokenSource canceledParser = new();
+    canceledParser.Cancel();
+    bool canceledBeforeParse = false;
+    try
+    {
+        GlossaryService.Parse(largeGlossaryContent,
+            largeGlossaryScope, canceledParser.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        canceledBeforeParse = true;
+    }
+    Assert(canceledBeforeParse,
+        "A canceled Markdown glossary parse must stop before allocating the line list.");
     Assert(directEntries.Count == 250 &&
         directEntries.Count == workerEntries.Count &&
         directEntries.Zip(workerEntries).All(pair =>
