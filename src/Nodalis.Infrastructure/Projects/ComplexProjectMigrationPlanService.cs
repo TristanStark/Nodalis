@@ -274,6 +274,63 @@ public sealed class ComplexProjectMigrationPlanService
             Encoding.UTF8.GetBytes(inventory.ToString()))).ToLowerInvariant();
     }
 
+
+    /// <summary>
+    /// Streams possible Markdown backlink sources without retaining a global
+    /// workspace path array. This is not used by fingerprint calculation,
+    /// which still requires a deterministic sorted project inventory.
+    /// Templates and import backups were never link-audit sources and their
+    /// entire trees can safely be skipped before visiting their files.
+    /// </summary>
+    /// <param name="root">Workspace root, not a project root.</param>
+    /// <param name="cancellationToken">Cancellation checked during traversal.</param>
+    /// <returns>Markdown sources and reparse entries for the caller to qualify.</returns>
+    internal static IEnumerable<string> EnumerateMigrationLinkSources(
+        string root, CancellationToken cancellationToken)
+    {
+        string workspaceRoot = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(root));
+        Stack<string> pending = new();
+        pending.Push(workspaceRoot);
+        while (pending.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string directory = pending.Pop();
+            foreach (string entry in Directory.EnumerateFileSystemEntries(directory))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (string.Equals(directory, workspaceRoot,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    (string.Equals(Path.GetFileName(entry),
+                        WorkspaceLayout.ImportsDirectoryName,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(Path.GetFileName(entry),
+                        WorkspaceLayout.TemplatesDirectoryName,
+                        StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                FileAttributes attributes = File.GetAttributes(entry);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    // The caller retains the existing project-scope guard;
+                    // no junction or symlink is followed here.
+                    yield return entry;
+                }
+                else if ((attributes & FileAttributes.Directory) != 0)
+                {
+                    pending.Push(entry);
+                }
+                else if (string.Equals(Path.GetExtension(entry), ".md",
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return entry;
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// Enumerates every child path without following a reparse directory.
     /// </summary>

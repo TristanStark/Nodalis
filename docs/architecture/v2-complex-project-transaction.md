@@ -297,3 +297,26 @@ une boucle sans allocation au lieu de construire une expression régulière
 à chaque ligne, ce qui limite les surcoûts sur les grands documents.
 Cette borne est un garde-fou de robustesse, pas une mesure de performance
 réelle ; les campagnes de tests Windows doivent encore mesurer les latences.
+
+
+## Parcours du workspace sans inventaire global (02/11/2026)
+
+Le préflight Markdown/HTML découvre désormais les sources potentielles
+**au fil du parcours** du workspace, sans construire ni trier une liste de
+tous ses chemins en mémoire. Les dossiers de sauvegardes d'import
+`Imports/` et de modèles `Templates/` sont exclus avant de parcourir leurs
+sous-arborescences, conformément à l'exclusion déjà en place par document.
+Les fichiers de ces dossiers ne peuvent donc plus consommer du temps de
+scan même lorsqu'ils contiennent des références malformées à un ancien
+projet. Aucun répertoire symbolique ou jonction n'est suivi.
+
+Cette optimisation ne modifie **pas** l'inventaire ordonné servant à
+l'empreinte du projet, la validation du plan avant application ni les
+sauvegardes/rollback. Les modifications de liens et blocages pertinents
+restent triés pour un diagnostic déterministe indépendamment de l'ordre
+de visite des fichiers.
+
+Régressions de workspace fictif : références malformées dans des
+sauvegardes d'imports et modèles ignorées, backlinks actifs conservés,
+annulation entre inventaire et lecture des liens, empreinte du projet
+inchangée. Qualification visuelle et mesures réelles Windows restantes.

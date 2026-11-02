@@ -246,6 +246,22 @@ internal static class ComplexMigrationTransactionSmokeTests
                     new string('x', 2048));
             }
 
+            // Import transaction backups and static templates are not live
+            // backlink sources; their malformed links must not block another
+            // project's migration or be scanned into memory.
+            string ignoredBackup = Path.Combine(workspace,
+                WorkspaceLayout.ImportsDirectoryName, "migration-backup");
+            string ignoredTemplates = Path.Combine(workspace,
+                WorkspaceLayout.TemplatesDirectoryName);
+            Directory.CreateDirectory(ignoredBackup);
+            Directory.CreateDirectory(ignoredTemplates);
+            await File.WriteAllTextAsync(Path.Combine(ignoredBackup, "Old.md"),
+                "[Broken](<Applications/Test/Projets/Complexe historique/" +
+                "Technique/Technique%20.md>)\n");
+            await File.WriteAllTextAsync(Path.Combine(ignoredTemplates, "Old.md"),
+                "[Broken](<Applications/Test/Projets/Complexe historique/" +
+                "Technique/Technique%20.md>)\n");
+
             InlineProgressTracker bulkProgress = new();
             ComplexProjectMigrationPlan independent = await planner.PrepareAsync(
                 projectRoot, progress: bulkProgress);
@@ -265,6 +281,30 @@ internal static class ComplexMigrationTransactionSmokeTests
             File.Delete(unrelatedEncoding);
             File.Delete(unrelatedLarge);
             Directory.Delete(otherApplication, true);
+            Directory.Delete(ignoredBackup, true);
+            Directory.Delete(ignoredTemplates, true);
+
+            // Cancel after the inventoried project has been read but
+            // before workspace backlink streaming starts. No partial plan is
+            // returned and no project bytes may change.
+            using CancellationTokenSource midScanCancelled = new();
+            CancelOnLinkPhaseProgress midScanProgress =
+                new(midScanCancelled);
+            bool midScanObserved = false;
+            try
+            {
+                await planner.PrepareAsync(projectRoot,
+                    midScanCancelled.Token, midScanProgress);
+            }
+            catch (OperationCanceledException)
+            {
+                midScanObserved = true;
+            }
+
+            Assert(midScanObserved &&
+                await ComplexProjectMigrationPlanService.FingerprintAsync(
+                    projectRoot) == originalHash,
+                "Cancellation between link-audit stages must be read-only.");
 
             // A very long unrelated line must not create a blocker or
             // force regex parsing merely because other applications exist.
@@ -1151,6 +1191,33 @@ internal static class ComplexMigrationTransactionSmokeTests
         }
 
         Assert(rejected, message);
+    }
+
+    /// <summary>
+    /// Deterministically cancels on the first backlink-scan notification.
+    /// This avoids asynchronous Progress T scheduling races in smoke tests.
+    /// </summary>
+    private sealed class CancelOnLinkPhaseProgress :
+        IProgress<ComplexMigrationPreflightProgress>
+    {
+        private readonly CancellationTokenSource _source;
+
+        /// <summary>Creates a synchronous cancellation probe.</summary>
+        /// <param name="source">Token source owned by the test.</param>
+        public CancelOnLinkPhaseProgress(CancellationTokenSource source)
+        {
+            _source = source;
+        }
+
+        /// <summary>Cancels as soon as the link stage is announced.</summary>
+        /// <param name="snapshot">Aggregate progress, without file names.</param>
+        public void Report(ComplexMigrationPreflightProgress snapshot)
+        {
+            if (snapshot.Phase == ComplexMigrationPreflightPhase.AnalyzeLinks)
+            {
+                _source.Cancel();
+            }
+        }
     }
 
     /// <summary>

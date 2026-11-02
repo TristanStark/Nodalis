@@ -168,8 +168,9 @@ public sealed class ComplexProjectMigrationLinkImpactService
         }
 
         ReportProgress();
-        foreach (string file in ComplexProjectMigrationPlanService.EnumerateTree(
-                     _workspaceRoot, cancellationToken))
+        foreach (string file in
+            ComplexProjectMigrationPlanService.EnumerateMigrationLinkSources(
+                _workspaceRoot, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
             FileAttributes attributes = File.GetAttributes(file);
@@ -195,15 +196,6 @@ public sealed class ComplexProjectMigrationLinkImpactService
 
             string workspaceRelative = Path.GetRelativePath(_workspaceRoot, file)
                 .Replace('\\', '/');
-            string firstPart = workspaceRelative.Split('/')[0];
-            if (string.Equals(firstPart, WorkspaceLayout.TemplatesDirectoryName,
-                    StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(firstPart, WorkspaceLayout.ImportsDirectoryName,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
             bool internalDocument = IsWithin(_projectRoot, file);
             // Stream the cheap external scope check with bounded memory.
             // A candidate is reopened fully only when its contents could
@@ -451,7 +443,9 @@ public sealed class ComplexProjectMigrationLinkImpactService
         return new ComplexMigrationLinkAudit(
             rewrites.OrderBy(item => item.WorkspaceRelativePath,
                 StringComparer.OrdinalIgnoreCase).ThenBy(item => item.Offset).ToArray(),
-            blockers.Distinct(StringComparer.OrdinalIgnoreCase).ToArray())
+            blockers.Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+                .ToArray())
         {
             ExternalRewrites = externalRewrites
                 .OrderBy(item => item.WorkspaceRelativePath,
