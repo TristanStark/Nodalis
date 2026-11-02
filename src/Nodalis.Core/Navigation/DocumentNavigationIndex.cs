@@ -53,8 +53,9 @@ public sealed class DocumentNavigationIndex<TNode> where TNode : class
     public TNode? Resolve(Guid id, string path)
     {
         bool hasId = _byId.TryGetValue(id, out Match byId);
+        Match byPath = default;
         bool hasPath = !string.IsNullOrWhiteSpace(path) &&
-            _byPath.TryGetValue(path, out Match byPath);
+            _byPath.TryGetValue(path, out byPath);
         if (hasId && hasPath)
         {
             return byId.Position <= byPath.Position ? byId.Node : byPath.Node;
