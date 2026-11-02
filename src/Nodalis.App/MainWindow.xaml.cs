@@ -282,7 +282,7 @@ public partial class MainWindow : Window
                 await CleanupRecentHistoryAsync();
                 await RefreshGlossaryContextAsync(
                     _selectedNode?.FullPath ?? _root.FullPath);
-                UpdateGlossaryAnnotations();
+                await UpdateGlossaryAnnotationsAsync();
                 // One shared projection for Home, with stale-result protection.
                 // No task/milestone scan is necessary if startup restores an
                 // editor instead of leaving the Home dashboard visible.
@@ -5420,6 +5420,10 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task UpdateGlossaryAnnotationsAsync()
     {
+        // Every invocation owns a new publication revision. In particular,
+        // independent saves or glossary edits on the same tab must not race.
+        _glossaryAnnotationRevision++;
+        _glossaryMatchCancellation?.Cancel();
         if (_documentSession is null || _glossaryAdorner is null ||
             _activeDocumentTab is null)
         {
@@ -5464,29 +5468,6 @@ public partial class MainWindow : Window
 
         _glossaryMatches = matches;
         _glossaryAdorner.SetMatches(matches);
-    }
-
-    /// <summary>
-    /// Performs the <c>UpdateGlossaryAnnotations</c> operation.
-    /// </summary>
-    private void UpdateGlossaryAnnotations()
-    {
-        _glossaryAnnotationRevision++;
-        _glossaryMatchCancellation?.Cancel();
-        if (_documentSession is null ||
-            _glossaryAdorner is null)
-        {
-            _glossaryMatches = [];
-            _glossaryAdorner?.SetMatches([]);
-            return;
-        }
-
-        _glossaryMatches = GlossaryTextMatcher.Match(
-            MarkdownEditorTextBox.Text,
-            _glossaryEntries);
-
-        _glossaryAdorner.SetMatches(
-            _glossaryMatches);
     }
 
     /// <summary>
@@ -5966,7 +5947,7 @@ public partial class MainWindow : Window
             await RefreshGlossaryContextAsync(
                 _selectedNode?.FullPath ?? _root.FullPath);
 
-            UpdateGlossaryAnnotations();
+            await UpdateGlossaryAnnotationsAsync();
 
             StatusText.Text =
                 $"Ajouté au glossaire · {dialog.Draft.Term} · {scope.DisplayName}";
@@ -6667,7 +6648,7 @@ public partial class MainWindow : Window
             await RefreshLinkIndexAndContextAsync();
             await RefreshGlossaryContextAsync(
                 sourcePath);
-            UpdateGlossaryAnnotations();
+            await UpdateGlossaryAnnotationsAsync();
             RenderPreview();
         }
 
@@ -6753,7 +6734,7 @@ public partial class MainWindow : Window
             await RefreshLinkIndexAndContextAsync();
             await RefreshGlossaryContextAsync(
                 sourcePath);
-            UpdateGlossaryAnnotations();
+            await UpdateGlossaryAnnotationsAsync();
             RefreshDocumentPropertiesContext(
                 MarkdownEditorTextBox.Text);
             RenderPreview();
@@ -6832,7 +6813,7 @@ public partial class MainWindow : Window
 
             await RefreshGlossaryContextAsync(
                 sourcePath);
-            UpdateGlossaryAnnotations();
+            await UpdateGlossaryAnnotationsAsync();
             RefreshDocumentPropertiesContext(
                 MarkdownEditorTextBox.Text);
             RenderPreview();

@@ -665,3 +665,14 @@ par caractère, soit une occupation auxiliaire théorique environ
 huit fois plus compacte pour les longs Markdown. La priorité du
 terme le plus long, les frontières de mot et les positions d'éditeur
 restent inchangées et couvertes par des tests synthétiques.
+
+
+### Retrait du recalcul synchrone du glossaire (02/11/2026)
+
+Les événements de sauvegarde groupée, création de terme, import et
+initialisation ne calculent plus `GlossaryTextMatcher.Match` sur
+le Dispatcher WPF. Ils utilisent tous le même worker annulable que
+l'aperçu, avec un numéro de révision propre à chaque requête : une
+correspondance lancée avant un changement de document, une nouvelle
+révision ou un nouveau catalogue ne peut plus écraser l'affichage
+récent. Le point d'entrée synchrone a été supprimé.

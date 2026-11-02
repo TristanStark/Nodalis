@@ -1181,7 +1181,7 @@ public partial class MainWindow
                     await RefreshGlossaryContextAsync(foreground.FullPath);
                     if (ReferenceEquals(foreground, _activeDocumentTab))
                     {
-                        UpdateGlossaryAnnotations();
+                        await UpdateGlossaryAnnotationsAsync();
                     }
                 }
             }
