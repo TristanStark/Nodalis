@@ -179,6 +179,48 @@ internal static class ComplexMigrationTransactionSmokeTests
                 "Cross-project backlink must be planned as an explicit, exact replacement.");
             File.Delete(backlink);
 
+            // A migration concerns this project only: malformed links,
+            // unknown labels and invalid encodings in another application
+            // must never block an unrelated project.
+            string otherApplication = Path.Combine(workspace,
+                "Applications", "OtherApp", "Projets", "Independent");
+            Directory.CreateDirectory(otherApplication);
+            string unrelatedWiki = Path.Combine(otherApplication, "Notes.md");
+            string unrelatedBrokenTarget = Path.Combine(otherApplication,
+                "Encoded.md");
+            string unrelatedEncoding = Path.Combine(otherApplication,
+                "Legacy.md");
+            await File.WriteAllTextAsync(unrelatedWiki,
+                "# Autre projet\\n\\n[[Document absent]]\\n[Inconnu][absent]\\n");
+            await File.WriteAllTextAsync(unrelatedBrokenTarget,
+                "[Invalide](<Source%20encodée.md>)\\n");
+            await File.WriteAllBytesAsync(unrelatedEncoding,
+                [0x23, 0x20, 0xC3, 0x28, 0x0A]);
+            ComplexProjectMigrationPlan independent = await planner.PrepareAsync(
+                projectRoot);
+            Assert(independent.CanExecute &&
+                independent.Blockers.Count == 0 &&
+                independent.ExternalLinkRewrites.Count == 0,
+                "Unrelated application Markdown cannot block migration.");
+            File.Delete(unrelatedWiki);
+            File.Delete(unrelatedBrokenTarget);
+            File.Delete(unrelatedEncoding);
+            Directory.Delete(otherApplication, true);
+
+            // Conversely, an unsupported external backlink to a moved
+            // destination must still fail closed, even in another application.
+            string suspectBacklink = Path.Combine(workspace, "Suspect.md");
+            await File.WriteAllTextAsync(suspectBacklink,
+                "[Lien](<Applications/Test/Projets/Complexe historique/" +
+                "Technique/Technique%20.md>)\\n");
+            ComplexProjectMigrationPlan suspect = await planner.PrepareAsync(
+                projectRoot);
+            Assert(!suspect.CanExecute &&
+                suspect.Blockers.Any(item =>
+                    item.Contains("Références Markdown", StringComparison.Ordinal)),
+                "An unsupported backlink to a moved target must stay blocking.");
+            File.Delete(suspectBacklink);
+
             // Explicit Markdown reference definitions (including image links)
             // are rewritten at the definition, never at their usage sites.
             // Both project-local and external backlinks remain byte-reversible.

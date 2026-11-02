@@ -113,10 +113,17 @@ public sealed class ComplexProjectMigrationLinkImpactService
         {
             cancellationToken.ThrowIfCancellationRequested();
             FileAttributes attributes = File.GetAttributes(file);
+            // Only the migrated project is copied. Other applications may
+            // legitimately contain junctions; never follow or rewrite them.
             if ((attributes & FileAttributes.ReparsePoint) != 0)
             {
-                throw new InvalidDataException(
-                    "Une jonction du workspace empêche de qualifier les backlinks.");
+                if (IsWithin(_projectRoot, file))
+                {
+                    throw new InvalidDataException(
+                        "Une jonction du projet empêche la migration.");
+                }
+
+                continue;
             }
 
             if ((attributes & FileAttributes.Directory) != 0 ||
@@ -137,6 +144,7 @@ public sealed class ComplexProjectMigrationLinkImpactService
                 continue;
             }
 
+            bool internalDocument = IsWithin(_projectRoot, file);
             byte[] bytes = await File.ReadAllBytesAsync(file, cancellationToken);
             string content;
             try
@@ -145,16 +153,23 @@ public sealed class ComplexProjectMigrationLinkImpactService
             }
             catch (DecoderFallbackException)
             {
-                blockers.Add(workspaceRelative + " : encodage non UTF-8 à qualifier.");
+                // An unrelated Markdown owned by another application has no
+                // bearing on this migration. Only suspected backlinks to a
+                // moved destination must stop the operation for review.
+                if (internalDocument || MayContainMovedDestination(bytes))
+                {
+                    blockers.Add(workspaceRelative +
+                        " : encodage non UTF-8 d'une référence concernée.");
+                }
+
                 continue;
             }
 
             string hash = Convert.ToHexString(SHA256.HashData(bytes));
-            bool internalDocument = IsWithin(_projectRoot, file);
             string projectRelative = internalDocument
                 ? Path.GetRelativePath(_projectRoot, file).Replace('\\', '/')
                 : string.Empty;
-            HashSet<string> referenceDefinitions = new(
+            Dictionary<string, bool> referenceDefinitions = new(
                 StringComparer.OrdinalIgnoreCase);
             List<(string Label, int Line)> referenceUsages = [];
             bool inFence = false;
@@ -211,6 +226,11 @@ public sealed class ComplexProjectMigrationLinkImpactService
                 if (!inFence)
                 {
                     string context = workspaceRelative + ":" + lineNumber;
+                    // External Markdown is relevant only when its literal
+                    // target may lead to one of this project's moved paths.
+                    // The project itself remains subject to strict validation.
+                    bool relevant = internalDocument ||
+                        MayReferenceMovedDestination(line);
                     Match definition = SimpleReferenceDefinitionPattern.Match(line);
                     MatchCollection usages = ReferenceUsagePattern.Matches(line);
                     MatchCollection simpleUsages =
@@ -220,17 +240,29 @@ public sealed class ComplexProjectMigrationLinkImpactService
                         usages.Count != simpleUsages.Count ||
                         (definition.Success && line.Contains((char)96)))
                     {
-                        blockers.Add(context + " : référence wiki/indirecte non qualifiée.");
+                        if (relevant)
+                        {
+                            blockers.Add(context +
+                                " : référence wiki/indirecte non qualifiée.");
+                        }
                     }
                     else
                     {
                         if (definition.Success)
                         {
                             string label = definition.Groups["label"].Value;
-                            if (!referenceDefinitions.Add(label))
+                            if (referenceDefinitions.TryGetValue(label,
+                                out bool previousRelevant))
                             {
-                                blockers.Add(context + " : définition Markdown dupliquée : " +
-                                    label);
+                                if (relevant || previousRelevant)
+                                {
+                                    blockers.Add(context +
+                                        " : définition Markdown dupliquée : " + label);
+                                }
+                            }
+                            else
+                            {
+                                referenceDefinitions.Add(label, relevant);
                             }
                         }
                         else
@@ -259,7 +291,10 @@ public sealed class ComplexProjectMigrationLinkImpactService
 
                         if (ambiguous)
                         {
-                            blockers.Add(context + " : syntaxe de lien ambiguë.");
+                            if (relevant)
+                            {
+                                blockers.Add(context + " : syntaxe de lien ambiguë.");
+                            }
                         }
                         else
                         {
@@ -272,7 +307,10 @@ public sealed class ComplexProjectMigrationLinkImpactService
                                 LinkChange change = EvaluateTarget(file, capture.Value);
                                 if (change.Blocker is not null)
                                 {
-                                    blockers.Add(context + " : " + change.Blocker);
+                                    if (relevant)
+                                    {
+                                        blockers.Add(context + " : " + change.Blocker);
+                                    }
                                 }
                                 else if (change.Replacement is not null)
                                 {
@@ -299,7 +337,9 @@ public sealed class ComplexProjectMigrationLinkImpactService
 
             foreach ((string label, int usageLine) in referenceUsages)
             {
-                if (!referenceDefinitions.Contains(label))
+                // Unknown labels in other applications do not identify a
+                // backlink to the project being moved. Never block on them.
+                if (internalDocument && !referenceDefinitions.ContainsKey(label))
                 {
                     blockers.Add(workspaceRelative + ":" + usageLine +
                         " : référence Markdown sans définition simple : " + label);
@@ -317,6 +357,64 @@ public sealed class ComplexProjectMigrationLinkImpactService
                     StringComparer.OrdinalIgnoreCase)
                 .ThenBy(item => item.Offset).ToArray()
         };
+    }
+
+    /// <summary>
+    /// A malformed external link is a possible blocker only when its text
+    /// names a destination being moved in this particular project. Valid
+    /// external backlinks are still resolved through EvaluateTarget, even
+    /// when they use relative dot segments.
+    /// </summary>
+    /// <param name="line">Untrusted Markdown source line.</param>
+    /// <returns>Whether the line may reference a candidate move.</returns>
+    private bool MayReferenceMovedDestination(string line)
+    {
+        string normalized = line.Replace('\\', '/');
+        string projectName = Path.GetFileName(_projectRoot);
+        string encodedProjectName = Uri.EscapeDataString(projectName);
+        foreach (ComplexMigrationMove move in _moves)
+        {
+            string from = move.From.Replace('\\', '/');
+            foreach (string name in new[] { projectName, encodedProjectName })
+            {
+                foreach (string candidate in new[]
+                {
+                    name + "/" + from,
+                    name + "/" + Uri.EscapeDataString(from)
+                })
+                {
+                    if (normalized.Contains(candidate,
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Detects possible affected external links in undecodable Markdown
+    /// without disqualifying every unrelated non-UTF8 source in the workspace.
+    /// </summary>
+    /// <param name="bytes">Untrusted source bytes.</param>
+    /// <returns>Whether the source may reference a moved path.</returns>
+    private bool MayContainMovedDestination(byte[] bytes)
+    {
+        string projectName = Path.GetFileName(_projectRoot);
+        foreach (ComplexMigrationMove move in _moves)
+        {
+            string target = projectName + "/" + move.From.Replace('\\', '/');
+            byte[] marker = Encoding.UTF8.GetBytes(target);
+            if (bytes.AsSpan().IndexOf(marker) >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Legacy convenience API for consumers needing blockers only.</summary>

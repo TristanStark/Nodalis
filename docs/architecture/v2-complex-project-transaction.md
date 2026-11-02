@@ -166,3 +166,27 @@ espaces dans le chemin entre chevrons, publication, rollback octet par
 octet, définition dupliquée et référence manquante. Les références
 wiki `[[...]]`, les syntaxes abrégées complexes et les adresses encodées
 ne sont pas interprétées automatiquement.
+
+
+## Périmètre de qualification des backlinks — novembre 2026
+
+Le précontrôle de migration ne doit pas considérer les documents d'autres
+applications comme s'ils faisaient partie du projet migré. Les liens internes
+au projet cible restent inspectés de manière stricte. Hors du projet :
+
+- les backlinks **valides** vers une destination réellement déplacée sont
+  toujours proposés en réécriture et protégés dans la transaction/rollback ;
+- une syntaxe ambiguë ou non prise en charge ne bloque que si son texte peut
+  concerner un chemin déplacé de ce projet ;
+- les liens cassés, références Markdown indéfinies, fichiers non UTF-8 et
+  jonctions **sans rapport** ne bloquent plus cette migration ;
+- un lien externe suspect vers un chemin effectivement déplacé reste bloquant
+  lorsqu'il ne peut pas être réécrit sans ambiguïté.
+
+Ce filtrage n'autorise pas à supprimer ou éditer des backlinks non qualifiés.
+Le journal de transaction continue de vérifier les instantanés et empreintes
+des fichiers effectivement réécrits, avec contrôle des changements concurrents.
+
+Recette : projet cible dans Application A, Markdown malformé dans Application B,
+backlink réel dans Application B, source UTF-8 et source non UTF-8, absence
+d'écriture pendant l'aperçu et rollback complet après exécution.
