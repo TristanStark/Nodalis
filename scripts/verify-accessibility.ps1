@@ -93,6 +93,7 @@ $requirementsCodePath = Join-Path $appRoot "MainWindow.Requirements.cs"
 $requirementsCode = Get-Content -Raw -LiteralPath $requirementsCodePath
 if (-not $mainWindowCode.Contains('Id = "project.requirement.new-v2"') -or
     -not $requirementsCode.Contains('GetArchiveContextProject()') -or
+    -not $requirementsCode.Contains('Task.Run(') -or
     -not $requirementsCode.Contains('service.CreateAsync(') -or
     -not $requirementsCode.Contains('MessageBoxButton.YesNo')) {
     $failures.Add("Requirement creation must stay in the palette and require a scoped, explicit human confirmation.")

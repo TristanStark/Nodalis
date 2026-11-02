@@ -70,8 +70,11 @@ public partial class MainWindow
         }
 
         ProjectRequirementRegistryService service = new(_root.FullPath);
-        ProjectRequirementCatalog catalog = await service.ListAsync(
-            project.FullPath);
+        string selectedProjectPath = project.FullPath;
+        // File enumeration, UTF-8 decoding and Markdown validation can all
+        // be expensive on real workspaces. Keep them off the WPF Dispatcher.
+        ProjectRequirementCatalog catalog = await Task.Run(
+            () => service.ListAsync(selectedProjectPath));
         if (catalog.NextReference is null)
         {
             MessageBox.Show(this,
@@ -104,10 +107,16 @@ public partial class MainWindow
 
         // No overwrite and no unreviewed reallocation if another instance
         // created the displayed EXI reference in the meantime.
-        ProjectRequirementEntry created = await service.CreateAsync(
-            project.FullPath, title, expected);
+        ProjectRequirementEntry created = await Task.Run(
+            () => service.CreateAsync(selectedProjectPath, title, expected));
         WorkspaceLinkIndexService.NotifyWorkspaceChanged(_root.FullPath);
-        await OpenProjectJourneySourceAsync(created.RelativePath);
+        // Creation is bound to the explicitly confirmed project, even if the
+        // user navigated to another application while the worker ran.
+        // Do not steal focus from a different project after publication.
+        if (GetArchiveContextProject()?.Id == project.Id)
+        {
+            await OpenProjectJourneySourceAsync(created.RelativePath);
+        }
         StatusText.Text = "Exigence créée · " + created.Card.Reference +
             " · brouillon non vérifié.";
     }

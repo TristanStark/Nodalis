@@ -63,3 +63,9 @@ append-only, liens critères→tests et matrice de traçabilité distinguant
 couverture, exécution, conformité et décision.
 
 Aucun modèle d'IA ni accès réseau requis.
+
+La lecture du registre et la création sont exécutées sur un worker :
+l'énumération de fichiers et le parsing du Markdown ne bloquent pas
+le Dispatcher WPF. Si l'utilisateur navigue ailleurs pendant la création,
+le nouveau document reste enregistré au projet approuvé sans détourner
+le focus vers un autre projet.
