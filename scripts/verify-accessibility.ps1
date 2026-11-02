@@ -82,6 +82,20 @@ if (-not $stickyWorktree.Contains('TrackOperation("Worktree · en-têtes persist
     $failures.Add("Worktree must keep privacy-safe duration probes for scroll, filtering and shortcuts.")
 }
 
+$dashboardContextStart = $appCode.IndexOf('private async Task TrackRecentContextAsync(')
+$dashboardContextEnd = $appCode.IndexOf('private LinkTargetEntry? FindIndexedTarget(', $dashboardContextStart)
+if ($dashboardContextStart -lt 0 -or $dashboardContextEnd -lt 0) {
+    $failures.Add("Recent-item handling must remain available for tab navigation.")
+}
+else {
+    $recentContext = $appCode.Substring(
+        $dashboardContextStart, $dashboardContextEnd - $dashboardContextStart)
+    if (-not $recentContext.Contains('DashboardHost.Visibility == Visibility.Visible') -or
+        -not $recentContext.Contains('TrackOperation("Onglets · historique récent")')) {
+        $failures.Add("Hidden dashboards must not be rebuilt on every document activation.")
+    }
+}
+
 $requiredThemeTokens = @(
     'NodalisWindowStyle',
     'NodalisKeyboardFocusVisual',

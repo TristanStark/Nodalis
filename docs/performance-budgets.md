@@ -480,3 +480,24 @@ Les projets, favoris et récents conservent leur modèle de persistance.
 Tests Core synthétiques : collisions, chemins en majuscules, sous-projets
 imbriqués et absence de projet ; qualification réelle des workflows
 de changement d'onglets nécessaire sous Windows.
+
+
+### Ne plus reconstruire l'accueil pendant l'édition (02/11/2026)
+
+`TrackRecentContextAsync`, appelé lors des changements d'onglet,
+reconstruisait systématiquement la page d'accueil après avoir persisté
+l'historique. Or `RefreshDashboard()` prépare les listes de favoris,
+récents, recherches et déclenche la projection des vues sauvegardées,
+même lorsque l'utilisateur travaille dans l'éditeur.
+
+Cette reconstruction est maintenant effectuée uniquement si l'accueil
+est visible, aussi bien après l'enregistrement d'un récent que lors
+d'un changement de favori. `ShowDashboard()` effectue déjà un
+rafraîchissement complet lorsque l'utilisateur rouvre l'accueil :
+**aucune donnée persistée n'est perdue** et aucun cache de l'accueil
+n'est laissé volontairement périmé. Les raccourcis Worktree sont mis
+à jour indépendamment, même lorsque l'accueil est masqué.
+
+Une nouvelle durée locale `Onglets · historique récent` permet de
+distinguer la persistance de l'historique et son contexte des coûts
+de rendu d'un onglet. La mesure est optionnelle et anonyme.

@@ -3761,7 +3761,11 @@ public partial class MainWindow : Window
         await _preferencesStore.SaveAsync(
             _preferences);
 
-        RefreshDashboard();
+        if (DashboardHost.Visibility == Visibility.Visible)
+        {
+            RefreshDashboard();
+        }
+
         RefreshWorktreeShortcutLists();
 
         StatusText.Text = removed
@@ -3777,6 +3781,8 @@ public partial class MainWindow : Window
     private async Task TrackRecentContextAsync(
             NavigationNodeViewModel node)
     {
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Onglets · historique récent");
         if (_linkIndex.Targets.Count == 0)
         {
             await RefreshLinkIndexAsync();
@@ -3853,7 +3859,14 @@ public partial class MainWindow : Window
         await _preferencesStore.SaveAsync(
             _preferences);
 
-        RefreshDashboard();
+        // The dashboard rebuild includes saved-view projection work and has
+        // no consumer while an editor tab is active. ShowDashboard() always
+        // repopulates it when brought back to the foreground.
+        if (DashboardHost.Visibility == Visibility.Visible)
+        {
+            RefreshDashboard();
+        }
+
         RefreshWorktreeShortcutLists();
     }
 
