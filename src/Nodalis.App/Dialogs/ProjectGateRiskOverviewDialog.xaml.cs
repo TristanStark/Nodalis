@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
