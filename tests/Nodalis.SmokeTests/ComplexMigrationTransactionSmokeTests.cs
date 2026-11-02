@@ -191,9 +191,9 @@ internal static class ComplexMigrationTransactionSmokeTests
             string unrelatedEncoding = Path.Combine(otherApplication,
                 "Legacy.md");
             await File.WriteAllTextAsync(unrelatedWiki,
-                "# Autre projet\\n\\n[[Document absent]]\\n[Inconnu][absent]\\n");
+                "# Autre projet\n\n[[Document absent]]\n[Inconnu][absent]\n");
             await File.WriteAllTextAsync(unrelatedBrokenTarget,
-                "[Invalide](<Source%20encodée.md>)\\n");
+                "[Invalide](<Source%20encodée.md>)\n");
             await File.WriteAllBytesAsync(unrelatedEncoding,
                 [0x23, 0x20, 0xC3, 0x28, 0x0A]);
             ComplexProjectMigrationPlan independent = await planner.PrepareAsync(
@@ -212,7 +212,7 @@ internal static class ComplexMigrationTransactionSmokeTests
             string suspectBacklink = Path.Combine(workspace, "Suspect.md");
             await File.WriteAllTextAsync(suspectBacklink,
                 "[Lien](<Applications/Test/Projets/Complexe historique/" +
-                "Technique/Technique%20.md>)\\n");
+                "Technique/Technique%20.md>)\n");
             ComplexProjectMigrationPlan suspect = await planner.PrepareAsync(
                 projectRoot);
             Assert(!suspect.CanExecute &&
