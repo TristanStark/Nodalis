@@ -97,9 +97,10 @@ if (-not $documentTabsCode.Contains('_glossaryAdorner?.SetMatches([]);') -or
     $failures.Add("Switching documents must clear stale glossary highlights and preview.")
 }
 
-if (-not $mainWindowCode.Contains('ResolveScopesAsync(') -or
-    -not $mainWindowCode.Contains('contextPath, cancellation.Token') -or
-    -not $mainWindowCode.Contains('scope, cancellation.Token') -or
+if (-not $mainWindowCode.Contains('await Task.Run(') -or
+    -not $mainWindowCode.Contains('contextPath,') -or
+    -not $mainWindowCode.Contains('cancellation.Token).ConfigureAwait(false)') -or
+    -not $mainWindowCode.Contains('scope, cancellation.Token).ConfigureAwait(false)') -or
     -not $documentTabsCode.Contains('_glossaryContextCancellation?.Cancel();')) {
     $failures.Add("Stale tab glossary file reads must accept cancellation throughout all I/O.")
 }

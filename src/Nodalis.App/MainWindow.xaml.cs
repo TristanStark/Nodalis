@@ -5367,16 +5367,28 @@ public partial class MainWindow : Window
             // This can read multiple manifest and Markdown files. A tab
             // switch cancels obsolete I/O rather than merely suppressing
             // its final result after all files have been read.
-            IReadOnlyList<GlossaryScope> scopes =
-                await _glossaryService.ResolveScopesAsync(
-                    _root.FullPath, contextPath, cancellation.Token);
-            List<GlossaryEntry> entries = [];
-            foreach (GlossaryScope scope in scopes)
-            {
-                cancellation.Token.ThrowIfCancellationRequested();
-                entries.AddRange(await _glossaryService.LoadEntriesAsync(
-                    scope, cancellation.Token));
-            }
+            // Scope discovery also reads JSON manifests, while Markdown
+            // glossary parsing is synchronous after each file read. Keep
+            // the entire pipeline off the UI Dispatcher, not just I/O.
+            string workspaceRoot = _root.FullPath;
+            (IReadOnlyList<GlossaryScope> scopes,
+                IReadOnlyList<GlossaryEntry> entries) = await Task.Run(
+                async () =>
+                {
+                    IReadOnlyList<GlossaryScope> resolved =
+                        await _glossaryService.ResolveScopesAsync(
+                            workspaceRoot, contextPath,
+                            cancellation.Token).ConfigureAwait(false);
+                    List<GlossaryEntry> collected = [];
+                    foreach (GlossaryScope scope in resolved)
+                    {
+                        cancellation.Token.ThrowIfCancellationRequested();
+                        collected.AddRange(await _glossaryService.LoadEntriesAsync(
+                            scope, cancellation.Token).ConfigureAwait(false));
+                    }
+
+                    return (resolved, (IReadOnlyList<GlossaryEntry>)collected);
+                }, cancellation.Token);
 
             if (revision != _glossaryContextRevision ||
                 cancellation.IsCancellationRequested)

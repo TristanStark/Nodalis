@@ -600,3 +600,19 @@ La fenêtre annule aussi ces travaux à sa fermeture. Les tests
 automatisés exercent l'annulation des lectures de scope et de fichier
 sur un workspace fictif. Aucun chemin utilisateur ni contenu Markdown
 n'entre dans les mesures de durée.
+
+
+### Parsing des scopes de glossaire hors du Dispatcher (02/11/2026)
+
+L'intégralité de la résolution du contexte (recherche des manifestes
+projet/application, choix des scopes, lecture et **parsing** du Markdown
+du glossaire) s'exécute désormais avec `Task.Run` et
+`ConfigureAwait(false)`. Le Dispatcher ne reçoit que les listes de
+scopes et d'entrées terminées, après validation de l'annulation et du
+numéro de révision. Le contrôle de correspondances dans l'éditeur
+reste indépendant et déjà délégué à un worker.
+
+Le smoke test utilise un glossaire de **250 termes fictifs** :
+l'inventaire des termes, les définitions et les numéros de ligne
+doivent être identiques avec et sans worker. Aucune donnée métier ni
+capture utilisateur n'entre dans les fixtures.

@@ -2583,6 +2583,32 @@ static async Task VerifyGlossaryAsync(string root)
     await AssertThrowsAsync<OperationCanceledException>(
         () => glossary.LoadEntriesAsync(scopes[0], canceledContext.Token),
         "Canceled glossary file reads must stop before publishing entries.");
+
+    // A large, synthetic local glossary must parse identically when its
+    // manifest traversal and content reads happen on a worker.
+    string largeGlossaryPath = Path.Combine(project.ProjectDirectory,
+        "Glossaire-parsing-fixture.md");
+    string largeGlossaryContent = "# Glossaire fictif\n\n" +
+        string.Concat(Enumerable.Range(0, 250).Select(index =>
+            $"## Mot {index:D4}\n\n**Définition :** Définition {index:D4}\n\n"));
+    await File.WriteAllTextAsync(largeGlossaryPath,
+        largeGlossaryContent);
+    GlossaryScope largeGlossaryScope = scopes[0] with
+    {
+        FilePath = largeGlossaryPath
+    };
+    IReadOnlyList<GlossaryEntry> directEntries =
+        await glossary.LoadEntriesAsync(largeGlossaryScope);
+    IReadOnlyList<GlossaryEntry> workerEntries = await Task.Run(
+        () => glossary.LoadEntriesAsync(largeGlossaryScope));
+    Assert(directEntries.Count == 250 &&
+        directEntries.Count == workerEntries.Count &&
+        directEntries.Zip(workerEntries).All(pair =>
+            pair.First.Term == pair.Second.Term &&
+            pair.First.Definition == pair.Second.Definition &&
+            pair.First.LineNumber == pair.Second.LineNumber),
+        "Background glossary scope parsing must preserve all entries and line offsets.");
+    File.Delete(largeGlossaryPath);
 }
 
 static async Task VerifyAttachmentsAsync(string root)
