@@ -322,7 +322,40 @@ Ces liens ne valident ni les Gates, ni les risques, ni les tâches,
 ni les mesures, ni les levées de réserve. Voir
 [contrat complet et recette Windows](v2-gate-risk-links.md).
 
-## 10. Travaux restants (#202)
+## 10. Synthèse transversale des réserves et des risques (02/11/2026)
+
+Le registre **Gates → Synthèse réserves / risques…** permet une
+consultation projet en lecture seule. Deux lectures explicitement
+demandées (registre Gate et catalogue RIS canonique) produisent
+une projection indexée ; **filtrer, chercher, sélectionner et défiler
+ne provoquent aucun nouveau scan du workspace ou du Worktree**.
+
+La synthèse distingue les réserves ouvertes/levées, les réserves
+ouvertes sans risque associé, les RIS de lien actif dont la source
+est supprimée/invalide/dupliquée, les mesures humainement déclarées
+bloquées/non terminées, et les scores initiaux/résiduels non évalués.
+Une évaluation absente ne devient jamais une criticité « faible ».
+Chaque fiche RIS affiche le nombre de **références GUID de tâches
+liées au plan courant** : ce nombre n'indique ni leur existence
+actuelle, ni leur état d'exécution.
+
+Les boutons **« Ouvrir le dossier Gate »** et
+**« Ouvrir la fiche RIS »** naviguent uniquement vers les
+identités historiques ou les sources existantes et vérifiées.
+Aucun lien n'est créé/levé automatiquement. Les anciennes
+dissociations restent historisées mais ne sont pas comptées
+comme des liens actifs. Les réserves levées conservent leurs
+risques liés tant qu'aucun avis humain distinct ne les dissocie.
+
+La suite `ProjectGateRiskOverviewSmokeTests` vérifie la synthèse
+en projet réel : réserves ouvertes et levées, RIS bloqués et non
+évalués, tâche liée par GUID, absence de RIS, suppression et
+duplication de source, dissociation ciblée, et
+**absence d'écriture lors des projections**.
+
+Voir [contrat et qualification de cette vue](v2-gate-risk-overview.md).
+
+## 11. Travaux restants (#202)
 
 Les incréments actuels n'épuisent pas l'EPIC. Restent notamment :
 l'extension éventuelle de la vue à tout le workspace, les liens

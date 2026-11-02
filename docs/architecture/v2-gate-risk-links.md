@@ -115,3 +115,17 @@ via leurs GUID persistants, gestion des preuves du déploiement,
 et requalification conditionnelle par décision humaine.
 
 **Aucun merge vers `main`, tag ou release 2.0 avant la qualification.**
+
+
+## 6. Synthèse transversale réserves / RIS (02/11/2026)
+
+La vue **Gates → Synthèse réserves / risques…** agrège, en lecture
+seule et seulement à la demande, les événements de réserves et liens
+Gate avec le catalogue de RIS structuré. Elle affiche les RIS
+orphelins, les mesures explicitement bloquées/non terminées et les
+évaluations non renseignées sans inférer la levée d'une réserve.
+Les relations historiques déliées restent dans l'audit, mais ne
+sont pas considérées actives.
+
+Documentation, filtres, tests et recette Windows :
+[v2-gate-risk-overview.md](v2-gate-risk-overview.md).

@@ -402,3 +402,17 @@ projet, de la décision et de la réserve. Depuis le RIS, le bouton
 et navigue à la décision d'origine. Voir
 [liens RIS ↔ réserves Gates](v2-gate-risk-links.md).
 Aucun merge vers `main`, tag ni release 2.0.
+
+
+### Consultation transversale réserves / risques (02/11/2026)
+
+Depuis le registre des Gates, la commande **« Synthèse réserves / risques… »**
+réunit les réserves et les fiches RIS avec leurs GUID, et expose les
+sources orphelines, les mesures bloquées et les évaluations manquantes.
+L'ensemble est en lecture seule : le statut de mesure reste
+**humain**, et les références de tâches liées ne démontrent
+aucune exécution ni aucune requalification de Go/No-Go.
+
+La navigation est possible vers la décision/réserve d'origine ou
+vers la source Markdown RIS résolue. Voir
+[v2-gate-risk-overview.md](v2-gate-risk-overview.md).
