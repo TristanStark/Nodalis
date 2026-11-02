@@ -266,6 +266,19 @@ internal static class ComplexMigrationTransactionSmokeTests
             File.Delete(unrelatedLarge);
             Directory.Delete(otherApplication, true);
 
+            // A very long unrelated line must not create a blocker or
+            // force regex parsing merely because other applications exist.
+            string longUnrelatedLine = Path.Combine(workspace,
+                "Unrelated large note.md");
+            await File.WriteAllTextAsync(longUnrelatedLine,
+                new string('[', 40_000) + " unrelated document");
+            ComplexProjectMigrationPlan largeUnrelated =
+                await planner.PrepareAsync(projectRoot);
+            Assert(largeUnrelated.CanExecute &&
+                largeUnrelated.Blockers.Count == 0,
+                "Long unrelated Markdown must not be parsed as migration links.");
+            File.Delete(longUnrelatedLine);
+
             // Conversely, an unsupported external backlink to a moved
             // destination must still fail closed, even in another application.
             string suspectBacklink = Path.Combine(workspace, "Suspect.md");

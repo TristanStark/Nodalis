@@ -281,3 +281,19 @@ La suite de tests vérifie l'ordre des étapes, l'accord des comptes avec
 le plan figé, la fréquence bornée des notifications et le comportement
 de l'annulation. La fluidité de la fenêtre doit encore être qualifiée
 visuellement sur Windows, idéalement en parallèle de mesures p50/p95/p99.
+
+
+## Bornage des analyses de liens sur les documents volumineux
+
+Les expressions régulières du préflight de migration disposent désormais
+d'une limite de traitement de **500 ms par opération regex et par ligne**
+(dans le worker, pas sur le Dispatcher). Une ligne suspecte de la cible
+qui dépasse cette limite devient un blocage **à requalifier**, jamais une
+réécriture partielle ou supposée sûre. Une ligne externe sans rapport
+ne peut pas bloquer par ce mécanisme.
+
+Le comptage conservateur des délimiteurs Markdown `](` utilise maintenant
+une boucle sans allocation au lieu de construire une expression régulière
+à chaque ligne, ce qui limite les surcoûts sur les grands documents.
+Cette borne est un garde-fou de robustesse, pas une mesure de performance
+réelle ; les campagnes de tests Windows doivent encore mesurer les latences.

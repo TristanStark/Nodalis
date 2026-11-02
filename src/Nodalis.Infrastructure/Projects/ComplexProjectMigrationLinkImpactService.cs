@@ -49,35 +49,47 @@ public sealed record ComplexMigrationLinkAudit(
 /// </summary>
 public sealed class ComplexProjectMigrationLinkImpactService
 {
+    // A pathological Markdown line cannot monopolize a worker indefinitely.
+    // A timeout becomes a conservative, project-scoped blocking diagnostic.
+    private static readonly TimeSpan LinkRegexTimeout =
+        TimeSpan.FromMilliseconds(500);
+
     private static readonly Regex MarkdownLinkPattern = new(
         @"!?\[[^\]\r\n]*\]\(\s*(?<target><[^>\r\n]*>|[^\s\)\r\n]+)(?:\s+(?:""[^""]*""|\x27[^\x27]*\x27))?\s*\)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        LinkRegexTimeout);
 
     private static readonly Regex HtmlLinkPattern = new(
         @"\b(?:src|href)\s*=\s*(?:""(?<target>[^""]*)""|'(?<target>[^']*)')",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.IgnoreCase |
+        RegexOptions.CultureInvariant, LinkRegexTimeout);
 
     private static readonly Regex ReferenceDefinitionPattern = new(
         @"^\uFEFF?\s{0,3}\[[^\]]+\]:\s*\S+",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        LinkRegexTimeout);
 
     // Only simple, explicit reference labels and literal destinations are safe
     // to map without a full Markdown parser. All other forms still fail closed.
     private static readonly Regex SimpleReferenceDefinitionPattern = new(
         @"^\uFEFF?\s{0,3}\[(?<label>[A-Za-z0-9_-]+)\]:[ \t]+(?<target><[^>\r\n]*>|[^\s\r\n]+)(?:[ \t]+(?:""[^""\r\n]*""|'[^'\r\n]*'))?[ \t]*$",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        LinkRegexTimeout);
 
     private static readonly Regex ReferenceUsagePattern = new(
         @"\]\[[^\]\r\n]+\]",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        LinkRegexTimeout);
 
     private static readonly Regex SimpleReferenceUsagePattern = new(
         @"!?\[[^\]\r\n]+\]\[(?<label>[A-Za-z0-9_-]+)\]",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        LinkRegexTimeout);
 
     private static readonly Regex HtmlAttributePattern = new(
         @"\b(?:src|href)\s*=",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.IgnoreCase |
+        RegexOptions.CultureInvariant, LinkRegexTimeout);
 
     private const int ProgressReportInterval = 128;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
@@ -293,9 +305,11 @@ public sealed class ComplexProjectMigrationLinkImpactService
                     }
                 }
 
-                if (!inFence)
+                try
                 {
-                    string context = workspaceRelative + ":" + lineNumber;
+                    if (!inFence)
+                    {
+                        string context = workspaceRelative + ":" + lineNumber;
                     // External Markdown is relevant only when its literal
                     // target may lead to one of this project's moved paths.
                     // The project itself remains subject to strict validation.
@@ -346,8 +360,8 @@ public sealed class ComplexProjectMigrationLinkImpactService
 
                         MatchCollection markdown = MarkdownLinkPattern.Matches(line);
                         MatchCollection html = HtmlLinkPattern.Matches(line);
-                        bool ambiguous = markdown.Count != Regex.Matches(
-                            line, @"\]\(").Count ||
+                        bool ambiguous = markdown.Count !=
+                            CountInlineLinkOpenings(line) ||
                             html.Count != HtmlAttributePattern.Matches(line).Count ||
                             (definition.Success && (markdown.Count != 0 || html.Count != 0));
 
@@ -402,6 +416,18 @@ public sealed class ComplexProjectMigrationLinkImpactService
                             }
                         }
                     }
+                    }
+                }
+                catch (RegexMatchTimeoutException)
+                {
+                    // Only source documents of this project, or lines that
+                    // may refer to its moved paths, can block migration.
+                    // Ignore unrelated malformed external Markdown.
+                    if (internalDocument || MayReferenceMovedDestination(line))
+                    {
+                        blockers.Add(workspaceRelative + ":" + lineNumber +
+                            " : analyse de lien trop complexe (délai dépassé).");
+                    }
                 }
 
                 offset = end + 1;
@@ -435,6 +461,27 @@ public sealed class ComplexProjectMigrationLinkImpactService
             ExternalDocumentsInspected = externalParsed,
             ExternalDocumentsSkipped = externalSkipped
         };
+    }
+
+    /// <summary>
+    /// Counts raw inline link starts without compiling or allocating a new
+    /// regex for each Markdown line. This is intentionally a conservative
+    /// syntax count, not a complete Markdown grammar.
+    /// </summary>
+    /// <param name="line">One original Markdown line.</param>
+    /// <returns>Number of literal closing-bracket/open-parenthesis pairs.</returns>
+    private static int CountInlineLinkOpenings(string line)
+    {
+        int count = 0;
+        for (int index = 0; index < line.Length - 1; index++)
+        {
+            if (line[index] == ']' && line[index + 1] == '(')
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     /// <summary>
