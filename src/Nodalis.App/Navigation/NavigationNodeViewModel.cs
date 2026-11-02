@@ -35,6 +35,12 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
 
         _unfilteredVisualChildren = visible;
         VisibleChildren = new ObservableCollection<NavigationNodeViewModel>(visible);
+        // Indexes follow the flattened WPF hierarchy, not canonical
+        // grouping folders. They are refreshed after every filter projection.
+        for (int index = 0; index < visible.Count; index++)
+        {
+            visible[index].VisibleSiblingIndex = index;
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -57,6 +63,13 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
 
     /// <summary>Actual parent visible in the WPF TreeView.</summary>
     public NavigationNodeViewModel? DisplayParent { get; private set; }
+
+    /// <summary>
+    /// Zero-based position among the displayed parent's visible children,
+    /// or -1 if filtered out. Updated only while projecting the tree;
+    /// scroll handlers can read it without linear sibling searches.
+    /// </summary>
+    internal int VisibleSiblingIndex { get; private set; } = -1;
 
     /// <summary>Segoe MDL2 symbol used to distinguish node types at a glance.</summary>
     public string NavigationGlyph => Kind switch
@@ -196,6 +209,18 @@ public sealed class NavigationNodeViewModel : INotifyPropertyChanged
         while (VisibleChildren.Count > expected.Count)
         {
             VisibleChildren.RemoveAt(VisibleChildren.Count - 1);
+        }
+
+        // Invalidate hidden nodes before publishing the visible positions.
+        // Every refresh still operates on the same VM identities.
+        foreach (NavigationNodeViewModel child in _unfilteredVisualChildren)
+        {
+            child.VisibleSiblingIndex = -1;
+        }
+
+        for (int index = 0; index < expected.Count; index++)
+        {
+            expected[index].VisibleSiblingIndex = index;
         }
     }
 

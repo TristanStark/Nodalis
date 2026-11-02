@@ -290,8 +290,9 @@ public partial class MainWindow
             WorkspaceNodeKind.Module;
 
     /// <summary>
-    /// Creates a lexicographic visible preorder position in O(depth × siblings).
-    /// Hidden grouping nodes do not appear in the visual position.
+    /// Creates a lexicographic preorder position in O(visible depth).
+    /// Sibling indices are maintained when the display projection changes,
+    /// not searched repeatedly during touchpad/wheel scrolling.
     /// </summary>
     /// <param name="node">Displayed worktree node.</param>
     /// <returns>Visible sibling indices, from the root toward the node.</returns>
@@ -302,21 +303,12 @@ public partial class MainWindow
         NavigationNodeViewModel? current = node;
         while (current?.DisplayParent is NavigationNodeViewModel parent)
         {
-            int index = -1;
-            for (int candidateIndex = 0;
-                 candidateIndex < parent.VisibleChildren.Count;
-                 candidateIndex++)
+            int index = current.VisibleSiblingIndex;
+            if (index < 0 || index >= parent.VisibleChildren.Count ||
+                !ReferenceEquals(parent.VisibleChildren[index], current))
             {
-                if (ReferenceEquals(
-                        parent.VisibleChildren[candidateIndex], current))
-                {
-                    index = candidateIndex;
-                    break;
-                }
-            }
-
-            if (index < 0)
-            {
+                // Filtering may hide the node. Never infer a stale position
+                // or pin another project's heading in its place.
                 return Array.Empty<int>();
             }
 

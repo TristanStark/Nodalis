@@ -20,6 +20,7 @@ public partial class MainWindow
     };
     private bool _worktreeP1Initialized;
     private bool _worktreeDisplayUpdating;
+    private bool _worktreeP1RefreshPending;
     private HashSet<Guid>? _expansionBeforeWorktreeFilter;
     private NavigationNodeViewModel? _lastFilteredWorktreeRoot;
     private string? _lastFilteredWorktreeQuery;
@@ -80,6 +81,7 @@ public partial class MainWindow
     private void ClearWorktreeFilter_Click(object sender, RoutedEventArgs e)
     {
         WorktreeFilterBox.Clear();
+        _worktreeFilterTimer.Stop();
         ApplyWorktreeDisplayFilter();
         WorktreeFilterBox.Focus();
     }
@@ -208,10 +210,17 @@ public partial class MainWindow
             return;
         }
 
+        if (_worktreeP1RefreshPending)
+        {
+            return;
+        }
+
+        _worktreeP1RefreshPending = true;
         Dispatcher.BeginInvoke(
             DispatcherPriority.Background,
             new Action(() =>
             {
+                _worktreeP1RefreshPending = false;
                 if (!_worktreeP1Initialized)
                 {
                     return;
@@ -245,7 +254,9 @@ public partial class MainWindow
              candidate?.DisplayParent is NavigationNodeViewModel parent;
              candidate = parent)
         {
-            if (!parent.VisibleChildren.Contains(candidate))
+            int index = candidate.VisibleSiblingIndex;
+            if (index < 0 || index >= parent.VisibleChildren.Count ||
+                !ReferenceEquals(parent.VisibleChildren[index], candidate))
             {
                 inDisplay = false;
                 break;

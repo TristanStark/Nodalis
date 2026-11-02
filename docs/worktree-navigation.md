@@ -191,3 +191,29 @@ l'absence d'une pluie d'erreurs sur `TreeViewItem.VerticalContentAlignment`,
 les latences ressenties et l'absence de déplacement intempestif du scroll.
 Comparer ensuite la même charge sans débogueur : d'autres sources de gel
 restent possibles et doivent être profilées si les pics subsistent.
+
+
+## Worktree — position des éléments et stabilité lors des rafraîchissements (02/11/2026)
+
+Le calcul des deux titres persistants du Worktree ne recherche plus la
+position de chaque nœud parmi tous ses frères lors du défilement. Les
+`NavigationNodeViewModel` conservent un **index de frère visible** mis à jour
+lors de la projection initiale et de chaque filtre. La navigation et les
+en-têtes vérifient que l'index désigne toujours **la même instance** : si
+le nœud n'est plus affiché, aucun titre ni emplacement n'est inventé.
+Les conteneurs de regroupement masqués restent exclus du chemin affiché.
+
+Coût théorique de ce calcul : **O(profondeur visible)** au lieu de
+**O(profondeur × largeur de chaque niveau)** à chaque événement scroll.
+Les changements rapides d'onglets/Quick Open coalescent désormais les
+demandes de rafraîchissement de contexte en une opération programmée sur
+le Dispatcher ; les filtres déjà inchangés restent court-circuités.
+L'effacement manuel du filtre arrête aussi son timer de saisie pour ne pas
+relancer une projection différée inutile.
+
+Ces optimisations sont **uniquement en mémoire/WPF**, sans écriture dans
+le workspace. Recette Windows nécessaire : 1000+ projets, scroll tactile
+continu, changement d'onglets dans plusieurs applications, filtre avec
+plusieurs niveaux, effacement du filtre, titres persistants, sélection
+et retour après veille. Mesurer les latences du Dispatcher, ne pas
+attribuer automatiquement tous les freezes à ces parcours.

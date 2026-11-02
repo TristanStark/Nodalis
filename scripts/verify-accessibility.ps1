@@ -46,6 +46,24 @@ $theme = Get-Content -Raw -LiteralPath $themePath
 if ($theme -notmatch '(?s)<Style\s+x:Key="NodalisTreeViewItemStyle"\s+TargetType="TreeViewItem">\s*<Setter\s+Property="VerticalContentAlignment"\s+Value="Center"') {
     $failures.Add("All TreeViewItem containers need an explicit vertical alignment without a FindAncestor binding.")
 }
+# Worktree sticky paths must use the projection-maintained index instead
+# of searching all visible siblings on every scroll event.
+$worktreeVmPath = Join-Path $appRoot "Navigation/NavigationNodeViewModel.cs"
+$stickyWorktreePath = Join-Path $appRoot "MainWindow.WorktreeSticky.cs"
+$worktreeP1Path = Join-Path $appRoot "MainWindow.WorktreeP1.cs"
+$worktreeVm = Get-Content -Raw -LiteralPath $worktreeVmPath
+$stickyWorktree = Get-Content -Raw -LiteralPath $stickyWorktreePath
+$worktreeP1 = Get-Content -Raw -LiteralPath $worktreeP1Path
+if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or
+    -not $stickyWorktree.Contains('int index = current.VisibleSiblingIndex;') -or
+    $stickyWorktree.Contains('candidateIndex < parent.VisibleChildren.Count')) {
+    $failures.Add("Worktree sticky headers must use O(depth) visible sibling positions.")
+}
+if (-not $worktreeP1.Contains('_worktreeP1RefreshPending') -or
+    -not $worktreeP1.Contains('candidate.VisibleSiblingIndex')) {
+    $failures.Add("Worktree tab refreshes and visibility checks must remain coalesced and indexed.")
+}
+
 $requiredThemeTokens = @(
     'NodalisWindowStyle',
     'NodalisKeyboardFocusVisual',
