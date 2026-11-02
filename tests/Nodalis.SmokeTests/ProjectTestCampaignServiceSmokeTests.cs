@@ -261,6 +261,17 @@ internal static class ProjectTestCampaignServiceSmokeTests
                        ProjectTestOutcome.Passed,
                 "A deleted source must be flagged without rewriting old results.");
 
+            WorkspaceLinkIndexService.NotifyWorkspaceChanged(workspace);
+            LinkIndexCatalog refreshedMissingIndex =
+                await indexService.RefreshAsync();
+            ProjectTestSourceValidityOverview stillMissing =
+                await service.AssessSourceValidityAsync(
+                    own.ProjectDirectory, final, refreshedMissingIndex);
+            Assert(stillMissing.Rows.All(row =>
+                       row.Validity == ProjectTestSourceValidity.Missing),
+                "Deleting a cahier must still report Missing after the " +
+                "refreshed link index has removed its block identities.");
+
             await RejectAsync(() => service.AssessSourceValidityAsync(
                 foreign.ProjectDirectory, final, updatedIndex),
                 "A campaign cannot be assessed in another project.");

@@ -103,6 +103,8 @@ public sealed partial class ProjectTestCampaignService
             sources = new(StringComparer.OrdinalIgnoreCase);
         HashSet<string> missing = new(StringComparer.OrdinalIgnoreCase);
         HashSet<string> stale = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, bool> sourceAvailability =
+            new(StringComparer.OrdinalIgnoreCase);
         List<ProjectTestSourceValidityRow> rows = [];
 
         foreach (ProjectTestPassage passage in currentCampaign.Campaign.Passages)
@@ -121,6 +123,14 @@ public sealed partial class ProjectTestCampaignService
                 {
                     state = ProjectTestSourceValidity.Ambiguous;
                     detail = "Source du test hors du projet ou du dossier Tests/Recette.";
+                }
+                else if (!IsAvailableSource(path, sourceAvailability))
+                {
+                    // Check existence BEFORE index identity: a refreshed index
+                    // legitimately removes a deleted file and its block, but
+                    // this should still be reported as Missing, not Ambiguous.
+                    state = ProjectTestSourceValidity.Missing;
+                    detail = "Cahier supprimé, déplacé ou inaccessible.";
                 }
                 else if (!blocks.TryGetValue(frozen.TestId,
                         out IndexedMarkdownBlock[]? blockOwners) ||
@@ -228,5 +238,21 @@ public sealed partial class ProjectTestCampaignService
         }
 
         return new ProjectTestSourceValidityOverview(rows);
+    }
+
+    /// <summary>Checks a source once per cahier without following junctions.</summary>
+    /// <param name="relativePath">Safe project-local source path.</param>
+    /// <param name="cache">Per-request availability cache.</param>
+    /// <returns>Whether the current file is accessible for verification.</returns>
+    private bool IsAvailableSource(
+        string relativePath, Dictionary<string, bool> cache)
+    {
+        if (!cache.TryGetValue(relativePath, out bool available))
+        {
+            available = _sources.IsAvailable(relativePath);
+            cache.Add(relativePath, available);
+        }
+
+        return available;
     }
 }
