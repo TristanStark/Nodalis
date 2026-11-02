@@ -67,6 +67,8 @@ public partial class ProjectTestCampaignsDialog : Window
     private async Task ReloadAsync(Guid? selectedId)
     {
         _passageViewRevision++;
+        _sourceValidityRevision++;
+        _sourceValidity = null;
         _catalog = await Task.Run(() =>
             _service.ListAsync(_projectDirectory));
         CampaignRow[] rows = _catalog.Campaigns.Select(entry =>
@@ -104,6 +106,10 @@ public partial class ProjectTestCampaignsDialog : Window
     private async Task PaintCampaignAsync()
     {
         _passageViewRevision++;
+        // Never briefly display another campaign's cached validity while
+        // its own source check is pending.
+        _sourceValidityRevision++;
+        _sourceValidity = null;
         CampaignRow? selected = SelectedCampaign();
         PassageRow[] rows = selected is null
             ? []
