@@ -1149,6 +1149,8 @@ internal static class ComplexMigrationTransactionSmokeTests
     {
         public List<ComplexMigrationPreflightProgress> Snapshots { get; } = [];
 
+        /// <summary>Captures one source-name-free progress snapshot.</summary>
+        /// <param name="snapshot">Immutable aggregate progress counters.</param>
         public void Report(ComplexMigrationPreflightProgress snapshot) =>
             Snapshots.Add(snapshot);
     }
