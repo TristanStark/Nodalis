@@ -726,3 +726,17 @@ La désactivation de l'orientation partagée réapplique également
 l'état de l'aperçu secondaire avant de quitter le gestionnaire de
 mise en page. Ceci annule le travail en cours même lorsque la pane
 secondaire est masquée sans fermer son onglet.
+
+
+### Suppression des derniers parsings directs dans l'aperçu principal (02/11/2026)
+
+L'activation de l'aperçu, les préférences d'éditeur, les notes rapides,
+les modifications de tâches et les rechargements de documents ne
+passent plus par `MarkdownFlowDocumentRenderer.Render(markdown)` sur
+le thread WPF : ils utilisent un point d'entrée regroupé, annulable
+et différé de 180 ms. Seuls les blocs déjà analysés hors Dispatcher
+sont remis au constructeur WPF `RenderBlocks`. Masquer l'aperçu
+annule les parsings en cours et libère le document visuel précédent.
+Le rafraîchissement de contexte et le rendu de l'aperçu secondaire
+restent indépendants. Un garde statique CI détecte toute réintroduction
+du rendu synchrone dans MainWindow.

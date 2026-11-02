@@ -75,6 +75,12 @@ if (-not $secondaryEditorCode.Contains('MarkdownDocumentParser.Parse(snapshot, c
 if ($mainWindowCode.Contains('RenderSecondaryPreview();')) {
     $failures.Add("Primary preview updates must not synchronously rerender the secondary pane.")
 }
+if ($mainWindowCode.Contains('RenderPreview();') -or
+    $mainWindowCode.Contains('MarkdownFlowDocumentRenderer.Render(') -or
+    -not $mainWindowCode.Contains('QueuePrimaryPreview();') -or
+    -not $mainWindowCode.Contains('MarkdownFlowDocumentRenderer.RenderBlocks(')) {
+    $failures.Add("All primary preview actions must schedule a worker parse, never parse synchronously on the Dispatcher.")
+}
 $powerModeCode = Get-Content -Raw -LiteralPath (Join-Path $appRoot "MainWindow.PowerManagement.cs")
 if (-not $powerModeCode.Contains('_secondaryPreviewParseCancellation?.Cancel();') -or
     -not $powerModeCode.Contains('_previewEditRevision++;') -or

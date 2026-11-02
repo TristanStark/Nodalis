@@ -2644,10 +2644,7 @@ public partial class MainWindow : Window
                     MarkdownEditorTextBox.Text);
 
                 // Prevent an older off-thread Markdown parse from publishing.
-                _previewEditRevision++;
-                _previewParseCancellation?.Cancel();
-                _previewTimer.Stop();
-                _previewTimer.Start();
+                QueuePrimaryPreview();
 
                 if (!_suppressLinkAutocomplete)
                 {
@@ -2704,11 +2701,8 @@ public partial class MainWindow : Window
                     }
                 }
             }
-            else
-            {
-                RenderPreview();
-            }
-
+            // Even when preview is hidden, annotations are refreshed on
+            // the same delayed tick without creating a FlowDocument.
             await UpdateGlossaryAnnotationsAsync();
         }
         catch (OperationCanceledException)
@@ -2728,10 +2722,22 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the <c>RenderPreview</c> operation.
+    /// Requests one coalesced Markdown refresh after a text or context change.
+    /// The parser runs on a worker rather than blocking this event handler.
     /// </summary>
-    /// <param name="parsedBlocks">Optional off-thread parse of the active editor revision.</param>
-    private void RenderPreview(IReadOnlyList<MarkdownBlock>? parsedBlocks = null)
+    private void QueuePrimaryPreview()
+    {
+        _previewEditRevision++;
+        _previewParseCancellation?.Cancel();
+        _previewTimer.Stop();
+        _previewTimer.Start();
+    }
+
+    /// <summary>
+    /// Builds WPF elements from an already parsed immutable snapshot.
+    /// </summary>
+    /// <param name="parsedBlocks">Markdown blocks parsed on a worker.</param>
+    private void RenderPreview(IReadOnlyList<MarkdownBlock> parsedBlocks)
     {
         using DispatcherHeartbeatMonitor.OperationScope measurement =
             _heartbeatMonitor.TrackOperation("Rendu Markdown");
@@ -2741,13 +2747,8 @@ public partial class MainWindow : Window
             string? baseDirectory = Path.GetDirectoryName(
                 _activeDocumentTab.FullPath);
 
-            MarkdownPreview.Document = parsedBlocks is null
-                ? MarkdownFlowDocumentRenderer.Render(
-                    MarkdownEditorTextBox.Text,
-                    baseDirectory,
-                    OnInternalLinkClicked,
-                    OnMarkdownLinkClicked)
-                : MarkdownFlowDocumentRenderer.RenderBlocks(
+            MarkdownPreview.Document =
+                MarkdownFlowDocumentRenderer.RenderBlocks(
                     parsedBlocks,
                     baseDirectory,
                     OnInternalLinkClicked,
@@ -3282,10 +3283,7 @@ public partial class MainWindow : Window
                 _previewVisible = !_previewVisible;
                 ApplyPreviewState();
 
-                if (_previewVisible)
-                {
-                    RenderPreview();
-                }
+
             });
     }
 
@@ -3309,6 +3307,23 @@ public partial class MainWindow : Window
             PreviewSplitterColumn.Width = new GridLength(0);
             MarkdownPreview.Visibility = Visibility.Collapsed;
             PreviewSplitter.Visibility = Visibility.Collapsed;
+        }
+
+        if (_previewVisible)
+        {
+            if (_activeDocumentTab is not null)
+            {
+                QueuePrimaryPreview();
+            }
+        }
+        else
+        {
+            // Release the heavy FlowDocument while preview is hidden. A
+            // subsequent toggle rebuilds it from the current text snapshot.
+            _previewEditRevision++;
+            _previewParseCancellation?.Cancel();
+            _previewTimer.Stop();
+            MarkdownPreview.Document = null;
         }
 
         ApplySecondaryPreviewState();
@@ -3975,7 +3990,7 @@ public partial class MainWindow : Window
             UpdateLinkContext(_selectedNode.FullPath);
             if (renderPreview)
             {
-                RenderPreview();
+                QueuePrimaryPreview();
             }
         }
     }
@@ -4854,10 +4869,7 @@ public partial class MainWindow : Window
         ApplyContextPanelState();
         ApplyPreviewState();
 
-        if (_previewVisible)
-        {
-            RenderPreview();
-        }
+
 
         if (autosaveDelayChanged &&
             _documentTabs.Count > 0)
@@ -5944,7 +5956,7 @@ public partial class MainWindow : Window
 
                 _documentDirty = false;
                 SaveStateText.Text = "Enregistré";
-                RenderPreview();
+                QueuePrimaryPreview();
             }
 
             await RefreshGlossaryContextAsync(
@@ -6652,7 +6664,7 @@ public partial class MainWindow : Window
             await RefreshGlossaryContextAsync(
                 sourcePath);
             await UpdateGlossaryAnnotationsAsync();
-            RenderPreview();
+            QueuePrimaryPreview();
         }
 
         await RefreshDashboardTasksAsync();
@@ -6740,7 +6752,7 @@ public partial class MainWindow : Window
             await UpdateGlossaryAnnotationsAsync();
             RefreshDocumentPropertiesContext(
                 MarkdownEditorTextBox.Text);
-            RenderPreview();
+            QueuePrimaryPreview();
         }
 
         await RefreshDashboardTasksAsync();
@@ -6819,7 +6831,7 @@ public partial class MainWindow : Window
             await UpdateGlossaryAnnotationsAsync();
             RefreshDocumentPropertiesContext(
                 MarkdownEditorTextBox.Text);
-            RenderPreview();
+            QueuePrimaryPreview();
         }
 
         await RefreshLinkIndexAndContextAsync();
@@ -7642,7 +7654,7 @@ public partial class MainWindow : Window
 
                 _documentDirty = false;
                 SaveStateText.Text = "Enregistré";
-                RenderPreview();
+                QueuePrimaryPreview();
             }
 
             StatusText.Text =
