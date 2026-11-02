@@ -1140,9 +1140,6 @@ internal static class ComplexMigrationTransactionSmokeTests
         Assert(rejected, message);
     }
 
-    /// <summary>Throws on any broken migration invariant.</summary>
-    /// <param name="condition">Expected condition.</param>
-    /// <param name="message">Failure details.</param>
     /// <summary>
     /// Synchronous test receiver: never depends on a WPF synchronization
     /// context and holds only aggregate counts, not workspace names.
@@ -1156,6 +1153,9 @@ internal static class ComplexMigrationTransactionSmokeTests
             Snapshots.Add(snapshot);
     }
 
+    /// <summary>Throws on any broken migration invariant.</summary>
+    /// <param name="condition">Expected condition.</param>
+    /// <param name="message">Failure details.</param>
     private static void Assert(bool condition, string message)
     {
         if (!condition)
