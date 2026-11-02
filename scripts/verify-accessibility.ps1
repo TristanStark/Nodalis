@@ -58,6 +58,8 @@ $stickyWorktree = Get-Content -Raw -LiteralPath $stickyWorktreePath
 $worktreeP1 = Get-Content -Raw -LiteralPath $worktreeP1Path
 $documentTabsPath = Join-Path $appRoot "MainWindow.DocumentTabs.cs"
 $documentTabsCode = Get-Content -Raw -LiteralPath $documentTabsPath
+# The glossary source audit runs below; load its input before that guard.
+$mainWindowCode = Get-Content -Raw -LiteralPath $mainWindowCodePath
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or
@@ -140,7 +142,6 @@ if (-not $appXaml.Contains('ResourceDictionary Source="Themes/Dark.xaml"')) {
     $failures.Add("App.xaml no longer loads Themes/Dark.xaml globally.")
 }
 
-$mainWindowCode = Get-Content -Raw -LiteralPath $mainWindowCodePath
 $mainWindowXaml = Get-Content -Raw -LiteralPath $mainWindowXamlPath
 if ($mainWindowXaml -notmatch '(?s)<TreeView\s+x:Name="DocumentOutlineTree"\s+ItemContainerStyle="\{StaticResource NodalisTreeViewItemStyle\}"') {
     $failures.Add("Document outline must use the lightweight TreeViewItem base style, not Worktree containers.")
