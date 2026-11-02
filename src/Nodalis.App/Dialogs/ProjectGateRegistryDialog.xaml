@@ -205,6 +205,9 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button Content="Vue des réserves…" Padding="12,7"
                         Margin="0,0,7,0" Click="OverviewReservations_Click" />
+                <Button Content="Synthèse réserves / risques…" Padding="12,7"
+                        Margin="0,0,7,0" Click="OverviewRisks_Click"
+                        ToolTip="Voir les RIS liés, les références orphelines et l'état humain des mesures" />
                 <Button Content="Recharger" Padding="12,7"
                         Margin="0,0,7,0" Click="Reload_Click" />
                 <Button Content="Fermer" Padding="12,7"

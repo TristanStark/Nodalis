@@ -1007,6 +1007,62 @@ public partial class ProjectGateRegistryDialog : Window
                 "aucun verdict ni document modifié.";
         }, "Consulter la vue transversale des réserves");
 
+    /// <summary>
+    /// Shows one project-wide read-only join of Gate reservations and canonical
+    /// RIS records, including orphan links, blocked measures and missing scores.
+    /// Both catalogs are refreshed only on this explicit command.
+    /// </summary>
+    /// <param name="sender">Cross-register dashboard button.</param>
+    /// <param name="e">WPF routed event.</param>
+    private async void OverviewRisks_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            Guid? priorGate = CurrentGate()?.Id;
+            _snapshot = await _service.ReadAsync(_projectDirectory);
+            Paint(priorGate);
+            ProjectRiskCatalog risks = await _risks.ListAsync(
+                _projectDirectory);
+            ProjectGateRiskOverview overview =
+                ProjectGateRiskOverviewBuilder.Build(_snapshot.Registry, risks,
+                    DateOnly.FromDateTime(DateTime.Today));
+            ProjectGateRiskOverviewDialog dialog = new(overview)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            if (dialog.SelectedRiskPath is string path)
+            {
+                SelectedRiskPath = path;
+                DialogResult = true;
+                return;
+            }
+
+            if (dialog.SelectedGateId is not Guid gateId ||
+                dialog.SelectedDecisionId is not Guid decisionId ||
+                dialog.SelectedReservationId is not Guid reservationId)
+            {
+                return;
+            }
+
+            Paint(gateId, decisionId);
+            ReservationRow? selected = ReservationsList.Items
+                .OfType<ReservationRow>().FirstOrDefault(item =>
+                    item.DecisionId == decisionId &&
+                    item.Reservation.Id == reservationId);
+            if (selected is not null)
+            {
+                ReservationsList.SelectedItem = selected;
+                UpdateButtons();
+                StatusText.Text =
+                    "Dossier Gate et réserve d'origine sélectionnés · " +
+                    "aucun état de validation modifié.";
+            }
+        }, "Synthèse transversale réserves et risques");
+
     /// <summary>Re-reads the register only on an explicit user action.</summary>
     /// <param name="sender">Reload button.</param>
     /// <param name="e">Click event.</param>
