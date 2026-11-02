@@ -14,6 +14,7 @@ public partial class ProjectGateRiskOverviewDialog : Window
 {
     private readonly ProjectGateRiskOverview _overview;
     private bool _painting;
+    private string _baseDetails = string.Empty;
 
     /// <summary>Shows one immutable joined snapshot without source writes.</summary>
     /// <param name="overview">Source-validated project-wide projection.</param>
@@ -32,6 +33,9 @@ public partial class ProjectGateRiskOverviewDialog : Window
             "Ouvertes avec mesure bloquée : " + overview.OpenBlockedCount;
         UnassessedCountText.Text =
             "Ouvertes non évaluées : " + overview.OpenUnassessedCount;
+        TaskIssuesCountText.Text =
+            "Ouvertes avec tâches à vérifier : " +
+            overview.OpenTaskSourceIssueCount;
         FilterCombo.SelectedIndex = 0;
         RefreshRows();
     }
@@ -70,6 +74,7 @@ public partial class ProjectGateRiskOverviewDialog : Window
                     5 => row.Reservation.IsOpen && row.HasBlockedMeasures,
                     6 => row.Reservation.IsOpen && row.HasUnassessedRisks,
                     7 => row.Reservation.IsOpen && row.HasUnfinishedMeasures,
+                    8 => row.Reservation.IsOpen && row.HasTaskSourceIssues,
                     _ => true
                 }).Where(row => term.Length == 0 ||
                     row.Reservation.Description.Contains(term,
@@ -104,6 +109,7 @@ public partial class ProjectGateRiskOverviewDialog : Window
         {
             LinkedCountText.Text = "Aucune réserve sélectionnée.";
             RisksList.ItemsSource = null;
+            _baseDetails = string.Empty;
             DetailsBox.Text = string.Empty;
             OpenGateButton.IsEnabled = false;
             OpenRiskButton.IsEnabled = false;
@@ -116,7 +122,7 @@ public partial class ProjectGateRiskOverviewDialog : Window
         RisksList.ItemsSource = row.Risks;
         RisksList.SelectedIndex = row.Risks.Count == 0 ? -1 : 0;
         ProjectGateReservationOverviewRow origin = row.Reservation;
-        DetailsBox.Text = string.Join(Environment.NewLine,
+        _baseDetails = string.Join(Environment.NewLine,
         [
             "Gate : " + origin.GateName,
             "Gate GUID : " + origin.GateId.ToString("D"),
@@ -138,6 +144,7 @@ public partial class ProjectGateRiskOverviewDialog : Window
         ]);
         OpenGateButton.IsEnabled = true;
         UpdateRiskButton();
+        RenderRiskProvenance();
     }
 
     /// <summary>Shows navigation only for a physically resolved RIS path.</summary>
@@ -190,8 +197,51 @@ public partial class ProjectGateRiskOverviewDialog : Window
     /// <param name="sender">Linked RIS list.</param>
     /// <param name="e">WPF event.</param>
     private void RisksList_SelectionChanged(
-        object sender, SelectionChangedEventArgs e) =>
+        object sender, SelectionChangedEventArgs e)
+    {
         UpdateRiskButton();
+        if (!_painting)
+        {
+            RenderRiskProvenance();
+        }
+    }
+
+    /// <summary>
+    /// Lists each task GUID source without rescanning the workspace.
+    /// A checked checkbox never substitutes for human qualification.
+    /// </summary>
+    private void RenderRiskProvenance()
+    {
+        if (RisksList.SelectedItem is not ProjectGateRiskOverviewRiskRow risk)
+        {
+            DetailsBox.Text = _baseDetails;
+            return;
+        }
+
+        ProjectGateRiskTaskProvenance provenance = risk.TaskProvenance;
+        List<string> details =
+        [
+            _baseDetails,
+            "",
+            "RIS sélectionné : " + risk.Label,
+            "Sources tâches uniques : " + provenance.VerifiedSourceCount,
+            "Références absentes/ambiguës : " +
+                provenance.ProblemSourceCount,
+            "Références non inspectées : " +
+                provenance.NotInspectedCount,
+            "Cases cochées (information seulement) : " +
+                provenance.CheckedCheckboxCount,
+            "Mesures terminées sur qualification humaine : " +
+                provenance.HumanCompletedMeasures,
+            "Justificatifs textuels déclarés : " +
+                provenance.DeclaredCompletionEvidence +
+                " · existence et contenu non vérifiés",
+            ""
+        ];
+        details.AddRange(provenance.TaskSources.Select(source =>
+            source.Detail));
+        DetailsBox.Text = string.Join(Environment.NewLine, details);
+    }
 
     /// <summary>Double-click on a resolved risk opens its source.</summary>
     /// <param name="sender">RIS list.</param>

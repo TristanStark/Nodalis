@@ -17,7 +17,7 @@
                        FontSize="20" FontWeight="SemiBold"/>
             <TextBlock Margin="0,6,0,0" TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}"
-                       Text="Vue consultative : les réserves, criticités et mesures restent qualifiées humainement. Une référence de tâche ne signifie pas qu'elle est terminée."/>
+                       Text="Vue consultative : sources contrôlées à la demande. Une case cochée ne qualifie pas une mesure ; un justificatif textuel ne prouve pas à lui seul un fichier."/>
         </StackPanel>
         <Border Grid.Row="1" Padding="12" Margin="0,0,0,10"
                 Background="{StaticResource PanelBackgroundBrush}"
@@ -34,7 +34,9 @@
                            FontWeight="SemiBold"/>
                 <TextBlock x:Name="BlockedCountText" Margin="0,0,18,5"
                            FontWeight="SemiBold"/>
-                <TextBlock x:Name="UnassessedCountText" Margin="0,0,8,5"
+                <TextBlock x:Name="UnassessedCountText" Margin="0,0,18,5"
+                           FontWeight="SemiBold"/>
+                <TextBlock x:Name="TaskIssuesCountText" Margin="0,0,8,5"
                            FontWeight="SemiBold"/>
             </WrapPanel>
         </Border>
@@ -58,6 +60,7 @@
                 <ComboBoxItem Content="Ouvertes avec mesure bloquée"/>
                 <ComboBoxItem Content="Ouvertes avec évaluation absente"/>
                 <ComboBoxItem Content="Ouvertes avec mesure non terminée"/>
+                <ComboBoxItem Content="Ouvertes avec tâche absente ou ambiguë"/>
             </ComboBox>
         </Grid>
         <Grid Grid.Row="3">

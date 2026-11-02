@@ -154,9 +154,10 @@ internal static class ProjectGateRiskOverviewSmokeTests
 
             ProjectRiskCatalog beforeDelete = await risks.ListAsync(
                 project.ProjectDirectory);
+            TaskCollection taskCatalog = await tasks.RefreshAsync();
             ProjectGateRiskOverview prior =
                 ProjectGateRiskOverviewBuilder.Build(final.Registry,
-                    beforeDelete, new DateOnly(2026, 11, 2));
+                    beforeDelete, new DateOnly(2026, 11, 2), taskCatalog);
             Assert(prior.Rows.Count == 3 &&
                 prior.OpenCount == 2 &&
                 prior.LiftedCount == 1 &&
@@ -174,6 +175,12 @@ internal static class ProjectGateRiskOverviewSmokeTests
                 firstRisk.BlockedMeasures == 1 &&
                 firstRisk.UnfinishedMeasures == 3 &&
                 firstRisk.LinkedTaskReferences == 1 &&
+                firstRisk.TaskProvenance.VerifiedSourceCount == 1 &&
+                firstRisk.TaskProvenance.ProblemSourceCount == 0 &&
+                firstRisk.TaskProvenance.CheckedCheckboxCount == 0 &&
+                firstRisk.TaskProvenance.HumanCompletedMeasures == 0 &&
+                firstRisk.TaskProvenance.DeclaredCompletionEvidence == 0 &&
+                prior.OpenTaskSourceIssueCount == 0 &&
                 firstRisk.HasTreatmentPlan &&
                 firstRisk.InitialSeverity == ProjectRiskSeverity.Unassessed &&
                 firstRisk.ResidualSeverity == ProjectRiskSeverity.Unassessed &&
@@ -209,6 +216,63 @@ internal static class ProjectGateRiskOverviewSmokeTests
                 (await File.ReadAllBytesAsync(gateFile))
                     .SequenceEqual(gateBytes),
                 "Repeated overview projections must not change any source.");
+
+            // A checked Markdown checkbox cannot complete a blocked human
+            // measure even though its source remains uniquely resolved.
+            await tasks.SetCompletedAsync(task, true);
+            TaskCollection checkedTasks = await tasks.RefreshAsync();
+            ProjectGateRiskOverview checkedOverview =
+                ProjectGateRiskOverviewBuilder.Build(final.Registry,
+                    beforeDelete, new DateOnly(2026, 11, 2), checkedTasks);
+            ProjectGateRiskOverviewRiskRow checkedRisk =
+                checkedOverview.Rows.Single(row =>
+                    row.Reservation.ReservationId == r1).Risks.Single(row =>
+                    row.RiskId == first.Card.Id);
+            Assert(checkedRisk.TaskProvenance.CheckedCheckboxCount == 1 &&
+                checkedRisk.TaskProvenance.HumanCompletedMeasures == 0 &&
+                checkedRisk.BlockedMeasures == 1,
+                "A checked source cannot qualify a RIS treatment measure.");
+
+            // A duplicate marker on another project is deliberately removed
+            // from linkable TaskItems. Typed diagnostics preserve ambiguity.
+            TaskItem foreignTask = await tasks.CreateTaskAsync(
+                foreign.ProjectDirectory, "Tâche en conflit de GUID",
+                new TaskMetadataUpdate());
+            string foreignTasksFile = Path.Combine(
+                foreign.ProjectDirectory, "Tâches.md");
+            string originalForeignText =
+                await File.ReadAllTextAsync(foreignTasksFile);
+            string replacedForeignText = originalForeignText.Replace(
+                foreignTask.PersistentId!.Value.ToString("D"),
+                task.PersistentId!.Value.ToString("D"),
+                StringComparison.OrdinalIgnoreCase);
+            Assert(replacedForeignText != originalForeignText,
+                "Fixture must inject a duplicate persistent marker.");
+            await File.WriteAllTextAsync(foreignTasksFile, replacedForeignText);
+            TaskCollection duplicateTasks = await tasks.RefreshAsync();
+            ProjectGateRiskOverview duplicateTaskOverview =
+                ProjectGateRiskOverviewBuilder.Build(final.Registry,
+                    beforeDelete, new DateOnly(2026, 11, 2), duplicateTasks);
+            Assert(duplicateTasks.ConflictingPersistentIds.Contains(
+                    task.PersistentId!.Value) &&
+                duplicateTaskOverview.OpenTaskSourceIssueCount == 1 &&
+                duplicateTaskOverview.Rows.Single(row =>
+                    row.Reservation.ReservationId == r1).Risks.Single(row =>
+                    row.RiskId == first.Card.Id).TaskProvenance.TaskSources
+                    .Single().State == ProjectGateTaskSourceState.Ambiguous,
+                "Duplicate global task IDs must not look like missing sources.");
+
+            File.Delete(foreignTasksFile);
+            TaskCollection restoredTasks = await tasks.RefreshAsync();
+            ProjectGateRiskOverview restored =
+                ProjectGateRiskOverviewBuilder.Build(final.Registry,
+                    beforeDelete, new DateOnly(2026, 11, 2), restoredTasks);
+            Assert(restored.OpenTaskSourceIssueCount == 0 &&
+                restored.Rows.Single(row =>
+                    row.Reservation.ReservationId == r1).Risks.Single(row =>
+                    row.RiskId == first.Card.Id).TaskProvenance
+                    .VerifiedSourceCount == 1,
+                "Removing the duplicate restores unique source provenance.");
 
             string orphanSource = Path.Combine(project.ProjectDirectory,
                 "Analyse", "Risques", orphan.Card.Reference + ".md");
@@ -255,6 +319,43 @@ internal static class ProjectGateRiskOverviewSmokeTests
 
             // Duplicating a canonical source invalidates its target without
             // creating a new link or interfering with frozen Gate history.
+            // Completion is an explicit reviewed event with declarative
+            // evidence, regardless of the corresponding checkbox state.
+            ProjectRiskEntry qualified = await risks.UpdateMeasureAsync(
+                project.ProjectDirectory, withTask,
+                ProjectRiskMeasureKind.Prevention,
+                ProjectRiskMeasureStatus.Completed,
+                "Responsable recette",
+                "La qualification de la mesure a été explicitement revue.",
+                "Compte rendu de revue signé par le responsable de recette.");
+            ProjectGateRiskOverview qualifiedOverview =
+                ProjectGateRiskOverviewBuilder.Build(afterUnlink.Registry,
+                    await risks.ListAsync(project.ProjectDirectory),
+                    new DateOnly(2026, 11, 2), restoredTasks);
+            ProjectGateRiskTaskProvenance evidence =
+                qualifiedOverview.Rows.Single(row =>
+                    row.Reservation.ReservationId == r1).Risks.Single(row =>
+                    row.RiskId == qualified.Card.Id).TaskProvenance;
+            Assert(evidence.HumanCompletedMeasures == 1 &&
+                evidence.DeclaredCompletionEvidence == 1,
+                "Only a reviewed completed-measure event counts as qualified.");
+
+            File.Delete(sourceTask);
+            TaskCollection missingTasks = await tasks.RefreshAsync();
+            ProjectGateRiskOverview missingTaskOverview =
+                ProjectGateRiskOverviewBuilder.Build(afterUnlink.Registry,
+                    await risks.ListAsync(project.ProjectDirectory),
+                    new DateOnly(2026, 11, 2), missingTasks);
+            ProjectGateRiskTaskProvenance missingTask =
+                missingTaskOverview.Rows.Single(row =>
+                    row.Reservation.ReservationId == r1).Risks.Single(row =>
+                    row.RiskId == first.Card.Id).TaskProvenance;
+            Assert(missingTask.TaskSources.Single().State ==
+                    ProjectGateTaskSourceState.Missing &&
+                missingTask.HumanCompletedMeasures == 1 &&
+                missingTaskOverview.OpenTaskSourceIssueCount == 1,
+                "A missing source cannot erase human qualification history.");
+
             string copy = Path.Combine(project.ProjectDirectory,
                 "Analyse", "Risques", "copy-conflicting-risk.md");
             await File.WriteAllTextAsync(copy,

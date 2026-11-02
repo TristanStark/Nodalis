@@ -4,6 +4,8 @@ using System.Windows.Controls;
 using Microsoft.Win32;
 using Nodalis.App.Reliability;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Tasks;
+using Nodalis.Infrastructure.Tasks;
 using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
@@ -1022,9 +1024,14 @@ public partial class ProjectGateRegistryDialog : Window
             Paint(priorGate);
             ProjectRiskCatalog risks = await _risks.ListAsync(
                 _projectDirectory);
+            // Scan the whole workspace once on user command so duplicate
+            // persistent task GUIDs from other projects remain detectable.
+            // Filtering and selection perform no source reads.
+            TaskCollection taskCatalog = await new WorkspaceTaskService(
+                _serviceWorkspaceRoot).RefreshAsync();
             ProjectGateRiskOverview overview =
                 ProjectGateRiskOverviewBuilder.Build(_snapshot.Registry, risks,
-                    DateOnly.FromDateTime(DateTime.Today));
+                    DateOnly.FromDateTime(DateTime.Today), taskCatalog);
             ProjectGateRiskOverviewDialog dialog = new(overview)
             {
                 Owner = this
