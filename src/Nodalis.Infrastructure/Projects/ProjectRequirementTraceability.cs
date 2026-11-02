@@ -102,7 +102,7 @@ public static class ProjectRequirementTraceability
             .ToDictionary(group => group.Key, group => group.ToArray());
 
         List<ProjectRequirementTraceabilityRow> rows = [];
-        List<string> diagnostics = [..catalog.Diagnostics];
+        List<string> diagnostics = [.. catalog.Diagnostics];
 
         foreach (ProjectRequirementEntry requirement in catalog.Requirements)
         {
