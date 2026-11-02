@@ -108,3 +108,55 @@ non qualifiées et le comportement d'un GUID orphelin.
 tâches et des preuves, diagnostic des dépendances par Gate,
 et intégration aux étapes MEP sous contrôle humain. Aucune
 validation automatique, merge, tag ou release 2.0.
+
+
+## Provenance des tâches liées et des preuves de mesures (02/11/2026)
+
+La synthèse Réserves ↔ risques résout désormais, **à l'ouverture explicite
+de la fenêtre**, les GUID de tâches du plan de traitement RIS courant.
+Elle effectue une seule lecture du catalogue complet du workspace puis
+indexe les identifiants en mémoire ; les filtres et sélections WPF ne
+déclenchent **aucune nouvelle lecture de fichier**.
+
+Pour chaque GUID lié, le statut est distingué :
+
+- **Source unique dans le projet** : référence retrouvée dans le catalogue
+  à la ligne identifiée, checkbox ouverte ou cochée affichée séparément.
+- **Source absente** : GUID sans checkbox source résolue dans le workspace.
+- **Source ambiguë** : même GUID dans plusieurs documents, ou plusieurs
+  fois dans un même document. Un ensemble typé de GUID en conflit est
+  conservé par le catalogue, même si les tâches concernées ont perdu leur
+  PersistentId exploitable pour empêcher une liaison dangereuse.
+- **Autre projet** ou **source non vérifiable** : jamais présentées comme
+  appartenant implicitement au projet de la réservation.
+- **Non inspectée** : lorsque le constructeur est appelé sans catalogue
+  de tâches ; ce n'est pas un diagnostic de disparition.
+
+Les chemins et numéros de ligne sont des **instantanés de lecture**.
+L'ouverture/édition ultérieure doit revalider le chemin, l'identité et
+la version source selon les règles ordinaires de l'éditeur. Aucun
+chemin n'est inventé pour une relation orpheline.
+
+**La checkbox cochée n'est jamais une qualification de mesure.** Les
+mesures terminées résultent exclusivement du dernier événement humain
+de leur rubrique, sur la *version de plan actuelle*. Les événements des
+anciennes versions restent historiques ; ni leurs liens de tâches,
+ni leurs validations ne sont propagés. La « preuve » associée à la
+mesure est actuellement une **description textuelle déclarée** :
+la synthèse affiche combien de mesures terminées ont une telle
+déclaration, sans prétendre en vérifier l'existence, le contenu ni
+l'empreinte SHA-256. Cela n'affecte pas la capture de preuves figées
+du registre Gate.
+
+Un compteur et un filtre permettent de repérer les **réserves ouvertes
+dont un RIS contient une référence de tâche absente, ambiguë ou hors
+projet**. En sélectionnant un RIS, les GUID et leurs états sont consultables.
+Aucune association, case, mesure, réserve, décision ou autorisation
+de déploiement n'est modifiée par la consultation.
+
+Régressions ajoutées : source unique non cochée, checkbox cochée sans
+transition de mesure bloquée, collision de GUID entre projets, correction
+de collision, déclaration humaine explicite avec justification, disparition
+de source après qualification. **Recette visuelle Windows restante** :
+plusieurs onglets, changement de filtre, DPI 150–200 %, sélection de
+RIS, grand workspace et aucune oscillation du Worktree.
