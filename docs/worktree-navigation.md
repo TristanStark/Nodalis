@@ -166,3 +166,28 @@ Filtre instantané dans le worktree ; modes compact/confortable ;
 filtrage à l'application courante ; blocs favoris/récents repliables.
 Conserver comme améliorations distinctes si nécessaires : les vues favorites
 et récents existantes ne sont pas dupliquées dans l'arbre.
+
+
+## Résilience des TreeViewItem recyclés (novembre 2026)
+
+La sortie Debug de Visual Studio peut devenir extrêmement bavarde lorsqu'un
+conteneur `TreeViewItem` est détaché ou recyclé : le binding WPF natif
+`VerticalContentAlignment` cherchant un ancêtre `ItemsControl` peut alors
+émettre une erreur `Data Error 4`. Avec de nombreux documents et des
+rafraîchissements, la génération et l'affichage de ces diagnostics peuvent
+contribuer aux ralentissements **en session de débogage** ; cela ne prouve
+pas à elle seule la cause de tous les gels observés en exécution normale.
+
+Le thème définit maintenant une valeur `VerticalContentAlignment="Center"`
+sur un style de conteneur explicite et partagé. Le plan de document utilise
+ce style de base directement et n'hérite plus du template coûteux et des
+triggers propres au Worktree. La navigation principale conserve sa
+présentation, sa sélection et ses en-têtes collants.
+
+**Qualification Windows à effectuer** : déboguer avec l'Output ouvert,
+déployer/replier de nombreuses sections, ouvrir et fermer plusieurs onglets,
+faire défiler le Worktree, changer de projet et sortir de veille. Vérifier
+l'absence d'une pluie d'erreurs sur `TreeViewItem.VerticalContentAlignment`,
+les latences ressenties et l'absence de déplacement intempestif du scroll.
+Comparer ensuite la même charge sans débogueur : d'autres sources de gel
+restent possibles et doivent être profilées si les pics subsistent.

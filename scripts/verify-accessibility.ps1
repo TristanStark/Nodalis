@@ -39,6 +39,13 @@ foreach ($file in $xamlFiles) {
 }
 
 $theme = Get-Content -Raw -LiteralPath $themePath
+
+# The Worktree uses recycling containers, and the document outline must not
+# inherit the heavier navigation-only row template. A literal alignment
+# setter avoids WPF's transient FindAncestor ItemsControl binding errors.
+if ($theme -notmatch '(?s)<Style\\s+x:Key="NodalisTreeViewItemStyle"\\s+TargetType="TreeViewItem">\\s*<Setter\\s+Property="VerticalContentAlignment"\\s+Value="Center"') {
+    $failures.Add("All TreeViewItem containers need an explicit vertical alignment without a FindAncestor binding.")
+}
 $requiredThemeTokens = @(
     'NodalisWindowStyle',
     'NodalisKeyboardFocusVisual',
@@ -76,6 +83,9 @@ if (-not $appXaml.Contains('ResourceDictionary Source="Themes/Dark.xaml"')) {
 
 $mainWindowCode = Get-Content -Raw -LiteralPath $mainWindowCodePath
 $mainWindowXaml = Get-Content -Raw -LiteralPath $mainWindowXamlPath
+if ($mainWindowXaml -notmatch '(?s)<TreeView\\s+x:Name="DocumentOutlineTree"\\s+ItemContainerStyle="\\{StaticResource NodalisTreeViewItemStyle\\}"') {
+    $failures.Add("Document outline must use the lightweight TreeViewItem base style, not Worktree containers.")
+}
 $appCode = Get-Content -Raw -LiteralPath $appCodePath
 $recoverableErrorDialog = Get-Content -Raw -LiteralPath $recoverableErrorDialogPath
 $documentTabsCode = Get-Content -Raw -LiteralPath $documentTabsCodePath

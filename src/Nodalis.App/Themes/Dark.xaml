@@ -554,7 +554,11 @@
         <Setter Property="BorderThickness" Value="0" />
     </Style>
 
-    <Style TargetType="TreeViewItem">
+    <!-- Standalone container style: TreeViewItem containers are repeatedly
+         detached/recycled. The native FindAncestor ItemsControl alignment
+         binding can flood Debug Output with Data Error 4 during recycling. -->
+    <Style x:Key="NodalisTreeViewItemStyle" TargetType="TreeViewItem">
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="Transparent" />
@@ -579,6 +583,11 @@
             </Trigger>
         </Style.Triggers>
     </Style>
+
+    <!-- Default for all other trees; the document outline can opt into the
+         lightweight base directly instead of inheriting the Worktree template. -->
+    <Style TargetType="{x:Type TreeViewItem}"
+           BasedOn="{StaticResource NodalisTreeViewItemStyle}" />
 
     <Style TargetType="CheckBox">
         <Setter Property="MinHeight" Value="24" />

@@ -2140,6 +2140,7 @@
 
                     <Grid Grid.Row="7">
                         <TreeView x:Name="DocumentOutlineTree"
+                                  ItemContainerStyle="{StaticResource NodalisTreeViewItemStyle}"
                                   BorderThickness="0"
                                   Background="Transparent"
                                   SelectedItemChanged="DocumentOutlineTree_SelectedItemChanged">
