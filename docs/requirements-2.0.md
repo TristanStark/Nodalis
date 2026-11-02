@@ -69,3 +69,25 @@ l'énumération de fichiers et le parsing du Markdown ne bloquent pas
 le Dispatcher WPF. Si l'utilisateur navigue ailleurs pendant la création,
 le nouveau document reste enregistré au projet approuvé sans détourner
 le focus vers un autre projet.
+
+## Critères d'acceptation — projection en lecture seule
+
+`ProjectRequirementCriterionCodec.Inspect` examine les titres de niveau 3
+situés dans `## Critères d'acceptation` (pas ailleurs) :
+`### CA-01 — Résultat attendu` suivi immédiatement de
+`<!-- nodalis:block:GUID -->`. Les titres dans des blocs de code
+Markdown sont ignorés. Les marqueurs utilisent le codec de blocs
+Nodalis 2.0 existant ; le texte d'un critère peut être renommé sans
+perdre son GUID.
+
+Un critère sans identifiant, sans libellé ou avec un numéro local
+répété est signalé et **n'est pas identifié localement sans ambiguïté**.
+Les collisions de GUID entre fichiers doivent encore être vérifiées
+par l'index partagé avant toute liaison à un test. La présence d'un
+critère ne signifie pas qu'il est couvert, exécuté ou conforme.
+
+La projection `ProjectRequirementEntry.Criteria` est dérivée du
+Markdown lors de la lecture, sans écrire de registre parallèle.
+Les diagnostics de critères sont séparés des diagnostics de fichiers
+invalides. Les smoke tests couvrent les doublons, titres renommés,
+sections externes, marqueurs malformés et blocs de code.

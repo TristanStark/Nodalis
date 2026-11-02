@@ -13,7 +13,14 @@ namespace Nodalis.Infrastructure.Projects;
 /// <param name="RelativePath">Current portable Markdown location.</param>
 /// <param name="SourceSha256">Exact SHA-256 of the last read source.</param>
 public sealed record ProjectRequirementEntry(
-    ProjectRequirementCard Card, string RelativePath, string SourceSha256);
+    ProjectRequirementCard Card, string RelativePath, string SourceSha256)
+{
+    /// <summary>Read-only CA headings, never an inferred test outcome.</summary>
+    public IReadOnlyList<ProjectRequirementCriterion> Criteria { get; init; } = [];
+
+    /// <summary>Missing or ambiguous local CA identity diagnostics.</summary>
+    public IReadOnlyList<string> CriterionDiagnostics { get; init; } = [];
+}
 
 /// <summary>Read-only computed view; invalid files are diagnostics, never migrated.</summary>
 /// <param name="Requirements">Unambiguous project-owned requirement cards.</param>
@@ -210,8 +217,14 @@ public sealed class ProjectRequirementRegistryService
 
                 highestReference = Math.Max(highestReference,
                     int.Parse(card.Reference[4..], CultureInfo.InvariantCulture));
+                ProjectRequirementCriterionScan criteria =
+                    ProjectRequirementCriterionCodec.Inspect(markdown);
                 found.Add(new ProjectRequirementEntry(card, relative,
-                    Convert.ToHexString(SHA256.HashData(bytes))));
+                    Convert.ToHexString(SHA256.HashData(bytes)))
+                {
+                    Criteria = criteria.Criteria,
+                    CriterionDiagnostics = criteria.Diagnostics
+                });
             }
             catch (Exception exception) when (
                 exception is InvalidDataException or DecoderFallbackException or
