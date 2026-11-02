@@ -721,3 +721,8 @@ répare également le cas où une suspension interrompait l'aperçu sans
 aucun déclencheur de rafraîchissement après réveil. Une vérification
 statique CI couvre les deux transitions ; un test de suspension réelle
 sur Windows reste nécessaire pour qualifier le comportement.
+
+La désactivation de l'orientation partagée réapplique également
+l'état de l'aperçu secondaire avant de quitter le gestionnaire de
+mise en page. Ceci annule le travail en cours même lorsque la pane
+secondaire est masquée sans fermer son onglet.

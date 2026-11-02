@@ -267,6 +267,9 @@ public partial class MainWindow
             SecondaryEditorPane.Visibility =
                 Visibility.Collapsed;
 
+            // The disabled orientation returns early; still revoke any
+            // secondary preview parse and hide its rendered document.
+            ApplySecondaryPreviewState();
             return;
         }
 

@@ -61,6 +61,10 @@ $documentTabsCode = Get-Content -Raw -LiteralPath $documentTabsPath
 # The glossary source audit runs below; load its input before that guard.
 $mainWindowCode = Get-Content -Raw -LiteralPath $mainWindowCodePath
 $secondaryEditorCode = Get-Content -Raw -LiteralPath (Join-Path $appRoot "MainWindow.SplitEditor.cs")
+if (-not $secondaryEditorCode.Contains('ApplySecondaryPreviewState();' + "`n" + '            return;') -and
+    -not $secondaryEditorCode.Contains('ApplySecondaryPreviewState();' + "`r`n" + '            return;')) {
+    $failures.Add("Disabling editor split must also cancel and hide secondary preview.")
+}
 if (-not $secondaryEditorCode.Contains('MarkdownDocumentParser.Parse(snapshot, cancellation.Token)') -or
     -not $secondaryEditorCode.Contains('MarkdownFlowDocumentRenderer.RenderBlocks(') -or
     -not $secondaryEditorCode.Contains('revision != _secondaryPreviewRevision') -or
