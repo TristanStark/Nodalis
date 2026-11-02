@@ -38,6 +38,15 @@ public sealed record ComplexProjectMigrationPlan
     /// <summary>Cross-project backlinks requiring separate durable file snapshots.</summary>
     public IReadOnlyList<ComplexMigrationLinkRewrite> ExternalLinkRewrites { get; init; } = [];
 
+    /// <summary>Project Markdown files checked for migration impact.</summary>
+    public int ProjectLinkDocumentsInspected { get; init; }
+
+    /// <summary>Other-project Markdown checked for real backlinks.</summary>
+    public int ExternalLinkDocumentsInspected { get; init; }
+
+    /// <summary>External documents safely skipped as unrelated.</summary>
+    public int ExternalLinkDocumentsSkipped { get; init; }
+
     /// <summary>True only for at least one safe, eligible move.</summary>
     public bool CanExecute =>
         Blockers.Count == 0 &&
@@ -166,8 +175,8 @@ public sealed class ComplexProjectMigrationPlanService
             if (linkAnalysis.Blockers.Count > 0)
             {
                 blockers.Add("Références Markdown à requalifier avant déplacement (" +
-                    linkAnalysis.Blockers.Count + ") : " +
-                    string.Join(", ", linkAnalysis.Blockers.Take(5)));
+                    linkAnalysis.Blockers.Count + ") :");
+                blockers.AddRange(linkAnalysis.Blockers);
             }
         }
 
@@ -182,6 +191,9 @@ public sealed class ComplexProjectMigrationPlanService
             MissingDirectories = preview.MissingDirectories,
             LinkRewrites = linkAnalysis.Rewrites,
             ExternalLinkRewrites = linkAnalysis.ExternalRewrites,
+            ProjectLinkDocumentsInspected = linkAnalysis.ProjectDocumentsInspected,
+            ExternalLinkDocumentsInspected = linkAnalysis.ExternalDocumentsInspected,
+            ExternalLinkDocumentsSkipped = linkAnalysis.ExternalDocumentsSkipped,
             Blockers = blockers.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             Warnings = warnings
         };

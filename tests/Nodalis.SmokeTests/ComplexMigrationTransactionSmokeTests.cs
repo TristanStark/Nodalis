@@ -196,11 +196,26 @@ internal static class ComplexMigrationTransactionSmokeTests
                 "[Invalide](<Source%20encodée.md>)\n");
             await File.WriteAllBytesAsync(unrelatedEncoding,
                 [0x23, 0x20, 0xC3, 0x28, 0x0A]);
+            // Numerous unrelated notes are discovered, but their link syntax
+            // should not be parsed or hashed as part of this project migration.
+            string unrelatedBulk = Path.Combine(otherApplication, "Bulk");
+            Directory.CreateDirectory(unrelatedBulk);
+            for (int index = 0; index < 30; index++)
+            {
+                await File.WriteAllTextAsync(Path.Combine(unrelatedBulk,
+                    "Note-" + index + ".md"),
+                    "# Note indépendante\n\n[[Cible inconnue]]\n" +
+                    new string('x', 2048));
+            }
+
             ComplexProjectMigrationPlan independent = await planner.PrepareAsync(
                 projectRoot);
             Assert(independent.CanExecute &&
                 independent.Blockers.Count == 0 &&
-                independent.ExternalLinkRewrites.Count == 0,
+                independent.ExternalLinkRewrites.Count == 0 &&
+                independent.ExternalLinkDocumentsSkipped >= 33 &&
+                independent.ExternalLinkDocumentsInspected == 0 &&
+                independent.ProjectLinkDocumentsInspected >= 1,
                 "Unrelated application Markdown cannot block migration.");
             File.Delete(unrelatedWiki);
             File.Delete(unrelatedBrokenTarget);
@@ -216,9 +231,12 @@ internal static class ComplexMigrationTransactionSmokeTests
             ComplexProjectMigrationPlan suspect = await planner.PrepareAsync(
                 projectRoot);
             Assert(!suspect.CanExecute &&
+                suspect.ExternalLinkDocumentsInspected == 1 &&
                 suspect.Blockers.Any(item =>
-                    item.Contains("Références Markdown", StringComparison.Ordinal)),
-                "An unsupported backlink to a moved target must stay blocking.");
+                    item.Contains("Références Markdown", StringComparison.Ordinal)) &&
+                suspect.Blockers.Any(item =>
+                    item.Contains("Suspect.md:", StringComparison.Ordinal)),
+                "An unsupported backlink must be visible as its own blocker.");
             File.Delete(suspectBacklink);
 
             // Explicit Markdown reference definitions (including image links)

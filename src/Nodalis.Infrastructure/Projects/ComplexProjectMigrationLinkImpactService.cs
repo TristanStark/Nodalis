@@ -31,6 +31,15 @@ public sealed record ComplexMigrationLinkAudit(
 {
     /// <summary>Exact path rewrites in documents outside the migrated project.</summary>
     public IReadOnlyList<ComplexMigrationLinkRewrite> ExternalRewrites { get; init; } = [];
+
+    /// <summary>Number of target-project Markdown documents audited strictly.</summary>
+    public int ProjectDocumentsInspected { get; init; }
+
+    /// <summary>External Markdown documents parsed for potential backlinks.</summary>
+    public int ExternalDocumentsInspected { get; init; }
+
+    /// <summary>External Markdown documents omitted after safe scope filtering.</summary>
+    public int ExternalDocumentsSkipped { get; init; }
 }
 
 /// <summary>
@@ -74,6 +83,9 @@ public sealed class ComplexProjectMigrationLinkImpactService
     private readonly string _workspaceRoot;
     private readonly string _projectRoot;
     private readonly IReadOnlyList<ComplexMigrationMove> _moves;
+    private readonly string _projectName;
+    private readonly string _encodedProjectName;
+    private readonly IReadOnlyList<string> _possibleMovedPaths;
 
     /// <summary>Creates a deterministic, non-mutating link auditor.</summary>
     /// <param name="workspaceRoot">Workspace containing active Markdown.</param>
@@ -93,6 +105,19 @@ public sealed class ComplexProjectMigrationLinkImpactService
             Path.GetFullPath(projectRoot));
         _moves = moves.Where(move =>
             move.State == ComplexMigrationMoveState.Candidate).ToArray();
+        _projectName = Path.GetFileName(_projectRoot);
+        _encodedProjectName = Uri.EscapeDataString(_projectName);
+        _possibleMovedPaths = _moves.SelectMany(move =>
+        {
+            string from = move.From.Replace('\\', '/');
+            return new[]
+            {
+                _projectName + "/" + from,
+                _projectName + "/" + Uri.EscapeDataString(from),
+                _encodedProjectName + "/" + from,
+                _encodedProjectName + "/" + Uri.EscapeDataString(from)
+            };
+        }).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     /// <summary>
@@ -108,6 +133,9 @@ public sealed class ComplexProjectMigrationLinkImpactService
         List<ComplexMigrationLinkRewrite> rewrites = [];
         List<ComplexMigrationLinkRewrite> externalRewrites = [];
         List<string> blockers = [];
+        int projectFiles = 0;
+        int externalParsed = 0;
+        int externalSkipped = 0;
         foreach (string file in ComplexProjectMigrationPlanService.EnumerateTree(
                      _workspaceRoot, cancellationToken))
         {
@@ -165,7 +193,27 @@ public sealed class ComplexProjectMigrationLinkImpactService
                 continue;
             }
 
-            string hash = Convert.ToHexString(SHA256.HashData(bytes));
+            // Any valid backlink from outside this project's directory must
+            // name its project folder (literal or URL-encoded). This cheap
+            // whole-document guard avoids regex parsing thousands of notes
+            // belonging to other applications; unsupported backlinks naming
+            // the project are still parsed and checked conservatively.
+            if (!internalDocument && !MayNameMovedProject(content))
+            {
+                externalSkipped++;
+                continue;
+            }
+
+            if (internalDocument)
+            {
+                projectFiles++;
+            }
+            else
+            {
+                externalParsed++;
+            }
+
+            string? sourceHash = null;
             string projectRelative = internalDocument
                 ? Path.GetRelativePath(_projectRoot, file).Replace('\\', '/')
                 : string.Empty;
@@ -317,7 +365,9 @@ public sealed class ComplexProjectMigrationLinkImpactService
                                     ComplexMigrationLinkRewrite rewrite = new(
                                         projectRelative, workspaceRelative,
                                         lineNumber, offset + capture.Index,
-                                        capture.Value, change.Replacement, hash);
+                                        capture.Value, change.Replacement,
+                                        sourceHash ??= Convert.ToHexString(
+                                            SHA256.HashData(bytes)));
                                     if (internalDocument)
                                     {
                                         rewrites.Add(rewrite);
@@ -355,7 +405,10 @@ public sealed class ComplexProjectMigrationLinkImpactService
             ExternalRewrites = externalRewrites
                 .OrderBy(item => item.WorkspaceRelativePath,
                     StringComparer.OrdinalIgnoreCase)
-                .ThenBy(item => item.Offset).ToArray()
+                .ThenBy(item => item.Offset).ToArray(),
+            ProjectDocumentsInspected = projectFiles,
+            ExternalDocumentsInspected = externalParsed,
+            ExternalDocumentsSkipped = externalSkipped
         };
     }
 
@@ -370,30 +423,21 @@ public sealed class ComplexProjectMigrationLinkImpactService
     private bool MayReferenceMovedDestination(string line)
     {
         string normalized = line.Replace('\\', '/');
-        string projectName = Path.GetFileName(_projectRoot);
-        string encodedProjectName = Uri.EscapeDataString(projectName);
-        foreach (ComplexMigrationMove move in _moves)
-        {
-            string from = move.From.Replace('\\', '/');
-            foreach (string name in new[] { projectName, encodedProjectName })
-            {
-                foreach (string candidate in new[]
-                {
-                    name + "/" + from,
-                    name + "/" + Uri.EscapeDataString(from)
-                })
-                {
-                    if (normalized.Contains(candidate,
-                        StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
+        return _possibleMovedPaths.Any(candidate =>
+            normalized.Contains(candidate, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// A backlink from outside the moved project must name the project
+    /// directory. This only short-circuits unrelated external documents;
+    /// it never excludes the target project's own Markdown.
+    /// </summary>
+    /// <param name="content">Strictly decoded external UTF-8 Markdown.</param>
+    /// <returns>Whether the source deserves per-line link analysis.</returns>
+    private bool MayNameMovedProject(string content) =>
+        content.Contains(_projectName, StringComparison.OrdinalIgnoreCase) ||
+        content.Contains(_encodedProjectName,
+            StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Detects possible affected external links in undecodable Markdown
@@ -403,11 +447,9 @@ public sealed class ComplexProjectMigrationLinkImpactService
     /// <returns>Whether the source may reference a moved path.</returns>
     private bool MayContainMovedDestination(byte[] bytes)
     {
-        string projectName = Path.GetFileName(_projectRoot);
-        foreach (ComplexMigrationMove move in _moves)
+        foreach (string candidate in _possibleMovedPaths)
         {
-            string target = projectName + "/" + move.From.Replace('\\', '/');
-            byte[] marker = Encoding.UTF8.GetBytes(target);
+            byte[] marker = Encoding.UTF8.GetBytes(candidate);
             if (bytes.AsSpan().IndexOf(marker) >= 0)
             {
                 return true;

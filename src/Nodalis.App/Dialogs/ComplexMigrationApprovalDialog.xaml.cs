@@ -24,7 +24,13 @@ public partial class ComplexMigrationApprovalDialog : Window
         SummaryText.Text = plan.CanExecute
             ? $"{plan.Moves.Count(move => move.State == ComplexMigrationMoveState.Candidate)} déplacement(s) et {plan.LinkRewrites.Count} lien(s) locaux et {plan.ExternalLinkRewrites.Count} backlink(s) externes à réécrire · sauvegarde et journal avant publication."
             : "Migration indisponible : corrigez les blocages ci-dessous. Aucun fichier ne sera déplacé.";
-        FingerprintText.Text = "Empreinte du projet : " + plan.SourceFingerprint;
+        FingerprintText.Text = "Empreinte du projet : " + plan.SourceFingerprint +
+            Environment.NewLine +
+            "Liens vérifiés : " + plan.ProjectLinkDocumentsInspected +
+            " document(s) du projet, " + plan.ExternalLinkDocumentsInspected +
+            " source(s) externe(s) candidate(s), " +
+            plan.ExternalLinkDocumentsSkipped +
+            " source(s) externe(s) sans rapport ignorée(s).";
         ComplexMigrationLinkRewrite[] allRewrites = plan.LinkRewrites
             .Concat(plan.ExternalLinkRewrites).ToArray();
         RewritesText.Text = allRewrites.Length == 0

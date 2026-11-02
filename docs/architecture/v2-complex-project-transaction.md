@@ -190,3 +190,29 @@ des fichiers effectivement réécrits, avec contrôle des changements concurrent
 Recette : projet cible dans Application A, Markdown malformé dans Application B,
 backlink réel dans Application B, source UTF-8 et source non UTF-8, absence
 d'écriture pendant l'aperçu et rollback complet après exécution.
+
+
+## Préflight incrémental de périmètre (02/11/2026)
+
+Le contrôle des liens externes effectue une présélection textuelle avant
+l'analyse des syntaxes Markdown/HTML. Pour qu'une source **extérieure** au
+projet cible pointe vers un fichier déplacé à l'intérieur de ce projet, sa
+référence doit passer par le nom de dossier du projet (éventuellement encodé
+comme une URL). Les fichiers ne mentionnant pas ce dossier ne requièrent
+aucune analyse de liens. À l'intérieur du projet, l'inspection demeure
+exhaustive, y compris lorsque le Markdown est incomplet ou mal formé.
+
+Les fragments de lien nécessitant une requalification humaine continuent
+d'être bloquants. Les backlinks externes vérifiés restent dans le journal et
+conservent leur SHA-256 ; l'empreinte d'un Markdown est calculée uniquement
+lorsqu'une réécriture est effectivement proposée. Le panneau de confirmation
+affiche désormais les nombres de documents du projet inspectés, de sources
+externes candidates et de sources externes écartées sans analyse. Chaque
+blocage pertinent est affiché sur une ligne distincte, plutôt qu'une longue
+liste concaténée et tronquée.
+
+Les tests utilisent un workspace fictif comprenant plusieurs applications et
+une série de trente documents externes sans rapport, ainsi qu'un backlink
+suspect et un backlink réécrivable. Le préflight reste **en lecture seule** ;
+la qualification visuelle sur Windows et la mesure des latences avec un
+workspace volumineux sont requises avant publication 2.0.
