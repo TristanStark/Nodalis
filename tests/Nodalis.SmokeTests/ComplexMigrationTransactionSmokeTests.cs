@@ -225,6 +225,8 @@ internal static class ComplexMigrationTransactionSmokeTests
                 "Legacy.md");
             string unrelatedLarge = Path.Combine(otherApplication,
                 "Long independent.md");
+            string unrelatedMalformedLarge = Path.Combine(otherApplication,
+                "Legacy bulk.md");
             await File.WriteAllTextAsync(unrelatedWiki,
                 "# Autre projet\n\n[[Document absent]]\n[Inconnu][absent]\n");
             await File.WriteAllTextAsync(unrelatedBrokenTarget,
@@ -234,6 +236,15 @@ internal static class ComplexMigrationTransactionSmokeTests
             await File.WriteAllTextAsync(unrelatedLarge,
                 "# Documentation indépendante\n\n" +
                 new string('x', 256 * 1024) + "\n[[Unrelated]]");
+            // A corrupt large note may mention the project in prose without
+            // containing a link to a moved source. Raw fallback must skip it.
+            byte[] unrelatedMalformedBytes = Encoding.UTF8.GetBytes(
+                "# " + project.Name + " · document externe indépendant\n" +
+                new string('x', 128 * 1024));
+            unrelatedMalformedBytes[0] = 0xC3;
+            unrelatedMalformedBytes[1] = 0x28;
+            await File.WriteAllBytesAsync(unrelatedMalformedLarge,
+                unrelatedMalformedBytes);
             // Numerous unrelated notes are discovered, but their link syntax
             // should not be parsed or hashed as part of this project migration.
             string unrelatedBulk = Path.Combine(otherApplication, "Bulk");
@@ -272,7 +283,7 @@ internal static class ComplexMigrationTransactionSmokeTests
             Assert(independent.CanExecute &&
                 independent.Blockers.Count == 0 &&
                 independent.ExternalLinkRewrites.Count == 0 &&
-                independent.ExternalLinkDocumentsSkipped >= 33 &&
+                independent.ExternalLinkDocumentsSkipped >= 34 &&
                 independent.ExternalLinkDocumentsInspected == 0 &&
                 independent.ProjectLinkDocumentsInspected >= 1,
                 "Unrelated application Markdown cannot block migration.");
@@ -280,6 +291,7 @@ internal static class ComplexMigrationTransactionSmokeTests
             File.Delete(unrelatedBrokenTarget);
             File.Delete(unrelatedEncoding);
             File.Delete(unrelatedLarge);
+            File.Delete(unrelatedMalformedLarge);
             Directory.Delete(otherApplication, true);
             Directory.Delete(ignoredBackup, true);
             Directory.Delete(ignoredTemplates, true);
@@ -318,6 +330,30 @@ internal static class ComplexMigrationTransactionSmokeTests
                 largeUnrelated.Blockers.Count == 0,
                 "Long unrelated Markdown must not be parsed as migration links.");
             File.Delete(longUnrelatedLine);
+
+
+            // An invalid UTF-8 backlink to the moved project remains
+            // blocking, including when its marker crosses a raw byte buffer.
+            string malformedRelevant = Path.Combine(workspace,
+                "Malformed backlink.md");
+            byte[] markerAcrossBlocks = Encoding.UTF8.GetBytes(
+                new string('x', 8140) +
+                "[Technique](<Applications/Test/Projets/Complexe historique/" +
+                "Technique/Technique.md>)");
+            byte[] malformedRelevantBytes =
+                [0xC3, 0x28, .. markerAcrossBlocks];
+            await File.WriteAllBytesAsync(malformedRelevant,
+                malformedRelevantBytes);
+            ComplexProjectMigrationPlan malformedPlan =
+                await planner.PrepareAsync(projectRoot);
+            Assert(!malformedPlan.CanExecute &&
+                malformedPlan.Blockers.Any(item =>
+                    item.Contains("Malformed backlink.md",
+                        StringComparison.Ordinal) &&
+                    item.Contains("encodage non UTF-8",
+                        StringComparison.Ordinal)),
+                "A malformed external encoding cannot conceal a moved backlink.");
+            File.Delete(malformedRelevant);
 
             // Conversely, an unsupported external backlink to a moved
             // destination must still fail closed, even in another application.

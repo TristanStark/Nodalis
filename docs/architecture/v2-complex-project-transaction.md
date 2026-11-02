@@ -320,3 +320,20 @@ Régressions de workspace fictif : références malformées dans des
 sauvegardes d'imports et modèles ignorées, backlinks actifs conservés,
 annulation entre inventaire et lecture des liens, empreinte du projet
 inchangée. Qualification visuelle et mesures réelles Windows restantes.
+
+
+## Fallback d'encodage externe à mémoire bornée (02/11/2026)
+
+Lorsqu'un Markdown **extérieur au projet** n'est pas décodable en UTF-8,
+le scanner ne charge plus immédiatement l'intégralité de ses octets.
+Il recherche d'abord, par un flux binaire à blocs de 8 KiB avec
+recouvrement, les marqueurs des **chemins candidats déplacés**. Les
+marqueurs UTF-8 sont calculés une seule fois par préflight. Une source
+corrompue mais sans lien pertinent est écartée sans allocation proportionnelle
+à sa taille ; la présence d'un véritable backlink demeure bloquante et
+requiert la qualification humaine avant toute modification. Le projet cible
+conserve ses contrôles stricts inchangés.
+
+Les tests utilisent exclusivement des fichiers fictifs : grand Markdown
+externe non-UTF-8 sans backlink, et lien concerné passant une frontière de
+bloc dans une source mal encodée. Pas d'accès réseau ni de capture ajoutée.

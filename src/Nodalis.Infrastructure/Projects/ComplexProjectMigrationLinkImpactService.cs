@@ -99,6 +99,7 @@ public sealed class ComplexProjectMigrationLinkImpactService
     private readonly string _projectName;
     private readonly string _encodedProjectName;
     private readonly IReadOnlyList<string> _possibleMovedPaths;
+    private readonly IReadOnlyList<byte[]> _possibleMovedPathBytes;
 
     /// <summary>Creates a deterministic, non-mutating link auditor.</summary>
     /// <param name="workspaceRoot">Workspace containing active Markdown.</param>
@@ -131,6 +132,8 @@ public sealed class ComplexProjectMigrationLinkImpactService
                 _encodedProjectName + "/" + Uri.EscapeDataString(from)
             };
         }).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        _possibleMovedPathBytes = _possibleMovedPaths
+            .Select(Encoding.UTF8.GetBytes).ToArray();
     }
 
     /// <summary>
@@ -518,9 +521,53 @@ public sealed class ComplexProjectMigrationLinkImpactService
         }
         catch (DecoderFallbackException)
         {
-            // The normal strict decoder below decides whether malformed
-            // bytes are actually relevant before creating a blocker.
-            return true;
+            // Do not force a full File.ReadAllBytes for a multi-megabyte
+            // unrelated legacy document. Raw candidate markers are scanned
+            // incrementally; a real impacted backlink still fails closed.
+            return await MayContainMovedDestinationInFileAsync(file,
+                cancellationToken);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Searches malformed external Markdown for affected path bytes without
+    /// ever loading the complete file. Overlap preserves split UTF-8 markers
+    /// at I/O buffer boundaries.
+    /// </summary>
+    /// <param name="file">External source with a failed strict UTF-8 decode.</param>
+    /// <param name="cancellationToken">Cancellation checked for every block.</param>
+    /// <returns>Whether an affected backlink might be present.</returns>
+    private async Task<bool> MayContainMovedDestinationInFileAsync(
+        string file, CancellationToken cancellationToken)
+    {
+        if (_possibleMovedPathBytes.Count == 0)
+        {
+            return false;
+        }
+
+        int overlap = _possibleMovedPathBytes.Max(marker => marker.Length) - 1;
+        byte[] buffer = new byte[8192 + overlap];
+        int retained = 0;
+        await using FileStream input = new(file, FileMode.Open,
+            FileAccess.Read, FileShare.Read, 65536, useAsync: true);
+        int read;
+        while ((read = await input.ReadAsync(buffer.AsMemory(retained, 8192),
+            cancellationToken)) > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int total = retained + read;
+            foreach (byte[] marker in _possibleMovedPathBytes)
+            {
+                if (buffer.AsSpan(0, total).IndexOf(marker) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            retained = Math.Min(overlap, total);
+            Buffer.BlockCopy(buffer, total - retained, buffer, 0, retained);
         }
 
         return false;
@@ -561,9 +608,8 @@ public sealed class ComplexProjectMigrationLinkImpactService
     /// <returns>Whether the source may reference a moved path.</returns>
     private bool MayContainMovedDestination(byte[] bytes)
     {
-        foreach (string candidate in _possibleMovedPaths)
+        foreach (byte[] marker in _possibleMovedPathBytes)
         {
-            byte[] marker = Encoding.UTF8.GetBytes(candidate);
             if (bytes.AsSpan().IndexOf(marker) >= 0)
             {
                 return true;
