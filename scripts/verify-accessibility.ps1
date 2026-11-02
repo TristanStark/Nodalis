@@ -89,6 +89,14 @@ if (-not $powerModeCode.Contains('_secondaryPreviewParseCancellation?.Cancel();'
     -not $powerModeCode.Contains('QueueSecondaryPreview();')) {
     $failures.Add("Suspend and resume must invalidate canceled preview work and re-arm only active panes.")
 }
+$requirementsCodePath = Join-Path $appRoot "MainWindow.Requirements.cs"
+$requirementsCode = Get-Content -Raw -LiteralPath $requirementsCodePath
+if (-not $mainWindowCode.Contains('Id = "project.requirement.new-v2"') -or
+    -not $requirementsCode.Contains('GetArchiveContextProject()') -or
+    -not $requirementsCode.Contains('service.CreateAsync(') -or
+    -not $requirementsCode.Contains('MessageBoxButton.YesNo')) {
+    $failures.Add("Requirement creation must stay in the palette and require a scoped, explicit human confirmation.")
+}
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or

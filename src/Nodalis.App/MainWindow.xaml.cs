@@ -4939,6 +4939,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.requirement.new-v2",
+                Title = "Créer une exigence",
+                Subtitle = "Créer une fiche EXI en brouillon, avec référence et GUID stables",
+                Keywords = ["exigence", "besoin", "spécification", "EXI", "critère", "2.0"],
+                ExecuteAsync = CreateProjectRequirementAsync
+            },
+            new()
+            {
                 Id = "project.journey-templates-v2",
                 Title = "Personnaliser les modèles de Parcours",
                 Subtitle = "Éditer les modèles du workspace sans modifier les projets existants",

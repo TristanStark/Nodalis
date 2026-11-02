@@ -52,8 +52,13 @@ réservant une référence, aller-retour format/parse, doublons de GUID,
 collisions de références, mauvais propriétaire, annulation, état inconnu,
 injection de champs YAML et confirmation de l'absence de mutation.
 
-**À venir (EPIC #198)** : création accessible depuis la Command Palette,
-critères `CA-xx` identifiés, qualification humaine avec journal
+La Command Palette propose **Créer une exigence**. La commande demande
+un titre, affiche le nom du projet, la référence et le chemin prévus,
+puis exige une confirmation avant écriture. Si le registre évolue entre
+l'aperçu et la validation, l'action échoue plutôt que d'attribuer une
+nouvelle référence en silence. La fiche créée s'ouvre dans l'éditeur.
+
+**À venir (EPIC #198)** : critères `CA-xx` identifiés, qualification humaine avec journal
 append-only, liens critères→tests et matrice de traçabilité distinguant
 couverture, exécution, conformité et décision.
 
