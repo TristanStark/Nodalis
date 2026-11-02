@@ -148,6 +148,10 @@ internal static class NavigationWorktreeSmokeTests
         Assert(ReferenceEquals(index.Resolve(Guid.NewGuid(),
                 first.FullPath.ToUpperInvariant()), first),
             "Path comparison must remain case-insensitive.");
+        Assert(ReferenceEquals(index.ResolveByPath(
+                second.FullPath.ToUpperInvariant()), second) &&
+            index.ResolveByPath("C:/Fixture/Missing.md") is null,
+            "Bookmark path fallback must use the first matching document.");
         Assert(ReferenceEquals(index.ResolveById(sharedId), first) &&
             index.ResolveById(Guid.NewGuid()) is null &&
             index.Resolve(Guid.NewGuid(), "C:/Fixture/Missing.md") is null,

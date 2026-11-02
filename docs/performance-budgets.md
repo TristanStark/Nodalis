@@ -501,3 +501,18 @@ n'est laissé volontairement périmé. Les raccourcis Worktree sont mis
 Une nouvelle durée locale `Onglets · historique récent` permet de
 distinguer la persistance de l'historique et son contexte des coûts
 de rendu d'un onglet. La mesure est optionnelle et anonyme.
+
+
+### Signets et grand Worktree (02/11/2026)
+
+La résolution d'un signet de document réutilise désormais le même
+`DocumentNavigationIndex` que les onglets : l'ID est cherché en priorité,
+puis le chemin canonique si l'ID est absent. Le rejet de chemin sortant
+du workspace est préservé. Cette modification évite de parcourir tous
+les nœuds du Worktree **pour chaque signet** au moment de construire
+les favoris, Quick Open ou le dashboard.
+
+La vérification de la présence du titre Markdown et l'ouverture explicite
+restent inchangées : un signet cassé n'est pas considéré comme valide
+sur la seule base de l'index. Les tests couvrent la casse, les chemins
+absents et la priorité du premier document en cas de collisions.

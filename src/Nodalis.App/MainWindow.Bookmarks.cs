@@ -438,11 +438,7 @@ public partial class MainWindow
             DocumentBookmarkReference bookmark)
     {
         NavigationNodeViewModel? byId =
-            _root
-                .DescendantsAndSelf()
-                .FirstOrDefault(candidate =>
-                    candidate.Kind == WorkspaceNodeKind.Document &&
-                    candidate.Id == bookmark.DocumentId);
+            GetDocumentNavigationIndex().ResolveById(bookmark.DocumentId);
 
         if (byId is not null)
         {
@@ -472,15 +468,7 @@ public partial class MainWindow
             return null;
         }
 
-        return _root
-            .DescendantsAndSelf()
-            .FirstOrDefault(candidate =>
-                candidate.Kind == WorkspaceNodeKind.Document &&
-                string.Equals(
-                    Path.GetFullPath(
-                        candidate.FullPath),
-                    fullPath,
-                    StringComparison.OrdinalIgnoreCase));
+        return GetDocumentNavigationIndex().ResolveByPath(fullPath);
     }
 
     /// <summary>

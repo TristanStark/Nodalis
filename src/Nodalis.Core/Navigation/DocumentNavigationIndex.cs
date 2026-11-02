@@ -69,6 +69,14 @@ public sealed class DocumentNavigationIndex<TNode> where TNode : class
         return hasPath ? byPath.Node : null;
     }
 
+    /// <summary>Finds the first exact path match in traversal order.</summary>
+    /// <param name="path">Canonical document path.</param>
+    /// <returns>The first matching document node, or null.</returns>
+    public TNode? ResolveByPath(string path) =>
+        string.IsNullOrWhiteSpace(path)
+            ? null
+            : _byPath.TryGetValue(path, out Match match) ? match.Node : null;
+
     /// <summary>
     /// Finds the first exact ID match, without performing a path fallback.
     /// Useful for verifying that an open tab's original session still points
