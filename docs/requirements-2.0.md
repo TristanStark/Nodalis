@@ -91,3 +91,29 @@ Markdown lors de la lecture, sans écrire de registre parallèle.
 Les diagnostics de critères sont séparés des diagnostics de fichiers
 invalides. Les smoke tests couvrent les doublons, titres renommés,
 sections externes, marqueurs malformés et blocs de code.
+
+## Traçabilité calculée — liens de test (02/11/2026)
+
+La projection `ProjectRequirementTraceability.Build` joint le registre
+canonique des exigences et **un instantané actualisé** de l'index de liens
+partagé (v5) : aucune nouvelle base, aucune écriture, aucun scan pendant
+le rendu WPF. Les critères ont quatre états **de couverture uniquement** :
+`Unidentified`, `StaleSource`, `Uncovered`, `LinkedTest`.
+
+Un critère est `LinkedTest` uniquement si son GUID et son document sont
+uniques, si l'empreinte de la fiche concorde avec l'index, et si une
+relation typée `vérifie` ou `teste` est issue d'un bloc de test identifié
+et d'une source **du même projet**. Les blocs de test sont reconnus dans
+les dossiers `Tests`/`Recette` ou par titre `TEST-`/`TST-` ; ce filtre
+provisoire sera remplacé par le référentiel de tests de l'EPIC #200.
+Les relations dupliquées vers un même bloc de test sont dédoublonnées.
+Les sources documentaires sans bloc, hors projet, non typées, en
+collision ou issues d'un index désynchronisé ne créent pas de couverture.
+
+**Important :** `LinkedTest` signifie seulement « au moins un test est
+lié ». Ce n'est **pas** « test exécuté », « résultat conforme »,
+« preuve vérifiée », « exigence approuvée » ou « vérification acquise ».
+La matrice n'altère jamais les trois états de la fiche. Les campagnes,
+passages et preuves seront joints après leur implémentation (#200).
+Les tests synthétiques couvrent les sources de l'autre projet, le GUID
+reproduit, les SHA obsolètes, la ligne déplacée et les liens redondants.

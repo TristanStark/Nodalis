@@ -96,6 +96,7 @@ try
     await ProjectRiskRegistrySmokeTests.RunAsync(root);
     await ProjectRequirementRegistrySmokeTests.RunAsync(root);
     ProjectRequirementCriterionSmokeTests.Run();
+    ProjectRequirementTraceabilitySmokeTests.Run();
     await ProjectRiskReviewSmokeTests.RunAsync(root);
     await ProjectRiskQualificationSmokeTests.RunAsync(root);
     await ProjectRiskTreatmentSmokeTests.RunAsync(root);
