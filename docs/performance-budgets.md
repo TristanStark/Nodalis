@@ -415,3 +415,24 @@ Les préférences Favorites et RecentItems restent relues à chaque
 actualisation : aucune information n'est figée ni écrite ailleurs.
 Le résultat doit être qualifié sur plusieurs applications, de nombreux
 onglets et des marque-pages déplacés ; le gain réel reste à mesurer.
+
+
+### Raccourcis sans balayage répété du workspace (02/11/2026)
+
+Le panneau **Favoris / Documents récents** garde maintenant en mémoire un
+index de cibles Quick Open par clé de préférence pour un couple
+**arborescence de navigation + instantané de l'index des liens**. Les
+changements d'onglet successifs ne reconstruisent donc plus les milliers
+d'entrées Quick Open déjà connues : seules les listes généralement courtes
+de favoris et de récents sont projetées en mémoire. Le cache est reconstruit
+après un nouveau chargement de l'arborescence ou une nouvelle publication
+du catalogue de liens, et **les préférences Favorites / RecentItems**
+sont relues à chaque affichage. Les signets de section sont requalifiés
+dynamiquement afin de ne jamais masquer une référence cassée avec un
+résultat de cache ancien.
+
+Cette optimisation préserve l'ouverture explicite de Quick Open, son
+index complet et les identifiants techniques ; elle n'écrit aucun fichier.
+Recette Windows restante : ajouter/retirer des favoris, ouvrir plusieurs
+documents, signets déplacés/cassés, index des liens actualisé, changement
+d'application, rafales d'onglets, ouverture/fermeture de panneau.

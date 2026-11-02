@@ -182,6 +182,7 @@ public partial class MainWindow
                 new QuickOpenEntry
                 {
                     NodeId = node.Id,
+                    PreferenceKey = preferenceKey,
                     FullPath = node.FullPath,
                     DisplayName = node.DisplayName,
                     KindLabel = GetKindLabel(

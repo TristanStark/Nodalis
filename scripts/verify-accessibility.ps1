@@ -52,10 +52,12 @@ $worktreeVmPath = Join-Path $appRoot "Navigation/NavigationNodeViewModel.cs"
 $stickyWorktreePath = Join-Path $appRoot "MainWindow.WorktreeSticky.cs"
 $worktreeP1Path = Join-Path $appRoot "MainWindow.WorktreeP1.cs"
 $quickOpenPath = Join-Path $appRoot "MainWindow.QuickOpen.cs"
+$quickOpenEntryPath = Join-Path $appRoot "Navigation/QuickOpenEntry.cs"
 $worktreeVm = Get-Content -Raw -LiteralPath $worktreeVmPath
 $stickyWorktree = Get-Content -Raw -LiteralPath $stickyWorktreePath
 $worktreeP1 = Get-Content -Raw -LiteralPath $worktreeP1Path
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
+$quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or
     -not $stickyWorktree.Contains('int index = current.VisibleSiblingIndex;') -or
     $stickyWorktree.Contains('candidateIndex < parent.VisibleChildren.Count')) {
@@ -68,6 +70,11 @@ if (-not $worktreeP1.Contains('_worktreeP1RefreshPending') -or
 if (-not $quickOpenCode.Contains('documentsByRelativePath.GetValueOrDefault(qualifiedPath)') -or
     -not $quickOpenCode.Contains('targetsById.GetValueOrDefault(node.Id)')) {
     $failures.Add("Quick Open should resolve link targets via O(1) maps, not repeated linear searches.")
+}
+if (-not $quickOpenEntry.Contains('PreferenceKey { get; init; }') -or
+    -not $worktreeP1.Contains('EnsureWorktreeShortcutIndex();') -or
+    -not $worktreeP1.Contains('ReferenceEquals(_linkIndex, _worktreeShortcutCachedLinkIndex)')) {
+    $failures.Add("Worktree shortcuts must reuse navigation/link snapshots while refreshing preferences.")
 }
 if (-not $stickyWorktree.Contains('TrackOperation("Worktree · en-têtes persistants")') -or
     -not $worktreeP1.Contains('TrackOperation("Worktree · projection du filtre")') -or

@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using Nodalis.App.Diagnostics;
 using Nodalis.App.Navigation;
+using Nodalis.Core.Links;
 using Nodalis.Core.Navigation;
 
 namespace Nodalis.App;
@@ -26,6 +27,10 @@ public partial class MainWindow
     private NavigationNodeViewModel? _lastFilteredWorktreeRoot;
     private string? _lastFilteredWorktreeQuery;
     private Guid? _lastFilteredWorktreeApplication;
+    private NavigationNodeViewModel? _worktreeShortcutCachedRoot;
+    private LinkIndexCatalog? _worktreeShortcutCachedLinkIndex;
+    private Dictionary<string, List<QuickOpenEntry>> _worktreeShortcutsByKey =
+        new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Loads local display preferences after the initial canonical tree exists.
@@ -326,39 +331,133 @@ public partial class MainWindow
 
         using DispatcherHeartbeatMonitor.OperationScope measurement =
             _heartbeatMonitor.TrackOperation("Worktree · favoris et récents");
-        IReadOnlyList<QuickOpenEntry> entries = BuildQuickOpenEntries();
+        EnsureWorktreeShortcutIndex();
+        HashSet<string> favorites = _preferences.Favorites
+            .Select(reference => reference.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         if (WorktreeFavoritesExpander.IsExpanded)
         {
-            QuickOpenEntry[] favorites = entries
-                .Where(entry => entry.IsFavorite && !entry.IsBroken)
-                .OrderBy(entry => entry.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            List<QuickOpenEntry> favored = [];
+            foreach (string key in favorites)
+            {
+                if (_worktreeShortcutsByKey.TryGetValue(key,
+                    out List<QuickOpenEntry>? entries))
+                {
+                    favored.AddRange(entries.Select(entry =>
+                        entry with { IsFavorite = true, RecentRank = -1 }));
+                }
+            }
+
+            // Bookmarks remain dynamically validated against the current
+            // Markdown heading; never cache a possibly broken bookmark.
+            foreach (Nodalis.Core.Settings.DocumentBookmarkReference bookmark
+                in _preferences.Bookmarks)
+            {
+                QuickOpenEntry entry = CreateBookmarkQuickOpenEntry(bookmark);
+                if (!entry.IsBroken)
+                {
+                    favored.Add(entry);
+                }
+            }
+
+            QuickOpenEntry[] favoriteEntries = favored
+                .OrderBy(entry => entry.DisplayName,
+                    StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(entry => entry.QualifiedPath,
+                    StringComparer.OrdinalIgnoreCase)
                 .Take(20)
                 .ToArray();
             if (WorktreeFavoritesList.ItemsSource is not
                     IEnumerable<QuickOpenEntry> existingFavorites ||
-                !existingFavorites.SequenceEqual(favorites))
+                !existingFavorites.SequenceEqual(favoriteEntries))
             {
-                WorktreeFavoritesList.ItemsSource = favorites;
+                WorktreeFavoritesList.ItemsSource = favoriteEntries;
             }
         }
 
         if (WorktreeRecentsExpander.IsExpanded)
         {
-            QuickOpenEntry[] recents = entries
-                .Where(entry =>
-                    entry.RecentRank >= 0 &&
-                    entry.KindLabel.Contains(
-                        "document", StringComparison.CurrentCultureIgnoreCase))
+            List<QuickOpenEntry> recent = [];
+            HashSet<string> visited = new(StringComparer.OrdinalIgnoreCase);
+            int rank = 0;
+            foreach (Nodalis.Core.Settings.RecentItemReference item in
+                _preferences.RecentItems.OrderByDescending(value =>
+                    value.LastOpenedUtc))
+            {
+                string key = item.Item.Key;
+                if (!visited.Add(key))
+                {
+                    continue;
+                }
+
+                if (_worktreeShortcutsByKey.TryGetValue(key,
+                    out List<QuickOpenEntry>? entries))
+                {
+                    recent.AddRange(entries
+                        .Where(entry => entry.KindLabel.Contains("document",
+                            StringComparison.CurrentCultureIgnoreCase))
+                        .Select(entry => entry with
+                        {
+                            RecentRank = rank,
+                            IsFavorite = favorites.Contains(key)
+                        }));
+                }
+
+                rank++;
+            }
+
+            QuickOpenEntry[] recentEntries = recent
                 .OrderBy(entry => entry.RecentRank)
+                .ThenBy(entry => entry.QualifiedPath,
+                    StringComparer.OrdinalIgnoreCase)
                 .Take(20)
                 .ToArray();
             if (WorktreeRecentsList.ItemsSource is not
                     IEnumerable<QuickOpenEntry> existingRecents ||
-                !existingRecents.SequenceEqual(recents))
+                !existingRecents.SequenceEqual(recentEntries))
             {
-                WorktreeRecentsList.ItemsSource = recents;
+                WorktreeRecentsList.ItemsSource = recentEntries;
             }
         }
+    }
+
+    /// <summary>
+    /// Rebuilds navigation lookup only when a new canonical tree or link-index
+    /// snapshot replaces the previous one. Recent and favorite preferences
+    /// are overlaid afresh on each call, not frozen in the cached entries.
+    /// </summary>
+    private void EnsureWorktreeShortcutIndex()
+    {
+        if (ReferenceEquals(_root, _worktreeShortcutCachedRoot) &&
+            ReferenceEquals(_linkIndex, _worktreeShortcutCachedLinkIndex))
+        {
+            return;
+        }
+
+        Dictionary<string, List<QuickOpenEntry>> lookup =
+            new(StringComparer.OrdinalIgnoreCase);
+        foreach (QuickOpenEntry entry in BuildQuickOpenEntries())
+        {
+            if (entry.BookmarkId is not null ||
+                string.IsNullOrWhiteSpace(entry.PreferenceKey))
+            {
+                continue;
+            }
+
+            if (!lookup.TryGetValue(entry.PreferenceKey,
+                out List<QuickOpenEntry>? targets))
+            {
+                targets = [];
+                lookup.Add(entry.PreferenceKey, targets);
+            }
+
+            targets.Add(entry);
+        }
+
+        _worktreeShortcutsByKey = lookup;
+        _worktreeShortcutCachedRoot = _root;
+        _worktreeShortcutCachedLinkIndex = _linkIndex;
     }
 
     /// <summary>Opens a shortcut on double-click, not on a mere focus change.</summary>

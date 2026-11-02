@@ -11,6 +11,13 @@ public sealed record QuickOpenEntry
     public required Guid NodeId { get; init; }
 
     /// <summary>
+    /// Local preference key of a navigation target. This is distinct from
+    /// the node ID for document targets indexed by relative Markdown path.
+    /// Bookmark entries intentionally have no navigation preference key.
+    /// </summary>
+    internal string? PreferenceKey { get; init; }
+
+    /// <summary>
     /// Gets the absolute target path.
     /// </summary>
     public required string FullPath { get; init; }
