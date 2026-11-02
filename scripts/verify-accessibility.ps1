@@ -51,9 +51,11 @@ if ($theme -notmatch '(?s)<Style\s+x:Key="NodalisTreeViewItemStyle"\s+TargetType
 $worktreeVmPath = Join-Path $appRoot "Navigation/NavigationNodeViewModel.cs"
 $stickyWorktreePath = Join-Path $appRoot "MainWindow.WorktreeSticky.cs"
 $worktreeP1Path = Join-Path $appRoot "MainWindow.WorktreeP1.cs"
+$quickOpenPath = Join-Path $appRoot "MainWindow.QuickOpen.cs"
 $worktreeVm = Get-Content -Raw -LiteralPath $worktreeVmPath
 $stickyWorktree = Get-Content -Raw -LiteralPath $stickyWorktreePath
 $worktreeP1 = Get-Content -Raw -LiteralPath $worktreeP1Path
+$quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or
     -not $stickyWorktree.Contains('int index = current.VisibleSiblingIndex;') -or
     $stickyWorktree.Contains('candidateIndex < parent.VisibleChildren.Count')) {
@@ -62,6 +64,10 @@ if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or
 if (-not $worktreeP1.Contains('_worktreeP1RefreshPending') -or
     -not $worktreeP1.Contains('candidate.VisibleSiblingIndex')) {
     $failures.Add("Worktree tab refreshes and visibility checks must remain coalesced and indexed.")
+}
+if (-not $quickOpenCode.Contains('documentsByRelativePath.GetValueOrDefault(qualifiedPath)') -or
+    -not $quickOpenCode.Contains('targetsById.GetValueOrDefault(node.Id)')) {
+    $failures.Add("Quick Open should resolve link targets via O(1) maps, not repeated linear searches.")
 }
 if (-not $stickyWorktree.Contains('TrackOperation("Worktree · en-têtes persistants")') -or
     -not $worktreeP1.Contains('TrackOperation("Worktree · projection du filtre")') -or

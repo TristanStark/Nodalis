@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using Nodalis.App.Dialogs;
 using Nodalis.App.Navigation;
+using Nodalis.Core.Links;
 using Nodalis.Core.Navigation;
 
 namespace Nodalis.App;
@@ -98,6 +99,22 @@ public partial class MainWindow
     /// <returns>The searchable Quick Open targets.</returns>
     private IReadOnlyList<QuickOpenEntry> BuildQuickOpenEntries()
     {
+        // Build source lookup maps once. The previous implementation called
+        // FindIndexedTarget for every navigation VM, linearly searching the
+        // complete link index each time (quadratic on large workspaces).
+        Dictionary<Guid, LinkTargetEntry> targetsById = [];
+        Dictionary<string, LinkTargetEntry> documentsByRelativePath =
+            new(StringComparer.OrdinalIgnoreCase);
+        foreach (LinkTargetEntry target in _linkIndex.Targets)
+        {
+            targetsById.TryAdd(target.Id, target);
+            if (target.Kind == LinkTargetKind.Document &&
+                !string.IsNullOrWhiteSpace(target.RelativePath))
+            {
+                documentsByRelativePath.TryAdd(target.RelativePath, target);
+            }
+        }
+
         global::System.Collections.Generic.HashSet<string> favoriteKeys =
             _preferences.Favorites
                 .Select(reference =>
@@ -137,9 +154,18 @@ public partial class MainWindow
                              WorkspaceNodeKind.Project or
                              WorkspaceNodeKind.Document))
         {
-            global::Nodalis.Core.Links.LinkTargetEntry? indexedTarget =
-                FindIndexedTarget(
-                    node);
+            string qualifiedPath =
+                Path.GetRelativePath(
+                        _root.FullPath,
+                        node.FullPath)
+                    .Replace(
+                        Path.DirectorySeparatorChar,
+                        '/');
+
+            LinkTargetEntry? indexedTarget = node.Kind ==
+                WorkspaceNodeKind.Document
+                ? documentsByRelativePath.GetValueOrDefault(qualifiedPath)
+                : targetsById.GetValueOrDefault(node.Id);
 
             string preferenceKey =
                 indexedTarget?.Id.ToString("D") ??
@@ -151,14 +177,6 @@ public partial class MainWindow
                     out int knownRank)
                     ? knownRank
                     : -1;
-
-            string qualifiedPath =
-                Path.GetRelativePath(
-                        _root.FullPath,
-                        node.FullPath)
-                    .Replace(
-                        Path.DirectorySeparatorChar,
-                        '/');
 
             entries.Add(
                 new QuickOpenEntry

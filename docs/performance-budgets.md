@@ -395,3 +395,23 @@ lors des changements de filtre, puis validées par identité avant usage.
 La suppression des recherches O(nombre de frères) pendant le scroll
 est un gain structurel attendu, **pas** un SLA ni un gain de latence
 mesuré sur une machine utilisateur.
+
+
+### Construction des raccourcis Quick Open — index linéaire (02/11/2026)
+
+La liste Quick Open, également utilisée par **Favoris** et **Documents
+récents** dans le Worktree, reconstruisait la correspondance cible lien ↔
+document via `FindIndexedTarget` pour chaque nœud. Cette recherche
+parcourait auparavant tous les `LinkTargetEntry`, menant à un coût
+théorique **O(nombre de nœuds × nombre de cibles)** pendant certains
+changements d'onglets.
+
+La projection construit maintenant **une seule fois par actualisation**
+deux dictionnaires (ID stable pour projets/applications/modules, chemin
+relatif insensible à la casse pour documents), puis résout chaque entrée
+en O(1) moyen. En cas de doublon d'identité ou de chemin, le **premier**
+élément reste retenu, à l'identique de l'ancienne recherche `FirstOrDefault`.
+Les préférences Favorites et RecentItems restent relues à chaque
+actualisation : aucune information n'est figée ni écrite ailleurs.
+Le résultat doit être qualifié sur plusieurs applications, de nombreux
+onglets et des marque-pages déplacés ; le gain réel reste à mesurer.
