@@ -131,6 +131,12 @@ if (-not $mainWindowCode.Contains('Id = "project.test-campaigns-v2"') -or
     -not $campaignResultXaml.Contains('AutomationProperties.Name="Verdict du test"')) {
     $failures.Add("REC campaign UI must be accessible, asynchronous and explicitly human-approved.")
 }
+$campaignValidityCode = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestCampaignsDialog.xaml.cs")
+if (-not $campaignValidityCode.Contains('RefreshSourceValidityAsync()') -or
+    -not $campaignValidityCode.Contains('AssessSourceValidityAsync(') -or
+    -not $campaignValidityCode.Contains('MODIFIÉE · à requalifier')) {
+    $failures.Add("REC campaign UI must distinguish live definition drift from historical outcomes.")
+}
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or

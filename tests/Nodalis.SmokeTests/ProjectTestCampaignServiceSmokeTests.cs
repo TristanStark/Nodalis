@@ -206,6 +206,65 @@ internal static class ProjectTestCampaignServiceSmokeTests
                        ProjectTestOutcome.Failed &&
                    await File.ReadAllTextAsync(legacyPath) == legacy,
                 "Reload retains both outcomes; unrelated legacy files stay untouched.");
+            ProjectTestSourceValidityOverview live =
+                await service.AssessSourceValidityAsync(
+                    own.ProjectDirectory, final, updatedIndex);
+            Assert(live.Rows.Count == 3 &&
+                   live.Rows.Single(row => row.PassageId == passage1.Id &&
+                       row.TestId == firstId).Validity ==
+                           ProjectTestSourceValidity.Modified &&
+                   live.Rows.Single(row => row.PassageId == passage1.Id &&
+                       row.TestId == secondId).Validity ==
+                           ProjectTestSourceValidity.Current &&
+                   live.Rows.Single(row => row.PassageId == passage2.Id &&
+                       row.TestId == firstId).Validity ==
+                           ProjectTestSourceValidity.Current &&
+                   live.NeedsReview == 1 &&
+                   final.Campaign.Passages[0].Results[0].Outcome ==
+                       ProjectTestOutcome.Failed,
+                "A modified test needs requalification; unaffected tests and " +
+                "historic verdicts remain unchanged.");
+
+            LinkIndexCatalog duplicatedBlock = updatedIndex with
+            {
+                Blocks = updatedIndex.Blocks.Append(
+                    updatedIndex.Blocks.First(block =>
+                        block.Id == firstId)).ToList()
+            };
+            ProjectTestSourceValidityOverview ambiguous =
+                await service.AssessSourceValidityAsync(
+                    own.ProjectDirectory, final, duplicatedBlock);
+            Assert(ambiguous.Rows.Where(row => row.TestId == firstId)
+                       .All(row => row.Validity ==
+                           ProjectTestSourceValidity.Ambiguous),
+                "A globally duplicated block GUID must never be current.");
+
+            string updatedCahier = await File.ReadAllTextAsync(cahierPath);
+            await File.WriteAllTextAsync(cahierPath, updatedCahier.Replace(
+                "Étape 2", "Étape 2 modifiée",
+                StringComparison.Ordinal));
+            ProjectTestSourceValidityOverview staleIndex =
+                await service.AssessSourceValidityAsync(
+                    own.ProjectDirectory, final, updatedIndex);
+            Assert(staleIndex.Rows.All(row =>
+                       row.Validity == ProjectTestSourceValidity.IndexOutOfDate),
+                "Index source hashes must match current bytes before declaring " +
+                "any frozen block current.");
+
+            File.Delete(cahierPath);
+            ProjectTestSourceValidityOverview missingSource =
+                await service.AssessSourceValidityAsync(
+                    own.ProjectDirectory, final, updatedIndex);
+            Assert(missingSource.Rows.All(row =>
+                       row.Validity == ProjectTestSourceValidity.Missing) &&
+                   final.Campaign.Passages[1].Results[0].Outcome ==
+                       ProjectTestOutcome.Passed,
+                "A deleted source must be flagged without rewriting old results.");
+
+            await RejectAsync(() => service.AssessSourceValidityAsync(
+                foreign.ProjectDirectory, final, updatedIndex),
+                "A campaign cannot be assessed in another project.");
+
             await RejectAsync(() => service.RecordResultAsync(
                 foreign.ProjectDirectory, final, passage2.Id, firstId,
                 ProjectTestOutcome.Passed, "Testeur fictif",

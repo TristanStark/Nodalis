@@ -23,6 +23,8 @@ public partial class ProjectTestCampaignsDialog : Window
     private bool _busy;
     private bool _painting;
     private long _passageViewRevision;
+    private long _sourceValidityRevision;
+    private ProjectTestSourceValidityOverview? _sourceValidity;
 
     /// <summary>Creates a project-specific campaign browser.</summary>
     /// <param name="workspaceRoot">Canonical workspace root.</param>
@@ -94,6 +96,7 @@ public partial class ProjectTestCampaignsDialog : Window
             ? "Consultation uniquement · aucune écriture autorisée."
             : "Registre lu sans création implicite de dossier.";
         await PaintCampaignAsync();
+        await RefreshSourceValidityAsync();
     }
 
     /// <summary>Shows the passages of the selected campaign in memory.</summary>
@@ -122,6 +125,43 @@ public partial class ProjectTestCampaignsDialog : Window
             _painting = false;
         }
 
+        await PaintPassageAsync();
+    }
+
+    /// <summary>
+    /// Compares historic frozen tests with today's sources on a worker.
+    /// The refreshed shared index is checked once; each current cahier is
+    /// then parsed only once even across many passages.
+    /// </summary>
+    /// <returns>Completed comparison for the still-selected campaign.</returns>
+    private async Task RefreshSourceValidityAsync()
+    {
+        CampaignRow? chosen = SelectedCampaign();
+        long revision = ++_sourceValidityRevision;
+        _sourceValidity = null;
+        if (chosen is null)
+        {
+            return;
+        }
+
+        StatusText.Text =
+            "Contrôle des versions de tests en cours (sans modifier les sources)…";
+        ProjectTestSourceValidityOverview overview = await Task.Run(
+            async () =>
+            {
+                LinkIndexCatalog index = await _indexService.RefreshAsync();
+                return await _service.AssessSourceValidityAsync(
+                    _projectDirectory, chosen.Entry, index);
+            });
+        if (revision != _sourceValidityRevision ||
+            !ReferenceEquals(chosen, SelectedCampaign()))
+        {
+            return;
+        }
+
+        _sourceValidity = overview;
+        StatusText.Text = overview.NeedsReview + "/" + overview.Rows.Count +
+            " définition(s) historiques à réexaminer ; verdicts inchangés.";
         await PaintPassageAsync();
     }
 
@@ -155,14 +195,24 @@ public partial class ProjectTestCampaignsDialog : Window
             return;
         }
 
+        Dictionary<Guid, ProjectTestSourceValidityRow> validity =
+            _sourceValidity?.Rows.Where(row =>
+                row.PassageId == selected.Passage.Id).ToDictionary(
+                    row => row.TestId) ?? [];
         ResultRow[] rows = results.Select(result =>
-            new ResultRow(result,
+        {
+            validity.TryGetValue(result.TestId,
+                out ProjectTestSourceValidityRow? current);
+            return new ResultRow(result,
                 result.Reference + " · " +
                 (result.Outcome is ProjectTestOutcome outcome
                     ? DescribeOutcome(outcome) : "NON EXÉCUTÉ"),
                 result.Environment + " / " + result.ApplicationVersion +
-                " · empreinte " + result.FrozenSha256[..12]))
-            .ToArray();
+                " · " + (current is null
+                    ? "Source non contrôlée"
+                    : DescribeValidity(current.Validity)),
+                current);
+        }).ToArray();
         _painting = true;
         try
         {
@@ -221,7 +271,16 @@ public partial class ProjectTestCampaignsDialog : Window
                 "GUID : " + test.Result.TestId.ToString("D"),
                 "Définition : " + (source?.SourceRelativePath ?? "absente"),
                 "Empreinte figée : " + test.Result.FrozenSha256,
-                "Résultat : " + (outcome is null
+                "SOURCE AUJOURD'HUI : " + (test.Validity is null
+                    ? "Contrôle non effectué"
+                    : DescribeValidity(test.Validity.Validity)),
+                "Empreinte actuelle : " +
+                    (test.Validity?.CurrentSha256 ?? "indisponible"),
+                "Diagnostic : " +
+                    (test.Validity?.Detail ?? "Contrôle requis"),
+                "Résultat historique inchangé : " +
+                    "aucune requalification automatique.",
+                "Résultat :" + (outcome is null
                     ? "NON EXÉCUTÉ" : DescribeOutcome(outcome.Outcome)),
                 "Exécutant : " + (outcome?.Actor ?? "aucun"),
                 "Justification : " + (outcome?.Rationale ?? "aucune"),
@@ -246,6 +305,24 @@ public partial class ProjectTestCampaignsDialog : Window
             ProjectTestOutcome.Blocked => "Bloqué",
             ProjectTestOutcome.NotApplicable => "Non applicable",
             _ => "Verdict inconnu"
+        };
+
+    /// <summary>Distinguishes historic results from live source validity.</summary>
+    /// <param name="validity">Conservative source comparison.</param>
+    /// <returns>French current-source label.</returns>
+    private static string DescribeValidity(ProjectTestSourceValidity validity) =>
+        validity switch
+        {
+            ProjectTestSourceValidity.Current => "Définition inchangée",
+            ProjectTestSourceValidity.Modified =>
+                "MODIFIÉE · à requalifier",
+            ProjectTestSourceValidity.Missing =>
+                "SOURCE ABSENTE · à examiner",
+            ProjectTestSourceValidity.Ambiguous =>
+                "IDENTITÉ AMBIGUË · à examiner",
+            ProjectTestSourceValidity.IndexOutOfDate =>
+                "INDEX OBSOLÈTE · actualiser",
+            _ => "Contrôle indisponible"
         };
 
     /// <summary>Enables commands only for the current safe selection.</summary>
@@ -328,6 +405,8 @@ public partial class ProjectTestCampaignsDialog : Window
         if (!_painting)
         {
             await PaintCampaignAsync();
+            await GuardAsync("Contrôler les définitions actuelles",
+                RefreshSourceValidityAsync);
         }
     }
 
@@ -630,5 +709,6 @@ public partial class ProjectTestCampaignsDialog : Window
         ProjectTestPassage Passage, string Label, string Detail);
 
     private sealed record ResultRow(
-        ProjectTestPassageResultRow Result, string Label, string Summary);
+        ProjectTestPassageResultRow Result, string Label, string Summary,
+        ProjectTestSourceValidityRow? Validity);
 }

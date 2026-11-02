@@ -115,3 +115,26 @@ Un projet archivé est consultable, sans commandes de modification.
 La création ne transforme jamais un ancien cahier, et l'application ne
 déduit aucun résultat de la présence d'un lien, d'un marqueur ou d'une
 case cochée. Ces écrans exigent une qualification visuelle Windows.
+
+## Requalification des définitions après exécution (incrément 6)
+
+La commande de campagnes compare désormais, sur demande et hors
+Dispatcher WPF, chaque section de test figée aux sources actuelles. Une
+analyse de cahier ne se fait qu'une fois pour tous les passages de la
+campagne, même lorsqu'un cahier contient 150 tests.
+
+Les états purement documentaires sont : **inchangé**, **modifié**,
+**source absente**, **identité ambiguë** ou **index obsolète**. Le contrôle
+exige le GUID de bloc globalement unique, l'appartenance au bon projet,
+le contenu du cahier compatible avec le SHA de l'index partagé et un
+unique titre TEST-/TST- identifiable dans le Markdown. Les changements
+de titre ou de contenu modifient l'empreinte de la section, sans toucher
+l'ancien passage. Une fiche absente ou un index stale ne peut jamais être
+déclaré « inchangé ».
+
+Les lignes de la vue REC présentent la validité de la **source actuelle**
+à côté du résultat **historique**. Aucun verdict n'est modifié. Un test
+auparavant conforme mais désormais modifié est signalé « à requalifier »
+plutôt que reconduit comme conforme sur la version courante. Les
+régressions testent la modification d'un seul test, la source supprimée,
+l'index désynchronisé et les collisions globales de GUID.
