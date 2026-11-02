@@ -707,3 +707,17 @@ principal ne forcent plus le rendu du document secondaire. Une
 vérification statique CI protège cette séparation. La construction
 des éléments WPF elle-même reste synchrone et nécessite une
 qualification visuelle sur Windows.
+
+
+### Réarmement ciblé après suspension Windows (02/11/2026)
+
+La suspension invalide les révisions de l'aperçu primaire, du glossaire
+et de la pane secondaire, puis annule leurs parsings en cours. Sur
+reprise, Nodalis réactive les délais de 180 ms **uniquement** pour les
+panneaux encore actifs : l'aperçu primaire et ses annotations, ainsi
+que l'aperçu secondaire si la vue partagée est visible. Les index, le
+Worktree et le dashboard ne sont pas reconstruits. Cette action
+répare également le cas où une suspension interrompait l'aperçu sans
+aucun déclencheur de rafraîchissement après réveil. Une vérification
+statique CI couvre les deux transitions ; un test de suspension réelle
+sur Windows reste nécessaire pour qualifier le comportement.

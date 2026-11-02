@@ -49,7 +49,13 @@ public partial class MainWindow
                     _autosaveRefreshTimer.Stop();
                     _previewTimer.Stop();
                     _secondaryPreviewTimer?.Stop();
+                    // Invalidate any work that may already have completed but
+                    // has not yet resumed on the Dispatcher.
+                    _previewEditRevision++;
+                    _secondaryPreviewRevision++;
+                    _glossaryAnnotationRevision++;
                     _previewParseCancellation?.Cancel();
+                    _secondaryPreviewParseCancellation?.Cancel();
                     _glossaryMatchCancellation?.Cancel();
                 }
                 else if (mode == PowerModes.Resume)
@@ -74,6 +80,26 @@ public partial class MainWindow
                         !_autosaveRefreshRunning)
                     {
                         _autosaveRefreshTimer.Start();
+                    }
+
+                    // Resuming must not leave a canceled preview/annotation
+                    // permanently stale. Debounce reconstruction on the
+                    // normal background Dispatcher priority, without triggering
+                    // a global index or a full worktree refresh.
+                    if (_activeDocumentTab is not null &&
+                        DocumentEditorHost.Visibility ==
+                            System.Windows.Visibility.Visible)
+                    {
+                        _previewTimer.Stop();
+                        _previewTimer.Start();
+                    }
+
+                    if (_secondaryDocumentTab is not null &&
+                        _previewVisible &&
+                        _editorSplitMode !=
+                            Nodalis.Core.Settings.EditorSplitMode.None)
+                    {
+                        QueueSecondaryPreview();
                     }
                 }
             }),

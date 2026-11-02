@@ -71,6 +71,14 @@ if (-not $secondaryEditorCode.Contains('MarkdownDocumentParser.Parse(snapshot, c
 if ($mainWindowCode.Contains('RenderSecondaryPreview();')) {
     $failures.Add("Primary preview updates must not synchronously rerender the secondary pane.")
 }
+$powerModeCode = Get-Content -Raw -LiteralPath (Join-Path $appRoot "MainWindow.PowerManagement.cs")
+if (-not $powerModeCode.Contains('_secondaryPreviewParseCancellation?.Cancel();') -or
+    -not $powerModeCode.Contains('_previewEditRevision++;') -or
+    -not $powerModeCode.Contains('_glossaryAnnotationRevision++;') -or
+    -not $powerModeCode.Contains('_previewTimer.Start();') -or
+    -not $powerModeCode.Contains('QueueSecondaryPreview();')) {
+    $failures.Add("Suspend and resume must invalidate canceled preview work and re-arm only active panes.")
+}
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or
