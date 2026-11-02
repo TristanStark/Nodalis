@@ -1,0 +1,208 @@
+using System.Security.Cryptography;
+using System.Text;
+using Nodalis.Core.Tests;
+
+/// <summary>Pure frozen-passage and human result contract regressions.</summary>
+internal static class ProjectTestCampaignCodecSmokeTests
+{
+    /// <summary>Verifies immutable historical snapshots and fail-closed parsing.</summary>
+    public static void Run()
+    {
+        Guid testId = Guid.NewGuid();
+        Guid campaignId = Guid.NewGuid();
+        DateTimeOffset beginning = DateTimeOffset.UtcNow.AddHours(-2);
+        ProjectTestFrozenDefinition sourceV1 =
+            Freeze(testId, "## TEST-0001 — État initial\nRésultat fictif A\n");
+        ProjectTestFrozenDefinition sourceV2 =
+            Freeze(testId, "## TEST-0001 — État révisé\nRésultat fictif B\n");
+        ProjectTestResultEvent firstResult = new()
+        {
+            Id = Guid.NewGuid(),
+            TestId = testId,
+            Outcome = ProjectTestOutcome.Failed,
+            Actor = "Exécutant fictif",
+            Rationale = "Résultat non conforme déclaré.",
+            RecordedUtc = beginning.AddMinutes(15)
+        };
+        ProjectTestResultEvent secondResult = firstResult with
+        {
+            Id = Guid.NewGuid(),
+            Outcome = ProjectTestOutcome.Passed,
+            RecordedUtc = beginning.AddHours(1).AddMinutes(15),
+            Rationale = "Nouveau passage après correction.",
+            EvidenceNote = "preuve fictive non vérifiée"
+        };
+        ProjectTestCampaign campaign = new()
+        {
+            Id = campaignId,
+            ProjectId = Guid.NewGuid(),
+            Reference = "REC-0001",
+            Title = "Campagne fictive",
+            CreatedUtc = beginning.AddMinutes(-10),
+            State = ProjectTestCampaignState.InProgress,
+            Passages =
+            [
+                new ProjectTestPassage
+                {
+                    Id = Guid.NewGuid(),
+                    Number = 1,
+                    Environment = "Recette-A",
+                    ApplicationVersion = "1.0",
+                    StartedBy = "Responsable fictif",
+                    StartedUtc = beginning,
+                    Tests = [sourceV1],
+                    Results = [firstResult]
+                },
+                new ProjectTestPassage
+                {
+                    Id = Guid.NewGuid(),
+                    Number = 2,
+                    Environment = "Recette-B",
+                    ApplicationVersion = "1.1",
+                    StartedBy = "Responsable fictif",
+                    StartedUtc = beginning.AddHours(1),
+                    Tests = [sourceV2],
+                    Results = [secondResult]
+                }
+            ]
+        };
+        string markdown = ProjectTestCampaignMarkdownCodec.Format(campaign);
+        ProjectTestCampaign parsed =
+            ProjectTestCampaignMarkdownCodec.Parse(markdown);
+        Assert(parsed.Passages.Count == 2 &&
+               parsed.Id == campaign.Id &&
+               parsed.Passages[0].Tests[0].Markdown == sourceV1.Markdown &&
+               parsed.Passages[0].Results[0].Outcome ==
+                   ProjectTestOutcome.Failed &&
+               parsed.Passages[1].Tests[0].Markdown == sourceV2.Markdown &&
+               parsed.Passages[1].Results[0].Outcome ==
+                   ProjectTestOutcome.Passed &&
+               parsed.Passages[1].ApplicationVersion == "1.1" &&
+               ProjectTestCampaignMarkdownCodec.Format(parsed) == markdown,
+            "Two passages must retain distinct frozen revisions and human results.");
+
+        Assert(!ProjectTestCampaignMarkdownCodec.IsReference("REC-0000") &&
+               ProjectTestCampaignMarkdownCodec.IsReference("REC-0001") &&
+               !ProjectTestCampaignMarkdownCodec.IsReference("REC-10000"),
+            "Campaign references require canonical nonzero numbers.");
+
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                Passages =
+                [
+                    campaign.Passages[0] with
+                    {
+                        Tests = [sourceV1 with { Sha256 = new string('A', 64) }]
+                    }
+                ]
+            }),
+            "Altered captured text hashes must be rejected.");
+
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                Passages =
+                [
+                    campaign.Passages[0] with
+                    {
+                        Results = [firstResult, firstResult with
+                        {
+                            Id = Guid.NewGuid()
+                        }]
+                    }
+                ]
+            }),
+            "A passage cannot quietly replace or duplicate a test outcome.");
+
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                Passages =
+                [
+                    campaign.Passages[0] with
+                    {
+                        Results = [firstResult with { TestId = Guid.NewGuid() }]
+                    }
+                ]
+            }),
+            "An outcome cannot target a test absent from the frozen passage.");
+
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                Passages =
+                [
+                    campaign.Passages[0],
+                    campaign.Passages[1] with { Number = 1 }
+                ]
+            }),
+            "Passage numbers must strictly increase.");
+
+        Reject(() => ProjectTestCampaignMarkdownCodec.Parse(
+            markdown.Replace("nodalis:test-campaign:v1",
+                "nodalis:test-campaign:v2", StringComparison.Ordinal)),
+            "Unknown metadata marker must fail closed.");
+
+        Reject(() => ProjectTestCampaignMarkdownCodec.Parse(
+            markdown.Replace("# REC-0001 —", "# REC-0002 —",
+                StringComparison.Ordinal)),
+            "Edited Markdown heading cannot claim a different campaign.");
+
+        Assert(campaign.Passages[0].Tests[0].Sha256 == sourceV1.Sha256 &&
+               campaign.Passages[1].Tests[0].Sha256 == sourceV2.Sha256 &&
+               firstResult.Outcome == ProjectTestOutcome.Failed,
+            "Read/format must not mutate previous passage snapshots.");
+    }
+
+    /// <summary>Makes a synthetic test definition snapshot.</summary>
+    /// <param name="id">Source test ID.</param>
+    /// <param name="body">Exact frozen Markdown.</param>
+    /// <returns>Valid frozen test definition.</returns>
+    private static ProjectTestFrozenDefinition Freeze(Guid id, string body)
+    {
+        int firstNewline = body.IndexOf('\n');
+        string frozen = body.Insert(firstNewline + 1,
+            Nodalis.Core.Markdown.MarkdownBlockIdentityCodec.FormatMarker(id) +
+            "\n");
+        return new ProjectTestFrozenDefinition
+        {
+            TestId = id,
+            Reference = "TEST-0001",
+            SourceRelativePath =
+                "Applications/Fictive/Projets/Projet-A/Tests/Cahier.md",
+            Markdown = frozen,
+            Sha256 = Convert.ToHexString(SHA256.HashData(
+                Encoding.UTF8.GetBytes(frozen))),
+            HeadingLine = 2
+        };
+    }
+
+    /// <summary>Expect rejection of a noncanonical test campaign.</summary>
+    /// <param name="action">Pure invalid candidate.</param>
+    /// <param name="message">Safe synthetic diagnostic.</param>
+    private static void Reject(Action action, string message)
+    {
+        try
+        {
+            action();
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(message);
+    }
+
+    /// <summary>Checks an invariant.</summary>
+    /// <param name="condition">Expected invariant.</param>
+    /// <param name="message">Safe failure message.</param>
+    private static void Assert(bool condition, string message)
+    {
+        if (!condition)
+        {
+            throw new InvalidOperationException(message);
+        }
+    }
+}
