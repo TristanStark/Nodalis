@@ -99,6 +99,7 @@ try
     ProjectRequirementTraceabilitySmokeTests.Run();
     ProjectTestDefinitionSmokeTests.Run();
     ProjectTestCampaignCodecSmokeTests.Run();
+    await ProjectTestCampaignServiceSmokeTests.RunAsync(root);
     await ProjectRiskReviewSmokeTests.RunAsync(root);
     await ProjectRiskQualificationSmokeTests.RunAsync(root);
     await ProjectRiskTreatmentSmokeTests.RunAsync(root);

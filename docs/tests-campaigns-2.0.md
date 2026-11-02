@@ -43,3 +43,33 @@ passage. Les anciennes définitions et verdicts restent consultables.
 Le codec valide les GUID, le lien des résultats à un test réellement présent,
 les empreintes de section, les identifiants dupliqués et le format canonique.
 Un commentaire de preuve n'est jamais assimilé à une preuve vérifiée.
+
+## Persistence contrôlée, résultats et passage suivant (incrément 3)
+
+Le service de projets vérifie le manifeste, la présence du dossier Tests,
+les chemins sans jonction, le code REC réservé et le SHA-256 de la fiche.
+Les appels à la lecture ne créent ni dossier ni registre. La création
+requiert un titre et une référence explicitement approuvée.
+
+Le lancement d'un passage accepte une sélection de GUID de tests :
+- chaque GUID doit être unique dans l'index partagé et appartenir au
+  projet exact (jamais à un projet voisin partageant son préfixe) ;
+- le cahier doit être placé dans Tests ou Recette, pas Campagnes ;
+- son SHA documentaire doit correspondre à l'index actualisé ;
+- un grand cahier est lu/parsé UNE seule fois, même avec 150+ tests ;
+- chaque section est conservée exactement dans la campagne, y compris
+  les sous-titres et l'empreinte de son contenu.
+
+Enregistrer un résultat est une action humaine explicite : l'ancien
+résultat ne peut pas être changé ; un nouveau passage doit être créé
+pour rejouer un test. Le service ne réécrit jamais les fichiers source
+des définitions de tests. Il publie une nouvelle révision de la campagne
+via comparaison SHA atomique avant remplacement ; les sélections ou
+actions devenues obsolètes sont refusées et doivent être rechargées.
+
+Le premier lancement passe la campagne de Brouillon à En cours sans
+affirmer aucune réussite. Les étapes administratives de qualification,
+clôture et réserves restent à créer. Les tests d'intégration synthétiques
+vérifient notamment 155 tests d'un grand cahier, l'isolation entre
+projets, les actions périmées, les doublons, deux passages à versions
+différentes et la préservation des résultats précédents.
