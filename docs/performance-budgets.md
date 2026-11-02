@@ -692,3 +692,18 @@ Les tests synthétiques couvrent 12 000 correspondances, les bornes
 inclusives/exclusives, les intervalles vides et l'équivalence avec un
 balayage exhaustif. Les métriques de fluidité WPF restent à relever
 sur Windows : aucune durée n'est déduite de ces tests Core.
+
+
+### Parsing annulable de l'aperçu dans la pane secondaire (02/11/2026)
+
+La deuxième pane n'analyse plus le Markdown au sein de son événement
+WPF de rendu. Elle suit le même modèle que l'aperçu principal : délai
+de regroupement de 180 ms, analyse avec `Task.Run` et jeton
+annulable, puis construction du `FlowDocument` sur le Dispatcher
+uniquement après validation de la révision du texte, de l'onglet et
+de la visibilité de l'aperçu. L'ancien aperçu est effacé immédiatement
+lorsqu'un autre document prend sa place. Les mises à jour de l'aperçu
+principal ne forcent plus le rendu du document secondaire. Une
+vérification statique CI protège cette séparation. La construction
+des éléments WPF elle-même reste synchrone et nécessite une
+qualification visuelle sur Windows.

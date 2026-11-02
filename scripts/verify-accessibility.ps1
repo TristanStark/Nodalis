@@ -60,6 +60,17 @@ $documentTabsPath = Join-Path $appRoot "MainWindow.DocumentTabs.cs"
 $documentTabsCode = Get-Content -Raw -LiteralPath $documentTabsPath
 # The glossary source audit runs below; load its input before that guard.
 $mainWindowCode = Get-Content -Raw -LiteralPath $mainWindowCodePath
+$secondaryEditorCode = Get-Content -Raw -LiteralPath (Join-Path $appRoot "MainWindow.SplitEditor.cs")
+if (-not $secondaryEditorCode.Contains('MarkdownDocumentParser.Parse(snapshot, cancellation.Token)') -or
+    -not $secondaryEditorCode.Contains('MarkdownFlowDocumentRenderer.RenderBlocks(') -or
+    -not $secondaryEditorCode.Contains('revision != _secondaryPreviewRevision') -or
+    -not $secondaryEditorCode.Contains('ReferenceEquals(tab, _secondaryDocumentTab)') -or
+    $secondaryEditorCode.Contains('MarkdownFlowDocumentRenderer.Render(')) {
+    $failures.Add("Secondary Markdown preview must parse on a cancellable worker and reject stale tab revisions.")
+}
+if ($mainWindowCode.Contains('RenderSecondaryPreview();')) {
+    $failures.Add("Primary preview updates must not synchronously rerender the secondary pane.")
+}
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or

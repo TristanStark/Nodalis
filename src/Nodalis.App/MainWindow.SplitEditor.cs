@@ -8,6 +8,8 @@ using Nodalis.App.Editor;
 using Nodalis.App.Markdown;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Navigation;
+using Nodalis.Core.Markdown;
+using Nodalis.Infrastructure.Reliability;
 using Nodalis.Core.Settings;
 
 namespace Nodalis.App;
@@ -31,6 +33,8 @@ public partial class MainWindow
     private double _editorSplitRatio = 0.5;
     private DocumentTabViewModel? _secondaryDocumentTab;
     private DispatcherTimer? _secondaryPreviewTimer;
+    private CancellationTokenSource? _secondaryPreviewParseCancellation;
+    private long _secondaryPreviewRevision;
     private bool _suppressSecondaryEditorChanges;
     private bool _suppressSecondaryDocumentSelection;
 
@@ -546,6 +550,16 @@ public partial class MainWindow
             !File.Exists(
                 tab.FullPath);
 
+        if (!ReferenceEquals(_secondaryDocumentTab, tab))
+        {
+            // No stale preview from the previous secondary document may remain
+            // visible while an asynchronous read or render is in progress.
+            _secondaryPreviewRevision++;
+            _secondaryPreviewTimer?.Stop();
+            _secondaryPreviewParseCancellation?.Cancel();
+            SecondaryMarkdownPreview.Document = null;
+        }
+
         _secondaryDocumentTab = tab;
 
         _suppressSecondaryDocumentSelection = true;
@@ -626,7 +640,7 @@ public partial class MainWindow
                 tab);
         }
 
-        RenderSecondaryPreview();
+        QueueSecondaryPreview();
         ScheduleDocumentOutlineRefresh();
     }
 
@@ -658,7 +672,10 @@ public partial class MainWindow
     /// </summary>
     private void DetachSecondaryDocumentTabView()
     {
+        _secondaryPreviewRevision++;
         _secondaryPreviewTimer?.Stop();
+        _secondaryPreviewParseCancellation?.Cancel();
+        SecondaryMarkdownPreview.Document = null;
 
         _secondaryDocumentTab = null;
 
@@ -752,8 +769,7 @@ public partial class MainWindow
         _secondaryDocumentTab.Autosave.Schedule(
             SecondaryMarkdownEditorTextBox.Text);
 
-        _secondaryPreviewTimer?.Stop();
-        _secondaryPreviewTimer?.Start();
+        QueueSecondaryPreview();
 
         if (_focusedEditorPane ==
             EditorPaneSlot.Secondary)
@@ -987,13 +1003,49 @@ public partial class MainWindow
             show
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+
+        if (show)
+        {
+            QueueSecondaryPreview();
+        }
+        else
+        {
+            _secondaryPreviewRevision++;
+            _secondaryPreviewTimer?.Stop();
+            _secondaryPreviewParseCancellation?.Cancel();
+            SecondaryMarkdownPreview.Document = null;
+        }
     }
 
     /// <summary>
-    /// Renders the second pane preview from its own text and document-relative path.
+    /// Coalesces secondary-pane changes and cancels an obsolete background parse.
     /// </summary>
-    private void RenderSecondaryPreview()
+    private void QueueSecondaryPreview()
     {
+        _secondaryPreviewRevision++;
+        _secondaryPreviewParseCancellation?.Cancel();
+        _secondaryPreviewTimer?.Stop();
+
+        if (_previewVisible &&
+            _editorSplitMode != EditorSplitMode.None &&
+            _secondaryDocumentTab is not null)
+        {
+            _secondaryPreviewTimer?.Start();
+        }
+    }
+
+    /// <summary>
+    /// Parses the secondary pane off the Dispatcher and only renders an
+    /// unchanged text snapshot for the currently selected tab.
+    /// </summary>
+    /// <param name="sender">The secondary preview timer.</param>
+    /// <param name="e">The timer event arguments.</param>
+    private async void SecondaryPreviewTimer_Tick(
+            object? sender,
+            EventArgs e)
+    {
+        _secondaryPreviewTimer?.Stop();
+
         if (!_previewVisible ||
             _editorSplitMode == EditorSplitMode.None ||
             _secondaryDocumentTab is null)
@@ -1001,39 +1053,58 @@ public partial class MainWindow
             return;
         }
 
-        string? baseDirectory =
-            Path.GetDirectoryName(
-                _secondaryDocumentTab.FullPath);
-
-        SecondaryMarkdownPreview.Document =
-            MarkdownFlowDocumentRenderer.Render(
-                SecondaryMarkdownEditorTextBox.Text,
-                baseDirectory,
-                OnSecondaryInternalLinkClicked,
-                OnMarkdownLinkClicked);
-    }
-
-    /// <summary>
-    /// Executes the debounced preview render for edits made in the second pane.
-    /// </summary>
-    /// <param name="sender">The secondary preview timer.</param>
-    /// <param name="e">The timer event arguments.</param>
-    private void SecondaryPreviewTimer_Tick(
-            object? sender,
-            EventArgs e)
-    {
-        _secondaryPreviewTimer?.Stop();
+        DocumentTabViewModel tab = _secondaryDocumentTab;
+        string snapshot = SecondaryMarkdownEditorTextBox.Text;
+        long revision = _secondaryPreviewRevision;
+        using CancellationTokenSource cancellation = new();
+        _secondaryPreviewParseCancellation?.Cancel();
+        _secondaryPreviewParseCancellation = cancellation;
 
         try
         {
-            RenderSecondaryPreview();
+            IReadOnlyList<MarkdownBlock> blocks = await Task.Run(
+                () => MarkdownDocumentParser.Parse(snapshot, cancellation.Token),
+                cancellation.Token);
+
+            if (cancellation.IsCancellationRequested ||
+                revision != _secondaryPreviewRevision ||
+                !_previewVisible ||
+                _editorSplitMode == EditorSplitMode.None ||
+                !ReferenceEquals(tab, _secondaryDocumentTab) ||
+                !string.Equals(
+                    snapshot,
+                    SecondaryMarkdownEditorTextBox.Text,
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            string? baseDirectory = Path.GetDirectoryName(tab.FullPath);
+            SecondaryMarkdownPreview.Document =
+                MarkdownFlowDocumentRenderer.RenderBlocks(
+                    blocks,
+                    baseDirectory,
+                    OnSecondaryInternalLinkClicked,
+                    OnMarkdownLinkClicked);
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer edit, tab or layout superseded the parsed snapshot.
         }
         catch (Exception exception) when (
-            exception is ArgumentException or
-            InvalidOperationException)
+            RecoverableExceptionPolicy.CanContinueAtActionBoundary(exception))
         {
-            StatusText.Text =
-                $"Aperçu secondaire temporairement indisponible : {exception.Message}";
+            ReportRecoverableUiError(
+                "Aperçu secondaire Markdown / Mermaid",
+                exception,
+                showDialog: false);
+        }
+        finally
+        {
+            if (ReferenceEquals(_secondaryPreviewParseCancellation, cancellation))
+            {
+                _secondaryPreviewParseCancellation = null;
+            }
         }
     }
 

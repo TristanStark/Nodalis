@@ -261,6 +261,8 @@ public partial class MainWindow : Window
             _glossaryMatchCancellation?.Cancel();
             _glossaryContextCancellation?.Cancel();
             _previewParseCancellation?.Cancel();
+            _secondaryPreviewTimer?.Stop();
+            _secondaryPreviewParseCancellation?.Cancel();
         };
 
         Loaded += async (_, _) =>
@@ -2754,7 +2756,8 @@ public partial class MainWindow : Window
                 MarkdownEditorTextBox.Text);
         }
 
-        RenderSecondaryPreview();
+        // The secondary pane has its own debounced, revision-checked parse.
+        // Primary preview updates must not rerender the secondary document.
     }
 
     /// <summary>
