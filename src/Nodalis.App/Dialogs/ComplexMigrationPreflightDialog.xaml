@@ -1,0 +1,27 @@
+<Window x:Class="Nodalis.App.Dialogs.ComplexMigrationPreflightDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Migration Complexe 2.0 — Vérification"
+        Width="580" Height="235" MinWidth="430" MinHeight="215"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" FontSize="18" FontWeight="SemiBold"
+                   Text="Vérification du projet avant migration"/>
+        <TextBlock Grid.Row="1" TextWrapping="Wrap"
+                   Margin="0,10,0,12"
+                   Foreground="{StaticResource SecondaryTextBrush}"
+                   Text="Analyse en lecture seule : documents du projet, références et backlinks concernés. Les autres applications ne sont pas modifiées."/>
+        <ProgressBar Grid.Row="2" Height="8" IsIndeterminate="True"
+                     VerticalAlignment="Center"
+                     AutomationProperties.Name="Analyse des liens en cours"/>
+        <Button Grid.Row="3" Content="Annuler l'analyse" IsCancel="True"
+                Padding="14,8" HorizontalAlignment="Right"
+                Click="Cancel_Click" Margin="0,12,0,0"/>
+    </Grid>
+</Window>

@@ -216,3 +216,22 @@ une série de trente documents externes sans rapport, ainsi qu'un backlink
 suspect et un backlink réécrivable. Le préflight reste **en lecture seule** ;
 la qualification visuelle sur Windows et la mesure des latences avec un
 workspace volumineux sont requises avant publication 2.0.
+
+
+## Analyse annulable, sans blocage du Dispatcher (02/11/2026)
+
+La préparation de migration s'exécute sur un worker et affiche désormais
+une fenêtre de progression indéterminée avec action **Annuler l'analyse**.
+La fermeture par la croix ou Échap signale également l'annulation via un
+`CancellationToken` propagé au préflight. Une analyse interrompue ne produit
+aucune proposition approuvable, aucune écriture ni transaction partielle.
+
+Le traitement d'une migration déjà approuvée garde son mécanisme distinct de
+journal, sauvegarde et récupération : l'annulation ne doit jamais interrompre
+arbitrairement une transaction déjà en phase de publication. L'opération ne
+comporte toujours ni IA, ni réseau.
+
+**Recette Windows à effectuer :** grand workspace, annuler pendant la lecture
+des backlinks puis relancer le contrôle, fermeture Échap et X, qualité du
+scroll Worktree pendant le calcul, absence de fichier modifié et confirmation
+MIGRER accessible uniquement sur un plan terminé.

@@ -100,10 +100,29 @@ public partial class MainWindow
                 return;
             }
 
-            StatusText.Text = "Migration Complexe · calcul des empreintes et risques…";
+            StatusText.Text = "Migration Complexe · contrôle des liens en cours…";
             ComplexProjectMigrationPlanService planner = new(_root.FullPath);
-            ComplexProjectMigrationPlan plan = await Task.Run(
-                () => planner.PrepareAsync(projectDirectory));
+            ComplexMigrationPreflightDialog preflight = new(
+                cancellationToken => planner.PrepareAsync(
+                    projectDirectory, cancellationToken))
+            {
+                Owner = this
+            };
+            if (preflight.ShowDialog() != true)
+            {
+                if (preflight.Failure is Exception failure)
+                {
+                    throw failure;
+                }
+
+                StatusText.Text =
+                    "Migration Complexe · analyse annulée sans modification.";
+                return;
+            }
+
+            ComplexProjectMigrationPlan plan = preflight.Plan ??
+                throw new InvalidOperationException(
+                    "La migration ne possède pas de plan prévalidé.");
 
             HashSet<string> externalPaths = plan.ExternalLinkRewrites
                 .Select(item => Path.GetFullPath(Path.Combine(_root.FullPath,
