@@ -53,6 +53,25 @@ public sealed record ComplexProjectMigrationPlan
         Moves.Any(move => move.State == ComplexMigrationMoveState.Candidate);
 }
 
+/// <summary>Phases of a read-only migration analysis; no file names exposed.</summary>
+public enum ComplexMigrationPreflightPhase
+{
+    Inventory,
+    AnalyzeLinks,
+    Fingerprint,
+    Completed
+}
+
+/// <summary>
+/// Aggregate, source-name-free progress for a cancellable migration preflight.
+/// Counts are snapshots and never imply that a migration was approved.
+/// </summary>
+public sealed record ComplexMigrationPreflightProgress(
+    ComplexMigrationPreflightPhase Phase,
+    int ProjectDocumentsInspected = 0,
+    int ExternalDocumentsInspected = 0,
+    int ExternalDocumentsSkipped = 0);
+
 /// <summary>
 /// Performs read-only, evidence-based preflight and source hashing for
 /// transactional Complex migration. Does not mutate the workspace.
@@ -76,11 +95,14 @@ public sealed class ComplexProjectMigrationPlanService
     /// </summary>
     /// <param name="projectDirectory">Complex project root.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="progress">Optional privacy-preserving progress snapshots.</param>
     /// <returns>Immutable preflight including the complete source fingerprint.</returns>
     public async Task<ComplexProjectMigrationPlan> PrepareAsync(
         string projectDirectory,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<ComplexMigrationPreflightProgress>? progress = null)
     {
+        progress?.Report(new(ComplexMigrationPreflightPhase.Inventory));
         ComplexProjectMigrationPreview preview =
             await new ComplexProjectMigrationPreviewService(_workspaceRoot)
                 .PreviewAsync(projectDirectory, cancellationToken);
@@ -166,12 +188,14 @@ public sealed class ComplexProjectMigrationPlanService
         // one journal: a project staging copy plus separate durable external
         // file snapshots that are published under explicit recovery control.
         ComplexMigrationLinkAudit linkAnalysis = new([], []);
+        progress?.Report(new(ComplexMigrationPreflightPhase.AnalyzeLinks));
         if (preview.Moves.Any(move =>
                 move.State == ComplexMigrationMoveState.Candidate))
         {
             ComplexProjectMigrationLinkImpactService linkAudit = new(
                 _workspaceRoot, root, preview.Moves);
-            linkAnalysis = await linkAudit.AnalyzeAsync(cancellationToken);
+            linkAnalysis = await linkAudit.AnalyzeAsync(cancellationToken,
+                progress);
             if (linkAnalysis.Blockers.Count > 0)
             {
                 blockers.Add("Références Markdown à requalifier avant déplacement (" +
@@ -180,7 +204,16 @@ public sealed class ComplexProjectMigrationPlanService
             }
         }
 
+        progress?.Report(new(ComplexMigrationPreflightPhase.Fingerprint,
+            linkAnalysis.ProjectDocumentsInspected,
+            linkAnalysis.ExternalDocumentsInspected,
+            linkAnalysis.ExternalDocumentsSkipped));
         string fingerprint = await FingerprintAsync(root, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        progress?.Report(new(ComplexMigrationPreflightPhase.Completed,
+            linkAnalysis.ProjectDocumentsInspected,
+            linkAnalysis.ExternalDocumentsInspected,
+            linkAnalysis.ExternalDocumentsSkipped));
 
         return new ComplexProjectMigrationPlan
         {

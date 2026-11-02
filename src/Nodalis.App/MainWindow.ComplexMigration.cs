@@ -103,8 +103,8 @@ public partial class MainWindow
             StatusText.Text = "Migration Complexe · contrôle des liens en cours…";
             ComplexProjectMigrationPlanService planner = new(_root.FullPath);
             ComplexMigrationPreflightDialog preflight = new(
-                cancellationToken => planner.PrepareAsync(
-                    projectDirectory, cancellationToken))
+                (cancellationToken, progress) => planner.PrepareAsync(
+                    projectDirectory, cancellationToken, progress))
             {
                 Owner = this
             };

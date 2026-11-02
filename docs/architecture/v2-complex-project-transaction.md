@@ -259,3 +259,25 @@ candidate, puis traitée par la vérification des octets ; aucun lien suspect
 vers la cible n'est ignoré au motif d'un échec de décodage. Les régressions
 incluent un document externe de grande taille sans lien pertinent, et un
 backlink valide à cheval sur une frontière de blocs de lecture.
+
+
+## Avancement agrégé sans données métier (02/11/2026)
+
+La fenêtre d'analyse avant migration affiche désormais l'étape en cours
+(inventaire, backlinks, empreinte) et les compteurs du préflight :
+documents du projet inspectés, sources externes candidates et documents
+externes ignorés. **Aucun nom, chemin de fichier ni contenu utilisateur**
+n'est envoyé aux notifications de progression. Les compteurs sont
+indépendants de l'exécution de la migration et ne valent pas autorisation.
+
+L'analyse des liens émet au maximum une notification périodique par 128
+documents pris en charge, plus les changements d'étape et le bilan final.
+Le contrôle WPF reçoit ces instantanés sur le Dispatcher, jamais une
+notification par fichier/ligne. Cela évite d'aggraver les ralentissements
+du Worktree sur de gros workspaces. En cas d'annulation, les mises à
+jour tardives sont ignorées et aucun plan incomplet n'est approuvable.
+
+La suite de tests vérifie l'ordre des étapes, l'accord des comptes avec
+le plan figé, la fréquence bornée des notifications et le comportement
+de l'annulation. La fluidité de la fenêtre doit encore être qualifiée
+visuellement sur Windows, idéalement en parallèle de mesures p50/p95/p99.

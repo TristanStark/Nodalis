@@ -10,15 +10,17 @@ namespace Nodalis.App.Dialogs;
 /// </summary>
 public partial class ComplexMigrationPreflightDialog : Window
 {
-    private readonly Func<CancellationToken, Task<ComplexProjectMigrationPlan>>
-        _prepare;
+    private readonly Func<CancellationToken,
+        IProgress<ComplexMigrationPreflightProgress>,
+        Task<ComplexProjectMigrationPlan>> _prepare;
     private readonly CancellationTokenSource _cancellation = new();
     private bool _started;
 
     /// <summary>Creates an analysis dialog without starting any file access.</summary>
     /// <param name="prepare">Cancelable, side-effect-free preflight operation.</param>
     public ComplexMigrationPreflightDialog(
-        Func<CancellationToken, Task<ComplexProjectMigrationPlan>> prepare)
+        Func<CancellationToken, IProgress<ComplexMigrationPreflightProgress>,
+            Task<ComplexProjectMigrationPlan>> prepare)
     {
         _prepare = prepare ?? throw new ArgumentNullException(nameof(prepare));
         InitializeComponent();
@@ -44,8 +46,37 @@ public partial class ComplexMigrationPreflightDialog : Window
         _started = true;
         try
         {
+            // Constructed on the UI dispatcher: Progress<T> safely posts
+            // bounded, source-name-free snapshots to this window.
+            IProgress<ComplexMigrationPreflightProgress> progress =
+                new Progress<ComplexMigrationPreflightProgress>(snapshot =>
+                {
+                    if (_cancellation.IsCancellationRequested || !IsVisible)
+                    {
+                        return;
+                    }
+
+                    string stage = snapshot.Phase switch
+                    {
+                        ComplexMigrationPreflightPhase.Inventory =>
+                            "Inventaire du projet…",
+                        ComplexMigrationPreflightPhase.AnalyzeLinks =>
+                            "Vérification des liens Markdown…",
+                        ComplexMigrationPreflightPhase.Fingerprint =>
+                            "Calcul de l'empreinte du projet…",
+                        _ => "Vérification terminée."
+                    };
+                    ProgressText.Text = stage + Environment.NewLine +
+                        snapshot.ProjectDocumentsInspected +
+                        " document(s) du projet, " +
+                        snapshot.ExternalDocumentsInspected +
+                        " source(s) externe(s) candidate(s), " +
+                        snapshot.ExternalDocumentsSkipped +
+                        " document(s) externe(s) ignoré(s).";
+                });
             ComplexProjectMigrationPlan plan = await Task.Run(
-                () => _prepare(_cancellation.Token), _cancellation.Token);
+                () => _prepare(_cancellation.Token, progress),
+                _cancellation.Token);
             if (!_cancellation.IsCancellationRequested && IsVisible)
             {
                 Plan = plan;

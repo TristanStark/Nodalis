@@ -102,8 +102,23 @@ internal static class ComplexMigrationTransactionSmokeTests
                 await ComplexProjectMigrationPlanService.FingerprintAsync(
                     projectRoot) == originalHash,
                 "Cancelling preflight must not change source bytes.");
+            InlineProgressTracker progress = new();
             ComplexProjectMigrationPlan plan = await planner.PrepareAsync(
-                projectRoot);
+                projectRoot, progress: progress);
+            Assert(progress.Snapshots.Count >= 4 &&
+                progress.Snapshots[0].Phase ==
+                    ComplexMigrationPreflightPhase.Inventory &&
+                progress.Snapshots.Any(item => item.Phase ==
+                    ComplexMigrationPreflightPhase.AnalyzeLinks) &&
+                progress.Snapshots.Any(item => item.Phase ==
+                    ComplexMigrationPreflightPhase.Fingerprint) &&
+                progress.Snapshots[^1].Phase ==
+                    ComplexMigrationPreflightPhase.Completed &&
+                progress.Snapshots[^1].ProjectDocumentsInspected ==
+                    plan.ProjectLinkDocumentsInspected &&
+                progress.Snapshots[^1].ExternalDocumentsSkipped ==
+                    plan.ExternalLinkDocumentsSkipped,
+                "Preflight must report only aggregated staged progress.");
             Assert(plan.CanExecute &&
                 plan.ProjectId == project.Id &&
                 plan.Moves.Count(move =>
@@ -231,8 +246,13 @@ internal static class ComplexMigrationTransactionSmokeTests
                     new string('x', 2048));
             }
 
+            InlineProgressTracker bulkProgress = new();
             ComplexProjectMigrationPlan independent = await planner.PrepareAsync(
-                projectRoot);
+                projectRoot, progress: bulkProgress);
+            Assert(bulkProgress.Snapshots[^1].ExternalDocumentsSkipped ==
+                independent.ExternalLinkDocumentsSkipped &&
+                bulkProgress.Snapshots.Count < 12,
+                "Progress updates must remain bounded with many other projects.");
             Assert(independent.CanExecute &&
                 independent.Blockers.Count == 0 &&
                 independent.ExternalLinkRewrites.Count == 0 &&
@@ -1123,6 +1143,19 @@ internal static class ComplexMigrationTransactionSmokeTests
     /// <summary>Throws on any broken migration invariant.</summary>
     /// <param name="condition">Expected condition.</param>
     /// <param name="message">Failure details.</param>
+    /// <summary>
+    /// Synchronous test receiver: never depends on a WPF synchronization
+    /// context and holds only aggregate counts, not workspace names.
+    /// </summary>
+    private sealed class InlineProgressTracker :
+        IProgress<ComplexMigrationPreflightProgress>
+    {
+        public List<ComplexMigrationPreflightProgress> Snapshots { get; } = [];
+
+        public void Report(ComplexMigrationPreflightProgress snapshot) =>
+            Snapshots.Add(snapshot);
+    }
+
     private static void Assert(bool condition, string message)
     {
         if (!condition)

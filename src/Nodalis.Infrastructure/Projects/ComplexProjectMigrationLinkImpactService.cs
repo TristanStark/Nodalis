@@ -79,6 +79,7 @@ public sealed class ComplexProjectMigrationLinkImpactService
         @"\b(?:src|href)\s*=",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+    private const int ProgressReportInterval = 128;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly string _workspaceRoot;
     private readonly string _projectRoot;
@@ -126,9 +127,11 @@ public sealed class ComplexProjectMigrationLinkImpactService
     /// newline bytes. An unsupported file is never silently modified.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="progress">Optional aggregate progress; no source names.</param>
     /// <returns>Immutable, read-only link analysis.</returns>
     public async Task<ComplexMigrationLinkAudit> AnalyzeAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<ComplexMigrationPreflightProgress>? progress = null)
     {
         List<ComplexMigrationLinkRewrite> rewrites = [];
         List<ComplexMigrationLinkRewrite> externalRewrites = [];
@@ -136,6 +139,23 @@ public sealed class ComplexProjectMigrationLinkImpactService
         int projectFiles = 0;
         int externalParsed = 0;
         int externalSkipped = 0;
+        int processed = 0;
+        void ReportProgress()
+        {
+            progress?.Report(new(ComplexMigrationPreflightPhase.AnalyzeLinks,
+                projectFiles, externalParsed, externalSkipped));
+        }
+
+        void ReportAfterDocument()
+        {
+            processed++;
+            if (processed % ProgressReportInterval == 0)
+            {
+                ReportProgress();
+            }
+        }
+
+        ReportProgress();
         foreach (string file in ComplexProjectMigrationPlanService.EnumerateTree(
                      _workspaceRoot, cancellationToken))
         {
@@ -181,6 +201,7 @@ public sealed class ComplexProjectMigrationLinkImpactService
                 !await MayNameMovedProjectInFileAsync(file, cancellationToken))
             {
                 externalSkipped++;
+                ReportAfterDocument();
                 continue;
             }
 
@@ -201,6 +222,7 @@ public sealed class ComplexProjectMigrationLinkImpactService
                         " : encodage non UTF-8 d'une référence concernée.");
                 }
 
+                ReportAfterDocument();
                 continue;
             }
 
@@ -395,8 +417,11 @@ public sealed class ComplexProjectMigrationLinkImpactService
                         " : référence Markdown sans définition simple : " + label);
                 }
             }
+
+            ReportAfterDocument();
         }
 
+        ReportProgress();
         return new ComplexMigrationLinkAudit(
             rewrites.OrderBy(item => item.WorkspaceRelativePath,
                 StringComparer.OrdinalIgnoreCase).ThenBy(item => item.Offset).ToArray(),
