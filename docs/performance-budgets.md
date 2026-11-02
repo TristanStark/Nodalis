@@ -654,3 +654,14 @@ Le traitement d'une définition de plus de 1 000 lignes n'est plus
 quadratique en allocations. Un test synthétique valide les 1 025
 lignes produites et la conservation du texte avec les trois formats
 de fin de ligne.
+
+
+### Occupation compacte pendant la recherche de termes (02/11/2026)
+
+Le moteur de surlignage du glossaire n'alloue plus un tableau
+`bool[]` d'une case par caractère de document. Un `BitArray`
+conserve la même exclusion des plages chevauchantes avec un bit
+par caractère, soit une occupation auxiliaire théorique environ
+huit fois plus compacte pour les longs Markdown. La priorité du
+terme le plus long, les frontières de mot et les positions d'éditeur
+restent inchangées et couvertes par des tests synthétiques.

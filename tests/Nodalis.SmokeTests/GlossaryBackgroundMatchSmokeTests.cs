@@ -64,6 +64,18 @@ internal static class GlossaryBackgroundMatchSmokeTests
                     match.MatchedText),
             "Worker matching cannot alter editor text or annotated offsets.");
 
+        string overlaps = "Architecture technique. Architecture validation. " +
+            "Architectures et validations ne sont pas des mots complets.";
+        IReadOnlyList<GlossaryTextMatch> overlapMatches =
+            GlossaryTextMatcher.Match(overlaps, terms);
+        Assert(overlapMatches.Count == 3 &&
+               overlapMatches[0].MatchedText == "Architecture technique" &&
+               overlapMatches[1].MatchedText == "Architecture" &&
+               overlapMatches[2].MatchedText == "validation" &&
+               overlapMatches.Select(match => match.Start).Distinct().Count() == 3,
+            "Bit-packed occupancy must retain longest-token precedence, " +
+            "word boundaries and nonoverlapping offsets.");
+
         using CancellationTokenSource canceled = new();
         canceled.Cancel();
         bool canceledCorrectly = false;

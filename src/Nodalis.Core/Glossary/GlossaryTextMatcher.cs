@@ -1,3 +1,5 @@
+using System.Collections;
+
 namespace Nodalis.Core.Glossary;
 
 public static class GlossaryTextMatcher
@@ -24,7 +26,8 @@ public static class GlossaryTextMatcher
         }
 
         global::System.Collections.Generic.Dictionary<string, global::Nodalis.Core.Glossary.GlossaryEntry> tokens = BuildEffectiveTokens(entries);
-        bool[] occupied = new bool[text.Length];
+        // One bit per character avoids a large temporary byte-per-character array.
+        BitArray occupied = new(text.Length);
         global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryTextMatch> matches = new List<GlossaryTextMatch>();
 
         foreach (global::System.Collections.Generic.KeyValuePair<string, global::Nodalis.Core.Glossary.GlossaryEntry> pair in tokens
@@ -189,7 +192,7 @@ public static class GlossaryTextMatcher
     /// <param name="length">The <c>length</c> value.</param>
     /// <returns>The result of the operation.</returns>
     private static bool IsRangeFree(
-            IReadOnlyList<bool> occupied,
+            BitArray occupied,
             int start,
             int length)
     {
