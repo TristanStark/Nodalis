@@ -235,3 +235,11 @@ comporte toujours ni IA, ni réseau.
 des backlinks puis relancer le contrôle, fermeture Échap et X, qualité du
 scroll Worktree pendant le calcul, absence de fichier modifié et confirmation
 MIGRER accessible uniquement sur un plan terminé.
+
+
+La zone des blocages de la fenêtre d'approbation affiche les références
+sur des lignes séparées dans un champ de texte copiable et défilable. La
+vérification automatisée contrôle désormais une annulation demandée avant
+l'analyse, puis l'empreinte exacte du projet non modifié. Les essais de
+fermeture pendant une analyse longue et d'ergonomie restent à réaliser sous
+Windows.

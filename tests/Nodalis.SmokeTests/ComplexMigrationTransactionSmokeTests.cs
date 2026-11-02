@@ -84,6 +84,24 @@ internal static class ComplexMigrationTransactionSmokeTests
                 await ComplexProjectMigrationPlanService.FingerprintAsync(
                     projectRoot);
             ComplexProjectMigrationPlanService planner = new(workspace);
+            // Cancellation is part of the read-only preflight contract:
+            // no temporary file, altered manifest or approved plan survives.
+            using CancellationTokenSource cancelled = new();
+            cancelled.Cancel();
+            bool cancellationObserved = false;
+            try
+            {
+                await planner.PrepareAsync(projectRoot, cancelled.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                cancellationObserved = true;
+            }
+
+            Assert(cancellationObserved &&
+                await ComplexProjectMigrationPlanService.FingerprintAsync(
+                    projectRoot) == originalHash,
+                "Cancelling preflight must not change source bytes.");
             ComplexProjectMigrationPlan plan = await planner.PrepareAsync(
                 projectRoot);
             Assert(plan.CanExecute &&
