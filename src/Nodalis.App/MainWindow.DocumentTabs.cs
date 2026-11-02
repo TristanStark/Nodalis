@@ -195,6 +195,15 @@ public partial class MainWindow
             _glossaryAnnotationRevision++;
             _glossaryMatchCancellation?.Cancel();
             StoreActiveDocumentTabState();
+            // Old matches refer to the previous editor text. Clear them
+            // immediately rather than painting stale highlights until the
+            // scheduled worker finishes the next glossary calculation.
+            _glossaryMatches = [];
+            _glossaryAdorner?.SetMatches([]);
+            if (_previewVisible)
+            {
+                MarkdownPreview.Document = null;
+            }
         }
 
         tab.IsMissing = !File.Exists(

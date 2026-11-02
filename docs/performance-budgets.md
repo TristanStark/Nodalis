@@ -571,3 +571,14 @@ Ce test de Core ne simule pas une fenêtre WPF ni les timings du
 Dispatcher : la protection de révision du code UI est couverte par
 une vérification de structure en CI, et le comportement réel des
 onglets est réservé à la qualification manuelle Windows.
+
+
+### Éviter l'affichage transitoire du mauvais document (02/11/2026)
+
+Lors du remplacement effectif d'un onglet par un autre, les
+annotations de glossaire et le `FlowDocument` de prévisualisation
+de l'ancien onglet sont effacés **immédiatement**. Le nouveau
+contenu, ses correspondances et son aperçu sont publiés par le
+timer asynchrone uniquement pour la révision/identité courante.
+Une réactivation du même onglet ne vide pas inutilement son
+affichage. Aucun contenu ni modification non sauvegardée n'est effacé.

@@ -92,6 +92,11 @@ if (-not $documentTabsCode.Contains('_previewEditRevision++;') -or
     $failures.Add("Tab activation must cancel obsolete previews and reject stale continuations.")
 }
 
+if (-not $documentTabsCode.Contains('_glossaryAdorner?.SetMatches([]);') -or
+    -not $documentTabsCode.Contains('MarkdownPreview.Document = null;')) {
+    $failures.Add("Switching documents must clear stale glossary highlights and preview.")
+}
+
 $requiredThemeTokens = @(
     'NodalisWindowStyle',
     'NodalisKeyboardFocusVisual',
