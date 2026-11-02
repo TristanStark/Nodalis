@@ -57,13 +57,40 @@ jobs:
       - name: Commit formatting
         shell: pwsh
         run: |
-          if (-not (git status --porcelain)) {
-            Write-Host "No whitespace changes were required."
+          # Formatting can run concurrently with newer develop commits. Only
+          # the latest checked-out tree may publish a formatting commit.
+          git add -- '*.cs'
+          if (-not (git diff --cached --name-only)) {
+            Write-Host "No tracked C# formatting changes were required."
             exit 0
           }
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- '*.cs'
           git commit -m "chore(style): normalize C# formatting after documentation cleanup"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+          $expectedBase = (git rev-parse HEAD^).Trim()
+          git fetch origin develop
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $remoteHead = (git rev-parse origin/develop).Trim()
+          if ($remoteHead -ne $expectedBase) {
+            Write-Host "Develop advanced during formatting; a newer run will normalize the latest tree."
+            exit 0
+          }
+
           git push origin HEAD:develop
+          if ($LASTEXITCODE -ne 0) {
+            # A concurrent developer push is not a formatting failure. If
+            # develop advanced, its own workflow will check the newer tree.
+            git fetch origin develop
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            $newHead = (git rev-parse origin/develop).Trim()
+            if ($newHead -ne $expectedBase) {
+              Write-Host "Concurrent develop update; skipping obsolete formatting push."
+              exit 0
+            }
+
+            # Preserve real authentication/remote failures.
+            exit 1
+          }
