@@ -56,6 +56,35 @@ public sealed class GlossaryTextBoxAdorner : Adorner
             return;
         }
 
+        int firstVisibleLine = _textBox.GetFirstVisibleLineIndex();
+        int lastVisibleLine = _textBox.GetLastVisibleLineIndex();
+        if (firstVisibleLine < 0 || lastVisibleLine < firstVisibleLine)
+        {
+            return;
+        }
+
+        int firstVisibleCharacter = _textBox.GetCharacterIndexFromLineIndex(
+            firstVisibleLine);
+        int lastLineStart = _textBox.GetCharacterIndexFromLineIndex(
+            lastVisibleLine);
+        if (firstVisibleCharacter < 0 || lastLineStart < 0)
+        {
+            return;
+        }
+
+        int textLength = _textBox.Text.Length;
+        int endVisibleCharacter = (int)Math.Min(
+            textLength,
+            (long)lastLineStart + _textBox.GetLineLength(lastVisibleLine) + 1);
+        (int firstMatch, int endMatch) = GlossaryMatchIndex.GetVisibleRange(
+            _matches,
+            firstVisibleCharacter,
+            endVisibleCharacter);
+        if (firstMatch == endMatch)
+        {
+            return;
+        }
+
         global::System.Windows.Media.Brush brush =
             Application.Current.TryFindResource("AccentBrush") as Brush ??
             Brushes.CornflowerBlue;
@@ -67,12 +96,17 @@ public sealed class GlossaryTextBoxAdorner : Adorner
             DashStyle = DashStyles.Dot
         };
 
-        foreach (global::Nodalis.Core.Glossary.GlossaryTextMatch match in _matches)
+        // GetRectFromCharacterIndex performs WPF layout work. Never invoke
+        // it for offscreen matches, even if a document has thousands of terms.
+        for (int index = firstMatch; index < endMatch; index++)
         {
             DrawMatch(
                 drawingContext,
                 pen,
-                match);
+                _matches[index],
+                firstVisibleLine,
+                lastVisibleLine,
+                textLength);
         }
     }
 
@@ -82,14 +116,20 @@ public sealed class GlossaryTextBoxAdorner : Adorner
     /// <param name="drawingContext">The <c>drawingContext</c> value.</param>
     /// <param name="pen">The <c>pen</c> value.</param>
     /// <param name="match">The <c>match</c> value.</param>
+    /// <param name="firstVisibleLine">First visible visual line.</param>
+    /// <param name="lastVisibleLine">Last visible visual line.</param>
+    /// <param name="textLength">Current editor text length.</param>
     private void DrawMatch(
             DrawingContext drawingContext,
             Pen pen,
-            GlossaryTextMatch match)
+            GlossaryTextMatch match,
+            int firstVisibleLine,
+            int lastVisibleLine,
+            int textLength)
     {
         if (match.Start < 0 ||
             match.Length <= 0 ||
-            match.Start + match.Length > _textBox.Text.Length)
+            (long)match.Start + match.Length > textLength)
         {
             return;
         }
@@ -115,8 +155,10 @@ public sealed class GlossaryTextBoxAdorner : Adorner
             return;
         }
 
-        for (int line = firstLine;
-             line <= lastLine;
+        // A very long glossary synonym can span multiple visual lines.
+        // Only query geometry for the lines actually on screen.
+        for (int line = Math.Max(firstLine, firstVisibleLine);
+             line <= Math.Min(lastLine, lastVisibleLine);
              line++)
         {
             if (line < 0 ||

@@ -676,3 +676,19 @@ l'aperçu, avec un numéro de révision propre à chaque requête : une
 correspondance lancée avant un changement de document, une nouvelle
 révision ou un nouveau catalogue ne peut plus écraser l'affichage
 récent. Le point d'entrée synchrone a été supprimé.
+
+
+### Annotations de glossaire limitées à la zone visible (02/11/2026)
+
+Le rendu WPF ne parcourt plus l'intégralité des correspondances de
+termes à chaque événement de défilement ou redimensionnement. Le moteur
+Core expose une recherche dichotomique sur les intervalles triés : la
+première et la dernière correspondance visibles sont déterminées en
+`O(log n)`, puis seules les lignes visibles sont soumises à
+`GetRectFromCharacterIndex`. Une expression très longue est elle aussi
+limitée aux lignes affichées. La recherche de terme sous la souris
+utilise la même logique dichotomique à la place d'un balayage linéaire.
+Les tests synthétiques couvrent 12 000 correspondances, les bornes
+inclusives/exclusives, les intervalles vides et l'équivalence avec un
+balayage exhaustif. Les métriques de fluidité WPF restent à relever
+sur Windows : aucune durée n'est déduite de ces tests Core.

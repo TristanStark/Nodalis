@@ -5865,9 +5865,9 @@ public partial class MainWindow : Window
             return null;
         }
 
-        return _glossaryMatches.FirstOrDefault(match =>
-            index >= match.Start &&
-            index < match.Start + match.Length);
+        return GlossaryMatchIndex.FindAt(
+            _glossaryMatches,
+            index);
     }
 
     /// <summary>
