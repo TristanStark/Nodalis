@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using Microsoft.Win32;
 using Nodalis.App.Reliability;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Risks;
 using Nodalis.Core.Tasks;
 using Nodalis.Infrastructure.Tasks;
 using Nodalis.Infrastructure.Projects;
@@ -22,6 +23,7 @@ public partial class ProjectGateRegistryDialog : Window
     private readonly ProjectJourneyMilestoneCatalogService _milestones;
     private readonly ProjectGateIncidentCatalogService _incidents;
     private readonly ProjectRiskRegistryService _risks;
+    private readonly WorkspaceTaskService _tasks;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private readonly bool _allowSelection;
@@ -59,6 +61,7 @@ public partial class ProjectGateRegistryDialog : Window
         _milestones = new ProjectJourneyMilestoneCatalogService(workspaceRoot);
         _incidents = new ProjectGateIncidentCatalogService(workspaceRoot);
         _risks = new ProjectRiskRegistryService(workspaceRoot);
+        _tasks = new WorkspaceTaskService(workspaceRoot);
         _projectDirectory = Path.GetFullPath(projectDirectory);
         _readOnly = readOnly;
         _allowSelection = allowSelection;
@@ -1024,11 +1027,16 @@ public partial class ProjectGateRegistryDialog : Window
             Paint(priorGate);
             ProjectRiskCatalog risks = await _risks.ListAsync(
                 _projectDirectory);
-            // Scan the whole workspace once on user command so duplicate
-            // persistent task GUIDs from other projects remain detectable.
-            // Filtering and selection perform no source reads.
-            TaskCollection taskCatalog = await new WorkspaceTaskService(
-                _serviceWorkspaceRoot).RefreshAsync();
+            // Load the complete task index only if a current RIS plan actually
+            // links a task. Never scan during painting or filtering. Reusing
+            // this service preserves its incremental source cache on reopen.
+            bool hasTaskLinks = risks.Risks.Any(risk =>
+                risk.CurrentTreatment is not null &&
+                Enum.GetValues<ProjectRiskMeasureKind>().Any(kind =>
+                    risk.LinkedTaskIds(kind).Count != 0));
+            TaskCollection? taskCatalog = hasTaskLinks
+                ? await _tasks.RefreshAsync()
+                : null;
             ProjectGateRiskOverview overview =
                 ProjectGateRiskOverviewBuilder.Build(_snapshot.Registry, risks,
                     DateOnly.FromDateTime(DateTime.Today), taskCatalog);
