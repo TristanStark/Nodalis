@@ -91,6 +91,7 @@ public sealed partial class WorkspaceTaskService
         int reused = 0;
         int parsed = 0;
         List<string> identityDiagnostics = [];
+        HashSet<Guid> conflictingPersistentIds = [];
 
         foreach (global::Nodalis.Core.Links.LinkTargetEntry document in links.Targets.Where(target =>
                      target.Kind == LinkTargetKind.Document))
@@ -139,6 +140,7 @@ public sealed partial class WorkspaceTaskService
                 .GroupBy(entry => entry.Id!.Value)
                 .Where(group => group.Count() > 1)
                 .Select(group => group.Key).ToHashSet();
+            conflictingPersistentIds.UnionWith(duplicatesInDocument);
             string[] warnings = scan.Issues.Select(issue =>
                 document.RelativePath + ":" + issue.LineNumber +
                 " : " + issue.Message).ToArray();
@@ -239,6 +241,7 @@ public sealed partial class WorkspaceTaskService
             .Where(group => group.Count() > 1)
             .Select(group => group.Key).ToArray();
         HashSet<Guid> conflicting = crossDocumentIds.ToHashSet();
+        conflictingPersistentIds.UnionWith(conflicting);
         foreach (Guid repeated in crossDocumentIds)
         {
             identityDiagnostics.Add(
@@ -270,6 +273,7 @@ public sealed partial class WorkspaceTaskService
         {
             UpdatedUtc = DateTimeOffset.UtcNow,
             IdentityDiagnostics = identityDiagnostics,
+            ConflictingPersistentIds = conflictingPersistentIds,
             Tasks = tasks
                 .OrderBy(task => task.IsCompleted)
                 .ThenBy(task => task.DueDate ?? DateOnly.MaxValue)

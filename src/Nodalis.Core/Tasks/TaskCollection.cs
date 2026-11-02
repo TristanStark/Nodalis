@@ -12,6 +12,14 @@ public sealed record TaskCollection
     /// </summary>
     public IReadOnlyList<string> IdentityDiagnostics { get; init; } = [];
 
+    /// <summary>
+    /// Typed GUID collisions across or within documents. Tasks with these
+    /// markers deliberately have no linkable PersistentId, but previously
+    /// linked RIS references must be diagnosed as ambiguous, not missing.
+    /// </summary>
+    public IReadOnlySet<Guid> ConflictingPersistentIds { get; init; } =
+        new HashSet<Guid>();
+
     public IReadOnlyList<TaskItem> OpenTasks =>
         Tasks
             .Where(task => !task.IsCompleted)

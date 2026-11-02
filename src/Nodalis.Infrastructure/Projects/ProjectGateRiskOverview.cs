@@ -1,5 +1,6 @@
 using Nodalis.Core.Projects;
 using Nodalis.Core.Risks;
+using Nodalis.Core.Tasks;
 
 namespace Nodalis.Infrastructure.Projects;
 
@@ -26,6 +27,10 @@ public sealed record ProjectGateRiskOverviewRiskRow(
     bool HasTreatmentPlan, int BlockedMeasures,
     int UnfinishedMeasures, int LinkedTaskReferences)
 {
+    /// <summary>Sources and human qualification for the latest plan only.</summary>
+    public ProjectGateRiskTaskProvenance TaskProvenance { get; init; } =
+        ProjectGateRiskTaskProvenance.Empty;
+
     /// <summary>Whether the referenced source cannot be safely resolved.</summary>
     public bool IsOrphan => RelativePath is null;
 
@@ -42,7 +47,13 @@ public sealed record ProjectGateRiskOverviewRiskRow(
           (HasTreatmentPlan
               ? " · mesures bloquées " + BlockedMeasures +
                 " / non terminées " + UnfinishedMeasures +
-                " · références de tâches " + LinkedTaskReferences
+                " · références de tâches " + LinkedTaskReferences +
+                " (sources uniques " + TaskProvenance.VerifiedSourceCount +
+                ", à revoir " + TaskProvenance.ProblemSourceCount + ")" +
+                " · mesures terminées par qualification humaine " +
+                TaskProvenance.HumanCompletedMeasures +
+                " (justificatifs textuels déclarés " +
+                TaskProvenance.DeclaredCompletionEvidence + ")"
               : " · aucun plan de traitement");
 }
 
@@ -69,6 +80,10 @@ public sealed record ProjectGateRiskOverviewRow(
     public bool HasUnfinishedMeasures =>
         Risks.Any(item => item.UnfinishedMeasures > 0);
 
+    /// <summary>Missing, duplicate or wrong-project task sources.</summary>
+    public bool HasTaskSourceIssues =>
+        Risks.Any(item => item.TaskProvenance.ProblemSourceCount > 0);
+
     /// <summary>Unknown ratings are not treated as low risk.</summary>
     public bool HasUnassessedRisks => Risks.Any(item =>
         !item.IsOrphan && (item.InitialSeverity ==
@@ -85,6 +100,7 @@ public sealed record ProjectGateRiskOverviewRow(
         Risks.Count + " RIS lié(s)" +
         (OrphanCount > 0 ? " · " + OrphanCount + " orphelin(s)" : "") +
         (HasBlockedMeasures ? " · mesures bloquées" : "") +
+        (HasTaskSourceIssues ? " · références de tâches à vérifier" : "") +
         (HasUnassessedRisks ? " · évaluations manquantes" : "");
 }
 
@@ -111,6 +127,9 @@ public sealed record ProjectGateRiskOverview
     public required int OpenBlockedCount { get; init; }
 
     public required int OpenUnassessedCount { get; init; }
+
+    /// <summary>Open reservations with unresolved current RIS task sources.</summary>
+    public required int OpenTaskSourceIssueCount { get; init; }
 }
 
 /// <summary>
@@ -126,9 +145,11 @@ public static class ProjectGateRiskOverviewBuilder
     /// <param name="registry">Validated Gate registry snapshot.</param>
     /// <param name="catalog">Project-local canonical RIS catalog.</param>
     /// <param name="today">Explicit day for overdue calculation.</param>
+    /// <param name="taskCatalog">Optional complete task snapshot including GUID collisions.</param>
     /// <returns>Frozen, independently filterable cross-register projection.</returns>
     public static ProjectGateRiskOverview Build(
-        ProjectGateRegistry registry, ProjectRiskCatalog catalog, DateOnly today)
+        ProjectGateRegistry registry, ProjectRiskCatalog catalog, DateOnly today,
+        TaskCollection? taskCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ProjectGateReservationOverview reservations =
@@ -177,6 +198,7 @@ public static class ProjectGateRiskOverviewBuilder
         // A risk may be linked to many historic reservations. Project its
         // human measures/task GUIDs once rather than replaying each RIS log
         // for every reservation row or during later WPF search/filter.
+        ProjectGateTaskProvenanceIndex provenance = new(taskCatalog);
         Dictionary<Guid, ProjectGateRiskOverviewRiskRow> riskRows = [];
         List<ProjectGateRiskOverviewRow> result = [];
         foreach (ProjectGateReservationOverviewRow reservation in
@@ -192,7 +214,7 @@ public static class ProjectGateRiskOverviewBuilder
                     if (!riskRows.TryGetValue(id,
                         out ProjectGateRiskOverviewRiskRow? detail))
                     {
-                        detail = MakeRisk(id, unique);
+                        detail = MakeRisk(id, unique, registry.ProjectId, provenance);
                         riskRows.Add(id, detail);
                     }
 
@@ -223,16 +245,21 @@ public static class ProjectGateRiskOverviewBuilder
             OpenBlockedCount = rows.Count(row =>
                 row.Reservation.IsOpen && row.HasBlockedMeasures),
             OpenUnassessedCount = rows.Count(row =>
-                row.Reservation.IsOpen && row.HasUnassessedRisks)
+                row.Reservation.IsOpen && row.HasUnassessedRisks),
+            OpenTaskSourceIssueCount = rows.Count(row =>
+                row.Reservation.IsOpen && row.HasTaskSourceIssues)
         };
     }
 
     /// <summary>Projects explicit current-plan human progress only.</summary>
     /// <param name="riskId">GUID from the validated Gate audit.</param>
     /// <param name="sources">Same-project canonical risk dictionary.</param>
+    /// <param name="projectId">Immutable Gate project identity.</param>
+    /// <param name="provenance">Shared one-time task identity index.</param>
     /// <returns>Resolved risk summary or source-unavailable diagnostic row.</returns>
     private static ProjectGateRiskOverviewRiskRow MakeRisk(
-        Guid riskId, IReadOnlyDictionary<Guid, ProjectRiskEntry> sources)
+        Guid riskId, IReadOnlyDictionary<Guid, ProjectRiskEntry> sources,
+        Guid projectId, ProjectGateTaskProvenanceIndex provenance)
     {
         if (!sources.TryGetValue(riskId, out ProjectRiskEntry? entry))
         {
@@ -258,6 +285,9 @@ public static class ProjectGateRiskOverviewBuilder
             hasPlan,
             states.Count(item => item == ProjectRiskMeasureStatus.Blocked),
             states.Count(item => item != ProjectRiskMeasureStatus.Completed),
-            linked);
+            linked)
+        {
+            TaskProvenance = provenance.Evaluate(entry, projectId)
+        };
     }
 }
