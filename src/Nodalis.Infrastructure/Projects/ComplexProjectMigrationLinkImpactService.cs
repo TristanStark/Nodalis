@@ -310,112 +310,112 @@ public sealed class ComplexProjectMigrationLinkImpactService
                     if (!inFence)
                     {
                         string context = workspaceRelative + ":" + lineNumber;
-                    // External Markdown is relevant only when its literal
-                    // target may lead to one of this project's moved paths.
-                    // The project itself remains subject to strict validation.
-                    bool relevant = internalDocument ||
-                        MayReferenceMovedDestination(line);
-                    Match definition = SimpleReferenceDefinitionPattern.Match(line);
-                    MatchCollection usages = ReferenceUsagePattern.Matches(line);
-                    MatchCollection simpleUsages =
-                        SimpleReferenceUsagePattern.Matches(line);
-                    if (line.Contains("[[", StringComparison.Ordinal) ||
-                        (ReferenceDefinitionPattern.IsMatch(line) && !definition.Success) ||
-                        usages.Count != simpleUsages.Count ||
-                        (definition.Success && line.Contains((char)96)))
-                    {
-                        if (relevant)
+                        // External Markdown is relevant only when its literal
+                        // target may lead to one of this project's moved paths.
+                        // The project itself remains subject to strict validation.
+                        bool relevant = internalDocument ||
+                            MayReferenceMovedDestination(line);
+                        Match definition = SimpleReferenceDefinitionPattern.Match(line);
+                        MatchCollection usages = ReferenceUsagePattern.Matches(line);
+                        MatchCollection simpleUsages =
+                            SimpleReferenceUsagePattern.Matches(line);
+                        if (line.Contains("[[", StringComparison.Ordinal) ||
+                            (ReferenceDefinitionPattern.IsMatch(line) && !definition.Success) ||
+                            usages.Count != simpleUsages.Count ||
+                            (definition.Success && line.Contains((char)96)))
                         {
-                            blockers.Add(context +
-                                " : référence wiki/indirecte non qualifiée.");
-                        }
-                    }
-                    else
-                    {
-                        if (definition.Success)
-                        {
-                            string label = definition.Groups["label"].Value;
-                            if (referenceDefinitions.TryGetValue(label,
-                                out bool previousRelevant))
+                            if (relevant)
                             {
-                                if (relevant || previousRelevant)
+                                blockers.Add(context +
+                                    " : référence wiki/indirecte non qualifiée.");
+                            }
+                        }
+                        else
+                        {
+                            if (definition.Success)
+                            {
+                                string label = definition.Groups["label"].Value;
+                                if (referenceDefinitions.TryGetValue(label,
+                                    out bool previousRelevant))
                                 {
-                                    blockers.Add(context +
-                                        " : définition Markdown dupliquée : " + label);
+                                    if (relevant || previousRelevant)
+                                    {
+                                        blockers.Add(context +
+                                            " : définition Markdown dupliquée : " + label);
+                                    }
+                                }
+                                else
+                                {
+                                    referenceDefinitions.Add(label, relevant);
                                 }
                             }
                             else
                             {
-                                referenceDefinitions.Add(label, relevant);
-                            }
-                        }
-                        else
-                        {
-                            foreach (Match usage in simpleUsages)
-                            {
-                                referenceUsages.Add((
-                                    usage.Groups["label"].Value, lineNumber));
-                            }
-                        }
-
-                        MatchCollection markdown = MarkdownLinkPattern.Matches(line);
-                        MatchCollection html = HtmlLinkPattern.Matches(line);
-                        bool ambiguous = markdown.Count !=
-                            CountInlineLinkOpenings(line) ||
-                            html.Count != HtmlAttributePattern.Matches(line).Count ||
-                            (definition.Success && (markdown.Count != 0 || html.Count != 0));
-
-                        // Inline code can contain syntactically valid text that
-                        // must never be silently rewritten as a live link.
-                        if ((markdown.Count > 0 || html.Count > 0) &&
-                            line.Contains((char)96))
-                        {
-                            ambiguous = true;
-                        }
-
-                        if (ambiguous)
-                        {
-                            if (relevant)
-                            {
-                                blockers.Add(context + " : syntaxe de lien ambiguë.");
-                            }
-                        }
-                        else
-                        {
-                            IEnumerable<Match> targets = definition.Success
-                                ? [definition]
-                                : markdown.Cast<Match>().Concat(html.Cast<Match>());
-                            foreach (Match match in targets)
-                            {
-                                Group capture = match.Groups["target"];
-                                LinkChange change = EvaluateTarget(file, capture.Value);
-                                if (change.Blocker is not null)
+                                foreach (Match usage in simpleUsages)
                                 {
-                                    if (relevant)
-                                    {
-                                        blockers.Add(context + " : " + change.Blocker);
-                                    }
+                                    referenceUsages.Add((
+                                        usage.Groups["label"].Value, lineNumber));
                                 }
-                                else if (change.Replacement is not null)
+                            }
+
+                            MatchCollection markdown = MarkdownLinkPattern.Matches(line);
+                            MatchCollection html = HtmlLinkPattern.Matches(line);
+                            bool ambiguous = markdown.Count !=
+                                CountInlineLinkOpenings(line) ||
+                                html.Count != HtmlAttributePattern.Matches(line).Count ||
+                                (definition.Success && (markdown.Count != 0 || html.Count != 0));
+
+                            // Inline code can contain syntactically valid text that
+                            // must never be silently rewritten as a live link.
+                            if ((markdown.Count > 0 || html.Count > 0) &&
+                                line.Contains((char)96))
+                            {
+                                ambiguous = true;
+                            }
+
+                            if (ambiguous)
+                            {
+                                if (relevant)
                                 {
-                                    ComplexMigrationLinkRewrite rewrite = new(
-                                        projectRelative, workspaceRelative,
-                                        lineNumber, offset + capture.Index,
-                                        capture.Value, change.Replacement,
-                                        sourceHash ??= Convert.ToHexString(
-                                            SHA256.HashData(bytes)));
-                                    if (internalDocument)
+                                    blockers.Add(context + " : syntaxe de lien ambiguë.");
+                                }
+                            }
+                            else
+                            {
+                                IEnumerable<Match> targets = definition.Success
+                                    ? [definition]
+                                    : markdown.Cast<Match>().Concat(html.Cast<Match>());
+                                foreach (Match match in targets)
+                                {
+                                    Group capture = match.Groups["target"];
+                                    LinkChange change = EvaluateTarget(file, capture.Value);
+                                    if (change.Blocker is not null)
                                     {
-                                        rewrites.Add(rewrite);
+                                        if (relevant)
+                                        {
+                                            blockers.Add(context + " : " + change.Blocker);
+                                        }
                                     }
-                                    else
+                                    else if (change.Replacement is not null)
                                     {
-                                        externalRewrites.Add(rewrite);
+                                        ComplexMigrationLinkRewrite rewrite = new(
+                                            projectRelative, workspaceRelative,
+                                            lineNumber, offset + capture.Index,
+                                            capture.Value, change.Replacement,
+                                            sourceHash ??= Convert.ToHexString(
+                                                SHA256.HashData(bytes)));
+                                        if (internalDocument)
+                                        {
+                                            rewrites.Add(rewrite);
+                                        }
+                                        else
+                                        {
+                                            externalRewrites.Add(rewrite);
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
                     }
                 }
                 catch (RegexMatchTimeoutException)
