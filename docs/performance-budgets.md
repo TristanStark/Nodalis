@@ -643,3 +643,14 @@ Un smoke test synthétique couvre 250 définitions, des fins de ligne
 mixtes, les définitions multilignes, les positions et l'annulation.
 Cela réduit les allocations temporaires lors des ouvertures d'onglets
 rapides, sans changer le format des glossaires.
+
+
+### Définitions Markdown très longues (02/11/2026)
+
+L'ajout d'une ligne à la définition d'un terme n'appelle plus
+`StringBuilder.ToString()` pour tester le dernier caractère : l'accès
+à l'index final évite les copies de toutes les lignes précédentes.
+Le traitement d'une définition de plus de 1 000 lignes n'est plus
+quadratique en allocations. Un test synthétique valide les 1 025
+lignes produites et la conservation du texte avec les trois formats
+de fin de ligne.

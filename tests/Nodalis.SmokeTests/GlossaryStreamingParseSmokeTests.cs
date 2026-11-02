@@ -62,6 +62,25 @@ internal static class GlossaryStreamingParseSmokeTests
                multilineEntries[1].Definition == "Suite",
             "Mixed newline styles cannot change multiline definitions or source lines.");
 
+        StringBuilder longDefinition = new("## Longue définition\n" +
+            "**Définition :** Introduction\n");
+        for (int index = 0; index < 1024; index++)
+        {
+            longDefinition.Append($"Contenu {index:D4}")
+                .Append(endings[index % endings.Length]);
+        }
+
+        IReadOnlyList<GlossaryEntry> longEntries =
+            GlossaryService.Parse(longDefinition.ToString(), scope);
+        Assert(longEntries.Count == 1 &&
+               longEntries[0].Definition.Split(
+                   Environment.NewLine, StringSplitOptions.None).Length == 1025 &&
+               longEntries[0].Definition.StartsWith(
+                   "Introduction", StringComparison.Ordinal) &&
+               longEntries[0].Definition.EndsWith(
+                   "Contenu 1023", StringComparison.Ordinal),
+            "Long multiline definitions must keep content and newline semantics.");
+
         using CancellationTokenSource canceled = new();
         canceled.Cancel();
         bool interrupted = false;

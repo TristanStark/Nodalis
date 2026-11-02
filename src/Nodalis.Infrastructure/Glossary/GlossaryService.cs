@@ -659,12 +659,10 @@ public sealed class GlossaryService
             return;
         }
 
+        // StringBuilder.ToString() on every continuation reallocates the
+        // entire accumulated definition and grows quadratically for long notes.
         if (builder.Definition.Length > 0 &&
-            !builder.Definition
-                .ToString()
-                .EndsWith(
-                    "\n",
-                    StringComparison.Ordinal))
+            builder.Definition[builder.Definition.Length - 1] != '\n')
         {
             builder.Definition.AppendLine();
         }
