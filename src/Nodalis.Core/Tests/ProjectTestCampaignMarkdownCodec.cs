@@ -135,6 +135,18 @@ public sealed record ProjectTestCampaign
 
     /// <summary>Passages ordered by number; each freezes selection and context.</summary>
     public IReadOnlyList<ProjectTestPassage> Passages { get; init; } = [];
+
+    /// <summary>
+    /// Optional append-only decisions. Null deliberately omits this field
+    /// when serializing existing v1 REC documents, preserving their exact
+    /// canonical Markdown without a read-time migration.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ProjectTestCampaignDecisionEvent>? DecisionHistory
+    {
+        get;
+        init;
+    }
 }
 
 /// <summary>
@@ -267,6 +279,9 @@ public static class ProjectTestCampaignMarkdownCodec
                 }
             }
         }
+
+        ProjectTestCampaignDecisionPolicy.Validate(
+            campaign.DecisionHistory, campaign.State, campaign.CreatedUtc);
     }
 
     /// <summary>Serializes canonical readable Markdown with embedded JSON.</summary>

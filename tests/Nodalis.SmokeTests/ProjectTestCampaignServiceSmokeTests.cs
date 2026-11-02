@@ -265,6 +265,83 @@ internal static class ProjectTestCampaignServiceSmokeTests
                 foreign.ProjectDirectory, final, updatedIndex),
                 "A campaign cannot be assessed in another project.");
 
+            ProjectTestQualificationSummary guidance =
+                ProjectTestCampaignQualification.Review(
+                    final.Campaign, live.NeedsReview);
+            Assert(guidance.SourceNeedsReview == 1 &&
+                   guidance.Warnings.Any(item => item.Contains(
+                       "définition(s)", StringComparison.Ordinal)),
+                "Closure warnings must expose source changes without blocking.");
+
+            ProjectTestCampaignEntry qualifying =
+                await service.RecordDecisionAsync(
+                    own.ProjectDirectory, final,
+                    ProjectTestCampaignDecisionKind.EnterQualification,
+                    "Responsable fictif", "Dossier à vérifier.", null, null);
+            Assert(qualifying.Campaign.State ==
+                       ProjectTestCampaignState.InQualification &&
+                   qualifying.Campaign.DecisionHistory?.Count == 1,
+                "Qualification starts only after explicit human approval.");
+
+            await RejectAsync(() => service.RecordDecisionAsync(
+                own.ProjectDirectory, final,
+                ProjectTestCampaignDecisionKind.Close,
+                "Responsable fictif", "Révision périmée.",
+                ProjectTestCampaignVerdict.ValidatedWithReservations,
+                ["Réserve fictive"]),
+                "An obsolete source revision cannot rewrite lifecycle history.");
+            await RejectAsync(() => service.RecordDecisionAsync(
+                own.ProjectDirectory, qualifying,
+                ProjectTestCampaignDecisionKind.Close,
+                "Responsable fictif", "Sans réserve explicite.",
+                ProjectTestCampaignVerdict.ValidatedWithReservations,
+                []),
+                "Qualified-with-reservations closure requires actual reservations.");
+
+            ProjectTestCampaignEntry closed =
+                await service.RecordDecisionAsync(
+                    own.ProjectDirectory, qualifying,
+                    ProjectTestCampaignDecisionKind.Close,
+                    "Responsable fictif",
+                    "Clôture humaine avec requalification restante.",
+                    ProjectTestCampaignVerdict.ValidatedWithReservations,
+                    ["Réévaluer la définition modifiée du test."]);
+            Assert(closed.Campaign.State == ProjectTestCampaignState.Closed &&
+                   closed.Campaign.DecisionHistory?.Count == 2 &&
+                   closed.Campaign.DecisionHistory[^1].Verdict ==
+                       ProjectTestCampaignVerdict.ValidatedWithReservations &&
+                   closed.Campaign.Passages[0].Results[0].Outcome ==
+                       ProjectTestOutcome.Failed &&
+                   closed.Campaign.Passages[1].Results[0].Outcome ==
+                       ProjectTestOutcome.Passed,
+                "Nonblocking closure stores human reservations, not an " +
+                "automatic EXI validation or a rewritten passage.");
+
+            ProjectTestCampaignEntry reopened =
+                await service.RecordDecisionAsync(
+                    own.ProjectDirectory, closed,
+                    ProjectTestCampaignDecisionKind.Reopen,
+                    "Responsable fictif",
+                    "Réouverture pour poursuivre la recette.", null, null);
+            ProjectTestCampaignEntry canceled =
+                await service.RecordDecisionAsync(
+                    own.ProjectDirectory, reopened,
+                    ProjectTestCampaignDecisionKind.Cancel,
+                    "Responsable fictif",
+                    "Campagne interrompue explicitement.", null, null);
+            Assert(canceled.Campaign.State ==
+                       ProjectTestCampaignState.Canceled &&
+                   canceled.Campaign.DecisionHistory?.Count == 4 &&
+                   canceled.Campaign.DecisionHistory[1].Kind ==
+                       ProjectTestCampaignDecisionKind.Close &&
+                   canceled.Campaign.DecisionHistory[2].Kind ==
+                       ProjectTestCampaignDecisionKind.Reopen &&
+                   canceled.Campaign.Passages.Count == 2 &&
+                   (await service.ListAsync(own.ProjectDirectory))
+                       .Campaigns.Single().Campaign.DecisionHistory?.Count == 4,
+                "Reopening and canceling append events without deleting the " +
+                "original human verdict or historic test results.");
+
             await RejectAsync(() => service.RecordResultAsync(
                 foreign.ProjectDirectory, final, passage2.Id, firstId,
                 ProjectTestOutcome.Passed, "Testeur fictif",

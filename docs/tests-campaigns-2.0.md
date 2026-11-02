@@ -138,3 +138,25 @@ auparavant conforme mais désormais modifié est signalé « à requalifier »
 plutôt que reconduit comme conforme sur la version courante. Les
 régressions testent la modification d'un seul test, la source supprimée,
 l'index désynchronisé et les collisions globales de GUID.
+
+## Qualification humaine et événements immuables (incrément 7)
+
+Une campagne passe explicitement de Brouillon / En cours à En qualification,
+puis à Clôturée après un verdict humain. Une clôture est Validée, Validée
+avec réserves (au moins une réserve écrite), ou Non validée. Une campagne
+Clôturée ou Annulée peut être rouverte avec une justification ; une campagne
+en cours peut être annulée avec justification. Toute transition conserve
+un événement horodaté avec auteur, motif et éventuel verdict/réserves.
+
+Le service enregistre la nouvelle décision par comparaison atomique du SHA
+de la campagne avant remplacement : une décision fondée sur une ancienne
+révision est refusée. Les anciennes décisions et résultats sont conservés.
+Les avertissements de qualification (passages absents, tests non exécutés,
+non conformes, bloqués, non applicables, sources modifiées ou incertaines)
+sont consultatifs : une clôture reste possible après justification humaine.
+Aucune exigence EXI ou preuve n'est automatiquement approuvée.
+
+Compatibilité : le champ optionnel decisionHistory est omis lorsqu'il vaut
+null. Un ancien document REC v1 demeure lisible et sa sérialisation reste
+strictement identique tant qu'aucun événement n'est ajouté. Les transitions
+invalides, réserves absentes, doublons et horodatages incohérents sont refusés.
