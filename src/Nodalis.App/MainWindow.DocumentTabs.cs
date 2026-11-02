@@ -181,6 +181,11 @@ public partial class MainWindow
     {
         ArgumentNullException.ThrowIfNull(tab);
         long activationRevision = ++_documentTabActivationRevision;
+        // A preview parse started for the prior tab may still be running.
+        // Reject its result and coalesce bursts into one new parse.
+        _previewEditRevision++;
+        _previewParseCancellation?.Cancel();
+        _previewTimer.Stop();
         DeactivateProjectJourneyTabView();
 
         if (!ReferenceEquals(
@@ -285,7 +290,7 @@ public partial class MainWindow
         if (tab.IsMissing)
         {
             InternalLinkPopup.IsOpen = false;
-            RenderPreview();
+            _previewTimer.Start();
             MarkdownEditorTextBox.Focus();
             return;
         }
@@ -316,15 +321,11 @@ public partial class MainWindow
             return;
         }
 
-        // A large glossary/text match previously ran synchronously on the
-        // Dispatcher. The existing async matcher cancels obsolete revisions.
-        await UpdateGlossaryAnnotationsAsync();
-        if (!IsCurrentDocumentTabActivation(tab, activationRevision))
-        {
-            return;
-        }
-
-        RenderPreview();
+        // The existing debounced preview timer parses Markdown on a worker
+        // and then computes glossary annotations asynchronously. Using it
+        // avoids a second matching pass and synchronous full-text rendering
+        // for each tab in a rapid activation sequence.
+        _previewTimer.Start();
 
         if (tab.HasConflict &&
             !tab.ConflictWarningShown)

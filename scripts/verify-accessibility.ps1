@@ -85,9 +85,11 @@ if (-not $stickyWorktree.Contains('TrackOperation("Worktree · en-têtes persist
     $failures.Add("Worktree must keep privacy-safe duration probes for scroll, filtering and shortcuts.")
 }
 
-if (-not $documentTabsCode.Contains('await UpdateGlossaryAnnotationsAsync();') -or
+if (-not $documentTabsCode.Contains('_previewEditRevision++;') -or
+    -not $documentTabsCode.Contains('_previewParseCancellation?.Cancel();') -or
+    -not $documentTabsCode.Contains('_previewTimer.Start();') -or
     -not $documentTabsCode.Contains('IsCurrentDocumentTabActivation(tab, activationRevision)')) {
-    $failures.Add("Tab activation must use the cancellable worker glossary matcher and reject stale continuations.")
+    $failures.Add("Tab activation must cancel obsolete previews and reject stale continuations.")
 }
 
 $requiredThemeTokens = @(

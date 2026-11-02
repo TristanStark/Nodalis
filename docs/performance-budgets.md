@@ -535,3 +535,23 @@ rafales de changements d'onglets, modification immédiate après
 sélection, vérification du bon document annoté, de la prévisualisation
 et du focus final. Comparer les retards Dispatcher avant/après, sans
 présumer la disparition de tous les freezes.
+
+
+### Coalescence de la prévisualisation Markdown lors des changements d'onglets (02/11/2026)
+
+Le chemin d'activation ne lance plus un rendu Markdown **synchrone**
+après la lecture du glossaire. Il invalide immédiatement le rendu
+précédent (révision et annulation du parseur) et réarme le timer de
+prévisualisation existant une fois les étapes de contexte terminées.
+Ce timer regroupe les changements rapides, réalise le parsing sur un
+worker et déclenche ensuite la correspondance asynchrone du glossaire.
+La comparaison `_previewEditRevision`, de l'identité d'onglet et de
+la photographie du texte empêche la publication d'un résultat périmé.
+Les cas de documents introuvables utilisent aussi ce mécanisme au
+lieu de forcer un rendu intégral au premier plan.
+
+La construction finale d'un FlowDocument reste nécessairement une
+opération WPF sur le Dispatcher ; ce changement ne prétend pas
+supprimer tout gel de rendu. Mesurer les durées « Rendu Markdown »
+et les retards p50/p95/p99 pendant 30 changements d'onglets, en
+comparant avec/sans prévisualisation et sans débogueur.
