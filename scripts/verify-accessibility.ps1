@@ -67,9 +67,10 @@ if (-not $worktreeP1.Contains('_worktreeP1RefreshPending') -or
     -not $worktreeP1.Contains('candidate.VisibleSiblingIndex')) {
     $failures.Add("Worktree tab refreshes and visibility checks must remain coalesced and indexed.")
 }
-if (-not $quickOpenCode.Contains('documentsByRelativePath.GetValueOrDefault(qualifiedPath)') -or
-    -not $quickOpenCode.Contains('targetsById.GetValueOrDefault(node.Id)')) {
-    $failures.Add("Quick Open should resolve link targets via O(1) maps, not repeated linear searches.")
+if (-not $quickOpenCode.Contains('indexedTargets.FindDocumentByRelativePath(qualifiedPath)') -or
+    -not $quickOpenCode.Contains('indexedTargets.FindById(node.Id)') -or
+    -not $quickOpenCode.Contains('GetNavigationLinkTargetIndex()')) {
+    $failures.Add("Quick Open must reuse indexed link catalog lookups, not scan targets per node.")
 }
 if (-not $quickOpenEntry.Contains('PreferenceKey { get; init; }') -or
     -not $worktreeP1.Contains('EnsureWorktreeShortcutIndex();') -or
