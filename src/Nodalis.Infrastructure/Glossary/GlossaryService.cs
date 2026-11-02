@@ -353,25 +353,53 @@ public sealed class GlossaryService
         ArgumentNullException.ThrowIfNull(scope);
         cancellationToken.ThrowIfCancellationRequested();
 
-        string[] lines = markdown
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Split('\n');
-
+        // Read one logical line at a time. Replace/Split used to allocate two
+        // normalized copies plus an array of every line before cancellation
+        // could interrupt a superseded document activation.
         global::System.Collections.Generic.List<global::Nodalis.Core.Glossary.GlossaryEntry> entries = new List<GlossaryEntry>();
         EntryBuilder? current = null;
         FieldKind activeField = FieldKind.None;
+        int cursor = 0;
+        int lineNumber = 0;
 
-        for (int index = 0;
-             index < lines.Length;
-             index++)
+        while (cursor <= markdown.Length)
         {
-            if ((index & 127) == 0)
+            if ((lineNumber & 127) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            string line = lines[index];
+            int start = cursor;
+            while (cursor < markdown.Length &&
+                   markdown[cursor] != '\r' &&
+                   markdown[cursor] != '\n')
+            {
+                if (((cursor - start) & 4095) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                cursor++;
+            }
+
+            string line = markdown.Substring(start, cursor - start);
+            if (cursor == markdown.Length)
+            {
+                // Also preserve the empty final line after a trailing newline.
+                cursor++;
+            }
+            else if (markdown[cursor] == '\r' &&
+                     cursor + 1 < markdown.Length &&
+                     markdown[cursor + 1] == '\n')
+            {
+                cursor += 2;
+            }
+            else
+            {
+                cursor++;
+            }
+
+            lineNumber++;
 
             if (line.StartsWith(
                     "## ",
@@ -385,7 +413,7 @@ public sealed class GlossaryService
                 current = new EntryBuilder
                 {
                     Term = line[3..].Trim(),
-                    LineNumber = index + 1
+                    LineNumber = lineNumber
                 };
 
                 activeField = FieldKind.None;

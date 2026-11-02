@@ -118,6 +118,7 @@ try
     await AutosaveBurstSmokeTests.RunAsync(root);
     await VerifyGlossaryAsync(root);
     await GlossaryBackgroundMatchSmokeTests.RunAsync();
+    GlossaryStreamingParseSmokeTests.Run();
     await VerifyAttachmentsAsync(root);
     await VerifyTasksAsync(root);
     await VerifyMilestonesAsync(root);

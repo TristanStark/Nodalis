@@ -629,3 +629,17 @@ onglet abandonné continue inutilement à occuper le worker.
 L'ancienne API `Parse(markdown, scope)` reste compatible grâce
 au paramètre optionnel. Les tests vérifient le refus d'un parsing
 déjà annulé et l'identité du contenu produit avec/sans worker.
+
+
+### Analyse ligne par ligne des glossaires volumineux (02/11/2026)
+
+Le parseur ne construit plus de copie intégrale du Markdown normalisée
+ni de tableau contenant toutes les lignes via `Replace/Split`.
+Il parcourt désormais le texte en une passe, reconnaît `CRLF`, `LF`
+et `CR` sans changer les numéros de ligne, et contrôle l'annulation
+par lot de 128 lignes **et** tous les 4 096 caractères pour les
+lignes très longues. Les entrées et alias restent identiques.
+Un smoke test synthétique couvre 250 définitions, des fins de ligne
+mixtes, les définitions multilignes, les positions et l'annulation.
+Cela réduit les allocations temporaires lors des ouvertures d'onglets
+rapides, sans changer le format des glossaires.
