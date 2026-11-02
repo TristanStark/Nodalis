@@ -555,3 +555,19 @@ opération WPF sur le Dispatcher ; ce changement ne prétend pas
 supprimer tout gel de rendu. Mesurer les durées « Rendu Markdown »
 et les retards p50/p95/p99 pendant 30 changements d'onglets, en
 comparant avec/sans prévisualisation et sans débogueur.
+
+
+### Régression automatisée du matching asynchrone (02/11/2026)
+
+Les tests Smoke couvrent également la comparaison, sur un Markdown
+**entièrement fictif**, des résultats de `GlossaryTextMatcher.Match`
+en appel direct et sur un worker. Les indices de début, longueurs,
+chaînes sources, termes et priorités des correspondances doivent
+être identiques, même lorsque les textes sont répétés sur de nombreuses
+lignes. L'annulation avant le matching doit se traduire par
+`OperationCanceledException`, sans résultat publié.
+
+Ce test de Core ne simule pas une fenêtre WPF ni les timings du
+Dispatcher : la protection de révision du code UI est couverte par
+une vérification de structure en CI, et le comportement réel des
+onglets est réservé à la qualification manuelle Windows.

@@ -117,6 +117,7 @@ try
     await WorkspacePerformanceSmokeTests.RunAsync(root);
     await AutosaveBurstSmokeTests.RunAsync(root);
     await VerifyGlossaryAsync(root);
+    await GlossaryBackgroundMatchSmokeTests.RunAsync();
     await VerifyAttachmentsAsync(root);
     await VerifyTasksAsync(root);
     await VerifyMilestonesAsync(root);
