@@ -516,3 +516,22 @@ La vérification de la présence du titre Markdown et l'ouverture explicite
 restent inchangées : un signet cassé n'est pas considéré comme valide
 sur la seule base de l'index. Les tests couvrent la casse, les chemins
 absents et la priorité du premier document en cas de collisions.
+
+
+### Glossaire asynchrone et protections lors de rafales d'onglets (02/11/2026)
+
+L'activation d'un onglet ne calcule plus les correspondances du glossaire
+sur le Dispatcher : elle utilise `UpdateGlossaryAnnotationsAsync`, déjà
+doté d'une exécution sur worker et de protections sur les révisions de
+texte, de catalogue et d'onglet. Chaque activation possède en outre une
+révision monotone. Après toute attente réseau **inexistante** ou I/O
+locale (index, historique, glossaire, matching), les étapes suivantes
+ne doivent plus mettre à jour la prévisualisation ni le focus si
+l'utilisateur a déjà sélectionné un autre onglet. Aucun fichier ni
+préférence de sauvegarde n'est changé par ce mécanisme.
+
+Recette Windows : documents de 100 k à 1 M caractères avec glossaire,
+rafales de changements d'onglets, modification immédiate après
+sélection, vérification du bon document annoté, de la prévisualisation
+et du focus final. Comparer les retards Dispatcher avant/après, sans
+présumer la disparition de tous les freezes.

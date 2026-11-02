@@ -56,6 +56,8 @@ $quickOpenEntryPath = Join-Path $appRoot "Navigation/QuickOpenEntry.cs"
 $worktreeVm = Get-Content -Raw -LiteralPath $worktreeVmPath
 $stickyWorktree = Get-Content -Raw -LiteralPath $stickyWorktreePath
 $worktreeP1 = Get-Content -Raw -LiteralPath $worktreeP1Path
+$documentTabsPath = Join-Path $appRoot "MainWindow.DocumentTabs.cs"
+$documentTabsCode = Get-Content -Raw -LiteralPath $documentTabsPath
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or
@@ -81,6 +83,11 @@ if (-not $stickyWorktree.Contains('TrackOperation("Worktree · en-têtes persist
     -not $worktreeP1.Contains('TrackOperation("Worktree · projection du filtre")') -or
     -not $worktreeP1.Contains('TrackOperation("Worktree · favoris et récents")')) {
     $failures.Add("Worktree must keep privacy-safe duration probes for scroll, filtering and shortcuts.")
+}
+
+if (-not $documentTabsCode.Contains('await UpdateGlossaryAnnotationsAsync();') -or
+    -not $documentTabsCode.Contains('IsCurrentDocumentTabActivation(tab, activationRevision)')) {
+    $failures.Add("Tab activation must use the cancellable worker glossary matcher and reject stale continuations.")
 }
 
 $requiredThemeTokens = @(

@@ -25,6 +25,9 @@ public partial class MainWindow
     private readonly ObservableCollection<DocumentTabViewModel> _documentTabs = [];
     private readonly Dictionary<DocumentAutosaveController, DocumentTabViewModel> _autosaveTabs = [];
     private DocumentTabViewModel? _activeDocumentTab;
+    // Background activation steps may finish in a different order from
+    // the original tab clicks. Only the newest activation owns the editor.
+    private long _documentTabActivationRevision;
     private NavigationNodeViewModel? _documentNavigationIndexRoot;
     private DocumentNavigationIndex<NavigationNodeViewModel>? _documentNavigationIndex;
     private bool _suppressDocumentTabSelection;
@@ -177,6 +180,7 @@ public partial class MainWindow
             bool synchronizeNavigation)
     {
         ArgumentNullException.ThrowIfNull(tab);
+        long activationRevision = ++_documentTabActivationRevision;
         DeactivateProjectJourneyTabView();
 
         if (!ReferenceEquals(
@@ -289,6 +293,10 @@ public partial class MainWindow
         if (_linkIndex.Targets.Count == 0)
         {
             await RefreshLinkIndexAsync();
+            if (!IsCurrentDocumentTabActivation(tab, activationRevision))
+            {
+                return;
+            }
         }
 
         UpdateLinkContext(
@@ -296,11 +304,26 @@ public partial class MainWindow
 
         await TrackRecentDocumentTabAsync(
             node);
+        if (!IsCurrentDocumentTabActivation(tab, activationRevision))
+        {
+            return;
+        }
 
         await RefreshGlossaryContextAsync(
             tab.FullPath);
+        if (!IsCurrentDocumentTabActivation(tab, activationRevision))
+        {
+            return;
+        }
 
-        UpdateGlossaryAnnotations();
+        // A large glossary/text match previously ran synchronously on the
+        // Dispatcher. The existing async matcher cancels obsolete revisions.
+        await UpdateGlossaryAnnotationsAsync();
+        if (!IsCurrentDocumentTabActivation(tab, activationRevision))
+        {
+            return;
+        }
+
         RenderPreview();
 
         if (tab.HasConflict &&
@@ -320,6 +343,18 @@ public partial class MainWindow
 
         MarkdownEditorTextBox.Focus();
     }
+
+    /// <summary>
+    /// Rejects background completions from an activation superseded by a
+    /// newer tab, a repeated activation, or a non-document editor view.
+    /// </summary>
+    /// <param name="tab">The original tab.</param>
+    /// <param name="revision">Sequence captured when activation started.</param>
+    /// <returns>Whether this tab still owns the requested foreground view.</returns>
+    private bool IsCurrentDocumentTabActivation(
+        DocumentTabViewModel tab, long revision) =>
+        revision == _documentTabActivationRevision &&
+        ReferenceEquals(_activeDocumentTab, tab);
 
     /// <summary>
     /// Tracks a document activation when a current navigation node is available.

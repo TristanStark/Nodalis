@@ -43,6 +43,11 @@ workspace de démo, jamais sur le workspace de travail original.
   - **Résultat attendu :** opérations mesurées sans nom ni chemin de document dans les durées ; comparer avec et sans débogueur, noter les retards > 200 ms sans leur attribuer automatiquement une cause.
   - **Issue :** [#205](https://github.com/TristanStark/Nodalis/issues/205)
 
+- [ ] QUAL2-W07 — Rafales d'onglets avec glossaire et Markdown volumineux | Responsable: Validation | Priorité: Haute | Statut: À faire | Tags: v2.0, wpf, glossaire
+  - **Manipulation :** préparer trois documents fictifs de grande taille avec des termes de glossaire, les sélectionner rapidement et modifier le texte du dernier avant la fin des analyses.
+  - **Résultat attendu :** aucune recherche de glossaire bloquante sur le Dispatcher, aucune annotation/preview/prise de focus provenant d'un onglet remplacé, saisie préservée.
+  - **Issue :** [#205](https://github.com/TristanStark/Nodalis/issues/205)
+
 - [ ] QUAL2-W06 — Sortie de veille et DPI | Responsable: Validation | Priorité: Haute | Statut: À faire | Tags: v2.0, wpf
   - **Manipulation :** mettre Windows en veille avec plusieurs onglets ouverts, reprendre et manipuler Worktree, filtre et panneaux ; recommencer en DPI 100 %, 125 % puis 150 %.
   - **Résultat attendu :** aucun gel prolongé, pas de rafales persistantes d'erreurs de binding TreeViewItem.VerticalContentAlignment, aucun chevauchement ou déplacement non demandé.
