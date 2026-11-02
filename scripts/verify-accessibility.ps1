@@ -98,6 +98,23 @@ if (-not $mainWindowCode.Contains('Id = "project.requirement.new-v2"') -or
     -not $requirementsCode.Contains('MessageBoxButton.YesNo')) {
     $failures.Add("Requirement creation must stay in the palette and require a scoped, explicit human confirmation.")
 }
+if (-not $mainWindowCode.Contains('Id = "project.requirement.traceability-v2"') -or
+    -not $requirementsCode.Contains('ShowProjectRequirementTraceabilityAsync()') -or
+    -not $requirementsCode.Contains('ProjectRequirementTraceability.Build(') -or
+    -not $requirementsCode.Contains('await _linkIndexService.RefreshAsync()') -or
+    -not $requirementsCode.Contains('NavigateToMarkdownBlockAsync(testId)')) {
+    $failures.Add("Requirement matrix must resolve test block IDs against a refreshed shared index without writing sources.")
+}
+$requirementMatrixDialogPath = Join-Path $appRoot "Dialogs/ProjectRequirementTraceabilityDialog.xaml"
+$requirementMatrixDialogCodePath = Join-Path $appRoot "Dialogs/ProjectRequirementTraceabilityDialog.xaml.cs"
+$requirementMatrixXaml = Get-Content -Raw -LiteralPath $requirementMatrixDialogPath
+$requirementMatrixCode = Get-Content -Raw -LiteralPath $requirementMatrixDialogCodePath
+if (-not $requirementMatrixXaml.Contains('AutomationProperties.Name="Rechercher dans la matrice des exigences"') -or
+    -not $requirementMatrixXaml.Contains('VirtualizingPanel.IsVirtualizing="True"') -or
+    -not $requirementMatrixCode.Contains('TestsList.SelectedItem is ProjectRequirementTestSource') -or
+    -not $requirementMatrixCode.Contains('SelectedTestBlockId')) {
+    $failures.Add("The read-only requirement matrix must keep searchable, virtualized and safe GUID-driven test navigation.")
+}
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or

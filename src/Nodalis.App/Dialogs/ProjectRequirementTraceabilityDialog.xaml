@@ -1,0 +1,141 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectRequirementTraceabilityDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Traçabilité des exigences · Nodalis 2.0"
+        Width="1050" Height="710" MinWidth="680" MinHeight="470"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Exigences → Critères → Tests liés"
+                       FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Vue en lecture seule du projet. Une liaison ne prouve ni exécution, ni conformité, ni validation humaine. Aucun document n'est modifié."/>
+            <WrapPanel Margin="0,12,0,0">
+                <TextBlock x:Name="TotalText" FontWeight="SemiBold"
+                           Margin="0,0,18,5"/>
+                <TextBlock x:Name="LinkedText" FontWeight="SemiBold"
+                           Margin="0,0,18,5"/>
+                <TextBlock x:Name="UnresolvedText" FontWeight="SemiBold"
+                           Margin="0,0,18,5"/>
+                <TextBlock x:Name="DiagnosticsCountText" Margin="0,0,0,5"/>
+            </WrapPanel>
+            <Grid Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="245"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="SearchBox" Grid.Column="0" MinHeight="32"
+                         ToolTip="Rechercher une exigence, un critère ou une référence"
+                         AutomationProperties.Name="Rechercher dans la matrice des exigences"
+                         TextChanged="SearchBox_TextChanged"/>
+                <ComboBox x:Name="FilterCombo" Grid.Column="2"
+                          MinHeight="32"
+                          AutomationProperties.Name="Filtrer les critères par couverture"
+                          SelectionChanged="FilterCombo_SelectionChanged">
+                    <ComboBoxItem Content="Tous les critères"/>
+                    <ComboBoxItem Content="Tests liés uniquement"/>
+                    <ComboBoxItem Content="Sans test lié"/>
+                    <ComboBoxItem Content="Identités à examiner"/>
+                </ComboBox>
+            </Grid>
+        </StackPanel>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="3*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Padding="10" CornerRadius="5"
+                    Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="CRITÈRES DU PROJET"
+                               FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource SecondaryTextBrush}"/>
+                    <ListBox x:Name="CriteriaList" Grid.Row="1" Margin="0,8,0,0"
+                             SelectionChanged="CriteriaList_SelectionChanged"
+                             ScrollViewer.IsDeferredScrollingEnabled="True"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="8,6">
+                                    <TextBlock Text="{Binding Title}"
+                                               TextWrapping="Wrap" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Summary}" Margin="0,4,0,0"
+                                               TextWrapping="Wrap" FontSize="11"
+                                               Foreground="{StaticResource SecondaryTextBrush}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+            <Border Grid.Column="2" Padding="11" CornerRadius="5"
+                    Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="2*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="2*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="TESTS LIÉS · IDENTITÉS VÉRIFIÉES"
+                               FontWeight="SemiBold" FontSize="11"
+                               Foreground="{StaticResource SecondaryTextBrush}"/>
+                    <ListBox x:Name="TestsList" Grid.Row="1" Margin="0,8,0,8"
+                             SelectionChanged="TestsList_SelectionChanged"
+                             MouseDoubleClick="TestsList_MouseDoubleClick">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="6,5">
+                                    <TextBlock Text="{Binding HeadingTitle}"
+                                               FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding RelativePath}"
+                                               Margin="0,3,0,0" TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="{StaticResource SecondaryTextBrush}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock Grid.Row="2" Text="TRAÇABILITÉ ET DIAGNOSTICS"
+                               Margin="0,6,0,8" FontWeight="SemiBold"
+                               FontSize="11"
+                               Foreground="{StaticResource SecondaryTextBrush}"/>
+                    <TextBox x:Name="DetailsBox" Grid.Row="3" IsReadOnly="True"
+                             FontFamily="Consolas" FontSize="11" AcceptsReturn="True"
+                             TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                             AutomationProperties.Name="Détails du critère et diagnostics"/>
+                </Grid>
+            </Border>
+        </Grid>
+        <DockPanel Grid.Row="3" Margin="0,12,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="OpenRequirementButton"
+                        Content="Ouvrir l'exigence" Padding="12,8"
+                        Margin="0,0,8,0" Click="OpenRequirement_Click"/>
+                <Button x:Name="OpenTestButton"
+                        Content="Atteindre le test" Padding="12,8"
+                        Margin="0,0,8,0" Click="OpenTest_Click"/>
+                <Button Content="Fermer" Padding="12,8" Click="Close_Click"/>
+            </StackPanel>
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"/>
+        </DockPanel>
+    </Grid>
+</Window>

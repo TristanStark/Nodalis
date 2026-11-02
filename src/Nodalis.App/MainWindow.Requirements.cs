@@ -120,4 +120,78 @@ public partial class MainWindow
         StatusText.Text = "Exigence créée · " + created.Card.Reference +
             " · brouillon non vérifié.";
     }
+
+    /// <summary>
+    /// Builds a read-only requirement-to-test block matrix from a refreshed
+    /// shared index; no separate registry, synchronous file scan or implied
+    /// execution/validation is introduced.
+    /// </summary>
+    /// <returns>Completed user-requested project overview.</returns>
+    private async Task ShowProjectRequirementTraceabilityAsync()
+    {
+        NavigationNodeViewModel? project = GetArchiveContextProject();
+        if (project is null)
+        {
+            MessageBox.Show(this,
+                "Sélectionnez un projet ou un document de ce projet.",
+                "Traçabilité des exigences · Nodalis 2.0",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        int duplicateProjects = _root.DescendantsAndSelf().Count(node =>
+            node.Kind == WorkspaceNodeKind.Project && node.Id == project.Id);
+        if (duplicateProjects != 1)
+        {
+            MessageBox.Show(this,
+                "L'identifiant de projet est ambigu : aucune matrice " +
+                "ne peut être calculée sans identité unique.",
+                "Projet ambigu · Nodalis 2.0",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string projectPath = project.FullPath;
+        ProjectRequirementRegistryService service = new(_root.FullPath);
+
+        // The index may need an incremental workspace refresh; perform all
+        // enumeration and joins off the WPF Dispatcher, once per request.
+        ProjectRequirementTraceabilityOverview overview = await Task.Run(
+            async () =>
+            {
+                ProjectRequirementCatalog requirements =
+                    await service.ListAsync(projectPath);
+                Nodalis.Core.Links.LinkIndexCatalog index =
+                    await _linkIndexService.RefreshAsync();
+                return ProjectRequirementTraceability.Build(
+                    requirements, index);
+            });
+
+        if (GetArchiveContextProject()?.Id != project.Id)
+        {
+            StatusText.Text =
+                "Le projet a changé pendant la lecture : relancez la matrice.";
+            return;
+        }
+
+        ProjectRequirementTraceabilityDialog dialog = new(overview)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (dialog.SelectedTestBlockId is Guid testId)
+        {
+            // Navigate by stable GUID with live source revalidation, never by
+            // the possibly obsolete line captured in the matrix snapshot.
+            await NavigateToMarkdownBlockAsync(testId);
+        }
+        else if (dialog.SelectedRequirementPath is string relativePath)
+        {
+            await OpenProjectJourneySourceAsync(relativePath);
+        }
+    }
 }

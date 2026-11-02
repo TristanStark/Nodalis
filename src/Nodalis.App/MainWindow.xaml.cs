@@ -4947,6 +4947,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.requirement.traceability-v2",
+                Title = "Matrice de traçabilité des exigences",
+                Subtitle = "Critères CA, tests liés, sources ambiguës et couvertures (lecture seule)",
+                Keywords = ["exigence", "traçabilité", "critères", "tests", "couverture", "matrice"],
+                ExecuteAsync = ShowProjectRequirementTraceabilityAsync
+            },
+            new()
+            {
                 Id = "project.journey-templates-v2",
                 Title = "Personnaliser les modèles de Parcours",
                 Subtitle = "Éditer les modèles du workspace sans modifier les projets existants",

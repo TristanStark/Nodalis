@@ -117,3 +117,19 @@ La matrice n'altère jamais les trois états de la fiche. Les campagnes,
 passages et preuves seront joints après leur implémentation (#200).
 Les tests synthétiques couvrent les sources de l'autre projet, le GUID
 reproduit, les SHA obsolètes, la ligne déplacée et les liens redondants.
+
+## Consultation dans l'application (02/11/2026)
+
+La palette propose désormais **Matrice de traçabilité des exigences**.
+Le panneau charge le registre d'exigences et rafraîchit l'index partagé
+sur un worker, puis joint les sources en mémoire. La recherche, les
+filtres de couverture et la sélection ne provoquent aucun accès disque.
+Les critères sont virtualisés, avec détails et diagnostics de source.
+La navigation vers une fiche EXI réutilise l'ouverture documentaire sûre ;
+la navigation vers un bloc de test utilise son GUID et revérifie son
+identité dans le document au moment du clic. Les documents source ne
+sont pas modifiés et aucun statut n'est mis à jour.
+
+Le détail affiche explicitement que l'exécution et la conformité ne
+sont pas connues tant que les campagnes de tests (#200) ne sont pas
+intégrées. La qualification visuelle en WPF/dark mode reste nécessaire.
