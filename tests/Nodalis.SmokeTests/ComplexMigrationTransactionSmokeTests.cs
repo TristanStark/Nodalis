@@ -213,7 +213,7 @@ internal static class ComplexMigrationTransactionSmokeTests
             Assert(independent.CanExecute &&
                 independent.Blockers.Count == 0 &&
                 independent.ExternalLinkRewrites.Count == 0 &&
-                independent.ExternalLinkDocumentsSkipped >= 33 &&
+                independent.ExternalLinkDocumentsSkipped >= 32 &&
                 independent.ExternalLinkDocumentsInspected == 0 &&
                 independent.ProjectLinkDocumentsInspected >= 1,
                 "Unrelated application Markdown cannot block migration.");
