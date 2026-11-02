@@ -149,6 +149,38 @@ internal static class ProjectTestCampaignCodecSmokeTests
                 StringComparison.Ordinal)),
             "Edited Markdown heading cannot claim a different campaign.");
 
+        ProjectTestPassage unexecuted = campaign.Passages[1] with
+        {
+            Id = Guid.NewGuid(),
+            Number = 3,
+            StartedUtc = beginning.AddHours(2),
+            Results = []
+        };
+        ProjectTestCampaign extended = campaign with
+        {
+            Passages = campaign.Passages.Append(unexecuted).ToArray()
+        };
+        IReadOnlyList<ProjectTestPassageResultRow> exact =
+            ProjectTestCampaignProjection.GetPassageRows(
+                extended, unexecuted.Id);
+        IReadOnlyList<ProjectTestConsolidatedRow> consolidated =
+            ProjectTestCampaignProjection.Consolidate(extended);
+        Assert(exact.Count == 1 && exact[0].Outcome is null &&
+               consolidated.Count == 2 &&
+               consolidated.Single(item => item.Environment == "Recette-A")
+                   .LatestOutcome == ProjectTestOutcome.Failed &&
+               consolidated.Single(item => item.Environment == "Recette-B")
+                   .LatestOutcome is null &&
+               consolidated.Single(item => item.Environment == "Recette-B")
+                   .PassageCount == 2 &&
+               consolidated.Single(item => item.Environment == "Recette-B")
+                   .RecordedResultCount == 1,
+            "An unexecuted newer passage cannot inherit an older success.");
+        Assert(ProjectTestCampaignProjection.GetPassageRows(
+                   extended, campaign.Passages[1].Id)[0].Outcome ==
+                   ProjectTestOutcome.Passed,
+            "Historical exact passage result remains separately available.");
+
         Assert(campaign.Passages[0].Tests[0].Sha256 == sourceV1.Sha256 &&
                campaign.Passages[1].Tests[0].Sha256 == sourceV2.Sha256 &&
                firstResult.Outcome == ProjectTestOutcome.Failed,

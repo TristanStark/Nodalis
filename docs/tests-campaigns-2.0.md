@@ -73,3 +73,20 @@ clôture et réserves restent à créer. Les tests d'intégration synthétiques
 vérifient notamment 155 tests d'un grand cahier, l'isolation entre
 projets, les actions périmées, les doublons, deux passages à versions
 différentes et la préservation des résultats précédents.
+
+## Lecture exacte et consolidation prudente (incrément 4)
+
+La projection pure GetPassageRows restitue exactement les tests choisis
+et leur résultat propre dans un passage donné ; un résultat absent reste
+null (non exécuté), et jamais Passed par défaut.
+
+Consolidate regroupe par **GUID de test + environnement + version
+applicative + empreinte du test figé**. Une exécution en recette d'une
+version ancienne n'est jamais assimilée à la réussite en production ou
+sur une version différente. Dans un groupe comparable, le dernier
+passage l'emporte, y compris quand il ne possède encore aucun résultat :
+une ancienne réussite ne peut pas être recyclée comme verdict courant.
+
+Le regroupement est uniquement un historique de déclarations humaines,
+pas une preuve de conformité ni un verdict de validation de campagne.
+Une vérification du cahier actuel doit encore se faire séparément.
