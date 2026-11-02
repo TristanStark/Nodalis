@@ -174,21 +174,38 @@ public static class ProjectGateRiskOverviewBuilder
             }
         }
 
+        // A risk may be linked to many historic reservations. Project its
+        // human measures/task GUIDs once rather than replaying each RIS log
+        // for every reservation row or during later WPF search/filter.
+        Dictionary<Guid, ProjectGateRiskOverviewRiskRow> riskRows = [];
         List<ProjectGateRiskOverviewRow> result = [];
         foreach (ProjectGateReservationOverviewRow reservation in
             reservations.Rows)
         {
             (Guid Decision, Guid Reservation) key =
                 (reservation.DecisionId, reservation.ReservationId);
-            IReadOnlyList<ProjectGateRiskOverviewRiskRow> risks =
-                active.TryGetValue(key, out HashSet<Guid>? ids)
-                    ? ids.Select(id => MakeRisk(id, unique))
-                        .OrderBy(row => row.IsOrphan)
-                        .ThenBy(row => row.Reference, StringComparer.Ordinal)
-                        .ThenBy(row => row.RiskId).ToArray()
-                    : [];
+            List<ProjectGateRiskOverviewRiskRow> resolved = [];
+            if (active.TryGetValue(key, out HashSet<Guid>? ids))
+            {
+                foreach (Guid id in ids)
+                {
+                    if (!riskRows.TryGetValue(id,
+                        out ProjectGateRiskOverviewRiskRow? detail))
+                    {
+                        detail = MakeRisk(id, unique);
+                        riskRows.Add(id, detail);
+                    }
+
+                    resolved.Add(detail);
+                }
+            }
+
+            ProjectGateRiskOverviewRiskRow[] ordered = resolved
+                .OrderBy(row => row.IsOrphan)
+                .ThenBy(row => row.Reference, StringComparer.Ordinal)
+                .ThenBy(row => row.RiskId).ToArray();
             result.Add(new ProjectGateRiskOverviewRow(
-                reservation, risks, removed.GetValueOrDefault(key)));
+                reservation, ordered, removed.GetValueOrDefault(key)));
         }
 
         ProjectGateRiskOverviewRow[] rows = result.ToArray();
