@@ -115,6 +115,22 @@ if (-not $requirementMatrixXaml.Contains('AutomationProperties.Name="Rechercher 
     -not $requirementMatrixCode.Contains('SelectedTestBlockId')) {
     $failures.Add("The read-only requirement matrix must keep searchable, virtualized and safe GUID-driven test navigation.")
 }
+$campaignWindowCode = Get-Content -Raw -LiteralPath (Join-Path $appRoot "MainWindow.TestCampaigns.cs")
+$campaignDialogXaml = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestCampaignsDialog.xaml")
+$campaignDialogCode = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestCampaignsDialog.xaml.cs")
+$campaignStartXaml = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestPassageStartDialog.xaml")
+$campaignResultXaml = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestResultDialog.xaml")
+if (-not $mainWindowCode.Contains('Id = "project.test-campaigns-v2"') -or
+    -not $campaignWindowCode.Contains('OpenProjectTestCampaignsAsync()') -or
+    -not $campaignDialogCode.Contains('StartPassageAsync(') -or
+    -not $campaignDialogCode.Contains('RecordResultAsync(') -or
+    -not $campaignDialogCode.Contains('Task.Run(') -or
+    -not $campaignDialogCode.Contains('MessageBoxButton.YesNo') -or
+    -not $campaignDialogXaml.Contains('VirtualizingPanel.IsVirtualizing="True"') -or
+    -not $campaignStartXaml.Contains('AutomationProperties.Name="Tests à figer dans ce passage"') -or
+    -not $campaignResultXaml.Contains('AutomationProperties.Name="Verdict du test"')) {
+    $failures.Add("REC campaign UI must be accessible, asynchronous and explicitly human-approved.")
+}
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or

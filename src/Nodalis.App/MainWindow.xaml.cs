@@ -4947,6 +4947,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "project.test-campaigns-v2",
+                Title = "Campagnes et passages de tests",
+                Subtitle = "Créer REC, figer une sélection de tests et saisir des résultats humains",
+                Keywords = ["campagne", "recette", "passage", "test", "REC", "résultat", "exécution"],
+                ExecuteAsync = OpenProjectTestCampaignsAsync
+            },
+            new()
+            {
                 Id = "project.requirement.traceability-v2",
                 Title = "Matrice de traçabilité des exigences",
                 Subtitle = "Critères CA, tests liés, sources ambiguës et couvertures (lecture seule)",

@@ -90,3 +90,28 @@ une ancienne réussite ne peut pas être recyclée comme verdict courant.
 Le regroupement est uniquement un historique de déclarations humaines,
 pas une preuve de conformité ni un verdict de validation de campagne.
 Une vérification du cahier actuel doit encore se faire séparément.
+
+## Interface de qualification dans Nodalis (incrément 5)
+
+Une action **Campagnes et passages de tests** est accessible dans
+la palette de commandes du projet. Le gestionnaire affiche à gauche
+les campagnes REC, au centre leurs passages figés, et à droite les
+résultats individuels en distinguant « NON EXÉCUTÉ » des verdicts
+déclarés. Les listes de tests sont virtualisées ; les calculs du
+référentiel et des passages sont effectués hors Dispatcher WPF.
+
+Les actions disponibles, après approbation explicite :
+- créer une campagne depuis un titre court et une référence prévisualisée ;
+- sélectionner 1 à 500 blocs de test du projet (boutons tout sélectionner /
+  tout désélectionner), l'environnement, la version et le responsable ;
+- lancer un nouveau passage figé sur ces tests revalidés au moment de
+  l'écriture (index + empreintes de fichiers) ;
+- enregistrer une fois un résultat humain (conforme déclaré, non conforme,
+  bloqué, non applicable), avec exécutant, justification et note de preuve
+  facultative. Un test déjà qualifié dans ce passage ne peut être réécrit ;
+- ouvrir la fiche REC dans l'éditeur Markdown en conservant son identité.
+
+Un projet archivé est consultable, sans commandes de modification.
+La création ne transforme jamais un ancien cahier, et l'application ne
+déduit aucun résultat de la présence d'un lien, d'un marqueur ou d'une
+case cochée. Ces écrans exigent une qualification visuelle Windows.
