@@ -136,6 +136,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <WrapPanel HorizontalAlignment="Right">
                 <Button x:Name="CreateButton" Content="Nouvelle campagne…"
@@ -156,7 +157,28 @@
                 <Button Content="Fermer" Padding="11,8"
                         Click="Close_Click"/>
             </WrapPanel>
-            <TextBlock x:Name="StatusText" Grid.Row="1"
+            <WrapPanel Grid.Row="1" HorizontalAlignment="Right"
+                       Margin="0,6,0,0">
+                <Button x:Name="QualificationButton"
+                        Content="Mettre en qualification…"
+                        Padding="11,8" Margin="0,0,8,5"
+                        Click="Qualification_Click"
+                        AutomationProperties.Name="Soumettre la campagne à qualification"/>
+                <Button x:Name="CloseCampaignButton"
+                        Content="Clore avec verdict…"
+                        Padding="11,8" Margin="0,0,8,5"
+                        Click="CloseCampaign_Click"
+                        AutomationProperties.Name="Clore la campagne avec verdict et réserves"/>
+                <Button x:Name="ReopenCampaignButton"
+                        Content="Réouvrir…"
+                        Padding="11,8" Margin="0,0,8,5"
+                        Click="ReopenCampaign_Click"/>
+                <Button x:Name="CancelCampaignButton"
+                        Content="Annuler la campagne…"
+                        Padding="11,8" Margin="0,0,8,5"
+                        Click="CancelCampaign_Click"/>
+            </WrapPanel>
+            <TextBlock x:Name="StatusText" Grid.Row="2"
                        Foreground="{StaticResource SecondaryTextBrush}"
                        TextWrapping="Wrap" Margin="0,6,0,0"/>
         </Grid>

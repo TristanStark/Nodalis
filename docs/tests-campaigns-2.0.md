@@ -160,3 +160,23 @@ Compatibilité : le champ optionnel decisionHistory est omis lorsqu'il vaut
 null. Un ancien document REC v1 demeure lisible et sa sérialisation reste
 strictement identique tant qu'aucun événement n'est ajouté. Les transitions
 invalides, réserves absentes, doublons et horodatages incohérents sont refusés.
+
+## Écran de qualification et de clôture guidée (incrément 8)
+
+Le gestionnaire REC propose désormais quatre commandes selon l'état de
+la campagne : Mettre en qualification, Clore avec verdict, Réouvrir
+et Annuler la campagne. Chacune demande un décideur et une justification.
+La clôture demande également un verdict explicite (Validée, Validée avec
+réserves, Non validée) et les réserves humaines, si pertinentes.
+
+Avant l'enregistrement, un récapitulatif présente l'état initial et
+final, le décideur, le motif, le verdict et les avertissements non
+bloquants concernant les tests non exécutés, bloqués, non conformes
+et les sources à requalifier. Une seconde confirmation est nécessaire.
+
+L'historique des décisions apparaît dans la fiche de passage. La
+réouverture n'efface jamais le verdict de clôture précédent.
+Les commandes sont indisponibles pour les projets archivés ou en
+lecture seule. Toute modification reste soumise au SHA-CAS de la
+campagne ; aucun fichier de définition de test ni exigence EXI n'est
+modifié. Qualification visuelle Windows/dark mode à réaliser.

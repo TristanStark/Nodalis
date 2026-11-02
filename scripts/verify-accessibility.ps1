@@ -137,6 +137,20 @@ if (-not $campaignValidityCode.Contains('RefreshSourceValidityAsync()') -or
     -not $campaignValidityCode.Contains('MODIFIÉE · à requalifier')) {
     $failures.Add("REC campaign UI must distinguish live definition drift from historical outcomes.")
 }
+$campaignDecisionCode = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestCampaignsDialog.xaml.cs")
+$campaignDecisionXaml = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestCampaignsDialog.xaml")
+$humanDecisionCode = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestCampaignDecisionDialog.xaml.cs")
+$humanDecisionXaml = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestCampaignDecisionDialog.xaml")
+if (-not $campaignDecisionCode.Contains('ProjectTestCampaignQualification.Review(') -or
+    -not $campaignDecisionCode.Contains('ProjectTestCampaignDecisionPolicy.Transition(') -or
+    -not $campaignDecisionCode.Contains('_service.RecordDecisionAsync(') -or
+    -not $campaignDecisionCode.Contains('MessageBoxButton.YesNo') -or
+    -not $campaignDecisionXaml.Contains('CloseCampaignButton') -or
+    -not $campaignDecisionXaml.Contains('ReopenCampaignButton') -or
+    -not $humanDecisionCode.Contains('SelectedReservations') -or
+    -not $humanDecisionXaml.Contains('AutomationProperties.Name="Verdict humain de clôture"')) {
+    $failures.Add("REC qualification must preserve explicit author, warnings, reservations and append-only human verdict confirmation.")
+}
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or

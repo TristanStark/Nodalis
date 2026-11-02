@@ -235,7 +235,17 @@ public partial class ProjectTestCampaignsDialog : Window
         ResultRow? test = SelectedTest();
         if (campaign is null || passage is null)
         {
-            DetailsBox.Text = "Aucun passage sélectionné.";
+            ProjectTestCampaignDecisionEvent? latest =
+                campaign?.Entry.Campaign.DecisionHistory?.LastOrDefault();
+            DetailsBox.Text = campaign is null
+                ? "Aucune campagne sélectionnée."
+                : "Campagne : " + campaign.Entry.Campaign.Reference +
+                  "\nÉtat : " + campaign.Entry.Campaign.State +
+                  "\nPassage : aucun sélectionné." +
+                  (latest is null ? string.Empty :
+                      "\nDernière décision : " + latest.Kind +
+                      "\nAuteur : " + latest.Actor +
+                      "\nMotif : " + latest.Rationale);
             UpdateButtons();
             return;
         }
@@ -258,6 +268,25 @@ public partial class ProjectTestCampaignsDialog : Window
             "Les données du passage sont historiques et ne sont pas" +
                 " corrigées automatiquement après modification du cahier."
         ];
+        ProjectTestCampaignDecisionEvent? decision =
+            campaign.Entry.Campaign.DecisionHistory?.LastOrDefault();
+        if (decision is not null)
+        {
+            details.AddRange(
+            [
+                "",
+                "DERNIÈRE DÉCISION HUMAINE : " + decision.Kind,
+                "État REC : " + decision.ToState,
+                "Auteur : " + decision.Actor,
+                "Motif : " + decision.Rationale,
+                "Verdict de clôture : " +
+                    (decision.Verdict?.ToString() ?? "aucun"),
+                "Réserves : " +
+                    (decision.Reservations is { Count: > 0 }
+                        ? string.Join("; ", decision.Reservations)
+                        : "aucune")
+            ]);
+        }
         if (test is not null)
         {
             ProjectTestFrozenDefinition? source = passage.Passage.Tests
@@ -352,6 +381,19 @@ public partial class ProjectTestCampaignsDialog : Window
                 passage.Passage.Id;
         OpenButton.IsEnabled = campaign is not null;
         RefreshButton.IsEnabled = !_busy;
+        ProjectTestCampaignState? state = campaign?.Entry.Campaign.State;
+        QualificationButton.IsEnabled = writable &&
+            state is (ProjectTestCampaignState.Draft or
+                ProjectTestCampaignState.InProgress);
+        CloseCampaignButton.IsEnabled = writable &&
+            state == ProjectTestCampaignState.InQualification;
+        ReopenCampaignButton.IsEnabled = writable &&
+            state is (ProjectTestCampaignState.Closed or
+                ProjectTestCampaignState.Canceled);
+        CancelCampaignButton.IsEnabled = writable &&
+            state is (ProjectTestCampaignState.Draft or
+                ProjectTestCampaignState.InProgress or
+                ProjectTestCampaignState.InQualification);
     }
 
     /// <summary>Only one user-driven mutation executes at a time.</summary>
@@ -680,6 +722,112 @@ public partial class ProjectTestCampaignsDialog : Window
         WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
         await ReloadAsync(saved.Campaign.Id);
         StatusText.Text = "Résultat enregistré, historique du passage préservé.";
+    }
+
+    /// <summary>Initiates a human-approved qualification review.</summary>
+    /// <param name="sender">Qualification button.</param>
+    /// <param name="e">Button event.</param>
+    private async void Qualification_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Soumettre à qualification",
+            () => DecideAsync(ProjectTestCampaignDecisionKind.EnterQualification));
+
+    /// <summary>Requests a human verdict before closing a campaign.</summary>
+    /// <param name="sender">Close campaign button.</param>
+    /// <param name="e">Button event.</param>
+    private async void CloseCampaign_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Clore la campagne",
+            () => DecideAsync(ProjectTestCampaignDecisionKind.Close));
+
+    /// <summary>Reopens without deleting any prior decision or test result.</summary>
+    /// <param name="sender">Reopen button.</param>
+    /// <param name="e">Button event.</param>
+    private async void ReopenCampaign_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Réouvrir la campagne",
+            () => DecideAsync(ProjectTestCampaignDecisionKind.Reopen));
+
+    /// <summary>Explicit cancellation retains all decisions and passes.</summary>
+    /// <param name="sender">Cancel campaign button.</param>
+    /// <param name="e">Button event.</param>
+    private async void CancelCampaign_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Annuler la campagne",
+            () => DecideAsync(ProjectTestCampaignDecisionKind.Cancel));
+
+    /// <summary>
+    /// Displays warnings but never silently blocks closing for open results.
+    /// Requires an author, a rationale and a second explicit confirmation.
+    /// </summary>
+    /// <param name="kind">Human-requested REC lifecycle transition.</param>
+    /// <returns>Completed user decision, or unchanged campaign.</returns>
+    private async Task DecideAsync(ProjectTestCampaignDecisionKind kind)
+    {
+        CampaignRow? chosen = SelectedCampaign();
+        if (_readOnly || chosen is null)
+        {
+            return;
+        }
+
+        ProjectTestCampaignState destination =
+            ProjectTestCampaignDecisionPolicy.Transition(
+                kind, chosen.Entry.Campaign.State);
+        Guid? lastPassageId =
+            chosen.Entry.Campaign.Passages.LastOrDefault()?.Id;
+        int? sourceWarnings = _sourceValidity is null
+            ? null
+            : _sourceValidity.Rows.Count(item =>
+                item.PassageId == lastPassageId &&
+                item.Validity != ProjectTestSourceValidity.Current);
+        ProjectTestQualificationSummary guidance =
+            ProjectTestCampaignQualification.Review(
+                chosen.Entry.Campaign, sourceWarnings);
+
+        ProjectTestCampaignDecisionDialog dialog = new(
+            kind, chosen.Entry.Campaign.Reference + " — " +
+                chosen.Entry.Campaign.Title, guidance.Warnings)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        string warnings = guidance.Warnings.Count == 0
+            ? "Aucun avertissement."
+            : string.Join("\n• ", guidance.Warnings);
+        string verdict = dialog.SelectedVerdict?.ToString() ??
+            "aucun (transition sans clôture)";
+        string reservationText = dialog.SelectedReservations.Count == 0
+            ? "aucune"
+            : string.Join("; ", dialog.SelectedReservations);
+        if (MessageBox.Show(this,
+            "Confirmer la décision REC ?\n\n" +
+            "Campagne : " + chosen.Entry.Campaign.Reference + "\n" +
+            "État : " + chosen.Entry.Campaign.State + " → " +
+                destination + "\n" +
+            "Décideur : " + dialog.SelectedActor + "\n" +
+            "Motif : " + dialog.SelectedRationale + "\n" +
+            "Verdict : " + verdict + "\n" +
+            "Réserves : " + reservationText + "\n\n" +
+            "Points à examiner (non bloquants) :\n• " + warnings +
+            "\n\nL'événement sera historisé sans changer les tests.",
+            "Décision REC · confirmation définitive",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectTestCampaignEntry saved = await Task.Run(() =>
+            _service.RecordDecisionAsync(
+                _projectDirectory, chosen.Entry, kind,
+                dialog.SelectedActor, dialog.SelectedRationale,
+                dialog.SelectedVerdict, dialog.SelectedReservations));
+        Changed = true;
+        WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
+        await ReloadAsync(saved.Campaign.Id);
+        StatusText.Text =
+            "Décision REC historisée : " + saved.Campaign.State +
+            " · aucun verdict de test ni état EXI modifié.";
     }
 
     /// <summary>Opens the selected original Markdown REC file in Nodalis.</summary>
