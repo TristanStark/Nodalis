@@ -173,6 +173,17 @@ public sealed class ComplexProjectMigrationLinkImpactService
             }
 
             bool internalDocument = IsWithin(_projectRoot, file);
+            // Stream the cheap external scope check with bounded memory.
+            // A candidate is reopened fully only when its contents could
+            // refer to this project's name. Broken UTF-8 takes the safe
+            // fallback path so its raw bytes can still be inspected.
+            if (!internalDocument &&
+                !await MayNameMovedProjectInFileAsync(file, cancellationToken))
+            {
+                externalSkipped++;
+                continue;
+            }
+
             byte[] bytes = await File.ReadAllBytesAsync(file, cancellationToken);
             string content;
             try
@@ -190,17 +201,6 @@ public sealed class ComplexProjectMigrationLinkImpactService
                         " : encodage non UTF-8 d'une référence concernée.");
                 }
 
-                continue;
-            }
-
-            // Any valid backlink from outside this project's directory must
-            // name its project folder (literal or URL-encoded). This cheap
-            // whole-document guard avoids regex parsing thousands of notes
-            // belonging to other applications; unsupported backlinks naming
-            // the project are still parsed and checked conservatively.
-            if (!internalDocument && !MayNameMovedProject(content))
-            {
-                externalSkipped++;
                 continue;
             }
 
@@ -410,6 +410,54 @@ public sealed class ComplexProjectMigrationLinkImpactService
             ExternalDocumentsInspected = externalParsed,
             ExternalDocumentsSkipped = externalSkipped
         };
+    }
+
+    /// <summary>
+    /// Scans an external Markdown file incrementally, never retaining the
+    /// full content of unrelated documents. Overlapping char fragments
+    /// preserve links whose project name crosses a stream buffer boundary.
+    /// An undecodable source is conservatively rechecked using raw bytes.
+    /// </summary>
+    /// <param name="file">Workspace Markdown source, not a reparse point.</param>
+    /// <param name="cancellationToken">Cancellation during I/O and parsing.</param>
+    /// <returns>Whether a moved-project path may be referenced.</returns>
+    private async Task<bool> MayNameMovedProjectInFileAsync(
+        string file, CancellationToken cancellationToken)
+    {
+        await using FileStream input = new(file, FileMode.Open,
+            FileAccess.Read, FileShare.Read, 65536, useAsync: true);
+        using StreamReader reader = new(input, StrictUtf8,
+            detectEncodingFromByteOrderMarks: false, bufferSize: 8192,
+            leaveOpen: true);
+        char[] buffer = new char[8192];
+        int overlap = Math.Max(_projectName.Length,
+            _encodedProjectName.Length) - 1;
+        string tail = string.Empty;
+        try
+        {
+            int count;
+            while ((count = await reader.ReadAsync(buffer.AsMemory(),
+                cancellationToken)) != 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string text = tail + new string(buffer, 0, count);
+                if (MayNameMovedProject(text))
+                {
+                    return true;
+                }
+
+                tail = overlap > 0 && text.Length > overlap
+                    ? text[^overlap..] : text;
+            }
+        }
+        catch (DecoderFallbackException)
+        {
+            // The normal strict decoder below decides whether malformed
+            // bytes are actually relevant before creating a blocker.
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

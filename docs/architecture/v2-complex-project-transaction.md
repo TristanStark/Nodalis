@@ -243,3 +243,19 @@ vérification automatisée contrôle désormais une annulation demandée avant
 l'analyse, puis l'empreinte exacte du projet non modifié. Les essais de
 fermeture pendant une analyse longue et d'ergonomie restent à réaliser sous
 Windows.
+
+
+## Lecture externe à mémoire bornée
+
+La présélection des documents Markdown situés **hors du projet** lit
+maintenant leur contenu via un flux UTF-8 à blocs fixes (8 Ki caractères)
+avec recouvrement entre blocs. Les documents qui ne mentionnent pas le nom
+du projet migré ne sont plus chargés entièrement en mémoire. Les sources
+candidates seulement sont relues avec leurs octets originaux pour calculer
+les positions des réécritures et les empreintes SHA-256 nécessaires.
+
+Une source présentant un encodage invalide reste examinée prudemment comme
+candidate, puis traitée par la vérification des octets ; aucun lien suspect
+vers la cible n'est ignoré au motif d'un échec de décodage. Les régressions
+incluent un document externe de grande taille sans lien pertinent, et un
+backlink valide à cheval sur une frontière de blocs de lecture.

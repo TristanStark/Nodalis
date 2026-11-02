@@ -208,12 +208,17 @@ internal static class ComplexMigrationTransactionSmokeTests
                 "Encoded.md");
             string unrelatedEncoding = Path.Combine(otherApplication,
                 "Legacy.md");
+            string unrelatedLarge = Path.Combine(otherApplication,
+                "Long independent.md");
             await File.WriteAllTextAsync(unrelatedWiki,
                 "# Autre projet\n\n[[Document absent]]\n[Inconnu][absent]\n");
             await File.WriteAllTextAsync(unrelatedBrokenTarget,
                 "[Invalide](<Source%20encodée.md>)\n");
             await File.WriteAllBytesAsync(unrelatedEncoding,
                 [0x23, 0x20, 0xC3, 0x28, 0x0A]);
+            await File.WriteAllTextAsync(unrelatedLarge,
+                "# Documentation indépendante\n\n" +
+                new string('x', 256 * 1024) + "\n[[Unrelated]]");
             // Numerous unrelated notes are discovered, but their link syntax
             // should not be parsed or hashed as part of this project migration.
             string unrelatedBulk = Path.Combine(otherApplication, "Bulk");
@@ -231,13 +236,14 @@ internal static class ComplexMigrationTransactionSmokeTests
             Assert(independent.CanExecute &&
                 independent.Blockers.Count == 0 &&
                 independent.ExternalLinkRewrites.Count == 0 &&
-                independent.ExternalLinkDocumentsSkipped >= 32 &&
+                independent.ExternalLinkDocumentsSkipped >= 33 &&
                 independent.ExternalLinkDocumentsInspected == 0 &&
                 independent.ProjectLinkDocumentsInspected >= 1,
                 "Unrelated application Markdown cannot block migration.");
             File.Delete(unrelatedWiki);
             File.Delete(unrelatedBrokenTarget);
             File.Delete(unrelatedEncoding);
+            File.Delete(unrelatedLarge);
             Directory.Delete(otherApplication, true);
 
             // Conversely, an unsupported external backlink to a moved
@@ -256,6 +262,23 @@ internal static class ComplexMigrationTransactionSmokeTests
                     item.Contains("Suspect.md:", StringComparison.Ordinal)),
                 "An unsupported backlink must be visible as its own blocker.");
             File.Delete(suspectBacklink);
+
+            // The external target can start at the edge of a streaming
+            // buffer: overlapping fragments must preserve the backlink.
+            string boundaryBacklink = Path.Combine(workspace,
+                "Boundary.md");
+            await File.WriteAllTextAsync(boundaryBacklink,
+                new string('x', 8170) +
+                "[Technique](<Applications/Test/Projets/Complexe historique/" +
+                "Technique/Technique.md>)");
+            ComplexProjectMigrationPlan boundary = await planner.PrepareAsync(
+                projectRoot);
+            Assert(boundary.CanExecute &&
+                boundary.ExternalLinkRewrites.Count == 1 &&
+                boundary.ExternalLinkRewrites.Single().WorkspaceRelativePath ==
+                    "Boundary.md",
+                "Streaming scope detection must retain cross-buffer backlinks.");
+            File.Delete(boundaryBacklink);
 
             // Explicit Markdown reference definitions (including image links)
             // are rewritten at the definition, never at their usage sites.
