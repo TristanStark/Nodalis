@@ -106,8 +106,52 @@ internal static class NavigationWorktreeSmokeTests
             ultraSimple.Children[0].DisplayName == "Fiche de Maintenance",
             "Ultra-simple files must remain accessible.");
         VerifyStickyHeaders();
+        VerifyDocumentNavigationLookup();
         VerifyNavigationFilters(root, applicationA, applicationB,
             projectA, projectFolder, deepest, document, ultraSimple);
+    }
+
+    /// <summary>
+    /// Validates an indexed resolution that preserves the first-match rule
+    /// when a legacy document ID or path is duplicated across source nodes.
+    /// The test uses only synthetic in-memory navigation nodes.
+    /// </summary>
+    private static void VerifyDocumentNavigationLookup()
+    {
+        Guid sharedId = Guid.NewGuid();
+        WorkspaceNavigationNode first = Node(
+            "Fichier A", WorkspaceNodeKind.Document,
+            "C:/Fixture/Applications/AppA/Projets/Test/Note.md");
+        WorkspaceNavigationNode second = Node(
+            "Fichier B", WorkspaceNodeKind.Document,
+            "C:/Fixture/Applications/AppB/Projets/Test/Note.md");
+        WorkspaceNavigationNode third = Node(
+            "Fichier C", WorkspaceNodeKind.Document,
+            "C:/Fixture/Applications/AppC/Projets/Test/Note.md");
+        WorkspaceNavigationNode fourth = Node(
+            "Fichier D", WorkspaceNodeKind.Document,
+            "C:/Fixture/Applications/AppD/Projets/Test/Note.md");
+        // IDs on the synthetic navigation model are init-only; index
+        // selectors intentionally simulate duplicate legacy identities.
+        DocumentNavigationIndex<WorkspaceNavigationNode> index = new(
+            new[] { first, second, third, fourth },
+            node => ReferenceEquals(node, first) || ReferenceEquals(node, second)
+                ? sharedId : node.Id,
+            node => ReferenceEquals(node, third)
+                ? second.FullPath : node.FullPath);
+        Assert(ReferenceEquals(index.Resolve(sharedId, second.FullPath), first),
+            "The first ID match precedes later path matches.");
+        Assert(ReferenceEquals(index.Resolve(third.Id, second.FullPath), second),
+            "The first path match precedes later ID matches.");
+        Assert(ReferenceEquals(index.Resolve(Guid.NewGuid(),
+                first.FullPath.ToUpperInvariant()), first),
+            "Path comparison must remain case-insensitive.");
+        Assert(ReferenceEquals(index.ResolveById(sharedId), first) &&
+            index.ResolveById(Guid.NewGuid()) is null &&
+            index.Resolve(Guid.NewGuid(), "C:/Fixture/Missing.md") is null,
+            "Missing identities and paths must never guess a tab target.");
+        Assert(ReferenceEquals(index.Resolve(fourth.Id, fourth.FullPath), fourth),
+            "Unambiguous documents must resolve to their own source.");
     }
 
     /// <summary>

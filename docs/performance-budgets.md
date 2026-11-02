@@ -436,3 +436,28 @@ index complet et les identifiants techniques ; elle n'écrit aucun fichier.
 Recette Windows restante : ajouter/retirer des favoris, ouvrir plusieurs
 documents, signets déplacés/cassés, index des liens actualisé, changement
 d'application, rafales d'onglets, ouverture/fermeture de panneau.
+
+
+### Index de correspondance des onglets documents (02/11/2026)
+
+Lors d'une activation d'onglet, Nodalis parcourait tous les nœuds du
+workspace pour retrouver le document actif à partir de son ID ou chemin.
+Sur un workspace volumineux et une rafale de 30 changements d'onglets,
+cela entraînait des parcours répétés **O(taille de l'arbre)**.
+
+Un index `DocumentNavigationIndex<T>` construit une seule fois les
+tables ID/chemin (sans lecture disque), puis sert les activations en
+**O(1) moyen**. Il conserve la priorité historique du premier nœud
+rencontré lors d'une recherche `ID ou chemin`, même en présence de
+doublons anciens ; le contrôle de réconciliation des onglets après
+reconstruction utilise encore l'ID seul avec vérification explicite
+du chemin réel de la session.
+
+L'index est abandonné lorsqu'un nouvel objet `_root` remplace
+l'arborescence ; les filtres d'affichage ne le reconstruisent pas. Une
+catégorie de diagnostic local `Onglets · index navigation` mesure
+uniquement sa construction quand le moniteur est activé.
+Régressions sans données réelles : identités dupliquées, chemins
+dupliqués, casse, entrée absente et priorité d'ordre historique.
+Qualification Windows encore nécessaire pour la mémoire, les onglets
+multiples, les modifications externes et le retour de veille.

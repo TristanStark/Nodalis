@@ -25,6 +25,8 @@ public partial class MainWindow
     private readonly ObservableCollection<DocumentTabViewModel> _documentTabs = [];
     private readonly Dictionary<DocumentAutosaveController, DocumentTabViewModel> _autosaveTabs = [];
     private DocumentTabViewModel? _activeDocumentTab;
+    private NavigationNodeViewModel? _documentNavigationIndexRoot;
+    private DocumentNavigationIndex<NavigationNodeViewModel>? _documentNavigationIndex;
     private bool _suppressDocumentTabSelection;
     private Point _documentTabDragStart;
     private DocumentTabViewModel? _draggedDocumentTab;
@@ -394,15 +396,34 @@ public partial class MainWindow
     /// <returns>The matching navigation node, or null when the document disappeared.</returns>
     private NavigationNodeViewModel? FindDocumentNavigationNode(
             DocumentTabViewModel tab) =>
-            _root
-                .DescendantsAndSelf()
-                .FirstOrDefault(node =>
-                    node.Kind == WorkspaceNodeKind.Document &&
-                    (node.Id == tab.DocumentId ||
-                     string.Equals(
-                         node.FullPath,
-                         tab.FullPath,
-                         StringComparison.OrdinalIgnoreCase)));
+            GetDocumentNavigationIndex().Resolve(tab.DocumentId, tab.FullPath);
+
+    /// <summary>
+    /// Maintains one read-only document lookup per actual navigation root.
+    /// Rebuilding the workspace replaces _root, invalidating this snapshot.
+    /// Search/filter projections only affect VisibleChildren, not the source.
+    /// </summary>
+    /// <returns>Document lookup in canonical traversal order.</returns>
+    private DocumentNavigationIndex<NavigationNodeViewModel>
+        GetDocumentNavigationIndex()
+    {
+        if (ReferenceEquals(_documentNavigationIndexRoot, _root) &&
+            _documentNavigationIndex is not null)
+        {
+            return _documentNavigationIndex;
+        }
+
+        using DispatcherHeartbeatMonitor.OperationScope measurement =
+            _heartbeatMonitor.TrackOperation("Onglets · index navigation");
+        DocumentNavigationIndex<NavigationNodeViewModel> index = new(
+            _root.DescendantsAndSelf().Where(node =>
+                node.Kind == WorkspaceNodeKind.Document),
+            node => node.Id,
+            node => node.FullPath);
+        _documentNavigationIndex = index;
+        _documentNavigationIndexRoot = _root;
+        return index;
+    }
 
     /// <summary>
     /// Handles selecting an already-open document tab.
@@ -1788,17 +1809,12 @@ public partial class MainWindow
     {
         // One traversal for all open tabs. The old loop searched the entire
         // navigation tree per tab, yielding O(tabs × workspace nodes) cost.
-        Dictionary<Guid, NavigationNodeViewModel> documentNodes = _root
-            .DescendantsAndSelf()
-            .Where(node => node.Kind == WorkspaceNodeKind.Document)
-            .GroupBy(node => node.Id)
-            .ToDictionary(group => group.Key, group => group.First());
-
+        DocumentNavigationIndex<NavigationNodeViewModel> documentNodes =
+            GetDocumentNavigationIndex();
         foreach (DocumentTabViewModel tab in _documentTabs)
         {
-            documentNodes.TryGetValue(
-                tab.DocumentId,
-                out NavigationNodeViewModel? node);
+            NavigationNodeViewModel? node =
+                documentNodes.ResolveById(tab.DocumentId);
 
             if (node is null)
             {
