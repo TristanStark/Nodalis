@@ -3798,15 +3798,9 @@ public partial class MainWindow : Window
 
         if (primary?.Kind == LinkTargetKind.Document)
         {
-            global::Nodalis.Core.Links.LinkTargetEntry? parentProject = _linkIndex.Targets
-                .Where(candidate =>
-                    candidate.Kind == LinkTargetKind.Project &&
-                    IsRelativeAncestor(
-                        candidate.RelativePath,
-                        primary.RelativePath))
-                .OrderByDescending(candidate =>
-                    candidate.RelativePath.Length)
-                .FirstOrDefault();
+            LinkTargetEntry? parentProject =
+                GetNavigationLinkTargetIndex().FindNearestProject(
+                    primary.RelativePath);
 
             if (parentProject is not null)
             {
@@ -3871,13 +3865,14 @@ public partial class MainWindow : Window
     private LinkTargetEntry? FindIndexedTarget(
             NavigationNodeViewModel node)
     {
+        NavigationLinkTargetIndex indexedTargets =
+            GetNavigationLinkTargetIndex();
         if (node.Kind is
             WorkspaceNodeKind.Application or
             WorkspaceNodeKind.Module or
             WorkspaceNodeKind.Project)
         {
-            return _linkIndex.Targets.FirstOrDefault(target =>
-                target.Id == node.Id);
+            return indexedTargets.FindById(node.Id);
         }
 
         if (node.Kind != WorkspaceNodeKind.Document)
@@ -3892,12 +3887,7 @@ public partial class MainWindow : Window
                 Path.DirectorySeparatorChar,
                 '/');
 
-        return _linkIndex.Targets.FirstOrDefault(target =>
-            target.Kind == LinkTargetKind.Document &&
-            string.Equals(
-                target.RelativePath,
-                relativePath,
-                StringComparison.OrdinalIgnoreCase));
+        return indexedTargets.FindDocumentByRelativePath(relativePath);
     }
 
     /// <summary>

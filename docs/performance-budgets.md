@@ -461,3 +461,22 @@ Régressions sans données réelles : identités dupliquées, chemins
 dupliqués, casse, entrée absente et priorité d'ordre historique.
 Qualification Windows encore nécessaire pour la mémoire, les onglets
 multiples, les modifications externes et le retour de veille.
+
+
+### Index de résolution des cibles et projets parents (02/11/2026)
+
+Les activations de documents et la construction de Quick Open réutilisent
+maintenant le même index `NavigationLinkTargetIndex`, mis en cache sur
+**l'identité du catalogue de liens courant**. Les résolutions par ID,
+chemin Markdown et projet parent sont effectuées dans des dictionnaires
+construits une seule fois par snapshot. Pour retrouver le projet le plus
+profond d'un document, la recherche remonte ses composants de chemin
+au lieu d'inspecter tous les projets du workspace.
+
+Le premier élément en cas de GUID ou chemin dupliqué reste sélectionné,
+conformément aux recherches historiques. Les chemins sont comparés sans
+tenir compte de la casse ; aucun projet n'est inventé pour une note globale.
+Les projets, favoris et récents conservent leur modèle de persistance.
+Tests Core synthétiques : collisions, chemins en majuscules, sous-projets
+imbriqués et absence de projet ; qualification réelle des workflows
+de changement d'onglets nécessaire sous Windows.

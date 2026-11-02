@@ -9,6 +9,29 @@ namespace Nodalis.App;
 
 public partial class MainWindow
 {
+    private LinkIndexCatalog? _navigationLinkIndexSnapshot;
+    private NavigationLinkTargetIndex? _navigationLinkTargetIndex;
+
+    /// <summary>
+    /// Builds a shared read-only lookup once for each link catalog snapshot.
+    /// RefreshLinkIndexAsync replaces the snapshot, automatically invalidating
+    /// the navigation cache without holding onto stale path-to-target data.
+    /// </summary>
+    /// <returns>First-match navigation target lookup for the current index.</returns>
+    private NavigationLinkTargetIndex GetNavigationLinkTargetIndex()
+    {
+        if (ReferenceEquals(_navigationLinkIndexSnapshot, _linkIndex) &&
+            _navigationLinkTargetIndex is not null)
+        {
+            return _navigationLinkTargetIndex;
+        }
+
+        NavigationLinkTargetIndex index = new(_linkIndex.Targets);
+        _navigationLinkTargetIndex = index;
+        _navigationLinkIndexSnapshot = _linkIndex;
+        return index;
+    }
+
     /// <summary>
     /// Opens the keyboard-first Quick Open dialog and navigates to the accepted target.
     /// </summary>
@@ -99,21 +122,8 @@ public partial class MainWindow
     /// <returns>The searchable Quick Open targets.</returns>
     private IReadOnlyList<QuickOpenEntry> BuildQuickOpenEntries()
     {
-        // Build source lookup maps once. The previous implementation called
-        // FindIndexedTarget for every navigation VM, linearly searching the
-        // complete link index each time (quadratic on large workspaces).
-        Dictionary<Guid, LinkTargetEntry> targetsById = [];
-        Dictionary<string, LinkTargetEntry> documentsByRelativePath =
-            new(StringComparer.OrdinalIgnoreCase);
-        foreach (LinkTargetEntry target in _linkIndex.Targets)
-        {
-            targetsById.TryAdd(target.Id, target);
-            if (target.Kind == LinkTargetKind.Document &&
-                !string.IsNullOrWhiteSpace(target.RelativePath))
-            {
-                documentsByRelativePath.TryAdd(target.RelativePath, target);
-            }
-        }
+        NavigationLinkTargetIndex indexedTargets =
+            GetNavigationLinkTargetIndex();
 
         global::System.Collections.Generic.HashSet<string> favoriteKeys =
             _preferences.Favorites
@@ -164,8 +174,8 @@ public partial class MainWindow
 
             LinkTargetEntry? indexedTarget = node.Kind ==
                 WorkspaceNodeKind.Document
-                ? documentsByRelativePath.GetValueOrDefault(qualifiedPath)
-                : targetsById.GetValueOrDefault(node.Id);
+                ? indexedTargets.FindDocumentByRelativePath(qualifiedPath)
+                : indexedTargets.FindById(node.Id);
 
             string preferenceKey =
                 indexedTarget?.Id.ToString("D") ??

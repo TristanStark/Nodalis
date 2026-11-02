@@ -1,3 +1,4 @@
+using Nodalis.Core.Links;
 using Nodalis.Core.Navigation;
 
 internal static class NavigationWorktreeSmokeTests
@@ -107,6 +108,7 @@ internal static class NavigationWorktreeSmokeTests
             "Ultra-simple files must remain accessible.");
         VerifyStickyHeaders();
         VerifyDocumentNavigationLookup();
+        VerifyNavigationLinkTargetLookup();
         VerifyNavigationFilters(root, applicationA, applicationB,
             projectA, projectFolder, deepest, document, ultraSimple);
     }
@@ -152,6 +154,63 @@ internal static class NavigationWorktreeSmokeTests
             "Missing identities and paths must never guess a tab target.");
         Assert(ReferenceEquals(index.Resolve(fourth.Id, fourth.FullPath), fourth),
             "Unambiguous documents must resolve to their own source.");
+    }
+
+    /// <summary>
+    /// Verifies one snapshot lookup for document targets, nested projects and
+    /// duplicate legacy paths, without any real workspace or network access.
+    /// </summary>
+    private static void VerifyNavigationLinkTargetLookup()
+    {
+        Guid duplicate = Guid.NewGuid();
+        LinkTargetEntry project = new()
+        {
+            Id = duplicate,
+            Kind = LinkTargetKind.Project,
+            DisplayName = "Projet fictif",
+            QualifiedName = "Application A / Projet fictif",
+            RelativePath = "Applications/AppA/Projets/Projet"
+        };
+        LinkTargetEntry subproject = new()
+        {
+            Id = Guid.NewGuid(),
+            Kind = LinkTargetKind.Project,
+            DisplayName = "Sous-projet fictif",
+            QualifiedName = "Application A / Sous-projet fictif",
+            RelativePath = "Applications/AppA/Projets/Projet/Sous-projets/Suite"
+        };
+        LinkTargetEntry document = new()
+        {
+            Id = Guid.NewGuid(),
+            Kind = LinkTargetKind.Document,
+            DisplayName = "Dossier fictif",
+            QualifiedName = "Application A / Document",
+            RelativePath = "Applications/AppA/Projets/Projet/Notes.md"
+        };
+        LinkTargetEntry duplicateDocument = new()
+        {
+            Id = duplicate,
+            Kind = LinkTargetKind.Document,
+            DisplayName = "Document en collision",
+            QualifiedName = "Application B / Document",
+            RelativePath = document.RelativePath
+        };
+        NavigationLinkTargetIndex index = new(
+            [project, subproject, document, duplicateDocument]);
+        Assert(ReferenceEquals(index.FindById(duplicate), project) &&
+            ReferenceEquals(index.FindDocumentByRelativePath(
+                document.RelativePath.ToUpperInvariant()), document),
+            "First indexed ID/path hits retain historical source precedence.");
+        Assert(ReferenceEquals(index.FindNearestProject(
+                "Applications/AppA/Projets/Projet/Sous-projets/Suite/Test.md"),
+                subproject) &&
+            ReferenceEquals(index.FindNearestProject(document.RelativePath),
+                project),
+            "Nearest project ancestry must use the longest matching path.");
+        Assert(index.FindById(Guid.NewGuid()) is null &&
+            index.FindDocumentByRelativePath("Other/Missing.md") is null &&
+            index.FindNearestProject("Notes.md") is null,
+            "Global and missing paths must not fabricate a project target.");
     }
 
     /// <summary>
