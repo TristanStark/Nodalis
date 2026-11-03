@@ -46,7 +46,7 @@ public enum ProjectAiBatchTitleCommitStatus
 /// an interrupted batch is therefore explicitly REPLAYABLE, not advertised
 /// as all-or-nothing. Divergent external edits block any further publication.
 /// </summary>
-public sealed class ProjectAiBatchTitleImportTransactionService
+public sealed partial class ProjectAiBatchTitleImportTransactionService
 {
     private const int MaxFiles = 20;
     private const int MaxDocumentBytes = 1024 * 1024;
