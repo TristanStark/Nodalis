@@ -109,13 +109,22 @@ public sealed partial class ProjectAiMixedImportTransactionService
             raw = plan.RawResponseSha256,
             updates = updates.Select(item => new
             {
-                item.ProposalId, item.ProjectId, item.RequirementId,
-                item.Reference, item.RelativePath, item.ExpectedSha256,
-                item.CurrentTitle, item.ReviewedTitle, item.Reason
+                item.ProposalId,
+                item.ProjectId,
+                item.RequirementId,
+                item.Reference,
+                item.RelativePath,
+                item.ExpectedSha256,
+                item.CurrentTitle,
+                item.ReviewedTitle,
+                item.Reason
             }).ToArray(),
             creates = creates.Select(item => new
             {
-                item.ProposalId, item.ProjectId, item.ReviewedTitle, item.Reason
+                item.ProposalId,
+                item.ProjectId,
+                item.ReviewedTitle,
+                item.Reason
             }).ToArray()
         });
         return Hash(Encoding.UTF8.GetBytes(json));
