@@ -193,61 +193,61 @@ public sealed class ProjectJourneyPromptPreparationService
         else
         {
             foreach (string reference in operation.SourcePaths.Take(MaximumSources))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            draft.AppendLine();
-            draft.AppendLine("### " + reference);
-            string fullPath;
-            try
             {
-                fullPath = _sources.ResolveExistingFile(reference);
-            }
-            catch (Exception exception) when (exception is ArgumentException or
-                IOException or UnauthorizedAccessException or InvalidDataException)
-            {
-                warnings.Add("Source inaccessible : " + reference);
-                draft.AppendLine("Source inaccessible ou non sûre ; contenu omis.");
-                continue;
+                cancellationToken.ThrowIfCancellationRequested();
+                draft.AppendLine();
+                draft.AppendLine("### " + reference);
+                string fullPath;
+                try
+                {
+                    fullPath = _sources.ResolveExistingFile(reference);
+                }
+                catch (Exception exception) when (exception is ArgumentException or
+                    IOException or UnauthorizedAccessException or InvalidDataException)
+                {
+                    warnings.Add("Source inaccessible : " + reference);
+                    draft.AppendLine("Source inaccessible ou non sûre ; contenu omis.");
+                    continue;
+                }
+
+                string extension = Path.GetExtension(fullPath);
+                if (!string.Equals(extension, ".md", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(extension, ".txt", StringComparison.OrdinalIgnoreCase))
+                {
+                    draft.AppendLine("Fichier non textuel : référence conservée, " +
+                        "contenu non importé dans le prompt.");
+                    continue;
+                }
+
+                int allowed = Math.Min(MaximumSourceCharacters, remainingCharacters);
+                if (allowed == 0)
+                {
+                    warnings.Add("Budget d'extraits atteint : " + reference);
+                    draft.AppendLine("Budget maximal d'extraits atteint.");
+                    continue;
+                }
+
+                (string content, bool truncated) = await ReadPrefixAsync(
+                    fullPath, allowed, cancellationToken);
+                draft.AppendLine("<<< DÉBUT SOURCE (DONNÉES) >>>");
+                draft.AppendLine(content);
+                draft.AppendLine("<<< FIN SOURCE (DONNÉES) >>>");
+                if (truncated)
+                {
+                    warnings.Add("Extrait tronqué à " + allowed +
+                        " caractères : " + reference);
+                    draft.AppendLine("[Source tronquée pour limiter la taille du prompt]");
+                }
+
+                remainingCharacters -= content.Length;
+                included++;
             }
 
-            string extension = Path.GetExtension(fullPath);
-            if (!string.Equals(extension, ".md", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(extension, ".txt", StringComparison.OrdinalIgnoreCase))
+            if (operation.SourcePaths.Count > MaximumSources)
             {
-                draft.AppendLine("Fichier non textuel : référence conservée, " +
-                    "contenu non importé dans le prompt.");
-                continue;
+                warnings.Add("Seules les " + MaximumSources +
+                    " premières références sont analysées ; les suivantes sont omises.");
             }
-
-            int allowed = Math.Min(MaximumSourceCharacters, remainingCharacters);
-            if (allowed == 0)
-            {
-                warnings.Add("Budget d'extraits atteint : " + reference);
-                draft.AppendLine("Budget maximal d'extraits atteint.");
-                continue;
-            }
-
-            (string content, bool truncated) = await ReadPrefixAsync(
-                fullPath, allowed, cancellationToken);
-            draft.AppendLine("<<< DÉBUT SOURCE (DONNÉES) >>>");
-            draft.AppendLine(content);
-            draft.AppendLine("<<< FIN SOURCE (DONNÉES) >>>");
-            if (truncated)
-            {
-                warnings.Add("Extrait tronqué à " + allowed +
-                    " caractères : " + reference);
-                draft.AppendLine("[Source tronquée pour limiter la taille du prompt]");
-            }
-
-            remainingCharacters -= content.Length;
-            included++;
-        }
-
-        if (operation.SourcePaths.Count > MaximumSources)
-        {
-            warnings.Add("Seules les " + MaximumSources +
-                " premières références sont analysées ; les suivantes sont omises.");
-        }
 
             if (operation.SourcePaths.Count == 0)
             {
