@@ -41,31 +41,35 @@
                          AutomationProperties.Name="Référentiel FRT-100 système" />
             </TabItem>
         </TabControl>
-        <DockPanel Grid.Row="2" Margin="0,12,0,0">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button Padding="14,8" Margin="0,0,8,0"
-                        Content="Copier le prompt utilisateur"
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <WrapPanel Grid.Row="0" HorizontalAlignment="Right">
+                <Button Padding="12,7" Margin="0,0,8,6"
+                        Content="Copier l'utilisateur"
                         Click="Copy_Click" />
                 <Button x:Name="CopySystemButton"
-                        Padding="14,8" Margin="0,0,8,0"
-                        Content="Copier le système FRT-100"
+                        Padding="12,7" Margin="0,0,8,6"
+                        Content="Copier le système"
                         Click="CopySystem_Click" />
-                <Button Padding="14,8" Margin="0,0,8,0"
-                        Content="Exporter le prompt…"
+                <Button Padding="12,7" Margin="0,0,8,6"
+                        Content="Exporter l'utilisateur…"
                         Click="ExportUser_Click"
                         ToolTip="Exporter uniquement sur demande le brouillon utilisateur" />
-                <Button x:Name="ExportSystemButton" Padding="14,8"
-                        Margin="0,0,8,0"
-                        Content="Exporter FRT-100…"
+                <Button x:Name="ExportSystemButton" Padding="12,7"
+                        Margin="0,0,8,6"
+                        Content="Exporter le système…"
                         Click="ExportSystem_Click"
                         ToolTip="Exporter séparément le référentiel système" />
-                <Button Padding="14,8" Content="Fermer"
-                        Click="Close_Click" />
-            </StackPanel>
-            <TextBlock x:Name="StatusText" TextWrapping="Wrap"
-                       VerticalAlignment="Center"
+                <Button Padding="12,7" Margin="0,0,0,6"
+                        Content="Fermer" Click="Close_Click" />
+            </WrapPanel>
+            <TextBlock x:Name="StatusText" Grid.Row="1"
+                       TextWrapping="Wrap" Margin="0,3,0,0"
                        Foreground="{StaticResource SecondaryTextBrush}"
-                       Text="Aucune requête IA, aucune sauvegarde : copie manuelle uniquement." />
-        </DockPanel>
+                       Text="Aucune requête IA : copie ou export sur demande uniquement." />
+        </Grid>
     </Grid>
 </Window>
