@@ -488,3 +488,116 @@ Les répertoires locaux `.nodalis-ai-import/` sont ignorés par Git pour
 limiter le risque de commit accidentel des copies Markdown confidentielles.
 Ce filtrage ne constitue pas un chiffrement ni une sauvegarde : protéger les
 permissions du workspace et conserver le journal tant qu'un lot est partiel.
+
+
+## Septième incrément — import mixte d'exigences, contrôlé et reprenable (03/11/2026)
+
+**Nouveau périmètre de #197 :** dans **un seul projet** et une seule réponse
+`nodalis.import.v1`, le plan de qualification peut approuver **au moins une
+mise à jour de titre d'EXI existante ET une création d'exigence** (maximum
+**20 opérations** en tout). Les propositions doivent être comparées et
+chaque titre explicitement **Accepté** ou **Modifié** par l'utilisateur.
+Les autres champs, états, critères d'acceptation, décisions, relations,
+risques et tests ne sont **pas** publiés par le moteur mixte.
+
+### Déroulé humain et identités
+
+- Depuis **Parcours → Analyser → Comparer**, qualifier les propositions
+  `requirement/update.title` et `requirement/create.title` puis
+  **Préparer le plan (sans écrire)**.
+- **Publier créations + titres…** relit les décisions et vérifie que
+  chaque fiche existante est fermée dans les éditeurs Markdown de
+  Nodalis. Le service recalcule les références EXI disponibles, ou
+  restitue les références **déjà réservées dans un journal de reprise**.
+- Une confirmation affiche **chaque titre avant/après** et chaque
+  **nouvelle référence EXI**, avant tout enregistrement.
+  L'utilisateur confirme le **lot exact** et les codes proposés.
+- Les créations reçoivent de **nouveaux GUID Nodalis** et le codec
+  `ProjectRequirementMarkdownCodec.Format`, avec validation
+  `Draft`, implémentation `NotStarted`, vérification
+  `NotVerified` et classification `Unclassified`.
+  Aucune identité, référence ou approbation de l'IA n'est utilisée
+  comme donnée d'autorité.
+
+### Transaction durable : préflight complet puis écritures par fichier
+
+`ProjectAiMixedImportTransactionService` impose la même serrure
+locale `<projet>/.nodalis-ai-import/.lock` que les imports
+unitaires et les lots de titres. Il contrôle le manifest du projet,
+le registre EXI, les GUID et SHA des mises à jour, l'absence de
+collisions entre les créations, ainsi que l'absence de réemploi
+d'un `proposalId` déjà enregistré dans un autre journal.
+
+Le SHA-256 déterministe du **plan humain** sert de clef
+`<projet>/.nodalis-ai-import/mixed-<planSha256>/`.
+Le service y conserve des instantanés `original/` (les octets
+originaux des fiches existantes), `approved/` (toutes les versions
+approuvées), le `intent.json` et les preuves de création
+`receipts/*.json`.
+
+**Aucun fichier métier n'est modifié avant que toutes les sources
+aient été relues, les nouveaux codes contrôlés, les copies produites
+et l'intention durable écrite.** Une préparation interrompue avant
+`intent.json` reste volontairement bloquée pour inspection
+manuelle : Nodalis ne régénère jamais silencieusement des GUID.
+
+Le journal et les copies sont revérifiés intégralement **avant
+la première publication** : les mises à jour ne peuvent changer
+que le champ `title:` et le H1 canonique ; les créations doivent
+correspondre **exactement** au Markdown généré par le codec. Même
+un snapshot accompagné d'un SHA falsifié ne peut injecter du
+contenu ou des statuts différents. La création est atomique **sans
+écrasement**, les mises à jour utilisent une substitution atomique
+avec revalidation du SHA et de l'identité Windows du fichier.
+Le moteur refuse la moindre divergence externe.
+
+**Aucune atomicité globale multi-fichiers n'est annoncée :**
+une panne après une opération peut laisser un lot partiel.
+Le journal contient les références et GUID déjà attribués.
+Les créations enregistrent également un reçu durable après
+publication. Une fiche créée puis supprimée avec ce reçu ne
+peut être recréée automatiquement.
+
+### Reprise après fermeture ou redémarrage de Nodalis
+
+La commande existante **Rechercher les lots interrompus** découvre
+désormais les lots **titres** et les lots **mixtes**, sous des libellés
+distincts. Après sélection, **Reprendre le lot choisi…** relit et
+vérifie le journal et toutes ses copies, l'état actif du projet et
+l'intégrité de chaque fichier courant. L'interface présente chaque
+création et chaque modification ainsi que la progression
+(publiés/restants) et **exige une seconde confirmation humaine**.
+
+La reconstitution des décisions repose sur le journal, non sur une
+réponse IA encore présente dans la fenêtre. Aucun réimport
+automatique : un fichier modifié, un journal incomplet ou
+falsifié, un reçu incohérent ou une identité étrangère bloque
+l'ensemble de la reprise **avant toute nouvelle écriture**.
+Les dossiers `.nodalis-ai-import/` sont ignorés par Git mais
+restent sensibles et doivent être protégés localement.
+
+### Régressions et recette Windows
+
+`ProjectAiMixedImportSmokeTests` couvre un projet de démonstration
+synthétique avec **deux titres existants et deux créations**.
+Cas testés : génération de deux codes successifs, plan sans
+écriture, contrôle des projets différents, code approuvé devenu
+périmé, édition concurrente du second fichier bloquant le
+lot sans modifier le premier, interruption après le premier
+titre, redécouverte du journal après nouvelle instance,
+reprise bloquée en cas d'édition externe, seconde interruption
+après une création, conservation des GUID et des reçus,
+refus de ressusciter une fiche supprimée, journal JSON
+corrompu, SHA falsifié pour injecter une section, reprise
+intègre puis réimport sans doublon, états et corps Markdown
+préservés.
+
+Qualification manuelle restante : tester l'affichage de
+20 décisions sur Windows, l'accessibilité clavier/DPI, les
+éditeurs ouverts dans les deux panneaux, la reprise après
+redémarrage réel de l'application, les mises en veille,
+les permissions des dossiers et les diagnostics de registre.
+Cette tranche ne clôt pas #197 ; historique complet des
+réponses brutes, décisions ignorées et autres objets métier
+restent prioritaires. Aucun merge vers `main`, tag ou
+release avant qualification.
