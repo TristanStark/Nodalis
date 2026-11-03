@@ -18,7 +18,7 @@
                        FontSize="20" FontWeight="SemiBold" />
             <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}"
-                       Text="Collez une réponse nodalis.import.v1. Qualifier reste local ; après confirmation, Nodalis peut modifier un seul titre EXI ou créer un brouillon EXI avec une identité attribuée par l'application. Aucun LLM ni réseau." />
+                       Text="Collez une réponse nodalis.import.v1. Chaque champ reste soumis à validation humaine ; vous pouvez ensuite créer un brouillon EXI ou publier des titres existants (un ou plusieurs) avec contrôle SHA-256 et journal local. Aucun LLM ni réseau." />
         </StackPanel>
         <TextBox x:Name="RawResponseBox" Grid.Row="1"
                  FontFamily="Consolas" FontSize="12"
@@ -109,6 +109,11 @@
                         Margin="0,0,8,4" Padding="10,5"
                         Click="PublishReviewedTitle_Click"
                         ToolTip="Confirme et publie une seule modification EXI avec journal, relecture SHA-256 et récupération. Les autres champs restent inchangés." />
+                <Button x:Name="PublishReviewedBatchButton"
+                        Content="Enregistrer le lot de titres…"
+                        Margin="0,0,8,4" Padding="10,5"
+                        Click="PublishReviewedBatch_Click"
+                        ToolTip="Confirmer et publier 2 à 20 titres EXI approuvés, avec prévalidation globale et journal de reprise; pas de création ni de changement d'état." />
                 <Button x:Name="CreateReviewedRequirementButton"
                         Content="Créer 1 exigence approuvée…"
                         Margin="0,0,8,4" Padding="10,5"
