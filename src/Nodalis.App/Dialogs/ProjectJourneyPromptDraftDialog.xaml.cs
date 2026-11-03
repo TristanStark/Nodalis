@@ -165,8 +165,8 @@ public partial class ProjectJourneyPromptDraftDialog : Window
         {
             await File.WriteAllTextAsync(picker.FileName, content,
                 new UTF8Encoding(false));
-            StatusText.Text = "Message exporté sur votre demande. " +
-                "Aucun appel IA ni fichier source n'a été modifié.";
+            StatusText.Text = "Message exporté au chemin choisi. " +
+                "Aucune requête IA n'a été envoyée.";
         }
         catch (Exception exception) when (exception is IOException or
             UnauthorizedAccessException or ArgumentException)
