@@ -97,6 +97,7 @@ try
     await ProjectRequirementRegistrySmokeTests.RunAsync(root);
     ProjectRequirementCriterionSmokeTests.Run();
     ProjectRequirementTraceabilitySmokeTests.Run();
+    ProjectRequirementCampaignTraceabilitySmokeTests.Run();
     ProjectTestDefinitionSmokeTests.Run();
     ProjectTestCampaignCodecSmokeTests.Run();
     ProjectTestCampaignDecisionSmokeTests.Run();

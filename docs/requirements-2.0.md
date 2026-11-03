@@ -133,3 +133,32 @@ sont pas modifiés et aucun statut n'est mis à jour.
 Le détail affiche explicitement que l'exécution et la conformité ne
 sont pas connues tant que les campagnes de tests (#200) ne sont pas
 intégrées. La qualification visuelle en WPF/dark mode reste nécessaire.
+
+## Historique de tests associé aux critères (03/11/2026)
+
+La projection en lecture seule `ProjectRequirementCampaignTraceability.Build`
+associe la matrice EXI/CA/test existante aux campagnes REC **déjà vérifiées
+pour le projet sélectionné**. La jointure conserve les GUID stables et
+réexamine l'appartenance exacte du fichier REC au même projet. Les
+sources figées provenant d'un autre projet, les campagnes d'un projet
+voisin et les identifiants de campagne dupliqués ne contribuent pas.
+
+Chaque association conserve un **passage particulier**, avec sa campagne,
+sa date, son environnement, sa version, le contenu de test figé (SHA),
+le verdict explicitement déclaré par l'exécutant ou l'absence de verdict,
+le motif et la référence de preuve **non vérifiée**. Les passages ne sont
+pas fusionnés : une réussite historique dans une version ne rend pas
+« conforme » un passage ultérieur, un autre environnement ou le critère
+EXI. Une ancienne source déplacée reste visible avec un avertissement,
+mais ne certifie aucune couverture actuelle.
+
+Ce premier lien est une *vue historique*, **pas** un contrôleur de preuve,
+de source actuelle ou de conformité. Le statut métier de l'exigence et
+les décisions de campagne sont conservés indépendamment. La version
+courante du test reste à vérifier explicitement avec le service REC de
+validité documentaire. Aucune mutation ni accès réseau.
+
+Les régressions synthétiques couvrent un résultat ancien Passed suivi
+d'un nouveau passage sans résultat, deux versions/environnements,
+un projet voisin partageant un préfixe de chemin, un GUID reproduit,
+une source déplacée et un critère sans test.
