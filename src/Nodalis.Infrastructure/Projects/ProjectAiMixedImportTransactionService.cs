@@ -71,7 +71,7 @@ public sealed record ProjectAiMixedRecoveryPreview(
 /// is prevalidated before staging; snapshots precede all business writes.
 /// Each file is atomic, but a multi-file batch is explicitly NOT globally atomic.
 /// </summary>
-public sealed class ProjectAiMixedImportTransactionService
+public sealed partial class ProjectAiMixedImportTransactionService
 {
     private const int MaxEntries = 20;
     private const int MaxBytes = 1024 * 1024;
