@@ -138,9 +138,9 @@ internal static class ProjectFrt100PromptSmokeTests
             linked.GetReferenceForExistingFile(architecture);
         string requirementsReference =
             linked.GetReferenceForExistingFile(requirements);
-        ProjectJourneyPromptSectionService sections = new(workspace);
+        ProjectJourneyPromptSectionService sectionReader = new(workspace);
         IReadOnlyList<ProjectJourneyPromptSection> headings =
-            await sections.ListAsync(architectureReference);
+            await sectionReader.ListAsync(architectureReference);
         Assert(headings.Count == 4 &&
             headings.Count(item => item.Title == "Solution") == 2 &&
             headings.All(item => item.Title != "Faux titre en code"),
@@ -148,7 +148,7 @@ internal static class ProjectFrt100PromptSmokeTests
         ProjectJourneyPromptSection selectedSection =
             headings.First(item => item.Title == "Solution");
         ProjectJourneyPromptSection requirementsSection =
-            (await sections.ListAsync(requirementsReference)).Single(
+            (await sectionReader.ListAsync(requirementsReference)).Single(
                 item => item.Title == "Besoin");
         ProjectJourneyOperation operation11 = operation with
         {
