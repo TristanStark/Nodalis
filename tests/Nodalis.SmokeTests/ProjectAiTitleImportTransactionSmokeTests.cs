@@ -93,7 +93,7 @@ internal static class ProjectAiTitleImportTransactionSmokeTests
             string markdown = new UTF8Encoding(false, true).GetString(applied);
             ProjectRequirementCard updated =
                 ProjectRequirementMarkdownCodec.Parse(markdown);
-            Assert(updated == created.Card with { Title = "Titre humain retenu" },
+            Assert(updated == (created.Card with { Title = "Titre humain retenu" }),
                 "Title edits must preserve GUID, schema, dates and all three states.");
             Assert(markdown.Contains("## Notes supplémentaires",
                     StringComparison.Ordinal) &&
