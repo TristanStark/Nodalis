@@ -131,3 +131,65 @@ et un contrôle optimiste d'empreinte immédiatement avant toute écriture.
 Les régressions automatisées portent le nom
 `ProjectAiRequirementReviewSmokeTests`. Aucun merge vers `main`,
 tag ou release 2.0 ne découle de cette étape.
+
+
+## Troisième incrément — qualification humaine et plan préparatoire (03/11/2026)
+
+Sur `develop`, le contrôle **Accepter / Modifier / À revoir / Ignorer**
+s'applique **à un champ sélectionné**, sans affecter ses voisins. L'utilisateur
+doit d'abord analyser puis comparer la réponse au registre canonique du projet
+courant. Les décisions ne sont **jamais** déduites de `certainty` ni du texte
+de l'IA. La liste et la comparaison sont invalidées dès que le JSON collé
+change ; une nouvelle comparaison invalide les choix précédents.
+
+Le contrat `ProjectAiFieldDecision` et le planificateur pur
+`ProjectAiImportDecisionPlanner.Prepare` produisent un
+`ProjectAiPreparedReviewPlan` **en mémoire seulement**. Une modification
+proposée contient : GUID de proposition, GUID réel de l'exigence et du projet,
+référence EXI, chemin canonique, empreinte SHA-256 de la version locale
+consultée, ancien et nouveau titre, justification éventuelle et empreinte
+de la réponse brute. Le panneau **Plan prévisionnel** expose ces informations
+pour vérification ; rien n'est écrit ni envoyé à un service IA.
+
+### Contrôles de sécurité
+
+- Seule une proposition `requirement/update` associée sans ambiguïté à un
+  objet du projet, et uniquement son champ `title`, peut être acceptée ou
+  modifiée dans cet incrément. Les autres champs et types peuvent être
+  marqués **À revoir** ou **Ignorer** ; jamais appliqués par supposition.
+- En cas de base absente ou de changement local concurrent, **une justification
+  humaine non vide** est exigée même si la proposition est acceptée.
+  Cela ne dispense pas d'une relecture de la version du fichier au commit.
+- Les choix contradictoires pour un même champ, les cibles disparues, les
+  propositions étrangères, les titres multiligne/vides ou trop longs, deux
+  changements approuvés sur une même exigence et les révisions de comparaison
+  incomplètes sont rejetés.
+- Modifier la valeur ou la justification dans les champs de saisie invalide
+  **la décision précédemment enregistrée** tant que l'utilisateur n'a pas
+  explicitement réappuyé sur Accepter ou Modifier. Les décisions restent
+  volatiles : fermer la fenêtre ne les enregistre pas.
+- Le plan n'est **pas exécutable**, ne modifie aucun fichier Markdown et ne
+  tient pas encore d'historique durable. Le commit transactionnel, la
+  relecture atomique, la récupération après interruption et la prévention
+  persistée des réimports sont un incrément distinct.
+
+### Recette Windows restante
+
+1. Ouvrir le Parcours d'un projet fictif, analyser une réponse avec deux
+   modifications d'exigences et un autre type de proposition ; comparer au
+   registre du projet.
+2. Choisir **À revoir** pour une suggestion, **Ignorer** pour une autre,
+   **Accepter** ou **Modifier** pour un titre existant. Vérifier qu'aucun
+   autre champ n'est accepté automatiquement.
+3. Faire varier la base, provoquer un conflit concurrent, puis vérifier
+   qu'une justification est requise pour obtenir un plan.
+4. Modifier une valeur après l'avoir acceptée : le plan devient périmé et
+   la décision est invalidée. Modifier le JSON : tout le plan est effacé.
+5. Simuler deux propositions visant la même exigence : la seconde décision
+   doit être refusée. Fermer et rouvrir : aucun état ou Markdown nouveau.
+6. Vérifier le redimensionnement, le clavier, le DPI et l'absence de gel avec
+   jusqu'à 100 propositions.
+
+Tests : `ProjectAiImportDecisionSmokeTests` dans la suite Windows.
+Les projets et données de test sont fictifs et aucun écran n'est commité.
+Aucun merge sur `main`, tag ou release.
