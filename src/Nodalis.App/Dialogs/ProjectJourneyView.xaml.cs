@@ -897,26 +897,35 @@ public partial class ProjectJourneyView : UserControl
             ProjectJourneyPromptPreparationService preparer = new(
                 _workspaceRoot, promptRoot);
             ProjectJourneyPromptDraft draft;
-            if (operation.PromptKey is string promptKey &&
-                FileSystemAiPromptStore.IsFrt100UserPromptId(promptKey))
+            string? templatePath = operation.PromptKey is string key
+                ? Path.Combine(promptRoot, key + ".md") : null;
+            if (templatePath is not null && File.Exists(templatePath))
             {
                 string original = await new FileSystemAiPromptStore(promptRoot)
-                    .LoadAsync(promptKey);
+                    .LoadAsync(operation.PromptKey!);
                 IReadOnlyList<string> variables =
                     ProjectJourneyPromptVariables.FindPlaceholders(original);
-                ProjectJourneyPromptBindingsDialog picker = new(
-                    _workspaceRoot, variables, operation.SourcePaths)
+                if (variables.Count > 0)
                 {
-                    Owner = Window.GetWindow(this)
-                };
-                if (picker.ShowDialog() != true)
-                {
-                    return;
-                }
+                    ProjectJourneyPromptBindingsDialog picker = new(
+                        _workspaceRoot, variables, operation.SourcePaths)
+                    {
+                        Owner = Window.GetWindow(this)
+                    };
+                    if (picker.ShowDialog() != true)
+                    {
+                        return;
+                    }
 
-                draft = await Task.Run(() =>
-                    preparer.PrepareWithBindingsAsync(
-                        step, operation, picker.Bindings));
+                    draft = await Task.Run(() =>
+                        preparer.PrepareWithBindingsAsync(
+                            step, operation, picker.Bindings));
+                }
+                else
+                {
+                    draft = await Task.Run(() =>
+                        preparer.PrepareAsync(step, operation));
+                }
             }
             else
             {
