@@ -336,7 +336,7 @@ public sealed class ProjectAiTitleImportTransactionService
     /// <param name="card">Parsed, validated canonical source identity.</param>
     /// <param name="newTitle">Explicit human-reviewed title.</param>
     /// <returns>Source with only title metadata and its H1 updated.</returns>
-    private static string RewriteTitle(
+    internal static string RewriteTitle(
         string markdown, ProjectRequirementCard card, string newTitle)
     {
         string[] lines = markdown.Split('\n');
