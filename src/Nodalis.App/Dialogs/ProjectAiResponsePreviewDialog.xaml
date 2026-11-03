@@ -14,7 +14,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0" Margin="0,0,0,9">
-            <TextBlock Text="Réponse IA externe — lecture seule"
+            <TextBlock Text="Réponse IA externe — qualification humaine"
                        FontSize="20" FontWeight="SemiBold" />
             <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}"
@@ -59,18 +59,81 @@
                 </GridView>
             </ListView.View>
         </ListView>
-        <TextBox x:Name="DetailsBox" Grid.Row="4" Margin="0,9,0,0"
-                 FontFamily="Consolas" FontSize="12" Padding="10"
-                 AcceptsReturn="True" IsReadOnly="True" TextWrapping="Wrap"
-                 VerticalScrollBarVisibility="Auto"
-                 AutomationProperties.Name="Détail de la proposition non fiable" />
+        <Grid Grid.Row="4" Margin="0,8,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <WrapPanel Grid.Row="0" Margin="0,0,0,5" VerticalAlignment="Center">
+                <TextBlock Text="Champ :" VerticalAlignment="Center"
+                           Margin="0,0,6,4" />
+                <ComboBox x:Name="FieldPicker" Width="140"
+                          Margin="0,0,12,4"
+                          SelectionChanged="FieldPicker_SelectionChanged"
+                          AutomationProperties.Name="Champ à qualifier manuellement" />
+                <TextBlock Text="Valeur retenue :" VerticalAlignment="Center"
+                           Margin="0,0,6,4" />
+                <TextBox x:Name="ReviewedValueBox" Width="290"
+                         Margin="0,0,12,4"
+                         TextChanged="DecisionInput_TextChanged"
+                         AutomationProperties.Name="Valeur approuvée ou modifiée par l'utilisateur" />
+                <TextBlock Text="Justification :" VerticalAlignment="Center"
+                           Margin="0,0,6,4" />
+                <TextBox x:Name="JustificationBox" Width="220"
+                         Margin="0,0,0,4"
+                         TextChanged="DecisionInput_TextChanged"
+                         ToolTip="Obligatoire si la base est absente ou en conflit" />
+            </WrapPanel>
+            <WrapPanel Grid.Row="1" Margin="0,0,0,5">
+                <Button x:Name="AcceptFieldButton" Content="Accepter"
+                        Margin="0,0,6,4" Padding="10,5"
+                        Click="AcceptField_Click"
+                        ToolTip="Accepter la valeur proposée par l'IA, uniquement après comparaison" />
+                <Button x:Name="EditFieldButton" Content="Modifier"
+                        Margin="0,0,6,4" Padding="10,5"
+                        Click="EditField_Click"
+                        ToolTip="Retenir explicitement la valeur corrigée" />
+                <Button x:Name="ReviewFieldButton" Content="À revoir"
+                        Margin="0,0,6,4" Padding="10,5"
+                        Click="ReviewField_Click" />
+                <Button x:Name="IgnoreFieldButton" Content="Ignorer"
+                        Margin="0,0,12,4" Padding="10,5"
+                        Click="IgnoreField_Click" />
+                <Button x:Name="BuildReviewPlanButton"
+                        Content="Préparer le plan (sans écrire)"
+                        Margin="0,0,8,4" Padding="10,5"
+                        Click="BuildReviewPlan_Click" />
+                <TextBlock x:Name="ReviewStatusText"
+                           Text="Aucun choix enregistré en mémoire"
+                           VerticalAlignment="Center" TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}" />
+            </WrapPanel>
+            <TabControl Grid.Row="2"
+                        AutomationProperties.Name="Proposition et plan de qualification">
+                <TabItem Header="Détail de la proposition">
+                    <TextBox x:Name="DetailsBox" FontFamily="Consolas"
+                             FontSize="12" Padding="10"
+                             IsReadOnly="True" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             AutomationProperties.Name="Détail de proposition et comparaison" />
+                </TabItem>
+                <TabItem Header="Plan prévisionnel (aucune écriture)">
+                    <TextBox x:Name="PlanTextBox" FontFamily="Consolas"
+                             FontSize="12" Padding="10"
+                             IsReadOnly="True" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             Text="Préparez un plan après avoir choisi les champs à traiter." />
+                </TabItem>
+            </TabControl>
+        </Grid>
         <DockPanel Grid.Row="5" Margin="0,12,0,0">
             <Button DockPanel.Dock="Right" Content="Fermer" Padding="14,8"
                     Click="Close_Click" />
             <TextBlock x:Name="StatusText" VerticalAlignment="Center"
                        TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}"
-                       Text="Prévisualisation uniquement · aucune écriture autorisée." />
+                       Text="Choix conservés en mémoire seulement · aucun import appliqué." />
         </DockPanel>
     </Grid>
 </Window>
