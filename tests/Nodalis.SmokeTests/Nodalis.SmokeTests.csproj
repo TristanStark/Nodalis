@@ -12,5 +12,11 @@
   </ItemGroup>
   <ItemGroup>
     <None Update="Fixtures\workspace-fixtures.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Nodalis.App\Prompts\frt100-*.md"
+          Link="Prompts\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Nodalis.App\Prompts\collections\Prompts_Gestion_Projet_FRT100.md"
+          Link="Prompts\collections\Prompts_Gestion_Projet_FRT100.md"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

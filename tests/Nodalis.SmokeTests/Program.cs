@@ -87,6 +87,7 @@ try
     await ProjectJourneyEditingSmokeTests.RunAsync(root);
     await ProjectJourneyTemplatesSmokeTests.RunAsync(root);
     await ProjectJourneyEvidenceSmokeTests.RunAsync(root);
+    await ProjectFrt100PromptSmokeTests.RunAsync(root);
     await ProjectJourneyMilestoneLinksSmokeTests.RunAsync(root);
     await ProjectGateRegistrySmokeTests.RunAsync(root);
     await ProjectGateMilestoneLinksSmokeTests.RunAsync(root);

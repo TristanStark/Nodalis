@@ -52,6 +52,7 @@ public sealed class ProjectJourneyPromptPreparationService
         }
 
         List<string> warnings = [];
+        string? systemPrompt = null;
         StringBuilder draft = new();
         draft.AppendLine("# Brouillon de prompt · Nodalis");
         draft.AppendLine();
@@ -87,6 +88,30 @@ public sealed class ProjectJourneyPromptPreparationService
                 string prompt = await new FileSystemAiPromptStore(_promptRoot)
                     .LoadAsync(operation.PromptKey, cancellationToken);
                 draft.AppendLine(prompt);
+                if (operation.PromptKey.StartsWith("frt100-",
+                        StringComparison.Ordinal) &&
+                    operation.PromptKey != "frt100-system-v1")
+                {
+                    string systemPath = Path.Combine(
+                        _promptRoot, "frt100-system-v1.md");
+                    if (File.Exists(systemPath) &&
+                        (File.GetAttributes(systemPath) &
+                         FileAttributes.ReparsePoint) == 0)
+                    {
+                        systemPrompt = await new FileSystemAiPromptStore(
+                            _promptRoot).LoadAsync(
+                                "frt100-system-v1", cancellationToken);
+                    }
+                    else
+                    {
+                        warnings.Add("Référentiel système FRT-100 absent : " +
+                            "configurez-le dans votre LLM externe avant usage.");
+                    }
+
+                    draft.AppendLine();
+                    draft.AppendLine("FRT-100 : le référentiel système doit être " +
+                        "configuré SÉPARÉMENT dans l'outil externe.");
+                }
             }
             else
             {
@@ -180,7 +205,7 @@ public sealed class ProjectJourneyPromptPreparationService
             "et les propositions à qualifier manuellement. " +
             "Ne produire aucune affirmation de modification du workspace.");
         return new ProjectJourneyPromptDraft(draft.ToString(),
-            included, warnings);
+            included, warnings) { SystemPrompt = systemPrompt };
     }
 
     /// <summary>Reads a bounded UTF-8 prefix without loading megabyte files.</summary>
@@ -218,4 +243,11 @@ public sealed class ProjectJourneyPromptPreparationService
 /// <param name="IncludedSources">Number of text sources actually read.</param>
 /// <param name="Warnings">Missing, skipped or truncated context.</param>
 public sealed record ProjectJourneyPromptDraft(
-    string Content, int IncludedSources, IReadOnlyList<string> Warnings);
+    string Content, int IncludedSources, IReadOnlyList<string> Warnings)
+{
+    /// <summary>
+    /// Optional separate SYSTEM message: must not be concatenated to the
+    /// user message or treated as active without external configuration.
+    /// </summary>
+    public string? SystemPrompt { get; init; }
+}

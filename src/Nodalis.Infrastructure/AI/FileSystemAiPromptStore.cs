@@ -23,6 +23,63 @@ public sealed class FileSystemAiPromptStore
     }
 
     /// <summary>
+    /// Lists eligible local USER prompts without loading all their bodies.
+    /// The FRT-100 system rules are never offered as a user prompt.
+    /// </summary>
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    /// <returns>Ordered local prompt choices, without workspace changes.</returns>
+    public async Task<IReadOnlyList<LocalAiPromptDescriptor>> ListAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(_promptRoot))
+        {
+            return [];
+        }
+
+        if ((File.GetAttributes(_promptRoot) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException(
+                "Répertoire de prompts sous lien symbolique refusé.");
+        }
+
+        List<LocalAiPromptDescriptor> prompts = [];
+        foreach (string path in Directory.EnumerateFiles(
+            _promptRoot, "*.md", SearchOption.TopDirectoryOnly))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            FileInfo file = new(path);
+            string id = Path.GetFileNameWithoutExtension(path);
+            if (id == "frt100-system-v1" || !IsSafePromptId(id) ||
+                (file.Attributes & FileAttributes.ReparsePoint) != 0 ||
+                file.Length > 128 * 1024)
+            {
+                continue;
+            }
+
+            using StreamReader reader = new(path);
+            string? first = await reader.ReadLineAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(first))
+            {
+                continue;
+            }
+
+            string title = first.TrimStart('#', ' ');
+            if (title.Length > 240)
+            {
+                title = title[..240];
+            }
+
+            prompts.Add(new LocalAiPromptDescriptor(
+                id, title, id.StartsWith("frt100-",
+                    StringComparison.Ordinal) && id != "frt100-system-v1"));
+        }
+
+        return prompts.OrderBy(item => item.IsFrt100 ? 0 : 1)
+            .ThenBy(item => item.Id, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    /// <summary>
     /// Loads one prompt by its traversal-safe identifier.
     /// </summary>
     /// <param name="promptId">Prompt file identifier without extension.</param>
@@ -72,6 +129,14 @@ public sealed class FileSystemAiPromptStore
                 path);
         }
 
+        FileInfo source = new(path);
+        if ((source.Attributes & FileAttributes.ReparsePoint) != 0 ||
+            source.Length > 128 * 1024)
+        {
+            throw new InvalidDataException(
+                "Prompt non sûr ou trop volumineux (128 Kio max).");
+        }
+
         return await File.ReadAllTextAsync(
             path,
             cancellationToken);
@@ -93,4 +158,16 @@ public sealed class FileSystemAiPromptStore
                    "..",
                    StringComparison.Ordinal);
     }
+}
+
+
+/// <summary>One safe locally readable user-prompt entry.</summary>
+/// <param name="Id">Stable key without extension.</param>
+/// <param name="Title">First Markdown title, for UI selection only.</param>
+/// <param name="IsFrt100">Uses the separate FRT-100 system reference.</param>
+public sealed record LocalAiPromptDescriptor(
+    string Id, string Title, bool IsFrt100)
+{
+    /// <summary>Readable UI label without exposing source content.</summary>
+    public string DisplayName => Id + " — " + Title;
 }
