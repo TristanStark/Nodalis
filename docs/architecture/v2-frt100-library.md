@@ -67,3 +67,15 @@ confirmation supplémentaire si des variables restent. Le prompt original
 sur disque reste non modifié ; le prompt SYSTEME reste en lecture seule.
 Le service ne déduit aucune association implicite entre un fichier lié
 et une variable. La liaison par variable/section reste au backlog #196.
+
+## Suggestions d'étapes sans activation implicite
+
+Les modèles intégrés pour **nouveaux** Parcours Simple, Moyen et
+Complexe proposent maintenant une clé de prompt FRT-100 authentique par
+opération (par ex. EXI/extraction #1, critères #7, risques #15 et #14,
+conception #11, préparation #17, traçabilité tests #10, MEP #18 et
+clôture #30). L'association est seulement une proposition modifiable,
+**aucune exécution ni approbation** automatique. Les Parcours
+déjà initialisés et les modèles workspace personnalisés ne sont pas
+réécrits. Les smoke tests vérifient que toutes les clés des neuf
+étapes du modèle Complexe pointent vers un des 31 prompts réels.

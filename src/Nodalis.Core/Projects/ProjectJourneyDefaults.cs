@@ -97,7 +97,36 @@ public static class ProjectJourneyDefaults
             Operations = operations.Select(item => new ProjectJourneyOperationTemplate
             {
                 Key = item.Key,
-                Name = item.Name
+                Name = item.Name,
+                PromptKey = SuggestedPromptKey(key, item.Key)
             }).ToList()
         };
+
+    /// <summary>
+    /// Recommends authentic bundled prompts for INITIAL templates only.
+    /// Existing project journeys and customized workspace templates never
+    /// receive an automatic migration or retroactive prompt replacement.
+    /// </summary>
+    /// <param name="step">Logical step key.</param>
+    /// <param name="operation">Logical operation key.</param>
+    /// <returns>Versioned user-prompt key or null when not mapped.</returns>
+    private static string? SuggestedPromptKey(
+        string step, string operation) => (step, operation) switch
+    {
+        ("cadrage", "besoin") => "frt100-05",
+        ("cadrage", "contexte") => "frt100-02",
+        ("exigences", "inventaire") => "frt100-01",
+        ("exigences", "criteres") => "frt100-07",
+        ("risques", "identifier") => "frt100-15",
+        ("risques", "reevaluer") => "frt100-14",
+        ("conception", "architecture" or "solution") => "frt100-11",
+        ("preparation-developpement", "plan") => "frt100-17",
+        ("realisation", "solution") => "frt100-11",
+        ("realisation", "implementation") => "frt100-17",
+        ("realisation", "changements") => "frt100-16",
+        ("tests", "verification" or "campagnes") => "frt100-10",
+        ("mise-en-production", "deploiement") => "frt100-18",
+        ("cloture", "bilan" or "passation") => "frt100-30",
+        _ => null
+    };
 }

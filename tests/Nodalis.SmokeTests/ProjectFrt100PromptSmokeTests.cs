@@ -20,6 +20,21 @@ internal static class ProjectFrt100PromptSmokeTests
             !catalog.Any(item => item.Id == "frt100-system-v1"),
             "Exactly 30 plus one combined user prompt must be selectable.");
 
+        ProjectJourneyTemplateCatalog defaults =
+            ProjectJourneyDefaults.CreateCatalog();
+        ProjectJourneyTemplate complex = defaults.Templates.Single(item =>
+            item.Key == "complex-v1");
+        Assert(complex.Steps.Count == 9 &&
+            complex.Steps.SelectMany(item => item.Operations)
+                .All(item => item.PromptKey is string key &&
+                    entries.Any(template => template.Id == key)) &&
+            complex.Steps.Single(item => item.Key == "exigences")
+                .Operations[0].PromptKey == "frt100-01" &&
+            complex.Steps.Single(item => item.Key == "conception")
+                .Operations[0].PromptKey == "frt100-11",
+            "New Complex journeys must propose official prompts by step " +
+            "without modifying an existing project or requiring an LLM.");
+
         string original = await File.ReadAllTextAsync(Path.Combine(
             root, "collections", "Prompts_Gestion_Projet_FRT100.md"));
         MatchCollection sections = Regex.Matches(original.Replace(
