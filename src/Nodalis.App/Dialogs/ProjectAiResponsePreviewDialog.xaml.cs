@@ -19,6 +19,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
     private long _inputRevision;
     private readonly string _workspaceRoot;
     private readonly string _projectDirectory;
+    private readonly bool _readOnly;
     private IReadOnlyDictionary<Guid, ProjectAiRequirementReview>? _comparisons;
     private readonly Dictionary<(Guid ProposalId, string Field),
         ProjectAiFieldDecision> _decisions = [];
@@ -29,13 +30,15 @@ public partial class ProjectAiResponsePreviewDialog : Window
     /// <summary>Initializes project-scoped, read-only external response review.</summary>
     /// <param name="workspaceRoot">The active single workspace.</param>
     /// <param name="projectDirectory">Project selected in the journey tab.</param>
+    /// <param name="readOnly">Read-only workspace or archived project.</param>
     public ProjectAiResponsePreviewDialog(
-        string workspaceRoot, string projectDirectory)
+        string workspaceRoot, string projectDirectory, bool readOnly = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
         _workspaceRoot = workspaceRoot;
         _projectDirectory = projectDirectory;
+        _readOnly = readOnly;
         InitializeComponent();
         UpdateButtons();
     }
@@ -585,6 +588,42 @@ public partial class ProjectAiResponsePreviewDialog : Window
         }
 
         ProjectAiPreparedTitleChange change = current.Changes[0];
+        if (_readOnly)
+        {
+            StatusText.Text = "Workspace ou projet en lecture seule : " +
+                "import IA interdit.";
+            return;
+        }
+
+        try
+        {
+            string resolved = new ProjectJourneySourceService(_workspaceRoot)
+                .ResolveExistingFile(change.RelativePath);
+            if (Application.Current.MainWindow is not Nodalis.App.MainWindow main)
+            {
+                StatusText.Text = "Contrôle des onglets impossible : " +
+                    "publication refusée.";
+                return;
+            }
+
+            if (main.IsDocumentOpenForAiImport(resolved))
+            {
+                StatusText.Text = "Fiche EXI actuellement ouverte dans un " +
+                    "onglet Markdown : fermez cet onglet (et sauvegardez les " +
+                    "modifications éventuelles) avant l'import.";
+                MessageBox.Show(this, StatusText.Text,
+                    "Import IA · éditeur ouvert",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            StatusText.Text = "Cible non disponible : " + exception.Message;
+            return;
+        }
+
         string confirmation = "Exigence : " + change.Reference +
             "\nDocument : " + change.RelativePath +
             "\nTitre actuel : " + change.CurrentTitle +
@@ -670,7 +709,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
 
         if (PublishReviewedTitleButton is not null)
         {
-            PublishReviewedTitleButton.IsEnabled = !_busy &&
+            PublishReviewedTitleButton.IsEnabled = !_busy && !_readOnly &&
                 _preparedPlan is not null &&
                 _preparedPlan.Changes.Count == 1 &&
                 _comparisons is not null && _preview is not null;
