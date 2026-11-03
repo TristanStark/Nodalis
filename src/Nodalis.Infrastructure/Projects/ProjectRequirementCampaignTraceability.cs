@@ -62,14 +62,24 @@ public sealed record ProjectRequirementCampaignOverview(
     IReadOnlyList<ProjectRequirementCampaignCriterionHistory> Rows,
     IReadOnlyList<string> Diagnostics)
 {
-    /// <summary>Number of exact, frozen campaign-test occurrences.</summary>
-    public int PassageTestCount => Rows.Sum(row =>
-        row.Tests.Sum(test => test.Occurrences.Count));
+    /// <summary>
+    /// Distinct historic campaign/passage/test selections. A test linked to
+    /// two CA criteria must not inflate the project-level passage count.
+    /// </summary>
+    public int PassageTestCount => Rows.SelectMany(row => row.Tests)
+        .SelectMany(test => test.Occurrences)
+        .Select(item => (item.CampaignId, item.PassageId, item.TestId))
+        .Distinct().Count();
 
-    /// <summary>Number of results with explicit human outcomes.</summary>
-    public int DeclaredResultCount => Rows.Sum(row =>
-        row.Tests.Sum(test => test.Occurrences.Count(item =>
-            item.Outcome.HasValue)));
+    /// <summary>
+    /// Distinct human results. The same test can verify several criteria
+    /// without turning one execution into several reported results.
+    /// </summary>
+    public int DeclaredResultCount => Rows.SelectMany(row => row.Tests)
+        .SelectMany(test => test.Occurrences)
+        .Where(item => item.Outcome.HasValue)
+        .Select(item => (item.CampaignId, item.PassageId, item.TestId))
+        .Distinct().Count();
 }
 
 /// <summary>

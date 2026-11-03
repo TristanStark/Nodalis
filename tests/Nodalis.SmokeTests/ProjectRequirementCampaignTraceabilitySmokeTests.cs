@@ -139,6 +139,30 @@ internal static class ProjectRequirementCampaignTraceabilitySmokeTests
             "Historical Passed cannot be promoted to the unexecuted new " +
             "passage or an automatically Verified EXI criterion.");
 
+        ProjectRequirementTraceabilityOverview sharedTest = links with
+        {
+            Rows =
+            [
+                links.Rows[0],
+                links.Rows[0] with
+                {
+                    Criterion = new ProjectRequirementCriterion(
+                        "CA-04", "Même test, autre critère",
+                        Guid.NewGuid(), 8, true)
+                },
+                links.Rows[1]
+            ]
+        };
+        ProjectRequirementCampaignOverview sharedHistory =
+            ProjectRequirementCampaignTraceability.Build(
+                sharedTest, catalog);
+        Assert(sharedHistory.Rows[0].Tests[0].Occurrences.Count == 2 &&
+               sharedHistory.Rows[1].Tests[0].Occurrences.Count == 2 &&
+               sharedHistory.PassageTestCount == 2 &&
+               sharedHistory.DeclaredResultCount == 1,
+            "One actual human passage result linked to two CA criteria " +
+            "must not double-count project-level execution totals.");
+
         ProjectTestCampaign foreign = campaign with
         {
             Id = Guid.NewGuid(),

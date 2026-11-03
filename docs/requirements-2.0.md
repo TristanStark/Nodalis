@@ -189,3 +189,8 @@ transition du statut EXI exigent une action humaine distincte.
 
 Qualification visuelle à réaliser sur Windows (thème sombre, navigation,
 plusieurs campagnes, changement rapide de critères, statut sans résultat).
+
+Les compteurs globaux de passages et de verdicts REC dédupliquent la clé
+(campagne, passage, test). Un même test relié à plusieurs critères CA
+reste visible dans chacun d'eux, mais ne représente qu'une seule exécution
+humaine dans le total du projet.
