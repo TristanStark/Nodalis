@@ -265,7 +265,19 @@ internal static class ProjectAiMixedImportSmokeTests
             };
             await RejectAsync(() => service.CommitAsync(
                 project, changedPlan, proposed),
-                "Reusing a proposal in a different mixed plan is forbidden.");
+                "A changed plan cannot reuse stale, previously approved references.");
+            IReadOnlyList<string> freshCodes =
+                await service.ProposeReferencesAsync(project, changedPlan);
+            Assert(freshCodes.SequenceEqual(["EXI-0005", "EXI-0006"]),
+                "Fresh code preview must reflect created requirements.");
+            await RejectAsync(() => service.CommitAsync(
+                project, changedPlan, freshCodes),
+                "A proposal journaled in another batch cannot generate " +
+                "another official requirement identity.");
+            Assert(!Directory.Exists(Path.Combine(project,
+                    ".nodalis-ai-import", "mixed-" +
+                    ProjectAiMixedImportTransactionService.PlanFingerprint(changedPlan))),
+                "Duplicate proposal refusal must happen before new journal staging.");
             Assert((await registry.ListAsync(
                 foreignProject.ProjectDirectory)).Requirements.Count == 0,
                 "All mixed mutations must remain isolated to their owner.");
