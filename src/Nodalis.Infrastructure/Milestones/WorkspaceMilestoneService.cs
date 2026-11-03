@@ -388,8 +388,12 @@ public sealed class WorkspaceMilestoneService
     {
         try
         {
-            await new MilestoneTaskSynchronizationService(_workspaceRoot)
-                .SynchronizeAsync(projectDirectory, milestone, cancellationToken);
+            // Keep parsing a potentially large Tâches.md off the WPF
+            // Dispatcher; only the source's optimistic writer performs I/O.
+            await Task.Run(() =>
+                new MilestoneTaskSynchronizationService(_workspaceRoot)
+                    .SynchronizeAsync(projectDirectory, milestone,
+                        cancellationToken), cancellationToken);
         }
         catch (Exception exception) when (exception is IOException or
             UnauthorizedAccessException or InvalidDataException)
