@@ -496,17 +496,20 @@ public partial class ProjectAiResponsePreviewDialog : Window
             ProjectAiPreparedReviewPlan plan =
                 ProjectAiImportDecisionPlanner.Prepare(_preview,
                     _comparisons.Values.ToArray(), _decisions.Values.ToArray());
-            _preparedPlan = plan.Changes.Count == 1 ? plan : null;
+            _preparedPlan = (plan.Changes.Count == 1 && plan.Creations.Count == 0) ||
+                (plan.Changes.Count == 0 && plan.Creations.Count == 1)
+                ? plan : null;
             StringBuilder builder = new();
             builder.AppendLine("PLAN DE QUALIFICATION — REVUE HUMAINE");
-            builder.AppendLine("Une seule modification EXI est publiable " +
-                "après confirmation explicite.");
+            builder.AppendLine("Une seule modification ou création EXI est " +
+                "publiable après une confirmation explicite.");
             builder.AppendLine("Réponse SHA-256 : " + plan.RawResponseSha256);
             builder.AppendLine("Champs explicitement traités : " +
                 plan.ReviewedFields);
             builder.AppendLine("Champs ignorés : " + plan.IgnoredFields);
             builder.AppendLine("Champs restant à revoir : " + plan.PendingFields);
             builder.AppendLine("Modifications proposées : " + plan.Changes.Count);
+            builder.AppendLine("Créations proposées : " + plan.Creations.Count);
             foreach (ProjectAiPreparedTitleChange change in plan.Changes)
             {
                 builder.AppendLine();
@@ -523,16 +526,38 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 }
             }
 
+            foreach (ProjectAiPreparedRequirementCreation creation in
+                plan.Creations)
+            {
+                builder.AppendLine();
+                builder.AppendLine("Nouvelle exigence du projet " +
+                    creation.ProjectId.ToString("D"));
+                builder.AppendLine("Proposition : " +
+                    creation.ProposalId.ToString("D"));
+                builder.AppendLine("Titre approuvé : " + creation.ReviewedTitle);
+                builder.AppendLine("Référence EXI / GUID : Nodalis les attribuera " +
+                    "après relecture du registre et confirmation humaine.");
+                if (!string.IsNullOrWhiteSpace(creation.Reason))
+                {
+                    builder.AppendLine("Justification : " + creation.Reason);
+                }
+            }
+
             builder.AppendLine();
-            builder.AppendLine(plan.Changes.Count == 1
+            builder.AppendLine(plan.Changes.Count == 1 &&
+                plan.Creations.Count == 0
                 ? "Un seul titre peut être enregistré. Le service recontrôlera " +
                   "les identités et SHA-256 puis journalisera les deux versions. " +
                   "Fermez tout éditeur de la fiche concernée avant publication."
-                : "Aucune publication : le lot doit contenir exactement " +
-                  "une modification approuvée et non déjà présente.");
+                : plan.Changes.Count == 0 && plan.Creations.Count == 1
+                    ? "Un seul brouillon EXI peut être créé. Nodalis choisira " +
+                      "une référence libre, un GUID stable et conservera un journal."
+                    : "Aucune publication : le lot contient plusieurs " +
+                      "changements. Arbitrez-les avant toute écriture.");
             PlanTextBox.Text = builder.ToString();
             StatusText.Text = "Plan préparé en mémoire : " +
-                plan.Changes.Count + " modification(s), zéro écriture.";
+                plan.Changes.Count + " modification(s), " +
+                plan.Creations.Count + " création(s), zéro écriture.";
             UpdateButtons();
         }
         catch (InvalidDataException exception)
@@ -712,6 +737,16 @@ public partial class ProjectAiResponsePreviewDialog : Window
             PublishReviewedTitleButton.IsEnabled = !_busy && !_readOnly &&
                 _preparedPlan is not null &&
                 _preparedPlan.Changes.Count == 1 &&
+                _preparedPlan.Creations.Count == 0 &&
+                _comparisons is not null && _preview is not null;
+        }
+
+        if (CreateReviewedRequirementButton is not null)
+        {
+            CreateReviewedRequirementButton.IsEnabled = !_busy && !_readOnly &&
+                _preparedPlan is not null &&
+                _preparedPlan.Changes.Count == 0 &&
+                _preparedPlan.Creations.Count == 1 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -728,10 +763,13 @@ public partial class ProjectAiResponsePreviewDialog : Window
             _comparisons.ContainsKey(proposal.ProposalId);
         bool supported = compared && proposal is not null &&
             field == "title" && proposal.Kind == "requirement" &&
-            proposal.Operation == "update" &&
-            _comparisons![proposal.ProposalId].Status is
-                ProjectAiRequirementMatchStatus.GuidMatch or
-                ProjectAiRequirementMatchStatus.ReferenceMatch;
+            (proposal.Operation == "update" &&
+                _comparisons![proposal.ProposalId].Status is
+                    ProjectAiRequirementMatchStatus.GuidMatch or
+                    ProjectAiRequirementMatchStatus.ReferenceMatch ||
+             proposal.Operation == "create" &&
+                _comparisons![proposal.ProposalId].Status ==
+                    ProjectAiRequirementMatchStatus.CreationDraft);
         AcceptFieldButton.IsEnabled = supported;
         EditFieldButton.IsEnabled = supported;
         ReviewedValueBox.IsEnabled = supported;
