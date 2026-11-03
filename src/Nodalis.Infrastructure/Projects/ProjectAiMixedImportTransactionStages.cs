@@ -416,10 +416,21 @@ public sealed partial class ProjectAiMixedImportTransactionService
     /// Proof of exact bytes and strictly title-only updates; a forged SHA in
     /// a retained manifest cannot authorize arbitrary Markdown modifications.
     /// </summary>
-    private static async Task VerifySnapshotAsync(
+    private async Task VerifySnapshotAsync(
         string project, string originals, string approvedRoot, Guid projectId,
         ProjectAiMixedEntry item, CancellationToken token)
     {
+        string expectedTarget = TargetPath(project, item.Reference);
+        string expectedRelative = Path.GetRelativePath(
+            _workspaceRoot, expectedTarget);
+        if (!string.Equals(item.RelativePath,
+                expectedRelative.Replace(Path.DirectorySeparatorChar, '/'),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Chemin de la fiche EXI journalisée non canonique.");
+        }
+
         string approvedPath = Path.Combine(approvedRoot, item.Slot);
         if (!File.Exists(approvedPath) ||
             (File.GetAttributes(approvedPath) & FileAttributes.ReparsePoint) != 0)
