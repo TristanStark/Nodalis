@@ -151,6 +151,18 @@ if (-not $campaignDecisionCode.Contains('ProjectTestCampaignQualification.Review
     -not $humanDecisionXaml.Contains('AutomationProperties.Name="Verdict humain de clôture"')) {
     $failures.Add("REC qualification must preserve explicit author, warnings, reservations and append-only human verdict confirmation.")
 }
+$requirementCampaignCodePath = Join-Path (Split-Path $appRoot -Parent) "Nodalis.Infrastructure/Projects/ProjectRequirementCampaignTraceability.cs"
+$requirementCampaignCode = Get-Content -Raw -LiteralPath $requirementCampaignCodePath
+if (-not $requirementsCode.Contains('ProjectRequirementCampaignTraceability.Build(') -or
+    -not $requirementsCode.Contains('await campaignService.ListAsync(projectPath)') -or
+    -not $requirementMatrixCode.Contains('RenderTestHistory()') -or
+    -not $requirementMatrixCode.Contains('historique REC') -and
+        -not $requirementMatrixCode.Contains('HISTORIQUE REC') -or
+    -not $requirementMatrixXaml.Contains('x:Name="HistoricalText"') -or
+    -not $requirementCampaignCode.Contains('IsCampaignWithinProject(') -or
+    -not $requirementCampaignCode.Contains('IsTestWithinProject(')) {
+    $failures.Add("EXI traceability must show project-isolated REC passage history without treating results as verified requirements.")
+}
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or

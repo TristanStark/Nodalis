@@ -156,15 +156,42 @@ public partial class MainWindow
 
         // The index may need an incremental workspace refresh; perform all
         // enumeration and joins off the WPF Dispatcher, once per request.
-        ProjectRequirementTraceabilityOverview overview = await Task.Run(
-            async () =>
+        (ProjectRequirementTraceabilityOverview Links,
+            ProjectRequirementCampaignOverview History) prepared =
+            await Task.Run(async () =>
             {
                 ProjectRequirementCatalog requirements =
                     await service.ListAsync(projectPath);
                 Nodalis.Core.Links.LinkIndexCatalog index =
                     await _linkIndexService.RefreshAsync();
-                return ProjectRequirementTraceability.Build(
-                    requirements, index);
+                ProjectRequirementTraceabilityOverview links =
+                    ProjectRequirementTraceability.Build(requirements, index);
+
+                // REC sources are read from the SAME selected project. A bad
+                // campaign folder must not make the EXI link matrix vanish.
+                ProjectTestCampaignCatalog campaigns;
+                try
+                {
+                    ProjectTestCampaignService campaignService = new(
+                        _root.FullPath);
+                    campaigns = await campaignService.ListAsync(projectPath);
+                }
+                catch (Exception exception) when (
+                    exception is InvalidDataException or IOException or
+                    UnauthorizedAccessException)
+                {
+                    campaigns = new ProjectTestCampaignCatalog(
+                        [],
+                        ["Historique REC indisponible : " +
+                            exception.GetType().Name +
+                            ". Les résultats ne peuvent pas être interprétés."],
+                        null);
+                }
+
+                ProjectRequirementCampaignOverview history =
+                    ProjectRequirementCampaignTraceability.Build(
+                        links, campaigns);
+                return (links, history);
             });
 
         if (GetArchiveContextProject()?.Id != project.Id)
@@ -174,7 +201,8 @@ public partial class MainWindow
             return;
         }
 
-        ProjectRequirementTraceabilityDialog dialog = new(overview)
+        ProjectRequirementTraceabilityDialog dialog = new(
+            prepared.Links, prepared.History)
         {
             Owner = this
         };

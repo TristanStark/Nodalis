@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Nodalis.Core.Tests;
 using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
@@ -12,23 +13,38 @@ namespace Nodalis.App.Dialogs;
 public partial class ProjectRequirementTraceabilityDialog : Window
 {
     private readonly ProjectRequirementTraceabilityOverview _overview;
+    private readonly ProjectRequirementCampaignOverview _campaigns;
+    private readonly Dictionary<ProjectRequirementTraceabilityRow,
+        ProjectRequirementCampaignCriterionHistory> _campaignRows;
     private bool _painting;
+    private string _criterionDetails = string.Empty;
 
-    /// <summary>Creates a passive matrix from one checked index snapshot.</summary>
-    /// <param name="overview">Already computed source-validated projection.</param>
+    /// <summary>Creates a passive matrix from checked project snapshots.</summary>
+    /// <param name="overview">Verified current EXI/CA/test links.</param>
+    /// <param name="campaigns">Historical REC passages, never an EXI verdict.</param>
     public ProjectRequirementTraceabilityDialog(
-        ProjectRequirementTraceabilityOverview overview)
+        ProjectRequirementTraceabilityOverview overview,
+        ProjectRequirementCampaignOverview campaigns)
     {
         _overview = overview ??
             throw new ArgumentNullException(nameof(overview));
+        _campaigns = campaigns ??
+            throw new ArgumentNullException(nameof(campaigns));
+        _campaignRows = campaigns.Rows.ToDictionary(
+            item => item.Criterion, item => item,
+            ReferenceEqualityComparer.Instance);
         InitializeComponent();
 
         TotalText.Text = overview.Rows.Count + " critère(s)";
         LinkedText.Text = overview.LinkedCount + " avec test lié";
         UnresolvedText.Text = overview.UnresolvedCount +
             " identité(s) à examiner";
-        DiagnosticsCountText.Text = overview.Diagnostics.Count +
+        DiagnosticsCountText.Text =
+            (overview.Diagnostics.Count + campaigns.Diagnostics.Count) +
             " diagnostic(s) de source";
+        HistoricalText.Text = campaigns.PassageTestCount +
+            " sélection(s) de test dans REC · " +
+            campaigns.DeclaredResultCount + " verdict(s) humain(s)";
         FilterCombo.SelectedIndex = 0;
         RefreshRows();
     }
@@ -76,7 +92,11 @@ public partial class ProjectRequirementTraceabilityDialog : Window
                     row.Requirement.Card.Reference + " · " +
                         row.Criterion.Reference + " — " + row.Criterion.Title,
                     DescribeCoverage(row.Coverage) + " · " +
-                        row.Tests.Count + " test(s) lié(s)"))
+                        row.Tests.Count + " test(s) lié(s) · " +
+                        (_campaignRows.TryGetValue(row,
+                            out ProjectRequirementCampaignCriterionHistory? history)
+                            ? history.Tests.Sum(test => test.Occurrences.Count)
+                            : 0) + " passage(s) REC"))
                 .ToArray();
 
             CriteriaList.ItemsSource = candidates;
@@ -98,10 +118,11 @@ public partial class ProjectRequirementTraceabilityDialog : Window
         if (CriteriaList.SelectedItem is not DisplayRow selected)
         {
             TestsList.ItemsSource = null;
-            DetailsBox.Text = _overview.Rows.Count == 0
+            _criterionDetails = _overview.Rows.Count == 0
                 ? "Aucun critère identifié dans les exigences de ce projet.\n" +
                   "Les anciens fichiers ne sont pas migrés automatiquement."
                 : "Aucun critère ne correspond au filtre.";
+            DetailsBox.Text = _criterionDetails;
             OpenRequirementButton.IsEnabled = false;
             OpenTestButton.IsEnabled = false;
             return;
@@ -125,9 +146,10 @@ public partial class ProjectRequirementTraceabilityDialog : Window
             "VALIDATION MÉTIER : " + row.Requirement.Card.Validation,
             "RÉALISATION : " + row.Requirement.Card.Implementation,
             "VÉRIFICATION : " + row.Requirement.Card.Verification,
-            "EXÉCUTION : inconnue (campagnes non intégrées).",
-            "CONFORMITÉ : non déductible d'une relation.",
-            "PREUVES : non qualifiées par cette vue."
+            "EXÉCUTION : déclarations historiques REC disponibles ci-dessous.",
+            "CONFORMITÉ : non déductible d'une relation ou d'un résultat.",
+            "PREUVES : uniquement des notes déclaratives non vérifiées.",
+            "SOURCE ACTUELLE : empreinte du test non vérifiée par cette vue."
         ];
         if (row.Diagnostic is not null)
         {
@@ -149,10 +171,103 @@ public partial class ProjectRequirementTraceabilityDialog : Window
             }
         }
 
-        DetailsBox.Text = string.Join(Environment.NewLine, details);
+        if (_campaigns.Diagnostics.Count != 0)
+        {
+            details.Add("");
+            details.Add("DIAGNOSTICS DES CAMPAGNES REC (" +
+                _campaigns.Diagnostics.Count + ") :");
+            details.AddRange(_campaigns.Diagnostics.Take(12));
+            if (_campaigns.Diagnostics.Count > 12)
+            {
+                details.Add("... et " +
+                    (_campaigns.Diagnostics.Count - 12) +
+                    " autre(s) diagnostic(s).");
+            }
+        }
+
+        _criterionDetails = string.Join(Environment.NewLine, details);
+        RenderTestHistory();
         OpenRequirementButton.IsEnabled = true;
         OpenTestButton.IsEnabled =
             TestsList.SelectedItem is ProjectRequirementTestSource;
+    }
+
+    /// <summary>
+    /// Shows exact REC outcomes for the selected uniquely linked test block.
+    /// Each passage stays separate; a previous Passed cannot qualify another
+    /// environment, version or a newer passage without a human result.
+    /// </summary>
+    private void RenderTestHistory()
+    {
+        List<string> lines = [_criterionDetails];
+        if (CriteriaList.SelectedItem is not DisplayRow selected ||
+            TestsList.SelectedItem is not ProjectRequirementTestSource test ||
+            !_campaignRows.TryGetValue(selected.Row,
+                out ProjectRequirementCampaignCriterionHistory? row))
+        {
+            DetailsBox.Text = _criterionDetails;
+            return;
+        }
+
+        ProjectRequirementCampaignTestHistory? history = row.Tests
+            .FirstOrDefault(item => item.Test.BlockId == test.BlockId);
+        lines.Add("");
+        lines.Add("HISTORIQUE REC · " + test.HeadingTitle);
+        if (history is null || history.Occurrences.Count == 0)
+        {
+            lines.Add("Aucun passage de campagne REC pour ce bloc.");
+            lines.Add("Test lié ≠ test exécuté.");
+        }
+        else
+        {
+            lines.Add(history.Occurrences.Count +
+                " sélection(s) figée(s), sans transfert de verdict.");
+            lines.Add("Chaque résultat est propre à son passage, sa version" +
+                " et son environnement.");
+            foreach (ProjectRequirementCampaignOccurrence occurrence
+                in history.Occurrences.Reverse().Take(20))
+            {
+                string outcome = occurrence.Outcome is ProjectTestOutcome declared
+                    ? declared.ToString() + " (DÉCLARÉ)"
+                    : "NON EXÉCUTÉ";
+                lines.Add("");
+                lines.Add(occurrence.CampaignReference + " · passage " +
+                    occurrence.PassageNumber + " · " +
+                    occurrence.StartedUtc.ToLocalTime().ToString(
+                        "dd/MM/yyyy HH:mm"));
+                lines.Add("Environnement : " + occurrence.Environment +
+                    " · version : " + occurrence.ApplicationVersion);
+                lines.Add("Résultat historique : " + outcome);
+                lines.Add("SHA du test figé : " + occurrence.FrozenSha256);
+                if (!occurrence.MatchesLinkedSource)
+                {
+                    lines.Add("SOURCE DÉPLACÉE : l'emplacement de définition" +
+                        " a changé ; requalification nécessaire.");
+                }
+                else
+                {
+                    lines.Add("Source historique identifiée ; comparaison" +
+                        " au contenu actuel NON effectuée ici.");
+                }
+
+                if (occurrence.Outcome.HasValue)
+                {
+                    lines.Add("Exécutant : " + occurrence.Actor);
+                    lines.Add("Justification : " + occurrence.Rationale);
+                    lines.Add("Preuve déclarée (NON VÉRIFIÉE) : " +
+                        (occurrence.EvidenceNote ?? "aucune"));
+                }
+            }
+
+            if (history.Occurrences.Count > 20)
+            {
+                lines.Add("");
+                lines.Add("... et " + (history.Occurrences.Count - 20) +
+                    " autre(s) passage(s) dans l'historique REC.");
+            }
+        }
+
+        DetailsBox.Text = string.Join(Environment.NewLine, lines);
     }
 
     /// <summary>Readable link-only labels, never an execution verdict.</summary>
@@ -213,6 +328,7 @@ public partial class ProjectRequirementTraceabilityDialog : Window
         {
             OpenTestButton.IsEnabled =
                 TestsList.SelectedItem is ProjectRequirementTestSource;
+            RenderTestHistory();
         }
     }
 

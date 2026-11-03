@@ -162,3 +162,30 @@ Les régressions synthétiques couvrent un résultat ancien Passed suivi
 d'un nouveau passage sans résultat, deux versions/environnements,
 un projet voisin partageant un préfixe de chemin, un GUID reproduit,
 une source déplacée et un critère sans test.
+
+## Consultation des passages REC depuis la matrice (03/11/2026)
+
+La commande « Matrice de traçabilité des exigences » joint maintenant les
+**résultats historiques de campagnes** aux tests identifiés de chaque
+critère. L'ensemble est calculé depuis les sources du **projet courant**
+sur un worker, avec actualisation de l'index partagé et lecture des
+campagnes REC. Les champs de recherche, filtres et sélection ne déclenchent
+aucune nouvelle analyse disque.
+
+La matrice affiche le nombre de sélections figées et de verdicts déclarés.
+Après sélection d'un critère, puis d'un test lié, le détail montre les
+passages historiques (20 derniers à l'écran) : campagne, numéro, date,
+environnement, version, SHA de définition figée, acteur, résultat,
+justification et note de preuve éventuelle. L'absence de résultat s'affiche
+« NON EXÉCUTÉ » ; un résultat Passed est étiqueté « DÉCLARÉ ».
+
+Une source historique déplacée est signalée explicitement, et la
+comparaison au contenu actuel est présentée comme **non effectuée**.
+Une campagne REC illisible n'interrompt pas la matrice des liens : un
+diagnostic indique que l'historique est indisponible/partiel au lieu
+d'inventer des résultats. Cette vue ne modifie ni les exigences, ni
+les campagnes, ni les cahiers. La vérification de preuve et toute
+transition du statut EXI exigent une action humaine distincte.
+
+Qualification visuelle à réaliser sur Windows (thème sombre, navigation,
+plusieurs campagnes, changement rapide de critères, statut sans résultat).
