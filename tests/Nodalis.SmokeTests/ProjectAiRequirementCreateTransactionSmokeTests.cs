@@ -161,6 +161,20 @@ internal static class ProjectAiRequirementCreateTransactionSmokeTests
                 "Corrupted immutable snapshot must block replay.");
             await File.WriteAllBytesAsync(stagingFile, originalSnapshot);
 
+            // Simulate a crash after the intent and snapshot were made durable
+            // but before the canonical EXI or applied receipt were published.
+            File.Delete(receiptFile);
+            File.Delete(destination);
+            ProjectAiRequirementCreateResult resumed =
+                await service.CommitAsync(
+                    project.ProjectDirectory, plan, "EXI-0001");
+            Assert(resumed.Status == ProjectAiRequirementCreateStatus.Created &&
+                resumed.Entry.Card.Id == card.Id &&
+                File.Exists(receiptFile) &&
+                (await File.ReadAllBytesAsync(destination))
+                    .SequenceEqual(originalBytes),
+                "Interrupted creation must reuse its exact Nodalis GUID.");
+
             await File.AppendAllTextAsync(destination, "\nModification externe.\n");
             byte[] concurrentBytes = await File.ReadAllBytesAsync(destination);
             await RejectAsync(() => service.CommitAsync(
