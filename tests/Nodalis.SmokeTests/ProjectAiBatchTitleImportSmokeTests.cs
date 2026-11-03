@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Importing;
 using Nodalis.Core.Projects;
@@ -164,6 +165,35 @@ internal static class ProjectAiBatchTitleImportSmokeTests
             await RejectAsync(() => service.CommitAsync(
                 project.ProjectDirectory, plan),
                 "Corrupted snapshots must block replay.");
+            await File.WriteAllBytesAsync(staged, originalStaged);
+
+            // A malicious edit may alter a retained approved snapshot AND
+            // forge its manifest hash. SHA agreement alone must not allow it
+            // to inject extra Markdown sections or change business states.
+            ProjectAiBatchTitleJournal retained =
+                JsonSerializer.Deserialize<ProjectAiBatchTitleJournal>(
+                    savedManifest,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+            byte[] injected = new UTF8Encoding(false).GetBytes(
+                new UTF8Encoding(false, true).GetString(originalStaged) +
+                "\n## Modification non approuvée\n");
+            await File.WriteAllBytesAsync(staged, injected);
+            ProjectAiBatchTitleFile originalEntry = retained.Files[1];
+            retained.Files[1] = originalEntry with
+            {
+                PublishedSha256 = Convert.ToHexString(
+                    SHA256.HashData(injected))
+            };
+            await File.WriteAllTextAsync(manifest,
+                JsonSerializer.Serialize(retained,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+            await RejectAsync(() => service.CommitAsync(
+                project.ProjectDirectory, plan),
+                "A forged SHA must not authorize non-title snapshot edits.");
+            await RejectAsync(() => reopened.ResumeAsync(
+                project.ProjectDirectory, key),
+                "Restart recovery must also reject forged title-only snapshots.");
+            await File.WriteAllTextAsync(manifest, savedManifest);
             await File.WriteAllBytesAsync(staged, originalStaged);
 
             ProjectAiBatchTitleCommitStatus resumed =
