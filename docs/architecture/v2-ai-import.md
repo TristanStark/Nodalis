@@ -193,3 +193,85 @@ pour vérification ; rien n'est écrit ni envoyé à un service IA.
 Tests : `ProjectAiImportDecisionSmokeTests` dans la suite Windows.
 Les projets et données de test sont fictifs et aucun écran n'est commité.
 Aucun merge sur `main`, tag ou release.
+
+
+## Quatrième incrément — publication atomique d'un titre EXI (03/11/2026)
+
+Le nouvel exécuteur `ProjectAiTitleImportTransactionService` est volontairement
+**restreint à une seule modification de titre d'exigence existante à la fois**.
+Il n'exécute aucune autre proposition de l'enveloppe `nodalis.import.v1`.
+L'onglet de qualification ne débloque **Enregistrer 1 titre approuvé…**
+qu'après l'analyse, la lecture canonique, les choix explicites et un plan
+comportant exactement **une modification**. Un second clic de confirmation
+mentionne la fiche, sa valeur actuelle, le titre retenu et le journal local.
+
+### Contrôles avant publication
+
+1. Revalider la manifestation du projet et interdire les projets archivés,
+   déplacés, hors `Applications` ou non propriétaires de l'exigence.
+2. Résoudre la fiche canonique existante exclusivement par le chemin
+   `Documentation/Exigences/EXI-xxxx.md`, sans symlink ni jonction.
+3. Recalculer l'inventaire du projet, son GUID, sa référence, son SHA-256 exact
+   et le titre actuel approuvé. Tout écart entraîne un refus, pas une fusion.
+4. Modifier **uniquement** `title:` dans le front-matter JSON-échappé et
+   `# EXI-xxxx — titre` dans l'en-tête de la fiche. Le corps Markdown et
+   les états indépendants validation/implémentation/vérification restent
+   inchangés ; un en-tête personnalisé ambigu est refusé.
+5. Écrire deux instantanés UTF-8 (source originale, version retenue) et un
+   manifeste `nodalis.ai-title-commit.v1` **avant** toute publication.
+   `AtomicFileWriter.ReplaceSnapshotIfUnchangedAsync` vérifie les octets,
+   l'empreinte et l'identité Windows du fichier sous verrou de lecture
+   avant un remplacement atomique sur le même volume.
+
+### Journal, reprise et limites
+
+Le répertoire de récupération est
+`<projet>/.nodalis-ai-import/<proposalId-N>/` et contient
+`original.md`, `published.md` et `intent.json`. Le journal conserve
+la provenance d'empreinte de la réponse, le GUID de proposition, les GUID
+projet/exigence, la référence, les deux SHA-256, les deux titres et la
+justification humaine éventuelle. **Il contient des copies intégrales de la
+fiche** : ce répertoire reste local, privé au workspace, sans réseau.
+
+Un second appel identique, si la fiche porte déjà le SHA publié, indique
+`AlreadyApplied` sans réécrire. Si l'opération a été interrompue après
+le manifeste et si les octets de la fiche sont encore strictement ceux du
+snapshot original, une réexécution **explicitement autorisée** termine
+la publication. Si l'état courant diverge ou si le journal/ses snapshots
+ne sont pas intacts, l'exécuteur refuse toute reprise automatique. Un
+répertoire partiellement préparé **sans manifeste** nécessite une
+récupération/inspection manuelle et ne peut jamais être publié à l'aveugle.
+
+Le verrou `.lock` sérialise les transactions de cette tranche dans un même
+projet. Cela ne constitue **pas** une transaction multi-document : les plans
+comportant deux modifications ou davantage restent prévisualisables, mais
+ne peuvent pas être publiés ensemble. Les réimports de création, les autres
+champs, les risques, tests, décisions et relations restent hors périmètre.
+
+L'éditeur Markdown peut disposer d'un état non sauvegardé : l'interface exige
+donc explicitement de **fermer la fiche ouverte** avant de confirmer
+l'import. Une intégration plus profonde avec les sessions/autosaves WPF
+reste à qualifier. Le journal fournit une base de récupération, mais
+il ne remplace pas encore l'historique riche des réponses brutes, ni
+un moteur de rollback multi-document.
+
+### Qualification Windows
+
+- Depuis un projet fictif et une exigence EXI, approuver un titre et
+  enregistrer après confirmation. Les statuts et sections restent byte-pour-byte
+  identiques hors des deux lignes de titre.
+- Rejouer exactement la même proposition : aucun second changement,
+  aucun nouveau GUID, résultat `AlreadyApplied`.
+- Faire modifier le Markdown par un éditeur externe après prévisualisation :
+  écriture refusée sans écrasement ; vérifier une deuxième version différente
+  de la même proposition : son journal refuse les paramètres divergents.
+- Tester la reprise à partir du journal intact avec fichier encore au SHA
+  original, puis un fichier ayant divergé du journal : la première est
+  rejouable sur action humaine, la seconde est bloquée.
+- Tester un autre projet, un projet archivé, un chemin sous jonction, une
+  fiche trop volumineuse, une interruption avant manifeste, les petits
+  écrans, l'utilisation clavier/DPI et la fermeture d'un document ouvert.
+
+Automatisation : `ProjectAiTitleImportTransactionSmokeTests`, suite
+Windows existante. La qualification visuelle demeure à faire ; cette
+tranche ne déclenche aucun merge vers `main`, tag ni release v2.0.
