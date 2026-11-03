@@ -115,12 +115,36 @@ internal static class ProjectAiBatchTitleImportSmokeTests
                 File.Exists(Path.Combine(directory, "approved", "0001.md")),
                 "All batch snapshots and the intent must predate publication.");
 
+            ProjectAiBatchTitleImportTransactionService reopened = new(workspace);
+            IReadOnlyList<ProjectAiBatchRecoveryPreview> discover =
+                await reopened.ListPendingBatchesAsync(project.ProjectDirectory);
+            Assert(discover.Count == 1 &&
+                discover[0].PlanSha256 == key &&
+                discover[0].Published == 1 &&
+                discover[0].Pending == 1,
+                "A restarted process must rediscover exactly one partial journal.");
+            ProjectAiBatchRecoveryPreview recovery =
+                await reopened.ReviewRecoveryAsync(project.ProjectDirectory, key);
+            Assert(recovery.Files.Count == 2 &&
+                recovery.Files.All(item => item.ReviewedTitle.EndsWith(
+                    "retenue", StringComparison.Ordinal)),
+                "Recovery review must show the exact previously approved titles.");
+            await RejectAsync(() => reopened.ResumeAsync(
+                other.ProjectDirectory, key),
+                "A journal from another project must not be replayable.");
+
             await File.AppendAllTextAsync(secondPath,
                 "\nModification externe pendant la reprise.\n");
             byte[] changed = await File.ReadAllBytesAsync(secondPath);
             await RejectAsync(() => service.CommitAsync(
                 project.ProjectDirectory, plan),
                 "A third-party edit must block further partial publication.");
+            await RejectAsync(() => reopened.ResumeAsync(
+                project.ProjectDirectory, key),
+                "Recovery across restart must reject divergent source bytes.");
+            Assert((await reopened.ListPendingBatchesAsync(
+                project.ProjectDirectory)).Count == 0,
+                "Divergent batches must be excluded from the safe recovery list.");
             Assert((await File.ReadAllBytesAsync(firstPath))
                     .SequenceEqual(partiallyApplied) &&
                 (await File.ReadAllBytesAsync(secondPath)).SequenceEqual(changed),
@@ -143,11 +167,14 @@ internal static class ProjectAiBatchTitleImportSmokeTests
             await File.WriteAllBytesAsync(staged, originalStaged);
 
             ProjectAiBatchTitleCommitStatus resumed =
-                await service.CommitAsync(project.ProjectDirectory, plan);
+                await reopened.ResumeAsync(project.ProjectDirectory, key);
             Assert(resumed == ProjectAiBatchTitleCommitStatus.Applied &&
                 !(await File.ReadAllBytesAsync(secondPath)).SequenceEqual(beforeTwo),
                 "A human-triggered replay must publish only remaining files.");
 
+            Assert((await reopened.ListPendingBatchesAsync(
+                project.ProjectDirectory)).Count == 0,
+                "Completed batches must not appear in recovery controls.");
             ProjectAiBatchTitleCommitStatus replayed =
                 await service.CommitAsync(project.ProjectDirectory, plan);
             Assert(replayed == ProjectAiBatchTitleCommitStatus.AlreadyApplied,
