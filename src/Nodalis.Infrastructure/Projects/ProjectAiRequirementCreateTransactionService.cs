@@ -79,6 +79,12 @@ public sealed class ProjectAiRequirementCreateTransactionService
         ProjectAiPreparedRequirementCreation creation = ValidatePlan(plan);
         (string project, Guid projectId) = await ResolveProjectAsync(
             projectDirectory, cancellationToken);
+        if (creation.ProjectId != projectId)
+        {
+            throw new InvalidDataException(
+                "Création qualifiée dans un autre projet : import refusé.");
+        }
+
         string transaction = Path.Combine(project, JournalDirectoryName,
             creation.ProposalId.ToString("N"));
         if (!Directory.Exists(transaction))
@@ -115,6 +121,12 @@ public sealed class ProjectAiRequirementCreateTransactionService
 
         (string project, Guid projectId) = await ResolveProjectAsync(
             projectDirectory, cancellationToken);
+        if (creation.ProjectId != projectId)
+        {
+            throw new InvalidDataException(
+                "La création IA a été approuvée pour un autre projet.");
+        }
+
         string journalRoot = Path.Combine(project, JournalDirectoryName);
         Directory.CreateDirectory(journalRoot);
         RequireNormalDirectory(journalRoot);
@@ -297,6 +309,7 @@ public sealed class ProjectAiRequirementCreateTransactionService
 
         ProjectAiPreparedRequirementCreation creation = plan.Creations[0];
         if (creation.ProposalId == Guid.Empty ||
+            creation.ProjectId == Guid.Empty ||
             string.IsNullOrWhiteSpace(creation.ReviewedTitle) ||
             creation.ReviewedTitle != creation.ReviewedTitle.Trim() ||
             creation.ReviewedTitle.Length > 240 ||
