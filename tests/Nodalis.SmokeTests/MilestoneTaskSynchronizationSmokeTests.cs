@@ -1,5 +1,6 @@
 using Nodalis.Core.Domain;
 using Nodalis.Core.Milestones;
+using Nodalis.Core.Projects;
 using Nodalis.Core.Tasks;
 using Nodalis.Infrastructure.Milestones;
 using Nodalis.Infrastructure.Persistence;
