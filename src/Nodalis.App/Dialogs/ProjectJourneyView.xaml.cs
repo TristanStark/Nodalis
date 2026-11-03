@@ -892,10 +892,38 @@ public partial class ProjectJourneyView : UserControl
                 return;
             }
 
+            string promptRoot = Path.Combine(
+                AppContext.BaseDirectory, "Prompts");
             ProjectJourneyPromptPreparationService preparer = new(
-                _workspaceRoot, Path.Combine(AppContext.BaseDirectory, "Prompts"));
-            ProjectJourneyPromptDraft draft = await preparer.PrepareAsync(
-                step, operation);
+                _workspaceRoot, promptRoot);
+            ProjectJourneyPromptDraft draft;
+            if (operation.PromptKey is string promptKey &&
+                FileSystemAiPromptStore.IsFrt100UserPromptId(promptKey))
+            {
+                string original = await new FileSystemAiPromptStore(promptRoot)
+                    .LoadAsync(promptKey);
+                IReadOnlyList<string> variables =
+                    ProjectJourneyPromptVariables.FindPlaceholders(original);
+                ProjectJourneyPromptBindingsDialog picker = new(
+                    _workspaceRoot, variables, operation.SourcePaths)
+                {
+                    Owner = Window.GetWindow(this)
+                };
+                if (picker.ShowDialog() != true)
+                {
+                    return;
+                }
+
+                draft = await Task.Run(() =>
+                    preparer.PrepareWithBindingsAsync(
+                        step, operation, picker.Bindings));
+            }
+            else
+            {
+                draft = await Task.Run(() =>
+                    preparer.PrepareAsync(step, operation));
+            }
+
             ProjectJourneyPromptDraftDialog dialog = new(draft)
             {
                 Owner = Window.GetWindow(this)

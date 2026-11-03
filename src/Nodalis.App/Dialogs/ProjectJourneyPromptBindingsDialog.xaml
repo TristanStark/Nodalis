@@ -1,0 +1,118 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectJourneyPromptBindingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Associer les variables du prompt · Nodalis 2.0"
+        Width="1020" Height="760" MinWidth="710" MinHeight="540"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="142" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Margin="0,0,0,9">
+            <TextBlock Text="Préparer le contexte FRT-100"
+                       FontSize="20" FontWeight="SemiBold" />
+            <TextBlock TextWrapping="Wrap" Margin="0,5,0,0"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Pour chaque variable, choisissez une source déjà liée à l'opération, une section précise ou une saisie manuelle. Vous pouvez associer plusieurs documents à une même variable. Rien n'est lu ni copié sans sélection explicite." />
+        </StackPanel>
+        <TextBlock Grid.Row="1" Margin="0,0,0,8"
+                   TextWrapping="Wrap" FontSize="11"
+                   Foreground="{StaticResource SecondaryTextBrush}"
+                   Text="L'analyse des titres Markdown est limitée aux 256 000 premiers caractères du document. Les extraits sont limités à 12 000 caractères chacun, et à 40 000 caractères au total. Aucune requête IA." />
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="210" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <GroupBox Header="Variables originales" Grid.Column="0"
+                      Padding="7" Margin="0,0,0,6">
+                <ListBox x:Name="VariablesList" FontFamily="Consolas"
+                         SelectionChanged="VariablesList_SelectionChanged"
+                         AutomationProperties.Name="Variables à renseigner" />
+            </GroupBox>
+            <Grid Grid.Column="2" Margin="0,0,0,6">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" Margin="0,0,0,9">
+                    <TextBlock Text="Source explicitement liée" FontWeight="SemiBold" />
+                    <ComboBox x:Name="SourceCombo" MinHeight="32"
+                              Margin="0,4,0,0" DisplayMemberPath="Label"
+                              SelectionChanged="SourceCombo_SelectionChanged"
+                              AutomationProperties.Name="Choisir un fichier lié" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Margin="0,0,0,8">
+                    <TextBlock Text="Section Markdown sélectionnée" FontWeight="SemiBold" />
+                    <ComboBox x:Name="SectionCombo" MinHeight="32"
+                              Margin="0,4,0,0" DisplayMemberPath="Label"
+                              SelectionChanged="SectionCombo_SelectionChanged"
+                              AutomationProperties.Name="Choisir une section ou le document entier" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Margin="0,0,0,8">
+                    <TextBlock Text="Texte manuel (si aucune source choisie)"
+                               FontWeight="SemiBold" />
+                    <TextBox x:Name="ManualTextBox"
+                             Height="74" Margin="0,4,0,0"
+                             AcceptsReturn="True" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             MaxLength="4000"
+                             AutomationProperties.Name="Valeur textuelle saisie volontairement" />
+                </StackPanel>
+                <StackPanel Grid.Row="3">
+                    <TextBlock Text="Aperçu de la source sélectionnée"
+                               FontWeight="SemiBold" />
+                    <TextBox x:Name="PreviewBox"
+                             Margin="0,4,0,0" Padding="8"
+                             IsReadOnly="True" AcceptsReturn="True"
+                             FontFamily="Consolas" FontSize="11"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             AutomationProperties.Name="Aperçu borné de l'extrait de source" />
+                </StackPanel>
+                <WrapPanel Grid.Row="4" Margin="0,8,0,0">
+                    <Button x:Name="PreviewSourceButton"
+                            Content="Prévisualiser l'extrait"
+                            Margin="0,0,8,5" Padding="12,7"
+                            Click="Preview_Click" />
+                    <Button x:Name="AddBindingButton"
+                            Content="Associer à la variable"
+                            Padding="12,7" Margin="0,0,8,5"
+                            Click="AddBinding_Click" />
+                </WrapPanel>
+            </Grid>
+        </Grid>
+        <GroupBox Grid.Row="3" Header="Associations retenues (en mémoire)"
+                  Padding="6" Margin="0,2,0,0">
+            <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="Retirer la sélection"
+                        Padding="12,7" Margin="8,0,0,0"
+                        Click="RemoveBinding_Click" VerticalAlignment="Bottom" />
+                <ListBox x:Name="BindingsList"
+                         DisplayMemberPath="Description"
+                         ScrollViewer.CanContentScroll="True"
+                         VirtualizingStackPanel.IsVirtualizing="True"
+                         AutomationProperties.Name="Associations choisies dans ce brouillon" />
+            </DockPanel>
+        </GroupBox>
+        <DockPanel Grid.Row="4" Margin="0,12,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Préparer le brouillon" Padding="15,8"
+                        Margin="0,0,8,0" Click="Confirm_Click" />
+                <Button Content="Annuler" Padding="15,8" Click="Cancel_Click" />
+            </StackPanel>
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Aucune association enregistrée dans le projet." />
+        </DockPanel>
+    </Grid>
+</Window>
