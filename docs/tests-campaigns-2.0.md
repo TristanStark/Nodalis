@@ -224,3 +224,23 @@ enregistrement. Le service de campagne revérifie le projet, les GUID,
 la définition source et l'index avant de créer le nouveau passage.
 **Aucun résultat historique n'est effacé ni reporté automatiquement**.
 La qualification visuelle en thème sombre reste à effectuer.
+
+## Validation des instantanés répétés (03/11/2026)
+
+La validation du contrat REC v1 réutilise, **uniquement pendant la lecture
+ou l'écriture d'une même campagne**, le contrôle SHA-256 et l'analyse des
+sections Markdown identiques déjà effectués. Les champs propres à chaque
+occurrence (GUID, référence, chemin, ligne et sélection) restent vérifiés,
+y compris quand l'empreinte réapparaît dans un autre passage. Un même
+SHA avec un texte ou une identité différents est refusé.
+
+La lecture vérifie maintenant le format canonique sans relancer une seconde
+fois l'analyse complète des blocs : l'enveloppe Markdown/JSON reste
+**strictement identique** aux anciennes campagnes, sans migration implicite,
+stockage dérivé ou état métier nouveau. Une fixture synthétique de 80
+passages répétés vérifie l'aller-retour, les GUID, les résultats absents et
+le refus des contenus, identités et chemins falsifiés.
+
+Cette optimisation réduit les analyses redondantes en mémoire ; elle ne
+déduplique **pas encore** les textes des snapshots stockés sur disque et
+ne dispense pas des mesures de performance WPF sur de grandes campagnes.

@@ -181,6 +181,65 @@ internal static class ProjectTestCampaignCodecSmokeTests
                    ProjectTestOutcome.Passed,
             "Historical exact passage result remains separately available.");
 
+        // Repeated human passages share the same exact test body, but their
+        // individual selections and passage IDs must still survive parsing.
+        ProjectTestPassage[] repeated = Enumerable.Range(1, 80)
+            .Select(number => campaign.Passages[0] with
+            {
+                Id = Guid.NewGuid(),
+                Number = number,
+                StartedUtc = beginning.AddMinutes(number),
+                Results = []
+            }).ToArray();
+        ProjectTestCampaign large = campaign with { Passages = repeated };
+        string largeMarkdown = ProjectTestCampaignMarkdownCodec.Format(large);
+        ProjectTestCampaign restored =
+            ProjectTestCampaignMarkdownCodec.Parse(largeMarkdown);
+        Assert(restored.Passages.Count == 80 &&
+               restored.Passages.All(item =>
+                   item.Tests.Single().TestId == testId &&
+                   item.Results.Count == 0) &&
+               ProjectTestCampaignMarkdownCodec.Format(restored) ==
+                   largeMarkdown,
+            "Repeated frozen sections remain canonical without changing " +
+            "the historical data format or inventing verdicts.");
+
+        ProjectTestPassage forgedIdentity = repeated[5] with
+        {
+            Tests = [sourceV1 with { TestId = Guid.NewGuid() }]
+        };
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            large with
+            {
+                Passages = repeated.Select((item, index) =>
+                    index == 5 ? forgedIdentity : item).ToArray()
+            }),
+            "Caching a repeated SHA must not accept a forged block GUID.");
+
+        ProjectTestPassage forgedContent = repeated[6] with
+        {
+            Tests = [sourceV1 with { Markdown = sourceV2.Markdown }]
+        };
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            large with
+            {
+                Passages = repeated.Select((item, index) =>
+                    index == 6 ? forgedContent : item).ToArray()
+            }),
+            "Caching a repeated SHA must still reject changed Markdown.");
+
+        ProjectTestPassage unsafePath = repeated[7] with
+        {
+            Tests = [sourceV1 with { SourceRelativePath = "../Cahier.md" }]
+        };
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            large with
+            {
+                Passages = repeated.Select((item, index) =>
+                    index == 7 ? unsafePath : item).ToArray()
+            }),
+            "Every repeated section must still validate its own source path.");
+
         Assert(campaign.Passages[0].Tests[0].Sha256 == sourceV1.Sha256 &&
                campaign.Passages[1].Tests[0].Sha256 == sourceV2.Sha256 &&
                firstResult.Outcome == ProjectTestOutcome.Failed,

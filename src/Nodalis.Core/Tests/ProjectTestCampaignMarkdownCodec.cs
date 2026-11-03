@@ -199,6 +199,11 @@ public static class ProjectTestCampaignMarkdownCodec
         }
 
         HashSet<Guid> passageIds = [];
+        // The same frozen section may appear in dozens of passages.
+        // Cache only exact content already SHA-checked and parsed in THIS
+        // validation; all per-occurrence identity/path fields remain checked.
+        Dictionary<string, (Guid TestId, string Reference, string Markdown)>
+            verifiedSnapshots = new(StringComparer.OrdinalIgnoreCase);
         int number = 0;
         foreach (ProjectTestPassage passage in campaign.Passages)
         {
@@ -233,14 +238,39 @@ public static class ProjectTestCampaignMarkdownCodec
                     test.HeadingLine < 1 ||
                     string.IsNullOrWhiteSpace(test.Markdown) ||
                     test.Markdown.Length > 512 * 1024 ||
-                    !ValidSha(test.Sha256) ||
-                    !string.Equals(test.Sha256,
+                    !ValidSha(test.Sha256))
+                {
+                    throw new InvalidDataException(
+                        "Instantané de test invalide ou altéré.");
+                }
+
+                if (verifiedSnapshots.TryGetValue(test.Sha256,
+                        out (Guid TestId, string Reference, string Markdown)
+                            verified))
+                {
+                    // A repeated SHA alone is NOT sufficient: never allow a
+                    // forged test GUID/reference or different body to inherit
+                    // the validation of another frozen occurrence.
+                    if (verified.TestId != test.TestId ||
+                        !string.Equals(verified.Reference, test.Reference,
+                            StringComparison.Ordinal) ||
+                        !string.Equals(verified.Markdown, test.Markdown,
+                            StringComparison.Ordinal))
+                    {
+                        throw new InvalidDataException(
+                            "Instantané réutilisé avec identité ou contenu différent.");
+                    }
+
+                    continue;
+                }
+
+                if (!string.Equals(test.Sha256,
                         Convert.ToHexString(SHA256.HashData(
                             Encoding.UTF8.GetBytes(test.Markdown))),
                         StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidDataException(
-                        "Instantané de test invalide ou altéré.");
+                        "Empreinte d'instantané de test incorrecte.");
                 }
 
                 ProjectTestDefinitionScan extracted =
@@ -256,6 +286,9 @@ public static class ProjectTestCampaignMarkdownCodec
                     throw new InvalidDataException(
                         "Instantané sans bloc de test canonique unique.");
                 }
+
+                verifiedSnapshots.Add(test.Sha256,
+                    (test.TestId, test.Reference, test.Markdown));
             }
 
             HashSet<Guid> resultIds = [];
@@ -290,6 +323,17 @@ public static class ProjectTestCampaignMarkdownCodec
     public static string Format(ProjectTestCampaign campaign)
     {
         Validate(campaign);
+        return FormatValidated(campaign);
+    }
+
+    /// <summary>
+    /// Formats only an already-validated campaign; Parse must not repeat
+    /// the expensive inspection of every frozen passage section.
+    /// </summary>
+    /// <param name="campaign">Previously validated campaign.</param>
+    /// <returns>Canonical portable Markdown.</returns>
+    private static string FormatValidated(ProjectTestCampaign campaign)
+    {
         string header = "# " + campaign.Reference + " — " +
             campaign.Title;
         string body = JsonSerializer.Serialize(campaign, Options);
@@ -335,7 +379,7 @@ public static class ProjectTestCampaignMarkdownCodec
                 throw new InvalidDataException(
                     "Données de campagne manquantes.");
             Validate(campaign);
-            if (!string.Equals(markdown, Format(campaign),
+            if (!string.Equals(markdown, FormatValidated(campaign),
                     StringComparison.Ordinal))
             {
                 throw new InvalidDataException(
