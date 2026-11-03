@@ -215,7 +215,19 @@ public sealed class ProjectAiRequirementCreateTransactionService
         if (receiptExists)
         {
             string receiptText = await ReadSmallSafeAsync(receipt, cancellationToken);
-            if (receiptText != journal.PublishedSha256)
+            string? receiptHash;
+            try
+            {
+                receiptHash = JsonSerializer.Deserialize<string>(receiptText);
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidDataException(
+                    "Preuve de création JSON invalide : aucune reprise.",
+                    exception);
+            }
+
+            if (receiptHash != journal.PublishedSha256)
             {
                 throw new InvalidDataException(
                     "Preuve de création corrompue : aucun réimport automatique.");
@@ -239,7 +251,8 @@ public sealed class ProjectAiRequirementCreateTransactionService
             if (!receiptExists)
             {
                 await AtomicFileWriter.WriteNewAllTextAsync(
-                    receipt, journal.PublishedSha256, cancellationToken);
+                    receipt, JsonSerializer.Serialize(journal.PublishedSha256),
+                    cancellationToken);
             }
 
             return new ProjectAiRequirementCreateResult(
@@ -287,7 +300,8 @@ public sealed class ProjectAiRequirementCreateTransactionService
         }
 
         await AtomicFileWriter.WriteNewAllTextAsync(
-            receipt, journal.PublishedSha256, CancellationToken.None);
+            receipt, JsonSerializer.Serialize(journal.PublishedSha256),
+            CancellationToken.None);
         return new ProjectAiRequirementCreateResult(
             ProjectAiRequirementCreateStatus.Created,
             ReadCreatedEntry(staged, destination, journal));
