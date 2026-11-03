@@ -49,10 +49,11 @@ public sealed record ProjectAiPreparedTitleChange(
 /// They are assigned solely in the guarded publication service.
 /// </summary>
 /// <param name="ProposalId">External response's idempotency key.</param>
+/// <param name="ProjectId">Verified owner project from the canonical catalog.</param>
 /// <param name="ReviewedTitle">Explicitly approved or edited one-line title.</param>
 /// <param name="Reason">Optional human provenance note.</param>
 public sealed record ProjectAiPreparedRequirementCreation(
-    Guid ProposalId, string ReviewedTitle, string? Reason);
+    Guid ProposalId, Guid ProjectId, string ReviewedTitle, string? Reason);
 
 /// <summary>
 /// Entire in-memory dry-run: no persistent decision, approval, file write or
@@ -165,6 +166,7 @@ public static class ProjectAiImportDecisionPlanner
             {
                 if (decision.Field != "title" ||
                     match.Status != ProjectAiRequirementMatchStatus.CreationDraft ||
+                    match.ProjectId == Guid.Empty ||
                     proposal.TargetId.HasValue ||
                     !string.IsNullOrWhiteSpace(proposal.CandidateReference))
                 {
@@ -186,7 +188,8 @@ public static class ProjectAiImportDecisionPlanner
                 }
 
                 creations.Add(new ProjectAiPreparedRequirementCreation(
-                    proposal.ProposalId, newTitle, decision.Reason?.Trim()));
+                    proposal.ProposalId, match.ProjectId, newTitle,
+                    decision.Reason?.Trim()));
                 continue;
             }
 
