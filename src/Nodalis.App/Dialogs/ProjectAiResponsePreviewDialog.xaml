@@ -114,11 +114,16 @@
                         Margin="0,0,8,4" Padding="10,5"
                         Click="PublishReviewedBatch_Click"
                         ToolTip="Confirmer et publier 2 à 20 titres EXI approuvés, avec prévalidation globale et journal de reprise; pas de création ni de changement d'état." />
+                <Button x:Name="PublishMixedBatchButton"
+                        Content="Publier créations + titres…"
+                        Margin="0,0,8,4" Padding="10,5"
+                        Click="PublishMixedBatch_Click"
+                        ToolTip="Confirme ensemble 1 à 20 créations et modifications EXI avec journal de reprise, identifiants Nodalis et contrôle de toutes les sources." />
                 <Button x:Name="FindPendingBatchesButton"
                         Content="Rechercher les lots interrompus"
                         Margin="0,0,8,4" Padding="10,5"
                         Click="FindPendingBatches_Click"
-                        ToolTip="Recherche en lecture seule les journaux de lots incomplets dans ce projet." />
+                        ToolTip="Recherche en lecture seule les journaux incomplets de titres existants et des lots mixtes dans ce projet." />
                 <ComboBox x:Name="PendingBatchPicker" Width="210"
                           Margin="0,0,8,4"
                           AutomationProperties.Name="Choisir un lot IA interrompu"
