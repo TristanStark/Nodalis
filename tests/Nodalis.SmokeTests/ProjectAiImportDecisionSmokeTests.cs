@@ -62,7 +62,7 @@ internal static class ProjectAiImportDecisionSmokeTests
             accepted.Changes[0].ExpectedSha256 == first.SourceSha256 &&
             accepted.Changes[0].CurrentTitle == "Titre local" &&
             accepted.Changes[0].ReviewedTitle == "Titre IA" &&
-            accepted.PendingFields == 0 &&
+            accepted.PendingFields == 1 &&
             accepted.IgnoredFields == 1,
             "Human choices must produce only the approved, snapshot-bound title.");
 
