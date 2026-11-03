@@ -74,7 +74,7 @@ public sealed record ProjectAiPreparedReviewPlan(
     /// Nodalis-assigned EXI reference in the separate publication dialog.
     /// </summary>
     public IReadOnlyList<ProjectAiPreparedRequirementCreation> Creations
-        { get; init; } = [];
+    { get; init; } = [];
 }
 
 /// <summary>
