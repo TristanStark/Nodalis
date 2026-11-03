@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using Nodalis.App.Reliability;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Risks;
+using Nodalis.Infrastructure.AI;
 using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
@@ -852,9 +853,12 @@ public partial class ProjectJourneyView : UserControl
                 return;
             }
 
-            TextPromptDialog dialog = new("Associer un prompt local",
-                "Clé d'un prompt Markdown local ; « - » pour retirer le lien :",
-                operation.PromptKey ?? "-")
+            FileSystemAiPromptStore store = new(
+                Path.Combine(AppContext.BaseDirectory, "Prompts"));
+            IReadOnlyList<LocalAiPromptDescriptor> catalog =
+                await store.ListAsync();
+            ProjectJourneyPromptPickerDialog dialog = new(
+                store, catalog, operation.PromptKey)
             {
                 Owner = Window.GetWindow(this)
             };
@@ -863,7 +867,7 @@ public partial class ProjectJourneyView : UserControl
                 return;
             }
 
-            string? promptKey = dialog.Value == "-" ? null : dialog.Value;
+            string? promptKey = dialog.SelectedKey;
             await CommitAsync("Changer la référence de prompt de « " +
                 operation.Name + " » en « " + (promptKey ?? "aucun") +
                 " » (aucune IA ne sera exécutée)",

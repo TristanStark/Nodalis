@@ -19,23 +19,36 @@
                        Margin="0,6,0,0"
                        Foreground="{StaticResource SecondaryTextBrush}" />
         </StackPanel>
-        <TextBox x:Name="DraftText"
-                 Grid.Row="1"
-                 FontFamily="Consolas" FontSize="13"
-                 Padding="14"
-                 BorderBrush="{StaticResource BorderBrush}"
-                 BorderThickness="1"
-                 TextWrapping="Wrap"
-                 AcceptsReturn="True"
-                 IsReadOnly="True"
-                 VerticalScrollBarVisibility="Auto"
-                 HorizontalScrollBarVisibility="Auto"
-                 AutomationProperties.Name="Brouillon de prompt à relire" />
+        <TabControl Grid.Row="1" AutomationProperties.Name="Messages IA distincts">
+            <TabItem Header="Prompt utilisateur + sources">
+                <TextBox x:Name="DraftText"
+                         FontFamily="Consolas" FontSize="13"
+                         Padding="14" IsReadOnly="True"
+                         TextWrapping="Wrap" AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         AutomationProperties.Name="Prompt utilisateur à relire" />
+            </TabItem>
+            <TabItem x:Name="SystemTab"
+                     Header="Système FRT-100 (configuration séparée)">
+                <TextBox x:Name="SystemText"
+                         FontFamily="Consolas" FontSize="13"
+                         Padding="14" IsReadOnly="True"
+                         TextWrapping="Wrap" AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         AutomationProperties.Name="Référentiel FRT-100 système" />
+            </TabItem>
+        </TabControl>
         <DockPanel Grid.Row="2" Margin="0,12,0,0">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button Padding="14,8" Margin="0,0,8,0"
-                        Content="Copier le brouillon"
+                        Content="Copier le prompt utilisateur"
                         Click="Copy_Click" />
+                <Button x:Name="CopySystemButton"
+                        Padding="14,8" Margin="0,0,8,0"
+                        Content="Copier le système FRT-100"
+                        Click="CopySystem_Click" />
                 <Button Padding="14,8" Content="Fermer"
                         Click="Close_Click" />
             </StackPanel>

@@ -36,3 +36,22 @@ La régression `ProjectFrt100PromptSmokeTests` compare les 31
 extractions à la collection originale et vérifie la non-concaténation.
 L'interface de sélection et de copie distincte reste à brancher dans le
 Parcours. Aucun appel IA ni écriture de données métier.
+
+## Interface de sélection et copie séparée
+
+Dans `Parcours` → opération → `Associer un prompt…`, un nouveau
+sélecteur WPF filtre les prompts locaux par référence et titre et affiche
+leur corps source original en lecture seule. `Sans prompt` retire
+uniquement l'association à l'opération après la confirmation métier
+existante. La sélection ne crée aucun document ni requête réseau.
+
+`Préparer / copier` présente deux onglets distincts : le prompt
+**UTILISATEUR** contextualisé et, pour les clés FRT-100, le référentiel
+**SYSTEME**. Deux boutons de copie distincts évitent d'affirmer que
+l'outil externe a déjà chargé FRT-100. Aucune configuration distante,
+exécution IA ou injection dans le workspace n'a lieu.
+
+**À poursuivre** : choix guidé des documents/sections par variable,
+catalogues workspace/projet et conservation de provenance des versions ;
+import de réponses structurées dans #197. Qualification visuelle réelle
+Windows encore nécessaire pour #195/#196.
