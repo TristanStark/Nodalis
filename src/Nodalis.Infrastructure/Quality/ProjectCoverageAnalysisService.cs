@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Nodalis.Core.Domain;
+using Nodalis.Core.Milestones;
 using Nodalis.Core.Quality;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
@@ -933,12 +934,8 @@ public sealed partial class ProjectCoverageAnalysisService
                             0 &&
                         dateColumn <
                             cells.Length &&
-                        DateOnly.TryParseExact(
-                            cells[dateColumn].Trim(),
-                            "yyyy-MM-dd",
-                            CultureInfo.InvariantCulture,
-                            DateTimeStyles.None,
-                            out DateOnly parsedDate)
+                        MilestoneDateCodec.TryParse(
+                            cells[dateColumn], out DateOnly parsedDate)
                         ? parsedDate
                         : null;
 

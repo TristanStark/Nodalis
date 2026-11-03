@@ -781,7 +781,7 @@ public sealed class WorkspaceMilestoneService
             Guid id,
             string? unrecognizedSourceDate = null) =>
             $"| {EscapeCell(draft.Name.Trim())} | " +
-            $"{(draft.TargetDate is DateOnly date ? date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) : EscapeCell(unrecognizedSourceDate ?? string.Empty))} | " +
+            $"{(draft.TargetDate is DateOnly date ? MilestoneDateCodec.Format(date) : EscapeCell(unrecognizedSourceDate ?? string.Empty))} | " +
             $"{EscapeCell(draft.Status.Trim())} | " +
             $"{EscapeCell(draft.Description.Trim())} | " +
             $"{EscapeCell(NormalizeOptional(draft.Link) ?? string.Empty)} | " +
@@ -795,13 +795,7 @@ public sealed class WorkspaceMilestoneService
     /// <returns>The valid target date, or null for an empty or unrecognized cell.</returns>
     private static DateOnly? ParseTargetDate(string dateText)
     {
-        string[] acceptedFormats = ["dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd"];
-        return DateOnly.TryParseExact(
-                dateText.Trim(),
-                acceptedFormats,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out DateOnly date)
+        return MilestoneDateCodec.TryParse(dateText, out DateOnly date)
             ? date
             : null;
     }

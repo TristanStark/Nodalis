@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Links;
+using Nodalis.Core.Milestones;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Quality;
 using Nodalis.Infrastructure.Persistence;
@@ -654,12 +655,8 @@ public sealed class ProjectHealthCheckService
                     cells[dateColumn]
                         .Trim();
 
-                if (DateOnly.TryParseExact(
-                        dateText,
-                        "yyyy-MM-dd",
-                        CultureInfo.InvariantCulture,
-                        DateTimeStyles.None,
-                        out DateOnly _))
+                if (MilestoneDateCodec.TryParse(
+                        dateText, out DateOnly _))
                 {
                     continue;
                 }
