@@ -483,3 +483,8 @@ Une gestion plus élaborée des erreurs partielles, des lots mixtes
 création/mise à jour, et des historiques d'arbitrages reste à
 traiter dans #197. Aucun merge `main`, tag ni release avant
 qualification utilisateur.
+
+Les répertoires locaux `.nodalis-ai-import/` sont ignorés par Git pour
+limiter le risque de commit accidentel des copies Markdown confidentielles.
+Ce filtrage ne constitue pas un chiffrement ni une sauvegarde : protéger les
+permissions du workspace et conserver le journal tant qu'un lot est partiel.
