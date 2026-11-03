@@ -116,6 +116,126 @@ internal static class ProjectFrt100PromptSmokeTests
             "Unresolved user variables must remain explicit, deduplicated " +
             "and never be silently filled from arbitrary sources.");
 
+        // A synthetic Complex project exercises prompt #11 from two
+        // explicitly selected sources; no real workspace is touched.
+        string evidenceDirectory = Path.Combine(workspace,
+            "PromptBindingsSynthetic");
+        Directory.CreateDirectory(evidenceDirectory);
+        string architecture = Path.Combine(evidenceDirectory,
+            "Architecture.md");
+        await File.WriteAllTextAsync(architecture,
+            "# Architecture\n" +
+            "## Solution\nUne solution documentée A.\n" +
+            "```md\n## Faux titre en code\n```\n" +
+            "## Solution\nUne autre solution B.\n" +
+            "# Hors section\nCe texte ne doit pas être importé.\n");
+        string requirements = Path.Combine(evidenceDirectory,
+            "Exigences.md");
+        await File.WriteAllTextAsync(requirements,
+            "# Exigences\n## Besoin\nBesoin vérifiable fictif.\n");
+        ProjectJourneySourceService linked = new(workspace);
+        string architectureReference =
+            linked.GetReferenceForExistingFile(architecture);
+        string requirementsReference =
+            linked.GetReferenceForExistingFile(requirements);
+        ProjectJourneyPromptSectionService sections = new(workspace);
+        IReadOnlyList<ProjectJourneyPromptSection> headings =
+            await sections.ListAsync(architectureReference);
+        Assert(headings.Count == 4 &&
+            headings.Count(item => item.Title == "Solution") == 2 &&
+            headings.All(item => item.Title != "Faux titre en code"),
+            "Selection must recognize actual headings and ignore code fences.");
+        ProjectJourneyPromptSection selectedSection =
+            headings.First(item => item.Title == "Solution");
+        ProjectJourneyPromptSection requirementsSection =
+            (await sections.ListAsync(requirementsReference)).Single(
+                item => item.Title == "Besoin");
+        ProjectJourneyOperation operation11 = operation with
+        {
+            PromptKey = "frt100-11",
+            SourcePaths = [architectureReference, requirementsReference]
+        };
+        ProjectJourneyStep stage11 = step with
+        {
+            Operations = [operation11]
+        };
+        ProjectJourneyPromptVariableBinding[] selections =
+        [
+            new("<SOLUTION>", architectureReference,
+                selectedSection.StartLine, selectedSection.Title, null),
+            new("<SOLUTION>", requirementsReference,
+                requirementsSection.StartLine, requirementsSection.Title, null)
+        ];
+        ProjectJourneyPromptDraft contextual =
+            await service.PrepareWithBindingsAsync(
+                stage11, operation11, selections);
+        Assert(contextual.IncludedSources == 2 &&
+            contextual.SystemPrompt == system &&
+            contextual.Content.Contains("Une solution documentée A.",
+                StringComparison.Ordinal) &&
+            contextual.Content.Contains("Besoin vérifiable fictif.",
+                StringComparison.Ordinal) &&
+            !contextual.Content.Contains(
+                "Une autre solution B.", StringComparison.Ordinal) &&
+            !contextual.Content.Contains(
+                "Ce texte ne doit pas être importé.", StringComparison.Ordinal) &&
+            contextual.Content.Contains("SHA-256 de l'extrait",
+                StringComparison.Ordinal) &&
+            !contextual.Content.Contains("<SOLUTION>",
+                StringComparison.Ordinal),
+            "Prompt 11 must combine only the two human-selected sections " +
+            "with separate provenance, never other linked document sections.");
+
+        ProjectJourneyPromptDraft noSelection =
+            await service.PrepareWithBindingsAsync(
+                stage11, operation11, []);
+        Assert(noSelection.IncludedSources == 0 &&
+            noSelection.Content.Contains("<SOLUTION>",
+                StringComparison.Ordinal) &&
+            !noSelection.Content.Contains("Une solution documentée",
+                StringComparison.Ordinal),
+            "An unbound operation must never leak a linked document.");
+        ProjectJourneyPromptDraft missing =
+            await service.PrepareWithBindingsAsync(
+                stage11, operation11,
+                [new("<SOLUTION>", architectureReference,
+                    selectedSection.StartLine + 1,
+                    selectedSection.Title, null)]);
+        Assert(missing.IncludedSources == 0 &&
+            missing.Warnings.Any(item => item.Contains("déplacée",
+                StringComparison.Ordinal)) &&
+            missing.Content.Contains("<SOLUTION>", StringComparison.Ordinal),
+            "Moving a selected heading must fail closed with a warning.");
+        ProjectJourneyPromptDraft manual =
+            await service.PrepareWithBindingsAsync(
+                stage11, operation11,
+                [new("<SOLUTION>", null, null, null,
+                    "Saisie explicitement validée.")]);
+        Assert(manual.IncludedSources == 0 &&
+            manual.Content.Contains("Saisie explicitement validée.",
+                StringComparison.Ordinal),
+            "Text entered manually cannot read other source files.");
+        bool unlinkedRejected = false;
+        try
+        {
+            await service.PrepareWithBindingsAsync(stage11, operation11,
+                [new("<SOLUTION>", "HorsDossier/Secret.md",
+                    null, null, null)]);
+        }
+        catch (InvalidDataException)
+        {
+            unlinkedRejected = true;
+        }
+
+        Assert(unlinkedRejected,
+            "Unlinked workspace paths must be refused before any file read.");
+        Assert(ProjectJourneyPromptVariables.ReplaceBoundVariables(
+                "<DOCUMENT> <CONTEXTE>", new Dictionary<string, string>
+                {
+                    ["<DOCUMENT>"] = "Une source contenant <CONTEXTE>"
+                }) == "Une source contenant <CONTEXTE> <CONTEXTE>",
+            "Replacing selected variables must never recursively parse source text.");
+
         ProjectJourneyOperation other = operation with
         {
             PromptKey = null
