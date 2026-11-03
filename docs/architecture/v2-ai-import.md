@@ -71,3 +71,63 @@ possède aucun bouton d'acceptation, aucun service d'écriture ni
 connexion réseau. La prochaine tranche intégrera une résolution
 d'identité projet explicite et un diff à trois voies depuis une
 source canonique revalidée avant commit.
+
+
+## Deuxième incrément — comparaison au registre canonique (03/11/2026)
+
+Dans **Parcours → Analyser une réponse IA…**, le bouton
+**Comparer aux exigences du projet** apparaît après une analyse JSON réussie.
+Ce bouton est distinct de l'analyse : il lit exclusivement le registre
+canonique `Documentation/Exigences` du **projet sélectionné** via
+`ProjectRequirementRegistryService`. La lecture et la résolution s'exécutent
+hors Dispatcher WPF ; aucune écriture ni recherche globale n'a lieu.
+
+Pour les propositions `requirement/update`, la résolution suit une
+priorité stricte :
+
+1. `targetId` : GUID présent et unique dans le **même projet**.
+   Un GUID absent ne déclenche aucun repli automatique.
+2. En l'absence de GUID : `candidateReference` doit être une référence
+   canonique exacte `EXI-xxxx`. Le résultat reste indicatif.
+3. Le titre et `sourcePath` ne peuvent **jamais** déterminer la cible.
+   `sourcePath` est une indication de provenance non fiable : elle ne
+   donne pas le droit de lire un document d'une autre application/projet.
+4. Référence et GUID contradictoires, doublons ou cible absente :
+   correspondance bloquée ; la réponse IA ne peut corriger ces incohérences.
+
+La proposition `create` n'est qu'un brouillon. Une référence déjà occupée
+ou un `targetId` injecté par l'IA produisent un avertissement de collision.
+Les types `risk/test/task/criterion/decision` et l'opération `link` sont
+pour l'instant signalés **non résolus**, plutôt que devinés.
+
+Le premier vrai diff à trois voies couvre uniquement le champ canonique
+`title` d'une fiche EXI v2 ; les autres champs restent *non vérifiés*
+jusqu'à l'ajout de leurs lecteurs métier. Les valeurs de base sont celles
+**déclarées par l'IA** et ne sont pas authentifiées : une égalité ne constitue
+jamais un consentement à l'écriture. La prévisualisation affiche l'ID
+réel, la référence, le chemin et l'empreinte SHA-256 instantanée.
+
+**Limites :** pas encore de création, modification, validation par champ,
+journal de provenance ou commit transactionnel. Un fichier peut changer
+après la lecture : une future mutation nécessitera une relecture des octets
+et un contrôle optimiste d'empreinte immédiatement avant toute écriture.
+
+### Recette Windows (à qualifier)
+
+- Coller une proposition `requirement/update` avec GUID d'une exigence du
+  projet : vérifier la référence, la valeur actuelle et le diff du titre.
+- Tester une référence EXI exacte sans GUID, puis un GUID d'un **autre
+  projet** accompagné d'une référence valide du projet actuel : le second
+  cas doit rester **introuvable**, sans repli dangereux.
+- Modifier localement le titre entre la préparation du prompt et la
+  comparaison : voir `ConcurrentConflict`. Sans base, voir `UnknownBase`.
+- Soumettre des GUID/références contradictoires, une création avec référence
+  déjà occupée, une proposition de risque et un champ `description` :
+  aucune ne doit recevoir une écriture ni un diff inventé.
+- Recommencer après une modification du JSON : les résultats anciens sont
+  invalidés. Vérifier petit écran, clavier, grands registres, retour de
+  veille et absence de gel.
+
+Les régressions automatisées portent le nom
+`ProjectAiRequirementReviewSmokeTests`. Aucun merge vers `main`,
+tag ou release 2.0 ne découle de cette étape.
