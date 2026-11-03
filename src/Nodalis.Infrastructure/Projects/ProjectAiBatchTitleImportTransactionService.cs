@@ -282,6 +282,8 @@ public sealed partial class ProjectAiBatchTitleImportTransactionService
                 file.OriginalSha256, cancellationToken);
             await AssertSnapshotAsync(approvedSnapshot,
                 file.PublishedSha256, cancellationToken);
+            await AssertTitleOnlySnapshotsAsync(file, journal.ProjectId,
+                originalSnapshot, approvedSnapshot, cancellationToken);
             string live = ResolveCanonical(project, file.RelativePath,
                 file.Reference);
             string current = Hash(await ReadBoundedAsync(live, cancellationToken));
@@ -505,6 +507,43 @@ public sealed partial class ProjectAiBatchTitleImportTransactionService
         {
             throw new InvalidDataException(
                 "Sauvegarde du lot altérée : aucune publication autorisée.");
+        }
+    }
+
+    /// <summary>
+    /// Proves that a retained approved snapshot differs from the original
+    /// ONLY by the two canonical title representations. A journal may have
+    /// been edited after preparation, so matching stored SHA alone is not
+    /// sufficient authority to publish arbitrary Markdown bytes.
+    /// </summary>
+    private static async Task AssertTitleOnlySnapshotsAsync(
+        ProjectAiBatchTitleFile file, Guid projectId, string originalPath,
+        string approvedPath, CancellationToken cancellationToken)
+    {
+        byte[] originalBytes = await ReadBoundedAsync(
+            originalPath, cancellationToken);
+        byte[] approvedBytes = await ReadBoundedAsync(
+            approvedPath, cancellationToken);
+        string original = new UTF8Encoding(false, true).GetString(originalBytes);
+        ProjectRequirementCard originalCard =
+            ProjectRequirementMarkdownCodec.Parse(original);
+        if (originalCard.Id != file.RequirementId ||
+            originalCard.ProjectId != projectId ||
+            originalCard.Reference != file.Reference ||
+            originalCard.Title != file.OriginalTitle)
+        {
+            throw new InvalidDataException(
+                "Identité originale du journal IA non conforme.");
+        }
+
+        string expected = ProjectAiTitleImportTransactionService
+            .RewriteTitle(original, originalCard, file.ReviewedTitle);
+        if (!approvedBytes.AsSpan().SequenceEqual(
+                new UTF8Encoding(false).GetBytes(expected)))
+        {
+            throw new InvalidDataException(
+                "Instantané IA altéré : le lot ne peut changer " +
+                "que les deux représentations du titre EXI.");
         }
     }
 
