@@ -5,6 +5,7 @@ using Nodalis.Core.Domain;
 using Nodalis.Core.Importing;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Requirements;
+using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
 
 /// <summary>
