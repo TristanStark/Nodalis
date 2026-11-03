@@ -497,13 +497,15 @@ public partial class ProjectAiResponsePreviewDialog : Window
             ProjectAiPreparedReviewPlan plan =
                 ProjectAiImportDecisionPlanner.Prepare(_preview,
                     _comparisons.Values.ToArray(), _decisions.Values.ToArray());
-            _preparedPlan = (plan.Changes.Count == 1 && plan.Creations.Count == 0) ||
+            _preparedPlan = (plan.Changes.Count is >= 1 and <= 20 &&
+                    plan.Creations.Count == 0) ||
                 (plan.Changes.Count == 0 && plan.Creations.Count == 1)
                 ? plan : null;
             StringBuilder builder = new();
             builder.AppendLine("PLAN DE QUALIFICATION — REVUE HUMAINE");
-            builder.AppendLine("Une seule modification ou création EXI est " +
-                "publiable après une confirmation explicite.");
+            builder.AppendLine("Les titres EXI existants peuvent être publiés " +
+                "en lot (2 à 20) ; la création reste unitaire. " +
+                "Chaque écriture exige une confirmation explicite.");
             builder.AppendLine("Réponse SHA-256 : " + plan.RawResponseSha256);
             builder.AppendLine("Champs explicitement traités : " +
                 plan.ReviewedFields);
@@ -550,11 +552,17 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 ? "Un seul titre peut être enregistré. Le service recontrôlera " +
                   "les identités et SHA-256 puis journalisera les deux versions. " +
                   "Fermez tout éditeur de la fiche concernée avant publication."
-                : plan.Changes.Count == 0 && plan.Creations.Count == 1
-                    ? "Un seul brouillon EXI peut être créé. Nodalis choisira " +
-                      "une référence libre, un GUID stable et conservera un journal."
-                    : "Aucune publication : le lot contient plusieurs " +
-                      "changements. Arbitrez-les avant toute écriture.");
+                : plan.Changes.Count is >= 2 and <= 20 &&
+                    plan.Creations.Count == 0
+                    ? "Lot de titres éligible à une transaction reprise par journal. " +
+                      "Toutes les sources sont prévalidées, puis chaque fichier " +
+                      "est publié atomiquement : une interruption peut laisser " +
+                      "un lot partiel qui doit être explicitement repris."
+                    : plan.Changes.Count == 0 && plan.Creations.Count == 1
+                        ? "Un seul brouillon EXI peut être créé. Nodalis choisira " +
+                          "une référence libre, un GUID stable et conservera un journal."
+                        : "Aucune publication : mélange de créations et de " +
+                          "modifications, ou plus de 20 titres. Fractionnez les plans.");
             PlanTextBox.Text = builder.ToString();
             StatusText.Text = "Plan préparé en mémoire : " +
                 plan.Changes.Count + " modification(s), " +
@@ -566,6 +574,152 @@ public partial class ProjectAiResponsePreviewDialog : Window
             _preparedPlan = null;
             PlanTextBox.Text = "Plan impossible : " + exception.Message;
             StatusText.Text = "Aucune transaction effectuée.";
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Publishes two to twenty explicitly reviewed EXI title updates, only
+    /// after an additional human confirmation of every affected file.
+    /// Multiple Windows file replacements are replayable, not all-or-nothing.
+    /// </summary>
+    /// <param name="sender">Explicit batch publication command.</param>
+    /// <param name="e">Human click.</param>
+    private async void PublishReviewedBatch_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _preview is null || _comparisons is null ||
+            _preparedPlan is null || _preparedPlan.Creations.Count != 0 ||
+            _preparedPlan.Changes.Count is < 2 or > 20)
+        {
+            return;
+        }
+
+        ProjectAiPreparedReviewPlan expected = _preparedPlan;
+        ProjectAiPreparedReviewPlan current;
+        try
+        {
+            current = ProjectAiImportDecisionPlanner.Prepare(_preview,
+                _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+            if (current.Changes.Count != expected.Changes.Count ||
+                current.Creations.Count != 0 ||
+                !current.Changes.SequenceEqual(expected.Changes) ||
+                current.RawResponseSha256 != expected.RawResponseSha256 ||
+                current.ReviewedFields != expected.ReviewedFields ||
+                current.IgnoredFields != expected.IgnoredFields ||
+                current.PendingFields != expected.PendingFields)
+            {
+                _preparedPlan = null;
+                StatusText.Text = "Lot modifié : préparer un nouveau plan " +
+                    "et reconfirmer toutes les décisions.";
+                UpdateButtons();
+                return;
+            }
+
+            if (Application.Current.MainWindow is not Nodalis.App.MainWindow main)
+            {
+                throw new InvalidDataException(
+                    "Contrôle des éditeurs ouverts indisponible : lot refusé.");
+            }
+
+            ProjectJourneySourceService resolver = new(_workspaceRoot);
+            foreach (ProjectAiPreparedTitleChange change in current.Changes)
+            {
+                string target = resolver.ResolveExistingFile(change.RelativePath);
+                if (main.IsDocumentOpenForAiImport(target))
+                {
+                    throw new InvalidDataException(
+                        "Fermez les onglets Markdown correspondant à " +
+                        change.Reference +
+                        " avant l'import groupé (risque d'autosave obsolète).");
+                }
+            }
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or
+            UnauthorizedAccessException or ArgumentException)
+        {
+            StatusText.Text = "Lot refusé : " + exception.Message;
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · validation du lot",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        StringBuilder confirmation = new();
+        confirmation.AppendLine("PUBLICATION GROUPÉE — " +
+            current.Changes.Count + " titres d'exigences existantes");
+        confirmation.AppendLine();
+        foreach (ProjectAiPreparedTitleChange change in current.Changes
+            .OrderBy(item => item.Reference, StringComparer.Ordinal))
+        {
+            confirmation.AppendLine(change.Reference + " : " +
+                change.CurrentTitle + " → " + change.ReviewedTitle);
+        }
+
+        confirmation.AppendLine();
+        confirmation.AppendLine("Tous les fichiers sont vérifiés avant " +
+            "la première écriture, avec des copies intégrales conservées " +
+            "localement dans le projet.");
+        confirmation.AppendLine("IMPORTANT : une interruption peut laisser " +
+            "une publication partielle. Une reprise volontaire, avec le même " +
+            "plan, vérifiera chaque fichier avant d'écrire la suite.");
+        confirmation.AppendLine("Aucune création, validation d'exigence, " +
+            "tâche ou modification de critères ne sera effectuée.");
+        confirmation.AppendLine();
+        confirmation.AppendLine("Confirmer la publication de ce lot ?");
+        if (MessageBox.Show(this, confirmation.ToString(),
+            "Import IA · confirmer le lot", MessageBoxButton.YesNo,
+            MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _busy = true;
+        _publishing = true;
+        UpdateButtons();
+        try
+        {
+            ProjectAiBatchTitleCommitStatus result = await Task.Run(async () =>
+            {
+                ProjectAiBatchTitleImportTransactionService service = new(
+                    _workspaceRoot);
+                return await service.CommitAsync(_projectDirectory, current);
+            });
+
+            _comparisons = null;
+            ClearDecisions();
+            ShowSelectedDetails();
+            PlanTextBox.Text = "Lot " + result + " · " +
+                current.Changes.Count + " titre(s) concernés. " +
+                "Recharger les documents et comparer à nouveau avant " +
+                "toute nouvelle décision.";
+            StatusText.Text = result == ProjectAiBatchTitleCommitStatus.AlreadyApplied
+                ? "Lot déjà publié (empreintes conformes) : aucune réécriture."
+                : "Lot de titres EXI publié et journalisé.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · résultat du lot", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or
+            UnauthorizedAccessException or ArgumentException)
+        {
+            StatusText.Text = "Lot bloqué : " + exception.Message;
+            PlanTextBox.Text = "Un lot peut avoir été partiellement publié. " +
+                "Ne pas modifier ni supprimer le journal .nodalis-ai-import. " +
+                "Vérifier les changements externes puis relancer " +
+                "explicitement le même plan pour reprendre, sans écrasement.";
+            MessageBox.Show(this, StatusText.Text +
+                "\n\nConsulter le journal et vérifier les fiches. " +
+                "Aucune reprise automatique n'est effectuée.",
+                "Import IA · lot en attente de récupération",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _publishing = false;
+            _busy = false;
             UpdateButtons();
         }
     }
@@ -889,6 +1043,15 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan is not null &&
                 _preparedPlan.Changes.Count == 0 &&
                 _preparedPlan.Creations.Count == 1 &&
+                _comparisons is not null && _preview is not null;
+        }
+
+        if (PublishReviewedBatchButton is not null)
+        {
+            PublishReviewedBatchButton.IsEnabled = !_busy && !_readOnly &&
+                _preparedPlan is not null &&
+                _preparedPlan.Changes.Count is >= 2 and <= 20 &&
+                _preparedPlan.Creations.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
