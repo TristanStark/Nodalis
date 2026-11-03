@@ -279,3 +279,96 @@ un moteur de rollback multi-document.
 Automatisation : `ProjectAiTitleImportTransactionSmokeTests`, suite
 Windows existante. La qualification visuelle demeure à faire ; cette
 tranche ne déclenche aucun merge vers `main`, tag ni release v2.0.
+
+
+## Cinquième incrément — création qualifiée d'une exigence EXI (03/11/2026)
+
+Un nouveau parcours utilisateur complète les mises à jour de titres existants :
+**Parcours → Analyser une réponse IA → Comparer → Accepter/Modifier le
+champ `title` d'une proposition `requirement/create` → Préparer le
+plan → Créer 1 exigence approuvée…**.
+
+Une proposition de création reste un brouillon tant qu'un utilisateur ne
+l'a pas acceptée ou corrigée champ par champ. Les champs hors `title`
+peuvent seulement être mis **À revoir** ou **Ignorer**, sans écriture.
+Si la réponse IA tente d'attribuer un `targetId` ou une
+`candidateReference` officielle, la création est rejetée : les
+identifiants sont réservés à Nodalis.
+
+### Identité, périmètre et publication
+
+- Le plan `ProjectAiPreparedRequirementCreation` conserve
+  `ProposalId`, le **GUID vérifié du projet courant**, le titre
+  expressément approuvé et une éventuelle justification humaine ;
+  il **ne contient pas d'identité d'exigence ni de code EXI IA**.
+- Juste avant la confirmation, Nodalis reconsulte le registre du projet
+  pour afficher **la prochaine référence EXI disponible**. Un journal
+  existant pour le même `ProposalId` expose au contraire la référence
+  précédemment réservée, afin d'expliquer le réimport sans faux code.
+- Après confirmation, le service
+  `ProjectAiRequirementCreateTransactionService` vérifie l'identité
+  du projet, la non-archivage, l'appartenance au workspace, la référence
+  choisie et le verrou `.nodalis-ai-import/.lock` partagé avec les
+  publications de titres existants. Tout conflit sur le code EXI impose
+  une nouvelle qualification ; aucun changement silencieux de référence.
+- L'application génère un **nouveau GUID**, un `created-utc` et une
+  fiche `Documentation/Exigences/EXI-xxxx.md` utilisant le codec
+  canonique. Les trois statuts restent strictement séparés et
+  conservateurs : validation **Draft**, implémentation **NotStarted**,
+  vérification **NotVerified**. Aucun objet de type risque, test,
+  décision, tâche ou lien n'est généré par ce service.
+- Le service écrit le snapshot immuable `published.md` et le journal
+  `intent.json` sous
+  `<projet>/.nodalis-ai-import/<proposalId-N>/` **avant** le fichier
+  métier. L'écriture de la fiche est atomique et **sans écrasement**.
+  Une empreinte SHA-256 et une preuve `applied.json` sont ensuite
+  conservées pour la reprise.
+
+### Réimport et interruption
+
+Une nouvelle tentative avec **le même couple réponse/proposition/
+décision** relit le journal, valide son appartenance au projet et
+l'intégrité du snapshot. Si le fichier canonique possède déjà les
+octets attendus, la commande retourne `AlreadyCreated` : **aucun
+nouveau GUID, aucun nouveau fichier**.
+
+Si l'opération s'est interrompue après `intent.json` mais avant le
+fichier EXI ou la preuve, un **nouveau clic humain** permet de publier
+l'instantané original journalisé, avec **le même GUID et la même
+référence**, tant que le code est toujours disponible. Un journal
+incomplet avant l'intention reste bloquant et nécessite une inspection
+manuelle. Une fiche modifiée extérieurement, un snapshot corrompu,
+une référence désormais occupée, un projet différent ou une
+autorisation divergente entraînent un refus sans écrasement.
+
+Si la preuve `applied.json` existe mais que l'EXI a disparu,
+Nodalis **ne ressuscite pas silencieusement** la fiche supprimée.
+Une réponse complète reste temporairement en mémoire dans l'interface ;
+le journal ne conserve pas encore les réponses brutes d'IA ni les
+décisions portant sur les champs rejetés.
+
+### Qualification Windows de la création
+
+1. Dans un projet fictif, préparer `requirement/create` avec
+   `proposedFields.title`, puis accepter ou modifier explicitement
+   ce titre. Vérifier que la prévisualisation ne produit aucun fichier.
+2. Faire afficher la prochaine référence EXI. Confirmer et contrôler
+   l'identité générée, les quatre sections Markdown et les états Draft,
+   NotStarted, NotVerified.
+3. Rejouer la même enveloppe : le code affiché est celui du **journal
+   initial** et aucune seconde exigence n'apparaît.
+4. Tenter un projet distinct, une référence occupée, une proposition
+   contenant `targetId` ou `candidateReference`, puis une fiche
+   altérée après publication : toutes ces opérations doivent être refusées.
+5. Simuler un arrêt entre le journal et la publication et un snapshot
+   corrompu ; seule la reprise du journal intact sur consentement
+   explicite est permise.
+6. Qualifier le redimensionnement et le clavier WPF, les projets en
+   lecture seule, les fermetures de documents et le rafraîchissement du
+   Worktree après création.
+
+Régression automatisée :
+`ProjectAiRequirementCreateTransactionSmokeTests` dans les smoke
+tests Windows. La création est **unitaire** ; la transaction de
+plusieurs propositions reste un travail distinct de #197.
+Aucun merge `main`, tag ni release v2.0 avant la qualification.
