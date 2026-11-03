@@ -70,8 +70,7 @@ public sealed class FileSystemAiPromptStore
             }
 
             prompts.Add(new LocalAiPromptDescriptor(
-                id, title, id.StartsWith("frt100-",
-                    StringComparison.Ordinal) && id != "frt100-system-v1"));
+                id, title, IsFrt100UserPromptId(id)));
         }
 
         return prompts.OrderBy(item => item.IsFrt100 ? 0 : 1)
@@ -140,6 +139,31 @@ public sealed class FileSystemAiPromptStore
         return await File.ReadAllTextAsync(
             path,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Matches only the official thirty numbered templates and the combined
+    /// prompt. Arbitrary similarly named local prompts have no FRT system.
+    /// </summary>
+    /// <param name="id">Candidate user-prompt key.</param>
+    /// <returns>True only for the original 31 official keys.</returns>
+    public static bool IsFrt100UserPromptId(string id)
+    {
+        if (id == "frt100-combined")
+        {
+            return true;
+        }
+
+        if (id is not { Length: 9 } ||
+            !id.StartsWith("frt100-", StringComparison.Ordinal) ||
+            !int.TryParse(id[7..], out int number) ||
+            number is < 1 or > 30)
+        {
+            return false;
+        }
+
+        return id == "frt100-" + number.ToString("D2",
+            System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>

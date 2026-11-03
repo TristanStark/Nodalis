@@ -80,6 +80,27 @@ internal static class ProjectFrt100PromptSmokeTests
                draft.IncludedSources == 0,
             "System and user prompts must never be silently concatenated.");
 
+        Assert(FileSystemAiPromptStore.IsFrt100UserPromptId("frt100-01") &&
+               FileSystemAiPromptStore.IsFrt100UserPromptId("frt100-30") &&
+               FileSystemAiPromptStore.IsFrt100UserPromptId("frt100-combined") &&
+               !FileSystemAiPromptStore.IsFrt100UserPromptId(
+                   "frt100-system-v1") &&
+               !FileSystemAiPromptStore.IsFrt100UserPromptId(
+                   "frt100-fake"),
+            "FRT role must be restricted to the official 31 user keys.");
+
+        IReadOnlyList<string> pending =
+            ProjectJourneyPromptVariables.FindPlaceholders(
+                "<DOCUMENT> <SOURCE> <DOCUMENT> <CONTEXTE> <!-- html -->");
+        Assert(pending.SequenceEqual(new[]
+               {
+                   "<DOCUMENT>", "<SOURCE>", "<CONTEXTE>"
+               }) &&
+               draft.Warnings.Any(item => item.Contains(
+                   "<DOCUMENT>", StringComparison.Ordinal)),
+            "Unresolved user variables must remain explicit, deduplicated " +
+            "and never be silently filled from arbitrary sources.");
+
         ProjectJourneyOperation other = operation with
         {
             PromptKey = null

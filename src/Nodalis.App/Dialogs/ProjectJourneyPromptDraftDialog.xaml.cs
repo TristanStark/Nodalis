@@ -32,6 +32,21 @@ public partial class ProjectJourneyPromptDraftDialog : Window
     /// <param name="e">Click event.</param>
     private void Copy_Click(object sender, RoutedEventArgs e)
     {
+        IReadOnlyList<string> pending = ProjectJourneyPromptVariables
+            .FindPlaceholders(DraftText.Text);
+        if (pending.Count > 0 &&
+            MessageBox.Show(this,
+                "Variables non renseignées : " +
+                string.Join(", ", pending) +
+                "\n\nLe brouillon est modifiable : renseignez ou " +
+                "supprimez chaque variable. Copier quand même ?",
+                "Prompt incomplet · confirmation",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
         try
         {
             Clipboard.SetText(DraftText.Text);

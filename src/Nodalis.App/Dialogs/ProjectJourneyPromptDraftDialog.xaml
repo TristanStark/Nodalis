@@ -19,15 +19,16 @@
                        Margin="0,6,0,0"
                        Foreground="{StaticResource SecondaryTextBrush}" />
         </StackPanel>
-        <TabControl Grid.Row="1" AutomationProperties.Name="Messages IA distincts">
+        <TabControl Grid.Row="1" AutomationProperties.Name="Messages IA distincts"
+                    ToolTip="Les variables entre chevrons du brouillon utilisateur sont à renseigner explicitement avant copie.">
             <TabItem Header="Prompt utilisateur + sources">
                 <TextBox x:Name="DraftText"
                          FontFamily="Consolas" FontSize="13"
-                         Padding="14" IsReadOnly="True"
+                         Padding="14" IsReadOnly="False"
                          TextWrapping="Wrap" AcceptsReturn="True"
                          VerticalScrollBarVisibility="Auto"
                          HorizontalScrollBarVisibility="Auto"
-                         AutomationProperties.Name="Prompt utilisateur à relire" />
+                         AutomationProperties.Name="Brouillon utilisateur modifiable avant copie" />
             </TabItem>
             <TabItem x:Name="SystemTab"
                      Header="Système FRT-100 (configuration séparée)">

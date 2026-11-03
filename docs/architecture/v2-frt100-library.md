@@ -55,3 +55,15 @@ exécution IA ou injection dans le workspace n'a lieu.
 catalogues workspace/projet et conservation de provenance des versions ;
 import de réponses structurées dans #197. Qualification visuelle réelle
 Windows encore nécessaire pour #195/#196.
+
+## Variables non résolues et brouillon éditable
+
+La préparation énumère les variables `<DOCUMENT>`, `<SOURCE>`,
+`<CONTEXTE>` et les autres marqueurs réellement présents dans le modèle,
+sans les remplacer au hasard par un document du workspace. Le nombre et la
+liste apparaissent dans les avertissements. Le brouillon **utilisateur**
+est désormais modifiable uniquement en mémoire : la copie demande une
+confirmation supplémentaire si des variables restent. Le prompt original
+sur disque reste non modifié ; le prompt SYSTEME reste en lecture seule.
+Le service ne déduit aucune association implicite entre un fichier lié
+et une variable. La liaison par variable/section reste au backlog #196.

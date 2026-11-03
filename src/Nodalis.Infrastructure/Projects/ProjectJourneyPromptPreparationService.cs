@@ -79,6 +79,13 @@ public sealed class ProjectJourneyPromptPreparationService
         }
         else
         {
+            if (operation.PromptKey == "frt100-system-v1")
+            {
+                throw new InvalidDataException(
+                    "Le référentiel SYSTEME FRT-100 ne peut pas être " +
+                    "utilisé comme prompt utilisateur.");
+            }
+
             draft.AppendLine("Référence de prompt : " + operation.PromptKey);
             string promptPath = Path.Combine(_promptRoot,
                 operation.PromptKey + ".md");
@@ -88,9 +95,19 @@ public sealed class ProjectJourneyPromptPreparationService
                 string prompt = await new FileSystemAiPromptStore(_promptRoot)
                     .LoadAsync(operation.PromptKey, cancellationToken);
                 draft.AppendLine(prompt);
-                if (operation.PromptKey.StartsWith("frt100-",
-                        StringComparison.Ordinal) &&
-                    operation.PromptKey != "frt100-system-v1")
+                string[] placeholders = ProjectJourneyPromptVariables
+                    .FindPlaceholders(prompt).ToArray();
+                if (placeholders.Length > 0)
+                {
+                    warnings.Add("Variables à renseigner ou supprimer " +
+                        "avant utilisation : " +
+                        string.Join(", ", placeholders) +
+                        " (les sources liées ne sont pas affectées " +
+                        "automatiquement à ces variables).");
+                }
+
+                if (FileSystemAiPromptStore.IsFrt100UserPromptId(
+                        operation.PromptKey))
                 {
                     string systemPath = Path.Combine(
                         _promptRoot, "frt100-system-v1.md");
