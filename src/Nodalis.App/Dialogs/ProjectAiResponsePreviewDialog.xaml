@@ -18,7 +18,7 @@
                        FontSize="20" FontWeight="SemiBold" />
             <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}"
-                       Text="Collez une enveloppe nodalis.import.v1. Les propositions sont non fiables : aucune création, mise à jour, validation, suppression ni requête réseau." />
+                       Text="Collez une enveloppe nodalis.import.v1. Analyser n'accède pas au workspace ; Comparer lit uniquement les exigences du projet courant. Aucun import, validation ou réseau." />
         </StackPanel>
         <TextBox x:Name="RawResponseBox" Grid.Row="1"
                  FontFamily="Consolas" FontSize="12"
@@ -28,9 +28,16 @@
                  TextChanged="RawResponseBox_TextChanged"
                  AutomationProperties.Name="Coller la réponse JSON externe ici" />
         <DockPanel Grid.Row="2" Margin="0,9,0,8">
-            <Button DockPanel.Dock="Right" x:Name="AnalyzeButton"
-                    Content="Analyser (sans importer)" Padding="14,7"
-                    Click="Analyze_Click" />
+            <WrapPanel DockPanel.Dock="Right">
+                <Button x:Name="AnalyzeButton"
+                        Content="Analyser (sans importer)" Padding="14,7"
+                        Margin="0,0,8,4" Click="Analyze_Click" />
+                <Button x:Name="CompareButton"
+                        Content="Comparer aux exigences du projet"
+                        Padding="14,7" Margin="0,0,0,4"
+                        Click="Compare_Click"
+                        ToolTip="Lecture du registre canonique du projet seulement, aucune écriture" />
+            </WrapPanel>
             <TextBlock x:Name="SummaryText" VerticalAlignment="Center"
                        TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}"
