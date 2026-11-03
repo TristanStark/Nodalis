@@ -950,7 +950,7 @@ public partial class ProjectJourneyView : UserControl
         object sender, RoutedEventArgs e) =>
         await RunActionAsync(() =>
         {
-            ProjectAiResponsePreviewDialog dialog = new()
+            ProjectAiResponsePreviewDialog dialog = new(_workspaceRoot, _projectDirectory)
             {
                 Owner = Window.GetWindow(this)
             };
