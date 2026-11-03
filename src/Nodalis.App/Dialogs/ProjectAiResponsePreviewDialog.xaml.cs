@@ -19,6 +19,9 @@ public partial class ProjectAiResponsePreviewDialog : Window
     private readonly string _workspaceRoot;
     private readonly string _projectDirectory;
     private IReadOnlyDictionary<Guid, ProjectAiRequirementReview>? _comparisons;
+    private readonly Dictionary<(Guid ProposalId, string Field),
+        ProjectAiFieldDecision> _decisions = [];
+    private bool _settingReviewInput;
 
     /// <summary>Initializes project-scoped, read-only external response review.</summary>
     /// <param name="workspaceRoot">The active single workspace.</param>
@@ -48,6 +51,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
         _inputRevision++;
         _preview = null;
         _comparisons = null;
+        ClearDecisions();
         ProposalsList.ItemsSource = null;
         DetailsBox.Text = string.Empty;
         SummaryText.Text = "Réponse modifiée : analyse à relancer.";
@@ -80,6 +84,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
 
             _preview = preview;
             _comparisons = null;
+            ClearDecisions();
             ProposalsList.ItemsSource = preview.Document.Proposals;
             ProposalsList.SelectedIndex = 0;
             SummaryText.Text = preview.Document.Proposals.Count +
@@ -149,6 +154,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
 
             _comparisons = reviews.ToDictionary(
                 item => item.Candidate.ProposalId);
+            ClearDecisions();
             int matched = reviews.Count(item => item.Status is
                 ProjectAiRequirementMatchStatus.GuidMatch or
                 ProjectAiRequirementMatchStatus.ReferenceMatch);
@@ -160,6 +166,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 "Les propositions et bases IA restent non fiables. " +
                 "Aucune écriture autorisée.";
             ShowSelectedDetails();
+            UpdateButtons();
         }
         catch (Exception exception) when (exception is InvalidDataException or
             InvalidOperationException or ArgumentException or IOException or
@@ -168,6 +175,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
             if (revision == _inputRevision)
             {
                 _comparisons = null;
+                ClearDecisions();
                 StatusText.Text = "Comparaison refusée : " + exception.Message +
                     " · aucune modification du workspace.";
                 ShowSelectedDetails();
@@ -193,6 +201,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
             ProposalsList.SelectedItem is not ProjectAiImportCandidate item)
         {
             DetailsBox.Text = string.Empty;
+            RenderFieldChoices();
             return;
         }
 
@@ -265,6 +274,256 @@ public partial class ProjectAiResponsePreviewDialog : Window
         builder.AppendLine("Aucun champ ne peut être accepté ni importé ici. " +
             "Revalidation des sources et décision humaine restent obligatoires.");
         DetailsBox.Text = builder.ToString();
+        RenderFieldChoices();
+    }
+
+    /// <summary>Clears all volatile choices and an obsolete dry-run.</summary>
+    private void ClearDecisions()
+    {
+        _decisions.Clear();
+        if (PlanTextBox is not null)
+        {
+            PlanTextBox.Text = "Plan invalidé : comparaison et choix à refaire.";
+        }
+
+        if (ReviewStatusText is not null)
+        {
+            ReviewStatusText.Text = "Aucun choix enregistré en mémoire";
+        }
+    }
+
+    /// <summary>Lists only fields in the currently selected external proposal.</summary>
+    private void RenderFieldChoices()
+    {
+        if (FieldPicker is null)
+        {
+            return;
+        }
+
+        string? selectedField = FieldPicker.SelectedItem as string;
+        _settingReviewInput = true;
+        try
+        {
+            if (ProposalsList.SelectedItem is not ProjectAiImportCandidate candidate)
+            {
+                FieldPicker.ItemsSource = null;
+                FieldPicker.SelectedItem = null;
+            }
+            else
+            {
+                string[] fields = candidate.ProposedFields.Keys.OrderBy(
+                    item => item, StringComparer.Ordinal).ToArray();
+                FieldPicker.ItemsSource = fields;
+                FieldPicker.SelectedItem = fields.Contains(selectedField,
+                    StringComparer.Ordinal) ? selectedField :
+                    fields.FirstOrDefault();
+            }
+        }
+        finally
+        {
+            _settingReviewInput = false;
+        }
+
+        RenderFieldInputs();
+    }
+
+    /// <summary>Shows the proposed or human-edited value and stored choice.</summary>
+    private void RenderFieldInputs()
+    {
+        if (ReviewedValueBox is null || JustificationBox is null ||
+            ReviewStatusText is null)
+        {
+            return;
+        }
+
+        _settingReviewInput = true;
+        try
+        {
+            ProjectAiImportCandidate? candidate =
+                ProposalsList.SelectedItem as ProjectAiImportCandidate;
+            string? field = FieldPicker.SelectedItem as string;
+            if (candidate is not null && field is not null &&
+                candidate.ProposedFields.TryGetValue(field, out string? value))
+            {
+                _decisions.TryGetValue((candidate.ProposalId, field),
+                    out ProjectAiFieldDecision? decision);
+                ReviewedValueBox.Text =
+                    decision?.EditedValue ?? value;
+                JustificationBox.Text = decision?.Reason ?? string.Empty;
+            }
+            else
+            {
+                ReviewedValueBox.Text = string.Empty;
+                JustificationBox.Text = string.Empty;
+            }
+
+            ReviewStatusText.Text = _decisions.Count + " choix humain(s) " +
+                "en mémoire · champ : " +
+                (candidate is not null && field is not null &&
+                 _decisions.TryGetValue((candidate.ProposalId, field),
+                     out ProjectAiFieldDecision? current)
+                    ? current.Kind.ToString()
+                    : "sans décision");
+        }
+        finally
+        {
+            _settingReviewInput = false;
+        }
+
+        UpdateButtons();
+    }
+
+    /// <summary>Switches one proposal field, without implicitly accepting it.</summary>
+    /// <param name="sender">The selected field.</param>
+    /// <param name="e">Selection event.</param>
+    private void FieldPicker_SelectionChanged(
+        object sender, SelectionChangedEventArgs e)
+    {
+        if (!_settingReviewInput)
+        {
+            RenderFieldInputs();
+        }
+    }
+
+    /// <summary>Invalidates an earlier decision if the human edits its input.</summary>
+    /// <param name="sender">Editable reviewed value or reason.</param>
+    /// <param name="e">Text changed event.</param>
+    private void DecisionInput_TextChanged(
+        object sender, TextChangedEventArgs e)
+    {
+        if (_settingReviewInput || FieldPicker is null ||
+            ProposalsList is null)
+        {
+            return;
+        }
+
+        if (ProposalsList.SelectedItem is ProjectAiImportCandidate candidate &&
+            FieldPicker.SelectedItem is string field)
+        {
+            _decisions.Remove((candidate.ProposalId, field));
+            if (PlanTextBox is not null)
+            {
+                PlanTextBox.Text = "Plan périmé : préparer à nouveau après validation.";
+            }
+
+            if (ReviewStatusText is not null)
+            {
+                ReviewStatusText.Text = _decisions.Count +
+                    " choix humain(s) en mémoire · valeur modifiée, non approuvée";
+            }
+        }
+
+        UpdateButtons();
+    }
+
+    /// <summary>Stores one explicit decision only after pure plan validation.</summary>
+    /// <param name="kind">Explicit UI action.</param>
+    private void RecordDecision(ProjectAiFieldDecisionKind kind)
+    {
+        if (_preview is null || _comparisons is null ||
+            ProposalsList.SelectedItem is not ProjectAiImportCandidate candidate ||
+            FieldPicker.SelectedItem is not string field)
+        {
+            return;
+        }
+
+        ProjectAiFieldDecision decision = new(
+            candidate.ProposalId, field, kind,
+            kind == ProjectAiFieldDecisionKind.Edit
+                ? ReviewedValueBox.Text : null,
+            string.IsNullOrWhiteSpace(JustificationBox.Text)
+                ? null : JustificationBox.Text.Trim());
+        Dictionary<(Guid ProposalId, string Field), ProjectAiFieldDecision>
+            next = new(_decisions)
+            {
+                [(candidate.ProposalId, field)] = decision
+            };
+
+        try
+        {
+            ProjectAiImportDecisionPlanner.Prepare(
+                _preview, _comparisons.Values.ToArray(), next.Values.ToArray());
+            _decisions[(candidate.ProposalId, field)] = decision;
+            PlanTextBox.Text = "Choix modifiés : préparer à nouveau le plan.";
+            StatusText.Text = "Décision « " + kind +
+                " » conservée temporairement. Aucun document modifié.";
+            RenderFieldInputs();
+        }
+        catch (InvalidDataException exception)
+        {
+            StatusText.Text = "Décision refusée : " + exception.Message;
+            MessageBox.Show(this, exception.Message,
+                "Import IA · qualification requise",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Accepts one already compared, supported field explicitly.</summary>
+    private void AcceptField_Click(object sender, RoutedEventArgs e) =>
+        RecordDecision(ProjectAiFieldDecisionKind.Accept);
+
+    /// <summary>Accepts a human-edited value, not the AI original.</summary>
+    private void EditField_Click(object sender, RoutedEventArgs e) =>
+        RecordDecision(ProjectAiFieldDecisionKind.Edit);
+
+    /// <summary>Defers the selected field for human requalification.</summary>
+    private void ReviewField_Click(object sender, RoutedEventArgs e) =>
+        RecordDecision(ProjectAiFieldDecisionKind.Review);
+
+    /// <summary>Explicitly ignores the selected field without affecting others.</summary>
+    private void IgnoreField_Click(object sender, RoutedEventArgs e) =>
+        RecordDecision(ProjectAiFieldDecisionKind.Ignore);
+
+    /// <summary>Builds a human-readable, non-executable review plan.</summary>
+    private void BuildReviewPlan_Click(object sender, RoutedEventArgs e)
+    {
+        if (_preview is null || _comparisons is null)
+        {
+            return;
+        }
+
+        try
+        {
+            ProjectAiPreparedReviewPlan plan =
+                ProjectAiImportDecisionPlanner.Prepare(_preview,
+                    _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+            StringBuilder builder = new();
+            builder.AppendLine("PLAN DE QUALIFICATION — LECTURE SEULE");
+            builder.AppendLine("AUCUNE TRANSACTION NI ÉCRITURE N'EST POSSIBLE ICI.");
+            builder.AppendLine("Réponse SHA-256 : " + plan.RawResponseSha256);
+            builder.AppendLine("Champs explicitement traités : " +
+                plan.ReviewedFields);
+            builder.AppendLine("Champs ignorés : " + plan.IgnoredFields);
+            builder.AppendLine("Champs restant à revoir : " + plan.PendingFields);
+            builder.AppendLine("Modifications proposées : " + plan.Changes.Count);
+            foreach (ProjectAiPreparedTitleChange change in plan.Changes)
+            {
+                builder.AppendLine();
+                builder.AppendLine("Exigence " + change.Reference +
+                    " · " + change.RequirementId.ToString("D"));
+                builder.AppendLine("Source : " + change.RelativePath);
+                builder.AppendLine("SHA actuel à revalider : " +
+                    change.ExpectedSha256);
+                builder.AppendLine("Titre actuel : " + change.CurrentTitle);
+                builder.AppendLine("Titre retenu : " + change.ReviewedTitle);
+                if (!string.IsNullOrWhiteSpace(change.Reason))
+                {
+                    builder.AppendLine("Justification : " + change.Reason);
+                }
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("Même avec accord humain, il faudra " +
+                "recontrôler les fichiers avant un futur commit sécurisé.");
+            PlanTextBox.Text = builder.ToString();
+            StatusText.Text = "Plan préparé en mémoire : " +
+                plan.Changes.Count + " modification(s), zéro écriture.";
+        }
+        catch (InvalidDataException exception)
+        {
+            PlanTextBox.Text = "Plan impossible : " + exception.Message;
+            StatusText.Text = "Aucune transaction effectuée.";
+        }
     }
 
     /// <summary>Prevents double launch and parsing empty input.</summary>
@@ -280,6 +539,31 @@ public partial class ProjectAiResponsePreviewDialog : Window
         {
             CompareButton.IsEnabled = !_busy && _preview is not null;
         }
+
+        if (AcceptFieldButton is null || FieldPicker is null)
+        {
+            return;
+        }
+
+        bool selected = ProposalsList.SelectedItem is
+            ProjectAiImportCandidate proposal &&
+            FieldPicker.SelectedItem is string field;
+        bool compared = !_busy && _comparisons is not null &&
+            selected && _comparisons.ContainsKey(proposal!.ProposalId);
+        bool supported = compared && field == "title" &&
+            proposal!.Kind == "requirement" &&
+            proposal.Operation == "update" &&
+            _comparisons![proposal.ProposalId].Status is
+                ProjectAiRequirementMatchStatus.GuidMatch or
+                ProjectAiRequirementMatchStatus.ReferenceMatch;
+        AcceptFieldButton.IsEnabled = supported;
+        EditFieldButton.IsEnabled = supported;
+        ReviewedValueBox.IsEnabled = supported;
+        JustificationBox.IsEnabled = supported;
+        ReviewFieldButton.IsEnabled = compared;
+        IgnoreFieldButton.IsEnabled = compared;
+        FieldPicker.IsEnabled = !_busy && _preview is not null;
+        BuildReviewPlanButton.IsEnabled = compared && _decisions.Count > 0;
     }
 
     /// <summary>Discards volatile proposals without any persistence.</summary>
