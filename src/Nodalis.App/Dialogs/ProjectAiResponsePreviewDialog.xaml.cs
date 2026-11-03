@@ -1096,6 +1096,120 @@ public partial class ProjectAiResponsePreviewDialog : Window
     }
 
     /// <summary>
+    /// Resumes a mixed batch from its durable local journal after a new
+    /// human confirmation. No original AI text or past dialog is required.
+    /// </summary>
+    /// <param name="key">Stable 64-hex reviewed plan fingerprint.</param>
+    /// <param name="selected">Recovery selector item to clear on success.</param>
+    private async Task ResumeMixedBatchAsync(
+        string key, ComboBoxItem selected)
+    {
+        _busy = true;
+        _publishing = true;
+        UpdateButtons();
+        try
+        {
+            ProjectAiMixedImportTransactionService service = new(_workspaceRoot);
+            ProjectAiMixedRecoveryPreview preview = await Task.Run(() =>
+                service.ReviewRecoveryAsync(_projectDirectory, key));
+            if (preview.Pending == 0)
+            {
+                StatusText.Text = "Lot mixte déjà achevé, aucune reprise utile.";
+                PendingBatchPicker.Items.Remove(selected);
+                return;
+            }
+
+            if (Application.Current.MainWindow is not Nodalis.App.MainWindow main)
+            {
+                throw new InvalidDataException(
+                    "Éditeur principal indisponible : récupération interdite.");
+            }
+
+            ProjectJourneySourceService resolver = new(_workspaceRoot);
+            foreach (ProjectAiMixedEntry item in preview.Entries)
+            {
+                string target = Path.GetFullPath(Path.Combine(
+                    _workspaceRoot, item.RelativePath.Replace(
+                        '/', Path.DirectorySeparatorChar)));
+                if (File.Exists(target))
+                {
+                    string verified = resolver.ResolveExistingFile(
+                        item.RelativePath);
+                    if (main.IsDocumentOpenForAiImport(verified))
+                    {
+                        throw new InvalidDataException(
+                            "Fiche " + item.Reference + " encore ouverte " +
+                            "dans un éditeur : fermez l'onglet.");
+                    }
+                }
+            }
+
+            StringBuilder message = new();
+            message.AppendLine("REPRISE DU LOT IA MIXTE");
+            message.AppendLine("Journal : " + preview.PlanSha256);
+            message.AppendLine("Projet : " + preview.ProjectId.ToString("D"));
+            message.AppendLine(preview.Published + " déjà publié(s), " +
+                preview.Pending + " restant(s) sur " +
+                preview.Entries.Count);
+            message.AppendLine();
+            foreach (ProjectAiMixedEntry item in preview.Entries)
+            {
+                message.AppendLine((item.Operation == "create"
+                        ? "CRÉER "
+                        : "MODIFIER ") +
+                    item.Reference + " : " +
+                    (item.OriginalTitle ?? "(nouvelle exigence)") +
+                    " → " + item.ReviewedTitle);
+            }
+
+            message.AppendLine();
+            message.AppendLine("Chaque fichier sera recontrôlé par SHA-256. " +
+                "Les identifiants créés seront réutilisés depuis le journal.");
+            message.AppendLine("Aucun fichier divergent ne sera écrasé. " +
+                "Une interruption peut laisser un lot partiel.");
+            message.AppendLine();
+            message.AppendLine("Confirmer la reprise de ce lot mixte ?");
+            if (MessageBox.Show(this, message.ToString(),
+                "Import IA · reprise mixte",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            ProjectAiMixedCommitStatus result = await Task.Run(() =>
+                service.ResumeAsync(_projectDirectory, key));
+            PendingBatchPicker.Items.Remove(selected);
+            StatusText.Text = result == ProjectAiMixedCommitStatus.AlreadyApplied
+                ? "Lot mixte déjà publié : aucune nouvelle écriture."
+                : "Lot mixte repris : recharger les exigences et le Worktree.";
+            PlanTextBox.Text = "Récupération du lot mixte " + key +
+                " : " + result + ".\n" +
+                "Les créations restent en brouillon.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · récupération mixte",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or
+            UnauthorizedAccessException or ArgumentException)
+        {
+            StatusText.Text = "Reprise mixte refusée : " + exception.Message;
+            MessageBox.Show(this, StatusText.Text +
+                "\n\nLe journal local est conservé pour inspection " +
+                "et résolution manuelle des divergences.",
+                "Import IA · récupération mixte bloquée",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _busy = false;
+            _publishing = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
     /// Creates exactly one user-confirmed, unapproved requirement draft.
     /// The fresh EXI code and stable GUID are assigned by Nodalis, not by AI.
     /// </summary>
