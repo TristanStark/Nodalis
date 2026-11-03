@@ -915,30 +915,50 @@ public partial class ProjectAiResponsePreviewDialog : Window
         UpdateButtons();
         try
         {
-            IReadOnlyList<ProjectAiBatchRecoveryPreview> batches =
+            (IReadOnlyList<ProjectAiBatchRecoveryPreview> titleBatches,
+             IReadOnlyList<ProjectAiMixedRecoveryPreview> mixedBatches) =
                 await Task.Run(async () =>
                 {
-                    ProjectAiBatchTitleImportTransactionService service = new(
+                    ProjectAiBatchTitleImportTransactionService titles = new(
                         _workspaceRoot);
-                    return await service.ListPendingBatchesAsync(
-                        _projectDirectory);
+                    ProjectAiMixedImportTransactionService mixed = new(
+                        _workspaceRoot);
+                    IReadOnlyList<ProjectAiBatchRecoveryPreview> titleResults =
+                        await titles.ListPendingBatchesAsync(_projectDirectory);
+                    IReadOnlyList<ProjectAiMixedRecoveryPreview> mixedResults =
+                        await mixed.ListPendingAsync(_projectDirectory);
+                    return (titleResults, mixedResults);
                 });
+
             PendingBatchPicker.Items.Clear();
-            foreach (ProjectAiBatchRecoveryPreview batch in batches)
+            foreach (ProjectAiBatchRecoveryPreview batch in titleBatches)
             {
                 PendingBatchPicker.Items.Add(new ComboBoxItem
                 {
-                    Content = batch.Published + "/" + batch.Files.Count +
-                        " publiés · " + batch.PlanSha256[..12] + "…",
-                    Tag = batch.PlanSha256
+                    Content = "Titres · " + batch.Published + "/" +
+                        batch.Files.Count + " · " +
+                        batch.PlanSha256[..12] + "…",
+                    Tag = "title:" + batch.PlanSha256
                 });
             }
 
-            PendingBatchPicker.SelectedIndex = batches.Count > 0 ? 0 : -1;
-            StatusText.Text = batches.Count + " lot(s) incomplet(s) " +
-                "récupérable(s) après relecture des journaux. " +
-                "Les lots corrompus ou divergents sont exclus " +
-                "de la reprise automatique.";
+            foreach (ProjectAiMixedRecoveryPreview batch in mixedBatches)
+            {
+                PendingBatchPicker.Items.Add(new ComboBoxItem
+                {
+                    Content = "Mixte · " + batch.Published + "/" +
+                        batch.Entries.Count + " · " +
+                        batch.PlanSha256[..12] + "…",
+                    Tag = "mixed:" + batch.PlanSha256
+                });
+            }
+
+            int count = titleBatches.Count + mixedBatches.Count;
+            PendingBatchPicker.SelectedIndex = count > 0 ? 0 : -1;
+            StatusText.Text = count + " lot(s) récupérable(s) : " +
+                titleBatches.Count + " lot(s) de titres, " +
+                mixedBatches.Count + " lot(s) mixtes. Les journaux " +
+                "corrompus et les cibles divergentes sont exclus.";
         }
         catch (Exception exception) when (exception is InvalidDataException or
             InvalidOperationException or IOException or UnauthorizedAccessException or
@@ -971,6 +991,15 @@ public partial class ProjectAiResponsePreviewDialog : Window
             return;
         }
 
+        if (key.StartsWith("mixed:", StringComparison.Ordinal))
+        {
+            await ResumeMixedBatchAsync(key[6..], selected);
+            return;
+        }
+
+        key = key.StartsWith("title:", StringComparison.Ordinal)
+            ? key[6..]
+            : key;
         _busy = true;
         _publishing = true;
         UpdateButtons();
