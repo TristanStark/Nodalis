@@ -114,6 +114,20 @@
                         Margin="0,0,8,4" Padding="10,5"
                         Click="PublishReviewedBatch_Click"
                         ToolTip="Confirmer et publier 2 à 20 titres EXI approuvés, avec prévalidation globale et journal de reprise; pas de création ni de changement d'état." />
+                <Button x:Name="FindPendingBatchesButton"
+                        Content="Rechercher les lots interrompus"
+                        Margin="0,0,8,4" Padding="10,5"
+                        Click="FindPendingBatches_Click"
+                        ToolTip="Recherche en lecture seule les journaux de lots incomplets dans ce projet." />
+                <ComboBox x:Name="PendingBatchPicker" Width="210"
+                          Margin="0,0,8,4"
+                          AutomationProperties.Name="Choisir un lot IA interrompu"
+                          ToolTip="Identifiant du lot et progression depuis le journal local" />
+                <Button x:Name="ResumePendingBatchButton"
+                        Content="Reprendre le lot choisi…"
+                        Margin="0,0,8,4" Padding="10,5"
+                        Click="ResumePendingBatch_Click"
+                        ToolTip="Demande confirmation puis reprend un journal après validation des fichiers et titres approuvés." />
                 <Button x:Name="CreateReviewedRequirementButton"
                         Content="Créer 1 exigence approuvée…"
                         Margin="0,0,8,4" Padding="10,5"
