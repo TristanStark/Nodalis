@@ -18,7 +18,7 @@
                        FontSize="20" FontWeight="SemiBold" />
             <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}"
-                       Text="Collez une enveloppe nodalis.import.v1. Analyser n'accède pas au workspace ; Comparer lit uniquement les exigences du projet courant. Aucun import, validation ou réseau." />
+                       Text="Collez une réponse nodalis.import.v1. Comparer et qualifier restent locaux ; seule la commande Enregistrer (après confirmation) peut modifier un titre EXI, avec journal de reprise. Aucun LLM ni réseau." />
         </StackPanel>
         <TextBox x:Name="RawResponseBox" Grid.Row="1"
                  FontFamily="Consolas" FontSize="12"
@@ -104,6 +104,11 @@
                         Content="Préparer le plan (sans écrire)"
                         Margin="0,0,8,4" Padding="10,5"
                         Click="BuildReviewPlan_Click" />
+                <Button x:Name="PublishReviewedTitleButton"
+                        Content="Enregistrer 1 titre approuvé…"
+                        Margin="0,0,8,4" Padding="10,5"
+                        Click="PublishReviewedTitle_Click"
+                        ToolTip="Confirme et publie une seule modification EXI avec journal, relecture SHA-256 et récupération. Les autres champs restent inchangés." />
                 <TextBlock x:Name="ReviewStatusText"
                            Text="Aucun choix enregistré en mémoire"
                            VerticalAlignment="Center" TextWrapping="Wrap"
@@ -118,7 +123,7 @@
                              VerticalScrollBarVisibility="Auto"
                              AutomationProperties.Name="Détail de proposition et comparaison" />
                 </TabItem>
-                <TabItem Header="Plan prévisionnel (aucune écriture)">
+                <TabItem Header="Plan de validation et publication">
                     <TextBox x:Name="PlanTextBox" FontFamily="Consolas"
                              FontSize="12" Padding="10"
                              IsReadOnly="True" TextWrapping="Wrap"
@@ -133,7 +138,7 @@
             <TextBlock x:Name="StatusText" VerticalAlignment="Center"
                        TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}"
-                       Text="Choix conservés en mémoire seulement · aucun import appliqué." />
+                       Text="Aucune publication sans confirmation explicite." />
         </DockPanel>
     </Grid>
 </Window>
