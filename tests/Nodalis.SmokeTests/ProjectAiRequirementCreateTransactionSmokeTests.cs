@@ -125,6 +125,16 @@ internal static class ProjectAiRequirementCreateTransactionSmokeTests
                     project.ProjectDirectory, plan) == "EXI-0001",
                 "Intent, snapshot and idempotent receipt must persist.");
 
+            string receiptJson = await File.ReadAllTextAsync(receiptFile);
+            Assert(JsonSerializer.Deserialize<string>(receiptJson) ==
+                created.Entry.SourceSha256,
+                "The durable completion receipt must be well-formed JSON.");
+            await File.WriteAllTextAsync(receiptFile, "{fichier corrompu");
+            await RejectAsync(() => service.CommitAsync(
+                project.ProjectDirectory, plan, "EXI-0001"),
+                "Malformed completion receipt must block a replay.");
+            await File.WriteAllTextAsync(receiptFile, receiptJson);
+
             ProjectAiRequirementCreateResult replay =
                 await service.CommitAsync(project.ProjectDirectory, plan, "EXI-0001");
             Assert(replay.Status == ProjectAiRequirementCreateStatus.AlreadyCreated &&
