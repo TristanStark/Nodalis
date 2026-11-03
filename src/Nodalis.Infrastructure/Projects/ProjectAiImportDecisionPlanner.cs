@@ -51,7 +51,7 @@ public sealed record ProjectAiPreparedTitleChange(
 /// <param name="Changes">Explicit, validated title changes only.</param>
 /// <param name="ReviewedFields">Fields with an explicit human disposition.</param>
 /// <param name="IgnoredFields">Fields explicitly ignored.</param>
-/// <param name="PendingFields">Fields never accepted or ignored.</param>
+/// <param name="PendingFields">Unreviewed fields plus fields explicitly left for review.</param>
 public sealed record ProjectAiPreparedReviewPlan(
     string RawResponseSha256,
     IReadOnlyList<ProjectAiPreparedTitleChange> Changes,
@@ -209,6 +209,7 @@ public static class ProjectAiImportDecisionPlanner
 
         int totalFields = candidates.Values.Sum(item => item.ProposedFields.Count);
         return new ProjectAiPreparedReviewPlan(preview.RawSha256, changes,
-            reviewed.Count, ignored, totalFields - reviewed.Count);
+            reviewed.Count, ignored, totalFields - reviewed.Count +
+                decisions.Count(item => item.Kind == ProjectAiFieldDecisionKind.Review));
     }
 }
