@@ -334,6 +334,24 @@ public sealed partial class ProjectAiBatchTitleImportTransactionService
             checkpoint?.Invoke(completed);
         }
 
+        // A separate editor may have modified a previously published file
+        // while later files were still being replaced. Never report a fully
+        // successful batch until EVERY target has its approved final bytes.
+        foreach ((ProjectAiBatchTitleFile file, string live,
+                     string approvedSnapshot, bool needsPublishing) in pending)
+        {
+            string finalHash = Hash(await ReadBoundedAsync(
+                live, CancellationToken.None));
+            if (!string.Equals(finalHash, file.PublishedSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Lot non stabilisé : " + file.Reference +
+                    " ne correspond plus à la version approuvée. " +
+                    "Le journal est conservé pour récupération humaine.");
+            }
+        }
+
         return ProjectAiBatchTitleCommitStatus.Applied;
     }
 
