@@ -96,16 +96,19 @@ public static class ProjectAiRequirementReviewService
 
         if (candidate.Operation == "create")
         {
-            if (candidate.TargetId.HasValue || ids.Length > 0 || refs.Length > 0)
+            if (candidate.TargetId.HasValue ||
+                !string.IsNullOrWhiteSpace(candidate.CandidateReference) ||
+                ids.Length > 0 || refs.Length > 0)
             {
                 warnings.Add("Création non qualifiable : identité proposée ou " +
-                    "référence EXI déjà présente. Aucun nouvel ID ne vient de l'IA.");
+                    "référence candidate fournie. Les identifiants officiels " +
+                    "doivent être attribués par Nodalis.");
                 return new ProjectAiRequirementReview(candidate,
                     ProjectAiRequirementMatchStatus.CreateCollision, null, [], warnings);
             }
 
             warnings.Add("Nouvelle exigence candidate : référence, GUID et " +
-                "champs à choisir et confirmer dans une étape ultérieure.");
+                "champs à confirmer par l'utilisateur avant toute création.");
             return new ProjectAiRequirementReview(candidate,
                 ProjectAiRequirementMatchStatus.CreationDraft, null, [], warnings);
         }
