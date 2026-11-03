@@ -265,6 +265,10 @@ public sealed partial class ProjectAiMixedImportTransactionService
             await VerifyPendingAsync(project, transaction, journal, token);
         if (pending.Count == 0)
         {
+            // Recover a receipt lost between successful no-overwrite
+            // publication and its journal confirmation. Never create a
+            // receipt without verifying the exact published target first.
+            await VerifyAllPublishedAsync(project, journal, CancellationToken.None);
             return ProjectAiMixedCommitStatus.AlreadyApplied;
         }
 
