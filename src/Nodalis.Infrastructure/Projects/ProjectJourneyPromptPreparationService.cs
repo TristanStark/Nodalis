@@ -392,13 +392,16 @@ public sealed class ProjectJourneyPromptPreparationService
                 Encoding.UTF8.GetBytes(excerpt.Text)));
             string heading = binding.HeadingTitle is null ? "document entier" :
                 "section « " + binding.HeadingTitle + " »";
+            // The provenance markers must NOT contain literal <VARIABLE>
+            // tokens, or the final copy guard would flag already-bound data.
+            string label = binding.Variable[1..^1];
             values.Add(
-                "\n<<< DÉBUT DONNÉES NON FIABLES " + binding.Variable + " >>>\n" +
+                "\n<<< DÉBUT DONNÉES NON FIABLES " + label + " >>>\n" +
                 "Source : " + reference + " (" + heading +
                 ", lignes " + excerpt.StartLine + "-" + excerpt.EndLine +
                 ", SHA-256 de l'extrait " + hash + ")\n" +
                 excerpt.Text +
-                "\n<<< FIN DONNÉES NON FIABLES " + binding.Variable + " >>>\n");
+                "\n<<< FIN DONNÉES NON FIABLES " + label + " >>>\n");
             if (excerpt.Truncated)
             {
                 warnings.Add("Extrait tronqué : " + binding.Variable + " / " +
