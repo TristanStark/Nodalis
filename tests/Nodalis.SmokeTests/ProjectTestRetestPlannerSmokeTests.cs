@@ -57,7 +57,8 @@ internal static class ProjectTestRetestPlannerSmokeTests
                notChecked.Candidates[2].Reasons.Single() ==
                    ProjectTestRetestReason.NotRun &&
                notChecked.Warnings.Any(item =>
-                   item.Contains("non", StringComparison.OrdinalIgnoreCase)),
+                   item.Contains("ne sont pas contrôlées",
+                       StringComparison.Ordinal)),
             "Unknown source status cannot imply earlier Passed tests need " +
             "or do not need current verification.");
 
