@@ -594,6 +594,8 @@ public sealed partial class ProjectAiMixedImportTransactionService
 
         string project = Path.TrimEndingDirectorySeparator(
             Path.GetFullPath(projectDirectory));
+        string root = Path.Combine(project, RootName);
+        RequireNormalDirectory(root);
         string transaction = TransactionDirectory(project, key);
         RequireNormalDirectory(transaction);
         ProjectAiMixedJournal journal = await ReadJournalAsync(
