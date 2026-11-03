@@ -492,7 +492,7 @@ public sealed partial class ProjectAiMixedImportTransactionService
     private static string[] AllocateReferences(string? first, int number)
     {
         if (!ProjectRequirementMarkdownCodec.IsReference(first) ||
-            !int.TryParse(first[4..], out int numeric) ||
+            !int.TryParse(first![4..], out int numeric) ||
             numeric + number - 1 > 9999)
         {
             throw new InvalidDataException(
