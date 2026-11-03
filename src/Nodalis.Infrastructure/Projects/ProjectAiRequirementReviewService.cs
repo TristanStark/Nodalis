@@ -29,7 +29,11 @@ public sealed record ProjectAiRequirementReview(
     ProjectAiRequirementMatchStatus Status,
     ProjectRequirementEntry? Requirement,
     IReadOnlyList<ProjectAiFieldDifference> Fields,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings)
+{
+    /// <summary>Verified owning project of this catalog snapshot.</summary>
+    public Guid ProjectId { get; init; }
+}
 
 /// <summary>
 /// Resolves external hints against the existing, project-scoped canonical
@@ -55,7 +59,10 @@ public static class ProjectAiRequirementReviewService
         List<ProjectAiRequirementReview> reviews = [];
         foreach (ProjectAiImportCandidate candidate in preview.Document.Proposals)
         {
-            reviews.Add(Resolve(candidate, catalog));
+            reviews.Add(Resolve(candidate, catalog) with
+            {
+                ProjectId = catalog.ProjectId
+            });
         }
 
         return reviews;
