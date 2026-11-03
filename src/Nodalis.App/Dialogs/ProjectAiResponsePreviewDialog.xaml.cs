@@ -725,6 +725,175 @@ public partial class ProjectAiResponsePreviewDialog : Window
     }
 
     /// <summary>
+    /// Discovers recoverable, incomplete EXI title batches without writing
+    /// or interpreting any pasted AI response as an action.
+    /// </summary>
+    /// <param name="sender">Read-only discovery button.</param>
+    /// <param name="e">User click.</param>
+    private async void FindPendingBatches_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            IReadOnlyList<ProjectAiBatchRecoveryPreview> batches =
+                await Task.Run(async () =>
+                {
+                    ProjectAiBatchTitleImportTransactionService service = new(
+                        _workspaceRoot);
+                    return await service.ListPendingBatchesAsync(
+                        _projectDirectory);
+                });
+            PendingBatchPicker.Items.Clear();
+            foreach (ProjectAiBatchRecoveryPreview batch in batches)
+            {
+                PendingBatchPicker.Items.Add(new ComboBoxItem
+                {
+                    Content = batch.Published + "/" + batch.Files.Count +
+                        " publiés · " + batch.PlanSha256[..12] + "…",
+                    Tag = batch.PlanSha256
+                });
+            }
+
+            PendingBatchPicker.SelectedIndex = batches.Count > 0 ? 0 : -1;
+            StatusText.Text = batches.Count + " lot(s) incomplet(s) " +
+                "récupérable(s) après relecture des journaux. " +
+                "Les lots corrompus ou divergents sont exclus " +
+                "de la reprise automatique.";
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            PendingBatchPicker.Items.Clear();
+            StatusText.Text = "Recherche des journaux refusée : " +
+                exception.Message;
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Revalidates the selected retained batch, enumerates all proposed titles
+    /// for explicit human confirmation, then safely resumes publication.
+    /// </summary>
+    /// <param name="sender">Recovery command.</param>
+    /// <param name="e">User click.</param>
+    private async void ResumePendingBatch_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly ||
+            PendingBatchPicker.SelectedItem is not ComboBoxItem selected ||
+            selected.Tag is not string key)
+        {
+            return;
+        }
+
+        _busy = true;
+        _publishing = true;
+        UpdateButtons();
+        try
+        {
+            ProjectAiBatchTitleImportTransactionService service = new(
+                _workspaceRoot);
+            ProjectAiBatchRecoveryPreview preview = await Task.Run(() =>
+                service.ReviewRecoveryAsync(_projectDirectory, key));
+            if (preview.Pending == 0)
+            {
+                StatusText.Text = "Lot déjà achevé, aucune reprise nécessaire.";
+                return;
+            }
+
+            if (Application.Current.MainWindow is not Nodalis.App.MainWindow main)
+            {
+                throw new InvalidDataException(
+                    "Éditeur principal indisponible : reprise refusée.");
+            }
+
+            ProjectJourneySourceService resolver = new(_workspaceRoot);
+            foreach (ProjectAiBatchTitleFile file in preview.Files)
+            {
+                string path = resolver.ResolveExistingFile(file.RelativePath);
+                if (main.IsDocumentOpenForAiImport(path))
+                {
+                    throw new InvalidDataException(
+                        "La fiche " + file.Reference + " est ouverte en édition. " +
+                        "Fermez l'onglet avant de reprendre le lot.");
+                }
+            }
+
+            StringBuilder message = new();
+            message.AppendLine("REPRISE EXPLICITE D'UN LOT LOCAL");
+            message.AppendLine("Journal : " + preview.PlanSha256);
+            message.AppendLine("Projet : " + preview.ProjectId.ToString("D"));
+            message.AppendLine(preview.Published + " déjà publié(s) ; " +
+                preview.Pending + " restant(s) sur " + preview.Files.Count);
+            message.AppendLine();
+            foreach (ProjectAiBatchTitleFile file in preview.Files)
+            {
+                message.AppendLine(file.Reference + " : " +
+                    file.OriginalTitle + " → " + file.ReviewedTitle);
+            }
+
+            message.AppendLine();
+            message.AppendLine("Tous les documents et instantanés seront " +
+                "revérifiés. Aucune divergence ne sera écrasée.");
+            message.AppendLine("Cette reprise n'efface pas les journaux.");
+            message.AppendLine();
+            message.AppendLine("Confirmer la reprise des titres restants ?");
+            if (MessageBox.Show(this, message.ToString(),
+                "Import IA · reprise depuis le journal",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            ProjectAiBatchTitleCommitStatus result = await Task.Run(() =>
+                service.ResumeAsync(_projectDirectory, key));
+            PendingBatchPicker.Items.Remove(selected);
+            StatusText.Text = result ==
+                ProjectAiBatchTitleCommitStatus.AlreadyApplied
+                ? "Lot déjà finalisé, aucun fichier modifié."
+                : "Lot repris depuis son journal local. " +
+                  "Recharger les fiches mises à jour.";
+            PlanTextBox.Text = "Récupération du lot " + key +
+                " terminée : " + result + ".\n" +
+                "Requalifier les éventuelles autres propositions séparément.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · résultat de récupération",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            StatusText.Text = "Reprise interrompue/refusée : " +
+                exception.Message;
+            MessageBox.Show(this, StatusText.Text +
+                "\n\nLes copies du journal demeurent disponibles ; " +
+                "résoudre toute divergence avant de réessayer.",
+                "Import IA · récupération bloquée",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _busy = false;
+            _publishing = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
     /// Creates exactly one user-confirmed, unapproved requirement draft.
     /// The fresh EXI code and stable GUID are assigned by Nodalis, not by AI.
     /// </summary>
@@ -1053,6 +1222,22 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Changes.Count is >= 2 and <= 20 &&
                 _preparedPlan.Creations.Count == 0 &&
                 _comparisons is not null && _preview is not null;
+        }
+
+        if (FindPendingBatchesButton is not null)
+        {
+            FindPendingBatchesButton.IsEnabled = !_busy && !_readOnly;
+        }
+
+        if (PendingBatchPicker is not null)
+        {
+            PendingBatchPicker.IsEnabled = !_busy && !_readOnly;
+        }
+
+        if (ResumePendingBatchButton is not null)
+        {
+            ResumePendingBatchButton.IsEnabled = !_busy && !_readOnly &&
+                PendingBatchPicker?.SelectedItem is ComboBoxItem;
         }
 
         if (AcceptFieldButton is null || FieldPicker is null)
