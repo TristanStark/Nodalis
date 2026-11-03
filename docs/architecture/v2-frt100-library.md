@@ -79,3 +79,54 @@ clôture #30). L'association est seulement une proposition modifiable,
 déjà initialisés et les modèles workspace personnalisés ne sont pas
 réécrits. Les smoke tests vérifient que toutes les clés des neuf
 étapes du modèle Complexe pointent vers un des 31 prompts réels.
+
+## Liaisons explicites de variables FRT-100 (03/11/2026)
+
+Dans un **Parcours** déjà initialisé, sélectionnez une opération puis
+**Associer un prompt…** pour choisir un modèle. L'action
+**Préparer / copier** ouvre ensuite, pour les 31 prompts FRT-100, un
+sélecteur de variables du modèle **avant lecture des documents**.
+
+- Le sélecteur liste uniquement les fichiers `.md` et `.txt` que
+  l'utilisateur a précédemment liés à cette opération. Il ne scanne pas
+  récursivement le workspace pour chercher des documents « similaires ».
+- Pour une variable telle que `<SOLUTION>` ou `<DOCUMENT>`, choisissez
+  un **fichier entier**, une **section Markdown précise** (titre + ligne),
+  ou un texte manuel. Plusieurs extraits peuvent alimenter le même jeton.
+- Les titres sont recensés sur les **256 000 premiers caractères** du
+  Markdown, en ignorant les blocs de code délimités. L'aperçu peut être
+  consulté avant toute association. Si le titre est déplacé/modifié
+  entre la sélection et l'assemblage, l'extrait est **omis** avec alerte.
+- L'assemblage s'effectue sur demande et hors du Dispatcher WPF :
+  **8 sources distinctes**, **12 000 caractères par extrait**,
+  **40 000 caractères de données source au total**. Les chemins sont
+  revalidés contre les fichiers liés (et contre les jonctions/liens
+  symboliques) au moment de la lecture.
+- Chaque insertion est encadrée comme donnée non fiable, avec le chemin
+  relatif, les numéros de lignes et le SHA-256 **du contenu de l'extrait**.
+  La substitution n'est faite qu'une fois : un jeton similaire présent
+  dans une preuve ne déclenche jamais une deuxième expansion.
+- Toute variable non renseignée **reste visible** et est signalée.
+  Un texte saisi manuellement ne déclenche aucune lecture implicite.
+  Les associations sont **temporaires** : les modèles FRT-100 originaux,
+  les fichiers Markdown du projet et le JSON de Parcours ne sont pas
+  modifiés par cet assistant de préparation.
+
+### Recette Windows à réaliser
+
+Dans un projet Complexe fictif, associer le prompt **#11** à l'opération
+Conception. Lier un document `Architecture.md` et un document
+`Exigences.md`, puis sélectionner manuellement deux sections distinctes
+pour `<SOLUTION>`. Vérifier la provenance et l'absence d'autres sections
+dans le brouillon. Réessayer après déplacement d'un titre, avec des titres
+en double et dans un bloc de code, puis sans choisir de source.
+
+Contrôler également dark mode, DPI élevé, fenêtres réduites, Ctrl+W et
+projets archivés/lecture seule : la préparation d'un brouillon n'est pas
+une écriture métier, et aucun LLM ne doit être appelé.
+
+**Restes #196 :** catalogues de prompts workspace/projet versionnés,
+association persistante opt-in des variables, catégorisation de documents
+par index partagé, consentement/export explicites et historique équilibré.
+**#197 :** importer des réponses IA seulement après vérification de
+l'identité et validation humaine au niveau des champs.
