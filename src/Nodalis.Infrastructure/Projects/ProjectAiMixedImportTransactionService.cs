@@ -141,6 +141,7 @@ public sealed partial class ProjectAiMixedImportTransactionService
         string transaction = TransactionDirectory(project, PlanFingerprint(plan));
         if (Directory.Exists(transaction))
         {
+            RequireNormalDirectory(transaction);
             ProjectAiMixedJournal journal = await ReadJournalAsync(
                 Path.Combine(transaction, ManifestName), token);
             ValidateJournal(journal, plan);
