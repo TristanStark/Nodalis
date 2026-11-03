@@ -95,7 +95,7 @@ internal static class ProjectAiResponseImportSmokeTests
             StringComparison.Ordinal)),
             "Traversal cannot enter candidate provenance.");
         Reject(() => ProjectAiResponseImport.Parse(raw.Replace(
-            "\"title\":\"Après\"",
+            "\"title\":\"Avant\"",
             "\"status\":\"Approved\"",
             StringComparison.Ordinal)),
             "Status/approval fields are prohibited even in untrusted JSON.");

@@ -14,6 +14,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
 {
     private ProjectAiResponsePreview? _preview;
     private bool _busy;
+    private long _inputRevision;
 
     /// <summary>Initializes the read-only, no-network analysis dialog.</summary>
     public ProjectAiResponsePreviewDialog()
@@ -33,6 +34,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
             return;
         }
 
+        _inputRevision++;
         _preview = null;
         ProposalsList.ItemsSource = null;
         DetailsBox.Text = string.Empty;
@@ -51,12 +53,19 @@ public partial class ProjectAiResponsePreviewDialog : Window
         }
 
         string raw = RawResponseBox.Text;
+        long revision = _inputRevision;
         _busy = true;
         UpdateButtons();
         try
         {
             ProjectAiResponsePreview preview = await Task.Run(() =>
                 ProjectAiResponseImport.Parse(raw));
+            if (revision != _inputRevision)
+            {
+                // Text changed during analysis: discard obsolete external data.
+                return;
+            }
+
             _preview = preview;
             ProposalsList.ItemsSource = preview.Document.Proposals;
             ProposalsList.SelectedIndex = 0;
@@ -70,6 +79,11 @@ public partial class ProjectAiResponsePreviewDialog : Window
         catch (Exception exception) when (
             exception is InvalidDataException or ArgumentException)
         {
+            if (revision != _inputRevision)
+            {
+                return;
+            }
+
             _preview = null;
             ProposalsList.ItemsSource = null;
             DetailsBox.Text = string.Empty;
