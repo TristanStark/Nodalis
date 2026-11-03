@@ -277,8 +277,9 @@ public partial class ProjectAiResponsePreviewDialog : Window
         }
 
         builder.AppendLine();
-        builder.AppendLine("Aucun champ ne peut être accepté ni importé ici. " +
-            "Revalidation des sources et décision humaine restent obligatoires.");
+        builder.AppendLine("Toute écriture exige une décision humaine, " +
+            "un plan unitaire, une confirmation explicite et un contrôle " +
+            "des fichiers au dernier instant.");
         DetailsBox.Text = builder.ToString();
         RenderFieldChoices();
     }
@@ -565,6 +566,147 @@ public partial class ProjectAiResponsePreviewDialog : Window
             _preparedPlan = null;
             PlanTextBox.Text = "Plan impossible : " + exception.Message;
             StatusText.Text = "Aucune transaction effectuée.";
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Creates exactly one user-confirmed, unapproved requirement draft.
+    /// The fresh EXI code and stable GUID are assigned by Nodalis, not by AI.
+    /// </summary>
+    /// <param name="sender">Explicit creation command.</param>
+    /// <param name="e">User click.</param>
+    private async void CreateReviewedRequirement_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _preview is null ||
+            _comparisons is null || _preparedPlan is null ||
+            _preparedPlan.Changes.Count != 0 ||
+            _preparedPlan.Creations.Count != 1)
+        {
+            return;
+        }
+
+        ProjectAiPreparedReviewPlan expected = _preparedPlan;
+        ProjectAiPreparedReviewPlan current;
+        try
+        {
+            current = ProjectAiImportDecisionPlanner.Prepare(_preview,
+                _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+            if (current.Changes.Count != 0 || current.Creations.Count != 1 ||
+                current.Creations[0] != expected.Creations[0] ||
+                current.RawResponseSha256 != expected.RawResponseSha256 ||
+                current.ReviewedFields != expected.ReviewedFields ||
+                current.IgnoredFields != expected.IgnoredFields ||
+                current.PendingFields != expected.PendingFields)
+            {
+                _preparedPlan = null;
+                StatusText.Text = "Plan de création modifié : requalifier le choix.";
+                UpdateButtons();
+                return;
+            }
+        }
+        catch (InvalidDataException exception)
+        {
+            _preparedPlan = null;
+            StatusText.Text = "Plan de création invalide : " + exception.Message;
+            UpdateButtons();
+            return;
+        }
+
+        long revision = _inputRevision;
+        _busy = true;
+        _publishing = true;
+        UpdateButtons();
+        try
+        {
+            ProjectAiRequirementCreateTransactionService service = new(
+                _workspaceRoot);
+            (ProjectRequirementCatalog catalog, string? journaled) =
+                await Task.Run(async () =>
+                {
+                    ProjectRequirementRegistryService registry = new(
+                        _workspaceRoot);
+                    ProjectRequirementCatalog local =
+                        await registry.ListAsync(_projectDirectory);
+                    string? previous = await service.GetJournaledReferenceAsync(
+                        _projectDirectory, current);
+                    return (local, previous);
+                });
+            if (revision != _inputRevision ||
+                !ReferenceEquals(expected, _preparedPlan))
+            {
+                StatusText.Text = "Réponse ou plan modifié : création annulée.";
+                return;
+            }
+
+            ProjectAiPreparedRequirementCreation creation =
+                current.Creations.Single();
+            if (creation.ProjectId != catalog.ProjectId)
+            {
+                throw new InvalidDataException(
+                    "Le projet choisi ne correspond pas à la qualification.");
+            }
+
+            string code = journaled ?? catalog.NextReference ??
+                throw new InvalidDataException(
+                    "Aucune référence EXI n'est disponible.");
+            string question = "Projet : " +
+                creation.ProjectId.ToString("D") +
+                "\nRéférence attribuée par Nodalis : " + code +
+                "\nTitre retenu : " + creation.ReviewedTitle +
+                "\n\nL'exigence sera créée comme BROUILLON : " +
+                "aucune validation ni vérification automatique." +
+                "\nLes autres propositions IA ne seront pas enregistrées." +
+                "\nLe journal local conservera une copie de la fiche créée." +
+                (journaled is null
+                    ? "\nUn nouveau GUID stable sera généré par Nodalis."
+                    : "\nUne transaction existante sera vérifiée : " +
+                      "aucun doublon ne sera créé.") +
+                "\n\nConfirmer cette création ?";
+            if (MessageBox.Show(this, question,
+                "Import IA · créer une seule exigence",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            ProjectAiRequirementCreateResult result = await Task.Run(() =>
+                service.CommitAsync(_projectDirectory, current, code));
+            _comparisons = null;
+            ClearDecisions();
+            ShowSelectedDetails();
+            PlanTextBox.Text = "Exigence " + result.Entry.Card.Reference +
+                " · " + result.Entry.Card.Id.ToString("D") +
+                "\nFichier : " + result.Entry.RelativePath +
+                "\nÉtat : " + result.Status +
+                "\nBrouillon non approuvé. Recharger le Worktree si nécessaire.";
+            StatusText.Text = result.Status ==
+                ProjectAiRequirementCreateStatus.AlreadyCreated
+                ? "La proposition a déjà créé cette exigence : aucun doublon."
+                : "Nouvelle exigence EXI créée en brouillon, avec journal.";
+            MessageBox.Show(this, StatusText.Text +
+                "\n\n" + result.Entry.RelativePath,
+                "Import IA · résultat",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (
+            exception is InvalidDataException or InvalidOperationException or
+            IOException or ArgumentException or UnauthorizedAccessException)
+        {
+            StatusText.Text = "Création refusée : " + exception.Message;
+            PlanTextBox.Text = "Aucun écrasement automatique permis. " +
+                "Si un journal est incomplet, examiner les instantanés locaux " +
+                "avant toute tentative de reprise.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · refus ou récupération",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _publishing = false;
+            _busy = false;
             UpdateButtons();
         }
     }
