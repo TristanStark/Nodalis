@@ -115,6 +115,11 @@ public sealed class ProjectAiTitleImportTransactionService
         string lockPath = Path.Combine(root, ".lock");
         await using FileStream exclusive = new(lockPath, FileMode.OpenOrCreate,
             FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.Asynchronous);
+        if ((File.GetAttributes(lockPath) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException("Verrou du journal non sûr.");
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
 
         string transaction = Path.Combine(root, change.ProposalId.ToString("N"));
@@ -128,6 +133,12 @@ public sealed class ProjectAiTitleImportTransactionService
                 throw new InvalidDataException(
                     "Préparation d'import interrompue avant journal : " +
                     "aucun fichier métier n'a été publié ; récupération manuelle requise.");
+            }
+
+            if ((File.GetAttributes(manifestPath) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException(
+                    "Journal sous lien symbolique : reprise refusée.");
             }
 
             string json = await File.ReadAllTextAsync(
@@ -263,9 +274,9 @@ public sealed class ProjectAiTitleImportTransactionService
         if (parts.Length < 4 || !string.Equals(parts[0],
                 WorkspaceLayout.ApplicationsDirectoryName,
                 StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(parts[2],
+            !parts.Skip(2).Any(part => string.Equals(part,
                 WorkspaceLayout.ProjectsDirectoryName,
-                StringComparison.OrdinalIgnoreCase))
+                StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidDataException(
                 "Import IA interdit hors d'un projet actif de l'application.");
@@ -362,7 +373,7 @@ public sealed class ProjectAiTitleImportTransactionService
             (lines[heading].EndsWith('\r') ? "\r" : "");
         string rewritten = string.Join("\n", lines);
         ProjectRequirementCard parsed = ProjectRequirementMarkdownCodec.Parse(rewritten);
-        if (parsed != card with { Title = newTitle })
+        if (parsed != (card with { Title = newTitle }))
         {
             throw new InvalidDataException(
                 "La proposition modifierait des métadonnées non autorisées.");
