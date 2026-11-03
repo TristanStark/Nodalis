@@ -146,6 +146,7 @@ public sealed partial class ProjectAiBatchTitleImportTransactionService
             Path.Combine(directory, ManifestFile), token);
 
         if (journal.Files is null || journal.Files.Count is < 2 or > MaxFiles ||
+            journal.Files.Any(item => item is null) ||
             journal.ProjectId == Guid.Empty ||
             journal.PlanSha256 != planSha256 ||
             journal.RawResponseSha256 is not { Length: 64 } ||
