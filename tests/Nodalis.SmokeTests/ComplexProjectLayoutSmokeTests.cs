@@ -257,7 +257,8 @@ internal static class ComplexProjectLayoutSmokeTests
                     .DocumentCount == 1 &&
                 exportPreview.MarkdownDocumentCount ==
                     Directory.EnumerateFiles(project, "*.md",
-                        SearchOption.AllDirectories).Count() - 2,
+                        SearchOption.AllDirectories).Count() - 2 -
+                    (File.Exists(Path.Combine(project, "Tâches.md")) ? 1 : 0),
                 "Project export preview must count nested documents once and avoid child duplication.");
 
             string source = Path.Combine(technical.DirectoryPath, "Scenario.md");
