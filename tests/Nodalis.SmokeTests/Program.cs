@@ -91,6 +91,7 @@ try
     ProjectAiResponseImportSmokeTests.Run();
     ProjectAiRequirementReviewSmokeTests.Run();
     ProjectAiImportDecisionSmokeTests.Run();
+    await ProjectAiTitleImportTransactionSmokeTests.RunAsync(root);
     await ProjectJourneyMilestoneLinksSmokeTests.RunAsync(root);
     await ProjectGateRegistrySmokeTests.RunAsync(root);
     await ProjectGateMilestoneLinksSmokeTests.RunAsync(root);
