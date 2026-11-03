@@ -545,13 +545,14 @@ public partial class ProjectAiResponsePreviewDialog : Window
             return;
         }
 
-        bool selected = ProposalsList.SelectedItem is
-            ProjectAiImportCandidate proposal &&
-            FieldPicker.SelectedItem is string field;
+        ProjectAiImportCandidate? proposal =
+            ProposalsList.SelectedItem as ProjectAiImportCandidate;
+        string? field = FieldPicker.SelectedItem as string;
         bool compared = !_busy && _comparisons is not null &&
-            selected && _comparisons.ContainsKey(proposal!.ProposalId);
-        bool supported = compared && field == "title" &&
-            proposal!.Kind == "requirement" &&
+            proposal is not null && field is not null &&
+            _comparisons.ContainsKey(proposal.ProposalId);
+        bool supported = compared && proposal is not null &&
+            field == "title" && proposal.Kind == "requirement" &&
             proposal.Operation == "update" &&
             _comparisons![proposal.ProposalId].Status is
                 ProjectAiRequirementMatchStatus.GuidMatch or
