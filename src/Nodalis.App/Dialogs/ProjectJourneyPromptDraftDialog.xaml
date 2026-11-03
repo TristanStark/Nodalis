@@ -50,6 +50,15 @@
                         Padding="14,8" Margin="0,0,8,0"
                         Content="Copier le système FRT-100"
                         Click="CopySystem_Click" />
+                <Button Padding="14,8" Margin="0,0,8,0"
+                        Content="Exporter le prompt…"
+                        Click="ExportUser_Click"
+                        ToolTip="Exporter uniquement sur demande le brouillon utilisateur" />
+                <Button x:Name="ExportSystemButton" Padding="14,8"
+                        Margin="0,0,8,0"
+                        Content="Exporter FRT-100…"
+                        Click="ExportSystem_Click"
+                        ToolTip="Exporter séparément le référentiel système" />
                 <Button Padding="14,8" Content="Fermer"
                         Click="Close_Click" />
             </StackPanel>

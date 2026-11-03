@@ -1,5 +1,8 @@
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
+using Microsoft.Win32;
 using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
@@ -18,6 +21,7 @@ public partial class ProjectJourneyPromptDraftDialog : Window
             "Aucun prompt système associé. Aucun modèle FRT-100 n'est imposé.";
         SystemTab.IsEnabled = !string.IsNullOrWhiteSpace(draft.SystemPrompt);
         CopySystemButton.IsEnabled = SystemTab.IsEnabled;
+        ExportSystemButton.IsEnabled = SystemTab.IsEnabled;
         SummaryText.Text = draft.IncludedSources +
             " document(s) textuel(s) inclus · " +
             draft.Warnings.Count + " avertissement(s). " +
@@ -86,6 +90,89 @@ public partial class ProjectJourneyPromptDraftDialog : Window
                 "Le presse-papiers est indisponible : " + exception.Message,
                 "Copie impossible", MessageBoxButton.OK,
                 MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Explicitly exports the edited user message, never an AI call.</summary>
+    /// <param name="sender">User-export button.</param>
+    /// <param name="e">Click event.</param>
+    private async void ExportUser_Click(object sender, RoutedEventArgs e)
+    {
+        await ExportAsync(DraftText.Text, "prompt-utilisateur.md",
+            containsWorkspaceData: true);
+    }
+
+    /// <summary>Explicitly exports ONLY the separate system instructions.</summary>
+    /// <param name="sender">System-export button.</param>
+    /// <param name="e">Click event.</param>
+    private async void ExportSystem_Click(object sender, RoutedEventArgs e)
+    {
+        if (SystemTab.IsEnabled)
+        {
+            await ExportAsync(SystemText.Text, "frt100-system.md",
+                containsWorkspaceData: false);
+        }
+    }
+
+    /// <summary>
+    /// Writes an explicitly chosen UTF-8 file after disclosure and approval.
+    /// The two messages are never concatenated or sent over the network.
+    /// </summary>
+    /// <param name="content">Reviewed content, current in-memory revision.</param>
+    /// <param name="suggestedName">Default filename, not a workspace path.</param>
+    /// <param name="containsWorkspaceData">Whether sources could be included.</param>
+    /// <returns>Completed explicit export or cancellation.</returns>
+    private async Task ExportAsync(string content, string suggestedName,
+        bool containsWorkspaceData)
+    {
+        if (containsWorkspaceData)
+        {
+            IReadOnlyList<string> pending =
+                ProjectJourneyPromptVariables.FindPlaceholders(content);
+            string warning = "Le prompt utilisateur peut contenir des données " +
+                "confidentielles de votre workspace. Vérifiez son contenu " +
+                "et choisissez vous-même un emplacement sûr.";
+            if (pending.Count > 0)
+            {
+                warning += "\n\nVariables non renseignées : " +
+                    string.Join(", ", pending) + ".";
+            }
+
+            if (MessageBox.Show(this, warning + "\n\nContinuer l'export ?",
+                    "Exporter un prompt · contrôle humain",
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+        }
+
+        SaveFileDialog picker = new()
+        {
+            Title = "Exporter un message IA préparé (sans envoi)",
+            FileName = suggestedName,
+            Filter = "Markdown (*.md)|*.md|Texte (*.txt)|*.txt",
+            AddExtension = true,
+            DefaultExt = ".md",
+            OverwritePrompt = true
+        };
+        if (picker.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await File.WriteAllTextAsync(picker.FileName, content,
+                new UTF8Encoding(false));
+            StatusText.Text = "Message exporté sur votre demande. " +
+                "Aucun appel IA ni fichier source n'a été modifié.";
+        }
+        catch (Exception exception) when (exception is IOException or
+            UnauthorizedAccessException or ArgumentException)
+        {
+            MessageBox.Show(this, exception.Message, "Export impossible",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

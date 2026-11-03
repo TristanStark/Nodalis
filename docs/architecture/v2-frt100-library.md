@@ -130,3 +130,13 @@ association persistante opt-in des variables, catégorisation de documents
 par index partagé, consentement/export explicites et historique équilibré.
 **#197 :** importer des réponses IA seulement après vérification de
 l'identité et validation humaine au niveau des champs.
+
+## Export explicite des deux canaux
+
+Le dialogue de brouillon dispose de deux actions **Exporter…** distinctes :
+un fichier Markdown/texte UTF-8 pour le **prompt utilisateur** éventuellement
+enrichi avec des sources, et un autre pour le **système FRT-100**.
+L'export utilisateur avertit de la confidentialité possible et des variables
+non renseignées. Un sélecteur de chemin OS confirme l'emplacement et tout
+éventuel écrasement. Aucun export implicite, aucune transmission LLM, aucun
+mélange automatique des rôles système/utilisateur.
