@@ -231,11 +231,12 @@ public sealed class WorkspaceMilestoneService
             manifest.Name,
             relativeSource);
 
-        return parsed.Last(item =>
-            string.Equals(
-                item.RawLine,
-                row,
-                StringComparison.Ordinal));
+        MilestoneItem created = parsed.Last(item =>
+            string.Equals(item.RawLine,
+                row, StringComparison.Ordinal));
+        await SynchronizeTaskAsync(fullProjectDirectory,
+            created, cancellationToken);
+        return created;
     }
 
     /// <summary>
@@ -353,7 +354,7 @@ public sealed class WorkspaceMilestoneService
             content,
             cancellationToken);
 
-        return currentItem with
+        MilestoneItem saved = currentItem with
         {
             Name = draft.Name.Trim(),
             TargetDate = draft.TargetDate,
@@ -367,6 +368,38 @@ public sealed class WorkspaceMilestoneService
             LineNumber = index + 1,
             RawLine = replacement
         };
+        await SynchronizeTaskAsync(projectDirectory,
+            saved, cancellationToken);
+        return saved;
+    }
+
+    /// <summary>
+    /// Mirrors a persisted milestone into the project's dedicated task file.
+    /// If the second file cannot be written, explain that the first was
+    /// committed, instead of misleading the user into creating a duplicate.
+    /// </summary>
+    /// <param name="projectDirectory">Owning project.</param>
+    /// <param name="milestone">Already saved milestone.</param>
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    /// <returns>Completed synchronization or actionable partial failure.</returns>
+    private async Task SynchronizeTaskAsync(
+        string projectDirectory, MilestoneItem milestone,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await new MilestoneTaskSynchronizationService(_workspaceRoot)
+                .SynchronizeAsync(projectDirectory, milestone, cancellationToken);
+        }
+        catch (Exception exception) when (exception is IOException or
+            UnauthorizedAccessException or InvalidDataException)
+        {
+            throw new InvalidDataException(
+                "Le jalon a bien été sauvegardé, mais sa tâche associée " +
+                "n'a pas été synchronisée : " + exception.Message +
+                " Corrigez le fichier Tâches.md, puis modifiez le jalon " +
+                "existant pour relancer la synchronisation.", exception);
+        }
     }
 
     /// <summary>

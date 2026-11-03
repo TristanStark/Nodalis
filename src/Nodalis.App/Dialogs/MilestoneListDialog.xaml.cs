@@ -85,6 +85,7 @@ public partial class MilestoneListDialog : Window
                     ShowError(
                         "Ajouter le jalon",
                         exception.Message);
+                    await RefreshAsync();
                 }
             });
     }
