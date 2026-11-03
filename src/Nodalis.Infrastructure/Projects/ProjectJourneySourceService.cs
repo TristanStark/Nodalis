@@ -10,6 +10,9 @@ public sealed class ProjectJourneySourceService
 {
     private readonly string _workspaceRoot;
 
+    /// <summary>Canonical workspace used for explicitly linked sources.</summary>
+    public string WorkspaceRoot => _workspaceRoot;
+
     /// <summary>Creates an isolated workspace source resolver.</summary>
     /// <param name="workspaceRoot">Current workspace directory.</param>
     public ProjectJourneySourceService(string workspaceRoot)

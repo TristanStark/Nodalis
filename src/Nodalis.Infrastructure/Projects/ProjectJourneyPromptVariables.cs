@@ -22,4 +22,21 @@ public static class ProjectJourneyPromptVariables
         return Placeholders.Matches(text).Select(match => match.Value)
             .Distinct(StringComparer.Ordinal).ToArray();
     }
+
+    /// <summary>
+    /// Replaces ONLY tokens present in the original prompt in a single pass.
+    /// Substituted source text is never inspected for further variables.
+    /// </summary>
+    /// <param name="template">Unmodified original user prompt.</param>
+    /// <param name="bindings">Validated resolved token texts.</param>
+    /// <returns>Explicitly expanded prompt preserving unknown tokens.</returns>
+    public static string ReplaceBoundVariables(
+        string template, IReadOnlyDictionary<string, string> bindings)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        ArgumentNullException.ThrowIfNull(bindings);
+        return Placeholders.Replace(template, match =>
+            bindings.TryGetValue(match.Value, out string? value)
+                ? value : match.Value);
+    }
 }

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.AI;
@@ -39,9 +40,39 @@ public sealed class ProjectJourneyPromptPreparationService
     /// <param name="operation">Explicitly selected operation.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Text draft with any missing/truncated-source warnings.</returns>
-    public async Task<ProjectJourneyPromptDraft> PrepareAsync(
+    public Task<ProjectJourneyPromptDraft> PrepareAsync(
         ProjectJourneyStep step, ProjectJourneyOperation operation,
+        CancellationToken cancellationToken = default) =>
+        PrepareCoreAsync(step, operation, null, cancellationToken);
+
+    /// <summary>
+    /// Prepares a user-reviewed draft with ONLY explicit per-variable file,
+    /// section or text selections. Unbound linked files are never opened.
+    /// </summary>
+    /// <param name="step">Owning journey stage.</param>
+    /// <param name="operation">One selected operation.</param>
+    /// <param name="bindings">Explicit volatile choices, never saved automatically.</param>
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    /// <returns>Prompt with source provenance and unresolved warnings.</returns>
+    public Task<ProjectJourneyPromptDraft> PrepareWithBindingsAsync(
+        ProjectJourneyStep step, ProjectJourneyOperation operation,
+        IReadOnlyList<ProjectJourneyPromptVariableBinding> bindings,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(bindings);
+        return PrepareCoreAsync(step, operation, bindings, cancellationToken);
+    }
+
+    /// <summary>Shares the original and explicit-binding preparation policies.</summary>
+    /// <param name="step">Owning stage.</param>
+    /// <param name="operation">Reviewed operation.</param>
+    /// <param name="bindings">Null for legacy evidence-only draft.</param>
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    /// <returns>Read-only draft.</returns>
+    private async Task<ProjectJourneyPromptDraft> PrepareCoreAsync(
+        ProjectJourneyStep step, ProjectJourneyOperation operation,
+        IReadOnlyList<ProjectJourneyPromptVariableBinding>? bindings,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(step);
         ArgumentNullException.ThrowIfNull(operation);
@@ -53,6 +84,8 @@ public sealed class ProjectJourneyPromptPreparationService
 
         List<string> warnings = [];
         string? systemPrompt = null;
+        int included = 0;
+        int remainingCharacters = MaximumCombinedCharacters;
         StringBuilder draft = new();
         draft.AppendLine("# Brouillon de prompt · Nodalis");
         draft.AppendLine();
@@ -94,16 +127,27 @@ public sealed class ProjectJourneyPromptPreparationService
             {
                 string prompt = await new FileSystemAiPromptStore(_promptRoot)
                     .LoadAsync(operation.PromptKey, cancellationToken);
-                draft.AppendLine(prompt);
-                string[] placeholders = ProjectJourneyPromptVariables
-                    .FindPlaceholders(prompt).ToArray();
-                if (placeholders.Length > 0)
+                if (bindings is not null)
                 {
-                    warnings.Add("Variables à renseigner ou supprimer " +
-                        "avant utilisation : " +
-                        string.Join(", ", placeholders) +
-                        " (les sources liées ne sont pas affectées " +
-                        "automatiquement à ces variables).");
+                    (string resolved, int read) = await ExpandBindingsAsync(
+                        prompt, operation, bindings, warnings,
+                        cancellationToken);
+                    draft.AppendLine(resolved);
+                    included += read;
+                }
+                else
+                {
+                    draft.AppendLine(prompt);
+                    IReadOnlyList<string> placeholders =
+                        ProjectJourneyPromptVariables.FindPlaceholders(prompt);
+                    if (placeholders.Count > 0)
+                    {
+                        warnings.Add("Variables à renseigner ou supprimer " +
+                            "avant utilisation : " +
+                            string.Join(", ", placeholders) +
+                            " (les sources liées ne sont pas affectées " +
+                            "automatiquement à ces variables).");
+                    }
                 }
 
                 if (FileSystemAiPromptStore.IsFrt100UserPromptId(
@@ -141,9 +185,14 @@ public sealed class ProjectJourneyPromptPreparationService
 
         draft.AppendLine();
         draft.AppendLine("## Sources sélectionnées");
-        int included = 0;
-        int remainingCharacters = MaximumCombinedCharacters;
-        foreach (string reference in operation.SourcePaths.Take(MaximumSources))
+        if (bindings is not null)
+        {
+            draft.AppendLine("Seules les variables explicitement associées " +
+                "sont alimentées. Les autres fichiers liés ne sont pas lus.");
+        }
+        else
+        {
+            foreach (string reference in operation.SourcePaths.Take(MaximumSources))
         {
             cancellationToken.ThrowIfCancellationRequested();
             draft.AppendLine();
@@ -200,10 +249,11 @@ public sealed class ProjectJourneyPromptPreparationService
                 " premières références sont analysées ; les suivantes sont omises.");
         }
 
-        if (operation.SourcePaths.Count == 0)
-        {
-            draft.AppendLine("Aucune preuve liée. Ajouter des documents " +
-                "à l'opération si un contexte vérifiable est nécessaire.");
+            if (operation.SourcePaths.Count == 0)
+            {
+                draft.AppendLine("Aucune preuve liée. Ajouter des documents " +
+                    "à l'opération si un contexte vérifiable est nécessaire.");
+            }
         }
 
         if (warnings.Count > 0)
@@ -226,6 +276,132 @@ public sealed class ProjectJourneyPromptPreparationService
         { SystemPrompt = systemPrompt };
     }
 
+
+    /// <summary>
+    /// Resolves explicit selections once against the current validated path.
+    /// Replaces tokens in one pass so source content cannot cause recursive
+    /// substitutions. Never reads an unlinked document or hidden source.
+    /// </summary>
+    /// <param name="prompt">Unmodified user template body.</param>
+    /// <param name="operation">Source-owning journey operation.</param>
+    /// <param name="bindings">Volatile, deliberate choices.</param>
+    /// <param name="warnings">Human review diagnostics.</param>
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    /// <returns>Expanded template and count of distinct read sources.</returns>
+    private async Task<(string Text, int ReadSources)> ExpandBindingsAsync(
+        string prompt, ProjectJourneyOperation operation,
+        IReadOnlyList<ProjectJourneyPromptVariableBinding> bindings,
+        List<string> warnings, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> variables =
+            ProjectJourneyPromptVariables.FindPlaceholders(prompt);
+        if (bindings.Count > 40)
+        {
+            throw new InvalidDataException(
+                "Trop d'associations de variables dans un seul brouillon.");
+        }
+
+        Dictionary<string, string> replacements = new(StringComparer.Ordinal);
+        HashSet<string> selectedPaths = new(StringComparer.OrdinalIgnoreCase);
+        int remaining = MaximumCombinedCharacters;
+        ProjectJourneyPromptSectionService sections = new(_sources.WorkspaceRoot);
+        foreach (ProjectJourneyPromptVariableBinding binding in bindings)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (binding is null || !variables.Contains(binding.Variable) ||
+                replacements.ContainsKey(binding.Variable) ||
+                binding.SourceRelativePath is not null &&
+                    !operation.SourcePaths.Contains(
+                        binding.SourceRelativePath, StringComparer.OrdinalIgnoreCase) ||
+                binding.SourceRelativePath is null &&
+                    binding.ManualText is null ||
+                binding.SourceRelativePath is not null &&
+                    binding.ManualText is not null ||
+                binding.HeadingLine.HasValue != (binding.HeadingTitle is not null) ||
+                binding.SourceRelativePath is null &&
+                    binding.HeadingLine is not null ||
+                binding.ManualText is { Length: > 4000 })
+            {
+                throw new InvalidDataException(
+                    "Association de variable absente, ambiguë ou non autorisée.");
+            }
+
+            if (binding.ManualText is string manual)
+            {
+                replacements.Add(binding.Variable, manual);
+                continue;
+            }
+
+            string reference = binding.SourceRelativePath!;
+            if (!selectedPaths.Contains(reference) &&
+                selectedPaths.Count >= MaximumSources)
+            {
+                warnings.Add("Limite de " + MaximumSources +
+                    " fichiers distincts atteinte : " + binding.Variable);
+                continue;
+            }
+
+            int allowed = Math.Min(remaining, MaximumSourceCharacters);
+            if (allowed == 0)
+            {
+                warnings.Add("Budget d'extraits épuisé : " + binding.Variable);
+                continue;
+            }
+
+            ProjectJourneyPromptExcerpt? excerpt;
+            try
+            {
+                excerpt = await sections.ReadAsync(reference,
+                    binding.HeadingLine, binding.HeadingTitle, allowed,
+                    cancellationToken);
+            }
+            catch (Exception exception) when (exception is ArgumentException or
+                IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                warnings.Add("Source inaccessible ou non sûre pour " +
+                    binding.Variable + " : " + reference);
+                continue;
+            }
+
+            if (excerpt is null)
+            {
+                warnings.Add("Section déplacée ou absente pour " +
+                    binding.Variable + " : " + reference);
+                continue;
+            }
+
+            selectedPaths.Add(reference);
+            remaining -= excerpt.Text.Length;
+            string hash = Convert.ToHexString(SHA256.HashData(
+                Encoding.UTF8.GetBytes(excerpt.Text)));
+            string heading = binding.HeadingTitle is null ? "document entier" :
+                "section « " + binding.HeadingTitle + " »";
+            replacements.Add(binding.Variable,
+                "\n<<< DÉBUT DONNÉES NON FIABLES " + binding.Variable + " >>>\n" +
+                "Source : " + reference + " (" + heading +
+                ", lignes " + excerpt.StartLine + "-" + excerpt.EndLine +
+                ", SHA-256 de l'extrait " + hash + ")\n" +
+                excerpt.Text +
+                "\n<<< FIN DONNÉES NON FIABLES " + binding.Variable + " >>>\n");
+            if (excerpt.Truncated)
+            {
+                warnings.Add("Extrait tronqué : " + binding.Variable + " / " +
+                    reference + " (limite " + allowed + " caractères).");
+            }
+        }
+
+        string[] unresolved = variables.Where(item =>
+            !replacements.ContainsKey(item)).ToArray();
+        if (unresolved.Length > 0)
+        {
+            warnings.Add("Variables non renseignées : " +
+                string.Join(", ", unresolved) +
+                " (aucune source n'est inventée).");
+        }
+
+        return (ProjectJourneyPromptVariables.ReplaceBoundVariables(
+            prompt, replacements), selectedPaths.Count);
+    }
     /// <summary>Reads a bounded UTF-8 prefix without loading megabyte files.</summary>
     /// <param name="path">Resolved existing local .md or .txt file.</param>
     /// <param name="limit">Maximum returned characters.</param>
@@ -269,3 +445,17 @@ public sealed record ProjectJourneyPromptDraft(
     /// </summary>
     public string? SystemPrompt { get; init; }
 }
+
+
+/// <summary>
+/// One explicitly reviewed mapping from an original template variable to
+/// a linked source section OR to manual text. No automatic persistence.
+/// </summary>
+/// <param name="Variable">Exact placeholder token including angle brackets.</param>
+/// <param name="SourceRelativePath">Only an already linked file, or null.</param>
+/// <param name="HeadingLine">Selected physical Markdown heading line.</param>
+/// <param name="HeadingTitle">Exact selected heading, to detect stale moves.</param>
+/// <param name="ManualText">Human typed value when no source was chosen.</param>
+public sealed record ProjectJourneyPromptVariableBinding(
+    string Variable, string? SourceRelativePath, int? HeadingLine,
+    string? HeadingTitle, string? ManualText);
