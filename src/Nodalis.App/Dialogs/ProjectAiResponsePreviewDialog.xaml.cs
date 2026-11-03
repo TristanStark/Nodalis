@@ -734,6 +734,170 @@ public partial class ProjectAiResponsePreviewDialog : Window
     }
 
     /// <summary>
+    /// Applies one explicitly approved mixed EXI batch after showing the
+    /// newly allocated references and every existing title before/after.
+    /// A mixed batch can be partially published but safely resumed later.
+    /// </summary>
+    /// <param name="sender">User-initiated publication button.</param>
+    /// <param name="e">Mouse or keyboard click.</param>
+    private async void PublishMixedBatch_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _preview is null || _comparisons is null ||
+            _preparedPlan is null || _preparedPlan.Changes.Count == 0 ||
+            _preparedPlan.Creations.Count == 0 ||
+            _preparedPlan.Changes.Count + _preparedPlan.Creations.Count > 20)
+        {
+            return;
+        }
+
+        ProjectAiPreparedReviewPlan previous = _preparedPlan;
+        ProjectAiPreparedReviewPlan current;
+        try
+        {
+            current = ProjectAiImportDecisionPlanner.Prepare(_preview,
+                _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+            if (current.Changes.Count != previous.Changes.Count ||
+                current.Creations.Count != previous.Creations.Count ||
+                !current.Changes.SequenceEqual(previous.Changes) ||
+                !current.Creations.SequenceEqual(previous.Creations) ||
+                current.RawResponseSha256 != previous.RawResponseSha256 ||
+                current.ReviewedFields != previous.ReviewedFields ||
+                current.IgnoredFields != previous.IgnoredFields ||
+                current.PendingFields != previous.PendingFields)
+            {
+                _preparedPlan = null;
+                StatusText.Text = "Les décisions ont changé : " +
+                    "repréparer et confirmer le nouveau lot.";
+                UpdateButtons();
+                return;
+            }
+
+            if (Application.Current.MainWindow is not Nodalis.App.MainWindow main)
+            {
+                throw new InvalidDataException(
+                    "Éditeur principal indisponible : publication interdite.");
+            }
+
+            ProjectJourneySourceService resolver = new(_workspaceRoot);
+            foreach (ProjectAiPreparedTitleChange update in current.Changes)
+            {
+                string source = resolver.ResolveExistingFile(update.RelativePath);
+                if (main.IsDocumentOpenForAiImport(source))
+                {
+                    throw new InvalidDataException(
+                        "Fermez d'abord l'onglet " + update.Reference +
+                        " pour éviter une sauvegarde obsolète.");
+                }
+            }
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or
+            UnauthorizedAccessException or ArgumentException)
+        {
+            StatusText.Text = "Plan mixte refusé : " + exception.Message;
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · prévalidation du lot mixte",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        long revision = _inputRevision;
+        _busy = true;
+        _publishing = true;
+        UpdateButtons();
+        try
+        {
+            ProjectAiMixedImportTransactionService service = new(_workspaceRoot);
+            IReadOnlyList<string> assigned = await Task.Run(() =>
+                service.ProposeReferencesAsync(_projectDirectory, current));
+            if (revision != _inputRevision ||
+                !ReferenceEquals(previous, _preparedPlan))
+            {
+                StatusText.Text = "Réponse modifiée pendant la revue : " +
+                    "requalification obligatoire.";
+                return;
+            }
+
+            ProjectAiPreparedRequirementCreation[] creations = current.Creations
+                .OrderBy(item => item.ProposalId).ToArray();
+            StringBuilder message = new();
+            message.AppendLine("CONFIRMATION DU LOT MIXTE — " +
+                (current.Changes.Count + current.Creations.Count) +
+                " opération(s)");
+            message.AppendLine();
+            foreach (ProjectAiPreparedTitleChange update in current.Changes
+                .OrderBy(item => item.Reference, StringComparer.Ordinal))
+            {
+                message.AppendLine("MODIFIER " + update.Reference + " : " +
+                    update.CurrentTitle + " → " + update.ReviewedTitle);
+            }
+
+            for (int i = 0; i < creations.Length; i++)
+            {
+                message.AppendLine("CRÉER " + assigned[i] + " : " +
+                    creations[i].ReviewedTitle + " (statut brouillon)");
+            }
+
+            message.AppendLine();
+            message.AppendLine("Les nouveaux GUID sont attribués par Nodalis, " +
+                "jamais par l'IA. Aucun statut, critère, test ou lien ne change.");
+            message.AppendLine("Toutes les sources sont vérifiées avant " +
+                "la première écriture. Chaque fichier est publié atomiquement, " +
+                "mais le lot complet n'est pas atomique.");
+            message.AppendLine("Une panne peut laisser un lot partiel, " +
+                "récupérable depuis le journal local uniquement sur demande.");
+            message.AppendLine("Le journal inclut des copies Markdown " +
+                "potentiellement confidentielles.");
+            message.AppendLine();
+            message.AppendLine("Confirmer ce lot et ces références EXI ?");
+            if (MessageBox.Show(this, message.ToString(),
+                "Import IA · confirmer modifications et créations",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            ProjectAiMixedCommitStatus result = await Task.Run(() =>
+                service.CommitAsync(_projectDirectory, current, assigned));
+            _comparisons = null;
+            ClearDecisions();
+            ShowSelectedDetails();
+            PlanTextBox.Text = "Lot mixte " + result + " : " +
+                current.Changes.Count + " modification(s), " +
+                current.Creations.Count + " création(s).\n" +
+                "Rouvrir les fiches et rafraîchir le Worktree.";
+            StatusText.Text = result == ProjectAiMixedCommitStatus.AlreadyApplied
+                ? "Lot déjà publié intégralement : aucun doublon."
+                : "Lot mixte publié : nouvelles exigences en brouillon, " +
+                  "titres existants actualisés.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · résultat mixte",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or
+            UnauthorizedAccessException or ArgumentException)
+        {
+            StatusText.Text = "Lot mixte bloqué : " + exception.Message;
+            PlanTextBox.Text = "Le journal peut contenir une publication partielle. " +
+                "Ne pas supprimer les instantanés. " +
+                "Rechercher les lots interrompus, résoudre les divergences, " +
+                "puis confirmer une reprise volontaire.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · récupération nécessaire",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _publishing = false;
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
     /// Discovers recoverable, incomplete EXI title batches without writing
     /// or interpreting any pasted AI response as an action.
     /// </summary>
