@@ -148,9 +148,19 @@ public sealed class ProjectAiTitleImportTransactionService
                 throw new InvalidDataException("Journal d'import trop volumineux.");
             }
 
-            journal = JsonSerializer.Deserialize<ProjectAiTitleImportJournal>(json,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web)) ??
-                throw new InvalidDataException("Journal d'import illisible.");
+            try
+            {
+                journal = JsonSerializer.Deserialize<ProjectAiTitleImportJournal>(
+                    json, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ??
+                    throw new InvalidDataException("Journal d'import vide.");
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidDataException(
+                    "Journal d'import malformé : récupération manuelle requise.",
+                    exception);
+            }
+
             RequireMatchingJournal(plan, change, journal);
         }
         else
@@ -312,7 +322,7 @@ public sealed class ProjectAiTitleImportTransactionService
             journal.OriginalTitle != change.CurrentTitle ||
             journal.ApprovedTitle != change.ReviewedTitle ||
             journal.Reason != change.Reason ||
-            journal.PublishedSha256.Length != 64 ||
+            journal.PublishedSha256 is not { Length: 64 } ||
             !journal.PublishedSha256.All(Uri.IsHexDigit))
         {
             throw new InvalidDataException(
