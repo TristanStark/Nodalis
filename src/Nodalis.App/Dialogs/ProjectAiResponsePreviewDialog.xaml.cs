@@ -499,13 +499,16 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     _comparisons.Values.ToArray(), _decisions.Values.ToArray());
             _preparedPlan = (plan.Changes.Count is >= 1 and <= 20 &&
                     plan.Creations.Count == 0) ||
-                (plan.Changes.Count == 0 && plan.Creations.Count == 1)
+                (plan.Changes.Count == 0 && plan.Creations.Count == 1) ||
+                (plan.Changes.Count >= 1 && plan.Creations.Count >= 1 &&
+                    plan.Changes.Count + plan.Creations.Count <= 20)
                 ? plan : null;
             StringBuilder builder = new();
             builder.AppendLine("PLAN DE QUALIFICATION — REVUE HUMAINE");
             builder.AppendLine("Les titres EXI existants peuvent être publiés " +
-                "en lot (2 à 20) ; la création reste unitaire. " +
-                "Chaque écriture exige une confirmation explicite.");
+                "en lot (2 à 20), les créations seules restent unitaires. " +
+                "Un lot mixte (1 à 20 créations + titres) est aussi possible " +
+                "après validation explicite et relecture complète.");
             builder.AppendLine("Réponse SHA-256 : " + plan.RawResponseSha256);
             builder.AppendLine("Champs explicitement traités : " +
                 plan.ReviewedFields);
@@ -558,11 +561,17 @@ public partial class ProjectAiResponsePreviewDialog : Window
                       "Toutes les sources sont prévalidées, puis chaque fichier " +
                       "est publié atomiquement : une interruption peut laisser " +
                       "un lot partiel qui doit être explicitement repris."
-                    : plan.Changes.Count == 0 && plan.Creations.Count == 1
-                        ? "Un seul brouillon EXI peut être créé. Nodalis choisira " +
-                          "une référence libre, un GUID stable et conservera un journal."
-                        : "Aucune publication : mélange de créations et de " +
-                          "modifications, ou plus de 20 titres. Fractionnez les plans.");
+                    : plan.Changes.Count >= 1 && plan.Creations.Count >= 1 &&
+                        plan.Changes.Count + plan.Creations.Count <= 20
+                        ? "Lot mixte éligible : toutes les créations seront " +
+                          "attribuées par Nodalis après contrôle de tous les " +
+                          "fichiers. Une interruption peut laisser un lot " +
+                          "partiel : reprise volontaire depuis le journal."
+                        : plan.Changes.Count == 0 && plan.Creations.Count == 1
+                            ? "Un seul brouillon EXI peut être créé. Nodalis choisira " +
+                              "une référence libre, un GUID stable et conservera un journal."
+                            : "Aucune publication : limite de 20 modifications, " +
+                              "ou plusieurs créations sans changement existant.");
             PlanTextBox.Text = builder.ToString();
             StatusText.Text = "Plan préparé en mémoire : " +
                 plan.Changes.Count + " modification(s), " +
@@ -1221,6 +1230,16 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan is not null &&
                 _preparedPlan.Changes.Count is >= 2 and <= 20 &&
                 _preparedPlan.Creations.Count == 0 &&
+                _comparisons is not null && _preview is not null;
+        }
+
+        if (PublishMixedBatchButton is not null)
+        {
+            PublishMixedBatchButton.IsEnabled = !_busy && !_readOnly &&
+                _preparedPlan is not null &&
+                _preparedPlan.Changes.Count >= 1 &&
+                _preparedPlan.Creations.Count >= 1 &&
+                _preparedPlan.Changes.Count + _preparedPlan.Creations.Count <= 20 &&
                 _comparisons is not null && _preview is not null;
         }
 
