@@ -44,6 +44,17 @@ public sealed record ProjectAiPreparedTitleChange(
     string ReviewedTitle, string? Reason);
 
 /// <summary>
+/// A human-approved request for one NEW requirement. Neither project GUID,
+/// requirement GUID nor EXI reference can be supplied by the external AI.
+/// They are assigned solely in the guarded publication service.
+/// </summary>
+/// <param name="ProposalId">External response's idempotency key.</param>
+/// <param name="ReviewedTitle">Explicitly approved or edited one-line title.</param>
+/// <param name="Reason">Optional human provenance note.</param>
+public sealed record ProjectAiPreparedRequirementCreation(
+    Guid ProposalId, string ReviewedTitle, string? Reason);
+
+/// <summary>
 /// Entire in-memory dry-run: no persistent decision, approval, file write or
 /// authorization to run an external AI model.
 /// </summary>
@@ -55,7 +66,15 @@ public sealed record ProjectAiPreparedTitleChange(
 public sealed record ProjectAiPreparedReviewPlan(
     string RawResponseSha256,
     IReadOnlyList<ProjectAiPreparedTitleChange> Changes,
-    int ReviewedFields, int IgnoredFields, int PendingFields);
+    int ReviewedFields, int IgnoredFields, int PendingFields)
+{
+    /// <summary>
+    /// Creation requests are inert until a human approves a fresh,
+    /// Nodalis-assigned EXI reference in the separate publication dialog.
+    /// </summary>
+    public IReadOnlyList<ProjectAiPreparedRequirementCreation> Creations
+        { get; init; } = [];
+}
 
 /// <summary>
 /// Pure planner for human decisions. No files can be created or modified here.
@@ -108,6 +127,7 @@ public static class ProjectAiImportDecisionPlanner
         HashSet<(Guid, string)> reviewed = [];
         HashSet<Guid> alreadyTargeted = [];
         List<ProjectAiPreparedTitleChange> changes = [];
+        List<ProjectAiPreparedRequirementCreation> creations = [];
         int ignored = 0;
         foreach (ProjectAiFieldDecision decision in decisions)
         {
@@ -140,6 +160,36 @@ public static class ProjectAiImportDecisionPlanner
             }
 
             ProjectAiRequirementReview match = matches[decision.ProposalId];
+            if (proposal.Kind == "requirement" &&
+                proposal.Operation == "create")
+            {
+                if (decision.Field != "title" ||
+                    match.Status != ProjectAiRequirementMatchStatus.CreationDraft ||
+                    proposal.TargetId.HasValue ||
+                    !string.IsNullOrWhiteSpace(proposal.CandidateReference))
+                {
+                    throw new InvalidDataException(
+                        "Création IA ambiguë : aucun identifiant ou autre champ " +
+                        "ne peut être approuvé automatiquement.");
+                }
+
+                string newTitle = decision.Kind == ProjectAiFieldDecisionKind.Edit
+                    ? decision.EditedValue!
+                    : proposal.ProposedFields["title"];
+                if (string.IsNullOrWhiteSpace(newTitle) ||
+                    newTitle != newTitle.Trim() ||
+                    newTitle.Length > 240 ||
+                    newTitle.Any(char.IsControl))
+                {
+                    throw new InvalidDataException(
+                        "Titre de création invalide : 240 caractères, une ligne.");
+                }
+
+                creations.Add(new ProjectAiPreparedRequirementCreation(
+                    proposal.ProposalId, newTitle, decision.Reason?.Trim()));
+                continue;
+            }
+
             if (proposal.Kind != "requirement" ||
                 proposal.Operation != "update" ||
                 decision.Field != "title" ||
@@ -210,6 +260,9 @@ public static class ProjectAiImportDecisionPlanner
         int totalFields = candidates.Values.Sum(item => item.ProposedFields.Count);
         return new ProjectAiPreparedReviewPlan(preview.RawSha256, changes,
             reviewed.Count, ignored, totalFields - reviewed.Count +
-                decisions.Count(item => item.Kind == ProjectAiFieldDecisionKind.Review));
+                decisions.Count(item => item.Kind == ProjectAiFieldDecisionKind.Review))
+        {
+            Creations = creations
+        };
     }
 }
