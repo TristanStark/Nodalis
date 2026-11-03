@@ -248,10 +248,14 @@ comportant deux modifications ou davantage restent prévisualisables, mais
 ne peuvent pas être publiés ensemble. Les réimports de création, les autres
 champs, les risques, tests, décisions et relations restent hors périmètre.
 
-L'éditeur Markdown peut disposer d'un état non sauvegardé : l'interface exige
-donc explicitement de **fermer la fiche ouverte** avant de confirmer
-l'import. Une intégration plus profonde avec les sessions/autosaves WPF
-reste à qualifier. Le journal fournit une base de récupération, mais
+L'éditeur Markdown peut disposer d'un état non sauvegardé :
+l'interface refuse maintenant la publication si **la fiche cible est
+encore ouverte dans un onglet du MainWindow** (y compris le second
+panneau de l'éditeur partagé), ou si le workspace/projet est en lecture
+seule. Il faut fermer l'onglet, résoudre les sauvegardes pendantes, puis
+recomparer avant de confirmer. Les éditeurs externes restent protégés
+par le contrôle d'empreinte atomique, mais tout éditeur ouvert doit
+être rechargé après une publication. Le journal fournit une base de récupération, mais
 il ne remplace pas encore l'historique riche des réponses brutes, ni
 un moteur de rollback multi-document.
 
