@@ -278,6 +278,46 @@ internal static class ProjectCoverageSmokeTests
                     entry.Value,
                 "Coverage analysis must not modify project source files.");
         }
+
+        // The canonical glossary resolver includes inherited global and
+        // application scopes, so these definitions suppress project-only
+        // missing-term warnings WITHOUT writing a project glossary.
+        string globalGlossary = Path.Combine(workspaceRoot,
+            WorkspaceLayout.GlobalGlossaryFileName);
+        await File.WriteAllTextAsync(globalGlossary,
+            "# Glossaire global\n\n## Single sign-on\n\n" +
+            "**Définition :** Connexion fictive.\n\n" +
+            "**Acronymes :** SSO\n");
+        ProjectCoverageReport globalCoverage =
+            await service.AnalyzeAsync(projectDirectory);
+        Assert(!globalCoverage.Findings.Any(item =>
+                item.Code == "FREQUENT_TERM_MISSING_GLOSSARY"),
+            "An inherited global acronym must satisfy project coverage.");
+
+        File.Delete(globalGlossary);
+        string appGlossary = Path.Combine(applicationDirectory,
+            WorkspaceLayout.GlobalGlossaryFileName);
+        await File.WriteAllTextAsync(appGlossary,
+            "# Glossaire application\n\n## SSO\n\n" +
+            "**Définition :** Connexion fictive.\n");
+        ProjectCoverageReport applicationCoverage =
+            await service.AnalyzeAsync(projectDirectory);
+        Assert(!applicationCoverage.Findings.Any(item =>
+                item.Code == "FREQUENT_TERM_MISSING_GLOSSARY"),
+            "A definition in the owning application's glossary must count.");
+
+        File.Delete(appGlossary);
+        string otherApplication = Path.Combine(workspaceRoot,
+            WorkspaceLayout.ApplicationsDirectoryName, "Autre application");
+        Directory.CreateDirectory(otherApplication);
+        await File.WriteAllTextAsync(Path.Combine(otherApplication,
+                WorkspaceLayout.GlobalGlossaryFileName),
+            "# Glossaire\n\n## SSO\n\n**Définition :** Hors périmètre.\n");
+        ProjectCoverageReport unrelatedCoverage =
+            await service.AnalyzeAsync(projectDirectory);
+        Assert(unrelatedCoverage.Findings.Any(item =>
+                item.Code == "FREQUENT_TERM_MISSING_GLOSSARY"),
+            "Another application's glossary must not mask project warnings.");
     }
 
     /// <summary>

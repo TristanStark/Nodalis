@@ -394,6 +394,26 @@ internal static class ProjectHealthSmokeTests
             canonicalReport,
             "DOCUMENT_ORPHAN");
 
+        // An editor now stores French dates; health must accept exactly
+        // those same dates while keeping the genuinely missing-date warning.
+        await File.AppendAllTextAsync(Path.Combine(
+                projectDirectory, "Jalons.md"),
+            "| Livraison FR | 03/11/2026 | En cours |  |  | " +
+            Guid.NewGuid().ToString("D") + " |  |\n" +
+            "| Livraison ISO | 2026-11-04 | En cours |  |  | " +
+            Guid.NewGuid().ToString("D") + " |  |\n");
+        ProjectHealthReport frenchDateReport = await service.ScanAsync(
+            projectDirectory, new ProjectHealthOptions(),
+            new DateOnly(2026, 10, 5));
+        Assert(frenchDateReport.Issues.Count(issue =>
+                issue.Code == "MILESTONE_DATE_MISSING") == 1 &&
+               frenchDateReport.Issues.Any(issue =>
+                   issue.Code == "MILESTONE_DATE_MISSING" &&
+                   issue.Message.Contains("Mise en service",
+                       StringComparison.Ordinal)),
+            "French and legacy ISO milestone dates must be accepted " +
+            "without hiding a genuinely empty date.");
+
         File.Delete(
             linkIndexPath);
 

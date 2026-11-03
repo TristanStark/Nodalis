@@ -134,6 +134,7 @@ try
     await VerifyAttachmentsAsync(root);
     await VerifyTasksAsync(root);
     await VerifyMilestonesAsync(root);
+    await MilestoneTaskSynchronizationSmokeTests.RunAsync(root);
     await VerifyMeetingsAsync(root);
     await ProjectMeetingPromptSmokeTests.RunAsync(root);
     await VerifyDecisionsAsync(root);
