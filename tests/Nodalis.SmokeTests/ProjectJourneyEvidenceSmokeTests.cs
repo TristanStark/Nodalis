@@ -44,6 +44,7 @@ internal static class ProjectJourneyEvidenceSmokeTests
                 item.TemplateKey == "tests");
             ProjectJourneyOperation operation = stage.Operations[0];
             Guid originalOperationId = operation.Id;
+            string? originalPromptKey = operation.PromptKey;
             string overview = await File.ReadAllTextAsync(project.OverviewFilePath);
 
             string evidenceDirectory = Path.Combine(project.ProjectDirectory,
@@ -98,7 +99,10 @@ internal static class ProjectJourneyEvidenceSmokeTests
             changed = ProjectJourneyEditor.SetPromptKey(
                 changed, stage.Id, operation.Id, "evidence-review");
             Assert(operation.SourcePaths.Count == 0 &&
-                operation.PromptKey is null &&
+                operation.PromptKey == originalPromptKey &&
+                changed.Steps.Single(item => item.Id == stage.Id)
+                    .Operations.Single(item => item.Id == originalOperationId)
+                    .PromptKey == "evidence-review" &&
                 changed.Steps.Single(item => item.Id == stage.Id)
                     .Operations.Single(item => item.Id == originalOperationId)
                     .SourcePaths.Count == 2,
