@@ -138,6 +138,12 @@ public sealed partial class ProjectAiMixedImportTransactionService
         string project = Path.TrimEndingDirectorySeparator(
             Path.GetFullPath(projectDirectory));
         await VerifyProjectAsync(project, projectId, token);
+        string journalRoot = Path.Combine(project, RootName);
+        if (Directory.Exists(journalRoot))
+        {
+            RequireNormalDirectory(journalRoot);
+        }
+
         string transaction = TransactionDirectory(project, PlanFingerprint(plan));
         if (Directory.Exists(transaction))
         {
