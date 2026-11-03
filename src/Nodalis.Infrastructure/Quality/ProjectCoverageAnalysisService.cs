@@ -2,8 +2,10 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Nodalis.Core.Domain;
+using Nodalis.Core.Glossary;
 using Nodalis.Core.Milestones;
 using Nodalis.Core.Quality;
+using Nodalis.Infrastructure.Glossary;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
 
@@ -115,10 +117,12 @@ public sealed partial class ProjectCoverageAnalysisService
             tasks,
             findings);
 
-        CheckGlossaryCoverage(
+        await CheckGlossaryCoverageAsync(
             project,
+            fullProjectDirectory,
             documents,
-            findings);
+            findings,
+            cancellationToken);
 
         IReadOnlyList<ProjectCoverageFinding> ordered =
             findings
@@ -626,15 +630,21 @@ public sealed partial class ProjectCoverageAnalysisService
     }
 
     /// <summary>
-    /// Reports frequently used uppercase business acronyms absent from project glossary documents.
+    /// Reports frequently used business acronyms only when no definition
+    /// exists in the project's effective Project / Application / Global scopes.
     /// </summary>
     /// <param name="project">The project manifest.</param>
+    /// <param name="projectDirectory">The actual project directory.</param>
     /// <param name="documents">The project documents.</param>
     /// <param name="findings">The destination findings.</param>
-    private static void CheckGlossaryCoverage(
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    /// <returns>Completed read-only glossary analysis.</returns>
+    private async Task CheckGlossaryCoverageAsync(
             ProjectManifest project,
+            string projectDirectory,
             IReadOnlyList<DocumentSnapshot> documents,
-            ICollection<ProjectCoverageFinding> findings)
+            ICollection<ProjectCoverageFinding> findings,
+            CancellationToken cancellationToken)
     {
         SectionManifest[] glossarySections =
             project.Sections
@@ -667,6 +677,23 @@ public sealed partial class ProjectCoverageAnalysisService
                     match.Value.ToUpperInvariant())
                 .ToHashSet(
                     StringComparer.Ordinal);
+
+        // Use exactly the scopes that the in-app glossary resolver exposes.
+        // Never create a missing glossary or perform an unbounded workspace
+        // scan merely to run the read-only coherence checker.
+        foreach (DocumentSnapshot document in glossaryDocuments)
+        {
+            AddDefinedTerms(document.Content, new GlossaryScope
+            {
+                Kind = GlossaryScopeKind.Project,
+                DisplayName = "Projet",
+                DirectoryPath = projectDirectory,
+                FilePath = document.FullPath
+            }, glossaryTokens, cancellationToken);
+        }
+
+        await AddInheritedGlossaryTermsAsync(project,
+            projectDirectory, glossaryTokens, cancellationToken);
 
         Dictionary<string, List<ProjectCoverageSource>> occurrences =
             new Dictionary<string, List<ProjectCoverageSource>>(
@@ -738,15 +765,150 @@ public sealed partial class ProjectCoverageAnalysisService
                         pair.Key +
                         " » apparaît " +
                         pair.Value.Count +
-                        " fois mais n'est pas présent dans le glossaire du projet.",
+                        " fois mais n'est défini dans aucun glossaire applicable.",
                     RuleExplanation =
-                        "Un acronyme en majuscules de 3 à 12 caractères utilisé au moins trois fois doit être défini dans le glossaire projet.",
+                        "Un acronyme de 3 à 12 caractères utilisé au moins trois fois doit être défini dans un glossaire applicable : projet, application ou global.",
                     Sources =
                         pair.Value
                             .Take(
                                 3)
                             .ToArray()
                 });
+        }
+    }
+
+    /// <summary>
+    /// Reads ONLY already-existing global and owning-application glossaries.
+    /// Follows the directory ancestry to avoid terms from unrelated apps.
+    /// </summary>
+    /// <param name="project">Owning manifest.</param>
+    /// <param name="projectDirectory">Canonical project path.</param>
+    /// <param name="known">Known effective glossary tokens.</param>
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    /// <returns>Completed bounded ancestor reads.</returns>
+    private async Task AddInheritedGlossaryTermsAsync(
+        ProjectManifest project, string projectDirectory,
+        ISet<string> known, CancellationToken cancellationToken)
+    {
+        ProjectJourneySourceService safeSources = new(_workspaceRoot);
+        await ReadKnownGlossaryAsync(Path.Combine(_workspaceRoot,
+            WorkspaceLayout.GlobalGlossaryFileName),
+            GlossaryScopeKind.Global, known, safeSources, cancellationToken);
+
+        string? directory = Path.GetDirectoryName(projectDirectory);
+        while (directory is not null && IsWithinWorkspace(directory))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string applicationManifest = Path.Combine(directory,
+                WorkspaceLayout.ApplicationManifestFileName);
+            if (File.Exists(applicationManifest))
+            {
+                // The application must actually own this project. An adjacent
+                // application's glossary can never suppress a project warning.
+                ApplicationManifest application =
+                    await AtomicJsonFile.ReadAsync<ApplicationManifest>(
+                        applicationManifest, cancellationToken);
+                if (application.Id == project.ApplicationId)
+                {
+                    await ReadKnownGlossaryAsync(Path.Combine(directory,
+                            WorkspaceLayout.GlobalGlossaryFileName),
+                        GlossaryScopeKind.Application,
+                        known, safeSources, cancellationToken);
+                }
+
+                break;
+            }
+
+            directory = Path.GetDirectoryName(directory);
+        }
+    }
+
+    /// <summary>Parses only a linked existing local glossary, without writing.</summary>
+    /// <param name="path">Candidate owned glossary file.</param>
+    /// <param name="kind">Resolved scope.</param>
+    /// <param name="known">Destination known terms.</param>
+    /// <param name="sources">Safety checker for real linked files.</param>
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    /// <returns>Completed optional read.</returns>
+    private static async Task ReadKnownGlossaryAsync(
+        string path, GlossaryScopeKind kind, ISet<string> known,
+        ProjectJourneySourceService sources, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        // Safe path resolution validates the entire ancestor chain, including
+        // junctions and symbolic links; no external glossary is consulted.
+        sources.GetReferenceForExistingFile(path);
+        string content = await File.ReadAllTextAsync(path, cancellationToken);
+        AddDefinedTerms(content, new GlossaryScope
+        {
+            Kind = kind,
+            DisplayName = kind.ToString(),
+            DirectoryPath = Path.GetDirectoryName(path)!,
+            FilePath = path
+        }, known, cancellationToken);
+    }
+
+    /// <summary>
+    /// Includes canonical entries, acronyms and synonyms, not arbitrary words
+    /// appearing in prose definitions. Legacy glossary rows are supported.
+    /// </summary>
+    /// <param name="markdown">Existing glossary source.</param>
+    /// <param name="scope">Its resolved scope.</param>
+    /// <param name="known">Destination terms.</param>
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    private static void AddDefinedTerms(
+        string markdown, GlossaryScope scope, ISet<string> known,
+        CancellationToken cancellationToken)
+    {
+        foreach (GlossaryEntry entry in GlossaryService.Parse(
+                     markdown, scope, cancellationToken))
+        {
+            AddTerm(entry.Term, known);
+            foreach (string synonym in entry.Synonyms)
+            {
+                AddTerm(synonym, known);
+            }
+
+            foreach (string acronym in entry.Acronyms)
+            {
+                AddTerm(acronym, known);
+            }
+        }
+
+        // Historical compact glossaries may be tables or bullet definitions
+        // rather than canonical ## Term / **Définition :** documents.
+        foreach (string line in markdown.Split('\n'))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Match row = Regex.Match(line,
+                @"^\s*\|\s*(?<term>[\p{L}\p{N}_-]{3,60})\s*\|",
+                RegexOptions.CultureInvariant);
+            Match bullet = Regex.Match(line,
+                @"^\s*[-*+]\s+\*\*(?<term>[\p{L}\p{N}_-]{3,60})\*\*\s*:",
+                RegexOptions.CultureInvariant);
+            if (row.Success)
+            {
+                AddTerm(row.Groups["term"].Value, known);
+            }
+            else if (bullet.Success)
+            {
+                AddTerm(bullet.Groups["term"].Value, known);
+            }
+        }
+    }
+
+    /// <summary>Normalizes one explicitly defined term or alias.</summary>
+    /// <param name="term">Glossary label.</param>
+    /// <param name="known">Destination tokens.</param>
+    private static void AddTerm(string term, ISet<string> known)
+    {
+        if (!string.IsNullOrWhiteSpace(term))
+        {
+            known.Add(term.Trim().ToUpperInvariant());
         }
     }
 
