@@ -301,7 +301,8 @@ public sealed class ProjectJourneyPromptPreparationService
                 "Trop d'associations de variables dans un seul brouillon.");
         }
 
-        Dictionary<string, string> replacements = new(StringComparer.Ordinal);
+        Dictionary<string, List<string>> resolved = new(StringComparer.Ordinal);
+        HashSet<string> selections = new(StringComparer.Ordinal);
         HashSet<string> selectedPaths = new(StringComparer.OrdinalIgnoreCase);
         int remaining = MaximumCombinedCharacters;
         ProjectJourneyPromptSectionService sections = new(_sources.WorkspaceRoot);
@@ -309,7 +310,6 @@ public sealed class ProjectJourneyPromptPreparationService
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (binding is null || !variables.Contains(binding.Variable) ||
-                replacements.ContainsKey(binding.Variable) ||
                 binding.SourceRelativePath is not null &&
                     !operation.SourcePaths.Contains(
                         binding.SourceRelativePath, StringComparer.OrdinalIgnoreCase) ||
@@ -326,9 +326,25 @@ public sealed class ProjectJourneyPromptPreparationService
                     "Association de variable absente, ambiguë ou non autorisée.");
             }
 
+            string selectionKey = binding.Variable + "\u001F" +
+                (binding.SourceRelativePath ?? "") + "\u001F" +
+                binding.HeadingLine + "\u001F" +
+                (binding.ManualText ?? "");
+            if (!selections.Add(selectionKey))
+            {
+                throw new InvalidDataException(
+                    "La même source a été associée deux fois à la variable.");
+            }
+
+            if (!resolved.TryGetValue(binding.Variable, out List<string>? values))
+            {
+                values = [];
+                resolved.Add(binding.Variable, values);
+            }
+
             if (binding.ManualText is string manual)
             {
-                replacements.Add(binding.Variable, manual);
+                values.Add(manual);
                 continue;
             }
 
@@ -376,7 +392,7 @@ public sealed class ProjectJourneyPromptPreparationService
                 Encoding.UTF8.GetBytes(excerpt.Text)));
             string heading = binding.HeadingTitle is null ? "document entier" :
                 "section « " + binding.HeadingTitle + " »";
-            replacements.Add(binding.Variable,
+            values.Add(
                 "\n<<< DÉBUT DONNÉES NON FIABLES " + binding.Variable + " >>>\n" +
                 "Source : " + reference + " (" + heading +
                 ", lignes " + excerpt.StartLine + "-" + excerpt.EndLine +
@@ -390,6 +406,10 @@ public sealed class ProjectJourneyPromptPreparationService
             }
         }
 
+        Dictionary<string, string> replacements = resolved
+            .Where(item => item.Value.Count > 0)
+            .ToDictionary(item => item.Key,
+                item => string.Join("\n\n", item.Value), StringComparer.Ordinal);
         string[] unresolved = variables.Where(item =>
             !replacements.ContainsKey(item)).ToArray();
         if (unresolved.Length > 0)
