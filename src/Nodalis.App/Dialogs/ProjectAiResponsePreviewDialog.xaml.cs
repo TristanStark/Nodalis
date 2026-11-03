@@ -3,6 +3,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Importing;
+using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
 
@@ -15,10 +16,20 @@ public partial class ProjectAiResponsePreviewDialog : Window
     private ProjectAiResponsePreview? _preview;
     private bool _busy;
     private long _inputRevision;
+    private readonly string _workspaceRoot;
+    private readonly string _projectDirectory;
+    private IReadOnlyDictionary<Guid, ProjectAiRequirementReview>? _comparisons;
 
-    /// <summary>Initializes the read-only, no-network analysis dialog.</summary>
-    public ProjectAiResponsePreviewDialog()
+    /// <summary>Initializes project-scoped, read-only external response review.</summary>
+    /// <param name="workspaceRoot">The active single workspace.</param>
+    /// <param name="projectDirectory">Project selected in the journey tab.</param>
+    public ProjectAiResponsePreviewDialog(
+        string workspaceRoot, string projectDirectory)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
+        _workspaceRoot = workspaceRoot;
+        _projectDirectory = projectDirectory;
         InitializeComponent();
         UpdateButtons();
     }
@@ -36,6 +47,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
 
         _inputRevision++;
         _preview = null;
+        _comparisons = null;
         ProposalsList.ItemsSource = null;
         DetailsBox.Text = string.Empty;
         SummaryText.Text = "Réponse modifiée : analyse à relancer.";
@@ -67,6 +79,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
             }
 
             _preview = preview;
+            _comparisons = null;
             ProposalsList.ItemsSource = preview.Document.Proposals;
             ProposalsList.SelectedIndex = 0;
             SummaryText.Text = preview.Document.Proposals.Count +
@@ -97,11 +110,84 @@ public partial class ProjectAiResponsePreviewDialog : Window
         }
     }
 
+    /// <summary>
+    /// Resolves only current-project requirements from canonical Markdown.
+    /// Work runs outside the WPF Dispatcher and never commits a proposal.
+    /// </summary>
+    /// <param name="sender">Explicit comparison button.</param>
+    /// <param name="e">Click event.</param>
+    private async void Compare_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _preview is null)
+        {
+            return;
+        }
+
+        ProjectAiResponsePreview preview = _preview;
+        long revision = _inputRevision;
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            (ProjectRequirementCatalog catalog,
+                IReadOnlyList<ProjectAiRequirementReview> reviews) = await
+                Task.Run(async () =>
+                {
+                    ProjectRequirementRegistryService service = new(
+                        _workspaceRoot);
+                    ProjectRequirementCatalog current = await
+                        service.ListAsync(_projectDirectory);
+                    IReadOnlyList<ProjectAiRequirementReview> compared =
+                        ProjectAiRequirementReviewService.Compare(
+                            preview, current);
+                    return (current, compared);
+                });
+            if (revision != _inputRevision || !ReferenceEquals(preview, _preview))
+            {
+                return;
+            }
+
+            _comparisons = reviews.ToDictionary(
+                item => item.Candidate.ProposalId);
+            int matched = reviews.Count(item => item.Status is
+                ProjectAiRequirementMatchStatus.GuidMatch or
+                ProjectAiRequirementMatchStatus.ReferenceMatch);
+            SummaryText.Text = reviews.Count +
+                " proposition(s) inspectée(s) · " + matched +
+                " exigence(s) identifiée(s) · " +
+                catalog.Diagnostics.Count + " diagnostic(s) du registre.";
+            StatusText.Text = "Comparaison au registre du projet terminée. " +
+                "Les propositions et bases IA restent non fiables. " +
+                "Aucune écriture autorisée.";
+            ShowSelectedDetails();
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or ArgumentException or IOException or
+            UnauthorizedAccessException)
+        {
+            if (revision == _inputRevision)
+            {
+                _comparisons = null;
+                StatusText.Text = "Comparaison refusée : " + exception.Message +
+                    " · aucune modification du workspace.";
+                ShowSelectedDetails();
+            }
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
     /// <summary>Shows only the selected candidate's untrusted text fields.</summary>
     /// <param name="sender">Candidate list.</param>
     /// <param name="e">Selection change.</param>
     private void ProposalsList_SelectionChanged(
-        object sender, SelectionChangedEventArgs e)
+        object sender, SelectionChangedEventArgs e) => ShowSelectedDetails();
+
+    /// <summary>Refreshes the selected proposal and its optional local comparison.</summary>
+    private void ShowSelectedDetails()
     {
         if (_preview is null ||
             ProposalsList.SelectedItem is not ProjectAiImportCandidate item)
@@ -137,9 +223,47 @@ public partial class ProjectAiResponsePreviewDialog : Window
         }
 
         builder.AppendLine();
-        builder.AppendLine(
-            "Comparaison à trois voies / validation humaine à intégrer " +
-            "après résolution de la source et des identités réelles.");
+        if (_comparisons is not null &&
+            _comparisons.TryGetValue(item.ProposalId,
+                out ProjectAiRequirementReview? review))
+        {
+            builder.AppendLine("LECTURE CANONIQUE DU PROJET (SANS ÉCRITURE)");
+            builder.AppendLine("Résolution : " + review.Status);
+            if (review.Requirement is ProjectRequirementEntry found)
+            {
+                builder.AppendLine("Exigence locale : " + found.Card.Reference +
+                    " · " + found.Card.Id.ToString("D"));
+                builder.AppendLine("Fichier : " + found.RelativePath);
+                builder.AppendLine("Empreinte source : " +
+                    found.SourceSha256[..Math.Min(16, found.SourceSha256.Length)] +
+                    "… (instantané, non autorisation)");
+            }
+
+            foreach (ProjectAiFieldDifference field in review.Fields)
+            {
+                builder.AppendLine();
+                builder.AppendLine("Champ : " + field.Field + " · " + field.Kind);
+                builder.AppendLine("  Base IA déclarée : " +
+                    (field.Base ?? "(inconnue)"));
+                builder.AppendLine("  Valeur actuelle : " +
+                    (field.Current ?? "(absente)"));
+                builder.AppendLine("  Proposition : " + field.Suggested);
+            }
+
+            foreach (string warning in review.Warnings)
+            {
+                builder.AppendLine("ATTENTION : " + warning);
+            }
+        }
+        else
+        {
+            builder.AppendLine("Comparer au registre du projet pour afficher " +
+                "les correspondances et conflits, en lecture seule.");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("Aucun champ ne peut être accepté ni importé ici. " +
+            "Revalidation des sources et décision humaine restent obligatoires.");
         DetailsBox.Text = builder.ToString();
     }
 
@@ -150,6 +274,11 @@ public partial class ProjectAiResponsePreviewDialog : Window
         {
             AnalyzeButton.IsEnabled = !_busy &&
                 !string.IsNullOrWhiteSpace(RawResponseBox?.Text);
+        }
+
+        if (CompareButton is not null)
+        {
+            CompareButton.IsEnabled = !_busy && _preview is not null;
         }
     }
 
