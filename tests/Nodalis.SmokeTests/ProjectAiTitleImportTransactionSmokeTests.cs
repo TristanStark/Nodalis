@@ -125,6 +125,24 @@ internal static class ProjectAiTitleImportTransactionSmokeTests
                 journal.RawResponseSha256 == plan.RawResponseSha256,
                 "The journal must bind both exact byte revisions and identities.");
 
+            string validManifest = await File.ReadAllTextAsync(manifestPath);
+            await File.WriteAllTextAsync(manifestPath, "{fichier corrompu");
+            await RejectAsync(() => transaction.CommitAsync(
+                firstProject.ProjectDirectory, plan),
+                "Malformed durable journal must fail closed, not crash WPF.");
+            await File.WriteAllTextAsync(manifestPath, validManifest);
+
+            string nullHashManifest = validManifest.Replace(
+                "\"publishedSha256\":\"" + journal!.PublishedSha256 + "\"",
+                "\"publishedSha256\":null", StringComparison.Ordinal);
+            Assert(nullHashManifest != validManifest,
+                "The test must actually null the published hash.");
+            await File.WriteAllTextAsync(manifestPath, nullHashManifest);
+            await RejectAsync(() => transaction.CommitAsync(
+                firstProject.ProjectDirectory, plan),
+                "Null journal hash must be rejected without a NullReferenceException.");
+            await File.WriteAllTextAsync(manifestPath, validManifest);
+
             ProjectAiTitleCommitStatus again = await transaction.CommitAsync(
                 firstProject.ProjectDirectory, plan);
             Assert(again == ProjectAiTitleCommitStatus.AlreadyApplied &&
