@@ -20,3 +20,6 @@ Desktop.ini
 
 # Nodalis local user state
 .nodalis-user/
+
+# Project-local AI import recovery archives may contain private Markdown
+.nodalis-ai-import/
