@@ -372,3 +372,114 @@ Régression automatisée :
 tests Windows. La création est **unitaire** ; la transaction de
 plusieurs propositions reste un travail distinct de #197.
 Aucun merge `main`, tag ni release v2.0 avant la qualification.
+
+
+## Sixième incrément — lots de titres EXI, reprise après redémarrage (03/11/2026)
+
+**Périmètre volontairement limité :** deux à vingt propositions
+`requirement/update.title` **explicitement acceptées ou corrigées**
+dans **un même projet**. Aucun autre champ, aucune création d'objet,
+aucun changement de statut, aucun lien ni tâche n'est publié par le
+moteur de lot. Les créations d'EXI restent des transactions unitaires
+distinctes.
+
+### Flux utilisateur
+
+1. Depuis **Parcours → Analyser → Comparer**, qualifier chaque
+   `title` par **Accepter** ou **Modifier**. Les autres champs peuvent
+   être laissés **À revoir** ou **Ignorer**.
+2. Cliquer **Préparer le plan**. Si deux à vingt titres existants sont
+   retenus sans création concomitante, **Enregistrer le lot de titres…**
+   devient disponible. Les fiches encore ouvertes dans un onglet Markdown,
+   y compris le second panneau, bloquent la publication.
+3. La confirmation affiche **chaque référence EXI, titre avant/après** et
+   prévient du caractère **récupérable, mais non atomique globalement**,
+   du lot. Le bouton peut modifier les fichiers uniquement après
+   confirmation explicite.
+4. Si l'application a été interrompue, ouvrir à nouveau la fenêtre
+   d'import IA, cliquer **Rechercher les lots interrompus** ; choisir
+   le journal incomplet et cliquer **Reprendre le lot choisi…**.
+   Une seconde confirmation expose la progression et toutes les
+   modifications journalisées, même sans la réponse IA originale
+   encore collée dans la fenêtre.
+
+### Préparation et publication
+
+`ProjectAiBatchTitleImportTransactionService` possède un
+`PlanFingerprint` SHA-256 déterministe sur les identités, chemins,
+empreintes des fichiers, titres et justifications humaines, triés par
+référence. Deux listes contenant les mêmes décisions dans un ordre
+différent conservent la même identité de transaction.
+
+Avant toute écriture métier, le service vérifie **toutes** les exigences
+contre le registre canonique du projet, les GUID, chemins EXI, valeurs
+et empreintes SHA-256. Il prépare, par fichier, des instantanés **des
+octets originaux exacts** et de la version approuvée qui ne change que
+`title:` et le H1. Les copies et le manifeste
+`nodalis.ai-title-batch.v1` sont persistés sous :
+
+`<projet>/.nodalis-ai-import/batch-<SHA-256-du-plan>/`
+
+avec `original/0000.md`, `approved/0000.md` et `intent.json`.
+Un verrou `.nodalis-ai-import/.lock` est partagé avec les créations
+et les mises à jour EXI unitaires. Les sources ne sont jamais
+acceptées depuis un chemin envoyé par l'IA : elles sont résolues
+dans le registre du projet sélectionné.
+
+Après la préparation et avant la première publication, le service
+revérifie **tous les fichiers courants et tous les instantanés**.
+Chaque publication vérifie une nouvelle fois, sous verrou de lecture
+Windows, le SHA-256 et l'identité NTFS avant `File.Replace`.
+Aucun fichier divergent n'est écrasé.
+
+**Limite explicite :** Windows ne fournit pas de transaction atomique
+pour un ensemble de fichiers indépendants. Une interruption entre
+deux remplacements peut donc laisser un lot **partiellement publié**.
+Le journal demeure disponible pour une reprise **uniquement sur
+action humaine**. Si un autre éditeur a changé un fichier, **la
+totalité de la reprise est bloquée sans toucher aux autres fichiers**.
+
+### Reprise indépendante de l'ancienne fenêtre
+
+`ProjectAiBatchTitleImportRecovery` découvre en lecture seule les
+journaux incomplets (au plus 100 dans un projet). Une tentative de
+reprise reconstruit les décisions approuvées à partir du **journal
+persisté** et exige, avant de les exposer à l'utilisateur :
+
+- identité et statut actif du projet vérifiés ;
+- empreinte du plan correspondant au journal, références EXI et
+  inventaire sans doublons ;
+- instantanés originaux et publiés intacts, sans symlink/jonction ;
+- **preuve octet par octet** que chaque version publiée est uniquement
+  la réécriture canonique du titre de son original et ne modifie
+  aucun état métier ou contenu de section ;
+- fichiers en production correspondant chacun soit à son SHA original,
+  soit à son SHA publié, sans troisième état.
+
+Les journaux endommagés ou les fichiers divergents sont exclus de
+la liste des reprises possibles et demandent une intervention
+manuelle. Une relecture/revalidation complète précède la
+reprise elle-même ; le résultat `AlreadyApplied` signifie qu'aucun
+fichier n'a été réécrit.
+
+### Qualification Windows et tests
+
+La suite `ProjectAiBatchTitleImportSmokeTests` teste, sur deux
+exigences fictives : rejet sans aucune publication si le **second**
+fichier a changé avant l'import, interruption injectée après le
+premier remplacement, journal et copies intacts, blocage de toute
+reprise en présence d'un changement externe, restauration des
+octets de test, puis reprise du **second** fichier seulement. Elle
+teste aussi la découverte après **nouvelle instance du service**,
+l'isolation entre projets, les journaux et snapshots corrompus,
+les demandes contradictoires et la non-réécriture au réimport.
+
+**À qualifier manuellement sur Windows :** ouverture/fermeture
+des onglets, accessibilité des commandes et longueur de la liste
+des changements, affichage de 20 propositions, état du Worktree
+après publication, espace disque insuffisant, éditeurs externes,
+comportement après sortie de veille et stabilité lors des reprises.
+Une gestion plus élaborée des erreurs partielles, des lots mixtes
+création/mise à jour, et des historiques d'arbitrages reste à
+traiter dans #197. Aucun merge `main`, tag ni release avant
+qualification utilisateur.
