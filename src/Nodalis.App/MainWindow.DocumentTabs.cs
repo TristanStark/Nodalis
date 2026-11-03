@@ -58,6 +58,25 @@ public partial class MainWindow
     }
 
     /// <summary>
+    /// Prevents an external AI import from rewriting a Markdown file whose
+    /// editor session could later autosave a stale in-memory revision. Covers
+    /// both primary and secondary editor panes via the shared tab collection.
+    /// </summary>
+    /// <param name="fullPath">Verified absolute workspace document path.</param>
+    /// <returns>True whenever any editor session retains this file.</returns>
+    public bool IsDocumentOpenForAiImport(string fullPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
+        string normalized = Path.GetFullPath(fullPath);
+        return _documentTabs.Any(item => string.Equals(
+            Path.GetFullPath(item.FullPath), normalized,
+            StringComparison.OrdinalIgnoreCase)) ||
+            _secondaryDocumentTab is not null &&
+            string.Equals(Path.GetFullPath(_secondaryDocumentTab.FullPath),
+                normalized, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Opens a document in a reusable tab or activates the existing tab for it.
     /// </summary>
     /// <param name="node">The document navigation node to open.</param>
