@@ -15,15 +15,31 @@ public partial class ProjectTestPassageStartDialog : Window
 {
     private readonly IReadOnlyList<ProjectTestCandidate> _candidates;
 
-    /// <summary>Initializes a multi-select test picker without file access.</summary>
+    /// <summary>Initializes a reviewer-editable, filesystem-free test picker.</summary>
     /// <param name="candidates">Unique project-local test block choices.</param>
+    /// <param name="suggestedIds">
+    /// Optional nonbinding preselection. Every test can be unchecked or added.
+    /// </param>
     public ProjectTestPassageStartDialog(
-        IReadOnlyList<ProjectTestCandidate> candidates)
+        IReadOnlyList<ProjectTestCandidate> candidates,
+        IReadOnlyCollection<Guid>? suggestedIds = null)
     {
         _candidates = candidates ??
             throw new ArgumentNullException(nameof(candidates));
         InitializeComponent();
         TestsList.ItemsSource = _candidates;
+        if (suggestedIds is not null)
+        {
+            HashSet<Guid> suggestions = suggestedIds.ToHashSet();
+            foreach (ProjectTestCandidate candidate in _candidates)
+            {
+                if (suggestions.Contains(candidate.Id))
+                {
+                    TestsList.SelectedItems.Add(candidate);
+                }
+            }
+        }
+
         UpdateSelectionLabel();
         Loaded += (_, _) => EnvironmentBox.Focus();
     }

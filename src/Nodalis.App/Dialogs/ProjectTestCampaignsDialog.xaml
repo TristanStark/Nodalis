@@ -145,6 +145,11 @@
                 <Button x:Name="StartButton" Content="Lancer un passage…"
                         Padding="11,8" Margin="0,0,8,5"
                         Click="Start_Click"/>
+                <Button x:Name="RetestButton"
+                        Content="Proposer une reprise ciblée…"
+                        Padding="11,8" Margin="0,0,8,5"
+                        Click="Retest_Click"
+                        AutomationProperties.Name="Proposer des tests à reprendre après le dernier passage"/>
                 <Button x:Name="RecordButton" Content="Enregistrer un résultat…"
                         Padding="11,8" Margin="0,0,8,5"
                         Click="Record_Click"/>

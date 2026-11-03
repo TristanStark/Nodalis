@@ -163,6 +163,16 @@ if (-not $requirementsCode.Contains('ProjectRequirementCampaignTraceability.Buil
     -not $requirementCampaignCode.Contains('IsTestWithinProject(')) {
     $failures.Add("EXI traceability must show project-isolated REC passage history without treating results as verified requirements.")
 }
+$targetedReplayCode = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestCampaignsDialog.xaml.cs")
+$targetedReplayPicker = Get-Content -Raw -LiteralPath (Join-Path $appRoot "Dialogs/ProjectTestPassageStartDialog.xaml.cs")
+if (-not $campaignDialogXaml.Contains('x:Name="RetestButton"') -or
+    -not $targetedReplayCode.Contains('ProjectTestRetestPlanner.Propose(') -or
+    -not $targetedReplayCode.Contains('AssessSourceValidityAsync(') -or
+    -not $targetedReplayCode.Contains('ProjectTestPassageStartDialog picker = new(') -or
+    -not $targetedReplayCode.Contains('MessageBoxButton.YesNo') -or
+    -not $targetedReplayPicker.Contains('TestsList.SelectedItems.Add(candidate)')) {
+    $failures.Add("REC targeted retest proposals must be based on revalidated latest passage, remain editable and require human approval.")
+}
 $quickOpenCode = Get-Content -Raw -LiteralPath $quickOpenPath
 $quickOpenEntry = Get-Content -Raw -LiteralPath $quickOpenEntryPath
 if (-not $worktreeVm.Contains('internal int VisibleSiblingIndex') -or

@@ -378,6 +378,10 @@ public partial class ProjectTestCampaignsDialog : Window
             campaign.Entry.Campaign.State is
                 ProjectTestCampaignState.Draft or
                 ProjectTestCampaignState.InProgress;
+        RetestButton.IsEnabled = writable && campaign is not null &&
+            campaign.Entry.Campaign.State ==
+                ProjectTestCampaignState.InProgress &&
+            campaign.Entry.Campaign.Passages.Count > 0;
         RecordButton.IsEnabled = writable && campaign is not null &&
             campaign.Entry.Campaign.State ==
                 ProjectTestCampaignState.InProgress &&
@@ -538,17 +542,30 @@ public partial class ProjectTestCampaignsDialog : Window
     /// <param name="sender">Start button.</param>
     /// <param name="e">Click.</param>
     private async void Start_Click(object sender, RoutedEventArgs e) =>
-        await GuardAsync("Démarrer un passage", StartPassageAsync);
+        await GuardAsync("Démarrer un passage",
+            () => StartPassageAsync(false));
+
+    /// <summary>Proposes a human-editable selection for a new REC passage.</summary>
+    /// <param name="sender">Targeted retest button.</param>
+    /// <param name="e">Button event.</param>
+    private async void Retest_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Proposer une reprise de tests",
+            () => StartPassageAsync(true));
 
     /// <summary>
     /// Refreshes the shared index once, then permits an explicit, human-owned
-    /// passage selection. The service revalidates all source hashes at commit.
+    /// passage selection. Any suggested retests are nonbinding and editable.
+    /// The service revalidates every source hash at the final commit.
     /// </summary>
-    /// <returns>Completed passage creation.</returns>
-    private async Task StartPassageAsync()
+    /// <param name="targetedReplay">Whether to propose a targeted rerun.</param>
+    /// <returns>Completed user-approved passage creation.</returns>
+    private async Task StartPassageAsync(bool targetedReplay)
     {
         CampaignRow? chosen = SelectedCampaign();
-        if (_readOnly || chosen is null)
+        if (_readOnly || chosen is null ||
+            targetedReplay && (chosen.Entry.Campaign.Passages.Count == 0 ||
+                chosen.Entry.Campaign.State !=
+                    ProjectTestCampaignState.InProgress))
         {
             return;
         }
@@ -568,7 +585,73 @@ public partial class ProjectTestCampaignsDialog : Window
             return;
         }
 
-        ProjectTestPassageStartDialog picker = new(candidates)
+        IReadOnlyCollection<Guid>? suggested = null;
+        if (targetedReplay)
+        {
+            // A source that has become missing, modified or ambiguous is
+            // suggested for HUMAN requalification, never declared Passed.
+            ProjectTestSourceValidityOverview validity = await Task.Run(
+                () => _service.AssessSourceValidityAsync(
+                    _projectDirectory, chosen.Entry, index));
+            Guid latestPassageId = chosen.Entry.Campaign.Passages[^1].Id;
+            HashSet<Guid> sourceReviewIds = validity.Rows.Where(row =>
+                row.PassageId == latestPassageId &&
+                row.Validity != ProjectTestSourceValidity.Current)
+                .Select(row => row.TestId).ToHashSet();
+            ProjectTestRetestProposal proposal = await Task.Run(() =>
+                ProjectTestRetestPlanner.Propose(
+                    chosen.Entry.Campaign, sourceReviewIds));
+            HashSet<Guid> available = candidates.Select(item => item.Id)
+                .ToHashSet();
+            Guid[] preselection = proposal.Candidates.Where(item =>
+                available.Contains(item.TestId)).Select(item => item.TestId)
+                .ToArray();
+            int unavailable = proposal.Candidates.Count -
+                preselection.Length;
+            if (preselection.Length == 0)
+            {
+                MessageBox.Show(this,
+                    "Aucun test de la reprise proposée n'est disponible " +
+                    "avec une identité sûre. Utilisez la sélection manuelle " +
+                    "après correction des sources/identifiants.\n\n" +
+                    unavailable + " test(s) proposé(s) indisponible(s).",
+                    "Reprise impossible sans test identifiable",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string[] reasons = proposal.Candidates.Take(12)
+                .Select(item => item.Reference + " : " +
+                    string.Join(", ", item.Reasons))
+                .ToArray();
+            string summary = string.Join("\n", reasons);
+            if (proposal.Candidates.Count > 12)
+            {
+                summary += "\n... et " +
+                    (proposal.Candidates.Count - 12) + " autre(s).";
+            }
+
+            if (MessageBox.Show(this,
+                "Proposition de reprise du dernier passage de " +
+                    chosen.Entry.Campaign.Reference + " :\n\n" +
+                summary + "\n\n" +
+                preselection.Length + " test(s) disponibles en présélection ; " +
+                unavailable + " test(s) indisponibles à examiner.\n\n" +
+                "La présélection est modifiable : vous pouvez retirer ou " +
+                "ajouter des tests. Aucun nouveau résultat n'est déduit.\n\n" +
+                "Ouvrir le sélecteur pour examen ?",
+                "Reprise ciblée · validation de la proposition",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            suggested = preselection;
+        }
+
+        ProjectTestPassageStartDialog picker = new(
+            candidates, suggested)
         {
             Owner = this
         };

@@ -200,3 +200,27 @@ reporté comme résultat d'une réexécution.
 Les tests synthétiques couvrent les issues Passed/Failed/Blocked/NotRun,
 les changements de définition, l'absence de contrôle des sources,
 un passage ultérieur entièrement non exécuté et une campagne sans passage.
+
+## Proposition de reprise dans le gestionnaire REC (03/11/2026)
+
+L'interface propose maintenant **« Proposer une reprise ciblée… »** pour
+une campagne en cours possédant au moins un passage. Au clic, Nodalis
+actualise l'index partagé, réévalue les empreintes de toutes les
+définitions du dernier passage puis construit la proposition via
+`ProjectTestRetestPlanner` sur un worker (pas sur le Dispatcher WPF).
+
+Les suggestions comprennent les tests non exécutés, déclarés non
+conformes/bloqués et ceux dont les sources courantes sont modifiées,
+absentes ou ambiguës. Si un test source n'est plus identifiable dans
+l'index, il apparaît dans le récapitulatif comme **indisponible** : il
+n'est pas présélectionné artificiellement. Une proposition vide n'écrit
+aucun passage.
+
+L'utilisateur doit d'abord accepter de consulter la proposition, puis
+peut désélectionner les tests suggérés ou en ajouter dans le sélecteur
+multi-tests existant. L'environnement, la version et le responsable
+restent à renseigner ; une **confirmation définitive** précède tout
+enregistrement. Le service de campagne revérifie le projet, les GUID,
+la définition source et l'index avant de créer le nouveau passage.
+**Aucun résultat historique n'est effacé ni reporté automatiquement**.
+La qualification visuelle en thème sombre reste à effectuer.
