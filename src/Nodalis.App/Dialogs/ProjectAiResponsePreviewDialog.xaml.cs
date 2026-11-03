@@ -8,8 +8,9 @@ using Nodalis.Infrastructure.Projects;
 namespace Nodalis.App.Dialogs;
 
 /// <summary>
-/// Pasted external AI response preview, with NO workspace service or
-/// persistence dependency. Input and projections stay in volatile memory.
+/// Pasted external AI response review. Analysis and field decisions remain
+/// volatile; precisely one explicitly confirmed EXI title can be journaled
+/// and atomically published through a separate, conservative service.
 /// </summary>
 public partial class ProjectAiResponsePreviewDialog : Window
 {
@@ -22,6 +23,8 @@ public partial class ProjectAiResponsePreviewDialog : Window
     private readonly Dictionary<(Guid ProposalId, string Field),
         ProjectAiFieldDecision> _decisions = [];
     private bool _settingReviewInput;
+    private bool _publishing;
+    private ProjectAiPreparedReviewPlan? _preparedPlan;
 
     /// <summary>Initializes project-scoped, read-only external response review.</summary>
     /// <param name="workspaceRoot">The active single workspace.</param>
@@ -281,6 +284,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
     private void ClearDecisions()
     {
         _decisions.Clear();
+        _preparedPlan = null;
         if (PlanTextBox is not null)
         {
             PlanTextBox.Text = "Plan invalidé : comparaison et choix à refaire.";
@@ -401,6 +405,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
             FieldPicker.SelectedItem is string field)
         {
             _decisions.Remove((candidate.ProposalId, field));
+            _preparedPlan = null;
             if (PlanTextBox is not null)
             {
                 PlanTextBox.Text = "Plan périmé : préparer à nouveau après validation.";
@@ -444,6 +449,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
             ProjectAiImportDecisionPlanner.Prepare(
                 _preview, _comparisons.Values.ToArray(), next.Values.ToArray());
             _decisions[(candidate.ProposalId, field)] = decision;
+            _preparedPlan = null;
             PlanTextBox.Text = "Choix modifiés : préparer à nouveau le plan.";
             StatusText.Text = "Décision « " + kind +
                 " » conservée temporairement. Aucun document modifié.";
@@ -487,9 +493,11 @@ public partial class ProjectAiResponsePreviewDialog : Window
             ProjectAiPreparedReviewPlan plan =
                 ProjectAiImportDecisionPlanner.Prepare(_preview,
                     _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+            _preparedPlan = plan.Changes.Count == 1 ? plan : null;
             StringBuilder builder = new();
-            builder.AppendLine("PLAN DE QUALIFICATION — LECTURE SEULE");
-            builder.AppendLine("AUCUNE TRANSACTION NI ÉCRITURE N'EST POSSIBLE ICI.");
+            builder.AppendLine("PLAN DE QUALIFICATION — REVUE HUMAINE");
+            builder.AppendLine("Une seule modification EXI est publiable " +
+                "après confirmation explicite.");
             builder.AppendLine("Réponse SHA-256 : " + plan.RawResponseSha256);
             builder.AppendLine("Champs explicitement traités : " +
                 plan.ReviewedFields);
@@ -513,16 +521,131 @@ public partial class ProjectAiResponsePreviewDialog : Window
             }
 
             builder.AppendLine();
-            builder.AppendLine("Même avec accord humain, il faudra " +
-                "recontrôler les fichiers avant un futur commit sécurisé.");
+            builder.AppendLine(plan.Changes.Count == 1
+                ? "Un seul titre peut être enregistré. Le service recontrôlera " +
+                  "les identités et SHA-256 puis journalisera les deux versions. " +
+                  "Fermez tout éditeur de la fiche concernée avant publication."
+                : "Aucune publication : le lot doit contenir exactement " +
+                  "une modification approuvée et non déjà présente.");
             PlanTextBox.Text = builder.ToString();
             StatusText.Text = "Plan préparé en mémoire : " +
                 plan.Changes.Count + " modification(s), zéro écriture.";
+            UpdateButtons();
         }
         catch (InvalidDataException exception)
         {
+            _preparedPlan = null;
             PlanTextBox.Text = "Plan impossible : " + exception.Message;
             StatusText.Text = "Aucune transaction effectuée.";
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Applies exactly one previously confirmed EXI title. An import is never
+    /// auto-approved or run in response to AI text, comparison or selection.
+    /// </summary>
+    /// <param name="sender">Explicit publish button.</param>
+    /// <param name="e">User click.</param>
+    private async void PublishReviewedTitle_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _preview is null || _comparisons is null ||
+            _preparedPlan is null || _preparedPlan.Changes.Count != 1)
+        {
+            return;
+        }
+
+        ProjectAiPreparedReviewPlan expected = _preparedPlan;
+        ProjectAiPreparedReviewPlan current;
+        try
+        {
+            current = ProjectAiImportDecisionPlanner.Prepare(_preview,
+                _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+        }
+        catch (InvalidDataException exception)
+        {
+            StatusText.Text = "Plan devenu invalide : " + exception.Message;
+            _preparedPlan = null;
+            UpdateButtons();
+            return;
+        }
+
+        if (current.Changes.Count != 1 ||
+            current.Changes[0] != expected.Changes[0] ||
+            current.RawResponseSha256 != expected.RawResponseSha256 ||
+            current.ReviewedFields != expected.ReviewedFields ||
+            current.IgnoredFields != expected.IgnoredFields ||
+            current.PendingFields != expected.PendingFields)
+        {
+            _preparedPlan = null;
+            StatusText.Text = "Plan modifié : renouveler la validation.";
+            UpdateButtons();
+            return;
+        }
+
+        ProjectAiPreparedTitleChange change = current.Changes[0];
+        string confirmation = "Exigence : " + change.Reference +
+            "\nDocument : " + change.RelativePath +
+            "\nTitre actuel : " + change.CurrentTitle +
+            "\nTitre approuvé : " + change.ReviewedTitle +
+            "\n\nSeul le titre de cette fiche EXI sera modifié ; les statuts, " +
+            "critères et autres propositions ne le seront pas." +
+            "\n\nLe journal conservera les versions originale et approuvée " +
+            "(potentiellement confidentielles) dans le projet." +
+            "\n\nFermez d'abord toute édition ouverte de ce document " +
+            "pour éviter un écrasement ultérieur depuis un onglet non rechargé." +
+            "\n\nConfirmer la publication locale ?";
+        if (MessageBox.Show(this, confirmation,
+            "Import IA · confirmer une seule modification",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _busy = true;
+        _publishing = true;
+        UpdateButtons();
+        try
+        {
+            ProjectAiTitleCommitStatus result = await Task.Run(async () =>
+            {
+                ProjectAiTitleImportTransactionService service = new(
+                    _workspaceRoot);
+                return await service.CommitAsync(_projectDirectory, current);
+            });
+            _comparisons = null;
+            ClearDecisions();
+            ShowSelectedDetails();
+            PlanTextBox.Text = "Publication " + result +
+                " : recharger la fiche EXI et relancer une comparaison " +
+                "avant une nouvelle modification.";
+            StatusText.Text = result == ProjectAiTitleCommitStatus.AlreadyApplied
+                ? "Proposition déjà publiée (journal concordant) : aucun doublon."
+                : "Titre EXI publié avec remplacement atomique et journal durable.";
+            MessageBox.Show(this, StatusText.Text +
+                "\n\nRouvrez la fiche pour actualiser l'éditeur.",
+                "Import IA · résultat", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            StatusText.Text = "Publication refusée : " + exception.Message;
+            PlanTextBox.Text = "Aucune réécriture concurrente autorisée. " +
+                "Un journal préparé peut nécessiter une récupération " +
+                "après interruption. Vérifiez les fichiers avant requalification.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · vérification ou récupération",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _publishing = false;
+            _busy = false;
+            UpdateButtons();
         }
     }
 
@@ -538,6 +661,19 @@ public partial class ProjectAiResponsePreviewDialog : Window
         if (CompareButton is not null)
         {
             CompareButton.IsEnabled = !_busy && _preview is not null;
+        }
+
+        if (RawResponseBox is not null)
+        {
+            RawResponseBox.IsReadOnly = _publishing;
+        }
+
+        if (PublishReviewedTitleButton is not null)
+        {
+            PublishReviewedTitleButton.IsEnabled = !_busy &&
+                _preparedPlan is not null &&
+                _preparedPlan.Changes.Count == 1 &&
+                _comparisons is not null && _preview is not null;
         }
 
         if (AcceptFieldButton is null || FieldPicker is null)
