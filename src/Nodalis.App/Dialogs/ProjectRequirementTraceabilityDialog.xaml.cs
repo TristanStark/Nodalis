@@ -30,9 +30,12 @@ public partial class ProjectRequirementTraceabilityDialog : Window
             throw new ArgumentNullException(nameof(overview));
         _campaigns = campaigns ??
             throw new ArgumentNullException(nameof(campaigns));
-        _campaignRows = campaigns.Rows.ToDictionary(
-            item => item.Criterion, item => item,
-            ReferenceEqualityComparer.Instance);
+        _campaignRows = new(ReferenceEqualityComparer.Instance);
+        foreach (ProjectRequirementCampaignCriterionHistory history
+            in campaigns.Rows)
+        {
+            _campaignRows.Add(history.Criterion, history);
+        }
         InitializeComponent();
 
         TotalText.Text = overview.Rows.Count + " critère(s)";
