@@ -904,6 +904,24 @@ public partial class ProjectJourneyView : UserControl
         }, "Préparer un prompt sans IA");
 
     /// <summary>
+    /// Opens a strictly read-only review of JSON from an external AI.
+    /// A parsed proposal never creates, approves or changes a workspace object.
+    /// </summary>
+    /// <param name="sender">Explicit import preview button.</param>
+    /// <param name="e">Click event.</param>
+    private async void InspectAiResponse_Click(
+        object sender, RoutedEventArgs e) =>
+        await RunActionAsync(() =>
+        {
+            ProjectAiResponsePreviewDialog dialog = new()
+            {
+                Owner = Window.GetWindow(this)
+            };
+            dialog.ShowDialog();
+            return Task.CompletedTask;
+        }, "Analyser une réponse IA sans écriture");
+
+    /// <summary>
     /// Opens a project-scoped read-only risk register with explicit creation.
     /// Selecting a source navigates in the existing Markdown editor; risks do
     /// not become synthetic journey documents or alter the current stage.

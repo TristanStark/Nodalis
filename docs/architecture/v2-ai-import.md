@@ -54,3 +54,20 @@ idempotence des identifiants et absence d'écrasement par comparaison.
 Les prochaines étapes #197 sont l'interface de prévisualisation,
 les sources/versions, la qualification champ par champ et le commit
 récupérable validé par l'utilisateur.
+
+## Première interface WPF de prévisualisation
+
+Dans l'onglet **Parcours**, la commande **Analyser une réponse IA…**
+ouvre un dialogue de collage JSON. L'analyse du schéma
+`nodalis.import.v1` et des limites se fait **hors Dispatcher WPF**.
+Une liste virtualisée affiche jusqu'à 100 propositions, leur type,
+leur action, leur degré de certitude déclaré et leur référence candidate.
+Le détail affiche les champs et la base déclarée sans présumer du
+contenu réel du projet. Une modification de la zone de texte invalide
+immédiatement les résultats précédents.
+
+Cette première interface est **strictement consultative** : elle ne
+possède aucun bouton d'acceptation, aucun service d'écriture ni
+connexion réseau. La prochaine tranche intégrera une résolution
+d'identité projet explicite et un diff à trois voies depuis une
+source canonique revalidée avant commit.

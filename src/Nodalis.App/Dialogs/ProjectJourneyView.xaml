@@ -297,6 +297,11 @@
                                 Content="Préparer / copier"
                                 Margin="0,0,7,7" Padding="10,5"
                                 Click="PrepareOperationPrompt_Click" />
+                        <Button x:Name="InspectAiResponseButton"
+                                Content="Analyser une réponse IA…"
+                                Margin="0,0,7,7" Padding="10,5"
+                                Click="InspectAiResponse_Click"
+                                AutomationProperties.Name="Examiner une réponse IA externe sans modifier le projet" />
                     </WrapPanel>
                 </Grid>
             </Border>
