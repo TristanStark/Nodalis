@@ -29,7 +29,11 @@ public sealed record ProjectRequirementEntry(
 public sealed record ProjectRequirementCatalog(
     IReadOnlyList<ProjectRequirementEntry> Requirements,
     IReadOnlyList<string> Diagnostics,
-    string? NextReference);
+    string? NextReference)
+{
+    /// <summary>Canonical owning project, set by real filesystem reads.</summary>
+    public Guid ProjectId { get; init; }
+}
 
 /// <summary>
 /// Opt-in project requirement storage using canonical Markdown in
@@ -67,7 +71,9 @@ public sealed class ProjectRequirementRegistryService
     {
         (string directory, ProjectManifest project) = await ResolveProjectAsync(
             projectDirectory, cancellationToken);
-        return await ListInProjectAsync(directory, project.Id, cancellationToken);
+        ProjectRequirementCatalog catalog = await ListInProjectAsync(
+            directory, project.Id, cancellationToken);
+        return catalog with { ProjectId = project.Id };
     }
 
     /// <summary>
