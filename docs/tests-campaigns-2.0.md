@@ -180,3 +180,23 @@ Les commandes sont indisponibles pour les projets archivés ou en
 lecture seule. Toute modification reste soumise au SHA-CAS de la
 campagne ; aucun fichier de définition de test ni exigence EXI n'est
 modifié. Qualification visuelle Windows/dark mode à réaliser.
+
+## Proposition de reprise ciblée (03/11/2026)
+
+Le composant pur `ProjectTestRetestPlanner.Propose` examine **uniquement
+le dernier passage figé** d'une campagne REC. Il suggère de reprendre les
+tests non exécutés, ceux déclarés non conformes ou bloqués, ainsi que les
+identités dont la définition courante a explicitement été signalée
+modifiée/absente/ambiguë. Lorsque le contrôle des définitions n'a pas
+été fait, il l'indique sans supposer que les sources sont inchangées.
+
+Il n'écrit rien : les GUID proposés sont des **valeurs de présélection**
+pour le sélecteur de passage existant. Le responsable peut les retirer,
+en ajouter ou annuler. Un nouveau passage ne sera enregistré qu'après
+la confirmation humaine et les contrôles habituels du service REC
+(index, SHA, projet, versions). Un ancien verdict Passed n'est jamais
+reporté comme résultat d'une réexécution.
+
+Les tests synthétiques couvrent les issues Passed/Failed/Blocked/NotRun,
+les changements de définition, l'absence de contrôle des sources,
+un passage ultérieur entièrement non exécuté et une campagne sans passage.

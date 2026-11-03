@@ -101,6 +101,7 @@ try
     ProjectTestDefinitionSmokeTests.Run();
     ProjectTestCampaignCodecSmokeTests.Run();
     ProjectTestCampaignDecisionSmokeTests.Run();
+    ProjectTestRetestPlannerSmokeTests.Run();
     await ProjectTestCampaignServiceSmokeTests.RunAsync(root);
     await ProjectRiskReviewSmokeTests.RunAsync(root);
     await ProjectRiskQualificationSmokeTests.RunAsync(root);
