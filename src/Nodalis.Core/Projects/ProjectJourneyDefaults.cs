@@ -112,21 +112,21 @@ public static class ProjectJourneyDefaults
     /// <returns>Versioned user-prompt key or null when not mapped.</returns>
     private static string? SuggestedPromptKey(
         string step, string operation) => (step, operation) switch
-    {
-        ("cadrage", "besoin") => "frt100-05",
-        ("cadrage", "contexte") => "frt100-02",
-        ("exigences", "inventaire") => "frt100-01",
-        ("exigences", "criteres") => "frt100-07",
-        ("risques", "identifier") => "frt100-15",
-        ("risques", "reevaluer") => "frt100-14",
-        ("conception", "architecture" or "solution") => "frt100-11",
-        ("preparation-developpement", "plan") => "frt100-17",
-        ("realisation", "solution") => "frt100-11",
-        ("realisation", "implementation") => "frt100-17",
-        ("realisation", "changements") => "frt100-16",
-        ("tests", "verification" or "campagnes") => "frt100-10",
-        ("mise-en-production", "deploiement") => "frt100-18",
-        ("cloture", "bilan" or "passation") => "frt100-30",
-        _ => null
-    };
+        {
+            ("cadrage", "besoin") => "frt100-05",
+            ("cadrage", "contexte") => "frt100-02",
+            ("exigences", "inventaire") => "frt100-01",
+            ("exigences", "criteres") => "frt100-07",
+            ("risques", "identifier") => "frt100-15",
+            ("risques", "reevaluer") => "frt100-14",
+            ("conception", "architecture" or "solution") => "frt100-11",
+            ("preparation-developpement", "plan") => "frt100-17",
+            ("realisation", "solution") => "frt100-11",
+            ("realisation", "implementation") => "frt100-17",
+            ("realisation", "changements") => "frt100-16",
+            ("tests", "verification" or "campagnes") => "frt100-10",
+            ("mise-en-production", "deploiement") => "frt100-18",
+            ("cloture", "bilan" or "passation") => "frt100-30",
+            _ => null
+        };
 }

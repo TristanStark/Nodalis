@@ -222,7 +222,8 @@ public sealed class ProjectJourneyPromptPreparationService
             "et les propositions à qualifier manuellement. " +
             "Ne produire aucune affirmation de modification du workspace.");
         return new ProjectJourneyPromptDraft(draft.ToString(),
-            included, warnings) { SystemPrompt = systemPrompt };
+            included, warnings)
+        { SystemPrompt = systemPrompt };
     }
 
     /// <summary>Reads a bounded UTF-8 prefix without loading megabyte files.</summary>
