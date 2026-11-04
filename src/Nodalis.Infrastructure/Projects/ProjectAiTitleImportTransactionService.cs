@@ -71,7 +71,8 @@ public sealed class ProjectAiTitleImportTransactionService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        if (plan.Changes.Count != 1 ||
+        if (plan.Changes.Count != 1 || plan.Creations.Count != 0 ||
+            plan.Descriptions.Count != 0 ||
             plan.RawResponseSha256.Length != 64 ||
             !plan.RawResponseSha256.All(Uri.IsHexDigit))
         {

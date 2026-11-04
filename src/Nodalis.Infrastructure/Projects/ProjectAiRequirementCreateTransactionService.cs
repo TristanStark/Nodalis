@@ -312,7 +312,7 @@ public sealed class ProjectAiRequirementCreateTransactionService
         ProjectAiPreparedReviewPlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        if (plan.Changes.Count != 0 ||
+        if (plan.Changes.Count != 0 || plan.Descriptions.Count != 0 ||
             plan.Creations.Count != 1 ||
             plan.RawResponseSha256 is not { Length: 64 } ||
             !plan.RawResponseSha256.All(Uri.IsHexDigit))
