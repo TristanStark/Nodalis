@@ -211,11 +211,15 @@ public sealed class ProjectAiRecoveryHistoryService
             (Guid owner, IReadOnlyList<ProjectAiRecoveryTarget> targets,
                 int completed, int remaining) = await InspectAsync(
                 project, attempt.Kind, key, token);
+            string journalPath = Path.Combine(project, JournalRoot,
+                attempt.TransactionKey, "intent.json");
             if (owner != attempt.ProjectId ||
-                !targets.SequenceEqual(attempt.Targets))
+                !targets.SequenceEqual(attempt.Targets) ||
+                await ReadJournalHashAsync(journalPath, token) !=
+                    attempt.JournalSha256)
             {
                 throw new InvalidDataException(
-                    "Identités du journal modifiées après la reprise.");
+                    "Journal ou identités modifiés après la reprise.");
             }
 
             published = completed;
@@ -352,6 +356,7 @@ public sealed class ProjectAiRecoveryHistoryService
 
         string prefix = attempt.Kind == "mixed" ? "mixed-" : "batch-";
         if (attempt.Kind is not ("mixed" or "title-batch") ||
+            attempt.TransactionKey is null ||
             !attempt.TransactionKey.StartsWith(prefix, StringComparison.Ordinal) ||
             attempt.TransactionKey.Length != prefix.Length + 64 ||
             !attempt.TransactionKey[prefix.Length..].All(Uri.IsHexDigit))
