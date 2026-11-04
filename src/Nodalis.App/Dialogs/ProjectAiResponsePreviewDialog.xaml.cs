@@ -516,13 +516,16 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 ProjectAiImportDecisionPlanner.Prepare(_preview,
                     _comparisons.Values.ToArray(), _decisions.Values.ToArray());
             _preparedPlan = (plan.Descriptions.Count == 0 &&
+                    plan.CriterionTitles.Count == 0 &&
                     ((plan.Changes.Count is >= 1 and <= 20 &&
                         plan.Creations.Count == 0) ||
                     (plan.Changes.Count == 0 && plan.Creations.Count == 1) ||
                     (plan.Changes.Count >= 1 && plan.Creations.Count >= 1 &&
                         plan.Changes.Count + plan.Creations.Count <= 20))) ||
                 (plan.Descriptions.Count == 1 && plan.Changes.Count == 0 &&
-                    plan.Creations.Count == 0)
+                    plan.Creations.Count == 0 && plan.CriterionTitles.Count == 0) ||
+                (plan.CriterionTitles.Count == 1 && plan.Changes.Count == 0 &&
+                    plan.Creations.Count == 0 && plan.Descriptions.Count == 0)
                 ? plan : null;
             StringBuilder builder = new();
             builder.AppendLine("PLAN DE QUALIFICATION — REVUE HUMAINE");
@@ -539,6 +542,26 @@ public partial class ProjectAiResponsePreviewDialog : Window
             builder.AppendLine("Créations proposées : " + plan.Creations.Count);
             builder.AppendLine("Descriptions proposées : " +
                 plan.Descriptions.Count);
+            builder.AppendLine("Titres CA approuvés : " + plan.CriterionTitles.Count);
+            foreach (ProjectAiPreparedCriterionTitleChange criterion in
+                plan.CriterionTitles)
+            {
+                builder.AppendLine();
+                builder.AppendLine("CRITÈRE " + criterion.Reference + " / " +
+                    criterion.CriterionReference);
+                builder.AppendLine("GUID : " + criterion.CriterionId.ToString("D"));
+                builder.AppendLine("Source : " + criterion.RelativePath);
+                builder.AppendLine("SHA : " + criterion.ExpectedSha256);
+                builder.AppendLine("Titre local : " + criterion.CurrentTitle);
+                builder.AppendLine("Titre approuvé : " + criterion.ReviewedTitle);
+                if (!string.IsNullOrWhiteSpace(criterion.Reason))
+                {
+                    builder.AppendLine("Justification : " + criterion.Reason);
+                }
+
+                builder.AppendLine("Le GUID CA, les tests et les verdicts " +
+                    "resteront inchangés.");
+            }
             foreach (ProjectAiPreparedDescriptionChange description in
                 plan.Descriptions)
             {
@@ -594,7 +617,13 @@ public partial class ProjectAiResponsePreviewDialog : Window
             }
 
             builder.AppendLine();
-            if (plan.Descriptions.Count == 1 && plan.Changes.Count == 0 &&
+            if (plan.CriterionTitles.Count == 1 && plan.Changes.Count == 0 &&
+                plan.Creations.Count == 0 && plan.Descriptions.Count == 0)
+            {
+                builder.AppendLine("Une seule modification du titre CA est " +
+                    "autorisée avec journal, confirmation et SHA-CAS.");
+            }
+            else if (plan.Descriptions.Count == 1 && plan.Changes.Count == 0 &&
                 plan.Creations.Count == 0)
             {
                 builder.AppendLine("Une seule description EXI peut être " +
@@ -631,7 +660,8 @@ public partial class ProjectAiResponsePreviewDialog : Window
             StatusText.Text = "Plan préparé en mémoire : " +
                 plan.Changes.Count + " titre(s), " +
                 plan.Creations.Count + " création(s), " +
-                plan.Descriptions.Count + " description(s), zéro écriture.";
+                plan.Descriptions.Count + " description(s), " +
+                plan.CriterionTitles.Count + " critère(s), zéro écriture.";
             UpdateButtons();
         }
         catch (InvalidDataException exception)
@@ -2280,6 +2310,18 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Changes.Count == 1 &&
                 _preparedPlan.Creations.Count == 0 &&
                 _preparedPlan.Descriptions.Count == 0 &&
+                _preparedPlan.CriterionTitles.Count == 0 &&
+                _comparisons is not null && _preview is not null;
+        }
+
+        if (PublishReviewedCriterionButton is not null)
+        {
+            PublishReviewedCriterionButton.IsEnabled = !_busy && !_readOnly &&
+                _preparedPlan is not null &&
+                _preparedPlan.CriterionTitles.Count == 1 &&
+                _preparedPlan.Changes.Count == 0 &&
+                _preparedPlan.Creations.Count == 0 &&
+                _preparedPlan.Descriptions.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2355,16 +2397,22 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 ProjectAiRequirementMatchStatus.GuidMatch or
                 ProjectAiRequirementMatchStatus.ReferenceMatch;
         bool supported = compared && proposal is not null &&
-            proposal.Kind == "requirement" &&
-            ((field == "title" &&
-                (proposal.Operation == "update" && identified ||
-                 proposal.Operation == "create" &&
-                    _comparisons![proposal.ProposalId].Status ==
-                        ProjectAiRequirementMatchStatus.CreationDraft)) ||
-             (field == "description" && proposal.Operation == "update" &&
-                identified && _comparisons![proposal.ProposalId].Fields.Any(
-                    item => item.Field == "description" &&
-                        item.Current is not null)));
+            ((proposal.Kind == "requirement" &&
+                ((field == "title" &&
+                    (proposal.Operation == "update" && identified ||
+                     proposal.Operation == "create" &&
+                        _comparisons![proposal.ProposalId].Status ==
+                            ProjectAiRequirementMatchStatus.CreationDraft)) ||
+                 (field == "description" && proposal.Operation == "update" &&
+                    identified && _comparisons![proposal.ProposalId].Fields.Any(
+                        item => item.Field == "description" &&
+                            item.Current is not null)))) ||
+             (proposal.Kind == "criterion" &&
+                proposal.Operation == "update" && field == "title" &&
+                _comparisons![proposal.ProposalId].Status ==
+                    ProjectAiRequirementMatchStatus.CriterionGuidMatch &&
+                _comparisons![proposal.ProposalId].Criterion?.LocallyIdentified ==
+                    true));
         AcceptFieldButton.IsEnabled = supported;
         EditFieldButton.IsEnabled = supported;
         ReviewedValueBox.IsEnabled = supported;
