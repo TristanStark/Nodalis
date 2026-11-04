@@ -104,30 +104,36 @@
                         Content="Préparer le plan (sans écrire)"
                         Margin="0,0,8,4" Padding="10,5"
                         Click="BuildReviewPlan_Click" />
-                <CheckBox x:Name="ArchiveRawResponseCheck"
-                          Content="Archiver aussi la réponse brute"
-                          IsChecked="False"
-                          VerticalAlignment="Center"
-                          Margin="0,0,10,4"
-                          ToolTip="Désactivé par défaut. Sans accord, le journal conserve les choix humains et leurs valeurs acceptées, mais seulement les empreintes des suggestions ignorées ou en attente." />
-                <Button x:Name="SaveReviewAuditButton"
-                        Content="Archiver la revue…"
-                        Margin="0,0,8,4" Padding="10,5"
-                        Click="SaveReviewAudit_Click"
-                        ToolTip="Enregistre les décisions et les champs en attente localement, sans appliquer de modification métier." />
-                <Button x:Name="ListReviewAuditsButton"
-                        Content="Historique des revues"
-                        Margin="0,0,8,4" Padding="10,5"
-                        Click="ListReviewAudits_Click"
-                        ToolTip="Liste les archives locales de décisions du projet, sans charger les réponses IA brutes." />
-                <ComboBox x:Name="ReviewAuditPicker" Width="190"
-                          Margin="0,0,8,4"
-                          AutomationProperties.Name="Choisir une revue IA archivée" />
-                <Button x:Name="ShowReviewAuditButton"
-                        Content="Afficher la revue"
-                        Margin="0,0,8,4" Padding="10,5"
-                        Click="ShowReviewAudit_Click"
-                        ToolTip="Affiche les choix enregistrés et la référence à la transaction, sans ouvrir la réponse brute." />
+                <Expander Header="Historique des décisions IA / confidentialité"
+                          IsExpanded="False" Margin="0,0,8,4"
+                          ToolTip="Afficher les commandes d'archivage et de consultation des choix humains.">
+                    <WrapPanel MaxWidth="700" Margin="6,4,6,4">
+                    <CheckBox x:Name="ArchiveRawResponseCheck"
+                              Content="Archiver aussi la réponse brute"
+                              IsChecked="False"
+                              VerticalAlignment="Center"
+                              Margin="0,0,10,4"
+                              ToolTip="Désactivé par défaut. Sans accord, le journal conserve les choix humains et leurs valeurs acceptées, mais seulement les empreintes des suggestions ignorées ou en attente." />
+                    <Button x:Name="SaveReviewAuditButton"
+                            Content="Archiver la revue…"
+                            Margin="0,0,8,4" Padding="10,5"
+                            Click="SaveReviewAudit_Click"
+                            ToolTip="Enregistre les décisions et les champs en attente localement, sans appliquer de modification métier." />
+                    <Button x:Name="ListReviewAuditsButton"
+                            Content="Historique des revues"
+                            Margin="0,0,8,4" Padding="10,5"
+                            Click="ListReviewAudits_Click"
+                            ToolTip="Liste les archives locales de décisions du projet, sans charger les réponses IA brutes." />
+                    <ComboBox x:Name="ReviewAuditPicker" Width="190"
+                              Margin="0,0,8,4"
+                              AutomationProperties.Name="Choisir une revue IA archivée" />
+                    <Button x:Name="ShowReviewAuditButton"
+                            Content="Afficher la revue"
+                            Margin="0,0,8,4" Padding="10,5"
+                            Click="ShowReviewAudit_Click"
+                            ToolTip="Affiche les choix enregistrés et la référence à la transaction, sans ouvrir la réponse brute." />
+                    </WrapPanel>
+                </Expander>
                 <Button x:Name="PublishReviewedTitleButton"
                         Content="Enregistrer 1 titre approuvé…"
                         Margin="0,0,8,4" Padding="10,5"
