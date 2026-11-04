@@ -52,9 +52,9 @@ public static class ProjectAiRequirementReviewService
     /// <summary>
     /// Projects at most 100 previously validated candidates against an
     /// authoritative, project-owned catalog. Only the canonical requirement
-    /// fields and identity are compared conservatively. Criterion proposal
-    /// titles are compared by a locally unique stable block GUID only, never
-    /// by a reusable CA reference or untrusted source path.
+    /// fields and identity are compared conservatively. Criterion titles
+    /// require an unambiguous stable block GUID; their publication is a
+    /// separate human-confirmed operation, never a side effect of comparison.
     /// </summary>
     /// <param name="preview">Validated external response preview.</param>
     /// <param name="catalog">Catalog obtained for the selected project alone.</param>
@@ -210,8 +210,9 @@ public static class ProjectAiRequirementReviewService
         }
 
         warnings.Add("Critère CA identifié par GUID stable sous " +
-            parent.Card.Reference + " ; comparaison uniquement, " +
-            "aucune approbation, écriture ni changement de verdict.");
+            parent.Card.Reference + " ; comparaison non autorisante. " +
+            "Le titre ne peut être publié qu'après une décision humaine, " +
+            "une confirmation unitaire et relecture SHA. Aucun verdict IA.");
         return new ProjectAiRequirementReview(candidate,
             ProjectAiRequirementMatchStatus.CriterionGuidMatch, parent,
             ProjectAiThreeWayDiff.Compare(candidate.BaseFields, current,
@@ -325,8 +326,9 @@ public static class ProjectAiRequirementReviewService
         {
             current["description"] = localDescription;
             proposed["description"] = description;
-            warnings.Add("Description vérifiable : comparaison uniquement. " +
-                "La publication de ce champ n'est pas encore autorisée.");
+            warnings.Add("Description vérifiable : comparaison sans écriture. " +
+                "Toute publication exige une revue humaine, un plan et une " +
+                "confirmation de transaction séparée.");
             if (candidate.BaseFields.TryGetValue("description",
                     out string? declaredDescription) &&
                 !string.Equals(declaredDescription, localDescription,

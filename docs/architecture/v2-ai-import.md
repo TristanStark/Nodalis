@@ -911,3 +911,39 @@ Aucun verdict, test, statut ou lien n'est modifié.
 Qualification : réponse IA de test contenant un GUID CA stable,
 collision de GUID inter-EXI, CA homonymes, référence divergente,
 GUID absent, base IA concurrente et source issue d'un autre projet.
+
+## Qualification de l'import de titres CA — incrément #197 (04/11/2026)
+
+L'import de `criterion.update.title` est relié au dialogue de
+revue IA. L'utilisateur voit le parent `EXI-xxxx`, le code
+local `CA-xx`, le GUID stable du bloc, le SHA source, le
+titre existant et le titre qu'il a explicitement accepté
+ou corrigé. Un bouton spécifique **Enregistrer 1 titre CA approuvé…**
+demande confirmation, interdit la publication lorsque le
+document est ouvert dans un onglet Markdown, et archive la
+revue humaine avant d'exécuter la transaction.
+
+Le moteur `ProjectAiCriterionTitleImportTransactionService`
+refuse les GUID absents ou dupliqués entre fiches du
+**projet courant**, les sections CA ambigües, les fichiers
+concurrents, les projets archivés et les journaux redirigés.
+Il archive `original.md`, `published.md`, puis
+`intent.json` dans `.nodalis-ai-import/criterion-<proposalId>/`.
+La réécriture source ne touche que le libellé de la ligne
+`### CA-xx — ...`; le bloc GUID adjacent, la référence
+CA, les dates, statuts, verdicts, tests et autres sections
+ne sont pas modifiés. Le moteur reconstitue l'instantané
+exact depuis la source originale approuvée avant chaque
+reprise : même un couple journal/instantané aux hashes
+cohérents reste insuffisant s'il contient une modification
+non autorisée.
+
+Tests de recette synthétique : cible CA sous deux EXI
+homonymes, conflit de GUID inter-EXI, reprise identique,
+refus d'une proposition avec autre titre approuvé,
+source SHA périmée, édition concurrente, audit indépendant,
+et falsification de `intent.json` ET `published.md`.
+**Non inclus** : création de critères depuis une réponse
+IA, modification du corps de critères, import de verdicts
+et lot multichamps. Aucun merge, tag ni release 2.0
+avant CI au dernier HEAD et qualification visuelle Windows.

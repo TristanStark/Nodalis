@@ -135,7 +135,7 @@ public sealed class ProjectAiReviewHistoryService
     /// <param name="plan">Freshly recomputed pure review plan.</param>
     /// <param name="archiveRaw">Separate affirmative consent for raw storage.</param>
     /// <param name="rawResponse">Original source only when raw archive is opted in.</param>
-    /// <param name="action">review-only/title/description/create/title-batch/mixed.</param>
+    /// <param name="action">review-only/title/description/criterion-title/create/title-batch/mixed.</param>
     /// <param name="transactionKey">Local journal name for a confirmed publication.</param>
     /// <param name="token">Cooperative cancellation.</param>
     /// <returns>Immutable local audit review ID.</returns>
