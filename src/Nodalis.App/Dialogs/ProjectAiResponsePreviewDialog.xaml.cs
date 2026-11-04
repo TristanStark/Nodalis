@@ -592,28 +592,28 @@ public partial class ProjectAiResponsePreviewDialog : Window
             }
             else
             {
-            builder.AppendLine(plan.Changes.Count == 1 &&
-                plan.Creations.Count == 0
-                ? "Un seul titre peut être enregistré. Le service recontrôlera " +
-                  "les identités et SHA-256 puis journalisera les deux versions. " +
-                  "Fermez tout éditeur de la fiche concernée avant publication."
-                : plan.Changes.Count is >= 2 and <= 20 &&
+                builder.AppendLine(plan.Changes.Count == 1 &&
                     plan.Creations.Count == 0
-                    ? "Lot de titres éligible à une transaction reprise par journal. " +
-                      "Toutes les sources sont prévalidées, puis chaque fichier " +
-                      "est publié atomiquement : une interruption peut laisser " +
-                      "un lot partiel qui doit être explicitement repris."
-                    : plan.Changes.Count >= 1 && plan.Creations.Count >= 1 &&
-                        plan.Changes.Count + plan.Creations.Count <= 20
-                        ? "Lot mixte éligible : toutes les créations seront " +
-                          "attribuées par Nodalis après contrôle de tous les " +
-                          "fichiers. Une interruption peut laisser un lot " +
-                          "partiel : reprise volontaire depuis le journal."
-                        : plan.Changes.Count == 0 && plan.Creations.Count == 1
-                            ? "Un seul brouillon EXI peut être créé. Nodalis choisira " +
-                              "une référence libre, un GUID stable et conservera un journal."
-                            : "Aucune publication : limite de 20 modifications, " +
-                              "ou plusieurs créations sans changement existant.");
+                    ? "Un seul titre peut être enregistré. Le service recontrôlera " +
+                      "les identités et SHA-256 puis journalisera les deux versions. " +
+                      "Fermez tout éditeur de la fiche concernée avant publication."
+                    : plan.Changes.Count is >= 2 and <= 20 &&
+                        plan.Creations.Count == 0
+                        ? "Lot de titres éligible à une transaction reprise par journal. " +
+                          "Toutes les sources sont prévalidées, puis chaque fichier " +
+                          "est publié atomiquement : une interruption peut laisser " +
+                          "un lot partiel qui doit être explicitement repris."
+                        : plan.Changes.Count >= 1 && plan.Creations.Count >= 1 &&
+                            plan.Changes.Count + plan.Creations.Count <= 20
+                            ? "Lot mixte éligible : toutes les créations seront " +
+                              "attribuées par Nodalis après contrôle de tous les " +
+                              "fichiers. Une interruption peut laisser un lot " +
+                              "partiel : reprise volontaire depuis le journal."
+                            : plan.Changes.Count == 0 && plan.Creations.Count == 1
+                                ? "Un seul brouillon EXI peut être créé. Nodalis choisira " +
+                                  "une référence libre, un GUID stable et conservera un journal."
+                                : "Aucune publication : limite de 20 modifications, " +
+                                  "ou plusieurs créations sans changement existant.");
             }
             PlanTextBox.Text = builder.ToString();
             StatusText.Text = "Plan préparé en mémoire : " +
