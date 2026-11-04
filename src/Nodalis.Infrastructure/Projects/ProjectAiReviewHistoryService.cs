@@ -135,7 +135,7 @@ public sealed class ProjectAiReviewHistoryService
     /// <param name="plan">Freshly recomputed pure review plan.</param>
     /// <param name="archiveRaw">Separate affirmative consent for raw storage.</param>
     /// <param name="rawResponse">Original source only when raw archive is opted in.</param>
-    /// <param name="action">review-only/title/description/criterion-title/create/title-batch/mixed.</param>
+    /// <param name="action">review-only/title/description/criterion-title/criterion-create/create/title-batch/mixed.</param>
     /// <param name="transactionKey">Local journal name for a confirmed publication.</param>
     /// <param name="token">Cooperative cancellation.</param>
     /// <returns>Immutable local audit review ID.</returns>
@@ -159,6 +159,7 @@ public sealed class ProjectAiReviewHistoryService
             !recomputed.Creations.SequenceEqual(plan.Creations) ||
             !recomputed.Descriptions.SequenceEqual(plan.Descriptions) ||
             !recomputed.CriterionTitles.SequenceEqual(plan.CriterionTitles) ||
+            !recomputed.CriterionCreations.SequenceEqual(plan.CriterionCreations) ||
             recomputed.ReviewedFields != plan.ReviewedFields ||
             recomputed.IgnoredFields != plan.IgnoredFields ||
             recomputed.PendingFields != plan.PendingFields ||
@@ -193,7 +194,8 @@ public sealed class ProjectAiReviewHistoryService
             plan.Changes.Any(item => item.ProjectId != projectId) ||
             plan.Creations.Any(item => item.ProjectId != projectId) ||
             plan.Descriptions.Any(item => item.ProjectId != projectId) ||
-            plan.CriterionTitles.Any(item => item.ProjectId != projectId))
+            plan.CriterionTitles.Any(item => item.ProjectId != projectId) ||
+            plan.CriterionCreations.Any(item => item.ProjectId != projectId))
         {
             throw new InvalidDataException(
                 "L'historique ne peut concerner un autre projet ou une autre réponse.");
@@ -601,13 +603,20 @@ public sealed class ProjectAiReviewHistoryService
 
         return action switch
         {
+            "criterion-create" => plan.CriterionCreations.Count == 1 &&
+                plan.Changes.Count == 0 && plan.Creations.Count == 0 &&
+                plan.Descriptions.Count == 0 && plan.CriterionTitles.Count == 0 &&
+                key == "criterion-create-" +
+                    plan.CriterionCreations[0].ProposalId.ToString("N"),
             "title" => plan.Changes.Count == 1 &&
                 plan.Creations.Count == 0 && plan.Descriptions.Count == 0 &&
                 plan.CriterionTitles.Count == 0 &&
+                plan.CriterionCreations.Count == 0 &&
                 key == plan.Changes[0].ProposalId.ToString("N"),
             "description" => plan.Descriptions.Count == 1 &&
                 plan.Changes.Count == 0 && plan.Creations.Count == 0 &&
                 plan.CriterionTitles.Count == 0 &&
+                plan.CriterionCreations.Count == 0 &&
                 key == "description-" +
                     plan.Descriptions[0].ProposalId.ToString("N"),
             "criterion-title" => plan.CriterionTitles.Count == 1 &&
@@ -618,14 +627,17 @@ public sealed class ProjectAiReviewHistoryService
             "create" => plan.Changes.Count == 0 &&
                 plan.Creations.Count == 1 && plan.Descriptions.Count == 0 &&
                 plan.CriterionTitles.Count == 0 &&
+                plan.CriterionCreations.Count == 0 &&
                 key == plan.Creations[0].ProposalId.ToString("N"),
             "title-batch" => plan.Changes.Count is >= 2 and <= 20 &&
                 plan.Creations.Count == 0 && plan.Descriptions.Count == 0 &&
                 plan.CriterionTitles.Count == 0 &&
+                plan.CriterionCreations.Count == 0 &&
                 key == "batch-" +
                     ProjectAiBatchTitleImportTransactionService.PlanFingerprint(plan),
             "mixed" => plan.Descriptions.Count == 0 &&
                 plan.CriterionTitles.Count == 0 &&
+                plan.CriterionCreations.Count == 0 &&
                 plan.Changes.Count > 0 && plan.Creations.Count > 0 &&
                 plan.Changes.Count + plan.Creations.Count <= 20 &&
                 key == "mixed-" +
