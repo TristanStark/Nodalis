@@ -343,6 +343,62 @@ public sealed class ProjectAiReviewHistoryService
     }
 
     /// <summary>
+    /// Reads the immutable publication outcome, if recorded, without inferring
+    /// success from the existence of a review or an import journal.
+    /// </summary>
+    /// <param name="projectDirectory">Owning project directory.</param>
+    /// <param name="reviewId">Persisted review identity.</param>
+    /// <param name="token">Cancellation.</param>
+    /// <returns>The independently recorded outcome, or null.</returns>
+    public async Task<ProjectAiReviewOutcome?> ReadOutcomeAsync(
+        string projectDirectory, Guid reviewId,
+        CancellationToken token = default)
+    {
+        ProjectAiReviewAudit audit = await ReadAsync(
+            projectDirectory, reviewId, token);
+        string project = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(projectDirectory));
+        string path = Path.Combine(
+            AuditDirectory(project, reviewId), OutcomeFile);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0 ||
+            new FileInfo(path).Length > 4096)
+        {
+            throw new InvalidDataException("Résultat de revue non sûr.");
+        }
+
+        ProjectAiReviewOutcome? outcome;
+        try
+        {
+            outcome = JsonSerializer.Deserialize<ProjectAiReviewOutcome>(
+                await File.ReadAllTextAsync(path, token),
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException(
+                "Résultat d'import archivé malformé.", exception);
+        }
+
+        if (outcome is null ||
+            outcome.Schema != "nodalis.ai-review-outcome.v1" ||
+            outcome.ReviewId != reviewId ||
+            outcome.TransactionKey != audit.TransactionKey ||
+            outcome.Result is not ("Applied" or "AlreadyApplied" or "Created" or
+                "AlreadyCreated" or "Failed"))
+        {
+            throw new InvalidDataException(
+                "Résultat d'import incohérent avec la revue archivée.");
+        }
+
+        return outcome;
+    }
+
+    /// <summary>
     /// Lists only complete, project-owned metadata (never raw response files).
     /// Corrupt/unreadable entries are left untouched and excluded.
     /// </summary>
