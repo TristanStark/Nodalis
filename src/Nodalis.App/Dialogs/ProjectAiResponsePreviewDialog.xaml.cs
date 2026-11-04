@@ -350,6 +350,12 @@ public partial class ProjectAiResponsePreviewDialog : Window
             ProjectAiImportCandidate? candidate =
                 ProposalsList.SelectedItem as ProjectAiImportCandidate;
             string? field = FieldPicker.SelectedItem as string;
+            ReviewedValueBox.AcceptsReturn = field == "description";
+            ReviewedValueBox.TextWrapping = field == "description"
+                ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            ReviewedValueBox.Height = field == "description" ? 72 : 28;
+            ReviewedValueBox.VerticalScrollBarVisibility = field == "description"
+                ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
             if (candidate is not null && field is not null &&
                 candidate.ProposedFields.TryGetValue(field, out string? value))
             {
@@ -497,11 +503,14 @@ public partial class ProjectAiResponsePreviewDialog : Window
             ProjectAiPreparedReviewPlan plan =
                 ProjectAiImportDecisionPlanner.Prepare(_preview,
                     _comparisons.Values.ToArray(), _decisions.Values.ToArray());
-            _preparedPlan = (plan.Changes.Count is >= 1 and <= 20 &&
-                    plan.Creations.Count == 0) ||
-                (plan.Changes.Count == 0 && plan.Creations.Count == 1) ||
-                (plan.Changes.Count >= 1 && plan.Creations.Count >= 1 &&
-                    plan.Changes.Count + plan.Creations.Count <= 20)
+            _preparedPlan = (plan.Descriptions.Count == 0 &&
+                    ((plan.Changes.Count is >= 1 and <= 20 &&
+                        plan.Creations.Count == 0) ||
+                    (plan.Changes.Count == 0 && plan.Creations.Count == 1) ||
+                    (plan.Changes.Count >= 1 && plan.Creations.Count >= 1 &&
+                        plan.Changes.Count + plan.Creations.Count <= 20))) ||
+                (plan.Descriptions.Count == 1 && plan.Changes.Count == 0 &&
+                    plan.Creations.Count == 0)
                 ? plan : null;
             StringBuilder builder = new();
             builder.AppendLine("PLAN DE QUALIFICATION — REVUE HUMAINE");
@@ -516,6 +525,29 @@ public partial class ProjectAiResponsePreviewDialog : Window
             builder.AppendLine("Champs restant à revoir : " + plan.PendingFields);
             builder.AppendLine("Modifications proposées : " + plan.Changes.Count);
             builder.AppendLine("Créations proposées : " + plan.Creations.Count);
+            builder.AppendLine("Descriptions proposées : " +
+                plan.Descriptions.Count);
+            foreach (ProjectAiPreparedDescriptionChange description in
+                plan.Descriptions)
+            {
+                builder.AppendLine();
+                builder.AppendLine("DESCRIPTION EXI " + description.Reference +
+                    " · " + description.RequirementId.ToString("D"));
+                builder.AppendLine("Source : " + description.RelativePath);
+                builder.AppendLine("Empreinte de source : " +
+                    description.ExpectedSha256);
+                builder.AppendLine("CONTENU ACTUEL :");
+                builder.AppendLine(description.CurrentDescription);
+                builder.AppendLine("CONTENU APPROUVÉ :");
+                builder.AppendLine(description.ReviewedDescription);
+                if (!string.IsNullOrWhiteSpace(description.Reason))
+                {
+                    builder.AppendLine("Justification : " + description.Reason);
+                }
+                builder.AppendLine("Les autres rubriques et tous les statuts " +
+                    "EXI seront conservés.");
+            }
+
             foreach (ProjectAiPreparedTitleChange change in plan.Changes)
             {
                 builder.AppendLine();
@@ -550,6 +582,16 @@ public partial class ProjectAiResponsePreviewDialog : Window
             }
 
             builder.AppendLine();
+            if (plan.Descriptions.Count == 1 && plan.Changes.Count == 0 &&
+                plan.Creations.Count == 0)
+            {
+                builder.AppendLine("Une seule description EXI peut être " +
+                    "publiée avec journal et vérification SHA-256. " +
+                    "Vérifiez l'intégralité des textes ci-dessus et fermez " +
+                    "l'éditeur Markdown avant de confirmer.");
+            }
+            else
+            {
             builder.AppendLine(plan.Changes.Count == 1 &&
                 plan.Creations.Count == 0
                 ? "Un seul titre peut être enregistré. Le service recontrôlera " +
@@ -572,10 +614,12 @@ public partial class ProjectAiResponsePreviewDialog : Window
                               "une référence libre, un GUID stable et conservera un journal."
                             : "Aucune publication : limite de 20 modifications, " +
                               "ou plusieurs créations sans changement existant.");
+            }
             PlanTextBox.Text = builder.ToString();
             StatusText.Text = "Plan préparé en mémoire : " +
-                plan.Changes.Count + " modification(s), " +
-                plan.Creations.Count + " création(s), zéro écriture.";
+                plan.Changes.Count + " titre(s), " +
+                plan.Creations.Count + " création(s), " +
+                plan.Descriptions.Count + " description(s), zéro écriture.";
             UpdateButtons();
         }
         catch (InvalidDataException exception)
@@ -583,6 +627,130 @@ public partial class ProjectAiResponsePreviewDialog : Window
             _preparedPlan = null;
             PlanTextBox.Text = "Plan impossible : " + exception.Message;
             StatusText.Text = "Aucune transaction effectuée.";
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Publishes one human-confirmed EXI description, never an AI conclusion.
+    /// Refuses any open editor, stale review or unrelated approved operation.
+    /// </summary>
+    /// <param name="sender">Explicit WPF command.</param>
+    /// <param name="e">User click.</param>
+    private async void PublishReviewedDescription_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _preview is null || _comparisons is null ||
+            _preparedPlan is null || _preparedPlan.Descriptions.Count != 1 ||
+            _preparedPlan.Changes.Count != 0 || _preparedPlan.Creations.Count != 0)
+        {
+            return;
+        }
+
+        ProjectAiPreparedReviewPlan expected = _preparedPlan;
+        ProjectAiPreparedReviewPlan current;
+        try
+        {
+            current = ProjectAiImportDecisionPlanner.Prepare(_preview,
+                _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+            if (current.Changes.Count != 0 || current.Creations.Count != 0 ||
+                current.Descriptions.Count != 1 ||
+                current.Descriptions[0] != expected.Descriptions[0] ||
+                current.RawResponseSha256 != expected.RawResponseSha256 ||
+                current.ReviewedFields != expected.ReviewedFields ||
+                current.IgnoredFields != expected.IgnoredFields ||
+                current.PendingFields != expected.PendingFields)
+            {
+                throw new InvalidDataException(
+                    "Revue modifiée : préparer et confirmer le nouveau plan.");
+            }
+
+            ProjectAiPreparedDescriptionChange description =
+                current.Descriptions.Single();
+            string resolved = new ProjectJourneySourceService(_workspaceRoot)
+                .ResolveExistingFile(description.RelativePath);
+            if (Application.Current.MainWindow is not Nodalis.App.MainWindow main)
+            {
+                throw new InvalidDataException(
+                    "Contrôle des onglets Markdown impossible.");
+            }
+
+            if (main.IsDocumentOpenForAiImport(resolved))
+            {
+                throw new InvalidDataException(
+                    "Fiche EXI ouverte : fermer et enregistrer son onglet " +
+                    "Markdown avant d'appliquer une description externe.");
+            }
+
+            string confirmation = "Exigence : " + description.Reference +
+                "\nFichier : " + description.RelativePath +
+                "\nDescription actuelle : " +
+                description.CurrentDescription.Length + " caractères." +
+                "\nDescription approuvée : " +
+                description.ReviewedDescription.Length + " caractères." +
+                "\n\nLa comparaison intégrale est dans le panneau « Plan " +
+                "de validation et publication » : relisez-la avant Oui." +
+                "\n\nLa description sera remplacée par votre texte approuvé. " +
+                "Aucun critère, titre, statut ou autre document ne sera modifié." +
+                "\nUn journal local contiendra les deux instantanés Markdown." +
+                "\n\n" + (ArchiveRawResponseCheck.IsChecked == true
+                    ? "La réponse IA brute sera AUSSI archivée."
+                    : "La réponse IA brute ne sera PAS archivée.") +
+                "\n\nConfirmer cette seule publication EXI ?";
+            if (MessageBox.Show(this, confirmation,
+                "Import IA · publier une description",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            _busy = true;
+            _publishing = true;
+            UpdateButtons();
+            try
+            {
+                (ProjectAiTitleCommitStatus result, string? auditWarning) =
+                    await PublishWithAuditAsync(current, "description",
+                        "description-" + description.ProposalId.ToString("N"),
+                        () => new ProjectAiDescriptionImportTransactionService(
+                            _workspaceRoot).CommitAsync(_projectDirectory, current));
+                _comparisons = null;
+                ClearDecisions();
+                ShowSelectedDetails();
+                PlanTextBox.Text = "Description " + result +
+                    " ; recharger la fiche EXI avant une nouvelle revue.";
+                StatusText.Text = result == ProjectAiTitleCommitStatus.AlreadyApplied
+                    ? "Description déjà appliquée : journal conforme."
+                    : "Description publiée avec instantanés SHA-256 et " +
+                      "confirmation humaine, sans transition métier.";
+                if (auditWarning is not null)
+                {
+                    StatusText.Text += "\n" + auditWarning;
+                }
+
+                MessageBox.Show(this, StatusText.Text,
+                    "Import IA · résultat", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            finally
+            {
+                _busy = false;
+                _publishing = false;
+                UpdateButtons();
+            }
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            _preparedPlan = null;
+            StatusText.Text = "Description non publiée : " + exception.Message +
+                "\nEn cas d'interruption, consulter le journal avant " +
+                "de revalider. Aucun écrasement concurrent autorisé.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · refus de publication",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
             UpdateButtons();
         }
     }
@@ -2099,6 +2267,16 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan is not null &&
                 _preparedPlan.Changes.Count == 1 &&
                 _preparedPlan.Creations.Count == 0 &&
+                _preparedPlan.Descriptions.Count == 0 &&
+                _comparisons is not null && _preview is not null;
+        }
+
+        if (PublishReviewedDescriptionButton is not null)
+        {
+            PublishReviewedDescriptionButton.IsEnabled = !_busy && !_readOnly &&
+                _preparedPlan is not null && _preparedPlan.Descriptions.Count == 1 &&
+                _preparedPlan.Changes.Count == 0 &&
+                _preparedPlan.Creations.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2108,6 +2286,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan is not null &&
                 _preparedPlan.Changes.Count == 0 &&
                 _preparedPlan.Creations.Count == 1 &&
+                _preparedPlan.Descriptions.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2117,6 +2296,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan is not null &&
                 _preparedPlan.Changes.Count is >= 2 and <= 20 &&
                 _preparedPlan.Creations.Count == 0 &&
+                _preparedPlan.Descriptions.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2127,6 +2307,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Changes.Count >= 1 &&
                 _preparedPlan.Creations.Count >= 1 &&
                 _preparedPlan.Changes.Count + _preparedPlan.Creations.Count <= 20 &&
+                _preparedPlan.Descriptions.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2157,15 +2338,21 @@ public partial class ProjectAiResponsePreviewDialog : Window
         bool compared = !_busy && _comparisons is not null &&
             proposal is not null && field is not null &&
             _comparisons.ContainsKey(proposal.ProposalId);
+        bool identified = compared && proposal is not null &&
+            _comparisons![proposal.ProposalId].Status is
+                ProjectAiRequirementMatchStatus.GuidMatch or
+                ProjectAiRequirementMatchStatus.ReferenceMatch;
         bool supported = compared && proposal is not null &&
-            field == "title" && proposal.Kind == "requirement" &&
-            (proposal.Operation == "update" &&
-                _comparisons![proposal.ProposalId].Status is
-                    ProjectAiRequirementMatchStatus.GuidMatch or
-                    ProjectAiRequirementMatchStatus.ReferenceMatch ||
-             proposal.Operation == "create" &&
-                _comparisons![proposal.ProposalId].Status ==
-                    ProjectAiRequirementMatchStatus.CreationDraft);
+            proposal.Kind == "requirement" &&
+            ((field == "title" &&
+                (proposal.Operation == "update" && identified ||
+                 proposal.Operation == "create" &&
+                    _comparisons![proposal.ProposalId].Status ==
+                        ProjectAiRequirementMatchStatus.CreationDraft)) ||
+             (field == "description" && proposal.Operation == "update" &&
+                identified && _comparisons![proposal.ProposalId].Fields.Any(
+                    item => item.Field == "description" &&
+                        item.Current is not null)));
         AcceptFieldButton.IsEnabled = supported;
         EditFieldButton.IsEnabled = supported;
         ReviewedValueBox.IsEnabled = supported;

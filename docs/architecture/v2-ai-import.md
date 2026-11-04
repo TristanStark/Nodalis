@@ -861,3 +861,28 @@ Ce moteur **n'effectue aucune écriture** et ne contourne pas le statut
 consultatif des descriptions dans le dialogue d'import. Il sert à
 construire ultérieurement une transaction explicite avec journal,
 confirmation humaine et vérification SHA-CAS.
+
+## Nouvel incrément #197 — publication d'une description EXI (04/11/2026)
+
+Le dialogue de prévisualisation IA accepte une décision humaine
+`Accept/Edit` sur `description` **uniquement** lorsque le Markdown
+local est résolu sans ambiguïté. La zone de saisie devient multiligne ;
+le plan expose les deux textes complets, les identités et l'empreinte
+du document. Un bouton **Enregistrer 1 description approuvée…** impose
+la fermeture du document ouvert, un plan reconfirmé et une confirmation
+finale indépendante, avec option d'archiver la réponse brute **désactivée
+par défaut**.
+
+Le service de publication n'autorise qu'une description par transaction
+et conserve `original.md`, `published.md`, puis `intent.json` avant
+l'unique remplacement atomique Windows protégé par SHA-256. Une reprise
+identique est idempotente ; une divergence, une collision de GUID,
+un répertoire redirigé ou un journal corrompu interdit toute réécriture
+silencieuse. L'audit des décisions et l'issue de la transaction sont
+séparés et persistent sous `.nodalis-ai-import/` dans le projet.
+
+**Les statuts, critères et autres champs EXI restent inchangés.** La
+publication des descriptions ne s'intègre pas aux lots de titres ou
+mixtes : les actions existantes refusent les plans contenant une
+description approuvée. Les fichiers concernés, résultats de validation
+et historiques doivent être qualifiés visuellement sur Windows.
