@@ -101,6 +101,89 @@ internal static class ProjectRequirementCriterionSmokeTests
         Assert(ProjectRequirementCriterionCodec.Inspect(
                    "## Critères d'acceptation\n").Criteria.Count == 0,
             "An empty section must not invent fake acceptance criteria.");
+
+        ProjectRequirementCard card = new()
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = Guid.NewGuid(),
+            Reference = "EXI-0001",
+            Title = "Exigence de démonstration",
+            CreatedUtc = DateTimeOffset.UtcNow
+        };
+        string lineEnding = Environment.NewLine;
+        string canonical = ProjectRequirementMarkdownCodec.Format(card);
+        string source = canonical.Replace(
+            "## Critères d'acceptation" + lineEnding + lineEnding,
+            "## Critères d'acceptation" + lineEnding + lineEnding +
+            "### CA-01 — Condition initiale" + lineEnding +
+            MarkdownBlockIdentityCodec.FormatMarker(firstId) + lineEnding +
+            lineEnding, StringComparison.Ordinal);
+        Assert(source != canonical, "Synthetic CA fixture must contain a heading.");
+        string published = ProjectRequirementCriterionTitleCodec.RewriteTitle(
+            source, card, firstId, "Condition initiale", "Condition retenue");
+        Assert(ProjectRequirementMarkdownCodec.Parse(published) == card &&
+            published == source.Replace(
+                "### CA-01 — Condition initiale",
+                "### CA-01 — Condition retenue", StringComparison.Ordinal) &&
+            ProjectRequirementCriterionCodec.Inspect(published).Criteria.Single().Id ==
+                firstId,
+            "Only the human-reviewed CA heading may change, never its GUID.");
+        string unixSource = source.Replace("\r\n", "\n",
+            StringComparison.Ordinal);
+        string unixPublished = ProjectRequirementCriterionTitleCodec.RewriteTitle(
+            unixSource, card, firstId, "Condition initiale",
+            "Condition retenue");
+        Assert(!unixPublished.Contains('\r') &&
+            ProjectRequirementCriterionCodec.Inspect(unixPublished).Criteria
+                .Single().Title == "Condition retenue",
+            "Pure CA rewriting must support LF without CRLF normalization.");
+
+        Reject(() => ProjectRequirementCriterionTitleCodec.RewriteTitle(
+            source, card, firstId, "Ancienne valeur obsolète",
+            "Condition retenue"), "Stale CA title must never publish.");
+        Reject(() => ProjectRequirementCriterionTitleCodec.RewriteTitle(
+            source, card, firstId, "Condition initiale",
+            "Texte\n### CA-02 — Nouvelle section"),
+            "AI cannot inject another heading as a CA title.");
+        Reject(() => ProjectRequirementCriterionTitleCodec.RewriteTitle(
+            source, card with { Title = "Autre EXI" }, firstId,
+            "Condition initiale", "Condition retenue"),
+            "A foreign EXI identity cannot be modified.");
+        Reject(() => ProjectRequirementCriterionTitleCodec.RewriteTitle(
+            source, card, Guid.NewGuid(),
+            "Condition initiale", "Condition retenue"),
+            "A missing block marker cannot be selected by title alone.");
+        string reused = source.Replace(
+            "## Dépendances et preuves",
+            "### CA-02 — Autre section" + lineEnding +
+                MarkdownBlockIdentityCodec.FormatMarker(firstId) + lineEnding +
+                "## Dépendances et preuves", StringComparison.Ordinal);
+        Reject(() => ProjectRequirementCriterionTitleCodec.RewriteTitle(
+            reused, card, firstId, "Condition initiale", "Condition retenue"),
+            "The same block GUID in an unrelated heading blocks rewriting.");
+        string noncanonical = source.Replace(
+            "CA-01 — Condition initiale", "CA-01: Condition initiale",
+            StringComparison.Ordinal);
+        Reject(() => ProjectRequirementCriterionTitleCodec.RewriteTitle(
+            noncanonical, card, firstId, "Condition initiale",
+            "Condition retenue"), "Noncanonical CA line must fail closed.");
+    }
+
+    /// <summary>Expects an unsafe CA rewrite to be rejected.</summary>
+    /// <param name="action">Pure rewrite under test.</param>
+    /// <param name="message">Safety invariant.</param>
+    private static void Reject(Action action, string message)
+    {
+        try
+        {
+            action();
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(message);
     }
 
     /// <summary>Reports only fixed synthetic diagnostics.</summary>
