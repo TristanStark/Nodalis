@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Importing;
 using Nodalis.Core.Projects;
@@ -174,6 +176,35 @@ internal static class ProjectAiDescriptionImportSmokeTests
                 ".nodalis-ai-import", "description-" +
                 candidate.ProposalId.ToString("N"), "intent.json");
             string saved = await File.ReadAllTextAsync(journal);
+            string staged = Path.Combine(Path.GetDirectoryName(journal)!,
+                "published.md");
+            string approvedSnapshot = await File.ReadAllTextAsync(staged);
+            string forgedSnapshot = approvedSnapshot +
+                "\n## Autre section non approuvée\nContenu arbitraire.\n";
+            ProjectAiDescriptionImportJournal clean =
+                JsonSerializer.Deserialize<ProjectAiDescriptionImportJournal>(
+                    saved, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ??
+                throw new InvalidOperationException("Synthetic journal missing.");
+            string forgedHash = Convert.ToHexString(SHA256.HashData(
+                new UTF8Encoding(false).GetBytes(forgedSnapshot)));
+            await File.WriteAllTextAsync(staged, forgedSnapshot,
+                new UTF8Encoding(false));
+            await File.WriteAllTextAsync(journal,
+                JsonSerializer.Serialize(clean with
+                {
+                    PublishedSha256 = forgedHash
+                }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+            await RejectAsync(() => transaction.CommitAsync(
+                project.ProjectDirectory, plan),
+                "Forging BOTH journal SHA and snapshot must not authorize " +
+                "unreviewed EXI sections.");
+            Assert((await File.ReadAllBytesAsync(documentPath))
+                .SequenceEqual(published),
+                "Semantic replay verification must preserve live EXI source.");
+            await File.WriteAllTextAsync(staged, approvedSnapshot,
+                new UTF8Encoding(false));
+            await File.WriteAllTextAsync(journal, saved);
+
             await File.AppendAllTextAsync(journal, "\nmalveillance");
             await RejectAsync(() => transaction.CommitAsync(
                 project.ProjectDirectory, plan),
