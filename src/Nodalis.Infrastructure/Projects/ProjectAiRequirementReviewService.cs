@@ -252,10 +252,27 @@ public static class ProjectAiRequirementReviewService
             proposed.Add("title", title);
         }
 
+        if (candidate.ProposedFields.TryGetValue("description",
+            out string? description))
+        {
+            if (criterion.Body is string body)
+            {
+                current.Add("description", body);
+                proposed.Add("description", description);
+                warnings.Add("Description CA : comparaison à trois voies " +
+                    "uniquement, aucune publication automatique.");
+            }
+            else
+            {
+                warnings.Add("Description CA impossible à extraire du " +
+                    "Markdown local : source absente, ambiguë ou trop longue.");
+            }
+        }
+
         foreach (string field in candidate.ProposedFields.Keys.OrderBy(
             item => item, StringComparer.Ordinal))
         {
-            if (field != "title")
+            if (field is not ("title" or "description"))
             {
                 warnings.Add("Champ CA « " + field + " » non résolu : " +
                     "aucun diff fiable ni autorisation de publication.");

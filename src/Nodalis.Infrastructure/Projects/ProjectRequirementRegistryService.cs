@@ -231,10 +231,18 @@ public sealed class ProjectRequirementRegistryService
                     int.Parse(card.Reference[4..], CultureInfo.InvariantCulture));
                 ProjectRequirementCriterionScan criteria =
                     ProjectRequirementCriterionCodec.Inspect(markdown);
+                IReadOnlyDictionary<Guid, string> bodies =
+                    ProjectRequirementCriterionBodyCodec.ExtractAll(markdown);
+                ProjectRequirementCriterion[] withBodies = criteria.Criteria
+                    .Select(item => item.Id is Guid stable &&
+                        item.LocallyIdentified &&
+                        bodies.TryGetValue(stable, out string? body)
+                        ? item with { Body = body }
+                        : item).ToArray();
                 found.Add(new ProjectRequirementEntry(card, relative,
                     Convert.ToHexString(SHA256.HashData(bytes)))
                 {
-                    Criteria = criteria.Criteria,
+                    Criteria = withBodies,
                     CriterionDiagnostics = criteria.Diagnostics,
                     Description = ProjectRequirementDescriptionCodec.Extract(markdown)
                 });

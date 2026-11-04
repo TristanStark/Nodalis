@@ -216,6 +216,47 @@ internal static class ProjectAiRequirementReviewSmokeTests
                 ProjectAiFieldDifferenceKind.ConcurrentConflict,
             "Stable CA GUID may show an accurate read-only three-way conflict.");
 
+        ProjectRequirementCatalog caBodyCatalog = caCatalog with
+        {
+            Requirements =
+            [
+                first with
+                {
+                    Criteria = [ca with { Body = "Corps CA local" }]
+                },
+                second
+            ]
+        };
+        ProjectAiImportCandidate caBodyCandidate = caCandidate with
+        {
+            ProposalId = Guid.NewGuid(),
+            BaseFields = new Dictionary<string, string>
+            {
+                ["description"] = "Ancienne consigne"
+            },
+            ProposedFields = new Dictionary<string, string>
+            {
+                ["description"] = "Consigne proposée par l'IA"
+            }
+        };
+        ProjectAiRequirementReview caBodyReview =
+            ProjectAiRequirementReviewService.Compare(
+                Preview(caBodyCandidate), caBodyCatalog).Single();
+        Assert(caBodyReview.Fields.Single().Field == "description" &&
+            caBodyReview.Fields.Single().Current == "Corps CA local" &&
+            caBodyReview.Fields.Single().Kind ==
+                ProjectAiFieldDifferenceKind.ConcurrentConflict &&
+            caBodyReview.Warnings.Any(warning => warning.Contains(
+                "comparaison à trois voies", StringComparison.Ordinal)),
+            "The detailed CA body requires a genuine read-only three-way diff.");
+        ProjectAiRequirementReview unknownBody =
+            ProjectAiRequirementReviewService.Compare(
+                Preview(caBodyCandidate), caCatalog).Single();
+        Assert(unknownBody.Fields.Count == 0 &&
+            unknownBody.Warnings.Any(warning => warning.Contains(
+                "impossible à extraire", StringComparison.Ordinal)),
+            "Unresolved CA bodies must not be treated as empty or comparable.");
+
         ProjectAiRequirementReview caByReference =
             ProjectAiRequirementReviewService.Compare(
                 Preview(caCandidate with { TargetId = null }), caCatalog).Single();

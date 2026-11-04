@@ -12,7 +12,14 @@ namespace Nodalis.Core.Requirements;
 /// <param name="HeadingLine">One-based source line for navigation.</param>
 /// <param name="LocallyIdentified">Only local identity is unambiguous; workspace-wide collisions still need index validation.</param>
 public sealed record ProjectRequirementCriterion(
-    string Reference, string Title, Guid? Id, int HeadingLine, bool LocallyIdentified);
+    string Reference, string Title, Guid? Id, int HeadingLine, bool LocallyIdentified)
+{
+    /// <summary>
+    /// Optional bounded Markdown body from the SAME SHA-pinned EXI source.
+    /// Null means unsafe/unresolved; empty text is a valid canonical body.
+    /// </summary>
+    public string? Body { get; init; }
+}
 
 /// <summary>
 /// Computed criterion inventory with warnings. Does not persist or repair IDs.
