@@ -920,13 +920,28 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     "criterion-create-" + create.ProposalId.ToString("N"),
                     () => transaction.CommitAsync(
                         _projectDirectory, current, nextCode));
-            ProjectRequirementCatalog catalog = await Task.Run(() =>
-                new ProjectRequirementRegistryService(_workspaceRoot)
-                    .ListAsync(_projectDirectory));
-            ProjectRequirementEntry? parent = catalog.Requirements
-                .SingleOrDefault(item => item.Card.Id == create.RequirementId);
-            ProjectRequirementCriterion? created = parent?.Criteria
-                .SingleOrDefault(item => item.Reference == nextCode);
+            Guid? createdGuid = null;
+            string? displayWarning = null;
+            try
+            {
+                ProjectRequirementCatalog catalog = await Task.Run(() =>
+                    new ProjectRequirementRegistryService(_workspaceRoot)
+                        .ListAsync(_projectDirectory));
+                ProjectRequirementEntry? parent = catalog.Requirements
+                    .SingleOrDefault(item => item.Card.Id == create.RequirementId);
+                createdGuid = parent?.Criteria.SingleOrDefault(
+                    item => item.Reference == nextCode)?.Id;
+            }
+            catch (Exception exception) when (exception is InvalidDataException or
+                InvalidOperationException or IOException or
+                UnauthorizedAccessException or ArgumentException)
+            {
+                // The business write already completed: a failed optional
+                // post-publication UI refresh cannot be reported as a failed
+                // or safe-to-retry import.
+                displayWarning = "Publication terminée mais lecture de " +
+                    "l'identifiant CA indisponible : " + exception.Message;
+            }
             _comparisons = null;
             ClearDecisions();
             ShowSelectedDetails();
@@ -936,10 +951,15 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 ? nextCode + " déjà créé : journal de transaction concordant."
                 : nextCode + " créé en brouillon sous " + create.Reference +
                   ", sans validation automatique.";
-            if (created?.Id is Guid generatedId)
+            if (createdGuid is Guid generatedId)
             {
                 StatusText.Text += "\nGUID stable attribué : " +
                     generatedId.ToString("D");
+            }
+
+            if (displayWarning is not null)
+            {
+                StatusText.Text += "\n" + displayWarning;
             }
 
             if (auditWarning is not null)
