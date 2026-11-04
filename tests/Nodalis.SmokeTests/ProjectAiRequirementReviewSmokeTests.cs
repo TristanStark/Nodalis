@@ -254,8 +254,8 @@ internal static class ProjectAiRequirementReviewSmokeTests
         Assert(ProjectAiRequirementReviewService.Compare(Preview(
                 caCandidate with { Operation = "create" }),
                 caCatalog).Single().Status ==
-            ProjectAiRequirementMatchStatus.Unsupported,
-            "AI may not assign a new criterion identity or verdict.");
+            ProjectAiRequirementMatchStatus.NotFound,
+            "AI cannot treat an existing CA block GUID as a parent EXI identity.");
 
         ProjectAiImportCandidate createdCa = caCandidate with
         {
