@@ -162,6 +162,11 @@
                         Margin="0,0,8,4" Padding="10,5"
                         Click="PublishReviewedCriterion_Click"
                         ToolTip="Confirme puis publie seulement le titre d'un critère CA à GUID stable, avec journal SHA-256. Aucun verdict ni état n'est importé." />
+                <Button x:Name="CreateReviewedCriterionButton"
+                        Content="Créer 1 critère CA approuvé…"
+                        Margin="0,0,8,4" Padding="10,5"
+                        Click="CreateReviewedCriterion_Click"
+                        ToolTip="Crée un seul critère CA sous une EXI existante après confirmation du titre et du prochain CA-xx. Nodalis attribue le code et le GUID stable ; aucun verdict importé." />
                 <Button x:Name="PublishReviewedBatchButton"
                         Content="Enregistrer le lot de titres…"
                         Margin="0,0,8,4" Padding="10,5"

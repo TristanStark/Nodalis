@@ -517,15 +517,21 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     _comparisons.Values.ToArray(), _decisions.Values.ToArray());
             _preparedPlan = (plan.Descriptions.Count == 0 &&
                     plan.CriterionTitles.Count == 0 &&
+                    plan.CriterionCreations.Count == 0 &&
                     ((plan.Changes.Count is >= 1 and <= 20 &&
                         plan.Creations.Count == 0) ||
                     (plan.Changes.Count == 0 && plan.Creations.Count == 1) ||
                     (plan.Changes.Count >= 1 && plan.Creations.Count >= 1 &&
                         plan.Changes.Count + plan.Creations.Count <= 20))) ||
                 (plan.Descriptions.Count == 1 && plan.Changes.Count == 0 &&
-                    plan.Creations.Count == 0 && plan.CriterionTitles.Count == 0) ||
+                    plan.Creations.Count == 0 && plan.CriterionTitles.Count == 0 &&
+                    plan.CriterionCreations.Count == 0) ||
                 (plan.CriterionTitles.Count == 1 && plan.Changes.Count == 0 &&
-                    plan.Creations.Count == 0 && plan.Descriptions.Count == 0)
+                    plan.Creations.Count == 0 && plan.Descriptions.Count == 0 &&
+                    plan.CriterionCreations.Count == 0) ||
+                (plan.CriterionCreations.Count == 1 && plan.Changes.Count == 0 &&
+                    plan.Creations.Count == 0 && plan.Descriptions.Count == 0 &&
+                    plan.CriterionTitles.Count == 0)
                 ? plan : null;
             StringBuilder builder = new();
             builder.AppendLine("PLAN DE QUALIFICATION — REVUE HUMAINE");
@@ -543,6 +549,25 @@ public partial class ProjectAiResponsePreviewDialog : Window
             builder.AppendLine("Descriptions proposées : " +
                 plan.Descriptions.Count);
             builder.AppendLine("Titres CA approuvés : " + plan.CriterionTitles.Count);
+            builder.AppendLine("Créations CA approuvées : " +
+                plan.CriterionCreations.Count);
+            foreach (ProjectAiPreparedCriterionCreation create in
+                plan.CriterionCreations)
+            {
+                builder.AppendLine();
+                builder.AppendLine("NOUVEAU CA SOUS " + create.Reference);
+                builder.AppendLine("EXI parente : " +
+                    create.RequirementId.ToString("D"));
+                builder.AppendLine("Fichier : " + create.RelativePath);
+                builder.AppendLine("SHA de revue : " + create.ExpectedSha256);
+                builder.AppendLine("Titre approuvé : " + create.ReviewedTitle);
+                builder.AppendLine("Référence CA et GUID : attribués par Nodalis " +
+                    "après vérification de la source et nouvelle confirmation.");
+                if (!string.IsNullOrWhiteSpace(create.Reason))
+                {
+                    builder.AppendLine("Justification : " + create.Reason);
+                }
+            }
             foreach (ProjectAiPreparedCriterionTitleChange criterion in
                 plan.CriterionTitles)
             {
@@ -617,8 +642,16 @@ public partial class ProjectAiResponsePreviewDialog : Window
             }
 
             builder.AppendLine();
-            if (plan.CriterionTitles.Count == 1 && plan.Changes.Count == 0 &&
+            if (plan.CriterionCreations.Count == 1 &&
+                plan.CriterionTitles.Count == 0 && plan.Changes.Count == 0 &&
                 plan.Creations.Count == 0 && plan.Descriptions.Count == 0)
+            {
+                builder.AppendLine("Créer un seul CA après attribution locale " +
+                    "du code libre, confirmation, journal et SHA-CAS.");
+            }
+            else if (plan.CriterionTitles.Count == 1 &&
+                plan.Changes.Count == 0 && plan.Creations.Count == 0 &&
+                plan.Descriptions.Count == 0)
             {
                 builder.AppendLine("Une seule modification du titre CA est " +
                     "autorisée avec journal, confirmation et SHA-CAS.");
@@ -661,7 +694,8 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 plan.Changes.Count + " titre(s), " +
                 plan.Creations.Count + " création(s), " +
                 plan.Descriptions.Count + " description(s), " +
-                plan.CriterionTitles.Count + " critère(s), zéro écriture.";
+                plan.CriterionTitles.Count + " titre(s) CA, " +
+                plan.CriterionCreations.Count + " création(s) CA, zéro écriture.";
             UpdateButtons();
         }
         catch (InvalidDataException exception)
@@ -2429,6 +2463,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Creations.Count == 0 &&
                 _preparedPlan.Descriptions.Count == 0 &&
                 _preparedPlan.CriterionTitles.Count == 0 &&
+                _preparedPlan.CriterionCreations.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2440,7 +2475,19 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Changes.Count == 0 &&
                 _preparedPlan.Creations.Count == 0 &&
                 _preparedPlan.Descriptions.Count == 0 &&
+                _preparedPlan.CriterionCreations.Count == 0 &&
+                _comparisons is not null && _preview is not null;
+        }
+
+        if (CreateReviewedCriterionButton is not null)
+        {
+            CreateReviewedCriterionButton.IsEnabled = !_busy && !_readOnly &&
+                _preparedPlan is not null &&
+                _preparedPlan.CriterionCreations.Count == 1 &&
                 _preparedPlan.CriterionTitles.Count == 0 &&
+                _preparedPlan.Changes.Count == 0 &&
+                _preparedPlan.Creations.Count == 0 &&
+                _preparedPlan.Descriptions.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2451,6 +2498,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Changes.Count == 0 &&
                 _preparedPlan.Creations.Count == 0 &&
                 _preparedPlan.CriterionTitles.Count == 0 &&
+                _preparedPlan.CriterionCreations.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2462,6 +2510,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Creations.Count == 1 &&
                 _preparedPlan.Descriptions.Count == 0 &&
                 _preparedPlan.CriterionTitles.Count == 0 &&
+                _preparedPlan.CriterionCreations.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2473,6 +2522,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Creations.Count == 0 &&
                 _preparedPlan.Descriptions.Count == 0 &&
                 _preparedPlan.CriterionTitles.Count == 0 &&
+                _preparedPlan.CriterionCreations.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2485,6 +2535,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Changes.Count + _preparedPlan.Creations.Count <= 20 &&
                 _preparedPlan.Descriptions.Count == 0 &&
                 _preparedPlan.CriterionTitles.Count == 0 &&
+                _preparedPlan.CriterionCreations.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2530,12 +2581,15 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     identified && _comparisons![proposal.ProposalId].Fields.Any(
                         item => item.Field == "description" &&
                             item.Current is not null)))) ||
-             (proposal.Kind == "criterion" &&
-                proposal.Operation == "update" && field == "title" &&
-                _comparisons![proposal.ProposalId].Status ==
-                    ProjectAiRequirementMatchStatus.CriterionGuidMatch &&
-                _comparisons![proposal.ProposalId].Criterion?.LocallyIdentified ==
-                    true));
+             (proposal.Kind == "criterion" && field == "title" &&
+                (proposal.Operation == "update" &&
+                    _comparisons![proposal.ProposalId].Status ==
+                        ProjectAiRequirementMatchStatus.CriterionGuidMatch &&
+                    _comparisons![proposal.ProposalId].Criterion?.LocallyIdentified ==
+                        true ||
+                 proposal.Operation == "create" &&
+                    _comparisons![proposal.ProposalId].Status ==
+                        ProjectAiRequirementMatchStatus.CriterionCreationDraft)));
         AcceptFieldButton.IsEnabled = supported;
         EditFieldButton.IsEnabled = supported;
         ReviewedValueBox.IsEnabled = supported;
