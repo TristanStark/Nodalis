@@ -339,6 +339,27 @@ internal static class ProjectRequirementCampaignTraceabilitySmokeTests
                    item.Contains("non reconnu", StringComparison.Ordinal)),
             "Historic moves remain visible but require explicit requalification.");
 
+        ProjectCriterionChangeImpactOverview movedImpact =
+            ProjectCriterionChangeImpact.Build(projectId, card.Id,
+                criterionId, requirement.SourceSha256, links, relocated);
+        Assert(movedImpact.Kind ==
+                ProjectCriterionChangeImpactKind.HistoricalResults &&
+            movedImpact.Tests.Single().MovedSources == 1 &&
+            movedImpact.Diagnostics.Any(message => message.Contains(
+                "ancienne source", StringComparison.Ordinal)),
+            "An earlier REC test location is visible as an impact warning, " +
+            "not silently reconciled to a current test.");
+
+        ProjectCriterionChangeImpactOverview sharedImpact =
+            ProjectCriterionChangeImpact.Build(projectId, card.Id,
+                sharedTest.Rows[1].Criterion.Id!.Value,
+                requirement.SourceSha256, sharedTest, sharedHistory);
+        Assert(sharedImpact.Tests.Single().DeclaredResults == 1 &&
+            sharedImpact.Tests.Single().PreviouslyPassed == 1 &&
+            sharedHistory.DeclaredResultCount == 1,
+            "Two CA linked to one test may each recommend review without " +
+            "duplicating one historical human outcome.");
+
         Assert(campaign.Passages[0].Results.Single().Outcome ==
                    ProjectTestOutcome.Passed &&
                campaign.Passages[1].Results.Count == 0 &&
