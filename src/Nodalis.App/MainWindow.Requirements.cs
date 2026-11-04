@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using Nodalis.App.Dialogs;
 using Nodalis.App.Navigation;
+using Nodalis.Core.Domain;
 using Nodalis.Core.Navigation;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Projects;
@@ -157,7 +158,9 @@ public partial class MainWindow
         // The index may need an incremental workspace refresh; perform all
         // enumeration and joins off the WPF Dispatcher, once per request.
         (ProjectRequirementTraceabilityOverview Links,
-            ProjectRequirementCampaignOverview History) prepared =
+            ProjectRequirementCampaignOverview History,
+            ProjectRequirementCatalog Requirements,
+            ProjectCriterionBaselineOverview Baseline) prepared =
             await Task.Run(async () =>
             {
                 ProjectRequirementCatalog requirements =
@@ -191,7 +194,25 @@ public partial class MainWindow
                 ProjectRequirementCampaignOverview history =
                     ProjectRequirementCampaignTraceability.Build(
                         links, campaigns);
-                return (links, history);
+
+                ProjectCriterionBaselineOverview baseline;
+                try
+                {
+                    baseline = await new ProjectCriterionBaselineService(
+                        _root.FullPath).InspectAsync(projectPath, requirements);
+                }
+                catch (Exception exception) when (exception is
+                    InvalidDataException or IOException or
+                    UnauthorizedAccessException or InvalidOperationException)
+                {
+                    baseline = new ProjectCriterionBaselineOverview(
+                        null, [], ["Historique CA indisponible (" +
+                            exception.GetType().Name +
+                            ") : état de référence indéterminé, " +
+                            "enregistrement désactivé."]);
+                }
+
+                return (links, history, requirements, baseline);
             });
 
         if (GetArchiveContextProject()?.Id != project.Id)
@@ -201,8 +222,15 @@ public partial class MainWindow
             return;
         }
 
+        bool archived = string.Equals(
+            Path.GetRelativePath(_root.FullPath, projectPath)
+                .Split(Path.DirectorySeparatorChar)[0],
+            WorkspaceLayout.ArchivesDirectoryName,
+            StringComparison.OrdinalIgnoreCase);
         ProjectRequirementTraceabilityDialog dialog = new(
-            prepared.Links, prepared.History)
+            prepared.Links, prepared.History,
+            prepared.Requirements, prepared.Baseline,
+            _root.FullPath, projectPath, _workspaceReadOnly || archived)
         {
             Owner = this
         };

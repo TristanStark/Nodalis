@@ -14,6 +14,13 @@ public partial class ProjectRequirementTraceabilityDialog : Window
 {
     private readonly ProjectRequirementTraceabilityOverview _overview;
     private readonly ProjectRequirementCampaignOverview _campaigns;
+    private readonly ProjectRequirementCatalog _catalog;
+    private ProjectCriterionBaselineOverview _baseline;
+    private Dictionary<Guid, ProjectCriterionBaselineRow> _baselineById = [];
+    private readonly string _workspaceRoot;
+    private readonly string _projectDirectory;
+    private readonly bool _readOnly;
+    private bool _savingBaseline;
     private readonly Dictionary<ProjectRequirementTraceabilityRow,
         ProjectRequirementCampaignCriterionHistory> _campaignRows;
     private bool _painting;
@@ -22,14 +29,27 @@ public partial class ProjectRequirementTraceabilityDialog : Window
     /// <summary>Creates a passive matrix from checked project snapshots.</summary>
     /// <param name="overview">Verified current EXI/CA/test links.</param>
     /// <param name="campaigns">Historical REC passages, never an EXI verdict.</param>
+    /// <param name="catalog">Exact requirement source snapshot used for the matrix.</param>
+    /// <param name="baseline">Read-only persisted CA observation comparison.</param>
+    /// <param name="workspaceRoot">Single active workspace root.</param>
+    /// <param name="projectDirectory">Explicitly selected project folder.</param>
+    /// <param name="readOnly">Read-only workspace or archived project.</param>
     public ProjectRequirementTraceabilityDialog(
         ProjectRequirementTraceabilityOverview overview,
-        ProjectRequirementCampaignOverview campaigns)
+        ProjectRequirementCampaignOverview campaigns,
+        ProjectRequirementCatalog catalog,
+        ProjectCriterionBaselineOverview baseline,
+        string workspaceRoot, string projectDirectory, bool readOnly)
     {
         _overview = overview ??
             throw new ArgumentNullException(nameof(overview));
         _campaigns = campaigns ??
             throw new ArgumentNullException(nameof(campaigns));
+        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        _baseline = baseline ?? throw new ArgumentNullException(nameof(baseline));
+        _workspaceRoot = workspaceRoot;
+        _projectDirectory = projectDirectory;
+        _readOnly = readOnly;
         _campaignRows = new(ReferenceEqualityComparer.Instance);
         foreach (ProjectRequirementCampaignCriterionHistory history
             in campaigns.Rows)
@@ -48,8 +68,143 @@ public partial class ProjectRequirementTraceabilityDialog : Window
         HistoricalText.Text = campaigns.PassageTestCount +
             " sélection(s) de test dans REC · " +
             campaigns.DeclaredResultCount + " verdict(s) humain(s)";
+        RefreshBaselineStatus();
         FilterCombo.SelectedIndex = 0;
         RefreshRows();
+    }
+
+    /// <summary>
+    /// Refreshes the local presentation of one durable human CA observation.
+    /// It never reads or writes files when the user filters/switches rows.
+    /// </summary>
+    private void RefreshBaselineStatus()
+    {
+        _baselineById = _baseline.Rows
+            .GroupBy(item => item.CriterionId)
+            .ToDictionary(group => group.Key, group => group.First());
+        BaselineText.Text = _baseline.Snapshot is null
+            ? "Suivi CA non initialisé" +
+              (_baseline.Diagnostics.Count > 0
+                ? " · référence indisponible" : string.Empty)
+            : "Référence CA n°" + _baseline.Snapshot.Sequence +
+              " · " + _baseline.ChangedCount + " changement(s)" +
+              " · " + _baseline.UnresolvedCount + " ambigu(s)";
+        CaptureBaselineButton.IsEnabled = !_readOnly && !_savingBaseline &&
+            _baseline.Diagnostics.Count == 0 &&
+            _catalog.Requirements.SelectMany(item => item.Criteria).Any() &&
+            (_baseline.Snapshot is null || _baseline.ChangedCount > 0);
+        CaptureBaselineButton.Content = _baseline.Snapshot is null
+            ? "Activer suivi CA…"
+            : "Acter nouvelle référence…";
+    }
+
+    /// <summary>
+    /// User explicitly creates a portable, append-only CA observation after
+    /// confirming that it does not certify any earlier REC execution.
+    /// </summary>
+    /// <param name="sender">Human action button.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void CaptureBaseline_Click(object sender, RoutedEventArgs e)
+    {
+        if (_savingBaseline || _readOnly ||
+            CaptureBaselineButton.IsEnabled != true ||
+            _baseline.Diagnostics.Count != 0)
+        {
+            return;
+        }
+
+        bool first = _baseline.Snapshot is null;
+        string reason = "Activation explicite du suivi des critères CA";
+        if (!first)
+        {
+            TextPromptDialog prompt = new(
+                "Nouvelle référence CA · Nodalis 2.0",
+                "Motif humain de la nouvelle observation (une ligne, " +
+                "500 caractères max ; ne vaut pas validation des tests) :")
+            {
+                Owner = this
+            };
+            if (prompt.ShowDialog() != true)
+            {
+                return;
+            }
+
+            reason = prompt.Value.Trim();
+            if (reason.Length is < 1 or > 500 ||
+                reason.Any(char.IsControl))
+            {
+                MessageBox.Show(this,
+                    "Motif requis sur une ligne, 500 caractères maximum.",
+                    "Référence CA non enregistrée",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        }
+
+        string action = first
+            ? "ACTIVER LE SUIVI DES CRITÈRES CA"
+            : "ACTER UNE NOUVELLE RÉFÉRENCE CA";
+        string changes = first ? "État de départ " +
+            _catalog.Requirements.Sum(item => item.Criteria.Count) +
+            " critère(s)." :
+            _baseline.ChangedCount +
+            " critère(s) nouveau(x), disparu(s) ou changé(s) " +
+            "depuis la référence n°" + _baseline.Snapshot!.Sequence + ".";
+        if (MessageBox.Show(this, action + "\n\n" + changes +
+                "\nMotif : " + reason +
+                "\n\nUn instantané portable et historisé sera écrit " +
+                "dans le projet ; les références antérieures sont conservées." +
+                "\nCe choix ne confirme ni exécution ni conformité des tests." +
+                "\nIl ne modifie ni EXI, ni REC, ni liens, ni preuves." +
+                "\n\nConfirmer cette observation humaine ?",
+                "Traçabilité · référence CA",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _savingBaseline = true;
+        RefreshBaselineStatus();
+        try
+        {
+            int expectedSequence = _baseline.Snapshot?.Sequence ?? 0;
+            ProjectCriterionBaselineService service = new(_workspaceRoot);
+            ProjectCriterionBaselineOverview updated = await Task.Run(
+                async () =>
+                {
+                    await service.RecordAsync(_projectDirectory, _catalog,
+                        expectedSequence, reason);
+                    return await service.InspectAsync(_projectDirectory, _catalog);
+                });
+            _baseline = updated;
+            RefreshBaselineStatus();
+            RefreshRows();
+            StatusText.Text = "Référence CA n°" +
+                updated.Snapshot?.Sequence +
+                " historisée : aucun verdict REC modifié. " +
+                "Actualiser la matrice après édition Markdown.";
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            StatusText.Text = "Référence CA refusée : " + exception.Message +
+                ". Fermer et rouvrir la matrice avant de retenter.";
+            MessageBox.Show(this, StatusText.Text, "Traçabilité · CA",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            // The UI snapshot is now stale (another process could have
+            // recorded a baseline). Forbid another confirmation until reload.
+            CaptureBaselineButton.IsEnabled = false;
+        }
+        finally
+        {
+            _savingBaseline = false;
+            if (CaptureBaselineButton.IsEnabled)
+            {
+                RefreshBaselineStatus();
+            }
+        }
     }
 
     /// <summary>Existing workspace-relative EXI file selected for navigation.</summary>
@@ -78,6 +233,11 @@ public partial class ProjectRequirementTraceabilityDialog : Window
                     2 => row.Coverage == ProjectRequirementCoverage.Uncovered,
                     3 => row.Coverage is ProjectRequirementCoverage.Unidentified or
                         ProjectRequirementCoverage.StaleSource,
+                    4 => _baselineById.TryGetValue(
+                            row.Criterion.Id ?? Guid.Empty,
+                            out ProjectCriterionBaselineRow? observation) &&
+                        observation.State is not
+                            ProjectCriterionBaselineState.Unchanged,
                     _ => true
                 }).Where(row => query.Length == 0 ||
                 row.Requirement.Card.Reference.Contains(query,
@@ -95,6 +255,11 @@ public partial class ProjectRequirementTraceabilityDialog : Window
                     row.Requirement.Card.Reference + " · " +
                         row.Criterion.Reference + " — " + row.Criterion.Title,
                     DescribeCoverage(row.Coverage) + " · " +
+                        (_baselineById.TryGetValue(
+                            row.Criterion.Id ?? Guid.Empty,
+                            out ProjectCriterionBaselineRow? observed)
+                            ? "CA " + observed.State + " · "
+                            : "CA non suivie · ") +
                         row.Tests.Count + " test(s) lié(s) · " +
                         (_campaignRows.TryGetValue(row,
                             out ProjectRequirementCampaignCriterionHistory? history)
@@ -144,6 +309,12 @@ public partial class ProjectRequirementTraceabilityDialog : Window
             "GUID : " + (row.Criterion.Id?.ToString("D") ?? "non attribué"),
             "Ligne : " + row.Criterion.HeadingLine,
             "Couverture de liens : " + DescribeCoverage(row.Coverage),
+            "Référence CA : " +
+                (_baselineById.TryGetValue(
+                    row.Criterion.Id ?? Guid.Empty,
+                    out ProjectCriterionBaselineRow? baselineRow)
+                    ? baselineRow.State + " — " + baselineRow.Reason
+                    : "aucune observation stable"),
             "Tests identifiés liés : " + row.Tests.Count,
             "",
             "VALIDATION MÉTIER : " + row.Requirement.Card.Validation,
@@ -158,6 +329,26 @@ public partial class ProjectRequirementTraceabilityDialog : Window
         {
             details.Add("");
             details.Add("ATTENTION : " + row.Diagnostic);
+        }
+
+        if (_baseline.Rows.Any(item =>
+            item.State is ProjectCriterionBaselineState.Missing or
+                ProjectCriterionBaselineState.Unresolved))
+        {
+            details.Add("");
+            details.Add("HISTORIQUE CA À EXAMINER :");
+            details.AddRange(_baseline.Rows.Where(item =>
+                    item.State is ProjectCriterionBaselineState.Missing or
+                        ProjectCriterionBaselineState.Unresolved)
+                .Take(8).Select(item =>
+                    item.Label + " : " + item.Reason));
+        }
+
+        if (_baseline.Diagnostics.Count != 0)
+        {
+            details.Add("");
+            details.Add("DIAGNOSTICS DES RÉFÉRENCES CA :");
+            details.AddRange(_baseline.Diagnostics.Take(8));
         }
 
         if (_overview.Diagnostics.Count != 0)

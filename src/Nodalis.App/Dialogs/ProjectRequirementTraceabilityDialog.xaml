@@ -26,8 +26,10 @@
                            Margin="0,0,18,5"/>
                 <TextBlock x:Name="DiagnosticsCountText"
                            Margin="0,0,18,5"/>
-                <TextBlock x:Name="HistoricalText" Margin="0,0,0,5"
+                <TextBlock x:Name="HistoricalText" Margin="0,0,18,5"
                            AutomationProperties.Name="Passages et verdicts historiques REC"/>
+                <TextBlock x:Name="BaselineText" Margin="0,0,0,5"
+                           AutomationProperties.Name="Référence persistante des critères CA"/>
             </WrapPanel>
             <Grid Margin="0,10,0,0">
                 <Grid.ColumnDefinitions>
@@ -47,6 +49,7 @@
                     <ComboBoxItem Content="Tests liés uniquement"/>
                     <ComboBoxItem Content="Sans test lié"/>
                     <ComboBoxItem Content="Identités à examiner"/>
+                    <ComboBoxItem Content="CA modifiés depuis référence"/>
                 </ComboBox>
             </Grid>
         </StackPanel>
@@ -128,6 +131,11 @@
         </Grid>
         <DockPanel Grid.Row="3" Margin="0,12,0,0">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="CaptureBaselineButton"
+                        Content="Enregistrer référence CA…"
+                        Padding="12,8" Margin="0,0,8,0"
+                        ToolTip="Sur demande explicite, ajouter un instantané CA au projet. N'approuve ni test, ni exigence, ni campagne."
+                        Click="CaptureBaseline_Click"/>
                 <Button x:Name="OpenRequirementButton"
                         Content="Ouvrir l'exigence" Padding="12,8"
                         Margin="0,0,8,0" Click="OpenRequirement_Click"/>
