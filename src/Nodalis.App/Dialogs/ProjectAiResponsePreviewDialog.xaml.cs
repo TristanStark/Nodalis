@@ -965,6 +965,10 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     "criterion-create-" + create.ProposalId.ToString("N"),
                     () => transaction.CommitAsync(
                         _projectDirectory, current, nextCode));
+            if (result == ProjectAiTitleCommitStatus.Applied)
+            {
+                WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
+            }
             Guid? createdGuid = null;
             string? displayWarning = null;
             try
@@ -1222,6 +1226,10 @@ public partial class ProjectAiResponsePreviewDialog : Window
                         "criterion-body-" + body.ProposalId.ToString("N"),
                         () => new ProjectAiCriterionBodyImportTransactionService(
                             _workspaceRoot).CommitAsync(_projectDirectory, current));
+                if (result == ProjectAiTitleCommitStatus.Applied)
+                {
+                    WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
+                }
                 _comparisons = null;
                 ClearDecisions();
                 ShowSelectedDetails();
@@ -1354,6 +1362,10 @@ public partial class ProjectAiResponsePreviewDialog : Window
                         "criterion-" + change.ProposalId.ToString("N"),
                         () => new ProjectAiCriterionTitleImportTransactionService(
                             _workspaceRoot).CommitAsync(_projectDirectory, current));
+                if (result == ProjectAiTitleCommitStatus.Applied)
+                {
+                    WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
+                }
                 _comparisons = null;
                 ClearDecisions();
                 ShowSelectedDetails();
