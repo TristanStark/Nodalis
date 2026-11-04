@@ -156,13 +156,47 @@ internal static class ProjectAiImportDecisionSmokeTests
             ProjectAiRequirementReviewService.Compare(
                 descriptionPreview, descriptionCatalog);
         Assert(descriptionReviews.Single().Fields.Single().Field == "description",
-            "The local description comparison must be visible for review.");
+            "The local description must be three-way compared.");
+        ProjectAiPreparedReviewPlan descriptionPlan =
+            ProjectAiImportDecisionPlanner.Prepare(
+                descriptionPreview, descriptionReviews,
+                [
+                    new ProjectAiFieldDecision(descriptionOnly.ProposalId,
+                        "description", ProjectAiFieldDecisionKind.Accept)
+                ]);
+        Assert(descriptionPlan.Changes.Count == 0 &&
+            descriptionPlan.Creations.Count == 0 &&
+            descriptionPlan.Descriptions.Count == 1 &&
+            descriptionPlan.Descriptions.Single().ReviewedDescription == "Texte IA",
+            "Description acceptance must have its own non-executable plan.");
         Reject(() => ProjectAiImportDecisionPlanner.Prepare(
             descriptionPreview, descriptionReviews,
             [
                 new ProjectAiFieldDecision(descriptionOnly.ProposalId,
+                    "description", ProjectAiFieldDecisionKind.Edit,
+                    "Fausse rubrique\n## Nouvelle section")
+            ]), "A new top-level section must be rejected at rewrite time.");
+        ProjectAiImportCandidate unknownDescription = descriptionOnly with
+        {
+            ProposalId = Guid.NewGuid(),
+            BaseFields = []
+        };
+        ProjectAiResponsePreview unknownPreview = descriptionPreview with
+        {
+            Document = descriptionPreview.Document with
+            {
+                Proposals = [unknownDescription]
+            }
+        };
+        IReadOnlyList<ProjectAiRequirementReview> unknownReviews =
+            ProjectAiRequirementReviewService.Compare(
+                unknownPreview, descriptionCatalog);
+        Reject(() => ProjectAiImportDecisionPlanner.Prepare(
+            unknownPreview, unknownReviews,
+            [
+                new ProjectAiFieldDecision(unknownDescription.ProposalId,
                     "description", ProjectAiFieldDecisionKind.Accept)
-            ]), "A read-only description comparison cannot authorize publication.");
+            ]), "Unknown description baseline must require a human reason.");
 
         ProjectAiImportCandidate sameTarget = one with
         {

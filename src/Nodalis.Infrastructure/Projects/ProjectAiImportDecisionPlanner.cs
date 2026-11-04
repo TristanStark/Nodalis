@@ -44,6 +44,24 @@ public sealed record ProjectAiPreparedTitleChange(
     string ReviewedTitle, string? Reason);
 
 /// <summary>
+/// One precisely scoped, non-executable description update tied to a
+/// project-owned EXI source SHA. The candidate may not define an identity.
+/// </summary>
+/// <param name="ProposalId">External candidate key only.</param>
+/// <param name="RequirementId">Existing, unique Nodalis requirement GUID.</param>
+/// <param name="ProjectId">Authoritative project GUID.</param>
+/// <param name="Reference">Canonical EXI reference.</param>
+/// <param name="RelativePath">Verified canonical source path.</param>
+/// <param name="ExpectedSha256">Exact SHA-256 of the reviewed Markdown.</param>
+/// <param name="CurrentDescription">Extracted local text at comparison time.</param>
+/// <param name="ReviewedDescription">Human-approved replacement text.</param>
+/// <param name="Reason">Human justification for uncertain provenance.</param>
+public sealed record ProjectAiPreparedDescriptionChange(
+    Guid ProposalId, Guid RequirementId, Guid ProjectId, string Reference,
+    string RelativePath, string ExpectedSha256, string CurrentDescription,
+    string ReviewedDescription, string? Reason);
+
+/// <summary>
 /// A human-approved request for one NEW requirement. Neither project GUID,
 /// requirement GUID nor EXI reference can be supplied by the external AI.
 /// They are assigned solely in the guarded publication service.
@@ -74,6 +92,13 @@ public sealed record ProjectAiPreparedReviewPlan(
     /// Nodalis-assigned EXI reference in the separate publication dialog.
     /// </summary>
     public IReadOnlyList<ProjectAiPreparedRequirementCreation> Creations
+    { get; init; } = [];
+
+    /// <summary>
+    /// Approved description edits are independent of title transactions.
+    /// No existing publisher may silently apply or ignore these edits.
+    /// </summary>
+    public IReadOnlyList<ProjectAiPreparedDescriptionChange> Descriptions
     { get; init; } = [];
 }
 
@@ -128,6 +153,7 @@ public static class ProjectAiImportDecisionPlanner
         HashSet<(Guid, string)> reviewed = [];
         HashSet<Guid> alreadyTargeted = [];
         List<ProjectAiPreparedTitleChange> changes = [];
+        List<ProjectAiPreparedDescriptionChange> descriptions = [];
         List<ProjectAiPreparedRequirementCreation> creations = [];
         int ignored = 0;
         foreach (ProjectAiFieldDecision decision in decisions)
@@ -195,7 +221,7 @@ public static class ProjectAiImportDecisionPlanner
 
             if (proposal.Kind != "requirement" ||
                 proposal.Operation != "update" ||
-                decision.Field != "title" ||
+                (decision.Field != "title" && decision.Field != "description") ||
                 match.Status is not (
                     ProjectAiRequirementMatchStatus.GuidMatch or
                     ProjectAiRequirementMatchStatus.ReferenceMatch) ||
@@ -206,9 +232,11 @@ public static class ProjectAiImportDecisionPlanner
             }
 
             ProjectAiFieldDifference? diff = match.Fields.SingleOrDefault(
-                field => field.Field == "title");
-            if (diff is null ||
-                !string.Equals(diff.Current, entry.Card.Title,
+                field => field.Field == decision.Field);
+            string? actual = decision.Field == "title"
+                ? entry.Card.Title : entry.Description;
+            if (diff is null || actual is null ||
+                !string.Equals(diff.Current, actual,
                     StringComparison.Ordinal) ||
                 entry.SourceSha256.Length != 64 ||
                 !entry.SourceSha256.All(Uri.IsHexDigit) ||
@@ -220,16 +248,26 @@ public static class ProjectAiImportDecisionPlanner
                     "État canonique incomplet : relancer la comparaison.");
             }
 
-            string title = decision.Kind == ProjectAiFieldDecisionKind.Edit
+            string value = decision.Kind == ProjectAiFieldDecisionKind.Edit
                 ? decision.EditedValue!
-                : proposal.ProposedFields["title"];
-            if (string.IsNullOrWhiteSpace(title) ||
-                title != title.Trim() ||
-                title.Length > 240 ||
-                title.Any(char.IsControl))
+                : proposal.ProposedFields[decision.Field];
+            if (decision.Field == "title")
+            {
+                if (string.IsNullOrWhiteSpace(value) ||
+                    value != value.Trim() ||
+                    value.Length > 240 ||
+                    value.Any(char.IsControl))
+                {
+                    throw new InvalidDataException(
+                        "Titre approuvé invalide : texte sur une ligne, 240 caractères maximum.");
+                }
+            }
+            else if (value.Length > 8000 || value.Contains('\r') ||
+                value.Contains('\0') || value.Contains('\uFEFF') ||
+                value != value.Trim('\n'))
             {
                 throw new InvalidDataException(
-                    "Titre approuvé invalide : texte sur une ligne, 240 caractères maximum.");
+                    "Description approuvée invalide : 8000 caractères, retours LF uniquement.");
             }
 
             // Unknown/conflicting baselines cannot become silent approvals.
@@ -249,15 +287,25 @@ public static class ProjectAiImportDecisionPlanner
                     "Deux propositions approuvées touchent la même exigence : arbitrer.");
             }
 
-            if (string.Equals(title, entry.Card.Title, StringComparison.Ordinal))
+            if (string.Equals(value, actual, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            changes.Add(new ProjectAiPreparedTitleChange(
-                proposal.ProposalId, entry.Card.Id, entry.Card.ProjectId,
-                entry.Card.Reference, entry.RelativePath, entry.SourceSha256,
-                entry.Card.Title, title, decision.Reason?.Trim()));
+            if (decision.Field == "description")
+            {
+                descriptions.Add(new ProjectAiPreparedDescriptionChange(
+                    proposal.ProposalId, entry.Card.Id, entry.Card.ProjectId,
+                    entry.Card.Reference, entry.RelativePath, entry.SourceSha256,
+                    actual, value, decision.Reason?.Trim()));
+            }
+            else
+            {
+                changes.Add(new ProjectAiPreparedTitleChange(
+                    proposal.ProposalId, entry.Card.Id, entry.Card.ProjectId,
+                    entry.Card.Reference, entry.RelativePath, entry.SourceSha256,
+                    entry.Card.Title, value, decision.Reason?.Trim()));
+            }
         }
 
         int totalFields = candidates.Values.Sum(item => item.ProposedFields.Count);
@@ -265,7 +313,8 @@ public static class ProjectAiImportDecisionPlanner
             reviewed.Count, ignored, totalFields - reviewed.Count +
                 decisions.Count(item => item.Kind == ProjectAiFieldDecisionKind.Review))
         {
-            Creations = creations
+            Creations = creations,
+            Descriptions = descriptions
         };
     }
 }

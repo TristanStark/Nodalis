@@ -133,7 +133,7 @@ public sealed class ProjectAiReviewHistoryService
     /// <param name="plan">Freshly recomputed pure review plan.</param>
     /// <param name="archiveRaw">Separate affirmative consent for raw storage.</param>
     /// <param name="rawResponse">Original source only when raw archive is opted in.</param>
-    /// <param name="action">review-only/title/create/title-batch/mixed.</param>
+    /// <param name="action">review-only/title/description/create/title-batch/mixed.</param>
     /// <param name="transactionKey">Local journal name for a confirmed publication.</param>
     /// <param name="token">Cooperative cancellation.</param>
     /// <returns>Immutable local audit review ID.</returns>
@@ -155,6 +155,7 @@ public sealed class ProjectAiReviewHistoryService
                 StringComparison.Ordinal) ||
             !recomputed.Changes.SequenceEqual(plan.Changes) ||
             !recomputed.Creations.SequenceEqual(plan.Creations) ||
+            !recomputed.Descriptions.SequenceEqual(plan.Descriptions) ||
             recomputed.ReviewedFields != plan.ReviewedFields ||
             recomputed.IgnoredFields != plan.IgnoredFields ||
             recomputed.PendingFields != plan.PendingFields ||
@@ -187,7 +188,8 @@ public sealed class ProjectAiReviewHistoryService
                 !preview.Document.Proposals.Any(proposal =>
                     ReferenceEquals(proposal, item.Candidate))) ||
             plan.Changes.Any(item => item.ProjectId != projectId) ||
-            plan.Creations.Any(item => item.ProjectId != projectId))
+            plan.Creations.Any(item => item.ProjectId != projectId) ||
+            plan.Descriptions.Any(item => item.ProjectId != projectId))
         {
             throw new InvalidDataException(
                 "L'historique ne peut concerner un autre projet ou une autre réponse.");
@@ -595,16 +597,21 @@ public sealed class ProjectAiReviewHistoryService
         return action switch
         {
             "title" => plan.Changes.Count == 1 &&
-                plan.Creations.Count == 0 &&
+                plan.Creations.Count == 0 && plan.Descriptions.Count == 0 &&
                 key == plan.Changes[0].ProposalId.ToString("N"),
+            "description" => plan.Descriptions.Count == 1 &&
+                plan.Changes.Count == 0 && plan.Creations.Count == 0 &&
+                key == "description-" +
+                    plan.Descriptions[0].ProposalId.ToString("N"),
             "create" => plan.Changes.Count == 0 &&
-                plan.Creations.Count == 1 &&
+                plan.Creations.Count == 1 && plan.Descriptions.Count == 0 &&
                 key == plan.Creations[0].ProposalId.ToString("N"),
             "title-batch" => plan.Changes.Count is >= 2 and <= 20 &&
-                plan.Creations.Count == 0 &&
+                plan.Creations.Count == 0 && plan.Descriptions.Count == 0 &&
                 key == "batch-" +
                     ProjectAiBatchTitleImportTransactionService.PlanFingerprint(plan),
-            "mixed" => plan.Changes.Count > 0 && plan.Creations.Count > 0 &&
+            "mixed" => plan.Descriptions.Count == 0 &&
+                plan.Changes.Count > 0 && plan.Creations.Count > 0 &&
                 plan.Changes.Count + plan.Creations.Count <= 20 &&
                 key == "mixed-" +
                     ProjectAiMixedImportTransactionService.PlanFingerprint(plan),
