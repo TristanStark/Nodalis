@@ -621,7 +621,7 @@ public sealed class ProjectAiReviewHistoryService
                     plan.Descriptions[0].ProposalId.ToString("N"),
             "criterion-title" => plan.CriterionTitles.Count == 1 &&
                 plan.Changes.Count == 0 && plan.Descriptions.Count == 0 &&
-                plan.Creations.Count == 0 &&
+                plan.Creations.Count == 0 && plan.CriterionCreations.Count == 0 &&
                 key == "criterion-" +
                     plan.CriterionTitles[0].ProposalId.ToString("N"),
             "create" => plan.Changes.Count == 0 &&
