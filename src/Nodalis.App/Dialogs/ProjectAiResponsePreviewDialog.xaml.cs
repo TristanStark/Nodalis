@@ -2949,7 +2949,14 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     proposal.Operation == "update" &&
                     _comparisons![proposal.ProposalId].Status ==
                         ProjectAiRequirementMatchStatus.CriterionGuidMatch &&
-                    _comparisons![proposal.ProposalId].Criterion?.Body is not null &&
+                    _comparisons![proposal.ProposalId].Criterion?.Body is string
+                        localBody &&
+                    !ProjectRequirementCriterionBodyCodec
+                        .ContainsProtectedRelations(localBody) &&
+                    proposal.ProposedFields.TryGetValue("description",
+                        out string? proposedBody) &&
+                    !ProjectRequirementCriterionBodyCodec
+                        .ContainsProtectedRelations(proposedBody) &&
                     _comparisons![proposal.ProposalId].Fields.Any(item =>
                         item.Field == "description" &&
                         item.Current is not null)))));

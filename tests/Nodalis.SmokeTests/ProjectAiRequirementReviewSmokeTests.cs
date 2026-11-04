@@ -257,6 +257,27 @@ internal static class ProjectAiRequirementReviewSmokeTests
                 "impossible à extraire", StringComparison.Ordinal)),
             "Unresolved CA bodies must not be treated as empty or comparable.");
 
+        string typedLink = "> Relation: teste | Cible: Test synthétique | ID: " +
+            Guid.NewGuid().ToString("D");
+        ProjectRequirementCatalog linkedCaCatalog = caBodyCatalog with
+        {
+            Requirements =
+            [
+                first with
+                {
+                    Criteria = [ca with { Body = "Corps local\n" + typedLink }]
+                },
+                second
+            ]
+        };
+        ProjectAiRequirementReview linkedCa =
+            ProjectAiRequirementReviewService.Compare(
+                Preview(caBodyCandidate), linkedCaCatalog).Single();
+        Assert(linkedCa.Fields.Single().Field == "description" &&
+            linkedCa.Warnings.Any(warning => warning.Contains(
+                "réécriture automatique interdite", StringComparison.Ordinal)),
+            "Read-only CA comparison must flag protected test relations.");
+
         ProjectAiRequirementReview caByReference =
             ProjectAiRequirementReviewService.Compare(
                 Preview(caCandidate with { TargetId = null }), caCatalog).Single();

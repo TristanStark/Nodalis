@@ -284,6 +284,16 @@ public static class ProjectAiRequirementReviewService
                 proposed.Add("description", description);
                 warnings.Add("Description CA : comparaison à trois voies " +
                     "uniquement, aucune publication automatique.");
+                if (ProjectRequirementCriterionBodyCodec
+                        .ContainsProtectedRelations(body) ||
+                    ProjectRequirementCriterionBodyCodec
+                        .ContainsProtectedRelations(description))
+                {
+                    warnings.Add("Liens typés présents dans le corps CA : " +
+                        "réécriture automatique interdite pour préserver " +
+                        "la traçabilité des tests. Éditer les relations " +
+                        "manuellement après qualification.");
+                }
             }
             else
             {
