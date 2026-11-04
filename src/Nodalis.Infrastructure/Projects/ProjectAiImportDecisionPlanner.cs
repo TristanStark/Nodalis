@@ -264,7 +264,10 @@ public static class ProjectAiImportDecisionPlanner
             }
             else if (value.Length > 8000 || value.Contains('\r') ||
                 value.Contains('\0') || value.Contains('\uFEFF') ||
-                value != value.Trim('\n'))
+                value != value.Trim('\n') ||
+                value.Split('\n').Any(line =>
+                    line.StartsWith("# ", StringComparison.Ordinal) ||
+                    line.StartsWith("## ", StringComparison.Ordinal)))
             {
                 throw new InvalidDataException(
                     "Description approuvée invalide : 8000 caractères, retours LF uniquement.");
