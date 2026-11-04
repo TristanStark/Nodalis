@@ -85,7 +85,7 @@ public sealed class ProjectAiCriterionBodyImportTransactionService
             !IsHash(plan.RawResponseSha256))
         {
             throw new InvalidDataException(
-                "Une seule corps du critère CA peut être publiée après revue humaine.");
+                "Un seul corps Markdown de critère CA peut être publié après revue humaine.");
         }
 
         ProjectAiPreparedCriterionBodyChange change = plan.CriterionBodies.Single();
@@ -104,7 +104,7 @@ public sealed class ProjectAiCriterionBodyImportTransactionService
             change.ReviewedBody !=
                 change.ReviewedBody.Trim('\n'))
         {
-            throw new InvalidDataException("Description ou identité EXI non publiable.");
+            throw new InvalidDataException("Corps CA ou identité de bloc non publiable.");
         }
 
         string project = Path.TrimEndingDirectorySeparator(
@@ -131,6 +131,28 @@ public sealed class ProjectAiCriterionBodyImportTransactionService
         }
 
         token.ThrowIfCancellationRequested();
+        ProjectRequirementCatalog catalog =
+            await new ProjectRequirementRegistryService(_workspaceRoot)
+                .ListAsync(project, token);
+        ProjectRequirementEntry[] parents = catalog.Requirements.Where(item =>
+            item.Card.Id == change.RequirementId).ToArray();
+        ProjectRequirementCriterion[] criterionMatches = catalog.Requirements
+            .SelectMany(item => item.Criteria)
+            .Where(item => item.Id == change.CriterionId).ToArray();
+        if (parents.Length != 1 ||
+            parents[0].Card.ProjectId != change.ProjectId ||
+            parents[0].Card.Reference != change.Reference ||
+            parents[0].RelativePath != change.RelativePath ||
+            criterionMatches.Length != 1 ||
+            criterionMatches[0].Reference != change.CriterionReference ||
+            !criterionMatches[0].LocallyIdentified ||
+            !parents[0].Criteria.Any(item => item.Id == change.CriterionId) ||
+            catalog.Requirements.Any(item => item.Card.Id == change.CriterionId))
+        {
+            throw new InvalidDataException(
+                "Critère CA absent, dupliqué ou étranger au projet.");
+        }
+
         string directory = Path.Combine(root,
             "criterion-body-" + change.ProposalId.ToString("N"));
         string manifestPath = Path.Combine(directory, JournalFile);
@@ -149,23 +171,11 @@ public sealed class ProjectAiCriterionBodyImportTransactionService
         }
         else
         {
-            ProjectRequirementCatalog catalog =
-                await new ProjectRequirementRegistryService(_workspaceRoot)
-                    .ListAsync(project, token);
-            ProjectRequirementEntry? entry = catalog.Requirements.SingleOrDefault(
-                item => item.Card.Id == change.RequirementId);
-            if (entry is null || entry.Card.ProjectId != change.ProjectId ||
-                entry.Card.Reference != change.Reference ||
-                entry.RelativePath != change.RelativePath ||
-                !string.Equals(entry.SourceSha256, change.ExpectedSha256,
+            ProjectRequirementEntry entry = parents[0];
+            if (!string.Equals(entry.SourceSha256, change.ExpectedSha256,
                     StringComparison.OrdinalIgnoreCase) ||
-                catalog.Requirements.SelectMany(item => item.Criteria).Count(
-                    item => item.Id == change.CriterionId) != 1 ||
-                !string.Equals(entry.Criteria.SingleOrDefault(item =>
-                    item.Id == change.CriterionId &&
-                    item.Reference == change.CriterionReference &&
-                    item.LocallyIdentified)?.Body, change.CurrentBody,
-                    StringComparison.Ordinal))
+                !string.Equals(criterionMatches[0].Body,
+                    change.CurrentBody, StringComparison.Ordinal))
             {
                 throw new InvalidDataException(
                     "Contenu CA modifié depuis la revue, ou EXI ambiguë : " +
