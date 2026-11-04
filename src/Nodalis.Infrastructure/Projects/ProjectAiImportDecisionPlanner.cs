@@ -62,6 +62,27 @@ public sealed record ProjectAiPreparedDescriptionChange(
     string ReviewedDescription, string? Reason);
 
 /// <summary>
+/// Inert, human-approved update of an existing stable CA block title.
+/// Local CA codes are not identities and no status or verdict is imported.
+/// </summary>
+/// <param name="ProposalId">External candidate ID only.</param>
+/// <param name="RequirementId">Canonical containing EXI GUID.</param>
+/// <param name="ProjectId">Owning project manifest GUID.</param>
+/// <param name="Reference">Canonical EXI reference.</param>
+/// <param name="CriterionId">Unique existing Markdown block GUID.</param>
+/// <param name="CriterionReference">Local CA-xx code within the EXI.</param>
+/// <param name="RelativePath">Canonical workspace-relative EXI Markdown source.</param>
+/// <param name="ExpectedSha256">Reviewed source byte SHA-256.</param>
+/// <param name="CurrentTitle">Exact local CA heading title when reviewed.</param>
+/// <param name="ReviewedTitle">Explicitly accepted or human edited title.</param>
+/// <param name="Reason">Justification for unknown or conflicting baselines.</param>
+public sealed record ProjectAiPreparedCriterionTitleChange(
+    Guid ProposalId, Guid RequirementId, Guid ProjectId, string Reference,
+    Guid CriterionId, string CriterionReference, string RelativePath,
+    string ExpectedSha256, string CurrentTitle, string ReviewedTitle,
+    string? Reason);
+
+/// <summary>
 /// A human-approved request for one NEW requirement. Neither project GUID,
 /// requirement GUID nor EXI reference can be supplied by the external AI.
 /// They are assigned solely in the guarded publication service.
@@ -99,6 +120,13 @@ public sealed record ProjectAiPreparedReviewPlan(
     /// No existing publisher may silently apply or ignore these edits.
     /// </summary>
     public IReadOnlyList<ProjectAiPreparedDescriptionChange> Descriptions
+    { get; init; } = [];
+
+    /// <summary>
+    /// Criterion title approvals cannot be silently published by existing
+    /// requirement-title, description, creation or mixed batch engines.
+    /// </summary>
+    public IReadOnlyList<ProjectAiPreparedCriterionTitleChange> CriterionTitles
     { get; init; } = [];
 }
 
@@ -152,6 +180,8 @@ public static class ProjectAiImportDecisionPlanner
 
         HashSet<(Guid, string)> reviewed = [];
         HashSet<Guid> alreadyTargeted = [];
+        HashSet<Guid> targetedCriteria = [];
+        List<ProjectAiPreparedCriterionTitleChange> criterionTitles = [];
         List<ProjectAiPreparedTitleChange> changes = [];
         List<ProjectAiPreparedDescriptionChange> descriptions = [];
         List<ProjectAiPreparedRequirementCreation> creations = [];
@@ -187,6 +217,80 @@ public static class ProjectAiImportDecisionPlanner
             }
 
             ProjectAiRequirementReview match = matches[decision.ProposalId];
+            if (proposal.Kind == "criterion")
+            {
+                if (proposal.Operation != "update" ||
+                    decision.Field != "title" ||
+                    match.Status != ProjectAiRequirementMatchStatus
+                        .CriterionGuidMatch ||
+                    match.Requirement is not ProjectRequirementEntry parent ||
+                    match.Criterion is not ProjectRequirementCriterion criterion ||
+                    criterion.Id is not Guid criterionId ||
+                    proposal.TargetId != criterionId ||
+                    !criterion.LocallyIdentified ||
+                    parent.Card.ProjectId != match.ProjectId ||
+                    !ProjectRequirementCriterionCodec.IsReference(
+                        criterion.Reference) ||
+                    !ProjectRequirementMarkdownCodec.IsReference(
+                        parent.Card.Reference) ||
+                    parent.SourceSha256 is not { Length: 64 } ||
+                    !parent.SourceSha256.All(Uri.IsHexDigit))
+                {
+                    throw new InvalidDataException(
+                        "Critère CA sans identité canonique : validation refusée.");
+                }
+
+                ProjectAiFieldDifference? criterionDiff =
+                    match.Fields.SingleOrDefault(item => item.Field == "title");
+                if (criterionDiff is null ||
+                    !string.Equals(criterionDiff.Current, criterion.Title,
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        "Comparaison CA absente ou périmée.");
+                }
+
+                string approved = decision.Kind == ProjectAiFieldDecisionKind.Edit
+                    ? decision.EditedValue!
+                    : proposal.ProposedFields["title"];
+                if (string.IsNullOrWhiteSpace(approved) ||
+                    approved != approved.Trim() || approved.Length > 240 ||
+                    approved.Any(char.IsControl) ||
+                    approved.StartsWith('#') || approved.EndsWith('#') ||
+                    approved.Contains("<!--", StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        "Titre CA approuvé invalide : 240 caractères, une seule ligne.");
+                }
+
+                if (criterionDiff.Kind is
+                    ProjectAiFieldDifferenceKind.ConcurrentConflict or
+                    ProjectAiFieldDifferenceKind.UnknownBase &&
+                    string.IsNullOrWhiteSpace(decision.Reason))
+                {
+                    throw new InvalidDataException(
+                        "Titre CA concurrent ou base inconnue : justification requise.");
+                }
+
+                if (!targetedCriteria.Add(criterionId))
+                {
+                    throw new InvalidDataException(
+                        "Plusieurs modifications IA ciblent le même bloc CA.");
+                }
+
+                if (!string.Equals(approved, criterion.Title,
+                    StringComparison.Ordinal))
+                {
+                    criterionTitles.Add(new ProjectAiPreparedCriterionTitleChange(
+                        proposal.ProposalId, parent.Card.Id, parent.Card.ProjectId,
+                        parent.Card.Reference, criterionId, criterion.Reference,
+                        parent.RelativePath, parent.SourceSha256,
+                        criterion.Title, approved, decision.Reason?.Trim()));
+                }
+
+                continue;
+            }
+
             if (proposal.Kind == "requirement" &&
                 proposal.Operation == "create")
             {
@@ -317,7 +421,8 @@ public static class ProjectAiImportDecisionPlanner
                 decisions.Count(item => item.Kind == ProjectAiFieldDecisionKind.Review))
         {
             Creations = creations,
-            Descriptions = descriptions
+            Descriptions = descriptions,
+            CriterionTitles = criterionTitles
         };
     }
 }

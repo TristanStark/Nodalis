@@ -198,6 +198,67 @@ internal static class ProjectAiImportDecisionSmokeTests
                     "description", ProjectAiFieldDecisionKind.Accept)
             ]), "Unknown description baseline must require a human reason.");
 
+        Guid criterionId = Guid.NewGuid();
+        ProjectAiImportCandidate caProposal = new()
+        {
+            ProposalId = Guid.NewGuid(),
+            Kind = "criterion",
+            Operation = "update",
+            Certainty = "derived",
+            TargetId = criterionId,
+            CandidateReference = "CA-01",
+            BaseFields = new Dictionary<string, string>
+            {
+                ["title"] = "Ancienne condition"
+            },
+            ProposedFields = new Dictionary<string, string>
+            {
+                ["title"] = "Nouvelle condition"
+            }
+        };
+        ProjectAiResponsePreview caPreview = preview with
+        {
+            Document = preview.Document with
+            {
+                Proposals = [caProposal]
+            }
+        };
+        ProjectRequirementCatalog caCatalog = new(
+            [first with
+            {
+                Criteria = [new ProjectRequirementCriterion(
+                    "CA-01", "Condition actuelle", criterionId, 15, true)]
+            }, second], [], "EXI-0003");
+        IReadOnlyList<ProjectAiRequirementReview> caReviews =
+            ProjectAiRequirementReviewService.Compare(caPreview, caCatalog);
+        Reject(() => ProjectAiImportDecisionPlanner.Prepare(
+            caPreview, caReviews,
+            [
+                new ProjectAiFieldDecision(caProposal.ProposalId,
+                    "title", ProjectAiFieldDecisionKind.Accept)
+            ]), "A conflicted CA requires an explicit human justification.");
+        ProjectAiPreparedReviewPlan caPlan =
+            ProjectAiImportDecisionPlanner.Prepare(caPreview, caReviews,
+            [
+                new ProjectAiFieldDecision(caProposal.ProposalId,
+                    "title", ProjectAiFieldDecisionKind.Edit,
+                    "Condition confirmée", "Conflit contrôlé par le relecteur.")
+            ]);
+        Assert(caPlan.CriterionTitles.Count == 1 &&
+            caPlan.CriterionTitles.Single().CriterionId == criterionId &&
+            caPlan.CriterionTitles.Single().ReviewedTitle == "Condition confirmée" &&
+            caPlan.Changes.Count == 0 &&
+            caPlan.Descriptions.Count == 0 &&
+            caPlan.Creations.Count == 0,
+            "A CA approval must be a separate, inert, source-SHA-bound plan.");
+        Reject(() => ProjectAiImportDecisionPlanner.Prepare(
+            caPreview, caReviews,
+            [
+                new ProjectAiFieldDecision(caProposal.ProposalId,
+                    "title", ProjectAiFieldDecisionKind.Edit,
+                    "Injection\\n### CA-02", "Relecteur.")
+            ]), "CA approved title cannot insert Markdown structures.");
+
         ProjectAiImportCandidate sameTarget = one with
         {
             ProposalId = Guid.NewGuid(),

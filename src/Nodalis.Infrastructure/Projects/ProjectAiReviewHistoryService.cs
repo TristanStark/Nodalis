@@ -36,6 +36,8 @@ public sealed record ProjectAiAuditField
     public required string MatchStatus { get; init; }
     /// <summary>Resolved existing Nodalis ID, never a new model-assigned ID.</summary>
     public Guid? ExistingRequirementId { get; init; }
+    /// <summary>Existing canonical CA block GUID, when comparing a criterion.</summary>
+    public Guid? ExistingCriterionId { get; init; }
     /// <summary>Canonical source hash observed at comparison.</summary>
     public string? SourceSha256 { get; init; }
 }
@@ -156,6 +158,7 @@ public sealed class ProjectAiReviewHistoryService
             !recomputed.Changes.SequenceEqual(plan.Changes) ||
             !recomputed.Creations.SequenceEqual(plan.Creations) ||
             !recomputed.Descriptions.SequenceEqual(plan.Descriptions) ||
+            !recomputed.CriterionTitles.SequenceEqual(plan.CriterionTitles) ||
             recomputed.ReviewedFields != plan.ReviewedFields ||
             recomputed.IgnoredFields != plan.IgnoredFields ||
             recomputed.PendingFields != plan.PendingFields ||
@@ -189,7 +192,8 @@ public sealed class ProjectAiReviewHistoryService
                     ReferenceEquals(proposal, item.Candidate))) ||
             plan.Changes.Any(item => item.ProjectId != projectId) ||
             plan.Creations.Any(item => item.ProjectId != projectId) ||
-            plan.Descriptions.Any(item => item.ProjectId != projectId))
+            plan.Descriptions.Any(item => item.ProjectId != projectId) ||
+            plan.CriterionTitles.Any(item => item.ProjectId != projectId))
         {
             throw new InvalidDataException(
                 "L'historique ne peut concerner un autre projet ou une autre réponse.");
@@ -229,6 +233,7 @@ public sealed class ProjectAiReviewHistoryService
                     Reason = decision?.Reason,
                     MatchStatus = review.Status.ToString(),
                     ExistingRequirementId = review.Requirement?.Card.Id,
+                    ExistingCriterionId = review.Criterion?.Id,
                     SourceSha256 = review.Requirement?.SourceSha256
                 });
             }
@@ -598,19 +603,29 @@ public sealed class ProjectAiReviewHistoryService
         {
             "title" => plan.Changes.Count == 1 &&
                 plan.Creations.Count == 0 && plan.Descriptions.Count == 0 &&
+                plan.CriterionTitles.Count == 0 &&
                 key == plan.Changes[0].ProposalId.ToString("N"),
             "description" => plan.Descriptions.Count == 1 &&
                 plan.Changes.Count == 0 && plan.Creations.Count == 0 &&
+                plan.CriterionTitles.Count == 0 &&
                 key == "description-" +
                     plan.Descriptions[0].ProposalId.ToString("N"),
+            "criterion-title" => plan.CriterionTitles.Count == 1 &&
+                plan.Changes.Count == 0 && plan.Descriptions.Count == 0 &&
+                plan.Creations.Count == 0 &&
+                key == "criterion-" +
+                    plan.CriterionTitles[0].ProposalId.ToString("N"),
             "create" => plan.Changes.Count == 0 &&
                 plan.Creations.Count == 1 && plan.Descriptions.Count == 0 &&
+                plan.CriterionTitles.Count == 0 &&
                 key == plan.Creations[0].ProposalId.ToString("N"),
             "title-batch" => plan.Changes.Count is >= 2 and <= 20 &&
                 plan.Creations.Count == 0 && plan.Descriptions.Count == 0 &&
+                plan.CriterionTitles.Count == 0 &&
                 key == "batch-" +
                     ProjectAiBatchTitleImportTransactionService.PlanFingerprint(plan),
             "mixed" => plan.Descriptions.Count == 0 &&
+                plan.CriterionTitles.Count == 0 &&
                 plan.Changes.Count > 0 && plan.Creations.Count > 0 &&
                 plan.Changes.Count + plan.Creations.Count <= 20 &&
                 key == "mixed-" +
