@@ -216,10 +216,38 @@ public sealed class ProjectAiDescriptionImportTransactionService
                 token);
         }
 
-        await VerifySnapshotAsync(Path.Combine(directory, "original.md"),
-            journal.OriginalSha256, token);
+        string originalSnapshot = Path.Combine(directory, "original.md");
+        await VerifySnapshotAsync(originalSnapshot, journal.OriginalSha256, token);
         string staged = Path.Combine(directory, "published.md");
         await VerifySnapshotAsync(staged, journal.PublishedSha256, token);
+
+        // Journal hashes alone are not an authorization. A locally edited
+        // intent plus forged published.md must not become a business write.
+        // Reconstruct the ONLY approved change from the immutable original.
+        string originalContent = new UTF8Encoding(false, true).GetString(
+            await ReadBoundedAsync(originalSnapshot, token));
+        ProjectRequirementCard snapshotCard =
+            ProjectRequirementMarkdownCodec.Parse(originalContent);
+        if (snapshotCard.Id != change.RequirementId ||
+            snapshotCard.ProjectId != change.ProjectId ||
+            snapshotCard.Reference != change.Reference)
+        {
+            throw new InvalidDataException(
+                "Journal EXI ne correspond plus à l'identité approuvée.");
+        }
+
+        string expectedContent = ProjectRequirementDescriptionCodec.Rewrite(
+            originalContent, snapshotCard, change.CurrentDescription,
+            change.ReviewedDescription);
+        string expectedHash = Hash(new UTF8Encoding(false).GetBytes(
+            expectedContent));
+        if (!string.Equals(expectedHash, journal.PublishedSha256,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Instantané publié ne correspond pas à la seule description " +
+                "approuvée : journal non fiable.");
+        }
 
         string currentHash = Hash(await ReadBoundedAsync(target, token));
         if (string.Equals(currentHash, journal.PublishedSha256,
