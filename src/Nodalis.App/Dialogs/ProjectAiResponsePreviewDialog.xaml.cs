@@ -2950,7 +2950,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     _comparisons![proposal.ProposalId].Criterion?.Body is not null &&
                     _comparisons![proposal.ProposalId].Fields.Any(item =>
                         item.Field == "description" &&
-                        item.Current is not null))));
+                        item.Current is not null)))));
         AcceptFieldButton.IsEnabled = supported;
         EditFieldButton.IsEnabled = supported;
         ReviewedValueBox.IsEnabled = supported;
