@@ -58,7 +58,8 @@ internal static class ProjectAiReviewHistorySmokeTests
                         proposedFields = new
                         {
                             title = "Titre accepté",
-                            description = "Valeur IA confidentielle et ignorée"
+                            description = "Valeur IA confidentielle et ignorée",
+                            implementationNote = "Texte IA confidentiel en attente"
                         }
                     },
                     new
@@ -114,21 +115,27 @@ internal static class ProjectAiReviewHistorySmokeTests
                 saved.PromptKey == "FRT-100-EXEMPLE" &&
                 !saved.RawArchived && saved.RawArchiveSha256 is null &&
                 saved.Action == "review-only" &&
-                saved.Fields.Count == 3 &&
+                saved.Fields.Count == 4 &&
                 saved.Fields.Count(field => field.Decision == "Accept") == 1 &&
                 saved.Fields.Count(field => field.Decision == "Ignore") == 1 &&
-                saved.Fields.Count(field => field.Decision == "Review") == 1,
+                saved.Fields.Count(field => field.Decision == "Review") == 1 &&
+                saved.Fields.Count(field => field.Decision == "Pending") == 1,
                 "All explicit dispositions must survive a restart.");
             Assert(saved.Fields.Single(field => field.Decision == "Ignore")
                 .ApprovedValue is null &&
                 saved.Fields.Single(field => field.Decision == "Review")
                 .ApprovedValue is null &&
+                saved.Fields.Single(field => field.Decision == "Pending")
+                .ApprovedValue is null &&
                 saved.Fields.Single(field => field.Decision == "Accept")
                     .ApprovedValue == "Titre accepté",
                 "Unapproved external values must not be stored in audit metadata.");
-            Assert(!(await File.ReadAllTextAsync(Path.Combine(
-                    savedFolder, "review.json"))).Contains(
-                    "Valeur IA confidentielle", StringComparison.Ordinal),
+            string reviewJson = await File.ReadAllTextAsync(
+                Path.Combine(savedFolder, "review.json"));
+            Assert(!reviewJson.Contains(
+                    "Valeur IA confidentielle", StringComparison.Ordinal) &&
+                !reviewJson.Contains(
+                    "Texte IA confidentiel", StringComparison.Ordinal),
                 "The metadata must not contain an ignored proposed value.");
 
             await RejectAsync(() => service.SaveAsync(
@@ -173,8 +180,12 @@ internal static class ProjectAiReviewHistorySmokeTests
                 JsonSerializer.Deserialize<ProjectAiReviewOutcome>(
                     await File.ReadAllTextAsync(outcomeFile),
                     new JsonSerializerOptions(JsonSerializerDefaults.Web));
-            Assert(outcome is not null &&
+            ProjectAiReviewOutcome? verified =
+                await restarted.ReadOutcomeAsync(
+                    project.ProjectDirectory, forPublication);
+            Assert(outcome is not null && verified is not null &&
                 outcome.Result == "Applied" &&
+                verified.Result == "Applied" &&
                 outcome.TransactionKey == proposal1.ToString("N") &&
                 outcome.ReviewId == forPublication,
                 "Applied outcomes must link back to the exact import journal.");
