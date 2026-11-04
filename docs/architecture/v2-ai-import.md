@@ -722,3 +722,104 @@ réhabilitations/reprises ultérieures restent à développer.
 
 La qualification de #197 ne vaut ni merge vers `main`, ni tag,
 ni publication de la 2.0.
+
+
+## Neuvième incrément — audit des reprises IA après interruption (04/11/2026)
+
+La publication initiale d'un lot de titres ou d'un lot mixte et
+la **reprise du même journal après arrêt** sont maintenant
+documentées comme **deux événements humains distincts**.
+
+### Flux utilisateur
+
+1. **Rechercher les lots interrompus** reste une lecture seule des
+   journaux de transaction EXI.
+2. **Reprendre le lot choisi…** affiche le projet, les références
+   concernées, les titres avant/après et la progression exacte.
+   Rien n'est écrit si l'utilisateur annule.
+3. Après **Oui**, `ProjectAiRecoveryHistoryService.StartAsync`
+   relit et contrôle à nouveau le journal, l'appartenance au
+   projet, les dossiers non redirigés, les identités et le
+   nombre de fichiers déjà publiés/encore en attente.
+   Il écrit un **audit de tentative** avant le premier fichier
+   métier restant.
+4. Le moteur d'import d'origine reprend ensuite normalement.
+   Le service de traçabilité relit la progression finale,
+   contrôle l'empreinte du journal métier, puis consigne un
+   **résultat indépendant**. Une interruption brutale ne
+   peut donc pas être présentée comme une reprise réussie.
+5. **Historique des décisions IA / confidentialité →
+   Historique des reprises → Afficher la reprise** montre
+   la date, le lot, son type, le projet, la progression
+   avant/après, les références et GUID des exigences et
+   le résultat obtenu. Aucun texte de réponse brute ni
+   contenu Markdown n'est chargé dans cette vue.
+
+### Journal et sémantique des états
+
+Dossiers locaux et exclus de Git :
+
+`<projet>/.nodalis-ai-import/recoveries/<attempt-guid-N>/`
+
+- `attempt.json` — écrit **seulement après validation humaine**,
+  immuable, contient l'identité du projet, le type de lot
+  (`title-batch` ou `mixed`), le nom canonique du
+  journal d'import, le SHA-256 exact de son `intent.json`,
+  la progression avant reprise et les références,
+  opérations `create/update` et GUID métier associés.
+- `outcome.json` — écrit ultérieurement **sans écrasement**,
+  indique `Applied`, `AlreadyApplied`, `Failed` ou
+  `NeedsInspection`, la date et les comptes après reprise
+  **seulement s'ils ont pu être vérifiés**.
+
+Un `attempt.json` **sans `outcome.json`** signifie
+*tentative confirmée, résultat inconnu ou interruption*,
+**jamais succès**.
+
+`Failed` signifie que le moteur a rencontré une erreur :
+**certains fichiers peuvent déjà avoir été publiés**.
+Le service tente de calculer le nombre encore en attente,
+mais si un document est divergent il note l'état final
+comme **non vérifiable** plutôt que d'inventer des comptes.
+
+`Applied` et `AlreadyApplied` ne sont conservés comme
+succès vérifiés que si le moteur a répondu ainsi ET si
+**tous les documents sont conformes** aux empreintes
+publiées, **zéro fichier restant**, les GUID et références
+sont identiques et l'`intent.json` n'a pas changé
+par rapport à la confirmation initiale.
+Si cette relecture échoue, le résultat est
+`NeedsInspection` (pas une réussite vérifiée).
+
+Une tentative et son résultat ne sont ni une nouvelle
+autorisation de l'IA, ni une modification des décisions
+initiales. Ils renvoient au **journal métier durable**.
+La journalisation n'appelle aucun LLM, ne copie pas
+les réponses brutes et ne provoque pas de reprise automatique.
+
+### Régressions et qualification
+
+`ProjectAiRecoveryHistorySmokeTests` simule, dans
+des projets fictifs, un premier fichier publié puis
+un arrêt, plusieurs tentatives distinctes, une
+interruption sans résultat, une édition externe
+bloquant la reprise, un résultat `Failed`
+sans affirmer l'absence de changement, une vraie
+reprise complète, un résultat vérifié, un journal
+modifié durant la reprise malgré tous les fichiers
+publiés (`NeedsInspection`), le refus d'écraser
+une preuve déjà écrite, l'isolation entre projets,
+les comptes des créations EXI dans un lot mixte
+et les audits JSON corrompus.
+
+À qualifier manuellement sur Windows : relancer
+l'application entre les tentatives ; ouvrir les
+éditeurs sur les deux panneaux pendant une reprise ;
+contrôler le retour d'erreur en cas de modification
+du fichier en parallèle ; vérifier l'affichage en
+DPI élevé et dans les thèmes sombre/clair.
+Un audit ne remplace pas un journal métier : la
+réparation manuelle d'un lot divergent reste distincte.
+
+Cette tranche de #197 n'autorise aucun merge de
+`develop` vers `main`, aucun tag, ni release.
