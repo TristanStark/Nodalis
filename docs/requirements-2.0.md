@@ -223,3 +223,61 @@ modifié.
 par l'import IA. Les changements manuels de Markdown n'écrivent pas
 encore de marqueur durable de requalification, et aucune preuve n'est
 vérifiée par cette analyse.
+
+
+## Suivi durable des modifications CA, y compris hors import IA (04/11/2026)
+
+Le registre EXI et la matrice de traçabilité disposent désormais
+d'un **suivi opt-in** indépendant du mécanisme d'import IA. Dans
+« Matrice de traçabilité des exigences », la commande
+**« Activer suivi CA… »** permet d'enregistrer, après confirmation
+explicite, les empreintes des critères identifiés.
+
+Un instantané portable, `baseline-000001.json`, est placé dans le
+dossier du projet `.nodalis-ca-baselines/`. Il enregistre les GUID
+CA et EXI, leurs références, le chemin d'origine, l'empreinte
+SHA-256 de la fiche, du titre et du corps du critère. **Le corps
+Markdown complet n'est pas dupliqué** dans cet historique.
+
+À chaque ouverture de la matrice, Nodalis recalcule l'état du
+projet et le compare au dernier instantané enregistré. Cette
+comparaison détecte donc une modification manuelle dans un
+éditeur Markdown, même si l'import IA n'est jamais utilisé.
+Les états sont indépendants des résultats de recette :
+`NotTracked`, `Unchanged`, `Changed`, `Added`,
+`Missing`, `Unresolved`.
+
+La matrice présente le nombre de changements, un filtre dédié
+« CA modifiés depuis référence » et les diagnostics de sources
+manquantes ou illisibles. Une exigence EXI devenue illisible
+n'est jamais interprétée comme un CA supprimé. Une modification
+étrangère au titre ou au corps du CA ne provoque pas de
+requalification artificielle.
+
+**« Acter nouvelle référence… »** nécessite un motif humain et
+conserve l'ancienne observation : `baseline-000002.json`,
+puis `baseline-000003.json`, etc. Les fichiers sont append-only,
+les séquences sont contrôlées et chaque observation référence
+l'empreinte du fichier précédent. Le service vérifie à nouveau
+les SHA des EXI et refuse un catalogue obsolète, une collision
+de GUID, un projet étranger/archivé, un journal invalide ou
+un enregistrement simultané. Aucun fichier EXI n'est écrit
+par cette fonctionnalité.
+
+Attention : **acter une référence CA ne vaut pas requalification
+d'un test ni approbation métier**. Cela fige uniquement un
+nouvel état d'observation. Si des critères ont changé, les
+tests concernés doivent être examinés et, si nécessaire,
+réexécutés via un nouveau passage REC. Les anciens verdicts,
+campagnes, liens, preuves et statuts ne sont jamais modifiés.
+
+Qualification Windows : activer sur un projet synthétique ;
+modifier directement un CA depuis un éditeur Markdown ;
+rouvrir la matrice et vérifier « Changed » ; modifier uniquement
+une autre rubrique EXI et vérifier « Unchanged » ; ajouter
+un CA et vérifier « Added » ; supprimer un GUID CA et
+vérifier « Missing » ; acter après revue et vérifier que
+l'ancien instantané reste lisible ; essayer depuis un
+projet archivé/lecture seule ; vérifier recherche/filtres
+et affichage en thème sombre. En absence de référence
+initiale, Nodalis doit afficher « non suivi », jamais « stable ».

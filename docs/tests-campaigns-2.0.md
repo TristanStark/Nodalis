@@ -269,3 +269,35 @@ Qualification Windows : un CA sans tests ; un test non exécuté ;
 un ancien résultat Passed ; plusieurs CA liés au même test ;
 source déplacée ; index et REC indisponibles ; changement
 concurrent ; refus de confirmation ; préservation de l'historique.
+
+
+## Requalification CA observable après édition directe (04/11/2026)
+
+La matrice EXI→CA→TEST présente désormais un **historique de
+références CA**, activé explicitement par l'utilisateur.
+Le service `ProjectCriterionBaselineService` stocke seulement
+les empreintes de titre et corps CA, et les identités stables
+des EXI/CA. Les références successives sont conservées dans
+`.nodalis-ca-baselines/baseline-000001.json`, etc.
+
+Une modification directe du Markdown d'un critère est donc
+détectable lors de la prochaine ouverture de la matrice,
+**à condition qu'une référence antérieure ait été enregistrée**.
+Cette indication sert à identifier les tests à revoir ; elle
+n'efface ni ne rectifie les passages de campagne. Des titres
+CA renommés gardent leur GUID ; des CA nouveaux ou disparus
+sont distingués, et un fichier EXI corrompu entraîne un état
+indéterminé, jamais une suppression automatique.
+
+L'action « Acter nouvelle référence… » exige une confirmation
+et un motif humain. Elle représente un nouvel état
+d'observation, **pas un verdict REC** ni une validation d'exigence.
+L'écriture est append-only, atomique, liée à la révision des EXI
+et conservatrice face aux collisions. Le stockage est local,
+portable et ne nécessite aucune IA.
+
+Les prochaines tranches pourront exploiter les CA marqués
+`Changed / Added / Missing` pour préparer une **sélection de
+reprise REC**. La réexécution, l'attribution d'un verdict,
+la vérification de preuves et toute décision de campagne
+restent explicitement humaines.
