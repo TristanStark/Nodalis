@@ -947,3 +947,65 @@ et falsification de `intent.json` ET `published.md`.
 IA, modification du corps de critères, import de verdicts
 et lot multichamps. Aucun merge, tag ni release 2.0
 avant CI au dernier HEAD et qualification visuelle Windows.
+
+## Nouvel incrément #197 — création contrôlée d'un critère CA (04/11/2026)
+
+Une proposition `nodalis.import.v1` peut désormais demander la
+**création** d'un critère, mais elle reste un document non fiable.
+Contrat d'entrée :
+
+- `kind = "criterion"`, `operation = "create"` ;
+- `targetId = GUID de l'**exigence parente EXI existante**` ;
+- `candidateReference` **absent** (une IA ne choisit jamais CA-xx) ;
+- `proposedFields.title` = titre proposé, jusqu'à 240 caractères ;
+- aucun statut, verdict, GUID futur ou approbation dans les champs IA.
+
+Le résolveur vérifie le parent dans le registre **du projet sélectionné**,
+sans repli par titre, référence ou `sourcePath` externes. L'utilisateur
+peut accepter ou corriger ce titre, puis préparer un plan **unitaire**.
+Les propositions acceptées de titres CA, descriptions EXI et créations
+de critères ne peuvent pas être combinées silencieusement dans les
+moteurs de publication précédents.
+
+Le bouton WPF **Créer 1 critère CA approuvé…** présente le titre
+approuvé et le prochain code CA libre, *calculé par Nodalis* dans le
+document EXI local après relecture de la source SHA-256. L'utilisateur
+confirme séparément. Le document Markdown ne doit pas rester ouvert
+dans l'éditeur.
+
+La transaction `ProjectAiCriterionCreateTransactionService` :
+
+1. Revalide projet actif, parent EXI, source SHA et **même prochain code
+   CA libre** sous un verrou local d'import ; aucune référence ni aucun
+   identifiant de bloc proposé par l'IA n'est utilisé.
+2. Attribue un nouveau GUID de bloc `nodalis:block` et réserve la
+   première référence libre `CA-01..CA-99` **dans cette EXI**, en
+   conservant tous les CA préexistants, même ceux sans GUID.
+3. Prépare le Markdown en mémoire, contrôle le frontmatter et la liste
+   des anciens critères, puis sauvegarde `original.md`,
+   `published.md`, `intent.json` **avant** le remplacement de
+   fichier atomique protégé par SHA-CAS.
+4. Reconstitue le seul résultat autorisé depuis le snapshot original
+   au replay : un snapshot publié et un journal aux SHA cohérents
+   mais à contenu non approuvé restent refusés.
+5. Enregistre une preuve `completed.json` après vérification de
+   publication ; une reprise identique est idempotente mais ne
+   **réinsère pas** le CA si un humain restaure ensuite l'EXI d'origine.
+
+Tous les journaux sont **locaux au projet**, sous
+`.nodalis-ai-import/criterion-create-<proposalId>/`.
+L'historique des choix humains et le résultat du moteur sont
+archivés séparément, sans réponse IA brute sauf opt-in explicite.
+
+Les tests synthétiques Windows couvrent : parent étranger, source périmée,
+référence CA concurrente, identifiants attribués par Nodalis,
+préservation des CA existants, audit et issue, reprise idempotente,
+restauration humaine, journal et instantané falsifiés. Les fichiers
+avec BOM UTF-8 sont refusés plutôt que réécrits implicitement.
+**Aucun verdict, statut, test, lien ni risque n'est modifié.**
+
+**Limites à qualifier :** interface WPF et ergonomie clavier/DPI,
+création de plusieurs critères depuis une seule réponse IA (un seul
+fichier par confirmation aujourd'hui), critères avec corps détaillé,
+ajout d'une définition de test et campagnes. Aucune qualification
+visuelle ni publication v2.0 n'est présumée de la réussite du CI.
