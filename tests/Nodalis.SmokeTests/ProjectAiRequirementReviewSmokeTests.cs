@@ -179,8 +179,8 @@ internal static class ProjectAiRequirementReviewSmokeTests
             descriptionReview.Fields.Single().Kind ==
                 ProjectAiFieldDifferenceKind.ConcurrentConflict &&
             descriptionReview.Warnings.Any(warning =>
-                warning.Contains("comparaison uniquement", StringComparison.Ordinal)),
-            "A description can expose genuine conflicts without enabling publication.");
+                warning.Contains("comparaison sans écriture", StringComparison.Ordinal)),
+            "A description may expose conflicts but never publishes upon comparison.");
 
         Guid stableCa = Guid.NewGuid();
         ProjectRequirementCriterion ca = new(
