@@ -344,10 +344,10 @@ public static class ProjectAiImportDecisionPlanner
                 ProjectAiFieldDifference? criterionDiff =
                     match.Fields.SingleOrDefault(item =>
                         item.Field == decision.Field);
-                string? actual = decision.Field == "title"
+                string? criterionCurrent = decision.Field == "title"
                     ? criterion.Title : criterion.Body;
-                if (criterionDiff is null || actual is null ||
-                    !string.Equals(criterionDiff.Current, actual,
+                if (criterionDiff is null || criterionCurrent is null ||
+                    !string.Equals(criterionDiff.Current, criterionCurrent,
                         StringComparison.Ordinal))
                 {
                     throw new InvalidDataException(
@@ -400,14 +400,14 @@ public static class ProjectAiImportDecisionPlanner
                             "Plusieurs descriptions IA ciblent le même bloc CA.");
                     }
 
-                    if (!string.Equals(approved, actual, StringComparison.Ordinal))
+                    if (!string.Equals(approved, criterionCurrent, StringComparison.Ordinal))
                     {
                         criterionBodies.Add(new ProjectAiPreparedCriterionBodyChange(
                             proposal.ProposalId, parent.Card.Id,
                             parent.Card.ProjectId, parent.Card.Reference,
                             criterionId, criterion.Reference,
                             parent.RelativePath, parent.SourceSha256,
-                            actual, approved, decision.Reason?.Trim()));
+                            criterionCurrent, approved, decision.Reason?.Trim()));
                     }
                 }
                 else
@@ -418,13 +418,13 @@ public static class ProjectAiImportDecisionPlanner
                             "Plusieurs titres IA ciblent le même bloc CA.");
                     }
 
-                    if (!string.Equals(approved, actual, StringComparison.Ordinal))
+                    if (!string.Equals(approved, criterionCurrent, StringComparison.Ordinal))
                     {
                         criterionTitles.Add(new ProjectAiPreparedCriterionTitleChange(
                             proposal.ProposalId, parent.Card.Id, parent.Card.ProjectId,
                             parent.Card.Reference, criterionId, criterion.Reference,
                             parent.RelativePath, parent.SourceSha256,
-                            actual, approved, decision.Reason?.Trim()));
+                            criterionCurrent, approved, decision.Reason?.Trim()));
                     }
                 }
 
