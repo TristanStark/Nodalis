@@ -107,10 +107,10 @@ public static class ProjectRequirementCriterionCreationCodec
                 entry.Title.Replace('’', '\''), "Critères d'acceptation",
                 StringComparison.OrdinalIgnoreCase));
         int sectionEnd = headings.Where(entry =>
-            entry.HeadingOffset > section.HeadingOffset && entry.Level <= 2)
-            .Select(entry => entry.HeadingOffset).DefaultIfEmpty(
+            entry.Offset > section.Offset && entry.Level <= 2)
+            .Select(entry => entry.Offset).DefaultIfEmpty(
                 markdown.Length).First();
-        int headingEnd = markdown.IndexOf('\n', section.HeadingOffset);
+        int headingEnd = markdown.IndexOf('\n', section.Offset);
         if (headingEnd < 0 || sectionEnd <= headingEnd)
         {
             throw new InvalidDataException("Section CA sans corps Markdown sûr.");
