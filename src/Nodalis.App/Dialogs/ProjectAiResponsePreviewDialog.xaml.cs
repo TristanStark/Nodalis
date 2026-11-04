@@ -1035,6 +1035,135 @@ public partial class ProjectAiResponsePreviewDialog : Window
     }
 
     /// <summary>
+    /// Publishes a single reviewed detailed CA body, never a test verdict or
+    /// autonomous AI decision. A different plan requires a fresh human review.
+    /// </summary>
+    /// <param name="sender">Explicit WPF publication command.</param>
+    /// <param name="e">User click.</param>
+    private async void PublishReviewedCriterionBody_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _preview is null || _comparisons is null ||
+            _preparedPlan is null || _preparedPlan.CriterionBodies.Count != 1 ||
+            _preparedPlan.Changes.Count != 0 || _preparedPlan.Creations.Count != 0 ||
+            _preparedPlan.Descriptions.Count != 0 ||
+            _preparedPlan.CriterionTitles.Count != 0 ||
+            _preparedPlan.CriterionCreations.Count != 0)
+        {
+            return;
+        }
+
+        ProjectAiPreparedReviewPlan expected = _preparedPlan;
+        try
+        {
+            ProjectAiPreparedReviewPlan current =
+                ProjectAiImportDecisionPlanner.Prepare(_preview,
+                    _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+            if (current.CriterionBodies.Count != 1 ||
+                current.Changes.Count != 0 || current.Creations.Count != 0 ||
+                current.Descriptions.Count != 0 ||
+                current.CriterionTitles.Count != 0 ||
+                current.CriterionCreations.Count != 0 ||
+                current.CriterionBodies[0] != expected.CriterionBodies[0] ||
+                current.RawResponseSha256 != expected.RawResponseSha256 ||
+                current.ReviewedFields != expected.ReviewedFields ||
+                current.IgnoredFields != expected.IgnoredFields ||
+                current.PendingFields != expected.PendingFields)
+            {
+                throw new InvalidDataException(
+                    "Revue du corps CA modifiée : préparer un nouveau plan.");
+            }
+
+            ProjectAiPreparedCriterionBodyChange body =
+                current.CriterionBodies.Single();
+            string target = new ProjectJourneySourceService(_workspaceRoot)
+                .ResolveExistingFile(body.RelativePath);
+            if (Application.Current.MainWindow is not Nodalis.App.MainWindow main ||
+                main.IsDocumentOpenForAiImport(target))
+            {
+                throw new InvalidDataException(
+                    "EXI ouverte ou éditeur principal indisponible : " +
+                    "enregistrer et fermer la fiche avant publication.");
+            }
+
+            string confirmation = "MODIFIER LE CORPS D'UN CRITÈRE CA" +
+                "\nExigence : " + body.Reference +
+                "\nCritère : " + body.CriterionReference +
+                "\nGUID stable : " + body.CriterionId.ToString("D") +
+                "\nFichier : " + body.RelativePath +
+                "\nEmpreinte source : " + body.ExpectedSha256 +
+                "\nTexte actuel : " + body.CurrentBody.Length + " caractères." +
+                "\nTexte retenu : " + body.ReviewedBody.Length + " caractères." +
+                "\n\nLe contenu complet AVANT/APRÈS est affiché dans le " +
+                "panneau « Plan de qualification » : vérifiez-le avant Oui." +
+                "\n\nSeul ce corps Markdown sera modifié. Les autres CA, " +
+                "leurs GUID, leurs titres, les états, liens et verdicts " +
+                "restent inchangés." +
+                "\nDeux instantanés de l'EXI et une intention durable " +
+                "seront conservés avant l'écriture SHA-CAS." +
+                "\n\n" + (ArchiveRawResponseCheck.IsChecked == true
+                    ? "La réponse IA brute sera également archivée."
+                    : "La réponse IA brute ne sera PAS archivée.") +
+                "\n\nConfirmer cette seule publication ?";
+            if (MessageBox.Show(this, confirmation,
+                "Import IA · approuver le contenu CA",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            _busy = true;
+            _publishing = true;
+            UpdateButtons();
+            try
+            {
+                (ProjectAiTitleCommitStatus result, string? auditWarning) =
+                    await PublishWithAuditAsync(current, "criterion-body",
+                        "criterion-body-" + body.ProposalId.ToString("N"),
+                        () => new ProjectAiCriterionBodyImportTransactionService(
+                            _workspaceRoot).CommitAsync(_projectDirectory, current));
+                _comparisons = null;
+                ClearDecisions();
+                ShowSelectedDetails();
+                PlanTextBox.Text = "Corps CA " + result +
+                    " : recharger le Markdown avant toute nouvelle revue.";
+                StatusText.Text = result == ProjectAiTitleCommitStatus.AlreadyApplied
+                    ? "Contenu CA déjà appliqué, journal conforme."
+                    : "Contenu CA publié après vérification de source, " +
+                      "confirmation humaine et journal SHA-256.";
+                if (auditWarning is not null)
+                {
+                    StatusText.Text += "\n" + auditWarning;
+                }
+
+                MessageBox.Show(this, StatusText.Text,
+                    "Import IA · contenu CA", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            finally
+            {
+                _busy = false;
+                _publishing = false;
+                UpdateButtons();
+            }
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            _preparedPlan = null;
+            StatusText.Text = "Contenu CA non publié : " + exception.Message +
+                "\nEn cas d'interruption, inspecter le journal " +
+                "avant toute nouvelle qualification.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · contenu CA bloqué",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
     /// Publishes one previously reviewed CA title after a human confirms the
     /// exact local criterion, source file and before/after text.
     /// </summary>
