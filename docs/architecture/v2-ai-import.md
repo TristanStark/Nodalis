@@ -669,7 +669,8 @@ Chaque capture est enregistrée dans
   publication a réellement été tentée et le résultat enregistré.
 
 Les tentatives de publication ont une référence déterministe
-`TransactionKey` vers le **journal existant** :
+`TransactionKey` vers le **nom prévu du journal** (ce journal peut
+ne pas exister si le contrôle préliminaire refuse toute publication) :
 `<proposalGuid-N>`, `batch-<SHA>`, ou `mixed-<SHA>`.
 La revue **ne suffit pas à affirmer qu'un EXI a été publié**.
 Les résultats sont conservés dans un **fichier indépendant,
