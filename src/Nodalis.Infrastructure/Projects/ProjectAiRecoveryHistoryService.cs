@@ -425,7 +425,8 @@ public sealed class ProjectAiRecoveryHistoryService
             return (preview.ProjectId,
                 preview.Files.Select(item => new ProjectAiRecoveryTarget
                 {
-                    Reference = item.Reference, Operation = "update",
+                    Reference = item.Reference,
+                    Operation = "update",
                     RequirementId = item.RequirementId
                 }).ToArray(), preview.Published, preview.Pending);
         }
@@ -436,7 +437,8 @@ public sealed class ProjectAiRecoveryHistoryService
         return (mixed.ProjectId,
             mixed.Entries.Select(item => new ProjectAiRecoveryTarget
             {
-                Reference = item.Reference, Operation = item.Operation,
+                Reference = item.Reference,
+                Operation = item.Operation,
                 RequirementId = item.RequirementId
             }).ToArray(), mixed.Published, mixed.Pending);
     }
