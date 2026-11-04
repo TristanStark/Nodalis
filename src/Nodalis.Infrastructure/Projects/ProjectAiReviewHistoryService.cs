@@ -66,7 +66,7 @@ public sealed record ProjectAiReviewAudit
     public string? RawArchiveSha256 { get; init; }
     /// <summary>review-only, title, create, title-batch or mixed.</summary>
     public required string Action { get; init; }
-    /// <summary>Exact existing journal folder name for a publication attempt.</summary>
+    /// <summary>Planned local journal folder; it may not exist after preflight refusal.</summary>
     public string? TransactionKey { get; init; }
     /// <summary>Number of explicitly human-disposed fields.</summary>
     public required int ReviewedFields { get; init; }
@@ -122,7 +122,7 @@ public sealed class ProjectAiReviewHistoryService
 
     /// <summary>
     /// Persists every explicit and pending field decision once, including a
-    /// pointer to an existing import transaction if this was a confirmation.
+    /// deterministic import journal name if publication was confirmed.
     /// A raw copy requires archiveRaw = true and a matching exact response.
     /// No business EXI or external network is ever written or accessed here.
     /// </summary>
@@ -575,7 +575,7 @@ public sealed class ProjectAiReviewHistoryService
         return manifest.Id;
     }
 
-    /// <summary>Restricts audit labels to existing, local journal names.</summary>
+    /// <summary>Restricts action labels to canonical, deterministic local journal names.</summary>
     private static bool AllowedAction(string action,
         ProjectAiPreparedReviewPlan plan, string? key)
     {
