@@ -92,6 +92,7 @@ try
     ProjectAiRequirementReviewSmokeTests.Run();
     ProjectAiImportDecisionSmokeTests.Run();
     await ProjectAiReviewHistorySmokeTests.RunAsync(root);
+    await ProjectAiRecoveryHistorySmokeTests.RunAsync(root);
     await ProjectAiTitleImportTransactionSmokeTests.RunAsync(root);
     await ProjectAiBatchTitleImportSmokeTests.RunAsync(root);
     await ProjectAiMixedImportSmokeTests.RunAsync(root);
