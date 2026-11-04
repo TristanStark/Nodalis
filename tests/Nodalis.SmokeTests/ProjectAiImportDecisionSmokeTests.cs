@@ -325,6 +325,83 @@ internal static class ProjectAiImportDecisionSmokeTests
                     ProjectAiFieldDecisionKind.Accept)
             ]), "AI-assigned CA codes must be refused during planning.");
 
+        ProjectAiImportCandidate bodyProposal = caProposal with
+        {
+            ProposalId = Guid.NewGuid(),
+            BaseFields = new Dictionary<string, string>
+            {
+                ["description"] = "Texte de base"
+            },
+            ProposedFields = new Dictionary<string, string>
+            {
+                ["description"] = "Procédure observable"
+            }
+        };
+        ProjectAiResponsePreview bodyPreview = caPreview with
+        {
+            Document = caPreview.Document with
+            {
+                Proposals = [bodyProposal]
+            }
+        };
+        ProjectRequirementCatalog bodyCatalog = caCatalog with
+        {
+            Requirements =
+            [
+                first with
+                {
+                    Criteria = [new ProjectRequirementCriterion(
+                        "CA-01", "Condition actuelle", criterionId, 15, true)
+                    {
+                        Body = "Texte humain actuel"
+                    }]
+                },
+                second
+            ]
+        };
+        IReadOnlyList<ProjectAiRequirementReview> bodyReviews =
+            ProjectAiRequirementReviewService.Compare(bodyPreview, bodyCatalog);
+        Reject(() => ProjectAiImportDecisionPlanner.Prepare(
+            bodyPreview, bodyReviews,
+            [
+                new ProjectAiFieldDecision(bodyProposal.ProposalId,
+                    "description", ProjectAiFieldDecisionKind.Accept)
+            ]), "Concurrent CA body requires a separate human justification.");
+        ProjectAiPreparedReviewPlan bodyPlan =
+            ProjectAiImportDecisionPlanner.Prepare(
+                bodyPreview, bodyReviews,
+                [
+                    new ProjectAiFieldDecision(bodyProposal.ProposalId,
+                        "description", ProjectAiFieldDecisionKind.Edit,
+                        "Texte CA retenu\n\n#### Détail",
+                        "Conflit analysé et accepté.")
+                ]);
+        Assert(bodyPlan.CriterionBodies.Count == 1 &&
+            bodyPlan.CriterionBodies.Single().CurrentBody ==
+                "Texte humain actuel" &&
+            bodyPlan.CriterionBodies.Single().ReviewedBody ==
+                "Texte CA retenu\n\n#### Détail" &&
+            bodyPlan.CriterionTitles.Count == 0 &&
+            bodyPlan.CriterionCreations.Count == 0 &&
+            bodyPlan.Changes.Count == 0,
+            "CA body changes must have their own inert, SHA-pinned review plan.");
+        Reject(() => ProjectAiImportDecisionPlanner.Prepare(
+            bodyPreview, bodyReviews,
+            [
+                new ProjectAiFieldDecision(bodyProposal.ProposalId,
+                    "description", ProjectAiFieldDecisionKind.Edit,
+                    "## Injection", "Décision humaine.")
+            ]), "Review plan must reject structural Markdown injection.");
+        IReadOnlyList<ProjectAiRequirementReview> unresolved =
+            ProjectAiRequirementReviewService.Compare(bodyPreview, caCatalog);
+        Reject(() => ProjectAiImportDecisionPlanner.Prepare(
+            bodyPreview, unresolved,
+            [
+                new ProjectAiFieldDecision(bodyProposal.ProposalId,
+                    "description", ProjectAiFieldDecisionKind.Accept,
+                    Reason: "Je confirme.")
+            ]), "Unresolved local CA body cannot be approved as empty text.");
+
         ProjectAiImportCandidate sameTarget = one with
         {
             ProposalId = Guid.NewGuid(),

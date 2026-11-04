@@ -1,4 +1,5 @@
 using Nodalis.Core.Importing;
+using Nodalis.Core.Markdown;
 using Nodalis.Core.Requirements;
 
 namespace Nodalis.Infrastructure.Projects;
@@ -83,6 +84,27 @@ public sealed record ProjectAiPreparedCriterionTitleChange(
     string? Reason);
 
 /// <summary>
+/// One inert, SHA-bound proposal to change the Markdown body of a stable CA.
+/// This contains no verdict, approval status, link creation or model-assigned ID.
+/// </summary>
+/// <param name="ProposalId">External candidate key for audit only.</param>
+/// <param name="RequirementId">Canonical parent EXI GUID.</param>
+/// <param name="ProjectId">Authoritative project manifest GUID.</param>
+/// <param name="Reference">Canonical EXI code.</param>
+/// <param name="CriterionId">Existing stable block GUID.</param>
+/// <param name="CriterionReference">Local CA-xx reference.</param>
+/// <param name="RelativePath">Canonical source path.</param>
+/// <param name="ExpectedSha256">Exact Markdown SHA from the review.</param>
+/// <param name="CurrentBody">Bounded local field text reviewed by the human.</param>
+/// <param name="ReviewedBody">Human-approved replacement body.</param>
+/// <param name="Reason">Human justification for unknown/concurrent base.</param>
+public sealed record ProjectAiPreparedCriterionBodyChange(
+    Guid ProposalId, Guid RequirementId, Guid ProjectId, string Reference,
+    Guid CriterionId, string CriterionReference, string RelativePath,
+    string ExpectedSha256, string CurrentBody, string ReviewedBody,
+    string? Reason);
+
+/// <summary>
 /// Inert, human-approved request to append one new CA to an existing EXI.
 /// The CA reference and persistent block GUID are allocated only by Nodalis
 /// after a separate preflight, never accepted from the external model.
@@ -148,6 +170,13 @@ public sealed record ProjectAiPreparedReviewPlan(
     { get; init; } = [];
 
     /// <summary>
+    /// CA Markdown-body edits are independent of both CA-title and
+    /// requirement-field publications until specifically confirmed.
+    /// </summary>
+    public IReadOnlyList<ProjectAiPreparedCriterionBodyChange> CriterionBodies
+    { get; init; } = [];
+
+    /// <summary>
     /// Explicit proposals for CA creation are never applied by any existing
     /// title/description/requirement transaction without a dedicated journal.
     /// </summary>
@@ -206,9 +235,11 @@ public static class ProjectAiImportDecisionPlanner
         HashSet<(Guid, string)> reviewed = [];
         HashSet<Guid> alreadyTargeted = [];
         HashSet<Guid> targetedCriteria = [];
+        HashSet<Guid> targetedBodies = [];
         HashSet<Guid> createdInParents = [];
         List<ProjectAiPreparedCriterionCreation> criterionCreations = [];
         List<ProjectAiPreparedCriterionTitleChange> criterionTitles = [];
+        List<ProjectAiPreparedCriterionBodyChange> criterionBodies = [];
         List<ProjectAiPreparedTitleChange> changes = [];
         List<ProjectAiPreparedDescriptionChange> descriptions = [];
         List<ProjectAiPreparedRequirementCreation> creations = [];
@@ -290,7 +321,7 @@ public static class ProjectAiImportDecisionPlanner
             if (proposal.Kind == "criterion")
             {
                 if (proposal.Operation != "update" ||
-                    decision.Field != "title" ||
+                    decision.Field is not ("title" or "description") ||
                     match.Status != ProjectAiRequirementMatchStatus
                         .CriterionGuidMatch ||
                     match.Requirement is not ProjectRequirementEntry parent ||
@@ -311,9 +342,12 @@ public static class ProjectAiImportDecisionPlanner
                 }
 
                 ProjectAiFieldDifference? criterionDiff =
-                    match.Fields.SingleOrDefault(item => item.Field == "title");
-                if (criterionDiff is null ||
-                    !string.Equals(criterionDiff.Current, criterion.Title,
+                    match.Fields.SingleOrDefault(item =>
+                        item.Field == decision.Field);
+                string? actual = decision.Field == "title"
+                    ? criterion.Title : criterion.Body;
+                if (criterionDiff is null || actual is null ||
+                    !string.Equals(criterionDiff.Current, actual,
                         StringComparison.Ordinal))
                 {
                     throw new InvalidDataException(
@@ -322,15 +356,31 @@ public static class ProjectAiImportDecisionPlanner
 
                 string approved = decision.Kind == ProjectAiFieldDecisionKind.Edit
                     ? decision.EditedValue!
-                    : proposal.ProposedFields["title"];
-                if (string.IsNullOrWhiteSpace(approved) ||
-                    approved != approved.Trim() || approved.Length > 240 ||
-                    approved.Any(char.IsControl) ||
-                    approved.StartsWith('#') || approved.EndsWith('#') ||
-                    approved.Contains("<!--", StringComparison.Ordinal))
+                    : proposal.ProposedFields[decision.Field];
+                if (decision.Field == "title")
+                {
+                    if (string.IsNullOrWhiteSpace(approved) ||
+                        approved != approved.Trim() || approved.Length > 240 ||
+                        approved.Any(char.IsControl) ||
+                        approved.StartsWith('#') || approved.EndsWith('#') ||
+                        approved.Contains("<!--", StringComparison.Ordinal))
+                    {
+                        throw new InvalidDataException(
+                            "Titre CA approuvé invalide : 240 caractères, une ligne.");
+                    }
+                }
+                else if (approved.Length > 8000 ||
+                    approved != approved.Trim('\n') ||
+                    approved.Contains('\r') || approved.Contains('\0') ||
+                    approved.Contains('\uFEFF') ||
+                    approved.Contains("<!-- nodalis:block:",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    MarkdownOutlineParser.Parse(approved).Any(item =>
+                        item.Level <= 3))
                 {
                     throw new InvalidDataException(
-                        "Titre CA approuvé invalide : 240 caractères, une seule ligne.");
+                        "Corps CA approuvé invalide : 8000 caractères, " +
+                        "LF et titres Markdown H4+ uniquement.");
                 }
 
                 if (criterionDiff.Kind is
@@ -342,20 +392,40 @@ public static class ProjectAiImportDecisionPlanner
                         "Titre CA concurrent ou base inconnue : justification requise.");
                 }
 
-                if (!targetedCriteria.Add(criterionId))
+                if (decision.Field == "description")
                 {
-                    throw new InvalidDataException(
-                        "Plusieurs modifications IA ciblent le même bloc CA.");
-                }
+                    if (!targetedBodies.Add(criterionId))
+                    {
+                        throw new InvalidDataException(
+                            "Plusieurs descriptions IA ciblent le même bloc CA.");
+                    }
 
-                if (!string.Equals(approved, criterion.Title,
-                    StringComparison.Ordinal))
+                    if (!string.Equals(approved, actual, StringComparison.Ordinal))
+                    {
+                        criterionBodies.Add(new ProjectAiPreparedCriterionBodyChange(
+                            proposal.ProposalId, parent.Card.Id,
+                            parent.Card.ProjectId, parent.Card.Reference,
+                            criterionId, criterion.Reference,
+                            parent.RelativePath, parent.SourceSha256,
+                            actual, approved, decision.Reason?.Trim()));
+                    }
+                }
+                else
                 {
-                    criterionTitles.Add(new ProjectAiPreparedCriterionTitleChange(
-                        proposal.ProposalId, parent.Card.Id, parent.Card.ProjectId,
-                        parent.Card.Reference, criterionId, criterion.Reference,
-                        parent.RelativePath, parent.SourceSha256,
-                        criterion.Title, approved, decision.Reason?.Trim()));
+                    if (!targetedCriteria.Add(criterionId))
+                    {
+                        throw new InvalidDataException(
+                            "Plusieurs titres IA ciblent le même bloc CA.");
+                    }
+
+                    if (!string.Equals(approved, actual, StringComparison.Ordinal))
+                    {
+                        criterionTitles.Add(new ProjectAiPreparedCriterionTitleChange(
+                            proposal.ProposalId, parent.Card.Id, parent.Card.ProjectId,
+                            parent.Card.Reference, criterionId, criterion.Reference,
+                            parent.RelativePath, parent.SourceSha256,
+                            actual, approved, decision.Reason?.Trim()));
+                    }
                 }
 
                 continue;
@@ -493,6 +563,7 @@ public static class ProjectAiImportDecisionPlanner
             Creations = creations,
             Descriptions = descriptions,
             CriterionTitles = criterionTitles,
+            CriterionBodies = criterionBodies,
             CriterionCreations = criterionCreations
         };
     }
