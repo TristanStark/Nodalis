@@ -342,6 +342,34 @@ internal static class ProjectAiRequirementReviewSmokeTests
             ProjectAiRequirementMatchStatus.NotFound,
             "A CA GUID cannot be mistaken for an EXI parent GUID.");
 
+        // The v1 envelope explicitly permits 100 independently reviewable
+        // proposals. Mixed EXI GUID/reference and CA GUID paths should use
+        // shared indexes and never infer an approval or perform disk I/O.
+        List<ProjectAiImportCandidate> hundred = [];
+        for (int number = 0; number < 25; number++)
+        {
+            hundred.Add(byGuid with { ProposalId = Guid.NewGuid() });
+            hundred.Add(byRef with { ProposalId = Guid.NewGuid() });
+            hundred.Add(caCandidate with { ProposalId = Guid.NewGuid() });
+            hundred.Add(unknownId with { ProposalId = Guid.NewGuid() });
+        }
+
+        IReadOnlyList<ProjectAiRequirementReview> bulk =
+            ProjectAiRequirementReviewService.Compare(
+                Preview(hundred.ToArray()), caCatalog);
+        Assert(bulk.Count == 100 &&
+            bulk.Count(item => item.Status ==
+                ProjectAiRequirementMatchStatus.GuidMatch) == 25 &&
+            bulk.Count(item => item.Status ==
+                ProjectAiRequirementMatchStatus.ReferenceMatch) == 25 &&
+            bulk.Count(item => item.Status ==
+                ProjectAiRequirementMatchStatus.CriterionGuidMatch) == 25 &&
+            bulk.Count(item => item.Status ==
+                ProjectAiRequirementMatchStatus.NotFound) == 25 &&
+            bulk.All(item => item.Fields.Count <= 1),
+            "A full 100-proposal mixed AI response must resolve deterministically " +
+            "without ambiguous matching or implicit publication.");
+
         ProjectRequirementCatalog duplicates = new(
             [first, first], ["GUID dupliqué."], null);
         ProjectAiRequirementReview duplicate =
