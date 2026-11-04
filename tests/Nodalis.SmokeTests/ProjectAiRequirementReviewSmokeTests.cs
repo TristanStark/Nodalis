@@ -18,6 +18,31 @@ internal static class ProjectAiRequirementReviewSmokeTests
         ProjectRequirementCatalog catalog = new(
             [first, second], [], "EXI-0003");
 
+        string canonical = ProjectRequirementMarkdownCodec.Format(first.Card)
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        string body = canonical.Replace("## Description vérifiable\n\n",
+            "## Description vérifiable\n\nTexte local\n\n### Détail\n\nPrécision\n\n",
+            StringComparison.Ordinal);
+        Assert(ProjectRequirementDescriptionCodec.Extract(body) ==
+                "Texte local\n\n### Détail\n\nPrécision",
+            "Description preview must preserve subheadings but stop at the next H2.");
+        string fenced = body.Replace("## Description vérifiable\n\n",
+            "## Description vérifiable\n\n~~~markdown\n## Faux titre\n~~~\n\n",
+            StringComparison.Ordinal);
+        Assert(ProjectRequirementDescriptionCodec.Extract(fenced)?.Contains(
+                "## Faux titre", StringComparison.Ordinal) == true,
+            "A heading inside a fenced block must remain body text.");
+        Assert(ProjectRequirementDescriptionCodec.Extract(
+                body + "\n## Description vérifiable\n") is null,
+            "Duplicate canonical sections must never yield an apparent local value.");
+        Assert(ProjectRequirementDescriptionCodec.Extract(
+                new string('x', 9000) + body) is not null,
+            "Unrelated leading text cannot silently alter a bounded section.");
+        Assert(ProjectRequirementDescriptionCodec.Extract(
+                body.Replace("Texte local", new string('x', 8001),
+                    StringComparison.Ordinal)) is null,
+            "Oversized descriptions must not enter field-by-field UI comparisons.");
+
         ProjectAiImportCandidate byGuid = Candidate(
             "update", first.Card.Id, "EXI-0001", "Titre proposé",
             "Titre à la préparation");
@@ -92,6 +117,34 @@ internal static class ProjectAiRequirementReviewSmokeTests
             reviews[10].Warnings.Any(item => item.Contains("description",
                 StringComparison.Ordinal)),
             "Unsupported fields must never receive a fabricated local diff.");
+
+        ProjectAiImportCandidate proposedDescription = Candidate(
+            "update", first.Card.Id, "EXI-0001", "Titre inchangé", null)
+            with
+            {
+                ProposedFields = new Dictionary<string, string>
+                {
+                    ["description"] = "Texte proposé"
+                },
+                BaseFields = new Dictionary<string, string>
+                {
+                    ["description"] = "Texte ancien"
+                }
+            };
+        ProjectRequirementCatalog describedCatalog = new(
+            [first with { Description = "Texte local" }, second], [],
+            "EXI-0003");
+        ProjectAiRequirementReview descriptionReview =
+            ProjectAiRequirementReviewService.Compare(
+                Preview(proposedDescription), describedCatalog).Single();
+        Assert(descriptionReview.Fields.Count == 1 &&
+            descriptionReview.Fields.Single().Field == "description" &&
+            descriptionReview.Fields.Single().Current == "Texte local" &&
+            descriptionReview.Fields.Single().Kind ==
+                ProjectAiFieldDifferenceKind.ConcurrentConflict &&
+            descriptionReview.Warnings.Any(warning =>
+                warning.Contains("comparaison uniquement", StringComparison.Ordinal)),
+            "A description can expose genuine conflicts without enabling publication.");
 
         ProjectRequirementCatalog duplicates = new(
             [first, first], ["GUID dupliqué."], null);

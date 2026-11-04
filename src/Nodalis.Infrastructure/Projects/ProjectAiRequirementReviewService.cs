@@ -45,7 +45,8 @@ public static class ProjectAiRequirementReviewService
     /// <summary>
     /// Projects at most 100 previously validated candidates against an
     /// authoritative, project-owned catalog. Only the canonical requirement
-    /// title is supported for three-way comparison in this increment.
+    /// title can be approved; description is compared read-only when the
+    /// source contains one unambiguous canonical Markdown section.
     /// </summary>
     /// <param name="preview">Validated external response preview.</param>
     /// <param name="catalog">Catalog obtained for the selected project alone.</param>
@@ -166,12 +167,31 @@ public static class ProjectAiRequirementReviewService
             proposed["title"] = title;
         }
 
+        if (candidate.ProposedFields.TryGetValue("description",
+                out string? description) &&
+            match.Description is string localDescription)
+        {
+            current["description"] = localDescription;
+            proposed["description"] = description;
+            warnings.Add("Description vérifiable : comparaison uniquement. " +
+                "La publication de ce champ n'est pas encore autorisée.");
+            if (candidate.BaseFields.TryGetValue("description",
+                    out string? declaredDescription) &&
+                !string.Equals(declaredDescription, localDescription,
+                    StringComparison.Ordinal))
+            {
+                warnings.Add("La base déclarée de la description diffère " +
+                    "du Markdown local : conflit à examiner.");
+            }
+        }
+
         ProjectAiFieldDifference[] differences = ProjectAiThreeWayDiff.Compare(
             candidate.BaseFields, current, proposed).ToArray();
         foreach (string field in candidate.ProposedFields.Keys.OrderBy(
             key => key, StringComparer.Ordinal))
         {
-            if (field != "title")
+            if (field != "title" &&
+                !(field == "description" && match.Description is not null))
             {
                 warnings.Add("Champ « " + field + " » : état local non résolu, " +
                     "aucun diff fiable ni écriture possible.");

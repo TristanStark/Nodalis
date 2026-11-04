@@ -823,3 +823,26 @@ réparation manuelle d'un lot divergent reste distincte.
 
 Cette tranche de #197 n'autorise aucun merge de
 `develop` vers `main`, aucun tag, ni release.
+
+## Dixième incrément — comparaison locale des descriptions EXI (04/11/2026)
+
+Lorsqu'une réponse externe propose un champ `description` sur une
+exigence existante, le registre lit **dans le même instantané Markdown**
+que le titre et l'empreinte SHA-256 la section
+`## Description vérifiable`. La vue de revue affiche désormais la
+**comparaison à trois voies** (base IA déclarée, texte local, proposition)
+et signale les conflits. Le texte Markdown local est extrait en lecture
+seule, hors blocs de code balisés ; les sous-sections restent visibles.
+
+Une section absente, dupliquée, malformée ou de plus de 8 000 caractères
+est **non résolue** : aucun diff local fiable n'est présenté. Les valeurs
+générées ne sont jamais utilisées comme texte local de substitution.
+La comparaison est strictement **consultative** : les boutons
+Accepter/Modifier et le plan de publication restent réservés au titre.
+Les descriptions, critères, statuts et validations ne sont toujours
+**pas modifiés** par l'import IA. La publication des descriptions demandera
+un service de transaction séparé et une qualification humaine complète.
+
+Tests de non-régression : section Markdown, sous-titres H3, titre H2 dans
+un bloc de code, doublon, taille maximale, conflit de base déclaré, et
+refus d'approuver une description dans le plan actuel.

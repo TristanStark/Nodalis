@@ -20,6 +20,12 @@ public sealed record ProjectRequirementEntry(
 
     /// <summary>Missing or ambiguous local CA identity diagnostics.</summary>
     public IReadOnlyList<string> CriterionDiagnostics { get; init; } = [];
+
+    /// <summary>
+    /// Bounded Markdown description from the same SHA-pinned source snapshot.
+    /// Null means the section cannot be uniquely and safely identified.
+    /// </summary>
+    public string? Description { get; init; }
 }
 
 /// <summary>Read-only computed view; invalid files are diagnostics, never migrated.</summary>
@@ -229,7 +235,8 @@ public sealed class ProjectRequirementRegistryService
                     Convert.ToHexString(SHA256.HashData(bytes)))
                 {
                     Criteria = criteria.Criteria,
-                    CriterionDiagnostics = criteria.Diagnostics
+                    CriterionDiagnostics = criteria.Diagnostics,
+                    Description = ProjectRequirementDescriptionCodec.Extract(markdown)
                 });
             }
             catch (Exception exception) when (

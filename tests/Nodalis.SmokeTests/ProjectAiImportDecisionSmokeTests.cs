@@ -130,6 +130,40 @@ internal static class ProjectAiImportDecisionSmokeTests
                 ProjectAiFieldDecisionKind.Accept)
         ]), "Invented fields cannot be introduced through the review UI.");
 
+        ProjectAiImportCandidate descriptionOnly = one with
+        {
+            ProposalId = Guid.NewGuid(),
+            ProposedFields = new Dictionary<string, string>
+            {
+                ["description"] = "Texte IA"
+            },
+            BaseFields = new Dictionary<string, string>
+            {
+                ["description"] = "Texte local"
+            }
+        };
+        ProjectAiResponsePreview descriptionPreview = preview with
+        {
+            Document = preview.Document with
+            {
+                Proposals = [descriptionOnly]
+            }
+        };
+        ProjectRequirementCatalog descriptionCatalog = new(
+            [first with { Description = "Texte local" }, second], [],
+            "EXI-0003");
+        IReadOnlyList<ProjectAiRequirementReview> descriptionReviews =
+            ProjectAiRequirementReviewService.Compare(
+                descriptionPreview, descriptionCatalog);
+        Assert(descriptionReviews.Single().Fields.Single().Field == "description",
+            "The local description comparison must be visible for review.");
+        Reject(() => ProjectAiImportDecisionPlanner.Prepare(
+            descriptionPreview, descriptionReviews,
+            [
+                new ProjectAiFieldDecision(descriptionOnly.ProposalId,
+                    "description", ProjectAiFieldDecisionKind.Accept)
+            ]), "A read-only description comparison cannot authorize publication.");
+
         ProjectAiImportCandidate sameTarget = one with
         {
             ProposalId = Guid.NewGuid(),
