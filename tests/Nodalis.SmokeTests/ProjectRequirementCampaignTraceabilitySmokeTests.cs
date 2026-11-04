@@ -212,6 +212,25 @@ internal static class ProjectRequirementCampaignTraceabilitySmokeTests
             "A linked but never executed test must still be recommended for " +
             "human review, without fabricating an outcome.");
 
+        ProjectTestCampaignCatalog unavailableCatalog = emptyCatalog with
+        {
+            Diagnostics = ["Registre REC temporairement indisponible."]
+        };
+        ProjectRequirementCampaignOverview incompleteHistory =
+            ProjectRequirementCampaignTraceability.Build(
+                links, unavailableCatalog);
+        ProjectCriterionChangeImpactOverview incompleteImpact =
+            ProjectCriterionChangeImpact.Build(projectId, card.Id, criterionId,
+                requirement.SourceSha256, links, incompleteHistory);
+        Assert(incompleteImpact.Kind ==
+                ProjectCriterionChangeImpactKind.LinkedWithoutResult &&
+            incompleteImpact.Diagnostics.Count == 1 &&
+            incompleteImpact.Describe().Contains(
+                "Inventaire REC potentiellement incomplet",
+                StringComparison.Ordinal),
+            "An unavailable REC catalog cannot masquerade as a complete " +
+            "history proving no earlier human result.");
+
         ProjectRequirementTraceabilityOverview sharedTest = links with
         {
             Rows =
