@@ -202,7 +202,7 @@ public sealed class ProjectAiRecoveryHistoryService
             Path.GetFullPath(projectDirectory));
         ProjectAiRecoveryAttempt attempt = await ReadAsync(
             project, attemptId, token);
-        string key = attempt.TransactionKey[(attempt.Kind == "mixed" ? 6 : 6)..];
+        string key = attempt.TransactionKey[6..];
         int? published = null;
         int? pending = null;
         bool verified = false;
