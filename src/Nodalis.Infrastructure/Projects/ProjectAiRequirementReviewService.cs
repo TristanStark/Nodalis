@@ -78,6 +78,11 @@ public static class ProjectAiRequirementReviewService
                 .ToDictionary(group => group.Key, group => group.ToArray(),
                     StringComparer.Ordinal);
 
+        // The selected project ownership invariant is computed once,
+        // including for AI responses containing many CA-creation candidates.
+        bool catalogOwnedByProject = catalog.Requirements.All(item =>
+            item.Card.ProjectId == catalog.ProjectId);
+
         // A criterion CA-01 is only project-local within its parent EXI.
         // Build one GUID index across the selected project's canonical
         // registry rather than scanning all Markdown for each AI proposal.
@@ -113,7 +118,7 @@ public static class ProjectAiRequirementReviewService
         {
             ProjectAiRequirementReview comparison = candidate.Kind == "criterion"
                 ? ResolveCriterion(candidate, catalog, criterionIndex,
-                    requirementsById)
+                    requirementsById, catalogOwnedByProject)
                 : Resolve(candidate, catalog, requirementsById,
                     requirementsByReference);
             reviews.Add(comparison with
@@ -133,12 +138,15 @@ public static class ProjectAiRequirementReviewService
     /// <param name="candidate">Untrusted external criterion candidate.</param>
     /// <param name="catalog">Canonical project-scoped requirement catalog.</param>
     /// <param name="index">Indexed CA GUIDs including invalid duplicates.</param>
+    /// <param name="requirementsById">Duplicate-aware parent EXI GUID index.</param>
+    /// <param name="catalogOwnedByProject">One verified owner check per comparison.</param>
     /// <returns>Read-only comparison; no publication capability.</returns>
     private static ProjectAiRequirementReview ResolveCriterion(
         ProjectAiImportCandidate candidate, ProjectRequirementCatalog catalog,
         IReadOnlyDictionary<Guid, List<(ProjectRequirementEntry Parent,
             ProjectRequirementCriterion Criterion)>> index,
-        IReadOnlyDictionary<Guid, ProjectRequirementEntry[]> requirementsById)
+        IReadOnlyDictionary<Guid, ProjectRequirementEntry[]> requirementsById,
+        bool catalogOwnedByProject)
     {
         List<string> warnings = [];
         if (candidate.Operation == "create")
@@ -159,8 +167,7 @@ public static class ProjectAiRequirementReviewService
                     out ProjectRequirementEntry[]? existingParents)
                     ? existingParents : [];
             if (parents.Length != 1 || index.ContainsKey(parentId) ||
-                catalog.Requirements.Any(item => item.Card.ProjectId !=
-                    catalog.ProjectId))
+                !catalogOwnedByProject)
             {
                 warnings.Add("Exigence parente absente ou ambiguë, ou " +
                     "collision avec un GUID de bloc existant.");
