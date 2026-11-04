@@ -194,3 +194,32 @@ Les compteurs globaux de passages et de verdicts REC dédupliquent la clé
 (campagne, passage, test). Un même test relié à plusieurs critères CA
 reste visible dans chacun d'eux, mais ne représente qu'une seule exécution
 humaine dans le total du projet.
+
+## Requalification conseillée après modification CA (04/11/2026)
+
+Avant de publier un **titre ou corps de critère CA existant** depuis une
+réponse IA externe explicitement acceptée, Nodalis calcule à la demande
+une analyse d'impact consultative, sans second référentiel. Le moteur
+**ProjectCriterionChangeImpact.Build** joint la matrice EXI→CA→TEST
+aux passages REC historiques du même projet.
+
+Le calcul vérifie les GUID de projet, EXI et CA et l'empreinte SHA
+du document EXI relu par l'utilisateur. Une identité répétée, un index
+obsolète, une source modifiée depuis la revue ou un historique qui ne
+correspond pas produit « impact indéterminé » — jamais « aucun test ».
+
+La confirmation affiche le nombre de tests distincts liés, les
+verdicts humains historiques, les passages REC et les sources
+historiques de test déplacées. Un test lié mais jamais exécuté reste
+à examiner ; un précédent Passed ne prouve pas la conformité à la
+nouvelle formulation CA.
+
+Après une publication réussie, l'index partagé est invalidé pour
+que la prochaine matrice relise la source. Aucun état d'EXI,
+relation de test, passage, verdict ou preuve n'est automatiquement
+modifié.
+
+**Limite :** la recommandation concerne les modifications CA explicites
+par l'import IA. Les changements manuels de Markdown n'écrivent pas
+encore de marqueur durable de requalification, et aucune preuve n'est
+vérifiée par cette analyse.

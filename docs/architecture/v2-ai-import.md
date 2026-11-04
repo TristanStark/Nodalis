@@ -1091,3 +1091,26 @@ sans écriture ni approbation automatique ; les revues WPF sont
 calculées hors du thread d'interface. Il s'agit d'un
 test fonctionnel de capacité et de déterminisme, **pas d'une
 mesure de performance p95/p99**.
+
+## Contrôle d'impact avant publication d'un CA (04/11/2026)
+
+Une modification explicitement acceptée du titre ou corps Markdown
+d'un critère CA déclenche maintenant un contrôle de requalification
+consultatif avant la dernière confirmation humaine. Le registre EXI,
+l'index partagé actualisé et les campagnes REC du projet sélectionné
+sont lus en tâche de travail. Les jointures n'utilisent que les GUID
+EXI/CA et le SHA du document vérifié lors de la revue.
+
+Le récapitulatif indique les tests concernés par GUID, les
+résultats historiques observés et les anomalies de source ou
+de jointure. Une lecture impossible signifie **impact indéterminé**,
+pas zéro test. L'utilisateur peut refuser. L'écriture du titre
+ou du corps reste protégée par le contrôle SHA-CAS de la transaction.
+
+Après une création ou modification CA effectivement publiée,
+WorkspaceLinkIndexService.NotifyWorkspaceChanged invalide les vols
+d'actualisation partagés antérieurs. Les relations, états EXI,
+passages REC, résultats et preuves historiques sont conservés.
+
+Ceci ajoute une recommandation de requalification **avant import** ;
+aucune requalification ni validation automatique n'en résulte.

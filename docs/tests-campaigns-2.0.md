@@ -244,3 +244,28 @@ le refus des contenus, identités et chemins falsifiés.
 Cette optimisation réduit les analyses redondantes en mémoire ; elle ne
 déduplique **pas encore** les textes des snapshots stockés sur disque et
 ne dispense pas des mesures de performance WPF sur de grandes campagnes.
+
+## Impact CA → tests lors de l'import IA (04/11/2026)
+
+La projection consultative **ProjectCriterionChangeImpact** exploite
+les liens vérifiés EXI→CA→TEST et les campagnes REC du projet.
+Elle distingue explicitement les états d'analyse Unresolved,
+NoLinkedTest, LinkedWithoutResult et HistoricalResults : ce ne
+sont pas des états métier, des verdicts ni des approbations.
+
+La confirmation avant modification de titre/corps CA énumère les
+tests liés (huit au plus dans la boîte), les passages et les résultats
+déclarés. Un ancien Passed suivi d'un passage NON EXÉCUTÉ reste un
+résultat historique et non une conformité actuelle. Une source
+déplacée, un index périmé ou un historique REC indisponible
+sont des limites visibles, jamais des confirmations implicites.
+
+La lecture a lieu hors du Dispatcher WPF, et le SHA approuvé est
+recontrôlé à l'écriture par la transaction du critère. Aucun ancien
+passage, lien, état ou preuve n'est modifié. Une reprise nécessite
+toujours de créer un nouveau passage et un verdict humain distinct.
+
+Qualification Windows : un CA sans tests ; un test non exécuté ;
+un ancien résultat Passed ; plusieurs CA liés au même test ;
+source déplacée ; index et REC indisponibles ; changement
+concurrent ; refus de confirmation ; préservation de l'historique.
