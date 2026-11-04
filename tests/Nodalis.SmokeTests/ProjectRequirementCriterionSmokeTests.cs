@@ -167,6 +167,54 @@ internal static class ProjectRequirementCriterionSmokeTests
         Reject(() => ProjectRequirementCriterionTitleCodec.RewriteTitle(
             noncanonical, card, firstId, "Condition initiale",
             "Condition retenue"), "Noncanonical CA line must fail closed.");
+
+        Guid assignedId = Guid.NewGuid();
+        Assert(ProjectRequirementCriterionCreationCodec.NextReference(canonical) ==
+            "CA-01" &&
+            ProjectRequirementCriterionCreationCodec.NextReference(source) ==
+                "CA-02",
+            "CA creation must allocate only the first unused local reference.");
+        string inserted = ProjectRequirementCriterionCreationCodec.Insert(
+            source, card, "CA-02", "Nouveau critère confirmé", assignedId);
+        ProjectRequirementCriterionScan created =
+            ProjectRequirementCriterionCodec.Inspect(inserted);
+        Assert(created.Criteria.Count == 2 &&
+            created.Criteria[1].Reference == "CA-02" &&
+            created.Criteria[1].Id == assignedId &&
+            created.Criteria[1].LocallyIdentified &&
+            created.Criteria[0].Id == firstId &&
+            ProjectRequirementMarkdownCodec.Parse(inserted) == card &&
+            inserted.Contains("## Dépendances et preuves", StringComparison.Ordinal),
+            "New CA must have its own stable GUID and preserve the existing EXI.");
+        string unixInserted = ProjectRequirementCriterionCreationCodec.Insert(
+            unixSource, card, "CA-02", "Texte humain", Guid.NewGuid());
+        Assert(!unixInserted.Contains('\r') &&
+            ProjectRequirementCriterionCodec.Inspect(unixInserted)
+                .Criteria.Count == 2,
+            "CA creation must preserve the existing LF file style.");
+        Reject(() => ProjectRequirementCriterionCreationCodec.Insert(
+            source, card, "CA-01", "Code déjà pris", assignedId),
+            "An AI must never reuse an occupied CA reference.");
+        Reject(() => ProjectRequirementCriterionCreationCodec.Insert(
+            source, card, "CA-02", "Titre\n### CA-03 — Injection", assignedId),
+            "CA creation cannot add extra headings through a title.");
+        Reject(() => ProjectRequirementCriterionCreationCodec.Insert(
+            source, card, "CA-02", "Titre", firstId),
+            "A new block cannot recycle an existing CA GUID.");
+        Reject(() => ProjectRequirementCriterionCreationCodec.Insert(
+            source, card with { Title = "Autre fiche" }, "CA-02", "Titre",
+            assignedId), "A changed EXI identity must block CA creation.");
+        string ambiguousSection = source.Replace(
+            "## Dépendances et preuves",
+            "## Critères d'acceptation" + lineEnding + lineEnding +
+            "## Dépendances et preuves", StringComparison.Ordinal);
+        Reject(() => ProjectRequirementCriterionCreationCodec.NextReference(
+            ambiguousSection), "Repeated CA sections must require manual repair.");
+        string duplicateCode = source.Replace("## Dépendances et preuves",
+            "### CA-01 — Seconde condition" + lineEnding +
+            "## Dépendances et preuves", StringComparison.Ordinal);
+        Reject(() => ProjectRequirementCriterionCreationCodec.NextReference(
+            duplicateCode), "Duplicated CA references block automatic allocation.");
     }
 
     /// <summary>Expects an unsafe CA rewrite to be rejected.</summary>
