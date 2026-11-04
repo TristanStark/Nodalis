@@ -215,6 +215,94 @@ internal static class ProjectRequirementCriterionSmokeTests
             "## Dépendances et preuves", StringComparison.Ordinal);
         Reject(() => ProjectRequirementCriterionCreationCodec.NextReference(
             duplicateCode), "Duplicated CA references block automatic allocation.");
+
+        string markerLine = MarkdownBlockIdentityCodec.FormatMarker(firstId);
+        string bodySource = source.Replace(
+            markerLine + lineEnding + lineEnding,
+            markerLine + lineEnding + lineEnding +
+                "Texte CA initial" + lineEnding + lineEnding +
+                "#### Exemple détaillé" + lineEnding +
+                "Preuve de conformité" + lineEnding + lineEnding,
+            StringComparison.Ordinal);
+        Guid neighborId = Guid.NewGuid();
+        bodySource = bodySource.Replace(
+            "## Dépendances et preuves",
+            "### CA-02 — Critère voisin" + lineEnding +
+                MarkdownBlockIdentityCodec.FormatMarker(neighborId) +
+                lineEnding + lineEnding +
+                "Corps du voisin" + lineEnding + lineEnding +
+                "## Dépendances et preuves", StringComparison.Ordinal);
+        Assert(ProjectRequirementCriterionBodyCodec.Extract(
+                bodySource, firstId) ==
+                "Texte CA initial\n\n#### Exemple détaillé\nPreuve de conformité" &&
+            ProjectRequirementCriterionBodyCodec.Extract(
+                bodySource, neighborId) == "Corps du voisin" &&
+            ProjectRequirementCriterionBodyCodec.ExtractAll(bodySource).Count == 2,
+            "CA detailed bodies must be isolated by stable GUID, never CA code.");
+        string bodyUpdated = ProjectRequirementCriterionBodyCodec.Rewrite(
+            bodySource, card, firstId,
+            "Texte CA initial\n\n#### Exemple détaillé\nPreuve de conformité",
+            "Nouveau texte de recette\n\n#### Justification\nFait observable");
+        Assert(ProjectRequirementCriterionBodyCodec.Extract(
+                bodyUpdated, firstId) ==
+                "Nouveau texte de recette\n\n#### Justification\nFait observable" &&
+            ProjectRequirementCriterionBodyCodec.Extract(
+                bodyUpdated, neighborId) == "Corps du voisin" &&
+            bodyUpdated.Contains("## Dépendances et preuves",
+                StringComparison.Ordinal) &&
+            ProjectRequirementMarkdownCodec.Parse(bodyUpdated) == card &&
+            ProjectRequirementCriterionCodec.Inspect(bodyUpdated).Criteria.Count == 2,
+            "CA body edit preserves other CA contents and EXI metadata.");
+        string lfBodies = bodySource.Replace("\r\n", "\n",
+            StringComparison.Ordinal);
+        string lfChanged = ProjectRequirementCriterionBodyCodec.Rewrite(
+            lfBodies, card, firstId,
+            "Texte CA initial\n\n#### Exemple détaillé\nPreuve de conformité",
+            "Version revue");
+        Assert(!lfChanged.Contains('\r') &&
+            ProjectRequirementCriterionBodyCodec.Extract(lfChanged, firstId) ==
+                "Version revue", "CA body rewrite cannot normalize LF to CRLF.");
+        string fencedBody = "~~~md\n## Pas un vrai titre\n~~~";
+        string fencedUpdated = ProjectRequirementCriterionBodyCodec.Rewrite(
+            bodySource, card, firstId,
+            "Texte CA initial\n\n#### Exemple détaillé\nPreuve de conformité",
+            fencedBody);
+        Assert(ProjectRequirementCriterionBodyCodec.Extract(
+                fencedUpdated, firstId) == fencedBody,
+            "Fenced fake H2 titles remain literal CA body text.");
+        Reject(() => ProjectRequirementCriterionBodyCodec.Rewrite(
+            bodySource, card, firstId,
+            "Texte CA initial\n\n#### Exemple détaillé\nPreuve de conformité",
+            "## Exigence injectée"), "Accepted CA bodies may not change H2 structure.");
+        Reject(() => ProjectRequirementCriterionBodyCodec.Rewrite(
+            bodySource, card, firstId, "Corps obsolète", "Autre texte"),
+            "Concurrent CA body edits must block a stale approval.");
+        Reject(() => ProjectRequirementCriterionBodyCodec.Rewrite(
+            bodySource, card, firstId,
+            "Texte CA initial\n\n#### Exemple détaillé\nPreuve de conformité",
+            "~~~md\nBloc non clos"),
+            "An unclosed code fence could hide later headings and must fail.");
+        Reject(() => ProjectRequirementCriterionBodyCodec.Rewrite(
+            bodySource, card, firstId,
+            "Texte CA initial\n\n#### Exemple détaillé\nPreuve de conformité",
+            "Nouvelle identité <!-- nodalis:block:" + Guid.NewGuid() + " -->"),
+            "An AI-provided block GUID cannot be injected into CA body.");
+        Assert(ProjectRequirementCriterionBodyCodec.Extract(
+                bodySource, Guid.NewGuid()) is null,
+            "Unknown CA GUID has no inferred or fallback body.");
+        string ambiguousBody = bodySource.Replace(
+            "## Dépendances et preuves",
+            "## Critères d'acceptation" + lineEnding + lineEnding +
+            "## Dépendances et preuves", StringComparison.Ordinal);
+        Assert(ProjectRequirementCriterionBodyCodec.ExtractAll(
+                ambiguousBody).Count == 0,
+            "Duplicated acceptance sections make every CA body unsafe.");
+        string unclosedSource = bodySource.Replace("Texte CA initial",
+            "~~~md" + lineEnding + "Texte CA initial",
+            StringComparison.Ordinal);
+        Assert(ProjectRequirementCriterionBodyCodec.Extract(
+                unclosedSource, firstId) is null,
+            "Open source fence must not swallow later CA or EXI headings.");
     }
 
     /// <summary>Expects an unsafe CA rewrite to be rejected.</summary>
