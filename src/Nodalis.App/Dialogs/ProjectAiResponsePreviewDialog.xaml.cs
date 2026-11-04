@@ -689,12 +689,12 @@ public partial class ProjectAiResponsePreviewDialog : Window
         UpdateButtons();
         try
         {
-            ProjectAiBatchTitleCommitStatus result = await Task.Run(async () =>
-            {
-                ProjectAiBatchTitleImportTransactionService service = new(
-                    _workspaceRoot);
-                return await service.CommitAsync(_projectDirectory, current);
-            });
+            (ProjectAiBatchTitleCommitStatus result, string? auditWarning) =
+                await PublishWithAuditAsync(current, "title-batch",
+                    "batch-" + ProjectAiBatchTitleImportTransactionService
+                        .PlanFingerprint(current),
+                    () => new ProjectAiBatchTitleImportTransactionService(
+                        _workspaceRoot).CommitAsync(_projectDirectory, current));
 
             _comparisons = null;
             ClearDecisions();
@@ -706,6 +706,10 @@ public partial class ProjectAiResponsePreviewDialog : Window
             StatusText.Text = result == ProjectAiBatchTitleCommitStatus.AlreadyApplied
                 ? "Lot déjà publié (empreintes conformes) : aucune réécriture."
                 : "Lot de titres EXI publié et journalisé.";
+            if (auditWarning is not null)
+            {
+                StatusText.Text += "\\n" + auditWarning;
+            }
             MessageBox.Show(this, StatusText.Text,
                 "Import IA · résultat du lot", MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -859,8 +863,12 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 return;
             }
 
-            ProjectAiMixedCommitStatus result = await Task.Run(() =>
-                service.CommitAsync(_projectDirectory, current, assigned));
+            (ProjectAiMixedCommitStatus result, string? auditWarning) =
+                await PublishWithAuditAsync(current, "mixed",
+                    "mixed-" + ProjectAiMixedImportTransactionService
+                        .PlanFingerprint(current),
+                    () => service.CommitAsync(_projectDirectory, current,
+                        assigned));
             _comparisons = null;
             ClearDecisions();
             ShowSelectedDetails();
@@ -872,6 +880,10 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 ? "Lot déjà publié intégralement : aucun doublon."
                 : "Lot mixte publié : nouvelles exigences en brouillon, " +
                   "titres existants actualisés.";
+            if (auditWarning is not null)
+            {
+                StatusText.Text += "\\n" + auditWarning;
+            }
             MessageBox.Show(this, StatusText.Text,
                 "Import IA · résultat mixte",
                 MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1311,8 +1323,10 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 return;
             }
 
-            ProjectAiRequirementCreateResult result = await Task.Run(() =>
-                service.CommitAsync(_projectDirectory, current, code));
+            (ProjectAiRequirementCreateResult result, string? auditWarning) =
+                await PublishWithAuditAsync(current, "create",
+                    creation.ProposalId.ToString("N"),
+                    () => service.CommitAsync(_projectDirectory, current, code));
             _comparisons = null;
             ClearDecisions();
             ShowSelectedDetails();
@@ -1325,6 +1339,10 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 ProjectAiRequirementCreateStatus.AlreadyCreated
                 ? "La proposition a déjà créé cette exigence : aucun doublon."
                 : "Nouvelle exigence EXI créée en brouillon, avec journal.";
+            if (auditWarning is not null)
+            {
+                StatusText.Text += "\\n" + auditWarning;
+            }
             MessageBox.Show(this, StatusText.Text +
                 "\n\n" + result.Entry.RelativePath,
                 "Import IA · résultat",
@@ -1454,12 +1472,11 @@ public partial class ProjectAiResponsePreviewDialog : Window
         UpdateButtons();
         try
         {
-            ProjectAiTitleCommitStatus result = await Task.Run(async () =>
-            {
-                ProjectAiTitleImportTransactionService service = new(
-                    _workspaceRoot);
-                return await service.CommitAsync(_projectDirectory, current);
-            });
+            (ProjectAiTitleCommitStatus result, string? auditWarning) =
+                await PublishWithAuditAsync(current, "title",
+                    change.ProposalId.ToString("N"), () =>
+                        new ProjectAiTitleImportTransactionService(_workspaceRoot)
+                            .CommitAsync(_projectDirectory, current));
             _comparisons = null;
             ClearDecisions();
             ShowSelectedDetails();
@@ -1469,6 +1486,10 @@ public partial class ProjectAiResponsePreviewDialog : Window
             StatusText.Text = result == ProjectAiTitleCommitStatus.AlreadyApplied
                 ? "Proposition déjà publiée (journal concordant) : aucun doublon."
                 : "Titre EXI publié avec remplacement atomique et journal durable.";
+            if (auditWarning is not null)
+            {
+                StatusText.Text += "\\n" + auditWarning;
+            }
             MessageBox.Show(this, StatusText.Text +
                 "\n\nRouvrez la fiche pour actualiser l'éditeur.",
                 "Import IA · résultat", MessageBoxButton.OK,
@@ -1742,8 +1763,13 @@ public partial class ProjectAiResponsePreviewDialog : Window
         try
         {
             T result = await Task.Run(publish);
-            string outcome = result is null ? "Failed" :
-                result.ToString() ?? "Failed";
+            string outcome = result switch
+            {
+                ProjectAiRequirementCreateResult created =>
+                    created.Status.ToString(),
+                null => "Failed",
+                _ => result.ToString() ?? "Failed"
+            };
             try
             {
                 await Task.Run(() => history.RecordOutcomeAsync(
