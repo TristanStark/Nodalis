@@ -315,6 +315,7 @@ public sealed class ProjectAiRequirementCreateTransactionService
         if (plan.Changes.Count != 0 || plan.Descriptions.Count != 0 ||
             plan.CriterionTitles.Count != 0 ||
             plan.CriterionCreations.Count != 0 ||
+            plan.CriterionBodies.Count != 0 ||
             plan.Creations.Count != 1 ||
             plan.RawResponseSha256 is not { Length: 64 } ||
             !plan.RawResponseSha256.All(Uri.IsHexDigit))

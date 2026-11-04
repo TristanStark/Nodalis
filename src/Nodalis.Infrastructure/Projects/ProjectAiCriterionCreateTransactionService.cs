@@ -354,6 +354,7 @@ public sealed class ProjectAiCriterionCreateTransactionService
     {
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.CriterionCreations.Count != 1 ||
+            plan.CriterionBodies.Count != 0 ||
             plan.CriterionTitles.Count != 0 || plan.Descriptions.Count != 0 ||
             plan.Changes.Count != 0 || plan.Creations.Count != 0 ||
             !IsHash(plan.RawResponseSha256))

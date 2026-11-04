@@ -363,6 +363,7 @@ public sealed partial class ProjectAiBatchTitleImportTransactionService
         if (plan.Creations.Count != 0 || plan.Descriptions.Count != 0 ||
             plan.CriterionTitles.Count != 0 ||
             plan.CriterionCreations.Count != 0 ||
+            plan.CriterionBodies.Count != 0 ||
             plan.Changes.Count is < 2 or > MaxFiles ||
             plan.RawResponseSha256 is not { Length: 64 } ||
             !plan.RawResponseSha256.All(Uri.IsHexDigit))

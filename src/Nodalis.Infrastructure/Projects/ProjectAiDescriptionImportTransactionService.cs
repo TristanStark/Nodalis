@@ -77,6 +77,7 @@ public sealed class ProjectAiDescriptionImportTransactionService
         if (plan.Descriptions.Count != 1 || plan.Changes.Count != 0 ||
             plan.Creations.Count != 0 || plan.CriterionTitles.Count != 0 ||
             plan.CriterionCreations.Count != 0 ||
+            plan.CriterionBodies.Count != 0 ||
             !IsHash(plan.RawResponseSha256))
         {
             throw new InvalidDataException(
