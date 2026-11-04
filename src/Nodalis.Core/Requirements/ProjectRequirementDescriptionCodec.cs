@@ -38,7 +38,7 @@ public static class ProjectRequirementDescriptionCodec
             string noIndent = line.TrimStart(' ');
             int indent = line.Length - noIndent.Length;
             if (indent <= 3 && noIndent.Length >= 3 &&
-                noIndent[0] is ((char)96) or '~')
+                (noIndent[0] == (char)96 || noIndent[0] == '~'))
             {
                 int count = 0;
                 while (count < noIndent.Length && noIndent[count] == noIndent[0])
