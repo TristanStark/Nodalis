@@ -3,6 +3,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Importing;
+using Nodalis.Core.Requirements;
 using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
