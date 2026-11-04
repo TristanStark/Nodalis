@@ -163,10 +163,11 @@ public partial class ProjectAiResponsePreviewDialog : Window
             ClearDecisions();
             int matched = reviews.Count(item => item.Status is
                 ProjectAiRequirementMatchStatus.GuidMatch or
-                ProjectAiRequirementMatchStatus.ReferenceMatch);
+                ProjectAiRequirementMatchStatus.ReferenceMatch or
+                ProjectAiRequirementMatchStatus.CriterionGuidMatch);
             SummaryText.Text = reviews.Count +
                 " proposition(s) inspectée(s) · " + matched +
-                " exigence(s) identifiée(s) · " +
+                " cible(s) EXI/CA identifiée(s) · " +
                 catalog.Diagnostics.Count + " diagnostic(s) du registre.";
             StatusText.Text = "Comparaison au registre du projet terminée. " +
                 "Les propositions et bases IA restent non fiables. " +
@@ -252,6 +253,16 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 builder.AppendLine("Empreinte source : " +
                     found.SourceSha256[..Math.Min(16, found.SourceSha256.Length)] +
                     "… (instantané, non autorisation)");
+            }
+
+            if (review.Criterion is ProjectRequirementCriterion criterion)
+            {
+                builder.AppendLine("Critère identifié : " +
+                    criterion.Reference + " · " +
+                    criterion.Id?.ToString("D"));
+                builder.AppendLine("Ligne source : " + criterion.HeadingLine);
+                builder.AppendLine("Critère : qualification en lecture seule ; " +
+                    "publication et verdict désactivés.");
             }
 
             foreach (ProjectAiFieldDifference field in review.Fields)

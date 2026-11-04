@@ -182,6 +182,81 @@ internal static class ProjectAiRequirementReviewSmokeTests
                 warning.Contains("comparaison uniquement", StringComparison.Ordinal)),
             "A description can expose genuine conflicts without enabling publication.");
 
+        Guid stableCa = Guid.NewGuid();
+        ProjectRequirementCriterion ca = new(
+            "CA-01", "Condition locale", stableCa, 17, true);
+        ProjectRequirementCatalog caCatalog = new(
+            [first with { Criteria = [ca] }, second], [], "EXI-0003");
+        ProjectAiImportCandidate caCandidate = new()
+        {
+            ProposalId = Guid.NewGuid(),
+            Kind = "criterion",
+            Operation = "update",
+            Certainty = "derived",
+            TargetId = stableCa,
+            CandidateReference = "CA-01",
+            BaseFields = new Dictionary<string, string>
+            {
+                ["title"] = "Condition précédente"
+            },
+            ProposedFields = new Dictionary<string, string>
+            {
+                ["title"] = "Nouvelle condition"
+            }
+        };
+        ProjectAiRequirementReview caReview =
+            ProjectAiRequirementReviewService.Compare(
+                Preview(caCandidate), caCatalog).Single();
+        Assert(caReview.Status ==
+                ProjectAiRequirementMatchStatus.CriterionGuidMatch &&
+            caReview.Requirement?.Card.Id == first.Card.Id &&
+            caReview.Criterion?.Id == stableCa &&
+            caReview.Fields.Single().Current == "Condition locale" &&
+            caReview.Fields.Single().Kind ==
+                ProjectAiFieldDifferenceKind.ConcurrentConflict,
+            "Stable CA GUID may show an accurate read-only three-way conflict.");
+
+        ProjectAiRequirementReview caByReference =
+            ProjectAiRequirementReviewService.Compare(
+                Preview(caCandidate with { TargetId = null }), caCatalog).Single();
+        Assert(caByReference.Status == ProjectAiRequirementMatchStatus.NotFound,
+            "A CA-01 reference is NOT a globally unique stable identity.");
+        ProjectAiRequirementReview caConflicting =
+            ProjectAiRequirementReviewService.Compare(Preview(
+                caCandidate with { CandidateReference = "CA-02" }),
+                caCatalog).Single();
+        Assert(caConflicting.Status ==
+                ProjectAiRequirementMatchStatus.ConflictingHints,
+            "Conflicting CA reference and GUID must prevent matching.");
+        ProjectAiRequirementReview caUnknown =
+            ProjectAiRequirementReviewService.Compare(Preview(
+                caCandidate with { TargetId = Guid.NewGuid() }),
+                caCatalog).Single();
+        Assert(caUnknown.Status == ProjectAiRequirementMatchStatus.NotFound,
+            "An outside-project GUID must not fall back to a candidate CA code.");
+
+        ProjectRequirementCatalog duplicateCaCatalog = new(
+            [first with { Criteria = [ca] },
+                second with { Criteria = [ca with { Reference = "CA-02" }] }],
+            [], "EXI-0003");
+        ProjectAiRequirementReview duplicateCa =
+            ProjectAiRequirementReviewService.Compare(
+                Preview(caCandidate), duplicateCaCatalog).Single();
+        Assert(duplicateCa.Status == ProjectAiRequirementMatchStatus.Ambiguous,
+            "Reused CA GUID across EXI files cannot resolve.");
+        ProjectRequirementCatalog unidentifiedCaCatalog = new(
+            [first with { Criteria = [ca with { LocallyIdentified = false }] }],
+            [], "EXI-0003");
+        Assert(ProjectAiRequirementReviewService.Compare(
+                Preview(caCandidate), unidentifiedCaCatalog).Single().Status ==
+            ProjectAiRequirementMatchStatus.Ambiguous,
+            "Unstable local CA identities must fail closed.");
+        Assert(ProjectAiRequirementReviewService.Compare(Preview(
+                caCandidate with { Operation = "create" }),
+                caCatalog).Single().Status ==
+            ProjectAiRequirementMatchStatus.Unsupported,
+            "AI may not assign a new criterion identity or verdict.");
+
         ProjectRequirementCatalog duplicates = new(
             [first, first], ["GUID dupliqué."], null);
         ProjectAiRequirementReview duplicate =

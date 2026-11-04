@@ -886,3 +886,28 @@ publication des descriptions ne s'intègre pas aux lots de titres ou
 mixtes : les actions existantes refusent les plans contenant une
 description approuvée. Les fichiers concernés, résultats de validation
 et historiques doivent être qualifiés visuellement sur Windows.
+
+## Suite #197 — aperçu comparatif des critères CA (04/11/2026)
+
+Les propositions `kind: "criterion"` et `operation: "update"`
+peuvent désormais être **comparées en lecture seule** lorsqu'elles
+fournissent le `targetId` d'un bloc `nodalis:block:<GUID>`
+déjà identifié dans une exigence du projet courant.
+Le résolveur construit **une seule fois** un index des GUID CA à
+partir du registre EXI, exclut les critères non identifiés ou ambigus,
+les collisions inter-fiches et les divergences `candidateReference`
+(`CA-01` n'est jamais un identifiant global). Aucune lecture du
+`sourcePath` transmis par l'IA et aucun repli par titre.
+
+L'interface présente le parent EXI, la référence locale CA, son GUID
+et la comparaison à trois voies du **titre de critère**.
+Les champs non résolus restent signalés ; création et liaison de CA
+ne sont pas prises en charge. Les boutons `Accept` et `Edit`
+demeurent bloqués pour les critères : il n'existe encore **aucun
+moteur de publication CA** dans cet incrément. Les choix
+`Review` et `Ignore` peuvent être archivés séparément.
+Aucun verdict, test, statut ou lien n'est modifié.
+
+Qualification : réponse IA de test contenant un GUID CA stable,
+collision de GUID inter-EXI, CA homonymes, référence divergente,
+GUID absent, base IA concurrente et source issue d'un autre projet.
