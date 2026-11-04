@@ -370,6 +370,31 @@ internal static class ProjectAiRequirementReviewSmokeTests
             "A full 100-proposal mixed AI response must resolve deterministically " +
             "without ambiguous matching or implicit publication.");
 
+        List<ProjectAiImportCandidate> hundredNewCriteria = [];
+        for (int number = 0; number < 100; number++)
+        {
+            hundredNewCriteria.Add(createdCa with
+            {
+                ProposalId = Guid.NewGuid(),
+                ProposedFields = new Dictionary<string, string>
+                {
+                    ["title"] = "Condition proposée " + number
+                }
+            });
+        }
+
+        IReadOnlyList<ProjectAiRequirementReview> creationBatch =
+            ProjectAiRequirementReviewService.Compare(
+                Preview(hundredNewCriteria.ToArray()), ownedCaCatalog);
+        Assert(creationBatch.Count == 100 &&
+            creationBatch.All(item =>
+                item.Status ==
+                    ProjectAiRequirementMatchStatus.CriterionCreationDraft &&
+                item.Requirement?.Card.Id == first.Card.Id &&
+                item.Criterion is null),
+            "100 proposed new CA must all resolve to one verified parent " +
+            "without importing an AI reference, identity or verdict.");
+
         ProjectRequirementCatalog duplicates = new(
             [first, first], ["GUID dupliqué."], null);
         ProjectAiRequirementReview duplicate =

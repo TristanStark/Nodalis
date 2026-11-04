@@ -1072,3 +1072,22 @@ de cas de test, import de verdicts, modification des statuts,
 gestion des campagnes. Qualification visuelle Windows du
 nouveau bouton, du texte multiligne et du mode sombre à
 effectuer avant toute release 2.0.
+
+## Optimisation #197 — comparaison de 100 propositions (04/11/2026)
+
+Le résolveur de comparaison EXI/CA indexe maintenant **une seule fois**
+les GUID d'exigences, leurs références EXI et les GUID de critères,
+sans répéter des scans du registre pour chaque champ de chaque réponse IA.
+L'invariant d'appartenance au projet actif est également contrôlé
+une seule fois avant les propositions de création CA. La vérification
+des collisions reste conservatrice : les groupes ambigus ne sont pas
+réduits à une seule entrée ni rattachés par titre/source externe.
+
+La suite de tests synthétiques compare une réponse complète de
+**100 propositions mixtes** (EXI par GUID, EXI par référence,
+CA existant par GUID, GUID hors projet) et **100 créations CA**
+visant le parent EXI vérifié. Les deux traitements restent
+sans écriture ni approbation automatique ; les revues WPF sont
+calculées hors du thread d'interface. Il s'agit d'un
+test fonctionnel de capacité et de déterminisme, **pas d'une
+mesure de performance p95/p99**.
