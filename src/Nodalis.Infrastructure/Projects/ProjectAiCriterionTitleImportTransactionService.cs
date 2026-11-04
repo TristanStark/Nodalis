@@ -151,6 +151,8 @@ public sealed class ProjectAiCriterionTitleImportTransactionService
             criterionMatches[0].Reference != change.CriterionReference ||
             parents[0].Card.Reference != change.Reference ||
             parents[0].Card.ProjectId != change.ProjectId ||
+            catalog.Requirements.Any(entry =>
+                entry.Card.Id == change.CriterionId) ||
             parents[0].RelativePath != change.RelativePath ||
             !parents[0].Criteria.Any(criterion =>
                 criterion.Id == change.CriterionId &&

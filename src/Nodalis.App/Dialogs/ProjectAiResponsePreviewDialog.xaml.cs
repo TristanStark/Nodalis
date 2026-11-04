@@ -2440,6 +2440,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Changes.Count == 0 &&
                 _preparedPlan.Creations.Count == 0 &&
                 _preparedPlan.Descriptions.Count == 0 &&
+                _preparedPlan.CriterionTitles.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2449,6 +2450,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan is not null && _preparedPlan.Descriptions.Count == 1 &&
                 _preparedPlan.Changes.Count == 0 &&
                 _preparedPlan.Creations.Count == 0 &&
+                _preparedPlan.CriterionTitles.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2459,6 +2461,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Changes.Count == 0 &&
                 _preparedPlan.Creations.Count == 1 &&
                 _preparedPlan.Descriptions.Count == 0 &&
+                _preparedPlan.CriterionTitles.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2469,6 +2472,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Changes.Count is >= 2 and <= 20 &&
                 _preparedPlan.Creations.Count == 0 &&
                 _preparedPlan.Descriptions.Count == 0 &&
+                _preparedPlan.CriterionTitles.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
@@ -2480,6 +2484,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 _preparedPlan.Creations.Count >= 1 &&
                 _preparedPlan.Changes.Count + _preparedPlan.Creations.Count <= 20 &&
                 _preparedPlan.Descriptions.Count == 0 &&
+                _preparedPlan.CriterionTitles.Count == 0 &&
                 _comparisons is not null && _preview is not null;
         }
 
