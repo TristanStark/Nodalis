@@ -133,10 +133,27 @@ internal static class ProjectAiRecoveryHistorySmokeTests
                 await File.ReadAllBytesAsync(originalSecond));
             ProjectAiRecoveryAttempt resumed = await reopened.StartAsync(
                 project.ProjectDirectory, "title-batch", titleKey, 1, 1);
+            ProjectAiRecoveryAttempt tamperCheck = await reopened.StartAsync(
+                project.ProjectDirectory, "title-batch", titleKey, 1, 1);
             ProjectAiBatchTitleCommitStatus applied =
                 await titleEngine.ResumeAsync(project.ProjectDirectory, titleKey);
             Assert(applied == ProjectAiBatchTitleCommitStatus.Applied,
                 "The remaining title must publish under the verified journal.");
+
+            // A plausible, still parseable journal edit during recovery must
+            // not be accepted as the same user-confirmed source even when
+            // every business file reached its expected published SHA.
+            string sourceJournal = Path.Combine(project.ProjectDirectory,
+                ".nodalis-ai-import", "batch-" + titleKey, "intent.json");
+            string originalJournal = await File.ReadAllTextAsync(sourceJournal);
+            await File.AppendAllTextAsync(sourceJournal, "\n");
+            ProjectAiRecoveryOutcome untrusted = await reopened.FinishAsync(
+                project.ProjectDirectory, tamperCheck.AttemptId, "Applied");
+            Assert(untrusted.Result == "NeedsInspection" &&
+                !untrusted.PostStateVerified,
+                "A changed business journal cannot generate a verified success.");
+            await File.WriteAllTextAsync(sourceJournal, originalJournal);
+
             ProjectAiRecoveryOutcome success = await reopened.FinishAsync(
                 project.ProjectDirectory, resumed.AttemptId, "Applied");
             Assert(success.Result == "Applied" &&
@@ -150,7 +167,8 @@ internal static class ProjectAiRecoveryHistorySmokeTests
 
             IReadOnlyList<ProjectAiRecoveryAttempt> listed =
                 await reopened.ListAsync(project.ProjectDirectory);
-            Assert(listed.Count == 3 &&
+            Assert(listed.Count == 4 &&
+                listed.Any(item => item.AttemptId == tamperCheck.AttemptId) &&
                 listed.Any(item => item.AttemptId == resumed.AttemptId) &&
                 listed.Any(item => item.AttemptId == interrupted.AttemptId),
                 "All confirmed attempts must remain distinct in local history.");
