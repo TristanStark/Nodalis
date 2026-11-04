@@ -290,6 +290,19 @@ internal static class ProjectRequirementCriterionSmokeTests
         Assert(ProjectRequirementCriterionBodyCodec.Extract(
                 bodySource, Guid.NewGuid()) is null,
             "Unknown CA GUID has no inferred or fallback body.");
+        Guid nestedId = Guid.NewGuid();
+        string nestedSource = bodySource.Replace(
+            "#### Exemple détaillé" + lineEnding,
+            "#### Exemple détaillé" + lineEnding +
+                MarkdownBlockIdentityCodec.FormatMarker(nestedId) +
+                lineEnding, StringComparison.Ordinal);
+        Reject(() => ProjectRequirementCriterionBodyCodec.Rewrite(
+            nestedSource, card, firstId,
+            "Texte CA initial\n\n#### Exemple détaillé\n" +
+                MarkdownBlockIdentityCodec.FormatMarker(nestedId) +
+                "\nPreuve de conformité",
+            "Remplacement sans identité"),
+            "Nested stable block GUIDs must not disappear during AI body rewrite.");
         string ambiguousBody = bodySource.Replace(
             "## Dépendances et preuves",
             "## Critères d'acceptation" + lineEnding + lineEnding +

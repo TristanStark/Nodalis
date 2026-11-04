@@ -135,6 +135,17 @@ public static class ProjectRequirementCriterionBodyCodec
             throw new InvalidDataException("Identité ou limites CA ambiguës.");
         }
 
+        // Nested H4+ headings can carry their own stable block GUIDs. A body
+        // replacement may not silently remove their IDs or break backlinks.
+        // Such a document requires deliberate manual editing/relinking first.
+        if (markdown[bounds.Value.Start..bounds.Value.End].Contains(
+            "<!-- nodalis:block:", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Le corps CA contient des identifiants de sous-blocs : " +
+                "édition manuelle requise pour préserver les liens stables.");
+        }
+
         string newline = markdown.Contains("\r\n", StringComparison.Ordinal)
             ? "\r\n" : "\n";
         string replacement = newline +
