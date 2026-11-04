@@ -132,6 +132,19 @@
                             Margin="0,0,8,4" Padding="10,5"
                             Click="ShowReviewAudit_Click"
                             ToolTip="Affiche les choix enregistrés et la référence à la transaction, sans ouvrir la réponse brute." />
+                    <Button x:Name="ListRecoveryAuditsButton"
+                            Content="Historique des reprises"
+                            Margin="0,0,8,4" Padding="10,5"
+                            Click="ListRecoveryAudits_Click"
+                            ToolTip="Consulter les tentatives de récupération, même interrompues, sans charger de réponse IA." />
+                    <ComboBox x:Name="RecoveryAuditPicker" Width="210"
+                              Margin="0,0,8,4"
+                              AutomationProperties.Name="Choisir une tentative de reprise archivée" />
+                    <Button x:Name="ShowRecoveryAuditButton"
+                            Content="Afficher la reprise"
+                            Margin="0,0,8,4" Padding="10,5"
+                            Click="ShowRecoveryAudit_Click"
+                            ToolTip="Affiche l'état avant et après et le résultat enregistré, sans déduire la réussite d'un journal seul." />
                     </WrapPanel>
                 </Expander>
                 <Button x:Name="PublishReviewedTitleButton"
