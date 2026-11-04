@@ -66,6 +66,18 @@ public static class ProjectAiRequirementReviewService
         ArgumentNullException.ThrowIfNull(preview);
         ArgumentNullException.ThrowIfNull(catalog);
         ProjectAiResponseImport.Validate(preview.Document);
+        // Build the complete requirement reference and GUID indexes ONCE
+        // per comparison, not once per AI candidate (up to 100 proposals).
+        // Keep duplicate groups intact: ambiguity must fail closed.
+        Dictionary<Guid, ProjectRequirementEntry[]> requirementsById =
+            catalog.Requirements.GroupBy(item => item.Card.Id)
+                .ToDictionary(group => group.Key, group => group.ToArray());
+        Dictionary<string, ProjectRequirementEntry[]> requirementsByReference =
+            catalog.Requirements.GroupBy(item => item.Card.Reference,
+                StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.ToArray(),
+                    StringComparer.Ordinal);
+
         // A criterion CA-01 is only project-local within its parent EXI.
         // Build one GUID index across the selected project's canonical
         // registry rather than scanning all Markdown for each AI proposal.
@@ -100,8 +112,10 @@ public static class ProjectAiRequirementReviewService
         foreach (ProjectAiImportCandidate candidate in preview.Document.Proposals)
         {
             ProjectAiRequirementReview comparison = candidate.Kind == "criterion"
-                ? ResolveCriterion(candidate, catalog, criterionIndex)
-                : Resolve(candidate, catalog);
+                ? ResolveCriterion(candidate, catalog, criterionIndex,
+                    requirementsById)
+                : Resolve(candidate, catalog, requirementsById,
+                    requirementsByReference);
             reviews.Add(comparison with
             {
                 ProjectId = catalog.ProjectId
@@ -123,7 +137,8 @@ public static class ProjectAiRequirementReviewService
     private static ProjectAiRequirementReview ResolveCriterion(
         ProjectAiImportCandidate candidate, ProjectRequirementCatalog catalog,
         IReadOnlyDictionary<Guid, List<(ProjectRequirementEntry Parent,
-            ProjectRequirementCriterion Criterion)>> index)
+            ProjectRequirementCriterion Criterion)>> index,
+        IReadOnlyDictionary<Guid, ProjectRequirementEntry[]> requirementsById)
     {
         List<string> warnings = [];
         if (candidate.Operation == "create")
@@ -139,8 +154,10 @@ public static class ProjectAiRequirementReviewService
                     ProjectAiRequirementMatchStatus.NotFound, null, [], warnings);
             }
 
-            ProjectRequirementEntry[] parents = catalog.Requirements
-                .Where(item => item.Card.Id == parentId).ToArray();
+            ProjectRequirementEntry[] parents =
+                requirementsById.TryGetValue(parentId,
+                    out ProjectRequirementEntry[]? existingParents)
+                    ? existingParents : [];
             if (parents.Length != 1 || index.ContainsKey(parentId) ||
                 catalog.Requirements.Any(item => item.Card.ProjectId !=
                     catalog.ProjectId))
@@ -210,8 +227,7 @@ public static class ProjectAiRequirementReviewService
                 ProjectAiRequirementMatchStatus.NotFound, null, [], warnings);
         }
 
-        if (matches.Count != 1 ||
-            catalog.Requirements.Any(entry => entry.Card.Id == target))
+        if (matches.Count != 1 || requirementsById.ContainsKey(target))
         {
             warnings.Add("GUID CA dupliqué entre fiches ou objet EXI : " +
                 "correspondance non qualifiable.");
@@ -303,7 +319,10 @@ public static class ProjectAiRequirementReviewService
     /// <param name="catalog">Only the requested project's requirements.</param>
     /// <returns>Explicit match classification and safe field projection.</returns>
     private static ProjectAiRequirementReview Resolve(
-        ProjectAiImportCandidate candidate, ProjectRequirementCatalog catalog)
+        ProjectAiImportCandidate candidate, ProjectRequirementCatalog catalog,
+        IReadOnlyDictionary<Guid, ProjectRequirementEntry[]> requirementsById,
+        IReadOnlyDictionary<string, ProjectRequirementEntry[]>
+            requirementsByReference)
     {
         List<string> warnings = [];
         if (catalog.Diagnostics.Count > 0)
@@ -321,15 +340,16 @@ public static class ProjectAiRequirementReviewService
 
         // SourcePath is merely an untrusted provenance hint. It is never
         // interpreted as a target, and may not be used to read another project.
-        ProjectRequirementEntry[] ids = candidate.TargetId is Guid id
-            ? catalog.Requirements.Where(item => item.Card.Id == id).ToArray()
-            : [];
+        ProjectRequirementEntry[] ids =
+            candidate.TargetId is Guid id &&
+            requirementsById.TryGetValue(id,
+                out ProjectRequirementEntry[]? identified)
+                ? identified : [];
         ProjectRequirementEntry[] refs =
-            ProjectRequirementMarkdownCodec.IsReference(candidate.CandidateReference)
-                ? catalog.Requirements.Where(item => string.Equals(
-                    item.Card.Reference, candidate.CandidateReference,
-                    StringComparison.Ordinal)).ToArray()
-                : [];
+            ProjectRequirementMarkdownCodec.IsReference(candidate.CandidateReference) &&
+            requirementsByReference.TryGetValue(candidate.CandidateReference!,
+                out ProjectRequirementEntry[]? referenced)
+                ? referenced : [];
 
         if (candidate.Operation == "create")
         {
