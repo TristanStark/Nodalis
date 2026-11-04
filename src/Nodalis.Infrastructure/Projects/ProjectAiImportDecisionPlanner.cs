@@ -83,6 +83,24 @@ public sealed record ProjectAiPreparedCriterionTitleChange(
     string? Reason);
 
 /// <summary>
+/// Inert, human-approved request to append one new CA to an existing EXI.
+/// The CA reference and persistent block GUID are allocated only by Nodalis
+/// after a separate preflight, never accepted from the external model.
+/// </summary>
+/// <param name="ProposalId">External proposal ID for idempotency only.</param>
+/// <param name="ProjectId">Manifest ID of the current project.</param>
+/// <param name="RequirementId">Existing parent EXI GUID.</param>
+/// <param name="Reference">Existing parent EXI reference.</param>
+/// <param name="RelativePath">Canonical SHA-pinned Markdown source.</param>
+/// <param name="ExpectedSha256">Current source fingerprint at human review.</param>
+/// <param name="ReviewedTitle">One human-accepted CA title.</param>
+/// <param name="Reason">Optional human provenance reason.</param>
+public sealed record ProjectAiPreparedCriterionCreation(
+    Guid ProposalId, Guid ProjectId, Guid RequirementId, string Reference,
+    string RelativePath, string ExpectedSha256, string ReviewedTitle,
+    string? Reason);
+
+/// <summary>
 /// A human-approved request for one NEW requirement. Neither project GUID,
 /// requirement GUID nor EXI reference can be supplied by the external AI.
 /// They are assigned solely in the guarded publication service.
@@ -127,6 +145,13 @@ public sealed record ProjectAiPreparedReviewPlan(
     /// requirement-title, description, creation or mixed batch engines.
     /// </summary>
     public IReadOnlyList<ProjectAiPreparedCriterionTitleChange> CriterionTitles
+    { get; init; } = [];
+
+    /// <summary>
+    /// Explicit proposals for CA creation are never applied by any existing
+    /// title/description/requirement transaction without a dedicated journal.
+    /// </summary>
+    public IReadOnlyList<ProjectAiPreparedCriterionCreation> CriterionCreations
     { get; init; } = [];
 }
 
@@ -181,6 +206,8 @@ public static class ProjectAiImportDecisionPlanner
         HashSet<(Guid, string)> reviewed = [];
         HashSet<Guid> alreadyTargeted = [];
         HashSet<Guid> targetedCriteria = [];
+        HashSet<Guid> createdInParents = [];
+        List<ProjectAiPreparedCriterionCreation> criterionCreations = [];
         List<ProjectAiPreparedCriterionTitleChange> criterionTitles = [];
         List<ProjectAiPreparedTitleChange> changes = [];
         List<ProjectAiPreparedDescriptionChange> descriptions = [];
@@ -217,6 +244,49 @@ public static class ProjectAiImportDecisionPlanner
             }
 
             ProjectAiRequirementReview match = matches[decision.ProposalId];
+            if (proposal.Kind == "criterion" &&
+                proposal.Operation == "create")
+            {
+                if (decision.Field != "title" ||
+                    match.Status != ProjectAiRequirementMatchStatus
+                        .CriterionCreationDraft ||
+                    match.Requirement is not ProjectRequirementEntry parent ||
+                    match.Criterion is not null ||
+                    match.ProjectId == Guid.Empty ||
+                    parent.Card.ProjectId != match.ProjectId ||
+                    proposal.TargetId != parent.Card.Id ||
+                    !string.IsNullOrWhiteSpace(proposal.CandidateReference) ||
+                    parent.SourceSha256 is not { Length: 64 } ||
+                    !parent.SourceSha256.All(Uri.IsHexDigit) ||
+                    !ProjectRequirementMarkdownCodec.IsReference(
+                        parent.Card.Reference))
+                {
+                    throw new InvalidDataException(
+                        "Parent EXI non résolu ou code CA fourni par l'IA.");
+                }
+
+                string title = decision.Kind == ProjectAiFieldDecisionKind.Edit
+                    ? decision.EditedValue!
+                    : proposal.ProposedFields["title"];
+                if (string.IsNullOrWhiteSpace(title) ||
+                    title != title.Trim() || title.Length > 240 ||
+                    title.Any(char.IsControl) ||
+                    title.StartsWith('#') || title.EndsWith('#') ||
+                    title.Contains("<!--", StringComparison.Ordinal) ||
+                    !createdInParents.Add(parent.Card.Id))
+                {
+                    throw new InvalidDataException(
+                        "Titre CA non canonique ou plusieurs créations " +
+                        "visant le même parent EXI.");
+                }
+
+                criterionCreations.Add(new ProjectAiPreparedCriterionCreation(
+                    proposal.ProposalId, match.ProjectId, parent.Card.Id,
+                    parent.Card.Reference, parent.RelativePath,
+                    parent.SourceSha256, title, decision.Reason?.Trim()));
+                continue;
+            }
+
             if (proposal.Kind == "criterion")
             {
                 if (proposal.Operation != "update" ||
@@ -422,7 +492,8 @@ public static class ProjectAiImportDecisionPlanner
         {
             Creations = creations,
             Descriptions = descriptions,
-            CriterionTitles = criterionTitles
+            CriterionTitles = criterionTitles,
+            CriterionCreations = criterionCreations
         };
     }
 }

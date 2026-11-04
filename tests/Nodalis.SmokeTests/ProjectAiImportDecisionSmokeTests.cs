@@ -262,6 +262,69 @@ internal static class ProjectAiImportDecisionSmokeTests
                     "Injection\n### CA-02", "Relecteur.")
             ]), "CA approved title cannot insert Markdown structures.");
 
+        ProjectAiImportCandidate caNew = caProposal with
+        {
+            ProposalId = Guid.NewGuid(),
+            Operation = "create",
+            TargetId = first.Card.Id,
+            CandidateReference = null,
+            BaseFields = [],
+            ProposedFields = new Dictionary<string, string>
+            {
+                ["title"] = "Critère nouveau"
+            }
+        };
+        ProjectAiResponsePreview caCreatePreview = caPreview with
+        {
+            Document = caPreview.Document with
+            {
+                Proposals = [caNew]
+            }
+        };
+        IReadOnlyList<ProjectAiRequirementReview> caCreateReviews =
+            ProjectAiRequirementReviewService.Compare(
+                caCreatePreview, caCatalog);
+        ProjectAiPreparedReviewPlan caCreatePlan =
+            ProjectAiImportDecisionPlanner.Prepare(
+                caCreatePreview, caCreateReviews,
+                [
+                    new ProjectAiFieldDecision(caNew.ProposalId, "title",
+                        ProjectAiFieldDecisionKind.Accept)
+                ]);
+        Assert(caCreatePlan.CriterionCreations.Count == 1 &&
+            caCreatePlan.CriterionCreations.Single().RequirementId ==
+                first.Card.Id &&
+            caCreatePlan.CriterionCreations.Single().ReviewedTitle ==
+                "Critère nouveau" &&
+            caCreatePlan.CriterionTitles.Count == 0 &&
+            caCreatePlan.Changes.Count == 0 &&
+            caCreatePlan.Creations.Count == 0,
+            "CA creation must remain an inert, SHA-pinned human-approved request.");
+        Reject(() => ProjectAiImportDecisionPlanner.Prepare(
+            caCreatePreview, caCreateReviews,
+            [
+                new ProjectAiFieldDecision(caNew.ProposalId, "title",
+                    ProjectAiFieldDecisionKind.Edit, "Titre\n## Injection")
+            ]), "Created CA title cannot contain extra Markdown sections.");
+        ProjectAiImportCandidate aiSuppliedCode = caNew with
+        {
+            CandidateReference = "CA-07"
+        };
+        ProjectAiResponsePreview codePreview = caCreatePreview with
+        {
+            Document = caCreatePreview.Document with
+            {
+                Proposals = [aiSuppliedCode]
+            }
+        };
+        Reject(() => ProjectAiImportDecisionPlanner.Prepare(
+            codePreview, ProjectAiRequirementReviewService.Compare(
+                codePreview, caCatalog),
+            [
+                new ProjectAiFieldDecision(aiSuppliedCode.ProposalId, "title",
+                    ProjectAiFieldDecisionKind.Accept)
+            ]), "AI-assigned CA codes must be refused during planning.");
+
         ProjectAiImportCandidate sameTarget = one with
         {
             ProposalId = Guid.NewGuid(),
