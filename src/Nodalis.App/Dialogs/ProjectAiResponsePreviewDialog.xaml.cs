@@ -1494,6 +1494,292 @@ public partial class ProjectAiResponsePreviewDialog : Window
         }
     }
 
+    /// <summary>
+    /// Archives a human's full review decision map independently of publishing
+    /// EXI changes. Raw external text is stored only with affirmative opt-in.
+    /// </summary>
+    /// <param name="sender">Explicit archive button.</param>
+    /// <param name="e">User click.</param>
+    private async void SaveReviewAudit_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _preview is null || _comparisons is null)
+        {
+            return;
+        }
+
+        ProjectAiPreparedReviewPlan plan;
+        try
+        {
+            plan = ProjectAiImportDecisionPlanner.Prepare(_preview,
+                _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+        }
+        catch (InvalidDataException exception)
+        {
+            StatusText.Text = "Revue invalide : " + exception.Message;
+            return;
+        }
+
+        bool includeRaw = ArchiveRawResponseCheck.IsChecked == true;
+        string confirmation = "Archiver la revue de " +
+            _preview.Document.Proposals.Count + " proposition(s), " +
+            plan.ReviewedFields + " choix explicites et " +
+            plan.PendingFields + " champ(s) à revoir ?" +
+            "\n\nL'historique conservera les décisions, les valeurs " +
+            "explicitement acceptées et les justifications, avec les " +
+            "empreintes des suggestions non retenues." +
+            (includeRaw
+                ? "\n\nATTENTION : vous avez demandé de conserver " +
+                  "également la réponse brute intégrale dans le projet."
+                : "\n\nLa réponse brute intégrale ne sera PAS enregistrée.") +
+            "\n\nAucune exigence ne sera créée ou modifiée.";
+        if (MessageBox.Show(this, confirmation,
+            "Import IA · archiver la revue",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectAiResponsePreview preview = _preview;
+        ProjectAiRequirementReview[] reviews = _comparisons.Values.ToArray();
+        ProjectAiFieldDecision[] decisions = _decisions.Values.ToArray();
+        string? raw = includeRaw ? RawResponseBox.Text : null;
+        _busy = true;
+        _publishing = true;
+        UpdateButtons();
+        try
+        {
+            Guid id = await Task.Run(() =>
+                new ProjectAiReviewHistoryService(_workspaceRoot).SaveAsync(
+                    _projectDirectory, preview, reviews, decisions, plan,
+                    includeRaw, raw, "review-only", null));
+            StatusText.Text = "Revue enregistrée dans le projet : " +
+                id.ToString("D") + " · réponse brute " +
+                (includeRaw ? "conservée sur demande." : "non enregistrée.");
+            PlanTextBox.Text = StatusText.Text +
+                "\n\nCette archive n'autorise aucune écriture métier.";
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or ArgumentException or
+            UnauthorizedAccessException)
+        {
+            StatusText.Text = "Archive refusée : " + exception.Message;
+        }
+        finally
+        {
+            _busy = false;
+            _publishing = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Lists the current project's archived human reviews, without importing
+    /// any data or displaying optional raw model responses.
+    /// </summary>
+    /// <param name="sender">Explicit history listing.</param>
+    /// <param name="e">Click event.</param>
+    private async void ListReviewAudits_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            IReadOnlyList<ProjectAiReviewAudit> audits =
+                await Task.Run(() =>
+                    new ProjectAiReviewHistoryService(_workspaceRoot).ListAsync(
+                        _projectDirectory));
+            ReviewAuditPicker.Items.Clear();
+            foreach (ProjectAiReviewAudit audit in audits)
+            {
+                ReviewAuditPicker.Items.Add(new ComboBoxItem
+                {
+                    Content = audit.RecordedUtc.ToLocalTime()
+                        .ToString("dd/MM/yyyy HH:mm") + " · " +
+                        audit.Action + " · " +
+                        audit.ReviewId.ToString("N")[..8],
+                    Tag = audit.ReviewId
+                });
+            }
+
+            ReviewAuditPicker.SelectedIndex = audits.Count > 0 ? 0 : -1;
+            StatusText.Text = audits.Count + " revue(s) archivée(s) " +
+                "accessibles. Les réponses brutes ne sont pas affichées.";
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or ArgumentException or
+            UnauthorizedAccessException)
+        {
+            ReviewAuditPicker.Items.Clear();
+            StatusText.Text = "Historique indisponible : " + exception.Message;
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Displays a read-only field-by-field record and its optional outcome.
+    /// The opt-in raw archive itself is never opened implicitly.
+    /// </summary>
+    /// <param name="sender">Explicit review selection button.</param>
+    /// <param name="e">Click event.</param>
+    private async void ShowReviewAudit_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly ||
+            ReviewAuditPicker.SelectedItem is not ComboBoxItem selected ||
+            selected.Tag is not Guid reviewId)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            (ProjectAiReviewAudit audit, ProjectAiReviewOutcome? outcome) =
+                await Task.Run(async () =>
+                {
+                    ProjectAiReviewHistoryService service = new(_workspaceRoot);
+                    ProjectAiReviewAudit record = await service.ReadAsync(
+                        _projectDirectory, reviewId);
+                    ProjectAiReviewOutcome? result =
+                        await service.ReadOutcomeAsync(_projectDirectory, reviewId);
+                    return (record, result);
+                });
+            StringBuilder builder = new();
+            builder.AppendLine("HISTORIQUE DE QUALIFICATION HUMAINE");
+            builder.AppendLine("Revue : " + audit.ReviewId.ToString("D"));
+            builder.AppendLine("Date : " +
+                audit.RecordedUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss"));
+            builder.AppendLine("Projet : " + audit.ProjectId.ToString("D"));
+            builder.AppendLine("Réponse IA SHA-256 : " + audit.RawResponseSha256);
+            builder.AppendLine("Prompt : " +
+                (audit.PromptKey ?? "(non indiqué)"));
+            builder.AppendLine("Réponse brute : " +
+                (audit.RawArchived ? "archivée avec consentement" : "non archivée"));
+            builder.AppendLine("Action : " + audit.Action);
+            builder.AppendLine("Transaction : " +
+                (audit.TransactionKey ?? "(revue seule)"));
+            builder.AppendLine("Résultat métier : " +
+                (outcome?.Result ?? "non confirmé dans le journal d'audit"));
+            builder.AppendLine("Décisions : " + audit.ReviewedFields +
+                ", ignorées : " + audit.IgnoredFields +
+                ", à revoir : " + audit.PendingFields);
+            foreach (ProjectAiAuditField field in audit.Fields)
+            {
+                builder.AppendLine();
+                builder.AppendLine(field.ProposalId.ToString("D") +
+                    " · " + field.Kind + "/" + field.Operation +
+                    " · " + field.Field + " → " + field.Decision);
+                builder.AppendLine("  Résolution : " + field.MatchStatus);
+                builder.AppendLine("  Valeur proposée SHA-256 : " +
+                    field.SuggestedSha256);
+                if (field.ApprovedValue is not null)
+                {
+                    builder.AppendLine("  Valeur retenue : " + field.ApprovedValue);
+                }
+
+                if (!string.IsNullOrWhiteSpace(field.Reason))
+                {
+                    builder.AppendLine("  Justification : " + field.Reason);
+                }
+            }
+
+            PlanTextBox.Text = builder.ToString();
+            StatusText.Text = "Revue archivée chargée en lecture seule : " +
+                reviewId.ToString("D");
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or ArgumentException or
+            UnauthorizedAccessException)
+        {
+            StatusText.Text = "Lecture de revue refusée : " + exception.Message;
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Archives a confirmed publication's human decisions BEFORE its first
+    /// business file write. A second, immutable outcome confirms the result.
+    /// Publication is never claimed successful if only its review exists.
+    /// </summary>
+    /// <param name="plan">Exact rechecked human plan.</param>
+    /// <param name="action">One recognized action bound to its transaction.</param>
+    /// <param name="key">Canonical project-local import journal identifier.</param>
+    /// <param name="publish">Business publication after audit staging.</param>
+    /// <returns>Business result and any non-fatal audit-outcome warning.</returns>
+    private async Task<(T Result, string? Warning)> PublishWithAuditAsync<T>(
+        ProjectAiPreparedReviewPlan plan, string action, string key,
+        Func<Task<T>> publish)
+    {
+        if (_preview is null || _comparisons is null)
+        {
+            throw new InvalidDataException(
+                "Réponse ou comparaison manquante : publication interdite.");
+        }
+
+        ProjectAiResponsePreview preview = _preview;
+        ProjectAiRequirementReview[] reviews = _comparisons.Values.ToArray();
+        ProjectAiFieldDecision[] decisions = _decisions.Values.ToArray();
+        bool includeRaw = ArchiveRawResponseCheck.IsChecked == true;
+        string? raw = includeRaw ? RawResponseBox.Text : null;
+        ProjectAiReviewHistoryService history = new(_workspaceRoot);
+        Guid reviewId = await Task.Run(() => history.SaveAsync(
+            _projectDirectory, preview, reviews, decisions, plan,
+            includeRaw, raw, action, key));
+        try
+        {
+            T result = await Task.Run(publish);
+            string outcome = result is null ? "Failed" :
+                result.ToString() ?? "Failed";
+            try
+            {
+                await Task.Run(() => history.RecordOutcomeAsync(
+                    _projectDirectory, reviewId, outcome));
+                return (result, null);
+            }
+            catch (Exception exception) when (exception is InvalidDataException or
+                InvalidOperationException or IOException or ArgumentException or
+                UnauthorizedAccessException)
+            {
+                // Business publication may already have succeeded. Never
+                // claim failure or attempt a second publish on audit I/O error.
+                return (result, "Import publié, mais résultat d'audit " +
+                    "non enregistré : " + exception.Message);
+            }
+        }
+        catch
+        {
+            try
+            {
+                // Failed includes interrupted/partially published batches;
+                // it NEVER means that every individual file is unchanged.
+                await Task.Run(() => history.RecordOutcomeAsync(
+                    _projectDirectory, reviewId, "Failed"));
+            }
+            catch (Exception exception) when (exception is InvalidDataException or
+                InvalidOperationException or IOException or ArgumentException or
+                UnauthorizedAccessException)
+            {
+                // Keep original business exception and durable review.
+            }
+
+            throw;
+        }
+    }
+
     /// <summary>Prevents double launch and parsing empty input.</summary>
     private void UpdateButtons()
     {
@@ -1501,6 +1787,33 @@ public partial class ProjectAiResponsePreviewDialog : Window
         {
             AnalyzeButton.IsEnabled = !_busy &&
                 !string.IsNullOrWhiteSpace(RawResponseBox?.Text);
+        }
+
+        if (SaveReviewAuditButton is not null)
+        {
+            SaveReviewAuditButton.IsEnabled = !_busy && !_readOnly &&
+                _preview is not null && _comparisons is not null;
+        }
+
+        if (ListReviewAuditsButton is not null)
+        {
+            ListReviewAuditsButton.IsEnabled = !_busy && !_readOnly;
+        }
+
+        if (ReviewAuditPicker is not null)
+        {
+            ReviewAuditPicker.IsEnabled = !_busy && !_readOnly;
+        }
+
+        if (ShowReviewAuditButton is not null)
+        {
+            ShowReviewAuditButton.IsEnabled = !_busy && !_readOnly &&
+                ReviewAuditPicker?.SelectedItem is ComboBoxItem;
+        }
+
+        if (ArchiveRawResponseCheck is not null)
+        {
+            ArchiveRawResponseCheck.IsEnabled = !_busy && !_readOnly;
         }
 
         if (CompareButton is not null)
