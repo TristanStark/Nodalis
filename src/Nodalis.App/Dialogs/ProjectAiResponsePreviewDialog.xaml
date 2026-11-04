@@ -162,6 +162,11 @@
                         Margin="0,0,8,4" Padding="10,5"
                         Click="PublishReviewedCriterion_Click"
                         ToolTip="Confirme puis publie seulement le titre d'un critère CA à GUID stable, avec journal SHA-256. Aucun verdict ni état n'est importé." />
+                <Button x:Name="PublishReviewedCriterionBodyButton"
+                        Content="Enregistrer 1 corps CA approuvé…"
+                        Margin="0,0,8,4" Padding="10,5"
+                        Click="PublishReviewedCriterionBody_Click"
+                        ToolTip="Publie uniquement le Markdown détaillé d'un critère CA existant après revue, confirmation humaine et journal SHA-CAS. Le titre, GUID, verdict et les tests sont conservés." />
                 <Button x:Name="CreateReviewedCriterionButton"
                         Content="Créer 1 critère CA approuvé…"
                         Margin="0,0,8,4" Padding="10,5"
