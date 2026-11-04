@@ -1009,3 +1009,66 @@ création de plusieurs critères depuis une seule réponse IA (un seul
 fichier par confirmation aujourd'hui), critères avec corps détaillé,
 ajout d'une définition de test et campagnes. Aucune qualification
 visuelle ni publication v2.0 n'est présumée de la réussite du CI.
+
+## Suite #197 — description détaillée d'un critère CA (04/11/2026)
+
+La proposition externe `kind: "criterion"`, `operation: "update"`,
+`targetId: <GUID de bloc CA existant>`, et
+`proposedFields.description` décrit désormais le **corps Markdown**
+du critère. Ce n'est ni une définition de test ni une preuve de
+vérification. La ligne `### CA-xx — titre`, son marqueur stable
+`<!-- nodalis:block:... -->` et les autres critères sont séparés
+du corps de texte.
+
+La projection `ProjectRequirementCriterionBodyCodec.ExtractAll`
+lit tous les corps de CA d'une EXI **en une passe**, depuis
+**la même source SHA-256** que le registre. Un CA sans GUID,
+une section d'acceptation dupliquée, un bloc de code non clos
+ou un corps dépassant 8 000 caractères n'est pas interprété
+comme un corps vide : aucune acceptation automatique n'est
+permise. Les titres Markdown de niveau H4+ et les
+blocs de code fermés sont préservés ; les H1-H3, marqueurs
+de bloc `nodalis:block` insérés et fins de ligne ambiguës
+sont refusés dans le texte proposé à la publication.
+
+La revue présente une **comparaison trois voies** entre
+`baseFields.description`, le corps local et le corps
+`proposedFields.description`. L'utilisateur peut accepter,
+éditer, ignorer ou laisser en revue. Une base inconnue ou
+conflictuelle exige une justification explicite en cas
+d'acceptation/édition. Le plan reste séparé des créations
+CA, des titres CA et des changements EXI.
+
+Le bouton WPF **Enregistrer 1 corps CA approuvé…** n'est
+activé que pour un plan contenant une seule description CA.
+Il affiche le contenu complet actuel et approuvé dans le
+panneau de qualification, exige la fermeture de l'onglet
+Markdown et demande une nouvelle confirmation humaine.
+
+Le moteur `ProjectAiCriterionBodyImportTransactionService`
+recontrôle l'appartenance au projet, la référence de l'EXI
+parente, l'unicité du GUID CA, le SHA source et la valeur
+Markdown locale. Il archive **avant** la modification
+`original.md`, `published.md`, puis `intent.json`
+sous `.nodalis-ai-import/criterion-body-<proposalId>/`.
+Une unique substitution atomique du fichier existant est
+protégée par SHA-CAS ; la revue et le résultat sont
+historisés séparément. Lors d'une reprise, le moteur
+**recalcule le seul corps approuvé à partir du document
+original** et refuse toute divergence, même si un
+journal et un snapshot falsifiés ont des empreintes
+mutuellement concordantes.
+
+Tests Windows synthétiques : extraction de corps multiples,
+H4 et fenced-code, fin de ligne LF/CRLF, disparition du
+GUID, sections dupliquées, proposition H2 injectée,
+conflit de base, projet étranger, source concurrente,
+publication idempotente, audit de consentement, source
+modifiée après publication et snapshot + journal falsifiés.
+
+**Non inclus dans cet incrément :** plusieurs modifications
+de champs CA dans une seule transaction, création automatique
+de cas de test, import de verdicts, modification des statuts,
+gestion des campagnes. Qualification visuelle Windows du
+nouveau bouton, du texte multiligne et du mode sombre à
+effectuer avant toute release 2.0.
