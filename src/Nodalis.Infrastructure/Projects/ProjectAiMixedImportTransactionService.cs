@@ -445,6 +445,7 @@ public sealed partial class ProjectAiMixedImportTransactionService
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.Changes is null || plan.Creations is null ||
             plan.Descriptions is null || plan.Descriptions.Count != 0 ||
+            plan.CriterionTitles is null || plan.CriterionTitles.Count != 0 ||
             plan.Changes.Count < 1 || plan.Creations.Count < 1 ||
             plan.Changes.Count + plan.Creations.Count > MaxEntries ||
             plan.RawResponseSha256 is not { Length: 64 } ||
