@@ -832,6 +832,147 @@ public partial class ProjectAiResponsePreviewDialog : Window
     }
 
     /// <summary>
+    /// Creates one CA under the uniquely reviewed EXI after a fresh
+    /// project-local reference preview and separate human confirmation.
+    /// The official CA code and block GUID are never taken from the AI.
+    /// </summary>
+    /// <param name="sender">Explicit creation command.</param>
+    /// <param name="e">WPF user click.</param>
+    private async void CreateReviewedCriterion_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _preview is null || _comparisons is null ||
+            _preparedPlan is null ||
+            _preparedPlan.CriterionCreations.Count != 1 ||
+            _preparedPlan.Changes.Count != 0 ||
+            _preparedPlan.Creations.Count != 0 ||
+            _preparedPlan.Descriptions.Count != 0 ||
+            _preparedPlan.CriterionTitles.Count != 0)
+        {
+            return;
+        }
+
+        ProjectAiPreparedReviewPlan expected = _preparedPlan;
+        _busy = true;
+        _publishing = true;
+        UpdateButtons();
+        try
+        {
+            ProjectAiPreparedReviewPlan current =
+                ProjectAiImportDecisionPlanner.Prepare(_preview,
+                    _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+            if (current.CriterionCreations.Count != 1 ||
+                current.Changes.Count != 0 || current.Creations.Count != 0 ||
+                current.Descriptions.Count != 0 ||
+                current.CriterionTitles.Count != 0 ||
+                current.CriterionCreations[0] != expected.CriterionCreations[0] ||
+                current.RawResponseSha256 != expected.RawResponseSha256 ||
+                current.ReviewedFields != expected.ReviewedFields ||
+                current.IgnoredFields != expected.IgnoredFields ||
+                current.PendingFields != expected.PendingFields)
+            {
+                throw new InvalidDataException(
+                    "Revue CA changée : préparer de nouveau le plan.");
+            }
+
+            ProjectAiPreparedCriterionCreation create =
+                current.CriterionCreations.Single();
+            ProjectJourneySourceService resolver = new(_workspaceRoot);
+            string path = resolver.ResolveExistingFile(create.RelativePath);
+            if (Application.Current.MainWindow is not Nodalis.App.MainWindow main ||
+                main.IsDocumentOpenForAiImport(path))
+            {
+                throw new InvalidDataException(
+                    "Fiche EXI ouverte ou éditeur principal indisponible : " +
+                    "enregistrer et fermer l'onglet avant la création CA.");
+            }
+
+            ProjectAiCriterionCreateTransactionService transaction = new(
+                _workspaceRoot);
+            string nextCode = await Task.Run(() =>
+                transaction.PreviewReferenceAsync(_projectDirectory, current));
+
+            string message = "NOUVEAU CRITÈRE D'ACCEPTATION" +
+                "\nExigence parente : " + create.Reference +
+                "\nGUID EXI : " + create.RequirementId.ToString("D") +
+                "\nSource : " + create.RelativePath +
+                "\nRéférence calculée par Nodalis : " + nextCode +
+                "\nTitre retenu par l'utilisateur : " + create.ReviewedTitle +
+                "\n\nNodalis générera un NOUVEAU GUID de bloc stable." +
+                "\nAucun statut, verdict, test ni autre critère ne sera changé." +
+                "\nLe fichier Markdown et les instantanés seront journalisés " +
+                "avant l'écriture atomique protégée par SHA-256." +
+                "\n\n" + (ArchiveRawResponseCheck.IsChecked == true
+                    ? "La réponse IA brute sera AUSSI archivée."
+                    : "La réponse IA brute ne sera PAS archivée.") +
+                "\n\nConfirmer cette création CA unique ?";
+            if (MessageBox.Show(this, message,
+                "Import IA · création d'un critère CA",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                StatusText.Text = "Création CA annulée : aucun fichier modifié.";
+                return;
+            }
+
+            (ProjectAiTitleCommitStatus result, string? auditWarning) =
+                await PublishWithAuditAsync(current, "criterion-create",
+                    "criterion-create-" + create.ProposalId.ToString("N"),
+                    () => transaction.CommitAsync(
+                        _projectDirectory, current, nextCode));
+            ProjectRequirementCatalog catalog = await Task.Run(() =>
+                new ProjectRequirementRegistryService(_workspaceRoot)
+                    .ListAsync(_projectDirectory));
+            ProjectRequirementEntry? parent = catalog.Requirements
+                .SingleOrDefault(item => item.Card.Id == create.RequirementId);
+            ProjectRequirementCriterion? created = parent?.Criteria
+                .SingleOrDefault(item => item.Reference == nextCode);
+            _comparisons = null;
+            ClearDecisions();
+            ShowSelectedDetails();
+            PlanTextBox.Text = "Création CA : " + result +
+                ". Recharger la fiche avant de préparer d'autres imports.";
+            StatusText.Text = result == ProjectAiTitleCommitStatus.AlreadyApplied
+                ? nextCode + " déjà créé : journal de transaction concordant."
+                : nextCode + " créé en brouillon sous " + create.Reference +
+                  ", sans validation automatique.";
+            if (created?.Id is Guid generatedId)
+            {
+                StatusText.Text += "\nGUID stable attribué : " +
+                    generatedId.ToString("D");
+            }
+
+            if (auditWarning is not null)
+            {
+                StatusText.Text += "\n" + auditWarning;
+            }
+
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · création CA",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            _preparedPlan = null;
+            StatusText.Text = "Création CA refusée/interrompue : " +
+                exception.Message +
+                "\nSi un journal existe, l'inspecter avant de relancer " +
+                "une revue différente. Aucun écrasement externe autorisé.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · création CA bloquée",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _busy = false;
+            _publishing = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
     /// Publishes one previously reviewed CA title after a human confirms the
     /// exact local criterion, source file and before/after text.
     /// </summary>
