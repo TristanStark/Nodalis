@@ -230,6 +230,9 @@ public sealed class ProjectCriterionBaselineService
         }
 
         List<(ProjectCriterionBaselineSnapshot Snapshot, string Sha)> result = [];
+        string rootPrefix = Path.GetRelativePath(_workspaceRoot,
+            Path.GetDirectoryName(folder)!).Replace('\\', '/') +
+            "/Documentation/Exigences/";
         string? previousSha = null;
         for (int i = 0; i < files.Length; i++)
         {
@@ -273,6 +276,7 @@ public sealed class ProjectCriterionBaselineService
                 item.Sequence != i + 1 ||
                 item.RecordedUtc == default ||
                 item.Reason is null || item.Reason.Length is < 1 or > 500 ||
+                item.Reason.Any(char.IsControl) ||
                 item.Entries is null || item.Entries.Count is < 1 or > 20000 ||
                 !string.Equals(item.PreviousSha256, previousSha,
                     StringComparison.OrdinalIgnoreCase))
@@ -292,6 +296,15 @@ public sealed class ProjectCriterionBaselineService
                     entry.RequirementReference is null ||
                     entry.CriterionReference is null ||
                     entry.Title is null || entry.RelativePath is null ||
+                    entry.Title.Length is < 1 or > 240 ||
+                    entry.Title.Any(char.IsControl) ||
+                    entry.TitleSha256 !=
+                        ProjectCriterionBaselineProjection.Sha(entry.Title) ||
+                    !entry.RelativePath.StartsWith(rootPrefix,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(entry.RelativePath[rootPrefix.Length..],
+                        entry.RequirementReference + ".md",
+                        StringComparison.OrdinalIgnoreCase) ||
                     !ProjectRequirementMarkdownCodec.IsReference(
                         entry.RequirementReference) ||
                     !Nodalis.Core.Requirements.ProjectRequirementCriterionCodec

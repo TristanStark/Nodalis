@@ -259,6 +259,11 @@ public static class ProjectCriterionBaselineProjection
                 item.RequirementId, Label(item), state, reason));
         }
 
+        bool incompleteCatalog = catalog.Diagnostics.Count != 0 ||
+            catalog.Requirements.Any(requirement =>
+                requirement.CriterionDiagnostics.Count != 0);
+        HashSet<Guid> readableRequirements = catalog.Requirements
+            .Select(requirement => requirement.Card.Id).ToHashSet();
         foreach (ProjectCriterionBaselineEntry item in previous.Entries)
         {
             if (current.ContainsKey(item.CriterionId))
@@ -266,11 +271,8 @@ public static class ProjectCriterionBaselineProjection
                 continue;
             }
 
-            bool unknown = catalog.Diagnostics.Count != 0 ||
-                catalog.Requirements.Any(requirement =>
-                    requirement.CriterionDiagnostics.Count != 0) ||
-                catalog.Requirements.All(requirement =>
-                    requirement.Card.Id != item.RequirementId);
+            bool unknown = incompleteCatalog ||
+                !readableRequirements.Contains(item.RequirementId);
             rows.Add(new ProjectCriterionBaselineRow(item.CriterionId,
                 item.RequirementId, Label(item),
                 unknown ? ProjectCriterionBaselineState.Unresolved :
