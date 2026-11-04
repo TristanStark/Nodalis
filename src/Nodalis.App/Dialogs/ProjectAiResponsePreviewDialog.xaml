@@ -157,6 +157,11 @@
                         Margin="0,0,8,4" Padding="10,5"
                         Click="PublishReviewedDescription_Click"
                         ToolTip="Publie la description Markdown d'une seule EXI après comparaison, confirmation et journal SHA-CAS ; ne modifie aucun statut." />
+                <Button x:Name="PublishReviewedCriterionButton"
+                        Content="Enregistrer 1 titre CA approuvé…"
+                        Margin="0,0,8,4" Padding="10,5"
+                        Click="PublishReviewedCriterion_Click"
+                        ToolTip="Confirme puis publie seulement le titre d'un critère CA à GUID stable, avec journal SHA-256. Aucun verdict ni état n'est importé." />
                 <Button x:Name="PublishReviewedBatchButton"
                         Content="Enregistrer le lot de titres…"
                         Margin="0,0,8,4" Padding="10,5"
