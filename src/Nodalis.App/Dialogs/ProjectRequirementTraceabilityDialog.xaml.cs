@@ -165,6 +165,7 @@ public partial class ProjectRequirementTraceabilityDialog : Window
         }
 
         _savingBaseline = true;
+        bool mustReload = false;
         RefreshBaselineStatus();
         try
         {
@@ -193,16 +194,17 @@ public partial class ProjectRequirementTraceabilityDialog : Window
                 ". Fermer et rouvrir la matrice avant de retenter.";
             MessageBox.Show(this, StatusText.Text, "Traçabilité · CA",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
-            // The UI snapshot is now stale (another process could have
-            // recorded a baseline). Forbid another confirmation until reload.
-            CaptureBaselineButton.IsEnabled = false;
+            // A second process may have recorded another baseline.
+            // Forbid further confirmation until a full matrix refresh.
+            mustReload = true;
         }
         finally
         {
             _savingBaseline = false;
-            if (CaptureBaselineButton.IsEnabled)
+            RefreshBaselineStatus();
+            if (mustReload)
             {
-                RefreshBaselineStatus();
+                CaptureBaselineButton.IsEnabled = false;
             }
         }
     }
