@@ -228,7 +228,10 @@ internal static class ProjectAiImportDecisionSmokeTests
             {
                 Criteria = [new ProjectRequirementCriterion(
                     "CA-01", "Condition actuelle", criterionId, 15, true)]
-            }, second], [], "EXI-0003");
+            }, second], [], "EXI-0003")
+        {
+            ProjectId = first.Card.ProjectId
+        };
         IReadOnlyList<ProjectAiRequirementReview> caReviews =
             ProjectAiRequirementReviewService.Compare(caPreview, caCatalog);
         Reject(() => ProjectAiImportDecisionPlanner.Prepare(
