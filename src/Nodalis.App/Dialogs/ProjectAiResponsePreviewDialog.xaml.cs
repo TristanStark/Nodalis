@@ -1776,7 +1776,8 @@ public partial class ProjectAiResponsePreviewDialog : Window
         try
         {
             T result = await Task.Run(resume);
-            string status = result?.ToString() ?? "Failed";
+            string status = result is null ? "Failed" :
+                result.ToString() ?? "Failed";
             try
             {
                 ProjectAiRecoveryOutcome outcome = await Task.Run(() =>
