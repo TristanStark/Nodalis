@@ -798,6 +798,124 @@ public partial class ProjectAiResponsePreviewDialog : Window
     }
 
     /// <summary>
+    /// Publishes one previously reviewed CA title after a human confirms the
+    /// exact local criterion, source file and before/after text.
+    /// </summary>
+    /// <param name="sender">Explicit user action.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void PublishReviewedCriterion_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _preview is null || _comparisons is null ||
+            _preparedPlan is null || _preparedPlan.CriterionTitles.Count != 1 ||
+            _preparedPlan.Changes.Count != 0 || _preparedPlan.Creations.Count != 0 ||
+            _preparedPlan.Descriptions.Count != 0)
+        {
+            return;
+        }
+
+        ProjectAiPreparedReviewPlan expected = _preparedPlan;
+        try
+        {
+            ProjectAiPreparedReviewPlan current =
+                ProjectAiImportDecisionPlanner.Prepare(_preview,
+                    _comparisons.Values.ToArray(), _decisions.Values.ToArray());
+            if (current.CriterionTitles.Count != 1 ||
+                current.Changes.Count != 0 || current.Creations.Count != 0 ||
+                current.Descriptions.Count != 0 ||
+                current.CriterionTitles[0] != expected.CriterionTitles[0] ||
+                current.RawResponseSha256 != expected.RawResponseSha256 ||
+                current.ReviewedFields != expected.ReviewedFields ||
+                current.IgnoredFields != expected.IgnoredFields ||
+                current.PendingFields != expected.PendingFields)
+            {
+                throw new InvalidDataException(
+                    "Plan CA changé depuis l'aperçu : requalification nécessaire.");
+            }
+
+            ProjectAiPreparedCriterionTitleChange change =
+                current.CriterionTitles.Single();
+            string path = new ProjectJourneySourceService(_workspaceRoot)
+                .ResolveExistingFile(change.RelativePath);
+            if (Application.Current.MainWindow is not Nodalis.App.MainWindow main ||
+                main.IsDocumentOpenForAiImport(path))
+            {
+                throw new InvalidDataException(
+                    "Fiche EXI ouverte ou éditeur principal inaccessible. " +
+                    "Sauvegarder et fermer l'onglet avant la publication.");
+            }
+
+            string confirmation = "Exigence : " + change.Reference +
+                "\nCritère : " + change.CriterionReference +
+                "\nGUID stable : " + change.CriterionId.ToString("D") +
+                "\nFichier : " + change.RelativePath +
+                "\nTitre actuel : " + change.CurrentTitle +
+                "\nTitre approuvé : " + change.ReviewedTitle +
+                "\n\nSeul ce titre CA sera modifié. Son GUID, les liens, " +
+                "les tests et les verdicts seront conservés." +
+                "\nLes instantanés complets de l'EXI seront journalisés " +
+                "avant toute écriture métier." +
+                "\n\n" + (ArchiveRawResponseCheck.IsChecked == true
+                    ? "La réponse IA brute sera également archivée."
+                    : "La réponse IA brute ne sera PAS archivée.") +
+                "\n\nConfirmer cette publication locale ?";
+            if (MessageBox.Show(this, confirmation,
+                "Import IA · confirmer le titre du critère CA",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            _busy = true;
+            _publishing = true;
+            UpdateButtons();
+            try
+            {
+                (ProjectAiTitleCommitStatus result, string? auditWarning) =
+                    await PublishWithAuditAsync(current, "criterion-title",
+                        "criterion-" + change.ProposalId.ToString("N"),
+                        () => new ProjectAiCriterionTitleImportTransactionService(
+                            _workspaceRoot).CommitAsync(_projectDirectory, current));
+                _comparisons = null;
+                ClearDecisions();
+                ShowSelectedDetails();
+                PlanTextBox.Text = "Critère CA : " + result +
+                    ". Recharger la fiche avant toute nouvelle qualification.";
+                StatusText.Text = result == ProjectAiTitleCommitStatus.AlreadyApplied
+                    ? "Critère déjà publié : journal et source concordants."
+                    : "Titre CA publié avec journal durable et SHA-256.";
+                if (auditWarning is not null)
+                {
+                    StatusText.Text += "\n" + auditWarning;
+                }
+
+                MessageBox.Show(this, StatusText.Text,
+                    "Import IA · critère", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            finally
+            {
+                _busy = false;
+                _publishing = false;
+                UpdateButtons();
+            }
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            _preparedPlan = null;
+            StatusText.Text = "Publication CA refusée : " + exception.Message +
+                "\nConserver tout journal existant pour inspection manuelle.";
+            MessageBox.Show(this, StatusText.Text,
+                "Import IA · critère non publié",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
     /// Publishes two to twenty explicitly reviewed EXI title updates, only
     /// after an additional human confirmation of every affected file.
     /// Multiple Windows file replacements are replayable, not all-or-nothing.
