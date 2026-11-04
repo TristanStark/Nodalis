@@ -139,6 +139,79 @@ internal static class ProjectRequirementCampaignTraceabilitySmokeTests
             "Historical Passed cannot be promoted to the unexecuted new " +
             "passage or an automatically Verified EXI criterion.");
 
+        ProjectCriterionChangeImpactOverview impact =
+            ProjectCriterionChangeImpact.Build(projectId, card.Id, criterionId,
+                requirement.SourceSha256, links, overview);
+        Assert(impact.Kind ==
+                ProjectCriterionChangeImpactKind.HistoricalResults &&
+            impact.Tests.Count == 1 &&
+            impact.Tests[0].TestId == testId &&
+            impact.Tests[0].Passages == 2 &&
+            impact.Tests[0].DeclaredResults == 1 &&
+            impact.Tests[0].PreviouslyPassed == 1 &&
+            impact.HistoricalResultCount == 1 &&
+            impact.Describe().Contains("requalifier", StringComparison.Ordinal) &&
+            card.Verification == ProjectRequirementVerification.NotVerified,
+            "Changed CA must advise requalification of linked tests while " +
+            "preserving all historic REC verdicts and EXI statuses.");
+        ProjectCriterionChangeImpactOverview uncoveredImpact =
+            ProjectCriterionChangeImpact.Build(projectId, card.Id,
+                links.Rows[1].Criterion.Id!.Value, requirement.SourceSha256,
+                links, overview);
+        Assert(uncoveredImpact.Kind ==
+                ProjectCriterionChangeImpactKind.NoLinkedTest &&
+            uncoveredImpact.Tests.Count == 0 &&
+            uncoveredImpact.HistoricalResultCount == 0,
+            "An unlinked CA is not described as executed or verified.");
+        ProjectCriterionChangeImpactOverview staleImpact =
+            ProjectCriterionChangeImpact.Build(projectId, card.Id,
+                links.Rows[2].Criterion.Id!.Value, requirement.SourceSha256,
+                links, overview);
+        Assert(staleImpact.Kind ==
+                ProjectCriterionChangeImpactKind.Unresolved,
+            "A stale CA index must never be interpreted as no test impact.");
+        Assert(ProjectCriterionChangeImpact.Build(projectId, card.Id,
+                criterionId, new string('B', 64), links, overview).Kind ==
+            ProjectCriterionChangeImpactKind.Unresolved,
+            "An EXI edited after review forces a new impact snapshot.");
+        Assert(ProjectCriterionChangeImpact.Build(Guid.NewGuid(), card.Id,
+                criterionId, requirement.SourceSha256, links, overview).Kind ==
+            ProjectCriterionChangeImpactKind.Unresolved,
+            "An outside-project identifier cannot reuse linked REC results.");
+        ProjectRequirementTraceabilityOverview duplicateCriteria = links with
+        {
+            Rows = [.. links.Rows, links.Rows[0]]
+        };
+        Assert(ProjectCriterionChangeImpact.Build(projectId, card.Id,
+                criterionId, requirement.SourceSha256,
+                duplicateCriteria, overview).Kind ==
+            ProjectCriterionChangeImpactKind.Unresolved,
+            "Duplicated CA GUIDs across rows block impact resolution.");
+        ProjectRequirementCampaignOverview wrongHistory = overview with
+        {
+            Rows = [overview.Rows[1]]
+        };
+        Assert(ProjectCriterionChangeImpact.Build(projectId, card.Id,
+                criterionId, requirement.SourceSha256, links,
+                wrongHistory).Kind ==
+            ProjectCriterionChangeImpactKind.Unresolved,
+            "Historic REC associations must be built from the same link snapshot.");
+        ProjectTestCampaignCatalog emptyCatalog = catalog with
+        {
+            Campaigns = []
+        };
+        ProjectRequirementCampaignOverview noResults =
+            ProjectRequirementCampaignTraceability.Build(links, emptyCatalog);
+        ProjectCriterionChangeImpactOverview neverExecuted =
+            ProjectCriterionChangeImpact.Build(projectId, card.Id, criterionId,
+                requirement.SourceSha256, links, noResults);
+        Assert(neverExecuted.Kind ==
+                ProjectCriterionChangeImpactKind.LinkedWithoutResult &&
+            neverExecuted.Tests.Count == 1 &&
+            neverExecuted.Tests[0].Passages == 0,
+            "A linked but never executed test must still be recommended for " +
+            "human review, without fabricating an outcome.");
+
         ProjectRequirementTraceabilityOverview sharedTest = links with
         {
             Rows =
