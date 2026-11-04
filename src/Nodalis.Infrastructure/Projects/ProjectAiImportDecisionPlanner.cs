@@ -375,6 +375,10 @@ public static class ProjectAiImportDecisionPlanner
                     approved.Contains('\uFEFF') ||
                     approved.Contains("<!-- nodalis:block:",
                         StringComparison.OrdinalIgnoreCase) ||
+                    ProjectRequirementCriterionBodyCodec
+                        .ContainsProtectedRelations(approved) ||
+                    ProjectRequirementCriterionBodyCodec
+                        .ContainsProtectedRelations(criterionCurrent) ||
                     MarkdownOutlineParser.Parse(approved).Any(item =>
                         item.Level <= 3))
                 {

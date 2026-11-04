@@ -12,6 +12,20 @@ public static class ProjectRequirementCriterionBodyCodec
     private const int MaxBodyCharacters = 8000;
 
     /// <summary>
+    /// Flags any typed relation-like Markdown line even if its target GUID
+    /// is malformed. AI body updates must never silently delete or create
+    /// CA-to-test backlinks: relationships require a separate human workflow.
+    /// </summary>
+    /// <param name="body">Body of a CA, never a trusted relationship proposal.</param>
+    /// <returns>True when a relation-looking line needs manual handling.</returns>
+    public static bool ContainsProtectedRelations(string body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        return body.Split('\n').Any(line => line.TrimStart()
+            .StartsWith("> Relation:", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// Extracts safe, uniquely identified CA bodies in ONE pass per EXI.
     /// Null/absent entries are intentionally not treated as empty descriptions.
     /// </summary>
@@ -101,6 +115,8 @@ public static class ProjectRequirementCriterionBodyCodec
             approved.Contains('\uFEFF') ||
             approved.Contains("<!-- nodalis:block:",
                 StringComparison.OrdinalIgnoreCase) ||
+            ContainsProtectedRelations(approved) ||
+            ContainsProtectedRelations(expectedCurrent) ||
             MarkdownOutlineParser.Parse(approved).Any(entry => entry.Level <= 3) ||
             !ClosedFences(approved) ||
             ProjectRequirementMarkdownCodec.Parse(markdown) != card)

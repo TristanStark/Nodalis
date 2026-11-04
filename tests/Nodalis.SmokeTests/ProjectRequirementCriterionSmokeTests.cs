@@ -287,6 +287,24 @@ internal static class ProjectRequirementCriterionSmokeTests
             "Texte CA initial\n\n#### Exemple détaillé\nPreuve de conformité",
             "Nouvelle identité <!-- nodalis:block:" + Guid.NewGuid() + " -->"),
             "An AI-provided block GUID cannot be injected into CA body.");
+        string currentBody = "Texte CA initial\n\n#### Exemple détaillé\nPreuve de conformité";
+        string relation = "> Relation: teste | Cible: Test fictif | ID: " +
+            Guid.NewGuid().ToString("D");
+        Reject(() => ProjectRequirementCriterionBodyCodec.Rewrite(
+            bodySource, card, firstId, currentBody,
+            "Nouvelle preuve\n" + relation),
+            "AI must not create test links through a plain-text CA body.");
+        string relationshipSource = bodySource.Replace(
+            "Preuve de conformité", "Preuve de conformité" +
+                lineEnding + relation, StringComparison.Ordinal);
+        Reject(() => ProjectRequirementCriterionBodyCodec.Rewrite(
+            relationshipSource, card, firstId,
+            currentBody + "\n" + relation, "Texte sans liens"),
+            "AI must not silently erase preexisting CA-to-test links.");
+        Assert(ProjectRequirementCriterionBodyCodec
+            .ContainsProtectedRelations("   > relation: test | ID: malformed"),
+            "Even an invalid typed-link line requires manual reconciliation.");
+
         Assert(ProjectRequirementCriterionBodyCodec.Extract(
                 bodySource, Guid.NewGuid()) is null,
             "Unknown CA GUID has no inferred or fallback body.");
