@@ -1239,9 +1239,13 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     ? "Contenu CA déjà appliqué, journal conforme."
                     : "Contenu CA publié après vérification de source, " +
                       "confirmation humaine et journal SHA-256.";
-                StatusText.Text += "\n" + impact.Tests.Count +
-                    " test(s) lié(s) à examiner après modification CA ; " +
-                    "les anciens verdicts REC restent inchangés.";
+                StatusText.Text += impact.Kind ==
+                    ProjectCriterionChangeImpactKind.Unresolved
+                    ? "\nImpact des tests INDÉTERMINÉ : consulter la matrice " +
+                        "EXI→CA→TEST avant toute validation métier."
+                    : "\n" + impact.Tests.Count +
+                        " test(s) lié(s) à examiner après modification CA.";
+                StatusText.Text += "\nAnciens verdicts REC inchangés.";
                 if (auditWarning is not null)
                 {
                     StatusText.Text += "\n" + auditWarning;
@@ -1374,9 +1378,12 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 StatusText.Text = result == ProjectAiTitleCommitStatus.AlreadyApplied
                     ? "Critère déjà publié : journal et source concordants."
                     : "Titre CA publié avec journal durable et SHA-256.";
-                StatusText.Text += "\n" + impact.Tests.Count +
-                    " test(s) lié(s) à examiner après changement CA. " +
-                    "Aucun verdict REC modifié.";
+                StatusText.Text += impact.Kind ==
+                    ProjectCriterionChangeImpactKind.Unresolved
+                    ? "\nImpact des tests INDÉTERMINÉ : matrice à rafraîchir."
+                    : "\n" + impact.Tests.Count +
+                        " test(s) lié(s) à examiner après changement CA.";
+                StatusText.Text += "\nAucun verdict REC modifié.";
                 if (auditWarning is not null)
                 {
                     StatusText.Text += "\n" + auditWarning;

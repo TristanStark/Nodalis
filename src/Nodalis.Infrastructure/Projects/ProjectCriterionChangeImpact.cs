@@ -76,8 +76,10 @@ public sealed record ProjectCriterionChangeImpactOverview(
             lines.Add(Tests.Count + " test(s) lié(s) à requalifier " +
                 "manuellement après modification du CA.");
             lines.Add(HistoricalResultCount +
-                " résultat(s) REC humain(s) historiques, conservés " +
-                "sans modification.");
+                " résultat(s) REC humain(s) observé(s) dans les sources " +
+                "disponibles, conservés sans modification." +
+                (Diagnostics.Count == 0 ? string.Empty :
+                    " Inventaire REC potentiellement incomplet."));
             foreach (ProjectCriterionAffectedTest test in Tests.Take(8))
             {
                 lines.Add("• " + test.Title + " (" + test.TestId.ToString("D") +
