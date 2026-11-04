@@ -163,9 +163,9 @@ public static class ProjectAiRequirementReviewService
                     warnings);
             }
 
-            ProjectRequirementEntry parent = parents[0];
-            if (parent.Card.ProjectId != catalog.ProjectId ||
-                parent.CriterionDiagnostics.Any(message =>
+            ProjectRequirementEntry creationParent = parents[0];
+            if (creationParent.Card.ProjectId != catalog.ProjectId ||
+                creationParent.CriterionDiagnostics.Any(message =>
                     !message.StartsWith("Critère sans GUID stable",
                         StringComparison.Ordinal)))
             {
@@ -176,12 +176,12 @@ public static class ProjectAiRequirementReviewService
             }
 
             warnings.Add("Nouvelle proposition CA sous " +
-                parent.Card.Reference + " : code CA et GUID attribués " +
+                creationParent.Card.Reference + " : code CA et GUID attribués " +
                 "uniquement par Nodalis après relecture du Markdown local. " +
                 "Cette comparaison ne crée et n'approuve rien.");
             return new ProjectAiRequirementReview(candidate,
                 ProjectAiRequirementMatchStatus.CriterionCreationDraft,
-                parent, [], warnings);
+                creationParent, [], warnings);
         }
 
         if (candidate.Operation != "update")
