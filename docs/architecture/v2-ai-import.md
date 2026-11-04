@@ -846,3 +846,18 @@ un service de transaction séparé et une qualification humaine complète.
 Tests de non-régression : section Markdown, sous-titres H3, titre H2 dans
 un bloc de code, doublon, taille maximale, conflit de base déclaré, et
 refus d'approuver une description dans le plan actuel.
+
+### Incrément suivant — codec de remplacement pur (04/11/2026)
+
+Le lecteur de description EXI possède un moteur **en mémoire uniquement**
+pour produire un instantané Markdown proposé : section unique, prise en
+charge des clôtures de blocs de code, contraintes de taille, contrôle de
+l'identité et des métadonnées, relecture de la valeur avant/après.
+Les portions du document hors description sont conservées textuellement,
+y compris les fins de ligne LF/CRLF. Une nouvelle section de niveau H1/H2
+introduite par une proposition est refusée.
+
+Ce moteur **n'effectue aucune écriture** et ne contourne pas le statut
+consultatif des descriptions dans le dialogue d'import. Il sert à
+construire ultérieurement une transaction explicite avec journal,
+confirmation humaine et vérification SHA-CAS.

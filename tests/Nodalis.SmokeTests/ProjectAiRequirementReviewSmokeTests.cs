@@ -118,6 +118,42 @@ internal static class ProjectAiRequirementReviewSmokeTests
                 StringComparison.Ordinal)),
             "Unsupported fields must never receive a fabricated local diff.");
 
+        string toRewrite = canonical.Replace("## Description vérifiable\n\n",
+            "## Description vérifiable\n\nAncien texte\n\n",
+            StringComparison.Ordinal);
+        ProjectRequirementCard originalCard =
+            ProjectRequirementMarkdownCodec.Parse(toRewrite);
+        string proposedSnapshot = ProjectRequirementDescriptionCodec.Rewrite(
+            toRewrite, originalCard, "Ancien texte", "Texte approuvé\n\n### Détail");
+        Assert(ProjectRequirementMarkdownCodec.Parse(proposedSnapshot) ==
+                originalCard &&
+            ProjectRequirementDescriptionCodec.Extract(proposedSnapshot) ==
+                "Texte approuvé\n\n### Détail" &&
+            proposedSnapshot.Contains("## Origine, hypothèses et ambiguïtés",
+                StringComparison.Ordinal) &&
+            proposedSnapshot.EndsWith("## Dépendances et preuves\n",
+                StringComparison.Ordinal),
+            "Only the EXI description body may change, preserving other sections.");
+        RejectRewrite(() => ProjectRequirementDescriptionCodec.Rewrite(
+                toRewrite, originalCard, "Ancien texte", "Nouveau\n## Injection"),
+            "Injected H2 headings must be blocked before any write.");
+        RejectRewrite(() => ProjectRequirementDescriptionCodec.Rewrite(
+                toRewrite, originalCard, "Autre base", "Nouveau"),
+            "An unreviewed concurrent description must be rejected.");
+        RejectRewrite(() => ProjectRequirementDescriptionCodec.Rewrite(
+                toRewrite, originalCard with { Title = "Titre non local" },
+                "Ancien texte", "Nouveau"),
+            "A stale EXI identity must not be rewritten.");
+        string crlf = toRewrite.Replace("\n", "\r\n", StringComparison.Ordinal);
+        string updatedCrlf = ProjectRequirementDescriptionCodec.Rewrite(
+            crlf, originalCard, "Ancien texte", "Version humaine\n### Note");
+        Assert(updatedCrlf.StartsWith("---\r\n", StringComparison.Ordinal) &&
+            ProjectRequirementDescriptionCodec.Extract(updatedCrlf) ==
+                "Version humaine\n### Note" &&
+            updatedCrlf.Contains("\r\n## Origine, hypothèses",
+                StringComparison.Ordinal),
+            "CRLF documents remain compatible with field-level edits.");
+
         ProjectAiImportCandidate proposedDescription = Candidate(
             "update", first.Card.Id, "EXI-0001", "Titre inchangé", null)
             with
@@ -222,6 +258,23 @@ internal static class ProjectAiRequirementReviewSmokeTests
             Proposals = candidates.ToList()
         },
         new string('B', 64));
+
+    /// <summary>Expects a pure rewrite to refuse ambiguous or unsafe text.</summary>
+    /// <param name="action">Pure comparison or rewrite.</param>
+    /// <param name="message">Expected refusal invariant.</param>
+    private static void RejectRewrite(Action action, string message)
+    {
+        try
+        {
+            action();
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(message);
+    }
 
     /// <summary>Rejects a failed regression invariant.</summary>
     /// <param name="condition">Expected truth value.</param>

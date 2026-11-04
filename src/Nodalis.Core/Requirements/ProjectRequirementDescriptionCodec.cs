@@ -1,8 +1,8 @@
 namespace Nodalis.Core.Requirements;
 
 /// <summary>
-/// Read-only projection of the canonical EXI description section. Never
-/// interprets arbitrary AI text as Markdown structure or changes a source.
+/// Read-only projection and pure rewriting of the one canonical EXI
+/// description section. No file system, model execution or approval occurs.
 /// </summary>
 public static class ProjectRequirementDescriptionCodec
 {
@@ -11,91 +11,166 @@ public static class ProjectRequirementDescriptionCodec
 
     /// <summary>
     /// Extracts the unique level-two "Description vérifiable" section
-    /// outside fenced blocks. An absent, duplicated, malformed or oversized
-    /// section remains unresolved rather than inventing a current value.
+    /// outside fenced blocks. Ambiguous or oversized sources fail closed.
     /// </summary>
-    /// <param name="markdown">Already validated project-local EXI Markdown.</param>
-    /// <returns>Normalized section body, or null if it is not safe to compare.</returns>
+    /// <param name="markdown">Validated project-local EXI Markdown.</param>
+    /// <returns>Normalized body, or null if safe matching is impossible.</returns>
     public static string? Extract(string markdown)
     {
         ArgumentNullException.ThrowIfNull(markdown);
+        (int Start, int End)? bounds = FindBounds(markdown);
+        if (bounds is null)
+        {
+            return null;
+        }
+
+        string body = NormalizeNewlines(markdown[
+            bounds.Value.Start..bounds.Value.End]).Trim('\n');
+        return body.Length <= MaxDescriptionCharacters ? body : null;
+    }
+
+    /// <summary>
+    /// Creates an in-memory replacement of exactly one canonical EXI
+    /// description section, preserving every byte of the surrounding text
+    /// when encoded with the source's UTF-8 encoding. Rejects inserted
+    /// top-level headings, ambiguous fences, and stale reviewed values.
+    /// </summary>
+    /// <param name="markdown">Current SHA-pinned Markdown source.</param>
+    /// <param name="card">Canonical identity parsed from that source.</param>
+    /// <param name="expectedCurrent">Description actually reviewed by a human.</param>
+    /// <param name="approved">New human-approved body (no outer newlines).</param>
+    /// <returns>Proposed Markdown snapshot; this does not save anything.</returns>
+    public static string Rewrite(string markdown, ProjectRequirementCard card,
+        string expectedCurrent, string approved)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+        ArgumentNullException.ThrowIfNull(card);
+        ArgumentNullException.ThrowIfNull(expectedCurrent);
+        ArgumentNullException.ThrowIfNull(approved);
+        if (approved.Length > MaxDescriptionCharacters ||
+            approved.Contains('\r') || approved.Contains('\0') ||
+            approved != approved.Trim('\n') ||
+            approved.Contains('\uFEFF'))
+        {
+            throw new InvalidDataException(
+                "Description approuvée invalide : 8000 caractères, sauts LF uniquement.");
+        }
+
+        (int Start, int End)? bounds = FindBounds(markdown);
+        if (bounds is null ||
+            !string.Equals(Extract(markdown), expectedCurrent,
+                StringComparison.Ordinal) ||
+            ProjectRequirementMarkdownCodec.Parse(markdown) != card)
+        {
+            throw new InvalidDataException(
+                "Section ou identité EXI différente de l'instantané approuvé.");
+        }
+
+        // The original text surrounding the section is retained verbatim,
+        // including metadata, criteria, history and other Markdown sections.
+        string newline = markdown.Contains("\r\n", StringComparison.Ordinal)
+            ? "\r\n" : "\n";
+        string replacement = newline +
+            approved.Replace("\n", newline, StringComparison.Ordinal) +
+            newline + newline;
+        string rewritten = markdown[..bounds.Value.Start] + replacement +
+            markdown[bounds.Value.End..];
+        if (rewritten.Length > MaxDocumentCharacters ||
+            ProjectRequirementMarkdownCodec.Parse(rewritten) != card ||
+            !string.Equals(Extract(rewritten), approved, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "La proposition IA altérerait la structure ou les métadonnées EXI.");
+        }
+
+        return rewritten;
+    }
+
+    /// <summary>
+    /// Finds exact source character offsets to preserve unrelated original
+    /// Markdown, honoring fenced code blocks and rejecting duplicate headings.
+    /// </summary>
+    /// <param name="markdown">Raw source, not normalized.</param>
+    /// <returns>Body offsets, or null for an unsafe or missing section.</returns>
+    private static (int Start, int End)? FindBounds(string markdown)
+    {
         if (markdown.Length > MaxDocumentCharacters)
         {
             return null;
         }
 
-        string[] lines = markdown.TrimStart('\uFEFF')
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n').Split('\n');
+        string[] lines = markdown.Split('\n');
+        int offset = 0;
         int start = -1;
-        int end = lines.Length;
+        int end = -1;
         bool fenced = false;
         char fenceMarker = '\0';
         int fenceLength = 0;
-        for (int index = 0; index < lines.Length; index++)
+        foreach (string rawLine in lines)
         {
-            string line = lines[index];
+            string line = rawLine.TrimEnd('\r');
             string noIndent = line.TrimStart(' ');
             int indent = line.Length - noIndent.Length;
-            if (indent <= 3 && noIndent.Length >= 3 &&
-                (noIndent[0] == (char)96 || noIndent[0] == '~'))
+            bool delimiter = indent <= 3 && noIndent.Length >= 3 &&
+                (noIndent[0] == (char)96 || noIndent[0] == '~');
+            if (delimiter)
             {
-                int count = 0;
-                while (count < noIndent.Length && noIndent[count] == noIndent[0])
+                int length = 0;
+                while (length < noIndent.Length &&
+                    noIndent[length] == noIndent[0])
                 {
-                    count++;
+                    length++;
                 }
 
-                if (!fenced && count >= 3)
+                if (!fenced && length >= 3)
                 {
                     fenced = true;
                     fenceMarker = noIndent[0];
-                    fenceLength = count;
-                    continue;
+                    fenceLength = length;
                 }
-
-                if (fenced && noIndent[0] == fenceMarker &&
-                    count >= fenceLength &&
-                    string.IsNullOrWhiteSpace(noIndent[count..]))
+                else if (fenced && noIndent[0] == fenceMarker &&
+                    length >= fenceLength &&
+                    string.IsNullOrWhiteSpace(noIndent[length..]))
                 {
                     fenced = false;
-                    continue;
                 }
             }
-
-            if (fenced)
+            else if (!fenced)
             {
-                continue;
-            }
-
-            if (string.Equals(line, "## Description vérifiable",
+                if (string.Equals(line, "## Description vérifiable",
                     StringComparison.Ordinal))
-            {
-                if (start >= 0)
                 {
-                    return null;
+                    if (start >= 0)
+                    {
+                        return null;
+                    }
+
+                    start = offset + rawLine.Length +
+                        (offset + rawLine.Length < markdown.Length ? 1 : 0);
                 }
-
-                start = index;
-                continue;
+                else if (start >= 0 && end < 0 &&
+                    (line.StartsWith("# ", StringComparison.Ordinal) ||
+                     line.StartsWith("## ", StringComparison.Ordinal)))
+                {
+                    end = offset;
+                }
             }
 
-            if (start >= 0 && end == lines.Length &&
-                (line.StartsWith("# ", StringComparison.Ordinal) ||
-                 line.StartsWith("## ", StringComparison.Ordinal)))
-            {
-                end = index;
-            }
+            offset += rawLine.Length + 1;
         }
 
-        if (start < 0 || fenced)
+        if (fenced || start < 0)
         {
             return null;
         }
 
-        string description = string.Join("\n",
-            lines.Skip(start + 1).Take(end - start - 1)).Trim('\n');
-        return description.Length <= MaxDescriptionCharacters
-            ? description : null;
+        return (start, end < 0 ? markdown.Length : end);
     }
+
+    /// <summary>Normalizes line endings for three-way field comparisons.</summary>
+    /// <param name="text">One bounded section of source Markdown.</param>
+    /// <returns>LF-only content.</returns>
+    private static string NormalizeNewlines(string text) =>
+        text.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
 }
