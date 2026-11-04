@@ -1078,14 +1078,20 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 return;
             }
 
-            ProjectAiBatchTitleCommitStatus result = await Task.Run(() =>
-                service.ResumeAsync(_projectDirectory, key));
+            (ProjectAiBatchTitleCommitStatus result, string? auditWarning) =
+                await ResumeWithRecoveryAuditAsync("title-batch", key,
+                    preview.Published, preview.Pending,
+                    () => service.ResumeAsync(_projectDirectory, key));
             PendingBatchPicker.Items.Remove(selected);
             StatusText.Text = result ==
                 ProjectAiBatchTitleCommitStatus.AlreadyApplied
                 ? "Lot déjà finalisé, aucun fichier modifié."
                 : "Lot repris depuis son journal local. " +
                   "Recharger les fiches mises à jour.";
+            if (auditWarning is not null)
+            {
+                StatusText.Text += "\n" + auditWarning;
+            }
             PlanTextBox.Text = "Récupération du lot " + key +
                 " terminée : " + result + ".\n" +
                 "Requalifier les éventuelles autres propositions séparément.";
@@ -1195,12 +1201,18 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 return;
             }
 
-            ProjectAiMixedCommitStatus result = await Task.Run(() =>
-                service.ResumeAsync(_projectDirectory, key));
+            (ProjectAiMixedCommitStatus result, string? auditWarning) =
+                await ResumeWithRecoveryAuditAsync("mixed", key,
+                    preview.Published, preview.Pending,
+                    () => service.ResumeAsync(_projectDirectory, key));
             PendingBatchPicker.Items.Remove(selected);
             StatusText.Text = result == ProjectAiMixedCommitStatus.AlreadyApplied
                 ? "Lot mixte déjà publié : aucune nouvelle écriture."
                 : "Lot mixte repris : recharger les exigences et le Worktree.";
+            if (auditWarning is not null)
+            {
+                StatusText.Text += "\n" + auditWarning;
+            }
             PlanTextBox.Text = "Récupération du lot mixte " + key +
                 " : " + result + ".\n" +
                 "Les créations restent en brouillon.";
@@ -1740,6 +1752,65 @@ public partial class ProjectAiResponsePreviewDialog : Window
         {
             _busy = false;
             UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Records an explicit post-restart recovery attempt BEFORE the business
+    /// engine runs and an independent completion after it returns. Crashes
+    /// leave an intent without outcome, never a fabricated successful replay.
+    /// </summary>
+    /// <param name="kind">The reviewed journal kind, not untrusted AI text.</param>
+    /// <param name="key">Canonical 64-character journal fingerprint.</param>
+    /// <param name="published">Human-confirmed completed files.</param>
+    /// <param name="pending">Human-confirmed remaining files.</param>
+    /// <param name="resume">The already-reviewed protected business operation.</param>
+    /// <returns>The business result and any provenance-only warning.</returns>
+    private async Task<(T Result, string? Warning)> ResumeWithRecoveryAuditAsync<T>(
+        string kind, string key, int published, int pending,
+        Func<Task<T>> resume)
+    {
+        ProjectAiRecoveryHistoryService audit = new(_workspaceRoot);
+        ProjectAiRecoveryAttempt attempt = await Task.Run(() =>
+            audit.StartAsync(_projectDirectory, kind, key, published, pending));
+        try
+        {
+            T result = await Task.Run(resume);
+            string status = result?.ToString() ?? "Failed";
+            try
+            {
+                ProjectAiRecoveryOutcome outcome = await Task.Run(() =>
+                    audit.FinishAsync(_projectDirectory, attempt.AttemptId,
+                        status));
+                return (result, outcome.Result == "NeedsInspection"
+                    ? "Reprise effectuée, mais l'état final du lot n'a pas pu " +
+                      "être entièrement vérifié : inspection nécessaire."
+                    : null);
+            }
+            catch (Exception exception) when (exception is InvalidDataException or
+                InvalidOperationException or IOException or ArgumentException or
+                UnauthorizedAccessException)
+            {
+                return (result, "Résultat d'audit non enregistré après la " +
+                    "reprise : " + exception.Message);
+            }
+        }
+        catch
+        {
+            try
+            {
+                await Task.Run(() => audit.FinishAsync(
+                    _projectDirectory, attempt.AttemptId, "Failed"));
+            }
+            catch (Exception exception) when (exception is InvalidDataException or
+                InvalidOperationException or IOException or ArgumentException or
+                UnauthorizedAccessException)
+            {
+                // A partially published batch cannot be called unchanged.
+                // Preserve the business error and the independent intent.
+            }
+
+            throw;
         }
     }
 
