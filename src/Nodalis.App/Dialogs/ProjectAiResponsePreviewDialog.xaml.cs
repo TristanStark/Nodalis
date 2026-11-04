@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Importing;
 using Nodalis.Core.Requirements;
+using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
@@ -1037,6 +1038,98 @@ public partial class ProjectAiResponsePreviewDialog : Window
     }
 
     /// <summary>
+    /// Reads current EXI/CA-to-test coverage and historical REC selections
+    /// before a human-approved CA edit. It writes no business data and never
+    /// turns an old test verdict into a current verification.
+    /// </summary>
+    /// <param name="projectId">Authoritative reviewed project GUID.</param>
+    /// <param name="requirementId">Existing EXI identity.</param>
+    /// <param name="criterionId">Stable existing CA block GUID.</param>
+    /// <param name="sourceSha">Reviewed EXI source SHA-256.</param>
+    /// <returns>Conservative impact warning for the confirmation dialogue.</returns>
+    private async Task<ProjectCriterionChangeImpactOverview>
+        ReviewCriterionImpactAsync(
+        Guid projectId, Guid requirementId, Guid criterionId, string sourceSha)
+    {
+        long inputRevision = _inputRevision;
+        ProjectAiPreparedReviewPlan? prior = _preparedPlan;
+        _busy = true;
+        UpdateButtons();
+        ProjectCriterionChangeImpactOverview impact;
+        try
+        {
+            impact = await Task.Run(async () =>
+            {
+                ProjectRequirementCatalog requirements =
+                    await new ProjectRequirementRegistryService(_workspaceRoot)
+                        .ListAsync(_projectDirectory);
+                if (requirements.ProjectId != projectId)
+                {
+                    throw new InvalidDataException(
+                        "Projet actif différent de l'exigence approuvée.");
+                }
+
+                Nodalis.Core.Links.LinkIndexCatalog index =
+                    await new WorkspaceLinkIndexService(_workspaceRoot)
+                        .RefreshAsync();
+                ProjectRequirementTraceabilityOverview links =
+                    ProjectRequirementTraceability.Build(requirements, index);
+                ProjectTestCampaignCatalog campaigns;
+                try
+                {
+                    campaigns = await new ProjectTestCampaignService(
+                        _workspaceRoot).ListAsync(_projectDirectory);
+                }
+                catch (Exception exception) when (exception is
+                    InvalidDataException or IOException or
+                    UnauthorizedAccessException)
+                {
+                    campaigns = new ProjectTestCampaignCatalog([], [
+                        "Registre REC indisponible (" +
+                        exception.GetType().Name + ") ; " +
+                        "historique potentiellement incomplet."
+                    ], null);
+                }
+
+                ProjectRequirementCampaignOverview history =
+                    ProjectRequirementCampaignTraceability.Build(
+                        links, campaigns);
+                return ProjectCriterionChangeImpact.Build(
+                    projectId, requirementId, criterionId, sourceSha,
+                    links, history);
+            });
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            // A temporarily unavailable index never implies zero test impact.
+            // Show uncertainty and require the ordinary explicit confirmation.
+            impact = new ProjectCriterionChangeImpactOverview(
+                requirementId, criterionId, sourceSha,
+                ProjectCriterionChangeImpactKind.Unresolved, [],
+                ["Lecture d'impact indisponible : " +
+                    exception.GetType().Name +
+                    ". Actualiser la matrice de traçabilité."]);
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+
+        if (inputRevision != _inputRevision ||
+            !ReferenceEquals(_preparedPlan, prior))
+        {
+            throw new InvalidDataException(
+                "La réponse ou les décisions ont changé pendant le " +
+                "contrôle d'impact : refaire la revue.");
+        }
+
+        return impact;
+    }
+
+    /// <summary>
     /// Publishes a single reviewed detailed CA body, never a test verdict or
     /// autonomous AI decision. A different plan requires a fresh human review.
     /// </summary>
@@ -1088,6 +1181,9 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     "enregistrer et fermer la fiche avant publication.");
             }
 
+            ProjectCriterionChangeImpactOverview impact =
+                await ReviewCriterionImpactAsync(body.ProjectId,
+                    body.RequirementId, body.CriterionId, body.ExpectedSha256);
             string confirmation = "MODIFIER LE CORPS D'UN CRITÈRE CA" +
                 "\nExigence : " + body.Reference +
                 "\nCritère : " + body.CriterionReference +
@@ -1106,6 +1202,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 "\n\n" + (ArchiveRawResponseCheck.IsChecked == true
                     ? "La réponse IA brute sera également archivée."
                     : "La réponse IA brute ne sera PAS archivée.") +
+                "\n\n" + impact.Describe() +
                 "\n\nConfirmer cette seule publication ?";
             if (MessageBox.Show(this, confirmation,
                 "Import IA · approuver le contenu CA",
@@ -1134,6 +1231,9 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     ? "Contenu CA déjà appliqué, journal conforme."
                     : "Contenu CA publié après vérification de source, " +
                       "confirmation humaine et journal SHA-256.";
+                StatusText.Text += "\n" + impact.Tests.Count +
+                    " test(s) lié(s) à examiner après modification CA ; " +
+                    "les anciens verdicts REC restent inchangés.";
                 if (auditWarning is not null)
                 {
                     StatusText.Text += "\n" + auditWarning;
@@ -1177,7 +1277,9 @@ public partial class ProjectAiResponsePreviewDialog : Window
         if (_busy || _readOnly || _preview is null || _comparisons is null ||
             _preparedPlan is null || _preparedPlan.CriterionTitles.Count != 1 ||
             _preparedPlan.Changes.Count != 0 || _preparedPlan.Creations.Count != 0 ||
-            _preparedPlan.Descriptions.Count != 0)
+            _preparedPlan.Descriptions.Count != 0 ||
+            _preparedPlan.CriterionBodies.Count != 0 ||
+            _preparedPlan.CriterionCreations.Count != 0)
         {
             return;
         }
@@ -1191,6 +1293,8 @@ public partial class ProjectAiResponsePreviewDialog : Window
             if (current.CriterionTitles.Count != 1 ||
                 current.Changes.Count != 0 || current.Creations.Count != 0 ||
                 current.Descriptions.Count != 0 ||
+                current.CriterionBodies.Count != 0 ||
+                current.CriterionCreations.Count != 0 ||
                 current.CriterionTitles[0] != expected.CriterionTitles[0] ||
                 current.RawResponseSha256 != expected.RawResponseSha256 ||
                 current.ReviewedFields != expected.ReviewedFields ||
@@ -1213,6 +1317,10 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     "Sauvegarder et fermer l'onglet avant la publication.");
             }
 
+            ProjectCriterionChangeImpactOverview impact =
+                await ReviewCriterionImpactAsync(change.ProjectId,
+                    change.RequirementId, change.CriterionId,
+                    change.ExpectedSha256);
             string confirmation = "Exigence : " + change.Reference +
                 "\nCritère : " + change.CriterionReference +
                 "\nGUID stable : " + change.CriterionId.ToString("D") +
@@ -1226,6 +1334,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 "\n\n" + (ArchiveRawResponseCheck.IsChecked == true
                     ? "La réponse IA brute sera également archivée."
                     : "La réponse IA brute ne sera PAS archivée.") +
+                "\n\n" + impact.Describe() +
                 "\n\nConfirmer cette publication locale ?";
             if (MessageBox.Show(this, confirmation,
                 "Import IA · confirmer le titre du critère CA",
@@ -1253,6 +1362,9 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 StatusText.Text = result == ProjectAiTitleCommitStatus.AlreadyApplied
                     ? "Critère déjà publié : journal et source concordants."
                     : "Titre CA publié avec journal durable et SHA-256.";
+                StatusText.Text += "\n" + impact.Tests.Count +
+                    " test(s) lié(s) à examiner après changement CA. " +
+                    "Aucun verdict REC modifié.";
                 if (auditWarning is not null)
                 {
                     StatusText.Text += "\n" + auditWarning;
