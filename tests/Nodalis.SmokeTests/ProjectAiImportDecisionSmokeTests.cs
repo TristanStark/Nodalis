@@ -256,7 +256,7 @@ internal static class ProjectAiImportDecisionSmokeTests
             [
                 new ProjectAiFieldDecision(caProposal.ProposalId,
                     "title", ProjectAiFieldDecisionKind.Edit,
-                    "Injection\\n### CA-02", "Relecteur.")
+                    "Injection\n### CA-02", "Relecteur.")
             ]), "CA approved title cannot insert Markdown structures.");
 
         ProjectAiImportCandidate sameTarget = one with
