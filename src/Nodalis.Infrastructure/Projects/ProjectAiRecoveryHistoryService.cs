@@ -233,7 +233,7 @@ public sealed class ProjectAiRecoveryHistoryService
         }
 
         string result = engineResult;
-        if (engineResult is "Applied" or "AlreadyApplied" &&
+        if ((engineResult is "Applied" or "AlreadyApplied") &&
             (!verified || pending != 0))
         {
             result = "NeedsInspection";
@@ -401,7 +401,7 @@ public sealed class ProjectAiRecoveryHistoryService
             outcome.PostStateVerified &&
                 outcome.PublishedAfter + outcome.PendingAfter !=
                     attempt.Targets.Count ||
-            outcome.Result is "Applied" or "AlreadyApplied" &&
+            (outcome.Result is "Applied" or "AlreadyApplied") &&
                 (!outcome.PostStateVerified || outcome.PendingAfter != 0))
         {
             throw new InvalidDataException(
