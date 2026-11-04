@@ -675,6 +675,9 @@ public partial class ProjectAiResponsePreviewDialog : Window
             "plan, vérifiera chaque fichier avant d'écrire la suite.");
         confirmation.AppendLine("Aucune création, validation d'exigence, " +
             "tâche ou modification de critères ne sera effectuée.");
+        confirmation.AppendLine((ArchiveRawResponseCheck.IsChecked == true
+                ? "La réponse brute IA sera AUSSI archivée dans le projet."
+                : "La réponse brute IA ne sera pas archivée."));
         confirmation.AppendLine();
         confirmation.AppendLine("Confirmer la publication de ce lot ?");
         if (MessageBox.Show(this, confirmation.ToString(),
@@ -853,6 +856,9 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 "récupérable depuis le journal local uniquement sur demande.");
             message.AppendLine("Le journal inclut des copies Markdown " +
                 "potentiellement confidentielles.");
+            message.AppendLine((ArchiveRawResponseCheck.IsChecked == true
+                ? "La réponse brute IA sera AUSSI archivée dans le projet."
+                : "La réponse brute IA ne sera pas archivée."));
             message.AppendLine();
             message.AppendLine("Confirmer ce lot et ces références EXI ?");
             if (MessageBox.Show(this, message.ToString(),
@@ -1310,6 +1316,9 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 "aucune validation ni vérification automatique." +
                 "\nLes autres propositions IA ne seront pas enregistrées." +
                 "\nLe journal local conservera une copie de la fiche créée." +
+                "\n" + (ArchiveRawResponseCheck.IsChecked == true
+                ? "La réponse brute IA sera AUSSI archivée dans le projet."
+                : "La réponse brute IA ne sera pas archivée.") +
                 (journaled is null
                     ? "\nUn nouveau GUID stable sera généré par Nodalis."
                     : "\nUne transaction existante sera vérifiée : " +
@@ -1456,6 +1465,9 @@ public partial class ProjectAiResponsePreviewDialog : Window
             "critères et autres propositions ne le seront pas." +
             "\n\nLe journal conservera les versions originale et approuvée " +
             "(potentiellement confidentielles) dans le projet." +
+            "\n\n" + (ArchiveRawResponseCheck.IsChecked == true
+                ? "La réponse brute IA sera AUSSI archivée dans le projet."
+                : "La réponse brute IA ne sera pas archivée.") +
             "\n\nFermez d'abord toute édition ouverte de ce document " +
             "pour éviter un écrasement ultérieur depuis un onglet non rechargé." +
             "\n\nConfirmer la publication locale ?";
