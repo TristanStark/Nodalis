@@ -601,3 +601,123 @@ Cette tranche ne clôt pas #197 ; historique complet des
 réponses brutes, décisions ignorées et autres objets métier
 restent prioritaires. Aucun merge vers `main`, tag ou
 release avant qualification.
+
+
+## Huitième incrément — historique des arbitrages IA, réponse brute sur consentement (04/11/2026)
+
+L'import IA dispose désormais d'un **journal distinct des publications EXI** :
+`ProjectAiReviewHistoryService`. Il documente **ce que l'utilisateur a
+réellement décidé**, sans confondre « revue enregistrée », « publication
+confirmée », « publication réussie » et « lot interrompu ».
+
+### Interface et déclenchements
+
+Après **Analyser → Comparer**, l'utilisateur peut cliquer **Archiver la
+revue…**. Une confirmation rappelle les données retenues ; cette
+commande **n'applique aucune proposition métier**. Les commandes
+existantes **Enregistrer un titre**, **Créer une exigence**, **Enregistrer
+un lot de titres** et **Publier créations + titres** capturent
+également les décisions **après la confirmation de publication, mais
+avant la première écriture métier**. Une erreur d'archivage empêche de
+commencer cette publication.
+
+**Historique des revues** permet de retrouver les archives d'un projet
+après redémarrage ; **Afficher la revue** montre les décisions par
+champ et, si présent, le résultat de publication. La fenêtre n'ouvre
+**jamais automatiquement** une ancienne réponse brute.
+
+### Choix explicites, champs en attente et confidentialité
+
+Le journal `nodalis.ai-review-audit.v1` contient :
+
+- la date UTC, un **GUID de revue attribué par Nodalis**, le GUID du
+  **projet courant**, le GUID de réponse externe et son SHA-256 exact ;
+- le `promptKey` informatif, les nombres de décisions explicites,
+  champs ignorés et champs à revoir ;
+- **une ligne pour chaque champ proposé** — y compris les champs sans
+  décision (`Pending`) ou explicitement marqués `Review` ;
+- le type et l'opération de la proposition, la comparaison canonique,
+  les GUID existants vérifiés et SHA source, la disposition humaine
+  `Accept` / `Edit` / `Ignore` / `Review` / `Pending` ;
+- les textes **explicitement acceptés ou corrigés**, les justifications,
+  et seulement **les empreintes SHA-256** des valeurs proposées et
+  bases IA pour les champs non retenus.
+
+La case **Archiver aussi la réponse brute** est **décochée par
+défaut**. Si et seulement si l'utilisateur l'active, Nodalis
+recalcule le SHA-256 de la réponse collée, vérifie qu'il correspond
+à la réponse prévisualisée, puis conserve son contenu UTF-8 exact
+dans `response.txt`. Sinon, le contenu JSON complet **n'est pas
+écrit** dans le dossier d'archive, même si la zone de texte contient
+toujours la réponse en mémoire. L'archivage de la revue **n'implique
+pas le consentement à conserver la réponse brute**.
+
+Les titres acceptés et justifications restent eux-mêmes des
+données potentiellement confidentielles. La documentation doit
+insister sur les permissions du workspace, et non présenter ce
+dossier comme chiffré ou anonymisé.
+
+### Journal de revue et résultat métier
+
+Chaque capture est enregistrée dans
+`<projet>/.nodalis-ai-import/reviews/<reviewGuid-N>/` :
+
+- `review.json` : décisions et empreintes, écrit en dernier pour
+  ne pas rendre visible une préparation incomplète ;
+- `response.txt` : **facultatif, exclusivement après opt-in** ;
+- `outcome.json` : résultat du moteur de publication, si une
+  publication a réellement été tentée et le résultat enregistré.
+
+Les tentatives de publication ont une référence déterministe
+`TransactionKey` vers le **journal existant** :
+`<proposalGuid-N>`, `batch-<SHA>`, ou `mixed-<SHA>`.
+La revue **ne suffit pas à affirmer qu'un EXI a été publié**.
+Les résultats sont conservés dans un **fichier indépendant,
+atomique et sans écrasement**, avec `Applied`, `AlreadyApplied`,
+`Created`, `AlreadyCreated` ou `Failed`.
+
+**`Failed` ne signifie PAS « tous les fichiers sont intacts »** :
+un lot peut avoir été partiellement appliqué avant une interruption.
+Une interruption brutale entre revue, import et outcome peut
+laisser une revue **sans outcome**, à distinguer d'une réussite.
+Si l'écriture de l'outcome échoue après une publication métier
+réussie, l'interface conserve le succès métier et signale
+séparément la perte de cette trace d'audit, sans relancer
+automatiquement la transaction.
+
+La revue archivée ne déclenche jamais une reprise de journal.
+Les commandes existantes de récupération continuent à imposer
+les contrôles de fichiers et une **nouvelle confirmation humaine**.
+
+### Sécurité et qualification
+
+- le projet doit être **actif**, dans le workspace sélectionné,
+  et ses GUID de comparaison/plan/revue doivent correspondre ;
+- le journal est écrit par fichiers atomiques `CreateNew`,
+  sous le même verrou projet `.nodalis-ai-import/.lock` ;
+- les chemins, fichiers et dossiers d'archive sous liens
+  symboliques/jonctions sont refusés ;
+- les contenus et nombres de champs restent bornés, les
+  empreintes des réponses brutes sont vérifiées à la lecture ;
+- `.nodalis-ai-import/` reste exclu de Git : **pas de commit
+  de copies de travail, pas de capture d'écran, pas d'envoi IA**.
+
+Tests automatisés :
+`ProjectAiReviewHistorySmokeTests` vérifie la séparation
+entre sauvegarde de revue et écriture métier, l'isolation
+entre projets, l'historique des champs `Accept`, `Ignore`,
+`Review` et `Pending`, la **non-persistance des textes IA
+ignorés/en attente**, l'archivage brut uniquement avec consentement,
+le refus d'une empreinte différente, la reprise de lecture après
+nouvelle instance, le résultat lié au journal et le refus de
+réécriture des preuves.
+
+**Recette manuelle Windows restante :** confirmation/décochage de
+l'option brute, fermeture/réouverture de Nodalis, consultation de
+100 revues, lisibilité sur petits écrans et clavier, dossiers
+en lecture seule, et avis de publication partielle en cas
+d'interruption. Les autres champs/objets et l'historique des
+réhabilitations/reprises ultérieures restent à développer.
+
+La qualification de #197 ne vaut ni merge vers `main`, ni tag,
+ni publication de la 2.0.
