@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Requirements;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Reliability;
 
