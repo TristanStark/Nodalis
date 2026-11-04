@@ -708,7 +708,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 : "Lot de titres EXI publié et journalisé.";
             if (auditWarning is not null)
             {
-                StatusText.Text += "\\n" + auditWarning;
+                StatusText.Text += "\n" + auditWarning;
             }
             MessageBox.Show(this, StatusText.Text,
                 "Import IA · résultat du lot", MessageBoxButton.OK,
@@ -882,7 +882,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                   "titres existants actualisés.";
             if (auditWarning is not null)
             {
-                StatusText.Text += "\\n" + auditWarning;
+                StatusText.Text += "\n" + auditWarning;
             }
             MessageBox.Show(this, StatusText.Text,
                 "Import IA · résultat mixte",
@@ -1341,7 +1341,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 : "Nouvelle exigence EXI créée en brouillon, avec journal.";
             if (auditWarning is not null)
             {
-                StatusText.Text += "\\n" + auditWarning;
+                StatusText.Text += "\n" + auditWarning;
             }
             MessageBox.Show(this, StatusText.Text +
                 "\n\n" + result.Entry.RelativePath,
@@ -1488,7 +1488,7 @@ public partial class ProjectAiResponsePreviewDialog : Window
                 : "Titre EXI publié avec remplacement atomique et journal durable.";
             if (auditWarning is not null)
             {
-                StatusText.Text += "\\n" + auditWarning;
+                StatusText.Text += "\n" + auditWarning;
             }
             MessageBox.Show(this, StatusText.Text +
                 "\n\nRouvrez la fiche pour actualiser l'éditeur.",
