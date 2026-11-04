@@ -12,6 +12,7 @@ public enum ProjectAiRequirementMatchStatus
     GuidMatch,
     ReferenceMatch,
     CriterionGuidMatch,
+    CriterionCreationDraft,
     NotFound,
     ConflictingHints,
     Ambiguous
@@ -125,9 +126,67 @@ public static class ProjectAiRequirementReviewService
             ProjectRequirementCriterion Criterion)>> index)
     {
         List<string> warnings = [];
+        if (candidate.Operation == "create")
+        {
+            // The existing *parent requirement* is the only acceptable target
+            // hint when creating a new CA. Neither a new block GUID nor a
+            // new CA-xx reference can be supplied by the external model.
+            if (candidate.TargetId is not Guid parentId)
+            {
+                warnings.Add("Création CA : fournir le GUID de l'exigence " +
+                    "EXI parente, jamais le GUID du futur critère.");
+                return new ProjectAiRequirementReview(candidate,
+                    ProjectAiRequirementMatchStatus.NotFound, null, [], warnings);
+            }
+
+            ProjectRequirementEntry[] parents = catalog.Requirements
+                .Where(item => item.Card.Id == parentId).ToArray();
+            if (parents.Length != 1 || index.ContainsKey(parentId) ||
+                catalog.Requirements.Any(item => item.Card.ProjectId !=
+                    catalog.ProjectId))
+            {
+                warnings.Add("Exigence parente absente ou ambiguë, ou " +
+                    "collision avec un GUID de bloc existant.");
+                return new ProjectAiRequirementReview(candidate,
+                    parents.Length == 0
+                        ? ProjectAiRequirementMatchStatus.NotFound
+                        : ProjectAiRequirementMatchStatus.Ambiguous,
+                    null, [], warnings);
+            }
+
+            if (!string.IsNullOrWhiteSpace(candidate.CandidateReference))
+            {
+                warnings.Add("Création CA : la référence CA-xx sera attribuée " +
+                    "par Nodalis, jamais acceptée depuis la réponse IA.");
+                return new ProjectAiRequirementReview(candidate,
+                    ProjectAiRequirementMatchStatus.CreateCollision, null, [],
+                    warnings);
+            }
+
+            ProjectRequirementEntry parent = parents[0];
+            if (parent.Card.ProjectId != catalog.ProjectId ||
+                parent.CriterionDiagnostics.Any(message =>
+                    !message.StartsWith("Critère sans GUID stable",
+                        StringComparison.Ordinal)))
+            {
+                warnings.Add("Exigence parente ou registre CA à régulariser " +
+                    "avant de créer un critère.");
+                return new ProjectAiRequirementReview(candidate,
+                    ProjectAiRequirementMatchStatus.Ambiguous, null, [], warnings);
+            }
+
+            warnings.Add("Nouvelle proposition CA sous " +
+                parent.Card.Reference + " : code CA et GUID attribués " +
+                "uniquement par Nodalis après relecture du Markdown local. " +
+                "Cette comparaison ne crée et n'approuve rien.");
+            return new ProjectAiRequirementReview(candidate,
+                ProjectAiRequirementMatchStatus.CriterionCreationDraft,
+                parent, [], warnings);
+        }
+
         if (candidate.Operation != "update")
         {
-            warnings.Add("Création et liaison de critère IA non prises en charge.");
+            warnings.Add("Liaison de critère IA non prise en charge.");
             return new ProjectAiRequirementReview(candidate,
                 ProjectAiRequirementMatchStatus.Unsupported, null, [], warnings);
         }

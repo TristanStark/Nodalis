@@ -257,6 +257,50 @@ internal static class ProjectAiRequirementReviewSmokeTests
             ProjectAiRequirementMatchStatus.Unsupported,
             "AI may not assign a new criterion identity or verdict.");
 
+        ProjectAiImportCandidate createdCa = caCandidate with
+        {
+            ProposalId = Guid.NewGuid(),
+            Operation = "create",
+            TargetId = first.Card.Id,
+            CandidateReference = null,
+            BaseFields = [],
+            ProposedFields = new Dictionary<string, string>
+            {
+                ["title"] = "Nouvelle condition à examiner"
+            }
+        };
+        ProjectRequirementCatalog ownedCaCatalog = caCatalog with
+        {
+            ProjectId = first.Card.ProjectId
+        };
+        ProjectAiRequirementReview candidateCa =
+            ProjectAiRequirementReviewService.Compare(
+                Preview(createdCa), ownedCaCatalog).Single();
+        Assert(candidateCa.Status ==
+                ProjectAiRequirementMatchStatus.CriterionCreationDraft &&
+            candidateCa.Requirement?.Card.Id == first.Card.Id &&
+            candidateCa.Criterion is null,
+            "New CA must be bound to an existing parent EXI, without a new AI GUID.");
+        Assert(ProjectAiRequirementReviewService.Compare(Preview(
+                createdCa with { TargetId = null }), ownedCaCatalog)
+                .Single().Status == ProjectAiRequirementMatchStatus.NotFound,
+            "CA creation cannot choose an EXI parent by title or reference.");
+        Assert(ProjectAiRequirementReviewService.Compare(Preview(
+                createdCa with { TargetId = Guid.NewGuid() }),
+                ownedCaCatalog).Single().Status ==
+            ProjectAiRequirementMatchStatus.NotFound,
+            "Unknown parent GUID cannot be silently resolved.");
+        Assert(ProjectAiRequirementReviewService.Compare(Preview(
+                createdCa with { CandidateReference = "CA-01" }),
+                ownedCaCatalog).Single().Status ==
+            ProjectAiRequirementMatchStatus.CreateCollision,
+            "External CA reference assignment must be refused.");
+        Assert(ProjectAiRequirementReviewService.Compare(Preview(
+                createdCa with { TargetId = stableCa }),
+                ownedCaCatalog).Single().Status ==
+            ProjectAiRequirementMatchStatus.NotFound,
+            "A CA GUID cannot be mistaken for an EXI parent GUID.");
+
         ProjectRequirementCatalog duplicates = new(
             [first, first], ["GUID dupliqué."], null);
         ProjectAiRequirementReview duplicate =
