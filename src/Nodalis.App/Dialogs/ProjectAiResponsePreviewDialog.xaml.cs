@@ -262,8 +262,10 @@ public partial class ProjectAiResponsePreviewDialog : Window
                     criterion.Reference + " · " +
                     criterion.Id?.ToString("D"));
                 builder.AppendLine("Ligne source : " + criterion.HeadingLine);
-                builder.AppendLine("Critère : qualification en lecture seule ; " +
-                    "publication et verdict désactivés.");
+                builder.AppendLine("Critère : comparaison non autorisante. " +
+                    "Titre ou corps Markdown publiable uniquement après " +
+                    "Accept/Modifier, plan unitaire et confirmation séparée. " +
+                    "Aucun verdict ni approbation IA.");
             }
 
             foreach (ProjectAiFieldDifference field in review.Fields)
