@@ -1815,6 +1815,147 @@ public partial class ProjectAiResponsePreviewDialog : Window
     }
 
     /// <summary>
+    /// Lists confirmed post-restart recovery attempts, including ones with
+    /// no outcome because the application was interrupted. Read-only.
+    /// </summary>
+    /// <param name="sender">History discovery command.</param>
+    /// <param name="e">User click.</param>
+    private async void ListRecoveryAudits_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            IReadOnlyList<ProjectAiRecoveryAttempt> attempts =
+                await Task.Run(() =>
+                    new ProjectAiRecoveryHistoryService(_workspaceRoot)
+                        .ListAsync(_projectDirectory));
+            RecoveryAuditPicker.Items.Clear();
+            foreach (ProjectAiRecoveryAttempt attempt in attempts)
+            {
+                RecoveryAuditPicker.Items.Add(new ComboBoxItem
+                {
+                    Content = attempt.StartedUtc.ToLocalTime()
+                        .ToString("dd/MM/yyyy HH:mm") + " · " +
+                        (attempt.Kind == "mixed" ? "Mixte" : "Titres") +
+                        " · " + attempt.AttemptId.ToString("N")[..8],
+                    Tag = attempt.AttemptId
+                });
+            }
+
+            RecoveryAuditPicker.SelectedIndex = attempts.Count > 0 ? 0 : -1;
+            StatusText.Text = attempts.Count +
+                " tentative(s) de reprise retrouvée(s), y compris les " +
+                "tentatives sans résultat confirmé.";
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            RecoveryAuditPicker.Items.Clear();
+            StatusText.Text = "Historique des reprises indisponible : " +
+                exception.Message;
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Displays project-owned recovery intent and verified outcome only,
+    /// without opening any journal snapshots or model-generated content.
+    /// </summary>
+    /// <param name="sender">History display button.</param>
+    /// <param name="e">User click.</param>
+    private async void ShowRecoveryAudit_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly ||
+            RecoveryAuditPicker.SelectedItem is not ComboBoxItem selected ||
+            selected.Tag is not Guid attemptId)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            (ProjectAiRecoveryAttempt attempt,
+                ProjectAiRecoveryOutcome? outcome) = await Task.Run(async () =>
+                {
+                    ProjectAiRecoveryHistoryService service = new(_workspaceRoot);
+                    ProjectAiRecoveryAttempt metadata = await service.ReadAsync(
+                        _projectDirectory, attemptId);
+                    ProjectAiRecoveryOutcome? result =
+                        await service.ReadOutcomeAsync(_projectDirectory,
+                            attemptId);
+                    return (metadata, result);
+                });
+            StringBuilder builder = new();
+            builder.AppendLine("HISTORIQUE DES REPRISES IA — LECTURE SEULE");
+            builder.AppendLine("Tentative : " + attempt.AttemptId.ToString("D"));
+            builder.AppendLine("Confirmée le : " + attempt.StartedUtc.ToLocalTime()
+                .ToString("dd/MM/yyyy HH:mm:ss"));
+            builder.AppendLine("Projet : " + attempt.ProjectId.ToString("D"));
+            builder.AppendLine("Type : " + attempt.Kind);
+            builder.AppendLine("Journal métier : " + attempt.TransactionKey);
+            builder.AppendLine("Empreinte du journal au départ : " +
+                attempt.JournalSha256);
+            builder.AppendLine("État AVANT : " + attempt.PublishedBefore +
+                " publié(s) / " + attempt.PendingBefore + " restant(s)");
+            builder.AppendLine("Résultat : " +
+                (outcome?.Result ?? "INCONNU — aucun résultat confirmé"));
+            if (outcome is not null)
+            {
+                builder.AppendLine("Fin : " + outcome.RecordedUtc.ToLocalTime()
+                    .ToString("dd/MM/yyyy HH:mm:ss"));
+                builder.AppendLine(outcome.PostStateVerified
+                    ? "État APRÈS vérifié : " + outcome.PublishedAfter +
+                      " publié(s) / " + outcome.PendingAfter + " restant(s)"
+                    : "État APRÈS inconnu : inspection manuelle requise");
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("OPÉRATIONS ATTENDUES");
+            foreach (ProjectAiRecoveryTarget item in attempt.Targets)
+            {
+                builder.AppendLine(item.Operation.ToUpperInvariant() + " · " +
+                    item.Reference + " · " +
+                    item.RequirementId.ToString("D"));
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("Une tentative sans résultat n'est pas une " +
+                "preuve de succès. Un résultat Failed peut désigner un " +
+                "lot partiellement publié : consulter le journal métier.");
+            PlanTextBox.Text = builder.ToString();
+            StatusText.Text = "Historique de reprise chargé : " +
+                attemptId.ToString("D");
+        }
+        catch (Exception exception) when (exception is InvalidDataException or
+            InvalidOperationException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            StatusText.Text = "Lecture de la reprise refusée : " +
+                exception.Message;
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
     /// Archives a confirmed publication's human decisions BEFORE its first
     /// business file write. A second, immutable outcome confirms the result.
     /// Publication is never claimed successful if only its review exists.
@@ -1923,6 +2064,22 @@ public partial class ProjectAiResponsePreviewDialog : Window
         if (ArchiveRawResponseCheck is not null)
         {
             ArchiveRawResponseCheck.IsEnabled = !_busy && !_readOnly;
+        }
+
+        if (ListRecoveryAuditsButton is not null)
+        {
+            ListRecoveryAuditsButton.IsEnabled = !_busy && !_readOnly;
+        }
+
+        if (RecoveryAuditPicker is not null)
+        {
+            RecoveryAuditPicker.IsEnabled = !_busy && !_readOnly;
+        }
+
+        if (ShowRecoveryAuditButton is not null)
+        {
+            ShowRecoveryAuditButton.IsEnabled = !_busy && !_readOnly &&
+                RecoveryAuditPicker?.SelectedItem is ComboBoxItem;
         }
 
         if (CompareButton is not null)
