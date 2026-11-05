@@ -99,6 +99,10 @@ public static class ProjectCriterionRetestPlanner
         ProjectCriterionBaselineRow[] active = dirty.Where(item =>
             item.State is ProjectCriterionBaselineState.Changed or
                 ProjectCriterionBaselineState.Added).ToArray();
+        HashSet<Guid> duplicateBaselineIds = baseline.Rows
+            .GroupBy(item => item.CriterionId)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key).ToHashSet();
 
         ProjectCriterionSelectableTest[] sources = availableTests.ToArray();
         Dictionary<Guid, ProjectCriterionSelectableTest[]> sourceById = sources
@@ -114,6 +118,14 @@ public static class ProjectCriterionRetestPlanner
 
         foreach (ProjectCriterionBaselineRow change in dirty)
         {
+            if (duplicateBaselineIds.Contains(change.CriterionId))
+            {
+                warnings.Add(change.Label +
+                    " : GUID CA répété dans la comparaison de référence ; " +
+                    "présélection interdite.");
+                continue;
+            }
+
             if (change.State is ProjectCriterionBaselineState.Missing or
                 ProjectCriterionBaselineState.Unresolved)
             {
@@ -177,16 +189,27 @@ public static class ProjectCriterionRetestPlanner
             }
         }
 
+        const int MaxPreselectedTests = 500;
+        int selectedCount = selected.Count;
         ProjectCriterionRetestCandidate[] candidates = selected.Values
             .OrderBy(item => item.Source.Label,
                 StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(item => item.Source.Id)
+            .Take(MaxPreselectedTests)
             .Select(item => new ProjectCriterionRetestCandidate(
                 item.Source.Id, item.Source.Label,
                 item.Source.RelativePath,
                 item.Criteria.OrderBy(id => id).ToArray(),
                 item.Reasons.ToArray()))
             .ToArray();
+        if (selectedCount > MaxPreselectedTests)
+        {
+            warnings.Add("La présélection est limitée à " +
+                MaxPreselectedTests + " tests par passage REC ; " +
+                (selectedCount - MaxPreselectedTests) +
+                " test(s) supplémentaire(s) à organiser manuellement " +
+                "dans un autre passage.");
+        }
 
         if (active.Length == 0)
         {
