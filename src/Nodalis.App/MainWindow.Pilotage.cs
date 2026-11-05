@@ -636,10 +636,13 @@ public partial class MainWindow
         tab.View.FocusFromPilotage(target.StepId, target.OperationId,
             assignPrompt: target.Mode == PilotageTargetMode.Assign,
             requiredSha256: current.Sha256);
+        // Focus may be deferred while the journey view synchronizes
+        // its SHA, or refused if that revision changed again. Do not claim
+        // that a prompt picker has already opened.
         StatusText.Text = target.Mode == PilotageTargetMode.Assign
-            ? "Sélecteur du prompt de l'opération ouvert après " +
-                "validation du parcours ; confirmation humaine requise."
-            : "Parcours ouvert sur l'étape / opération choisie.";
+            ? "Sélection du prompt demandée ; ouverture après " +
+                "vérification de la révision dans le Parcours."
+            : "Navigation demandée vers l'étape / opération du parcours.";
     }
 
     /// <summary>
