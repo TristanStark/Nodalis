@@ -276,9 +276,18 @@ internal static class ProjectJourneySmokeTests
                     "projet-externe-inexistant");
             Assert(missing.Rows.Count == 0 && !missing.HasMore,
                 "An unmatched query must not use another project's data.");
-            await RejectAsync(() => Task.FromResult(
-                ProjectJourneyPilotageSearch.Find(searchable, "", 0)),
-                "Invalid search limits must be rejected.");
+            bool badLimitRejected = false;
+            try
+            {
+                ProjectJourneyPilotageSearch.Find(searchable, "", 0);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                badLimitRejected = true;
+            }
+
+            Assert(badLimitRejected,
+                "Invalid search limits must raise ArgumentOutOfRangeException.");
             ProjectJourneyPilotageSearchResult frtSearch =
                 ProjectJourneyPilotageSearch.Find(
                     ProjectJourneyPilotageSearch.Index(initialMenu),
