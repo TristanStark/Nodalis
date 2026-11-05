@@ -216,6 +216,8 @@ public static class ProjectRecIncidentFollowupPlanner
                     {
                         if (item.Result.RecordedUtc >
                                 lastFailure.RecordedUtc &&
+                            item.Passage.StartedUtc >
+                                lastFailure.RecordedUtc &&
                             item.Passage.Id != lastFailure.PassageId)
                         {
                             latest = item;
