@@ -284,7 +284,8 @@ internal static class ProjectCriterionRetestProgressSmokeTests
             failure.Rows[0].State ==
                 ProjectCriterionRetestProgressState.HumanResultDeclared &&
             failure.Describe().Contains(
-                "n'est pas conservée", StringComparison.Ordinal) == false,
+                "date exacte de modification du CA " +
+                "n'est pas conservée", StringComparison.Ordinal),
             "A failed human result is visible but does not complete CA review.");
     }
 
