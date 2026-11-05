@@ -140,9 +140,11 @@ public static class ProjectIncidentRetestPlanner
                         " / " + passage.ApplicationVersion);
                     (string Reference, DateTimeOffset LastFailure,
                         bool Correction) previous = details[result.TestId];
+                    bool newer = result.RecordedUtc >
+                        previous.LastFailure;
                     details[result.TestId] = (
-                        test.Reference, result.RecordedUtc > previous.LastFailure
-                            ? result.RecordedUtc : previous.LastFailure,
+                        newer ? test.Reference : previous.Reference,
+                        newer ? result.RecordedUtc : previous.LastFailure,
                         previous.Correction || correctedResults.Contains(
                             result.Id));
                 }
