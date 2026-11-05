@@ -44,7 +44,8 @@ public partial class ProjectRecAnomaliesDialog : Window
     private void Followup_Click(object sender, RoutedEventArgs e)
     {
         ProjectRecIncidentFollowupDialog dialog = new(
-            _overview.IncidentFollowups) { Owner = this };
+            _overview.IncidentFollowups)
+        { Owner = this };
         dialog.ShowDialog();
     }
 
