@@ -751,6 +751,16 @@ public partial class ProjectTestCampaignsDialog : Window
                 .ToArray();
         }
 
+        // The user can navigate while the registry/index worker runs.
+        // Do not display or commit a proposal for a campaign that is no
+        // longer the selected one. Historical REC rows remain untouched.
+        if (!ReferenceEquals(chosen, SelectedCampaign()))
+        {
+            StatusText.Text = "Campagne changée pendant l'analyse : " +
+                "relancer la présélection des tests.";
+            return;
+        }
+
         ProjectTestPassageStartDialog picker = new(
             candidates, suggested)
         {
