@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -34,11 +33,7 @@ public partial class ProjectJourneyQuickAccessDialog : Window
 {
     private const int MaximumVisibleRows = 250;
 
-    private sealed record QuickRow(
-        Guid StepId, Guid? OperationId, string Title,
-        string Description, string SearchText);
-
-    private readonly IReadOnlyList<QuickRow> _rows;
+    private readonly IReadOnlyList<ProjectJourneyPilotageSearchRow> _rows;
     private readonly bool _readOnly;
 
     /// <summary>Creates only a human search view over verified project IDs.</summary>
@@ -49,29 +44,7 @@ public partial class ProjectJourneyQuickAccessDialog : Window
     {
         ArgumentNullException.ThrowIfNull(stages);
         _readOnly = readOnly;
-        List<QuickRow> rows = [];
-        int order = 0;
-        foreach (ProjectJourneyPilotageStage stage in stages)
-        {
-            string stageLabel = (++order) + ". " + stage.Name;
-            rows.Add(new QuickRow(stage.Id, null,
-                "Étape · " + stageLabel,
-                "État : " + StageStatus(stage.Status) +
-                    " · " + stage.Operations.Count + " opération(s)",
-                stageLabel));
-            foreach (ProjectJourneyPilotageOperation operation in
-                stage.Operations)
-            {
-                string prompt = operation.PromptKey ??
-                    "aucun prompt associé";
-                rows.Add(new QuickRow(stage.Id, operation.Id,
-                    stageLabel + " › " + operation.Name,
-                    "Opération · " + prompt,
-                    stageLabel + " " + operation.Name + " " + prompt));
-            }
-        }
-
-        _rows = rows;
+        _rows = ProjectJourneyPilotageSearch.Index(stages);
         InitializeComponent();
         RefreshResults();
         SearchBox.Focus();
@@ -102,7 +75,8 @@ public partial class ProjectJourneyQuickAccessDialog : Window
             return;
         }
 
-        QuickRow? row = ResultsList.SelectedItem as QuickRow;
+        ProjectJourneyPilotageSearchRow? row =
+            ResultsList.SelectedItem as ProjectJourneyPilotageSearchRow;
         OpenButton.IsEnabled = row is not null;
         PrepareButton.IsEnabled = row?.OperationId is not null;
         AssignButton.IsEnabled = !_readOnly &&
@@ -114,7 +88,7 @@ public partial class ProjectJourneyQuickAccessDialog : Window
     /// <param name="e">Mouse double-click event.</param>
     private void Results_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (ResultsList.SelectedItem is QuickRow)
+        if (ResultsList.SelectedItem is ProjectJourneyPilotageSearchRow)
         {
             Finish(ProjectJourneyQuickAction.Open);
         }
@@ -142,7 +116,7 @@ public partial class ProjectJourneyQuickAccessDialog : Window
     /// <param name="action">Chosen human interaction.</param>
     private void Finish(ProjectJourneyQuickAction action)
     {
-        if (ResultsList.SelectedItem is not QuickRow row ||
+        if (ResultsList.SelectedItem is not ProjectJourneyPilotageSearchRow row ||
             action != ProjectJourneyQuickAction.Open &&
                 row.OperationId is null ||
             action == ProjectJourneyQuickAction.Assign && _readOnly)
@@ -168,36 +142,19 @@ public partial class ProjectJourneyQuickAccessDialog : Window
             return;
         }
 
-        string search = SearchBox.Text.Trim();
-        CompareInfo culture = CultureInfo.GetCultureInfo("fr-FR").CompareInfo;
-        QuickRow[] shown = _rows
-            .Where(row => search.Length == 0 ||
-                culture.IndexOf(row.SearchText, search,
-                    CompareOptions.IgnoreCase |
-                    CompareOptions.IgnoreNonSpace) >= 0)
-            .Take(MaximumVisibleRows + 1).ToArray();
-        bool more = shown.Length > MaximumVisibleRows;
-        ResultsList.ItemsSource = shown.Take(MaximumVisibleRows).ToArray();
-        CountText.Text = shown.Take(MaximumVisibleRows).Count() +
+        ProjectJourneyPilotageSearchResult result =
+            ProjectJourneyPilotageSearch.Find(
+                _rows, SearchBox.Text, MaximumVisibleRows);
+        ResultsList.ItemsSource = result.Rows;
+        CountText.Text = result.Rows.Count +
             " résultat(s) affiché(s)" +
-            (more ? " · affinez la recherche pour les suivants"
+            (result.HasMore
+                ? " · affinez la recherche pour les suivants"
                 : " · parcours du projet uniquement") +
-            " · " + _rows.Count + " éléments indexés.";
+            " · " + result.TotalIndexed + " éléments indexés.";
         ResultsList.SelectedIndex =
             ResultsList.Items.Count > 0 ? 0 : -1;
         UpdateActions();
     }
 
-    /// <summary>Readable stage lifecycle without status mutation.</summary>
-    /// <param name="status">Current stage status.</param>
-    /// <returns>Human French state text.</returns>
-    private static string StageStatus(ProjectJourneyStepStatus status) =>
-        status switch
-        {
-            ProjectJourneyStepStatus.Todo => "À faire",
-            ProjectJourneyStepStatus.InProgress => "En cours",
-            ProjectJourneyStepStatus.Completed => "Terminée",
-            ProjectJourneyStepStatus.NotApplicable => "Non applicable",
-            _ => "Inconnu"
-        };
 }
