@@ -382,6 +382,10 @@ public partial class ProjectTestCampaignsDialog : Window
             campaign.Entry.Campaign.State ==
                 ProjectTestCampaignState.InProgress &&
             campaign.Entry.Campaign.Passages.Count > 0;
+        CaRetestButton.IsEnabled = writable && campaign is not null &&
+            campaign.Entry.Campaign.State is
+                ProjectTestCampaignState.Draft or
+                ProjectTestCampaignState.InProgress;
         RecordButton.IsEnabled = writable && campaign is not null &&
             campaign.Entry.Campaign.State ==
                 ProjectTestCampaignState.InProgress &&
@@ -553,18 +557,34 @@ public partial class ProjectTestCampaignsDialog : Window
             () => StartPassageAsync(true));
 
     /// <summary>
+    /// Uses the project's explicitly recorded CA baseline and verified
+    /// test links to suggest only safely selectable current test GUIDs.
+    /// The existing editable passage selector retains final human control.
+    /// </summary>
+    /// <param name="sender">Explicit CA-driven replay command.</param>
+    /// <param name="e">User click event.</param>
+    private async void CaRetest_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Proposer les tests des CA modifiés",
+            () => StartPassageAsync(false, true));
+
+    /// <summary>
     /// Refreshes the shared index once, then permits an explicit, human-owned
     /// passage selection. Any suggested retests are nonbinding and editable.
     /// The service revalidates every source hash at the final commit.
     /// </summary>
-    /// <param name="targetedReplay">Whether to propose a targeted rerun.</param>
+    /// <param name="targetedReplay">Whether to propose a last-passage rerun.</param>
+    /// <param name="changedCriteria">Whether to use human CA baseline drift.</param>
     /// <returns>Completed user-approved passage creation.</returns>
-    private async Task StartPassageAsync(bool targetedReplay)
+    private async Task StartPassageAsync(bool targetedReplay,
+        bool changedCriteria = false)
     {
         CampaignRow? chosen = SelectedCampaign();
         if (_readOnly || chosen is null ||
             targetedReplay && (chosen.Entry.Campaign.Passages.Count == 0 ||
                 chosen.Entry.Campaign.State !=
+                    ProjectTestCampaignState.InProgress) ||
+            changedCriteria && chosen.Entry.Campaign.State is not
+                (ProjectTestCampaignState.Draft or
                     ProjectTestCampaignState.InProgress))
         {
             return;
@@ -648,6 +668,87 @@ public partial class ProjectTestCampaignsDialog : Window
             }
 
             suggested = preselection;
+        }
+
+        if (changedCriteria)
+        {
+            // This read-only projection uses one refreshed link index and
+            // one same-project EXI registry snapshot. No per-test filesystem
+            // scan or dispatcher-blocking Markdown parsing is introduced.
+            ProjectCriterionRetestProposal proposal = await Task.Run(
+                async () =>
+                {
+                    ProjectRequirementCatalog requirements =
+                        await new ProjectRequirementRegistryService(
+                            _workspaceRoot).ListAsync(_projectDirectory);
+                    ProjectCriterionBaselineOverview baseline =
+                        await new ProjectCriterionBaselineService(
+                            _workspaceRoot).InspectAsync(_projectDirectory,
+                                requirements);
+                    ProjectRequirementTraceabilityOverview traceability =
+                        ProjectRequirementTraceability.Build(
+                            requirements, index);
+                    ProjectCriterionSelectableTest[] selectable = candidates
+                        .Select(item => new ProjectCriterionSelectableTest(
+                            item.Id, item.Label, item.RelativePath)).ToArray();
+                    return ProjectCriterionRetestPlanner.Propose(
+                        baseline, traceability, selectable);
+                });
+
+            string warningSummary = string.Join("\n",
+                proposal.Warnings.Take(7));
+            if (proposal.Warnings.Count > 7)
+            {
+                warningSummary += "\n… " +
+                    (proposal.Warnings.Count - 7) +
+                    " autre(s) avertissement(s).";
+            }
+
+            if (proposal.Candidates.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "Aucune présélection sûre à partir des critères CA " +
+                    "modifiés depuis la référence humaine.\n\n" +
+                    warningSummary +
+                    "\n\nVous pouvez toujours utiliser « Lancer un " +
+                    "passage… » avec une sélection manuelle.",
+                    "Reprise CA · aucun test présélectionnable",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string[] reasons = proposal.Candidates.Take(12).Select(item =>
+                item.Label + " — " +
+                string.Join("; ", item.Reasons.Take(2))).ToArray();
+            string details = string.Join("\n", reasons);
+            if (proposal.Candidates.Count > 12)
+            {
+                details += "\n… " +
+                    (proposal.Candidates.Count - 12) + " autre(s) test(s).";
+            }
+
+            if (MessageBox.Show(this,
+                "Référence CA n°" + proposal.BaselineSequence +
+                " · " + proposal.ChangedCriterionCount +
+                " critère(s) modifié(s), ajouté(s), disparu(s) ou " +
+                "incertain(s).\n\n" +
+                proposal.Candidates.Count +
+                " test(s) actuel(s) uniques proposés :\n" +
+                details + "\n\n" +
+                "LIMITES DE LA PROPOSITION :\n" + warningSummary +
+                "\n\nLes anciens verdicts REC restent inchangés. " +
+                "La présélection est entièrement modifiable et " +
+                "nécessite une nouvelle confirmation humaine.\n\n" +
+                "Ouvrir le sélecteur de tests ?",
+                "Reprise ciblée depuis les critères CA",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            suggested = proposal.Candidates.Select(item => item.TestId)
+                .ToArray();
         }
 
         ProjectTestPassageStartDialog picker = new(

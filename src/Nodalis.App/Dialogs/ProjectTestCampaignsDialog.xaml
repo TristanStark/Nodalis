@@ -150,6 +150,12 @@
                         Padding="11,8" Margin="0,0,8,5"
                         Click="Retest_Click"
                         AutomationProperties.Name="Proposer des tests à reprendre après le dernier passage"/>
+                <Button x:Name="CaRetestButton"
+                        Content="Proposer tests des CA modifiés…"
+                        Padding="11,8" Margin="0,0,8,5"
+                        Click="CaRetest_Click"
+                        ToolTip="Présélectionner les tests reliés aux critères changés depuis une référence humaine, sans effacer les passages ni créer de verdict."
+                        AutomationProperties.Name="Proposer une reprise REC après changement des critères d'acceptation"/>
                 <Button x:Name="RecordButton" Content="Enregistrer un résultat…"
                         Padding="11,8" Margin="0,0,8,5"
                         Click="Record_Click"/>
