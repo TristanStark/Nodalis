@@ -108,8 +108,9 @@ public static class ProjectRecIncidentFollowupPlanner
         }
 
         HashSet<Guid> campaignIds = [];
-        List<(ProjectTestPassage Passage, ProjectTestResultEvent Result,
-            string Campaign)> observations = [];
+        Dictionary<Guid, List<(ProjectTestPassage Passage,
+            ProjectTestResultEvent Result, string Campaign)>> outcomes = [];
+        int recordedEvents = 0;
         foreach (ProjectTestCampaign campaign in campaigns)
         {
             if (campaign.ProjectId != projectId ||
@@ -121,9 +122,40 @@ public static class ProjectRecIncidentFollowupPlanner
 
             foreach (ProjectTestPassage passage in campaign.Passages)
             {
-                observations.AddRange(passage.Results.Select(result =>
-                    (passage, result, campaign.Reference)));
+                foreach (ProjectTestResultEvent result in passage.Results)
+                {
+                    if (++recordedEvents > 200000)
+                    {
+                        throw new InvalidDataException(
+                            "Trop de résultats REC pour le contrôle de " +
+                            "revalidation ; examiner un périmètre réduit.");
+                    }
+
+                    if (!outcomes.TryGetValue(result.TestId,
+                            out List<(ProjectTestPassage Passage,
+                                ProjectTestResultEvent Result,
+                                string Campaign)>? history))
+                    {
+                        history = [];
+                        outcomes.Add(result.TestId, history);
+                    }
+
+                    history.Add((passage, result, campaign.Reference));
+                }
             }
+        }
+
+        foreach (List<(ProjectTestPassage Passage,
+            ProjectTestResultEvent Result, string Campaign)> history
+            in outcomes.Values)
+        {
+            history.Sort((left, right) =>
+            {
+                int time = right.Result.RecordedUtc.CompareTo(
+                    left.Result.RecordedUtc);
+                return time != 0 ? time : right.Passage.StartedUtc.CompareTo(
+                    left.Passage.StartedUtc);
+            });
         }
 
         // Maintenance identities may be duplicated by damaged Markdown;
@@ -172,15 +204,26 @@ public static class ProjectRecIncidentFollowupPlanner
                 // failure supersedes a previous Passed. Same-passage
                 // results cannot be treated as a new execution.
                 (ProjectTestPassage Passage, ProjectTestResultEvent Result,
-                    string Campaign)? latest = observations
-                    .Where(item => item.Result.TestId == related.Key &&
-                        item.Result.RecordedUtc > lastFailure.RecordedUtc &&
-                        item.Passage.Id != lastFailure.PassageId)
-                    .OrderByDescending(item => item.Result.RecordedUtc)
-                    .ThenByDescending(item => item.Passage.StartedUtc)
-                    .Cast<(ProjectTestPassage Passage,
-                        ProjectTestResultEvent Result, string Campaign)?>()
-                    .FirstOrDefault();
+                    string Campaign)? latest = null;
+                if (outcomes.TryGetValue(related.Key,
+                        out List<(ProjectTestPassage Passage,
+                            ProjectTestResultEvent Result,
+                            string Campaign)>? history))
+                {
+                    foreach ((ProjectTestPassage Passage,
+                        ProjectTestResultEvent Result, string Campaign)
+                        item in history)
+                    {
+                        if (item.Result.RecordedUtc >
+                                lastFailure.RecordedUtc &&
+                            item.Passage.Id != lastFailure.PassageId)
+                        {
+                            latest = item;
+                            break;
+                        }
+                    }
+                }
+
                 tests.Add(new ProjectRecRetestObservation(
                     related.Key, lastFailure.TestReference,
                     lastFailure.Environment, lastFailure.ApplicationVersion,
