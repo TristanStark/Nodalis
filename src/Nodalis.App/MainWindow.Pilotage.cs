@@ -152,7 +152,7 @@ public partial class MainWindow
                 string stepLabel = step.Order + ". " + step.Name;
                 if (mode == PilotageJourneyMode.Steps)
                 {
-                    stepLabel += " · " + step.Status;
+                    stepLabel += " · " + PilotageStepStatus(step.Status);
                 }
 
                 MenuItem stage = new() { Header = stepLabel };
@@ -234,6 +234,19 @@ public partial class MainWindow
             }
         }
     }
+
+    /// <summary>Uses the same readable French stage statuses as the journey.</summary>
+    /// <param name="status">Canonical stage state.</param>
+    /// <returns>Stable human-facing label, not a task status.</returns>
+    private static string PilotageStepStatus(ProjectJourneyStepStatus status) =>
+        status switch
+        {
+            ProjectJourneyStepStatus.Todo => "À faire",
+            ProjectJourneyStepStatus.InProgress => "En cours",
+            ProjectJourneyStepStatus.Completed => "Terminée",
+            ProjectJourneyStepStatus.NotApplicable => "Non applicable",
+            _ => "Inconnu"
+        };
 
     /// <summary>Builds one disabled, noninteractive menu diagnostic.</summary>
     /// <param name="message">Safe user-visible status.</param>
