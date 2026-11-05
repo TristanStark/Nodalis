@@ -391,10 +391,11 @@ public partial class MainWindow
             return;
         }
 
-        tab.View.FocusFromPilotage(target.StepId, target.OperationId);
+        tab.View.FocusFromPilotage(target.StepId, target.OperationId,
+            assignPrompt: target.Mode == PilotageTargetMode.Assign);
         StatusText.Text = target.Mode == PilotageTargetMode.Assign
-            ? "Parcours ouvert sur l'opération : " +
-                "utilisez « Associer un prompt… »."
+            ? "Sélecteur du prompt de l'opération ouvert après " +
+                "validation du parcours ; confirmation humaine requise."
             : "Parcours ouvert sur l'étape / opération choisie.";
     }
 

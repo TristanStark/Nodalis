@@ -46,6 +46,7 @@ public partial class ProjectJourneyView : UserControl
     private bool _busy;
     private Guid? _pilotageStepId;
     private Guid? _pilotageOperationId;
+    private bool _pilotageAssignPrompt;
 
     /// <summary>
     /// Highlights an exact stage and optional operation requested via
@@ -53,15 +54,19 @@ public partial class ProjectJourneyView : UserControl
     /// </summary>
     /// <param name="stepId">Stage GUID from the validated project snapshot.</param>
     /// <param name="operationId">Operation GUID within that stage, if chosen.</param>
-    public void FocusFromPilotage(Guid stepId, Guid? operationId)
+    /// <param name="assignPrompt">Open the existing human prompt picker directly.</param>
+    public void FocusFromPilotage(Guid stepId, Guid? operationId,
+        bool assignPrompt = false)
     {
-        if (stepId == Guid.Empty || operationId == Guid.Empty)
+        if (stepId == Guid.Empty || operationId == Guid.Empty ||
+            assignPrompt && operationId is null)
         {
             throw new ArgumentException("Étape ou opération du parcours invalide.");
         }
 
         _pilotageStepId = stepId;
         _pilotageOperationId = operationId;
+        _pilotageAssignPrompt = assignPrompt;
         if (!_busy && _snapshot is not null)
         {
             ApplyPilotageFocus();
@@ -74,14 +79,17 @@ public partial class ProjectJourneyView : UserControl
     /// </summary>
     private void ApplyPilotageFocus()
     {
-        if (_pilotageStepId is not Guid stepId || _snapshot is null)
+        if (_busy || _pilotageStepId is not Guid stepId ||
+            _snapshot is null)
         {
             return;
         }
 
         Guid? operationId = _pilotageOperationId;
+        bool assignPrompt = _pilotageAssignPrompt;
         _pilotageStepId = null;
         _pilotageOperationId = null;
+        _pilotageAssignPrompt = false;
         ProjectJourneyStep? step = _snapshot.Document.Steps
             .SingleOrDefault(item => item.Id == stepId);
         if (step is null ||
@@ -96,8 +104,22 @@ public partial class ProjectJourneyView : UserControl
         Render(stepId, operationId);
         StatusText.Text = operationId is null
             ? "Pilotage · étape sélectionnée : " + step.Name
-            : "Pilotage · opération sélectionnée. Utilisez « Associer " +
-                "un prompt… » ou « Préparer / copier ».";
+            : "Pilotage · opération sélectionnée : " +
+                step.Operations.Single(item => item.Id == operationId).Name;
+        if (assignPrompt && operationId is not null)
+        {
+            if (_readOnly)
+            {
+                StatusText.Text =
+                    "Projet en lecture seule : association de prompt refusée.";
+                return;
+            }
+
+            // The same guarded, confirmed picker as the existing button,
+            // only after the requested operation has actually been selected.
+            _ = RunActionAsync(AssignSelectedOperationPromptAsync,
+                "Associer un prompt depuis Pilotage");
+        }
     }
 
     /// <summary>Creates a project-local journey view, read-only if requested.</summary>
@@ -901,36 +923,45 @@ public partial class ProjectJourneyView : UserControl
     /// <param name="e">Click event.</param>
     private async void SetOperationPrompt_Click(
         object sender, RoutedEventArgs e) =>
-        await RunActionAsync(async () =>
+        await RunActionAsync(AssignSelectedOperationPromptAsync,
+            "Associer un prompt");
+
+    /// <summary>
+    /// Opens the existing human prompt picker for the currently selected
+    /// operation, from either the journey button or Pilotage 2.0 shortcut.
+    /// This method never writes without the separate commit confirmation.
+    /// </summary>
+    /// <returns>Confirmed association or an unchanged journey.</returns>
+    private async Task AssignSelectedOperationPromptAsync()
+    {
+        ProjectJourneyStep? step = SelectedStep();
+        ProjectJourneyOperation? operation = SelectedOperation();
+        if (_readOnly || step is null || operation is null)
         {
-            ProjectJourneyStep? step = SelectedStep();
-            ProjectJourneyOperation? operation = SelectedOperation();
-            if (_readOnly || step is null || operation is null)
-            {
-                return;
-            }
+            return;
+        }
 
-            FileSystemAiPromptStore store = new(
-                Path.Combine(AppContext.BaseDirectory, "Prompts"));
-            IReadOnlyList<LocalAiPromptDescriptor> catalog =
-                await store.ListAsync();
-            ProjectJourneyPromptPickerDialog dialog = new(
-                store, catalog, operation.PromptKey)
-            {
-                Owner = Window.GetWindow(this)
-            };
-            if (dialog.ShowDialog() != true)
-            {
-                return;
-            }
+        FileSystemAiPromptStore store = new(
+            Path.Combine(AppContext.BaseDirectory, "Prompts"));
+        IReadOnlyList<LocalAiPromptDescriptor> catalog =
+            await store.ListAsync();
+        ProjectJourneyPromptPickerDialog dialog = new(
+            store, catalog, operation.PromptKey)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
 
-            string? promptKey = dialog.SelectedKey;
-            await CommitAsync("Changer la référence de prompt de « " +
-                operation.Name + " » en « " + (promptKey ?? "aucun") +
-                " » (aucune IA ne sera exécutée)",
-                doc => ProjectJourneyEditor.SetPromptKey(doc, step.Id,
-                    operation.Id, promptKey), step.Id, operation.Id);
-        }, "Associer un prompt");
+        string? promptKey = dialog.SelectedKey;
+        await CommitAsync("Changer la référence de prompt de « " +
+            operation.Name + " » en « " + (promptKey ?? "aucun") +
+            " » (aucune IA ne sera exécutée)",
+            doc => ProjectJourneyEditor.SetPromptKey(doc, step.Id,
+                operation.Id, promptKey), step.Id, operation.Id);
+    }
 
     /// <summary>
     /// Creates a bounded local draft for manual inspection/copy only.
