@@ -345,7 +345,8 @@
                     <MenuItem Header="Pilotage">
                         <MenuItem Header="Parcours projet · 2.0">
                             <MenuItem Header="Ouvrir le parcours du projet"
-                                      Click="OpenProjectJourney_Click" />
+                                      Click="PilotageOpenCurrentJourney_Click"
+                                      ToolTip="Ouvrir le parcours du projet actuellement actif dans Pilotage" />
                             <MenuItem Header="Rechercher une étape ou un prompt…"
                                       Click="PilotageQuickAccess_Click"
                                       ToolTip="Rechercher dans toutes les étapes, opérations et références de prompt du projet sélectionné" />

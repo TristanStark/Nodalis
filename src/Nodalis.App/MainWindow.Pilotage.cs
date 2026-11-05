@@ -143,6 +143,23 @@ public partial class MainWindow
         await RunUiActionAsync("Recherche dans le parcours 2.0",
             OpenPilotageQuickAccessAsync);
 
+    /// <summary>Opens the actual Pilotage project, not an old document selection.</summary>
+    /// <param name="sender">Main Pilotage journey command.</param>
+    /// <param name="e">Click event.</param>
+    private async void PilotageOpenCurrentJourney_Click(
+        object sender, RoutedEventArgs e) =>
+        await RunUiActionAsync("Parcours du projet actif", () =>
+        {
+            NavigationNodeViewModel? project = PilotageProject();
+            if (project is null)
+            {
+                ShowPilotageProjectHint("Parcours projet");
+                return Task.CompletedTask;
+            }
+
+            return OpenProjectJourneyAsync(project);
+        });
+
     /// <summary>
     /// Opens the exact menu-selected project when its journey does not yet
     /// exist, without using another active Worktree document as a fallback.
