@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Nodalis.Core.Projects;
 
 namespace Nodalis.App.Dialogs;
@@ -32,6 +33,11 @@ public sealed record ProjectJourneyQuickSelection(
 public partial class ProjectJourneyQuickAccessDialog : Window
 {
     private const int MaximumVisibleRows = 250;
+    private readonly DispatcherTimer _filterTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(160)
+    };
+    private int _searchRevision;
 
     private readonly IReadOnlyList<ProjectJourneyPilotageSearchRow> _rows;
     private readonly bool _readOnly;
@@ -46,6 +52,12 @@ public partial class ProjectJourneyQuickAccessDialog : Window
         _readOnly = readOnly;
         _rows = ProjectJourneyPilotageSearch.Index(stages);
         InitializeComponent();
+        _filterTimer.Tick += FilterTimer_Tick;
+        Closed += (_, _) =>
+        {
+            _searchRevision++;
+            _filterTimer.Stop();
+        };
         RefreshResults();
         SearchBox.Focus();
     }
@@ -57,7 +69,41 @@ public partial class ProjectJourneyQuickAccessDialog : Window
     /// <param name="sender">Search input.</param>
     /// <param name="e">Text edit event.</param>
     private void SearchBox_TextChanged(
-        object sender, TextChangedEventArgs e) => RefreshResults();
+        object sender, TextChangedEventArgs e)
+    {
+        // One new revision per keystroke. Discard old background results and
+        // avoid saturating WPF while searching a very large journey.
+        _searchRevision++;
+        _filterTimer.Stop();
+        _filterTimer.Start();
+    }
+
+    /// <summary>
+    /// Debounces human input, searches immutable IDs away from the WPF
+    /// dispatcher and publishes only the most recent query results.
+    /// </summary>
+    /// <param name="sender">WPF background-priority timer.</param>
+    /// <param name="e">Timer tick event.</param>
+    private async void FilterTimer_Tick(object? sender, EventArgs e)
+    {
+        _filterTimer.Stop();
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        int revision = _searchRevision;
+        string query = SearchBox.Text;
+        ProjectJourneyPilotageSearchResult results = await Task.Run(() =>
+            ProjectJourneyPilotageSearch.Find(
+                _rows, query, MaximumVisibleRows));
+        if (revision != _searchRevision || !IsLoaded)
+        {
+            return;
+        }
+
+        ShowResults(results);
+    }
 
     /// <summary>Updates availability for stage-only and read-only rows.</summary>
     /// <param name="sender">Selected result list.</param>
@@ -88,7 +134,9 @@ public partial class ProjectJourneyQuickAccessDialog : Window
     /// <param name="e">Mouse double-click event.</param>
     private void Results_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (ResultsList.SelectedItem is ProjectJourneyPilotageSearchRow)
+        if (e.OriginalSource is DependencyObject source &&
+            ItemsControl.ContainerFromElement(ResultsList, source)
+                is ListBoxItem row && row.IsSelected)
         {
             Finish(ProjectJourneyQuickAction.Open);
         }
@@ -145,6 +193,13 @@ public partial class ProjectJourneyQuickAccessDialog : Window
         ProjectJourneyPilotageSearchResult result =
             ProjectJourneyPilotageSearch.Find(
                 _rows, SearchBox.Text, MaximumVisibleRows);
+        ShowResults(result);
+    }
+
+    /// <summary>Rebinds a bounded result only on the dispatcher thread.</summary>
+    /// <param name="result">Pure immutable search response.</param>
+    private void ShowResults(ProjectJourneyPilotageSearchResult result)
+    {
         ResultsList.ItemsSource = result.Rows;
         CountText.Text = result.Rows.Count +
             " résultat(s) affiché(s)" +
