@@ -455,6 +455,38 @@ internal static class ProjectTestCampaignServiceSmokeTests
                        .InterventionSummaries.Count == 0,
                 "A later Passed in a different environment and an " +
                 "intervention never constitute proven incident revalidation.");
+            ProjectTestResultEvent backdatedPassageOutcome = new()
+            {
+                Id = Guid.NewGuid(),
+                TestId = firstId,
+                Outcome = ProjectTestOutcome.Passed,
+                Actor = "Testeur fictif",
+                Rationale = "Saisie tardive sur un passage plus ancien.",
+                RecordedUtc = DateTimeOffset.UtcNow.AddHours(3)
+            };
+            ProjectTestPassage backdatedPassage = passage1 with
+            {
+                Id = Guid.NewGuid(),
+                Number = 3,
+                StartedUtc = passage1.StartedUtc,
+                Results = [backdatedPassageOutcome]
+            };
+            ProjectTestCampaign misleadingPassage = twoLinks.Campaign with
+            {
+                Passages = [.. twoLinks.Campaign.Passages, backdatedPassage]
+            };
+            ProjectRecIncidentFollowup ignoredLateEntry =
+                ProjectRecAnomalyProjection.Build(own.Project.Id,
+                    [misleadingPassage],
+                    MaintenanceMarkdownCodec.Parse(
+                        await File.ReadAllTextAsync(maintenancePath)).Records,
+                    []).IncidentFollowups.Single(item =>
+                        item.IncidentId == secondIncidentId);
+            Assert(!ignoredLateEntry.ReviewMayBeProposed &&
+                   ignoredLateEntry.Tests.Single().LaterEnvironment == "REC-B",
+                "Recording a late Passed in a passage begun before the " +
+                "failure must not be confused with a new verified retest.");
+
             DateTimeOffset followupStart = DateTimeOffset.UtcNow.AddDays(1);
             ProjectTestResultEvent retestedFirst = new()
             {
