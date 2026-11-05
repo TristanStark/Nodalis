@@ -100,6 +100,14 @@ public partial class ProjectJourneyView : UserControl
         {
             if (!_pilotageRefreshAttempted)
             {
+                // The view may have been detached while a menu action was
+                // awaiting an external window. Resume at Loaded instead of
+                // launching an unobserved task with no owning WPF Window.
+                if (!IsLoaded || Window.GetWindow(this) is null)
+                {
+                    return;
+                }
+
                 _pilotageRefreshAttempted = true;
                 _ = RunActionAsync(() => ReloadAsync(stepId),
                     "Synchroniser l'étape depuis Pilotage");
