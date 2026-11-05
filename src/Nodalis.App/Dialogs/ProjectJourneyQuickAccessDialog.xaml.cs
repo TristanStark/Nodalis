@@ -43,14 +43,14 @@ public partial class ProjectJourneyQuickAccessDialog : Window
     private readonly bool _readOnly;
 
     /// <summary>Creates only a human search view over verified project IDs.</summary>
-    /// <param name="stages">Latest canonical project journey projection.</param>
+    /// <param name="rows">Complete off-thread project-local search index.</param>
     /// <param name="readOnly">Whether this project's writes are disabled.</param>
     public ProjectJourneyQuickAccessDialog(
-        IReadOnlyList<ProjectJourneyPilotageStage> stages, bool readOnly)
+        IReadOnlyList<ProjectJourneyPilotageSearchRow> rows, bool readOnly)
     {
-        ArgumentNullException.ThrowIfNull(stages);
+        ArgumentNullException.ThrowIfNull(rows);
         _readOnly = readOnly;
-        _rows = ProjectJourneyPilotageSearch.Index(stages);
+        _rows = rows;
         InitializeComponent();
         _filterTimer.Tick += FilterTimer_Tick;
         Closed += (_, _) =>

@@ -99,10 +99,20 @@ public partial class MainWindow
                 "Le parcours ne correspond pas au projet sélectionné.");
         }
 
-        IReadOnlyList<ProjectJourneyPilotageStage> stages =
-            ProjectJourneyPilotageProjection.Build(snapshot.Document);
+        IReadOnlyList<ProjectJourneyPilotageSearchRow> index =
+            await Task.Run(() => ProjectJourneyPilotageSearch.Index(
+                ProjectJourneyPilotageProjection.Build(snapshot.Document)));
+        NavigationNodeViewModel? stillSelected = PilotageProject();
+        if (stillSelected?.Id != projectId ||
+            !string.Equals(stillSelected.FullPath, directory,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            StatusText.Text = "Projet modifié pendant l'indexation Pilotage.";
+            return;
+        }
+
         ProjectJourneyQuickAccessDialog dialog = new(
-            stages, PilotageReadOnly(project)) { Owner = this };
+            index, PilotageReadOnly(project)) { Owner = this };
         if (dialog.ShowDialog() != true ||
             dialog.Selection is not ProjectJourneyQuickSelection choice)
         {
