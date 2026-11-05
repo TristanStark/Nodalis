@@ -12,6 +12,7 @@ parcours, prompt ou incident simplement parce qu'il est ouvert.
 | Menu Pilotage | Accès et portée |
 | --- | --- |
 | **Parcours projet · 2.0 → Ouvrir le parcours du projet** | Onglet dédié avec étapes, opérations, jalons, gates et sources |
+| **Parcours projet · 2.0 → Rechercher une étape ou un prompt** | Recherche dans toutes les étapes et opérations du projet, y compris les noms personnalisés et références FRT-100 ; actions Ouvrir, Préparer/copier et Associer selon le contexte |
 | **Parcours projet · 2.0 → Toutes les étapes du projet** | Liste dynamique des étapes *réelles du projet courant*, y compris étapes renommées, réordonnées ou personnalisées. Développer une étape puis une opération pour l'afficher, préparer son prompt ou rejoindre son association de prompt |
 | **Parcours projet · 2.0 → Modèles de parcours** | Éditeur des modèles de parcours du workspace ; aucune modification des parcours existants sans confirmation |
 | **Prompts et réponses IA → Préparer / copier les prompts du parcours** | Étape → opération → préparation locale du brouillon, choix éventuel des liaisons de variables, revue, copie séparée des prompts système et utilisateur |
@@ -26,7 +27,8 @@ parcours, prompt ou incident simplement parce qu'il est ouvert.
 
 Les menus **chargent uniquement les en-têtes d'étapes** au
 premier survol. Les opérations d'une étape sont matérialisées en
-contrôles WPF **lorsqu'on développe cette étape**, pour éviter de
+contrôles WPF **lorsqu'on développe cette étape**, puis réutilisées
+jusqu'à la fermeture du menu parent, pour éviter de
 reconstruire inutilement des milliers d'éléments graphiques. Aucune
 opération ne disparaît : la projection métier conserve toutes les
 opérations des étapes personnalisées. Le test de régression couvre un
@@ -57,7 +59,15 @@ avec la liste dynamique.
    applicables, les étapes et opérations proposées peuvent être
    consultées dans le menu **avant création**, clairement marquées
    comme aperçu et sans commande d'édition.
-3. Pour copier un prompt, ouvrir **Pilotage → Prompts… → Préparer / copier
+3. Pour retrouver rapidement une étape ou un prompt, ouvrir
+   **Pilotage → Parcours projet → Rechercher une étape ou un prompt…**.
+   La recherche locale ignore la casse et les accents et porte sur
+   les noms d'étapes, opérations et références FRT-100. Elle indexe
+   toutes les opérations mais n'affiche que **250 résultats à la fois** ;
+   affiner les termes révèle les autres résultats. La recherche est
+   **temporisée et calculée hors du thread WPF** ; une réponse
+   ancienne est ignorée si le texte a changé.
+4. Pour copier un prompt, ouvrir **Pilotage → Prompts… → Préparer / copier
    les prompts du parcours**, choisir l'étape puis l'opération. Un
    brouillon est calculé à partir des sources approuvées et des variables.
    Il est **relisible et éditable avant copie**. La copie du prompt
@@ -66,16 +76,16 @@ avec la liste dynamique.
    contexte projet a été modifié pendant la saisie des variables,
    Nodalis **refuse d'afficher un brouillon devenu obsolète** et
    demande de relancer la préparation.
-4. Pour changer une association de prompt, choisir l'opération via
+5. Pour changer une association de prompt, choisir l'opération via
    **Associer un prompt à une opération**. Nodalis sélectionne cette
    opération dans l'onglet Parcours et **ouvre directement** son
    sélecteur de prompts, même si l'onglet était encore en chargement.
    Le changement reste soumis à la confirmation explicite déjà en
    place et au contrôle de révision. Annuler ne modifie aucun fichier.
-5. Les options liées à l'écriture sont indisponibles pour un
+6. Les options liées à l'écriture sont indisponibles pour un
    workspace en lecture seule ou un projet archivé. Le menu préserve
    les possibilités de consultation des parcours et des brouillons.
-6. Si le projet, l'étape ou l'opération change entre l'ouverture du
+7. Si le projet, l'étape ou l'opération change entre l'ouverture du
    sous-menu et le clic, Nodalis refuse de réutiliser un GUID ou un
    chemin périmé. Le menu doit être rouvert.
 
@@ -116,6 +126,12 @@ pas une mise en production ni une clôture automatiquement effectuée.
   que via la palette ou l'onglet Parcours.
 - Vérifier un projet archivé et un workspace en lecture seule :
   consultation possible mais aucune édition ni association implicite.
+- Rechercher `preparation` pour retrouver `Préparation` sans
+  accent et `frt100-01` pour retrouver une opération mappée.
+  Une recherche courante (> 250 correspondances) doit demander un
+  affinage, sans perdre aucune des opérations indexées. Tester les
+  frappes rapides, l'annulation, le double-clic hors résultat et
+  l'affichage en lecture seule.
 - Naviguer au clavier dans les sous-menus imbriqués, contrôler les
   intitulés, le thème sombre et les longues listes d'opérations.
   Sur un projet volumineux, l'ouverture de Pilotage ne doit pas
