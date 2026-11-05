@@ -1281,6 +1281,28 @@ public partial class ProjectTestCampaignsDialog : Window
             "REC ni statut incident modifié.";
     }
 
+    /// <summary>Opens a calculated, human-readable REC anomaly overview.</summary>
+    /// <param name="sender">Consultative anomaly list button.</param>
+    /// <param name="e">Click event.</param>
+    private async void Anomalies_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Lire les anomalies de recette", ShowAnomaliesAsync);
+
+    /// <summary>
+    /// Loads project-local REC and maintenance once off the UI thread.
+    /// No incident, intervention, test result or human status is modified.
+    /// </summary>
+    /// <returns>Consultative dialog or explicit read failure.</returns>
+    private async Task ShowAnomaliesAsync()
+    {
+        ProjectRecAnomalyOverview overview = await Task.Run(() =>
+            new ProjectRecAnomalyService(_workspaceRoot)
+                .ReadAsync(_projectDirectory));
+        ProjectRecAnomaliesDialog dialog = new(overview) { Owner = this };
+        dialog.ShowDialog();
+        StatusText.Text = "Vue des anomalies REC consultée, aucune " +
+            "modification ni revalidation implicite.";
+    }
+
     /// <summary>Initiates a human-approved qualification review.</summary>
     /// <param name="sender">Qualification button.</param>
     /// <param name="e">Button event.</param>

@@ -162,6 +162,12 @@
                         Click="CaFollowup_Click"
                         ToolTip="Consulter sans écriture les tests proposés depuis les CA modifiés, leur présence dans le dernier passage et leurs résultats déclarés."
                         AutomationProperties.Name="Voir les tests CA à reprendre et les résultats historiques du dernier passage"/>
+                <Button x:Name="AnomaliesButton"
+                        Content="Anomalies de recette…"
+                        Padding="11,8" Margin="0,0,8,5"
+                        Click="Anomalies_Click"
+                        ToolTip="Vue calculée et consultative des résultats Non conforme ou Bloqué, incidents associés et interventions, sans conclure à leur résolution."
+                        AutomationProperties.Name="Consulter les anomalies de recette du projet"/>
                 <Button x:Name="RecordButton" Content="Enregistrer un résultat…"
                         Padding="11,8" Margin="0,0,8,5"
                         Click="Record_Click"/>
