@@ -171,8 +171,9 @@ public partial class MainWindow
                 return;
             }
 
-            ProjectJourneyStep[] steps = snapshot.Document.Steps
-                .OrderBy(step => step.Order).ToArray();
+            ProjectJourneyPilotageStage[] steps =
+                ProjectJourneyPilotageProjection.Build(snapshot.Document)
+                    .ToArray();
             if (steps.Length == 0)
             {
                 menu.Items.Add(PilotageNotice(
@@ -180,7 +181,7 @@ public partial class MainWindow
                 return;
             }
 
-            foreach (ProjectJourneyStep step in steps)
+            foreach (ProjectJourneyPilotageStage step in steps)
             {
                 string stepLabel = step.Order + ". " + step.Name;
                 if (mode == PilotageJourneyMode.Steps)
@@ -199,7 +200,7 @@ public partial class MainWindow
                         stage.Items.Add(new Separator());
                     }
 
-                    foreach (ProjectJourneyOperation operation in
+                    foreach (ProjectJourneyPilotageOperation operation in
                         step.Operations)
                     {
                         MenuItem nested = new()
@@ -232,7 +233,7 @@ public partial class MainWindow
                 }
                 else
                 {
-                    foreach (ProjectJourneyOperation operation in
+                    foreach (ProjectJourneyPilotageOperation operation in
                         step.Operations)
                     {
                         string operationLabel = operation.Name +
