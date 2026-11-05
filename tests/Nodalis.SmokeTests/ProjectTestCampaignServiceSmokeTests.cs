@@ -744,6 +744,15 @@ internal static class ProjectTestCampaignServiceSmokeTests
                        ProjectTestOutcome.Failed,
                 "A disappeared maintenance sheet leaves old REC links " +
                 "visible but uncertain, never treated as resolved.");
+            Assert(afterMissing.IncidentFollowups.Count == 1 &&
+                   afterMissing.IncidentFollowups[0].IncidentId ==
+                       secondIncidentId &&
+                   afterMissing.IncidentFollowups[0].MissingSource &&
+                   !afterMissing.IncidentFollowups[0].ReviewMayBeProposed &&
+                   afterMissing.IncidentFollowups[0].Warnings.Any(item =>
+                       item.Contains("absente", StringComparison.Ordinal)),
+                "A vanished canonical incident cannot appear validated " +
+                "even when the REC has a later Passed result.");
             final = unlinkFirst;
             ProjectTestSourceValidityOverview live =
                 await service.AssessSourceValidityAsync(
