@@ -551,6 +551,31 @@ public partial class MainWindow
                 preparer.PrepareAsync(stage, operation));
         }
 
+        // A long variable-binding dialog or source preparation can span
+        // external edits to the project journey. Never present a copy-ready
+        // draft whose selected operation is no longer the reviewed version.
+        ProjectJourneySnapshot? refreshed = await Task.Run(() =>
+            new ProjectJourneyService(_root.FullPath)
+                .ReadAsync(target.ProjectPath));
+        NavigationNodeViewModel? selected = PilotageProject();
+        if (refreshed?.Document.ProjectId != target.ProjectId ||
+            !string.Equals(refreshed?.Sha256, snapshot!.Sha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            selected?.Id != target.ProjectId ||
+            !string.Equals(selected.FullPath, target.ProjectPath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            StatusText.Text = "Prompt non présenté : parcours ou projet " +
+                "modifié pendant sa préparation.";
+            MessageBox.Show(this,
+                "Le projet ou le parcours a changé depuis la sélection " +
+                "de l'opération. Rouvrez Pilotage et préparez le prompt " +
+                "avec les sources à jour.",
+                "Pilotage 2.0 · préparation devenue obsolète",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         ProjectJourneyPromptDraftDialog review = new(draft)
         {
             Owner = this
