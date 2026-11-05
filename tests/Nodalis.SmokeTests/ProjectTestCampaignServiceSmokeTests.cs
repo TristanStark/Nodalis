@@ -462,7 +462,121 @@ internal static class ProjectTestCampaignServiceSmokeTests
                    unlinkFirst.Campaign.Passages[0].Results[0].Outcome ==
                        ProjectTestOutcome.Failed,
                 "Unlink is an audit event rather than erasure of earlier links.");
+            ProjectRecIncidentCreationPreview preview =
+                await service.InspectIncidentCreationAsync(
+                    own.ProjectDirectory, unlinkFirst, passage1.Id,
+                    originalResult.Id);
+            Assert(preview.IncidentCount == 2 &&
+                   preview.MaintenanceSha256.Length == 64 &&
+                   preview.RelativePath.EndsWith(
+                       "Fiche de Maintenance.md", StringComparison.Ordinal),
+                "Create-from-REC previews only the canonical current " +
+                "maintenance sheet without modifying REC or maintenance.");
+            MaintenanceRecord fromRec = new()
+            {
+                Kind = MaintenanceRecordKind.Incident,
+                Id = MaintenanceMarkdownCodec.NewId(
+                    MaintenanceRecordKind.Incident),
+                Date = DateOnly.FromDateTime(DateTime.UtcNow),
+                Summary = "Incident issu d'un test fictif.",
+                Details = new Dictionary<string, string>
+                {
+                    ["Symptômes"] = "Défaut de recette reproductible."
+                }
+            };
+            await RejectAsync(() => service.CreateIncidentForResultAsync(
+                foreign.ProjectDirectory, unlinkFirst, passage1.Id,
+                originalResult.Id, preview, fromRec,
+                "Testeur fictif", "Création depuis le mauvais projet."),
+                "Cross-project creation must not append maintenance content.");
+            await RejectAsync(() => service.CreateIncidentForResultAsync(
+                own.ProjectDirectory, unlinkFirst, passage2.Id,
+                final.Campaign.Passages[1].Results[0].Id, preview,
+                fromRec, "Testeur fictif",
+                "Le test conforme ne doit pas créer d'incident."),
+                "A Passed result cannot create a maintenance incident.");
+            ProjectRecIncidentCreationResult creation =
+                await service.CreateIncidentForResultAsync(
+                    own.ProjectDirectory, unlinkFirst, passage1.Id,
+                    originalResult.Id, preview, fromRec,
+                    "Testeur fictif",
+                    "Incident effectivement constaté pendant la recette.");
+            MaintenanceParseResult recordedMaintenance =
+                MaintenanceMarkdownCodec.Parse(
+                    await File.ReadAllTextAsync(maintenancePath));
+            MaintenanceRecord savedIncident =
+                recordedMaintenance.Records.Single(item =>
+                    item.Id == fromRec.Id);
+            Assert(creation.IsLinked &&
+                   creation.LinkWarning is null &&
+                   creation.IncidentId == fromRec.Id &&
+                   creation.LinkedCampaign is not null &&
+                   ProjectTestIncidentLinkPolicy.Active(
+                       creation.LinkedCampaign.Campaign,
+                       originalResult.Id).Count == 2 &&
+                   savedIncident.Kind == MaintenanceRecordKind.Incident &&
+                   savedIncident.Details["REC - resultat"] ==
+                       originalResult.Id.ToString("D") &&
+                   savedIncident.Details["REC - campagne"].Contains(
+                       final.Campaign.Reference, StringComparison.Ordinal) &&
+                   savedIncident.Details["REC - version"] == "v1.0" &&
+                   savedIncident.Details["REC - environnement"] == "REC-A" &&
+                   savedIncident.Details.ContainsKey(
+                       "REC - preuve declaree non verifiee") &&
+                   creation.LinkedCampaign.Campaign.Passages[0]
+                       .Results[0].Outcome == ProjectTestOutcome.Failed,
+                "Human creation persists one canonical incident with " +
+                "frozen test provenance, then appends an independent " +
+                "auditable REC link without changing the outcome.");
+            await RejectAsync(() => service.CreateIncidentForResultAsync(
+                own.ProjectDirectory, unlinkFirst, passage1.Id,
+                originalResult.Id, preview,
+                fromRec with
+                {
+                    Id = MaintenanceMarkdownCodec.NewId(
+                        MaintenanceRecordKind.Incident)
+                },
+                "Testeur fictif", "Création sur une ancienne révision REC."),
+                "Stale REC prevents accidental second incident creation.");
+            ProjectTestCampaignEntry afterCreate = creation.LinkedCampaign!;
+            ProjectRecIncidentCreationPreview freshPreview =
+                await service.InspectIncidentCreationAsync(
+                    own.ProjectDirectory, afterCreate, passage1.Id,
+                    originalResult.Id);
+            await File.AppendAllTextAsync(maintenancePath,
+                "\n<!-- annotation concurrente fictive -->\n");
+            await RejectAsync(() => service.CreateIncidentForResultAsync(
+                own.ProjectDirectory, afterCreate, passage1.Id,
+                originalResult.Id, freshPreview,
+                fromRec with
+                {
+                    Id = MaintenanceMarkdownCodec.NewId(
+                        MaintenanceRecordKind.Incident)
+                },
+                "Testeur fictif", "Création avec révision maintenance périmée."),
+                "A concurrent maintenance edit prevents an unreviewed append.");
+            ProjectTestCampaignEntry removedCreated =
+                await service.RecordIncidentLinkAsync(
+                    own.ProjectDirectory, afterCreate, passage1.Id,
+                    originalResult.Id, fromRec.Id,
+                    ProjectTestIncidentLinkKind.Unlinked,
+                    "Testeur fictif",
+                    "Incident REC conservé, lien retiré pour ce scénario.");
+            Assert(ProjectTestIncidentLinkPolicy.Active(
+                       removedCreated.Campaign, originalResult.Id)
+                       .Single().IncidentId == secondIncidentId &&
+                   MaintenanceMarkdownCodec.Parse(
+                       await File.ReadAllTextAsync(maintenancePath))
+                       .Records.Any(item => item.Id == fromRec.Id),
+                "Unlinking never deletes the newly created incident " +
+                "from the canonical maintenance sheet.");
+            unlinkFirst = removedCreated;
             File.Delete(maintenancePath);
+            await RejectAsync(() => service.InspectIncidentCreationAsync(
+                own.ProjectDirectory, unlinkFirst, passage1.Id,
+                originalResult.Id),
+                "An absent maintenance sheet cannot be manufactured " +
+                "silently during create-from-REC preview.");
             await RejectAsync(() => service.RecordIncidentLinkAsync(
                 own.ProjectDirectory, unlinkFirst, passage1.Id,
                 originalResult.Id, firstIncident,
