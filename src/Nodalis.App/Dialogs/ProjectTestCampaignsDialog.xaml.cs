@@ -421,6 +421,11 @@ public partial class ProjectTestCampaignsDialog : Window
                 ProjectTestCampaignState.Draft or
                 ProjectTestCampaignState.InProgress;
         CaFollowupButton.IsEnabled = !_busy && campaign is not null;
+        AnomaliesButton.IsEnabled = !_busy;
+        IncidentRetestButton.IsEnabled = writable && campaign is not null &&
+            campaign.Entry.Campaign.State is
+                (ProjectTestCampaignState.Draft or
+                 ProjectTestCampaignState.InProgress);
         RecordButton.IsEnabled = writable && campaign is not null &&
             campaign.Entry.Campaign.State ==
                 ProjectTestCampaignState.InProgress &&
@@ -599,6 +604,189 @@ public partial class ProjectTestCampaignsDialog : Window
     private async void Start_Click(object sender, RoutedEventArgs e) =>
         await GuardAsync("Démarrer un passage",
             () => StartPassageAsync(false));
+
+    /// <summary>Starts a new human-reviewed passage proposal from an incident.</summary>
+    /// <param name="sender">Incident-driven retest button.</param>
+    /// <param name="e">Click event.</param>
+    private async void IncidentRetest_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Proposer la reprise d'un incident",
+            StartIncidentRetestAsync);
+
+    /// <summary>
+    /// Reads only existing project-local INC-to-REC associations, previews
+    /// suggestions and delegates final editing to the ordinary passage
+    /// selector, retaining SHA and identity controls at publication.
+    /// </summary>
+    /// <returns>Approved new passage or unchanged REC on cancellation.</returns>
+    private async Task StartIncidentRetestAsync()
+    {
+        CampaignRow? chosen = SelectedCampaign();
+        if (_readOnly || chosen is null ||
+            chosen.Entry.Campaign.State is not
+                (ProjectTestCampaignState.Draft or
+                 ProjectTestCampaignState.InProgress))
+        {
+            return;
+        }
+
+        ProjectGateIncidentCatalog incidents = await Task.Run(() =>
+            new ProjectGateIncidentCatalogService(_workspaceRoot)
+                .ListAsync(_projectDirectory));
+        if (incidents.Candidates.Count == 0)
+        {
+            MessageBox.Show(this,
+                "Aucun incident canonique unique dans la Fiche de Maintenance " +
+                "du projet : créez ou corrigez les incidents avant la reprise.",
+                "Reprise depuis un incident", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        if (!ReferenceEquals(chosen, SelectedCampaign()))
+        {
+            StatusText.Text = "La sélection REC a changé pendant la lecture : " +
+                "recommencez la proposition.";
+            return;
+        }
+
+        ProjectIncidentRetestSelectionDialog selector = new(incidents)
+        {
+            Owner = this
+        };
+        if (selector.ShowDialog() != true ||
+            selector.SelectedIncidentId is not string incidentId)
+        {
+            return;
+        }
+
+        (LinkIndexCatalog Index, ProjectTestCandidate[] Available,
+            ProjectIncidentRetestProposal Proposal) prepared =
+                await Task.Run(async () =>
+                {
+                    LinkIndexCatalog index = await _indexService.RefreshAsync();
+                    ProjectTestCandidate[] candidates =
+                        FindAvailableTests(index, _workspaceRoot,
+                            _projectDirectory);
+                    ProjectTestCampaignCatalog rec =
+                        await _service.ListAsync(_projectDirectory);
+                    ProjectTestCampaignEntry[] current = rec.Campaigns.Where(
+                        item => item.Campaign.Id ==
+                            chosen.Entry.Campaign.Id).ToArray();
+                    if (current.Length != 1 ||
+                        current[0].Campaign.ProjectId !=
+                            chosen.Entry.Campaign.ProjectId)
+                    {
+                        throw new InvalidDataException(
+                            "REC absente, ambiguë ou hors projet : actualiser.");
+                    }
+
+                    ProjectIncidentRetestProposal proposal =
+                        ProjectIncidentRetestPlanner.Propose(
+                            chosen.Entry.Campaign.ProjectId, incidentId,
+                            rec.Campaigns.Select(item => item.Campaign)
+                                .ToArray(),
+                            candidates.Select(item => item.Id).ToHashSet());
+                    return (index, candidates, proposal);
+                });
+
+        if (!ReferenceEquals(chosen, SelectedCampaign()))
+        {
+            StatusText.Text = "Campagne modifiée pendant l'analyse : " +
+                "aucune présélection réutilisée.";
+            return;
+        }
+
+        ProjectIncidentRetestProposal suggestion = prepared.Proposal;
+        string warnings = string.Join("\n", suggestion.Warnings.Take(7));
+        if (suggestion.Candidates.Count == 0)
+        {
+            MessageBox.Show(this,
+                "Aucun test actuellement sélectionnable depuis " +
+                    suggestion.IncidentId + ".\n\n" + warnings +
+                    "\n\nUtilisez « Lancer un passage… » pour une " +
+                    "sélection entièrement manuelle.",
+                "Reprise d'incident sans présélection sûre",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string[] examples = suggestion.Candidates.Take(10).Select(item =>
+            item.Reference + " : " + string.Join("; ",
+                item.Reasons.Take(2)) +
+            (item.HasLaterPassed ? " · ancien Passed postérieur" : "") +
+            (item.HasAdministrativeCorrection
+                ? " · rectification administrative" : "")).ToArray();
+        string preview = string.Join("\n", examples);
+        if (suggestion.Candidates.Count > examples.Length)
+        {
+            preview += "\n… et " +
+                (suggestion.Candidates.Count - examples.Length) +
+                " autre(s) test(s).";
+        }
+
+        if (MessageBox.Show(this,
+            "Incident : " + incidentId + "\n\n" +
+            suggestion.Candidates.Count +
+                " test(s) disponibles en présélection :\n" + preview +
+            "\n\nAVERTISSEMENTS :\n" + warnings +
+            "\n\nCette présélection est modifiable. Un ancien " +
+            "« Conforme déclaré » ne vaut pas revalidation de " +
+            "l'incident. Aucun résultat n'est recopié.\n\n" +
+            "Ouvrir le sélecteur pour examen ?",
+            "Proposition humaine de reprise d'incident",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        Guid[] selectedIds = suggestion.Candidates
+            .Select(item => item.TestId).ToArray();
+        ProjectTestPassageStartDialog picker = new(
+            prepared.Available, selectedIds)
+        {
+            Owner = this
+        };
+        if (picker.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(chosen, SelectedCampaign()))
+        {
+            StatusText.Text = "Campagne changée avant validation : " +
+                "recommencer la proposition.";
+            return;
+        }
+
+        if (MessageBox.Show(this,
+            "Figer un nouveau passage dans " +
+                chosen.Entry.Campaign.Reference + " ?\n" +
+            picker.SelectedTestIds.Count + " test(s)\n" +
+            "Environnement : " + picker.SelectedEnvironment + "\n" +
+            "Version : " + picker.SelectedVersion + "\n" +
+            "Exécutant : " + picker.SelectedActor + "\n\n" +
+            "Chaque définition est revalidée avant publication. " +
+            "L'incident reste ouvert et tous les anciens verdicts " +
+            "sont préservés.",
+            "Reprise d'incident · dernière confirmation",
+            MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+                MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectTestCampaignEntry saved = await Task.Run(() =>
+            _service.StartPassageAsync(
+                _projectDirectory, chosen.Entry, prepared.Index,
+                picker.SelectedTestIds, picker.SelectedEnvironment,
+                picker.SelectedVersion, picker.SelectedActor));
+        Changed = true;
+        WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
+        await ReloadAsync(saved.Campaign.Id);
+        StatusText.Text = "Nouveau passage figé depuis une proposition " +
+            "d'incident ; aucun résultat ni état de maintenance inféré.";
+    }
 
     /// <summary>Proposes a human-editable selection for a new REC passage.</summary>
     /// <param name="sender">Targeted retest button.</param>

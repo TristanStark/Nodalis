@@ -162,6 +162,12 @@
                         Click="CaFollowup_Click"
                         ToolTip="Consulter sans écriture les tests proposés depuis les CA modifiés, leur présence dans le dernier passage et leurs résultats déclarés."
                         AutomationProperties.Name="Voir les tests CA à reprendre et les résultats historiques du dernier passage"/>
+                <Button x:Name="IncidentRetestButton"
+                        Content="Proposer reprise d'incident…"
+                        Padding="11,8" Margin="0,0,8,5"
+                        Click="IncidentRetest_Click"
+                        ToolTip="Présélectionner des tests liés à un incident existant, sans reprendre les verdicts ni modifier la maintenance."
+                        AutomationProperties.Name="Proposer les tests à reprendre pour un incident"/>
                 <Button x:Name="AnomaliesButton"
                         Content="Anomalies de recette…"
                         Padding="11,8" Margin="0,0,8,5"
