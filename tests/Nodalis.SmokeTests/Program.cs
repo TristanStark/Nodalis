@@ -104,6 +104,7 @@ try
     await ProjectAiRequirementCreateTransactionSmokeTests.RunAsync(root);
     await ProjectJourneyMilestoneLinksSmokeTests.RunAsync(root);
     await ProjectGateRegistrySmokeTests.RunAsync(root);
+    ProjectGateReuseReviewSmokeTests.Run();
     await ProjectGateMilestoneLinksSmokeTests.RunAsync(root);
     await ProjectGateIncidentLinksSmokeTests.RunAsync(root);
     await ProjectGateRiskLinksSmokeTests.RunAsync(root);

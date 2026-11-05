@@ -368,3 +368,33 @@ finale des interactions WPF.
 
 **Aucun verdict automatique, aucune réécriture de décision historique,
 aucune fermeture de jalon, aucun merge ou tag 2.0 avant recette.**
+
+
+## Requalification consultative d'un GO avant une nouvelle tentative (#202 → #203)
+
+Le moteur Core ProjectGateReuseReview.Assess compare une décision historique
+sélectionnée par GUID avec le périmètre exact, la version, l'environnement
+et les empreintes SHA-256 **actuelles** de toutes les preuves figées.
+Il n'écrit aucun fichier, ne clôture pas les jalons et ne modifie aucun
+verdict. Les comparaisons de version et de périmètre ne sont jamais floues.
+
+- NO-GO / Reporté, contexte historique incomplet, changement de version,
+  d'environnement ou de périmètre, preuve non revue, modifiée, ajoutée ou
+  absente imposent une nouvelle décision humaine.
+- Le GO sous réserves conserve les réserves ouvertes dans la prévisualisation.
+  Une levée ou réouverture explicite change le diagnostic actuel, jamais
+  le verdict d'origine.
+- Même avec WithinHistoricalConditions=true, l'attribut
+  ExplicitHumanApprovalRequired est **toujours vrai** : il ne constitue
+  jamais une autorisation de déployer ou de réutiliser automatiquement un GO.
+- L'appelant doit capturer les empreintes à partir des vrais fichiers du
+  workspace. Un inventaire non fourni vaut « preuves non recontrôlées ».
+- Le registre Gate historique ne fige pas encore l'intégralité des
+  conditions MEP (procédure, rollback, état réel, incidents, risques,
+  durée de validité). Elles restent à examiner **séparément et humainement**
+  sous #203, même si le contexte vérifiable concorde.
+
+La suite ProjectGateReuseReviewSmokeTests vérifie les cas de modification
+du contexte, des preuves, de NO-GO, de réserves ouvertes/levées/réouvertes,
+de données historiques partielles et d'inventaires ambigus. L'UI de revue
+MEP et son journal de décision explicite restent à développer.
