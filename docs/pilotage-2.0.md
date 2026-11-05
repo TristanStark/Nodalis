@@ -45,7 +45,9 @@ avec la liste dynamique.
 1. Sélectionner d'abord un projet ou un document **de ce projet** dans
    l'explorateur. Lorsque l'**onglet Parcours est affiché**, ce dernier
    est le contexte prioritaire (il l'emporte sur une sélection
-   précédente dans l'explorateur). Les commandes générales restent
+   précédente dans l'explorateur). Les commandes **« Ouvrir le parcours »**
+   et **« Ouvrir / initialiser »** utilisent également ce projet
+   explicite ; elles ne reprennent plus une ancienne sélection Worktree. Les commandes générales restent
    disponibles sans sélection de projet ; les vues liées à une campagne
    ou un parcours demandent un projet non ambigu.
 2. Ouvrir **Pilotage → Parcours projet → Toutes les étapes du projet**.
@@ -108,9 +110,11 @@ pas une mise en production ni une clôture automatiquement effectuée.
 - Naviguer entre **deux projets différents** pendant un chargement
   lent : aucune action sur un autre projet ne doit être possible.
   Si l'onglet Parcours du projet A est visible mais que l'explorateur
-  conserve une sélection du projet B, **Pilotage doit afficher A** ;
-  en quittant ce parcours, le contexte redevient la sélection de
-  l'explorateur.
+  conserve une sélection du projet B, **Pilotage doit afficher A**.
+  Vérifier aussi **« Ouvrir le parcours »** et, sur un projet non
+  initialisé, **« Ouvrir / initialiser »** : aucun de ces accès
+  ne doit ouvrir B. En quittant ce parcours, le contexte redevient
+  la sélection de l'explorateur.
 - Ouvrir la liste des étapes sans parcours initialisé : aucune
   écriture, option d'ouverture / initialisation visible.
 - Préparer/copier un prompt **avec** et **sans** variables, puis
