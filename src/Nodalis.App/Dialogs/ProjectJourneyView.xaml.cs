@@ -44,6 +44,61 @@ public partial class ProjectJourneyView : UserControl
     private ProjectGateRegistrySnapshot? _gateSnapshot;
     private bool _painting;
     private bool _busy;
+    private Guid? _pilotageStepId;
+    private Guid? _pilotageOperationId;
+
+    /// <summary>
+    /// Highlights an exact stage and optional operation requested via
+    /// Pilotage, even before the tab first finishes loading. Read-only.
+    /// </summary>
+    /// <param name="stepId">Stage GUID from the validated project snapshot.</param>
+    /// <param name="operationId">Operation GUID within that stage, if chosen.</param>
+    public void FocusFromPilotage(Guid stepId, Guid? operationId)
+    {
+        if (stepId == Guid.Empty || operationId == Guid.Empty)
+        {
+            throw new ArgumentException("Étape ou opération du parcours invalide.");
+        }
+
+        _pilotageStepId = stepId;
+        _pilotageOperationId = operationId;
+        if (!_busy && _snapshot is not null)
+        {
+            ApplyPilotageFocus();
+        }
+    }
+
+    /// <summary>
+    /// Validates a deferred menu selection against the currently loaded
+    /// document, never against a stale title or a different project.
+    /// </summary>
+    private void ApplyPilotageFocus()
+    {
+        if (_pilotageStepId is not Guid stepId || _snapshot is null)
+        {
+            return;
+        }
+
+        Guid? operationId = _pilotageOperationId;
+        _pilotageStepId = null;
+        _pilotageOperationId = null;
+        ProjectJourneyStep? step = _snapshot.Document.Steps
+            .SingleOrDefault(item => item.Id == stepId);
+        if (step is null ||
+            operationId is Guid id &&
+                !step.Operations.Any(item => item.Id == id))
+        {
+            StatusText.Text = "Cette étape ou opération a changé : " +
+                "ouvrez le menu Pilotage à nouveau.";
+            return;
+        }
+
+        Render(stepId, operationId);
+        StatusText.Text = operationId is null
+            ? "Pilotage · étape sélectionnée : " + step.Name
+            : "Pilotage · opération sélectionnée. Utilisez « Associer " +
+                "un prompt… » ou « Préparer / copier ».";
+    }
 
     /// <summary>Creates a project-local journey view, read-only if requested.</summary>
     /// <param name="workspaceRoot">Single workspace root.</param>
@@ -120,6 +175,7 @@ public partial class ProjectJourneyView : UserControl
         }
 
         Render(selectedStepId);
+        ApplyPilotageFocus();
         StatusText.Text = _snapshot is null
             ? _preview is not null
                 ? "Aucun parcours créé · modèle proposé sans écriture."
