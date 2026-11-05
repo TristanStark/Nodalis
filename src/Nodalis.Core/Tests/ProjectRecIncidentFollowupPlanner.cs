@@ -15,6 +15,12 @@ public sealed record ProjectRecRetestObservation(
     string? LaterEnvironment, string? LaterVersion,
     string? LaterEvidence)
 {
+    /// <summary>Exact human failure event captured in the affected REC passage.</summary>
+    public Guid FailureResultId { get; init; }
+
+    /// <summary>Exact later human result event, if a true new passage exists.</summary>
+    public Guid? RetestResultId { get; init; }
+
     /// <summary>Whether a distinct later execution actually exists.</summary>
     public bool HasLaterExecution => LaterOutcome is not null;
 
@@ -233,7 +239,11 @@ public static class ProjectRecIncidentFollowupPlanner
                     latest?.Result.RecordedUtc, latest?.Campaign,
                     latest?.Passage.Number, latest?.Passage.Environment,
                     latest?.Passage.ApplicationVersion,
-                    latest?.Result.EvidenceNote));
+                    latest?.Result.EvidenceNote)
+                {
+                    FailureResultId = lastFailure.ResultId,
+                    RetestResultId = latest?.Result.Id
+                });
             }
 
             interventions.TryGetValue(group.Key,
