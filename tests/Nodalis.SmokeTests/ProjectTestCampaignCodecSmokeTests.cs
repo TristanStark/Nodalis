@@ -169,6 +169,105 @@ internal static class ProjectTestCampaignCodecSmokeTests
                     [correction with { ResultId = Guid.NewGuid() }]
             }), "A correction cannot refer to an absent result.");
 
+        string incident = "INC-" + Guid.NewGuid().ToString("N");
+        string secondIncident = "INC-" + Guid.NewGuid().ToString("N");
+        ProjectTestIncidentLinkEvent link = new()
+        {
+            Id = Guid.NewGuid(),
+            PassageId = campaign.Passages[0].Id,
+            ResultId = firstResult.Id,
+            TestId = testId,
+            IncidentId = incident,
+            Kind = ProjectTestIncidentLinkKind.Linked,
+            Actor = "Testeur fictif",
+            Rationale = "Anomalie observée pendant la recette.",
+            RecordedUtc = beginning.AddMinutes(35)
+        };
+        ProjectTestIncidentLinkEvent additional = link with
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = secondIncident,
+            RecordedUtc = link.RecordedUtc.AddMinutes(1)
+        };
+        ProjectTestIncidentLinkEvent unlink = link with
+        {
+            Id = Guid.NewGuid(),
+            Kind = ProjectTestIncidentLinkKind.Unlinked,
+            RecordedUtc = link.RecordedUtc.AddMinutes(2),
+            Rationale = "Mauvaise association corrigée explicitement."
+        };
+        ProjectTestCampaign linkedCampaign = campaign with
+        {
+            IncidentLinks = [link, additional, unlink]
+        };
+        string linkedMarkdown =
+            ProjectTestCampaignMarkdownCodec.Format(linkedCampaign);
+        ProjectTestCampaign parsedLinks =
+            ProjectTestCampaignMarkdownCodec.Parse(linkedMarkdown);
+        IReadOnlyList<ProjectTestLinkedIncident> linked =
+            ProjectTestIncidentLinkPolicy.Active(parsedLinks, firstResult.Id);
+        Assert(linked.Count == 1 &&
+               linked[0].IncidentId == secondIncident &&
+               parsedLinks.Passages[0].Results[0].Outcome ==
+                   ProjectTestOutcome.Failed &&
+               parsedLinks.Passages[1].Results[0].Outcome ==
+                   ProjectTestOutcome.Passed &&
+               ProjectTestCampaignMarkdownCodec.Format(parsedLinks) ==
+                   linkedMarkdown &&
+               ProjectTestCampaignMarkdownCodec.Format(campaign) == markdown,
+            "Human links/unlinks are portable append-only audit without " +
+            "changing frozen execution history.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                IncidentLinks = [link, link with
+                {
+                    Id = Guid.NewGuid(),
+                    RecordedUtc = link.RecordedUtc.AddMinutes(1)
+                }]
+            }), "A second Linked event requires an intervening Unlinked.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                IncidentLinks = [unlink]
+            }), "Cannot unlink an incident absent from earlier audit.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                IncidentLinks = [link with { ResultId = Guid.NewGuid() }]
+            }), "An incident association needs a real human result.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                IncidentLinks = [link with { PassageId =
+                    campaign.Passages[1].Id }]
+            }), "An incident association cannot move across passages.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                IncidentLinks = [link with { IncidentId = "INC-not-an-id" }]
+            }), "Maintenance references cannot be arbitrary strings.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                IncidentLinks = [link with { Rationale = "trop court" }]
+            }), "A human association requires a useful written rationale.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                IncidentLinks = [link with { RecordedUtc =
+                    firstResult.RecordedUtc.AddSeconds(-1) }]
+            }), "No incident association may predate its human test result.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            campaign with
+            {
+                IncidentLinks = [link with
+                {
+                    Id = correction.Id
+                }],
+                ResultCorrections = [correction]
+            }), "An incident event cannot reuse a correction audit GUID.");
+
         Assert(!ProjectTestCampaignMarkdownCodec.IsReference("REC-0000") &&
                ProjectTestCampaignMarkdownCodec.IsReference("REC-0001") &&
                !ProjectTestCampaignMarkdownCodec.IsReference("REC-10000"),

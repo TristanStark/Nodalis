@@ -2,6 +2,7 @@ using System.Text;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Links;
 using Nodalis.Core.Markdown;
+using Nodalis.Core.Maintenance;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Tests;
 using Nodalis.Infrastructure.Links;
@@ -242,6 +243,97 @@ internal static class ProjectTestCampaignServiceSmokeTests
                 "Responsable fictif", "Projet étranger."),
                 "A correction cannot escape its owning project.");
             final = rectified;
+            string maintenancePath = Path.Combine(
+                own.ProjectDirectory, "Fiche de Maintenance.md");
+            string maintenance = File.Exists(maintenancePath)
+                ? await File.ReadAllTextAsync(maintenancePath)
+                : "# Fiche de maintenance fictive\n";
+            string firstIncident = MaintenanceMarkdownCodec.NewId(
+                MaintenanceRecordKind.Incident);
+            string secondIncidentId = MaintenanceMarkdownCodec.NewId(
+                MaintenanceRecordKind.Incident);
+            foreach (string incident in new[] { firstIncident, secondIncidentId })
+            {
+                maintenance = MaintenanceMarkdownCodec.Append(
+                    maintenance, new MaintenanceRecord
+                    {
+                        Kind = MaintenanceRecordKind.Incident,
+                        Id = incident,
+                        Date = DateOnly.FromDateTime(DateTime.UtcNow),
+                        Summary = "Incident de recette entièrement fictif."
+                    });
+            }
+
+            await File.WriteAllTextAsync(maintenancePath, maintenance);
+            ProjectTestCampaignEntry linked =
+                await service.RecordIncidentLinkAsync(
+                    own.ProjectDirectory, final, passage1.Id,
+                    originalResult.Id, firstIncident,
+                    ProjectTestIncidentLinkKind.Linked, "Testeur fictif",
+                    "Anomalie déclarée pendant un résultat non conforme.");
+            Assert(linked.Campaign.IncidentLinks?.Count == 1 &&
+                   linked.Campaign.Passages[0].Results[0].Outcome ==
+                       ProjectTestOutcome.Failed &&
+                   ProjectTestIncidentLinkPolicy.Active(
+                       linked.Campaign, originalResult.Id).Count == 1 &&
+                   (await service.ListAsync(own.ProjectDirectory))
+                       .Campaigns.Single().Campaign.IncidentLinks?.Count == 1,
+                "Human REC association is persisted without a second " +
+                "maintenance incident or changed historical test verdict.");
+            await RejectAsync(() => service.RecordIncidentLinkAsync(
+                own.ProjectDirectory, final, passage1.Id,
+                originalResult.Id, secondIncidentId,
+                ProjectTestIncidentLinkKind.Linked, "Testeur fictif",
+                "Révision périmée entre deux opérations."),
+                "Stale REC revisions cannot overwrite newly linked incidents.");
+            await RejectAsync(() => service.RecordIncidentLinkAsync(
+                own.ProjectDirectory, linked, passage1.Id,
+                originalResult.Id, firstIncident,
+                ProjectTestIncidentLinkKind.Linked, "Testeur fictif",
+                "Association en double interdite."),
+                "Duplicate incident associations are never silently accepted.");
+            await RejectAsync(() => service.RecordIncidentLinkAsync(
+                foreign.ProjectDirectory, linked, passage1.Id,
+                originalResult.Id, secondIncidentId,
+                ProjectTestIncidentLinkKind.Linked, "Testeur fictif",
+                "Référence incident depuis un autre projet."),
+                "Cross-project REC association must fail closed.");
+            await RejectAsync(() => service.RecordIncidentLinkAsync(
+                own.ProjectDirectory, linked, passage2.Id,
+                final.Campaign.Passages[1].Results[0].Id, firstIncident,
+                ProjectTestIncidentLinkKind.Linked, "Testeur fictif",
+                "Le résultat conforme ne représente pas un échec."),
+                "A Passed result cannot manufacture a recipe anomaly.");
+            ProjectTestCampaignEntry twoLinks =
+                await service.RecordIncidentLinkAsync(
+                    own.ProjectDirectory, linked, passage1.Id,
+                    originalResult.Id, secondIncidentId,
+                    ProjectTestIncidentLinkKind.Linked, "Testeur fictif",
+                    "Seconde cause indépendante sur le même test.");
+            Assert(ProjectTestIncidentLinkPolicy.Active(
+                       twoLinks.Campaign, originalResult.Id).Count == 2,
+                "Multiple distinct incidents may be linked to one test result.");
+            ProjectTestCampaignEntry unlinkFirst =
+                await service.RecordIncidentLinkAsync(
+                    own.ProjectDirectory, twoLinks, passage1.Id,
+                    originalResult.Id, firstIncident,
+                    ProjectTestIncidentLinkKind.Unlinked, "Testeur fictif",
+                    "Erreur d'association constatée et corrigée.");
+            Assert(unlinkFirst.Campaign.IncidentLinks?.Count == 3 &&
+                   ProjectTestIncidentLinkPolicy.Active(
+                       unlinkFirst.Campaign, originalResult.Id).Single()
+                       .IncidentId == secondIncidentId &&
+                   unlinkFirst.Campaign.Passages[0].Results[0].Outcome ==
+                       ProjectTestOutcome.Failed,
+                "Unlink is an audit event rather than erasure of earlier links.");
+            File.Delete(maintenancePath);
+            await RejectAsync(() => service.RecordIncidentLinkAsync(
+                own.ProjectDirectory, unlinkFirst, passage1.Id,
+                originalResult.Id, firstIncident,
+                ProjectTestIncidentLinkKind.Linked, "Testeur fictif",
+                "Incident indisponible dans la maintenance courante."),
+                "Missing maintenance incidents cannot be newly linked.");
+            final = unlinkFirst;
             ProjectTestSourceValidityOverview live =
                 await service.AssessSourceValidityAsync(
                     own.ProjectDirectory, final, updatedIndex);
