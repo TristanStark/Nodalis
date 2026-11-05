@@ -141,7 +141,8 @@ public partial class MainWindow
                     {
                         MenuItem proposedStep = new()
                         {
-                            Header = (++previewNumber) + ". " + stage.Name
+                            Header = PilotageMenuHeader(
+                                (++previewNumber) + ". " + stage.Name)
                         };
                         foreach (ProjectJourneyOperationTemplate operation in
                             stage.Operations)
@@ -193,7 +194,10 @@ public partial class MainWindow
                     stepLabel += " · " + PilotageStepStatus(step.Status);
                 }
 
-                MenuItem stage = new() { Header = stepLabel };
+                MenuItem stage = new()
+                {
+                    Header = PilotageMenuHeader(stepLabel)
+                };
                 if (mode == PilotageJourneyMode.Steps)
                 {
                     stage.Items.Add(PilotageTargetItem(
@@ -209,7 +213,7 @@ public partial class MainWindow
                     {
                         MenuItem nested = new()
                         {
-                            Header = operation.Name,
+                            Header = PilotageMenuHeader(operation.Name),
                             ToolTip = operation.PromptKey is null
                                 ? "Aucun prompt associé : brouillon générique disponible."
                                 : "Prompt associé : " + operation.PromptKey
@@ -290,7 +294,17 @@ public partial class MainWindow
     /// <param name="message">Safe user-visible status.</param>
     /// <returns>Disabled WPF menu item.</returns>
     private static MenuItem PilotageNotice(string message) =>
-        new() { Header = message, IsEnabled = false };
+        new() { Header = PilotageMenuHeader(message), IsEnabled = false };
+
+    /// <summary>
+    /// Escapes WPF access-key underscores in user-customized stage/operation
+    /// labels. The visible title must not lose characters or define
+    /// accidental keyboard shortcuts.
+    /// </summary>
+    /// <param name="title">Human label, including custom project names.</param>
+    /// <returns>WPF-safe literal header text.</returns>
+    private static string PilotageMenuHeader(string title) =>
+        title.Replace("_", "__", StringComparison.Ordinal);
 
     /// <summary>Creates one strongly identified project-local shortcut.</summary>
     /// <param name="label">Menu action text.</param>
@@ -306,7 +320,7 @@ public partial class MainWindow
     {
         MenuItem item = new()
         {
-            Header = label,
+            Header = PilotageMenuHeader(label),
             Tag = new PilotageJourneyTarget(
                 projectId, projectPath, stepId, operationId, mode)
         };
