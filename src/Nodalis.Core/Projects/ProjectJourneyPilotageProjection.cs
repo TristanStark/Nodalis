@@ -58,7 +58,9 @@ public static class ProjectJourneyPilotageProjection
         foreach (ProjectJourneyStep step in journey.Steps
             .OrderBy(item => item.Order))
         {
-            if (step.Id == Guid.Empty || step.Order < 1 ||
+            // The canonical journey editor renumbers stages from zero.
+            // Pilotage must accept the exact same nonnegative model order.
+            if (step.Id == Guid.Empty || step.Order < 0 ||
                 !identities.Add(step.Id) || !orders.Add(step.Order) ||
                 !ValidName(step.Name) ||
                 !Enum.IsDefined(step.Status) || step.Operations is null ||
