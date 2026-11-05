@@ -81,6 +81,15 @@ public sealed record ProjectRecRevalidationEvent
     /// <summary>Human-approved application version scope.</summary>
     public required string TargetVersion { get; init; }
 
+    /// <summary>Human attestation that live TEST definitions were reviewed.</summary>
+    public required bool SourceDefinitionsChecked { get; init; }
+
+    /// <summary>Human attestation that evidence references were inspected.</summary>
+    public required bool EvidenceChecked { get; init; }
+
+    /// <summary>Human attestation of target scope, version and regressions.</summary>
+    public required bool ScopeChecked { get; init; }
+
     /// <summary>SHA-256 of the reviewed project-local REC registry revisions.</summary>
     public required string RecRegistrySha256 { get; init; }
 
@@ -254,7 +263,10 @@ public static class ProjectRecRevalidationCodec
                 decision.EvidenceReference.Length > 2000 ||
                 decision.EvidenceReference.Any(char.IsControl) ||
                 decision.Disposition == ProjectRecRevalidationDisposition.Confirmed &&
-                    decision.EvidenceReference.Trim().Length < 10 ||
+                    (decision.EvidenceReference.Trim().Length < 10 ||
+                     !decision.SourceDefinitionsChecked ||
+                     !decision.EvidenceChecked ||
+                     !decision.ScopeChecked) ||
                 !ValidSha(decision.RecRegistrySha256) ||
                 decision.RecordedUtc == default ||
                 decision.RecordedUtc < lastUtc ||
