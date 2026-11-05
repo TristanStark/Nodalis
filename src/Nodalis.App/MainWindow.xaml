@@ -343,8 +343,79 @@
                     </MenuItem>
 
                     <MenuItem Header="Pilotage">
+                        <MenuItem Header="Parcours projet · 2.0">
+                            <MenuItem Header="Ouvrir le parcours du projet"
+                                      Click="OpenProjectJourney_Click" />
+                            <MenuItem x:Name="PilotageJourneyStepsMenu"
+                                      Header="Toutes les étapes du projet"
+                                      SubmenuOpened="PilotageJourneySteps_SubmenuOpened"
+                                      ToolTip="Étapes et opérations réelles du parcours sélectionné, y compris les personnalisations">
+                                <MenuItem Header="Sélectionnez un projet…" IsEnabled="False" />
+                            </MenuItem>
+                            <Separator />
+                            <MenuItem Header="Modèles de parcours…"
+                                      Click="PilotageJourneyTemplates_Click" />
+                        </MenuItem>
+                        <MenuItem Header="Prompts et réponses IA · sans IA locale">
+                            <MenuItem x:Name="PilotagePromptsMenu"
+                                      Header="Préparer / copier les prompts du parcours"
+                                      SubmenuOpened="PilotagePrompts_SubmenuOpened"
+                                      ToolTip="Choisir une opération pour préparer, relire puis copier son prompt utilisateur et système">
+                                <MenuItem Header="Sélectionnez un projet…" IsEnabled="False" />
+                            </MenuItem>
+                            <MenuItem x:Name="PilotagePromptAssignmentsMenu"
+                                      Header="Associer un prompt à une opération"
+                                      SubmenuOpened="PilotagePromptAssignments_SubmenuOpened">
+                                <MenuItem Header="Sélectionnez un projet…" IsEnabled="False" />
+                            </MenuItem>
+                            <Separator />
+                            <MenuItem Header="Analyser / importer une réponse IA externe…"
+                                      Click="PilotageExternalAi_Click" />
+                            <MenuItem Header="Prompt de mise à jour depuis une réunion…"
+                                      Click="GenerateProjectUpdatePrompt_Click" />
+                        </MenuItem>
+                        <MenuItem Header="Exigences, critères et tests · 2.0">
+                            <MenuItem Header="Créer une exigence EXI…"
+                                      Click="PilotageNewRequirement_Click" />
+                            <MenuItem Header="Traçabilité exigences / critères / tests…"
+                                      Click="PilotageTraceability_Click" />
+                            <Separator />
+                            <MenuItem Header="Campagnes, passages et résultats REC…"
+                                      Click="PilotageTestCampaigns_Click" />
+                            <MenuItem Header="Anomalies de recette, incidents et revalidations…"
+                                      Click="PilotageTestCampaigns_Click"
+                                      ToolTip="Dans les campagnes REC, ouvrir Anomalies de recette et son suivi de revalidation" />
+                            <MenuItem Header="Identifier un titre de test ou critère…"
+                                      Click="PilotageAssignBlockIdentity_Click" />
+                            <MenuItem Header="Atteindre un bloc par identifiant…"
+                                      Click="PilotageGotoBlock_Click" />
+                        </MenuItem>
+                        <MenuItem Header="Risques, décisions et Go/No-Go · 2.0">
+                            <MenuItem Header="Registre des risques RIS…"
+                                      Click="PilotageRisks_Click" />
+                            <MenuItem Header="Registre des gates / Go-No-Go…"
+                                      Click="PilotageGates_Click" />
+                            <Separator />
+                            <MenuItem Header="Décisions du projet…"
+                                      Click="PilotageDecisions_Click" />
+                            <MenuItem Header="Créer une décision…"
+                                      Click="PilotageNewDecision_Click" />
+                        </MenuItem>
+                        <MenuItem Header="Préparation / migration · 2.0">
+                            <MenuItem Header="Prévisualiser la structure Complexe 2.0…"
+                                      Click="PilotageMigrationPreview_Click" />
+                            <MenuItem Header="Migrer un projet Complexe vers 2.0…"
+                                      Click="PilotageMigrateComplex_Click" />
+                            <MenuItem Header="Restaurer avant migration…"
+                                      Click="PilotageRollbackComplex_Click" />
+                        </MenuItem>
+                        <Separator />
                         <MenuItem Header="Historique de maintenance"
                                   Click="OpenMaintenanceHistory_Click" />
+                        <MenuItem Header="Nouvel incident…"
+                                  Click="PilotageNewIncident_Click" />
+                        <MenuItem Header="Nouvelle intervention…"
+                                  Click="PilotageNewIntervention_Click" />
                         <Separator />
                         <MenuItem Header="Tâches"
                                   Click="ShowAllTasks_Click" />
