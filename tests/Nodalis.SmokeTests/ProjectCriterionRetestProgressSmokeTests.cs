@@ -117,7 +117,8 @@ internal static class ProjectCriterionRetestProgressSmokeTests
                 ProjectCriterionRetestProgressState.SourceMismatch &&
             observed.Rows[3].Outcome == ProjectTestOutcome.Blocked &&
             observed.Warnings.Any(warning => warning.Contains(
-                "changé de chemin", StringComparison.Ordinal)) &&
+                "sources de tests figées sont déplacées",
+                StringComparison.Ordinal)) &&
             observed.Describe().Contains(
                 "ne prouve PAS une requalification",
                 StringComparison.Ordinal),
