@@ -677,7 +677,10 @@ REC `Failed` / `Blocked`, la vue rassemble :
 - Le **dernier échec REC activement associé** de chaque test, son
   environnement/version et la plus récente réexécution humaine du
   même GUID TEST provenant d'un **autre passage** et enregistrée
-  **après cet échec**, y compris dans une autre campagne du projet.
+  **après cet échec**, avec un passage REC **lui-même ouvert
+  après la déclaration de l'échec** (une saisie tardive sur un ancien
+  passage ne vaut pas retest), y compris dans une autre campagne
+  du projet.
 - Les résultats réellement enregistrés : non réexécuté, `Passed`,
   `Failed`, `Blocked`, non applicable ; le dernier événement humain
   détermine l'état consultatif. Une **régression ultérieure** annule
