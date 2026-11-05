@@ -123,6 +123,45 @@ internal static class ProjectCriterionRetestProgressSmokeTests
                 StringComparison.Ordinal),
             "Follow-up counts only latest frozen selection/declared human " +
             "results and visibly flags a moved test source.");
+        ProjectTestSourceValidityOverview validity = new(
+        [
+            new ProjectTestSourceValidityRow(first.Id, tests[0], "TEST-0001",
+                ProjectTestSourceValidity.Current, first.Tests[0].Sha256,
+                first.Tests[0].Sha256, "Source actuelle."),
+            new ProjectTestSourceValidityRow(first.Id, tests[1], "TEST-0002",
+                ProjectTestSourceValidity.Modified, first.Tests[1].Sha256,
+                new string('B', 64), "Définition test modifiée."),
+            new ProjectTestSourceValidityRow(first.Id, tests[3], "TEST-0004",
+                ProjectTestSourceValidity.Missing, first.Tests[2].Sha256,
+                null, "Cahier source supprimé.")
+        ]);
+        ProjectCriterionRetestProgressOverview comparedSources =
+            ProjectCriterionRetestProgress.Build(
+                baseline, proposal, withFirst, validity);
+        Assert(comparedSources.Rows[0].State ==
+                ProjectCriterionRetestProgressState.HumanResultDeclared &&
+            comparedSources.Rows[1].State ==
+                ProjectCriterionRetestProgressState.SourceNeedsReview &&
+            comparedSources.Rows[1].CurrentSourceValidity ==
+                ProjectTestSourceValidity.Modified &&
+            comparedSources.Rows[3].State ==
+                ProjectCriterionRetestProgressState.SourceMismatch &&
+            comparedSources.SourceReviewCount == 2 &&
+            comparedSources.HumanResultCount == 2 &&
+            comparedSources.WithoutResultCount == 0,
+            "Current source SHA state is separate from selection and " +
+            "historical human outcomes, including a missing test file.");
+        ProjectCriterionRetestProgressOverview incompleteSources =
+            ProjectCriterionRetestProgress.Build(
+                baseline, proposal, withFirst,
+                new ProjectTestSourceValidityOverview([]));
+        Assert(incompleteSources.Rows[0].State ==
+                ProjectCriterionRetestProgressState.SourceNeedsReview &&
+            incompleteSources.Rows[0].CurrentSourceValidity ==
+                ProjectTestSourceValidity.Ambiguous &&
+            incompleteSources.SourceReviewCount == 3,
+            "Absent live-source comparison rows never imply unchanged tests.");
+
         Assert(withFirst.Passages.Single().Results.Count == 2 &&
             withFirst.Passages.Single().Results.Single(item =>
                 item.TestId == tests[0]).Outcome == ProjectTestOutcome.Passed,
