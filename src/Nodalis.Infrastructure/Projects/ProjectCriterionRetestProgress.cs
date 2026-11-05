@@ -13,7 +13,8 @@ public enum ProjectCriterionRetestProgressState
     NotSelected,
     SelectedWithoutResult,
     HumanResultDeclared,
-    SourceMismatch
+    SourceMismatch,
+    SourceNeedsReview
 }
 
 /// <summary>
@@ -28,11 +29,13 @@ public enum ProjectCriterionRetestProgressState
 /// <param name="PassageNumber">Latest passage number if usable.</param>
 /// <param name="Outcome">Explicit human-declared outcome, or null.</param>
 /// <param name="SourceMismatch">Frozen source location differs from current link.</param>
+/// <param name="CurrentSourceValidity">Verified latest frozen/live comparison, or null.</param>
 public sealed record ProjectCriterionRetestProgressRow(
     Guid TestId, string Reference, IReadOnlyList<Guid> RelatedCriterionIds,
     ProjectCriterionRetestProgressState State,
     Guid? PassageId, int? PassageNumber,
-    ProjectTestOutcome? Outcome, bool SourceMismatch);
+    ProjectTestOutcome? Outcome, bool SourceMismatch,
+    ProjectTestSourceValidity? CurrentSourceValidity);
 
 /// <summary>
 /// One campaign's nonbinding follow-up of changed-CA-linked tests.
@@ -62,9 +65,12 @@ public sealed record ProjectCriterionRetestProgressOverview(
     /// requalified or exempt them from human review.
     /// </summary>
     public int HumanResultCount => Rows.Count(item =>
-        item.State is ProjectCriterionRetestProgressState.HumanResultDeclared or
-            ProjectCriterionRetestProgressState.SourceMismatch &&
-            item.Outcome.HasValue);
+        item.Outcome.HasValue);
+
+    /// <summary>Tests whose frozen source requires a separate review.</summary>
+    public int SourceReviewCount => Rows.Count(item =>
+        item.State is ProjectCriterionRetestProgressState.SourceMismatch or
+            ProjectCriterionRetestProgressState.SourceNeedsReview);
 
     /// <summary>
     /// Bounded user-friendly overview with no claims of current conformity.
@@ -84,6 +90,8 @@ public sealed record ProjectCriterionRetestProgressOverview(
             "Sélectionnés, sans résultat humain : " + WithoutResultCount,
             "Résultats humains déclarés dans le dernier passage : " +
                 HumanResultCount,
+            "Définitions figées dont la source doit être examinée : " +
+                SourceReviewCount,
             "",
             "Un résultat déclaré ne prouve PAS une requalification après " +
                 "changement CA. La date exacte de modification du CA " +
@@ -105,6 +113,10 @@ public sealed record ProjectCriterionRetestProgressOverview(
                     "résultat humain historique : " + row.Outcome,
                 ProjectCriterionRetestProgressState.SourceMismatch =>
                     "source figée déplacée : " +
+                    (row.Outcome?.ToString() ?? "NON EXÉCUTÉ"),
+                ProjectCriterionRetestProgressState.SourceNeedsReview =>
+                    "définition source à contrôler : " +
+                    row.CurrentSourceValidity + " · " +
                     (row.Outcome?.ToString() ?? "NON EXÉCUTÉ"),
                 _ => "inconnu"
             };
@@ -153,11 +165,13 @@ public static class ProjectCriterionRetestProgress
     /// <param name="baseline">Same-project latest human CA observation.</param>
     /// <param name="proposal">Freshly derived from that baseline and links.</param>
     /// <param name="campaign">Selected, validated REC campaign snapshot.</param>
+    /// <param name="sourceValidity">Latest passages vs current sources, or null if unavailable.</param>
     /// <returns>Conservative observations for human follow-up.</returns>
     public static ProjectCriterionRetestProgressOverview Build(
         ProjectCriterionBaselineOverview baseline,
         ProjectCriterionRetestProposal proposal,
-        ProjectTestCampaign campaign)
+        ProjectTestCampaign campaign,
+        ProjectTestSourceValidityOverview? sourceValidity = null)
     {
         ArgumentNullException.ThrowIfNull(baseline);
         ArgumentNullException.ThrowIfNull(proposal);
@@ -192,6 +206,20 @@ public static class ProjectCriterionRetestProgress
             !older && passage is not null
                 ? passage.Results.ToDictionary(item => item.TestId)
                 : [];
+        Dictionary<Guid, ProjectTestSourceValidityRow[]> validity =
+            sourceValidity is not null && passage is not null
+                ? sourceValidity.Rows.Where(item =>
+                    item.PassageId == passage.Id)
+                    .GroupBy(item => item.TestId)
+                    .ToDictionary(group => group.Key,
+                        group => group.ToArray())
+                : [];
+        if (sourceValidity is null && passage is not null && !older)
+        {
+            warnings.Add("Empreintes des définitions TEST actuelles " +
+                "non contrôlées : les résultats déclarés restent " +
+                "des observations historiques.");
+        }
 
         HashSet<Guid> seen = [];
         List<ProjectCriterionRetestProgressRow> rows = [];
@@ -210,6 +238,7 @@ public static class ProjectCriterionRetestProgress
             ProjectCriterionRetestProgressState state;
             ProjectTestOutcome? outcome = null;
             bool sourceMismatch = false;
+            ProjectTestSourceValidity? currentValidity = null;
             if (passage is null)
             {
                 state = ProjectCriterionRetestProgressState.NoPassage;
@@ -233,25 +262,44 @@ public static class ProjectCriterionRetestProgress
                     outcome = result.Outcome;
                 }
 
+                if (sourceValidity is not null)
+                {
+                    if (!validity.TryGetValue(candidate.TestId,
+                            out ProjectTestSourceValidityRow[]? assessments) ||
+                        assessments.Length != 1)
+                    {
+                        currentValidity = ProjectTestSourceValidity.Ambiguous;
+                    }
+                    else
+                    {
+                        currentValidity = assessments[0].Validity;
+                    }
+                }
+
                 state = sourceMismatch
                     ? ProjectCriterionRetestProgressState.SourceMismatch
-                    : outcome.HasValue
-                        ? ProjectCriterionRetestProgressState.HumanResultDeclared
-                        : ProjectCriterionRetestProgressState.SelectedWithoutResult;
+                    : currentValidity is not null &&
+                        currentValidity != ProjectTestSourceValidity.Current
+                        ? ProjectCriterionRetestProgressState.SourceNeedsReview
+                        : outcome.HasValue
+                            ? ProjectCriterionRetestProgressState.HumanResultDeclared
+                            : ProjectCriterionRetestProgressState.SelectedWithoutResult;
             }
 
             rows.Add(new ProjectCriterionRetestProgressRow(
                 candidate.TestId, candidate.Label, candidate.CriterionIds,
                 state, !older ? passage?.Id : null,
-                !older ? passage?.Number : null, outcome, sourceMismatch));
+                !older ? passage?.Number : null, outcome, sourceMismatch,
+                currentValidity));
         }
 
         if (rows.Any(item =>
-            item.State == ProjectCriterionRetestProgressState.SourceMismatch))
+            item.State is ProjectCriterionRetestProgressState.SourceMismatch or
+                ProjectCriterionRetestProgressState.SourceNeedsReview))
         {
-            warnings.Add("Certaines sources figées ont changé de chemin " +
-                "depuis le passage : les verdicts ne doivent pas " +
-                "être rapprochés automatiquement.");
+            warnings.Add("Certaines sources de tests figées sont déplacées, " +
+                "modifiées ou ambiguës : vérifier la définition actuelle " +
+                "avant d'interpréter les anciens résultats.");
         }
 
         warnings.Add("Une sélection REC et un verdict historique ne " +
