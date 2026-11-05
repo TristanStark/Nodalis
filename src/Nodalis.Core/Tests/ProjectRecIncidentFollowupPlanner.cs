@@ -59,6 +59,15 @@ public sealed record ProjectRecIncidentFollowup(
     IReadOnlyList<string> InterventionSummaries,
     IReadOnlyList<string> Warnings)
 {
+    /// <summary>Latest human audit decision; always shown as historical.</summary>
+    public ProjectRecRevalidationEvent? LatestHumanDecision { get; init; }
+
+    /// <summary>
+    /// True only while that decision's frozen REC registry SHA is identical
+    /// to the current project-local sources.
+    /// </summary>
+    public bool LatestDecisionUsesCurrentRec { get; init; }
+
     /// <summary>Unique stable test count for this incident.</summary>
     public int AffectedTestCount => Tests.Count;
 

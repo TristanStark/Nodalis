@@ -311,7 +311,7 @@ public sealed class ProjectRecRevalidationService
     /// </summary>
     /// <param name="catalog">All unambiguous campaigns in this project.</param>
     /// <returns>SHA-256 of the deterministic current REC catalog snapshot.</returns>
-    private static string RecFingerprint(ProjectTestCampaignCatalog catalog)
+    internal static string RecFingerprint(ProjectTestCampaignCatalog catalog)
     {
         StringBuilder data = new();
         foreach (ProjectTestCampaignEntry entry in catalog.Campaigns

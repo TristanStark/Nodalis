@@ -182,6 +182,18 @@ public partial class ProjectRecIncidentFollowupDialog : Window
             row.ReviewMayBeProposed
                 ? "Proposition : examen humain possible, AUCUNE validation automatique."
                 : "Proposition : revalidation encore non démontrée.",
+            "Dernière décision humaine : " +
+                (row.LatestHumanDecision is ProjectRecRevalidationEvent last
+                    ? last.Disposition + " · " +
+                        last.RecordedUtc.ToLocalTime()
+                            .ToString("dd/MM/yyyy HH:mm") +
+                        " · " + last.Actor
+                    : "aucune décision historisée"),
+            row.LatestHumanDecision is not null
+                ? (row.LatestDecisionUsesCurrentRec
+                    ? "Décision liée à la révision REC actuellement relue."
+                    : "ATTENTION : décision portant sur une ancienne photographie REC.")
+                : "Une proposition d'examen n'est pas une décision.",
             ""
         ];
         foreach (ProjectRecRetestObservation test in row.Tests)

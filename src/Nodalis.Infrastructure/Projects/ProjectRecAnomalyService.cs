@@ -37,6 +37,7 @@ public sealed class ProjectRecAnomalyService
                 projectDirectory, cancellationToken);
         List<string> warnings = [.. catalog.Diagnostics];
         List<MaintenanceRecord> maintenance = [];
+        IReadOnlyList<ProjectRecRevalidationEvent> decisions = [];
 
         string fullProject = Path.GetFullPath(projectDirectory);
         string sheet = Path.Combine(fullProject, "Fiche de Maintenance.md");
@@ -74,6 +75,7 @@ public sealed class ProjectRecAnomalyService
                 MaintenanceParseResult parsed =
                     MaintenanceMarkdownCodec.Parse(markdown);
                 maintenance.AddRange(parsed.Records);
+                decisions = ProjectRecRevalidationCodec.Read(markdown);
                 foreach (MaintenanceDiagnostic item in parsed.Diagnostics)
                 {
                     warnings.Add("Maintenance ligne " + item.LineNumber +
@@ -93,8 +95,32 @@ public sealed class ProjectRecAnomalyService
             return new ProjectRecAnomalyOverview([], warnings);
         }
 
-        return ProjectRecAnomalyProjection.Build(projectId,
-            catalog.Campaigns.Select(item => item.Campaign).ToArray(),
-            maintenance, warnings);
+        ProjectRecAnomalyOverview overview =
+            ProjectRecAnomalyProjection.Build(projectId,
+                catalog.Campaigns.Select(item => item.Campaign).ToArray(),
+                maintenance, warnings);
+        if (decisions.Count == 0 || overview.IncidentFollowups.Count == 0)
+        {
+            return overview;
+        }
+
+        string currentSha = ProjectRecRevalidationService.RecFingerprint(catalog);
+        return overview with
+        {
+            IncidentFollowups = overview.IncidentFollowups.Select(item =>
+            {
+                ProjectRecRevalidationEvent? last =
+                    ProjectRecRevalidationCodec.Latest(
+                        decisions, item.IncidentId);
+                return item with
+                {
+                    LatestHumanDecision = last,
+                    LatestDecisionUsesCurrentRec =
+                        last is not null &&
+                        string.Equals(last.RecRegistrySha256, currentSha,
+                            StringComparison.OrdinalIgnoreCase)
+                };
+            }).ToArray()
+        };
     }
 }
