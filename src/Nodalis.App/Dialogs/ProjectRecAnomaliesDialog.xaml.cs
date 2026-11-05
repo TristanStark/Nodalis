@@ -10,12 +10,22 @@ namespace Nodalis.App.Dialogs;
 public partial class ProjectRecAnomaliesDialog : Window
 {
     private readonly ProjectRecAnomalyOverview _overview;
-    /// <summary>Displays a previously calculated, project-scoped overview.</summary>
+    private readonly string _workspaceRoot;
+    private readonly string _projectDirectory;
+    private readonly bool _readOnly;
+    /// <summary>Displays a project-local anomaly list with optional human audit.</summary>
     /// <param name="overview">Unmodified canonical source projection.</param>
-    public ProjectRecAnomaliesDialog(ProjectRecAnomalyOverview overview)
+    /// <param name="workspaceRoot">Workspace root for revision-checked audit.</param>
+    /// <param name="projectDirectory">Current project folder.</param>
+    /// <param name="readOnly">Archive or workspace read-only state.</param>
+    public ProjectRecAnomaliesDialog(ProjectRecAnomalyOverview overview,
+        string workspaceRoot, string projectDirectory, bool readOnly)
     {
         ArgumentNullException.ThrowIfNull(overview);
         _overview = overview;
+        _workspaceRoot = Path.GetFullPath(workspaceRoot);
+        _projectDirectory = Path.GetFullPath(projectDirectory);
+        _readOnly = readOnly;
         InitializeComponent();
         FollowupButton.IsEnabled = overview.IncidentFollowups.Count > 0;
         SummaryText.Text = overview.Rows.Count + " résultat(s) non conforme(s)" +
@@ -35,8 +45,11 @@ public partial class ProjectRecAnomaliesDialog : Window
         }
     }
 
+    /// <summary>Whether any deliberate human decision was durably saved.</summary>
+    public bool Changed { get; private set; }
+
     /// <summary>
-    /// Shows the separate incident-centric, strictly read-only assessment
+    /// Shows the separate incident-centric assessment
     /// precomputed from the same loaded REC and maintenance snapshot.
     /// </summary>
     /// <param name="sender">Human consultative navigation button.</param>
@@ -44,9 +57,11 @@ public partial class ProjectRecAnomaliesDialog : Window
     private void Followup_Click(object sender, RoutedEventArgs e)
     {
         ProjectRecIncidentFollowupDialog dialog = new(
-            _overview.IncidentFollowups)
+            _overview.IncidentFollowups, _workspaceRoot,
+            _projectDirectory, _readOnly)
         { Owner = this };
         dialog.ShowDialog();
+        Changed |= dialog.Changed;
     }
 
     /// <summary>Shows original event, source links and missing information.</summary>

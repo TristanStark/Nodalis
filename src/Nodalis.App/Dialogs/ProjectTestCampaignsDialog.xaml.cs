@@ -1644,10 +1644,19 @@ public partial class ProjectTestCampaignsDialog : Window
         ProjectRecAnomalyOverview overview = await Task.Run(() =>
             new ProjectRecAnomalyService(_workspaceRoot)
                 .ReadAsync(_projectDirectory));
-        ProjectRecAnomaliesDialog dialog = new(overview) { Owner = this };
+        ProjectRecAnomaliesDialog dialog = new(
+            overview, _workspaceRoot, _projectDirectory, _readOnly)
+        { Owner = this };
         dialog.ShowDialog();
-        StatusText.Text = "Vue des anomalies REC consultée, aucune " +
-            "modification ni revalidation implicite.";
+        if (dialog.Changed)
+        {
+            Changed = true;
+        }
+
+        StatusText.Text = dialog.Changed
+            ? "Décision humaine de revalidation ajoutée à la fiche " +
+                "maintenance, aucun verdict REC modifié."
+            : "Suivi de recette consulté, aucune modification métier.";
     }
 
     /// <summary>Initiates a human-approved qualification review.</summary>

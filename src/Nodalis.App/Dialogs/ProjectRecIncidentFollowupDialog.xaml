@@ -93,8 +93,15 @@
             </Border>
         </Grid>
         <DockPanel Grid.Row="2" Margin="0,12,0,0">
-            <Button Content="Fermer" Padding="13,8"
-                    DockPanel.Dock="Right" IsCancel="True"/>
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button x:Name="DecisionButton"
+                        Content="Enregistrer une décision humaine…"
+                        Padding="13,8" Margin="0,0,9,0"
+                        Click="Decision_Click"
+                        ToolTip="Journaliser Confirmer, Rejeter ou Reporter dans la fiche de maintenance canonique après une revue humaine explicite."
+                        AutomationProperties.Name="Enregistrer une décision de revalidation humaine"/>
+                <Button Content="Fermer" Padding="13,8" IsCancel="True"/>
+            </StackPanel>
             <TextBlock Text="Aucun incident ni résultat REC modifié."
                        Foreground="{StaticResource SecondaryTextBrush}"
                        TextWrapping="Wrap" VerticalAlignment="Center"/>
