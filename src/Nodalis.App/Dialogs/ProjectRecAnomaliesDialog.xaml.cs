@@ -9,12 +9,15 @@ namespace Nodalis.App.Dialogs;
 /// </summary>
 public partial class ProjectRecAnomaliesDialog : Window
 {
+    private readonly ProjectRecAnomalyOverview _overview;
     /// <summary>Displays a previously calculated, project-scoped overview.</summary>
     /// <param name="overview">Unmodified canonical source projection.</param>
     public ProjectRecAnomaliesDialog(ProjectRecAnomalyOverview overview)
     {
         ArgumentNullException.ThrowIfNull(overview);
+        _overview = overview;
         InitializeComponent();
+        FollowupButton.IsEnabled = overview.IncidentFollowups.Count > 0;
         SummaryText.Text = overview.Rows.Count + " résultat(s) non conforme(s)" +
             " ou bloqué(s) historisé(s) · " + overview.UnlinkedCount +
             " sans incident actif · " + overview.MissingSourceCount +
@@ -30,6 +33,19 @@ public partial class ProjectRecAnomaliesDialog : Window
                 "ou Bloqué dans les campagnes lisibles du projet. Cela ne " +
                 "prouve pas que les tests sont conformes ou exécutés.";
         }
+    }
+
+    /// <summary>
+    /// Shows the separate incident-centric, strictly read-only assessment
+    /// precomputed from the same loaded REC and maintenance snapshot.
+    /// </summary>
+    /// <param name="sender">Human consultative navigation button.</param>
+    /// <param name="e">Button click event.</param>
+    private void Followup_Click(object sender, RoutedEventArgs e)
+    {
+        ProjectRecIncidentFollowupDialog dialog = new(
+            _overview.IncidentFollowups) { Owner = this };
+        dialog.ShowDialog();
     }
 
     /// <summary>Shows original event, source links and missing information.</summary>

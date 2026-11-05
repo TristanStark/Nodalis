@@ -91,8 +91,16 @@
             </Border>
         </Grid>
         <DockPanel Grid.Row="2" Margin="0,12,0,0">
-            <Button Content="Fermer" Padding="13,8" IsCancel="True"
-                    DockPanel.Dock="Right" HorizontalAlignment="Right"/>
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button x:Name="FollowupButton"
+                        Content="Suivi des incidents et reprises…"
+                        Margin="0,0,9,0" Padding="13,8"
+                        Click="Followup_Click"
+                        ToolTip="Inspecter sans écriture le dernier résultat REC de chaque test concerné et les interventions techniques liées."
+                        AutomationProperties.Name="Suivi de revalidation fonctionnelle des incidents"/>
+                <Button Content="Fermer" Padding="13,8"
+                        IsCancel="True"/>
+            </StackPanel>
             <TextBlock Text="Aucune donnée source modifiée."
                        Foreground="{StaticResource SecondaryTextBrush}"
                        VerticalAlignment="Center" TextWrapping="Wrap"/>
