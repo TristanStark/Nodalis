@@ -545,7 +545,10 @@ internal static class ProjectTestCampaignServiceSmokeTests
             Assert(candidate.AffectedTestCount == 2 &&
                    candidate.LaterPassedCount == 2 &&
                    candidate.ReviewMayBeProposed &&
-                   candidate.Tests.All(item => item.VersionChanged) &&
+                   candidate.Tests.Single(item => item.TestId == firstId)
+                       .VersionChanged &&
+                   !candidate.Tests.Single(item => item.TestId == secondId)
+                       .VersionChanged &&
                    candidate.Warnings.Any(item => item.Contains(
                        "version cible", StringComparison.Ordinal)) &&
                    allRetested.Passages[0].Results[0].Outcome ==
