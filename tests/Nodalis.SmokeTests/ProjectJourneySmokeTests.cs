@@ -243,6 +243,49 @@ internal static class ProjectJourneySmokeTests
                 "Pilotage must keep all 4,800 real operations accessible, " +
                 "without converting them into eager WPF controls.");
 
+            IReadOnlyList<ProjectJourneyPilotageSearchRow> searchable =
+                ProjectJourneyPilotageSearch.Index(largeMenu);
+            ProjectJourneyPilotageSearchResult firstPage =
+                ProjectJourneyPilotageSearch.Find(searchable, "", 250);
+            Assert(searchable.Count == 4880 &&
+                   firstPage.Rows.Count == 250 &&
+                   firstPage.HasMore &&
+                   firstPage.TotalIndexed == 4880,
+                "Quick search indexes every stage and operation while " +
+                "limiting the displayed WPF result set to 250.");
+            ProjectJourneyPilotageSearchResult accent =
+                ProjectJourneyPilotageSearch.Find(searchable,
+                    "operation fictive 59");
+            Assert(accent.Rows.Count == 80 && !accent.HasMore &&
+                   accent.Rows.All(item => item.OperationId is not null &&
+                       item.Title.Contains("Opération fictive 59",
+                           StringComparison.Ordinal)) &&
+                   accent.TotalIndexed == 4880,
+                "French accent-insensitive search must find all exact " +
+                "custom operation titles across hidden result pages.");
+            ProjectJourneyPilotageSearchResult oneStage =
+                ProjectJourneyPilotageSearch.Find(searchable,
+                    "Phase fictive 0");
+            Assert(oneStage.Rows.Count == 61 &&
+                   oneStage.Rows.Single(item =>
+                       item.OperationId is null).StepId ==
+                       largeMenu[0].Id,
+                "Search results must keep stable parent stage identities.");
+            ProjectJourneyPilotageSearchResult missing =
+                ProjectJourneyPilotageSearch.Find(searchable,
+                    "projet-externe-inexistant");
+            Assert(missing.Rows.Count == 0 && !missing.HasMore,
+                "An unmatched query must not use another project's data.");
+            await RejectAsync(() => Task.FromResult(
+                ProjectJourneyPilotageSearch.Find(searchable, "", 0)),
+                "Invalid search limits must be rejected.");
+            ProjectJourneyPilotageSearchResult frtSearch =
+                ProjectJourneyPilotageSearch.Find(
+                    ProjectJourneyPilotageSearch.Index(initialMenu),
+                    "frt100-01");
+            Assert(frtSearch.Rows.Any(item => item.OperationId is not null),
+                "Pilotage quick search must also find FRT-100 prompt keys.");
+
             ProjectJourneyDocument ambiguousMenu = saved.Document with
             {
                 Steps = [.. saved.Document.Steps, saved.Document.Steps[0]]
