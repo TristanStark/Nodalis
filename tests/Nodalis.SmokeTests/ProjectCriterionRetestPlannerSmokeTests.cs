@@ -219,6 +219,51 @@ internal static class ProjectCriterionRetestPlannerSmokeTests
             "Partial catalogs remain explicitly uncertain even when some " +
             "current tests have verified identities.");
 
+        ProjectCriterionRetestProposal repeatedBaseline =
+            ProjectCriterionRetestPlanner.Propose(
+                baseline with
+                {
+                    Rows = [.. changes, changes[0]]
+                },
+                links, available);
+        Assert(repeatedBaseline.Candidates.Count == 1 &&
+            repeatedBaseline.Candidates.Single().TestId == sharedTestId &&
+            repeatedBaseline.Warnings.Any(item => item.Contains(
+                "GUID CA répété", StringComparison.Ordinal)),
+            "Ambiguous duplicate baseline identity must suppress its own " +
+            "selection without hiding another independently changed CA.");
+
+        Guid[] largeIds = Enumerable.Range(0, 501)
+            .Select(_ => Guid.NewGuid()).ToArray();
+        ProjectRequirementTraceabilityOverview largeLinks = new(
+        [
+            changed with
+            {
+                Tests = largeIds.Select((id, index) =>
+                    Test(id, testSource,
+                        "TEST-" + (index + 1).ToString("D4") +
+                        " — Cas synthétique")).ToArray()
+            }
+        ], []);
+        ProjectCriterionSelectableTest[] manyCandidates = largeIds
+            .Select((id, index) => new ProjectCriterionSelectableTest(
+                id, "TEST-" + (index + 1).ToString("D4") +
+                    " — Cas synthétique", testSource))
+            .ToArray();
+        ProjectCriterionRetestProposal bounded =
+            ProjectCriterionRetestPlanner.Propose(
+                baseline with { Rows = [changes[0]] },
+                largeLinks, manyCandidates);
+        Assert(bounded.Candidates.Count == 500 &&
+            bounded.Candidates.Select(item => item.TestId).Distinct()
+                .Count() == 500 &&
+            bounded.Warnings.Any(item => item.Contains(
+                "limitée à 500", StringComparison.Ordinal)) &&
+            bounded.Warnings.Any(item => item.Contains(
+                "1 test(s) supplémentaire(s)", StringComparison.Ordinal)),
+            "Automatic CA recommendations must fit the REC picker limit " +
+            "and explicitly warn about any omitted test.");
+
         // No campaign object or REC result is accepted by the planner:
         // every candidate is inert until a human explicitly starts a new
         // frozen passage in the existing REC transaction service.
