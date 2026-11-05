@@ -386,6 +386,7 @@ public partial class ProjectTestCampaignsDialog : Window
             campaign.Entry.Campaign.State is
                 ProjectTestCampaignState.Draft or
                 ProjectTestCampaignState.InProgress;
+        CaFollowupButton.IsEnabled = !_busy && campaign is not null;
         RecordButton.IsEnabled = writable && campaign is not null &&
             campaign.Entry.Campaign.State ==
                 ProjectTestCampaignState.InProgress &&
@@ -566,6 +567,107 @@ public partial class ProjectTestCampaignsDialog : Window
     private async void CaRetest_Click(object sender, RoutedEventArgs e) =>
         await GuardAsync("Proposer les tests des CA modifiés",
             () => StartPassageAsync(false, true));
+
+    /// <summary>
+    /// Displays current CA-driven test inclusion and explicitly declared
+    /// latest-passage results, without starting, closing or editing REC.
+    /// An older Passed never implies a new CA has been requalified.
+    /// </summary>
+    /// <param name="sender">Read-only follow-up action.</param>
+    /// <param name="e">Human click event.</param>
+    private async void CaFollowup_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Suivi des reprises CA",
+            RefreshCaFollowupAsync);
+
+    /// <summary>
+    /// Reads a project-local CA baseline, a refreshed link index, selectable
+    /// tests and the latest on-disk REC campaign snapshot on a worker. The
+    /// result is an advisory only, not evidence or an authorization.
+    /// </summary>
+    /// <returns>Display of current, conservatively interpreted progress.</returns>
+    private async Task RefreshCaFollowupAsync()
+    {
+        CampaignRow? chosen = SelectedCampaign();
+        if (chosen is null)
+        {
+            return;
+        }
+
+        Guid selectedId = chosen.Entry.Campaign.Id;
+        StatusText.Text = "Lecture CA→tests et dernier passage REC en cours…";
+        (
+            ProjectCriterionBaselineOverview Baseline,
+            ProjectCriterionRetestProposal Proposal,
+            ProjectTestCampaign Campaign
+        ) snapshot = await Task.Run(async () =>
+        {
+            LinkIndexCatalog index = await _indexService.RefreshAsync();
+            ProjectRequirementCatalog requirements =
+                await new ProjectRequirementRegistryService(_workspaceRoot)
+                    .ListAsync(_projectDirectory);
+            ProjectCriterionBaselineOverview baseline =
+                await new ProjectCriterionBaselineService(_workspaceRoot)
+                    .InspectAsync(_projectDirectory, requirements);
+            ProjectRequirementTraceabilityOverview links =
+                ProjectRequirementTraceability.Build(requirements, index);
+            ProjectCriterionSelectableTest[] selectable =
+                FindAvailableTests(index, _workspaceRoot, _projectDirectory)
+                    .Select(item => new ProjectCriterionSelectableTest(
+                        item.Id, item.Label, item.RelativePath)).ToArray();
+            ProjectCriterionRetestProposal proposal =
+                ProjectCriterionRetestPlanner.Propose(
+                    baseline, links, selectable);
+            ProjectTestCampaignCatalog rec =
+                await _service.ListAsync(_projectDirectory);
+            ProjectTestCampaignEntry[] selected = rec.Campaigns
+                .Where(item => item.Campaign.Id == selectedId).ToArray();
+            if (selected.Length != 1 ||
+                selected[0].Campaign.ProjectId != requirements.ProjectId)
+            {
+                throw new InvalidDataException(
+                    "Campagne REC absente, dupliquée ou hors du projet.");
+            }
+
+            return (baseline, proposal, selected[0].Campaign);
+        });
+
+        if (SelectedCampaign()?.Entry.Campaign.Id != selectedId)
+        {
+            StatusText.Text = "Campagne modifiée pendant le contrôle : " +
+                "relancer le suivi CA.";
+            return;
+        }
+
+        if (snapshot.Baseline.Snapshot is null)
+        {
+            DetailsBox.Text =
+                "SUIVI CA NON INITIALISÉ\n\n" +
+                string.Join(Environment.NewLine,
+                    snapshot.Proposal.Warnings) +
+                "\n\nActivez une référence humaine dans la matrice " +
+                "des exigences avant les éditions à surveiller. " +
+                "Aucun ancien passage ou résultat n'est modifié.";
+            StatusText.Text = "Référence CA absente · aucun changement " +
+                "historique ne peut être reconstitué.";
+            return;
+        }
+
+        ProjectCriterionRetestProgressOverview progress =
+            await Task.Run(() => ProjectCriterionRetestProgress.Build(
+                snapshot.Baseline, snapshot.Proposal, snapshot.Campaign));
+        if (SelectedCampaign()?.Entry.Campaign.Id != selectedId)
+        {
+            return;
+        }
+
+        DetailsBox.Text = progress.Describe();
+        StatusText.Text = "Suivi CA " + progress.Rows.Count +
+            " test(s) : " + progress.NotSelectedCount +
+            " absent(s) ou non comparable(s), " +
+            progress.WithoutResultCount + " figé(s) sans résultat, " +
+            progress.HumanResultCount + " verdict(s) humain(s) " +
+            "historiques à examiner. Aucun état métier modifié.";
+    }
 
     /// <summary>
     /// Refreshes the shared index once, then permits an explicit, human-owned
@@ -794,7 +896,11 @@ public partial class ProjectTestCampaignsDialog : Window
         Changed = true;
         WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
         await ReloadAsync(saved.Campaign.Id);
-        StatusText.Text = "Passage figé, aucun résultat encore déduit.";
+        StatusText.Text = changedCriteria
+            ? "Passage REC figé depuis la proposition CA, aucun résultat " +
+                "déduit. Utiliser « Suivi des reprises CA… » pour " +
+                "constater les tests inclus et ceux sans résultat."
+            : "Passage figé, aucun résultat encore déduit.";
     }
 
     /// <summary>

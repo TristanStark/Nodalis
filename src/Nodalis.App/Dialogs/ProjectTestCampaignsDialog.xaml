@@ -156,6 +156,12 @@
                         Click="CaRetest_Click"
                         ToolTip="Présélectionner les tests reliés aux critères changés depuis une référence humaine, sans effacer les passages ni créer de verdict."
                         AutomationProperties.Name="Proposer une reprise REC après changement des critères d'acceptation"/>
+                <Button x:Name="CaFollowupButton"
+                        Content="Suivi des reprises CA…"
+                        Padding="11,8" Margin="0,0,8,5"
+                        Click="CaFollowup_Click"
+                        ToolTip="Consulter sans écriture les tests proposés depuis les CA modifiés, leur présence dans le dernier passage et leurs résultats déclarés."
+                        AutomationProperties.Name="Voir les tests CA à reprendre et les résultats historiques du dernier passage"/>
                 <Button x:Name="RecordButton" Content="Enregistrer un résultat…"
                         Padding="11,8" Margin="0,0,8,5"
                         Click="Record_Click"/>
