@@ -1021,8 +1021,11 @@ internal static class ProjectTestCampaignServiceSmokeTests
         string twice = ProjectRecRevalidationCodec.Append(once, rejected);
         IReadOnlyList<ProjectRecRevalidationEvent> replay =
             ProjectRecRevalidationCodec.Read(twice);
-        Assert(replay.Count == 2 && replay[0] == approved &&
-               replay[1] == rejected &&
+        Assert(replay.Count == 2 &&
+               replay[0].Id == approved.Id &&
+               replay[0].Tests.Single().TestId == testId &&
+               replay[1].Id == rejected.Id &&
+               replay[1].PreviousDecisionId == approved.Id &&
                ProjectRecRevalidationCodec.Latest(replay, incidentId)?.Id ==
                    rejected.Id &&
                !twice.Contains("### Revalidation", StringComparison.Ordinal),
