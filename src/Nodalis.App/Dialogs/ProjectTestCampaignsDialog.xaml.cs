@@ -598,7 +598,9 @@ public partial class ProjectTestCampaignsDialog : Window
         (
             ProjectCriterionBaselineOverview Baseline,
             ProjectCriterionRetestProposal Proposal,
-            ProjectTestCampaign Campaign
+            ProjectTestCampaign Campaign,
+            ProjectTestSourceValidityOverview? SourceValidity,
+            string? SourceWarning
         ) snapshot = await Task.Run(async () =>
         {
             LinkIndexCatalog index = await _indexService.RefreshAsync();
@@ -628,7 +630,24 @@ public partial class ProjectTestCampaignsDialog : Window
                     "Campagne REC absente, dupliquée ou hors du projet.");
             }
 
-            return (baseline, proposal, selected[0].Campaign);
+            ProjectTestSourceValidityOverview? validity = null;
+            string? sourceWarning = null;
+            try
+            {
+                validity = await _service.AssessSourceValidityAsync(
+                    _projectDirectory, selected[0], index);
+            }
+            catch (Exception exception) when (exception is IOException or
+                UnauthorizedAccessException or InvalidDataException or
+                InvalidOperationException)
+            {
+                sourceWarning = "Vérification des définitions TEST " +
+                    "indisponible (" + exception.GetType().Name +
+                    ") : relire les sources avant toute décision humaine.";
+            }
+
+            return (baseline, proposal, selected[0].Campaign,
+                validity, sourceWarning);
         });
 
         if (SelectedCampaign()?.Entry.Campaign.Id != selectedId)
@@ -654,7 +673,16 @@ public partial class ProjectTestCampaignsDialog : Window
 
         ProjectCriterionRetestProgressOverview progress =
             await Task.Run(() => ProjectCriterionRetestProgress.Build(
-                snapshot.Baseline, snapshot.Proposal, snapshot.Campaign));
+                snapshot.Baseline, snapshot.Proposal, snapshot.Campaign,
+                snapshot.SourceValidity));
+        if (snapshot.SourceWarning is string warning)
+        {
+            progress = progress with
+            {
+                Warnings = [.. progress.Warnings, warning]
+            };
+        }
+
         if (SelectedCampaign()?.Entry.Campaign.Id != selectedId)
         {
             return;
@@ -666,7 +694,8 @@ public partial class ProjectTestCampaignsDialog : Window
             " absent(s) ou non comparable(s), " +
             progress.WithoutResultCount + " figé(s) sans résultat, " +
             progress.HumanResultCount + " verdict(s) humain(s) " +
-            "historiques à examiner. Aucun état métier modifié.";
+            "historiques et " + progress.SourceReviewCount +
+            " source(s) à contrôler. Aucun état métier modifié.";
     }
 
     /// <summary>
