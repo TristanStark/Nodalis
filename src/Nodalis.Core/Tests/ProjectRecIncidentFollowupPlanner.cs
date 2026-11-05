@@ -88,8 +88,14 @@ public sealed record ProjectRecIncidentFollowup(
     public string Summary => LaterPassedCount + "/" + AffectedTestCount +
         " test(s) avec nouveau Passed dans le même environnement · " +
         InterventionSummaries.Count + " intervention(s) déclarée(s)" +
-        (ReviewMayBeProposed ? " · examen humain envisageable" :
-            " · reprise/revue restante");
+        (LatestHumanDecision is ProjectRecRevalidationEvent human
+            ? " · décision humaine : " + human.Disposition +
+                (LatestDecisionUsesCurrentRec
+                    ? " (mêmes sources REC)"
+                    : " (sources REC depuis modifiées)")
+            : ReviewMayBeProposed
+                ? " · examen humain envisageable (non approuvé)"
+                : " · reprise/revue restante");
 }
 
 /// <summary>
