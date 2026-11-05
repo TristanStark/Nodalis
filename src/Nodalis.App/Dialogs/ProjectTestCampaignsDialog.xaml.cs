@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Links;
+using Nodalis.Core.Maintenance;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Tests;
 using Nodalis.Infrastructure.Links;
@@ -444,6 +445,15 @@ public partial class ProjectTestCampaignsDialog : Window
                 campaign.Entry.Campaign.ResultCorrections?.Any(correction =>
                     correction.ResultId == item.Id) != true);
         IncidentButton.IsEnabled = !_busy && campaign is not null &&
+            passage is not null && result is not null &&
+            passage.Passage.Results.Any(item =>
+                item.TestId == result.Result.TestId &&
+                item.Outcome is
+                    (ProjectTestOutcome.Failed or ProjectTestOutcome.Blocked));
+        CreateIncidentButton.IsEnabled = writable && campaign is not null &&
+            campaign.Entry.Campaign.State is
+                (ProjectTestCampaignState.InProgress or
+                 ProjectTestCampaignState.InQualification) &&
             passage is not null && result is not null &&
             passage.Passage.Results.Any(item =>
                 item.TestId == result.Result.TestId &&
@@ -1371,6 +1381,141 @@ public partial class ProjectTestCampaignsDialog : Window
         await ReloadAsync(saved.Campaign.Id);
         StatusText.Text = "Rectification historisée, verdict initial et " +
             "définitions TEST inchangés. Aucune revalidation automatique.";
+    }
+
+    /// <summary>
+    /// Creates an existing-maintenance-sheet incident for a failed/blocked
+    /// REC outcome, then separately associates it using verified revisions.
+    /// </summary>
+    /// <param name="sender">Human incident-creation button.</param>
+    /// <param name="e">Click.</param>
+    private async void CreateIncident_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Créer un incident depuis REC",
+            CreateIncidentFromResultAsync);
+
+    /// <summary>
+    /// Reuses the canonical maintenance editor and explicitly distinguishes
+    /// fully linked from partially completed two-file commits.
+    /// </summary>
+    /// <returns>Human-reviewed creation or safe cancellation.</returns>
+    private async Task CreateIncidentFromResultAsync()
+    {
+        CampaignRow? campaign = SelectedCampaign();
+        PassageRow? passage = SelectedPassage();
+        ResultRow? selection = SelectedTest();
+        if (_readOnly || campaign is null || passage is null ||
+            selection is null || campaign.Entry.Campaign.State is not
+                (ProjectTestCampaignState.InProgress or
+                 ProjectTestCampaignState.InQualification))
+        {
+            return;
+        }
+
+        ProjectTestResultEvent? recorded = passage.Passage.Results
+            .SingleOrDefault(item => item.TestId == selection.Result.TestId);
+        if (recorded is null || recorded.Outcome is not
+            (ProjectTestOutcome.Failed or ProjectTestOutcome.Blocked))
+        {
+            return;
+        }
+
+        Guid campaignId = campaign.Entry.Campaign.Id;
+        Guid passageId = passage.Passage.Id;
+        Guid testId = selection.Result.TestId;
+        ProjectRecIncidentCreationPreview preview = await Task.Run(() =>
+            _service.InspectIncidentCreationAsync(
+                _projectDirectory, campaign.Entry, passageId, recorded.Id));
+        if (SelectedCampaign()?.Entry.Campaign.Id != campaignId ||
+            SelectedPassage()?.Passage.Id != passageId ||
+            SelectedTest()?.Result.TestId != testId)
+        {
+            StatusText.Text = "Sélection REC modifiée avant le formulaire : " +
+                "aucune création effectuée.";
+            return;
+        }
+
+        MaintenanceInterventionDialog editor = new(
+            [], null, MaintenanceRecordKind.Incident)
+        {
+            Owner = this
+        };
+        editor.PrefillIncident(
+            "Anomalie " + selection.Result.Reference + " / " +
+                campaign.Entry.Campaign.Reference,
+            "Recette " + passage.Passage.Number + " · " +
+                passage.Passage.Environment + " / " +
+                passage.Passage.ApplicationVersion +
+                " · verdict déclaré " + recorded.Outcome);
+        if (editor.ShowDialog() != true ||
+            editor.Result is not MaintenanceRecord entry)
+        {
+            return;
+        }
+
+        ProjectRecIncidentAuditDialog audit = new(
+            campaign.Entry.Campaign.Reference + " · passage " +
+                passage.Passage.Number + " · " +
+                selection.Result.Reference + " · " +
+                recorded.Outcome)
+        {
+            Owner = this
+        };
+        if (audit.ShowDialog() != true ||
+            audit.Actor is not string actor ||
+            audit.Reason is not string reason)
+        {
+            return;
+        }
+
+        if (MessageBox.Show(this,
+            "CRÉER L'INCIDENT DE MAINTENANCE ?\n\n" +
+            "Identifiant : " + entry.Id + "\n" +
+            "Résumé : " + entry.Summary + "\n" +
+            "Projet : " + _projectDirectory + "\n" +
+            "REC : " + campaign.Entry.Campaign.Reference +
+                " / passage " + passage.Passage.Number + "\n" +
+            "Test : " + selection.Result.Reference + "\n" +
+            "Résultat : " + recorded.Outcome + "\n" +
+            "Incidents déjà présents : " + preview.IncidentCount + "\n\n" +
+            "Après création dans la Fiche de Maintenance, Nodalis " +
+            "tentera le lien REC dans une transaction distincte. " +
+            "En cas de conflit, l'incident restera créé et " +
+            "une procédure de liaison manuelle sera affichée.\n\n" +
+            "En cas d'édition simultanée de la fiche Maintenance " +
+            "dans un autre onglet, enregistrez-la d'abord.\n\n" +
+            "Confirmer explicitement cette création ?",
+            "Création depuis REC · contrôle des deux sources",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectRecIncidentCreationResult created = await Task.Run(() =>
+            _service.CreateIncidentForResultAsync(
+                _projectDirectory, campaign.Entry,
+                passageId, recorded.Id, preview,
+                entry, actor, reason));
+        Changed = true;
+        WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
+        if (created.LinkWarning is string warning)
+        {
+            MessageBox.Show(this,
+                warning + "\n\nLa fiche de maintenance contient déjà " +
+                    "le nouvel incident " + created.IncidentId +
+                    ". Ne le recréez pas.",
+                "Incident créé · lien REC à finaliser",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        await ReloadAsync(created.LinkedCampaign?.Campaign.Id ?? campaignId);
+        StatusText.Text = created.IsLinked
+            ? "Incident " + created.IncidentId +
+                " créé dans Maintenance et associé au résultat REC. " +
+                "Aucune résolution ni revalidation n'est inférée."
+            : "Incident " + created.IncidentId +
+                " créé dans Maintenance, liaison REC à finaliser " +
+                "manuellement après actualisation.";
     }
 
     /// <summary>Reviews links between REC results and existing incidents.</summary>
