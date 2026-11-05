@@ -634,7 +634,8 @@ public partial class MainWindow
         }
 
         tab.View.FocusFromPilotage(target.StepId, target.OperationId,
-            assignPrompt: target.Mode == PilotageTargetMode.Assign);
+            assignPrompt: target.Mode == PilotageTargetMode.Assign,
+            requiredSha256: current.Sha256);
         StatusText.Text = target.Mode == PilotageTargetMode.Assign
             ? "Sélecteur du prompt de l'opération ouvert après " +
                 "validation du parcours ; confirmation humaine requise."

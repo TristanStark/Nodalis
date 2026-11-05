@@ -47,6 +47,8 @@ public partial class ProjectJourneyView : UserControl
     private Guid? _pilotageStepId;
     private Guid? _pilotageOperationId;
     private bool _pilotageAssignPrompt;
+    private string? _pilotageRequiredSha256;
+    private bool _pilotageRefreshAttempted;
 
     /// <summary>
     /// Highlights an exact stage and optional operation requested via
@@ -55,8 +57,9 @@ public partial class ProjectJourneyView : UserControl
     /// <param name="stepId">Stage GUID from the validated project snapshot.</param>
     /// <param name="operationId">Operation GUID within that stage, if chosen.</param>
     /// <param name="assignPrompt">Open the existing human prompt picker directly.</param>
+    /// <param name="requiredSha256">Exact journey revision validated by Pilotage.</param>
     public void FocusFromPilotage(Guid stepId, Guid? operationId,
-        bool assignPrompt = false)
+        bool assignPrompt = false, string? requiredSha256 = null)
     {
         if (stepId == Guid.Empty || operationId == Guid.Empty ||
             assignPrompt && operationId is null)
@@ -67,6 +70,8 @@ public partial class ProjectJourneyView : UserControl
         _pilotageStepId = stepId;
         _pilotageOperationId = operationId;
         _pilotageAssignPrompt = assignPrompt;
+        _pilotageRequiredSha256 = requiredSha256;
+        _pilotageRefreshAttempted = false;
         if (!_busy && _snapshot is not null)
         {
             ApplyPilotageFocus();
@@ -85,11 +90,39 @@ public partial class ProjectJourneyView : UserControl
             return;
         }
 
+        // The MainWindow route checked the latest on-disk journey. An
+        // already open tab may still hold an older in-memory snapshot.
+        // Synchronize once before opening a picker against stale data;
+        // refuse if another edit races with that synchronization.
+        if (_pilotageRequiredSha256 is string expected &&
+            !string.Equals(_snapshot.Sha256, expected,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            if (!_pilotageRefreshAttempted)
+            {
+                _pilotageRefreshAttempted = true;
+                _ = RunActionAsync(() => ReloadAsync(stepId),
+                    "Synchroniser l'étape depuis Pilotage");
+                return;
+            }
+
+            _pilotageStepId = null;
+            _pilotageOperationId = null;
+            _pilotageAssignPrompt = false;
+            _pilotageRequiredSha256 = null;
+            _pilotageRefreshAttempted = false;
+            StatusText.Text = "Le parcours a évolué depuis le menu Pilotage. " +
+                "Actualisez le menu avant d'associer un prompt.";
+            return;
+        }
+
         Guid? operationId = _pilotageOperationId;
         bool assignPrompt = _pilotageAssignPrompt;
         _pilotageStepId = null;
         _pilotageOperationId = null;
         _pilotageAssignPrompt = false;
+        _pilotageRequiredSha256 = null;
+        _pilotageRefreshAttempted = false;
         ProjectJourneyStep? step = _snapshot.Document.Steps
             .SingleOrDefault(item => item.Id == stepId);
         if (step is null ||
