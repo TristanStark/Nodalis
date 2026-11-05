@@ -359,7 +359,6 @@ public partial class MainWindow
         }
 
         stage.Items.Clear();
-        context.Expanded = true;
         if (context.Mode == PilotageJourneyMode.Steps)
         {
             stage.Items.Add(PilotageTargetItem(
@@ -426,6 +425,10 @@ public partial class MainWindow
 
             stage.Items.Add(item);
         }
+
+        // Only consider this stage materialized once all controls exist.
+        // An interrupted construction can be retried on the next opening.
+        context.Expanded = true;
     }
 
     /// <summary>Uses the same readable French stage statuses as the journey.</summary>
