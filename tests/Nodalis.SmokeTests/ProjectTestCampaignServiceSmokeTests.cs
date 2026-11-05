@@ -440,6 +440,151 @@ internal static class ProjectTestCampaignServiceSmokeTests
                        .Results.Single().Outcome == ProjectTestOutcome.Passed,
                 "Calculated historical failure view never mistakes a later " +
                 "Passed or maintenance intervention for verified resolution.");
+            Assert(firstOverview.IncidentFollowups.Count == 2 &&
+                   firstOverview.IncidentFollowups.All(item =>
+                       item.AffectedTestCount == 1 &&
+                       !item.ReviewMayBeProposed &&
+                       item.Tests.Single().LaterOutcome ==
+                           ProjectTestOutcome.Passed &&
+                       item.Tests.Single().VersionChanged) &&
+                   firstOverview.IncidentFollowups.Single(item =>
+                       item.IncidentId == secondIncidentId)
+                       .InterventionSummaries.Count == 1 &&
+                   firstOverview.IncidentFollowups.Single(item =>
+                       item.IncidentId == firstIncident)
+                       .InterventionSummaries.Count == 0,
+                "A later Passed in a different environment and an " +
+                "intervention never constitute proven incident revalidation.");
+            DateTimeOffset followupStart = DateTimeOffset.UtcNow.AddDays(1);
+            ProjectTestResultEvent retestedFirst = new()
+            {
+                Id = Guid.NewGuid(),
+                TestId = firstId,
+                Outcome = ProjectTestOutcome.Passed,
+                Actor = "Testeur fictif",
+                Rationale = "Nouvelle vérification déclarée après correction.",
+                RecordedUtc = followupStart.AddMinutes(1)
+            };
+            ProjectTestResultEvent failedSecond = new()
+            {
+                Id = Guid.NewGuid(),
+                TestId = secondId,
+                Outcome = ProjectTestOutcome.Failed,
+                Actor = "Testeur fictif",
+                Rationale = "Deuxième cas encore non conforme.",
+                RecordedUtc = followupStart.AddMinutes(2)
+            };
+            ProjectTestPassage retestThree = passage1 with
+            {
+                Id = Guid.NewGuid(),
+                Number = 3,
+                StartedUtc = followupStart,
+                ApplicationVersion = "v2.0",
+                Results = [retestedFirst, failedSecond]
+            };
+            ProjectTestIncidentLinkEvent secondCaseLink = new()
+            {
+                Id = Guid.NewGuid(),
+                PassageId = retestThree.Id,
+                ResultId = failedSecond.Id,
+                TestId = secondId,
+                IncidentId = secondIncidentId,
+                Kind = ProjectTestIncidentLinkKind.Linked,
+                Actor = "Responsable fictif",
+                Rationale = "Même incident, deuxième test impacté.",
+                RecordedUtc = followupStart.AddMinutes(3)
+            };
+            ProjectTestCampaign partialFixed = twoLinks.Campaign with
+            {
+                Passages = [.. twoLinks.Campaign.Passages, retestThree],
+                IncidentLinks = [.. twoLinks.Campaign.IncidentLinks!,
+                    secondCaseLink]
+            };
+            ProjectRecAnomalyOverview partialFollowup =
+                ProjectRecAnomalyProjection.Build(
+                    own.Project.Id, [partialFixed],
+                    maintenance: [], diagnostics: []);
+            ProjectRecIncidentFollowup partialIncident =
+                partialFollowup.IncidentFollowups.Single(item =>
+                    item.IncidentId == secondIncidentId);
+            Assert(partialIncident.AffectedTestCount == 2 &&
+                   partialIncident.LaterPassedCount == 1 &&
+                   !partialIncident.ReviewMayBeProposed &&
+                   partialIncident.Tests.Single(item =>
+                       item.TestId == secondId).LaterOutcome is null &&
+                   partialFixed.Passages[0].Results[0].Outcome ==
+                       ProjectTestOutcome.Failed,
+                "Two affected TEST IDs require both retests; a still " +
+                "unexecuted test prevents any human-review proposal.");
+            ProjectTestResultEvent retestedSecond = new()
+            {
+                Id = Guid.NewGuid(),
+                TestId = secondId,
+                Outcome = ProjectTestOutcome.Passed,
+                Actor = "Testeur fictif",
+                Rationale = "Second test réexécuté et conforme déclaré.",
+                RecordedUtc = followupStart.AddMinutes(11)
+            };
+            ProjectTestPassage retestFour = retestThree with
+            {
+                Id = Guid.NewGuid(),
+                Number = 4,
+                StartedUtc = followupStart.AddMinutes(10),
+                Results = [retestedSecond]
+            };
+            ProjectTestCampaign allRetested = partialFixed with
+            {
+                Passages = [.. partialFixed.Passages, retestFour]
+            };
+            ProjectRecAnomalyOverview reviewed = ProjectRecAnomalyProjection.Build(
+                own.Project.Id, [allRetested],
+                MaintenanceMarkdownCodec.Parse(
+                    await File.ReadAllTextAsync(maintenancePath)).Records, []);
+            ProjectRecIncidentFollowup candidate = reviewed.IncidentFollowups
+                .Single(item => item.IncidentId == secondIncidentId);
+            Assert(candidate.AffectedTestCount == 2 &&
+                   candidate.LaterPassedCount == 2 &&
+                   candidate.ReviewMayBeProposed &&
+                   candidate.Tests.All(item => item.VersionChanged) &&
+                   candidate.Warnings.Any(item => item.Contains(
+                       "version cible", StringComparison.Ordinal)) &&
+                   allRetested.Passages[0].Results[0].Outcome ==
+                       ProjectTestOutcome.Failed,
+                "All affected test identities may only propose HUMAN review; " +
+                "new versions still require validation and history survives.");
+            ProjectTestResultEvent regression = new()
+            {
+                Id = Guid.NewGuid(),
+                TestId = firstId,
+                Outcome = ProjectTestOutcome.Blocked,
+                Actor = "Testeur fictif",
+                Rationale = "Régression détectée lors de la reprise.",
+                RecordedUtc = followupStart.AddMinutes(21)
+            };
+            ProjectTestPassage retestFive = retestFour with
+            {
+                Id = Guid.NewGuid(),
+                Number = 5,
+                StartedUtc = followupStart.AddMinutes(20),
+                Results = [regression]
+            };
+            ProjectTestCampaign regressed = allRetested with
+            {
+                Passages = [.. allRetested.Passages, retestFive]
+            };
+            ProjectRecIncidentFollowup afterRegression =
+                ProjectRecAnomalyProjection.Build(own.Project.Id, [regressed],
+                    MaintenanceMarkdownCodec.Parse(
+                        await File.ReadAllTextAsync(maintenancePath)).Records,
+                    []).IncidentFollowups.Single(item =>
+                        item.IncidentId == secondIncidentId);
+            Assert(!afterRegression.ReviewMayBeProposed &&
+                   afterRegression.LaterPassedCount == 1 &&
+                   afterRegression.Tests.Single(item => item.TestId == firstId)
+                       .LaterOutcome == ProjectTestOutcome.Blocked,
+                "A later blocked regression defeats a formerly proposed " +
+                "review without modifying any maintenance incident.");
+
             ProjectRecAnomalyOverview foreignOverview =
                 await anomalyService.ReadAsync(foreign.ProjectDirectory);
             Assert(foreignOverview.Rows.Count == 0,
