@@ -586,3 +586,76 @@ terminée automatiquement et aucune exigence approuvée.
 moteur d'exécution ou d'une décision formelle de revalidation.
 La prise en compte des tests du même CA et des non-régressions restera
 une extension sous #201. Les preuves et la résolution restent humaines.
+
+
+## Création humaine d'un incident depuis un résultat REC — incrément #201 (05/11/2026)
+
+Dans le gestionnaire REC, le bouton **« Créer incident depuis REC… »**
+s'active uniquement pour un résultat humain **Non conforme** ou **Bloqué**
+et pour une campagne ouverte (**En cours / En qualification**) non
+archivée. **Aucun incident n'est créé automatiquement par un échec.**
+
+### Séquence et invariants
+
+1. Nodalis relit l'identité et le SHA du REC, puis vérifie la
+   **Fiche de Maintenance.md existante** du même projet, sans la créer
+   ni la migrer ; ses éventuelles erreurs d'historique interdisent
+   une insertion automatique. La révision SHA de la fiche est figée
+   avant l'ouverture des formulaires.
+2. L'éditeur de maintenance existant s'ouvre en mode
+   **Nouvel incident**, avec un résumé et des symptômes proposés à partir
+   de la référence TEST, du passage, de l'environnement et de la version.
+   Ces suggestions restent entièrement éditables. L'utilisateur décide
+   du résumé, de la date et des détails.
+3. Une seconde fenêtre recueille explicitement **l'auteur** et la
+   **justification** de l'association à ce résultat historique, puis
+   Nodalis exige une dernière confirmation qui annonce les deux
+   transactions distinctes et le risque d'édition concurrente.
+4. Le service `CreateIncidentForResultAsync` revérifie le REC et
+   le SHA exact de maintenance **avant la première écriture**.
+   `MaintenanceMarkdownCodec.Append` écrit **un seul bloc incident
+   canonique** `INC-<GUID>` et conserve les notes Markdown existantes
+   par le mécanisme de sauvegarde atomique avec conflit.
+   Le bloc contient une provenance bornée sur une ligne :
+   identifiants REC/passage/test/résultat, verdict historique,
+   environnement, version, auteur, motif et mention de la preuve
+   **déclarée non vérifiée**.
+5. Un **deuxième commit indépendant** `RecordIncidentLinkAsync`
+   ajoute l'association humaine auditée dans la fiche REC avec son
+   propre contrôle SHA-CAS. Les anciens verdicts, la fiche TEST,
+   les exigences et les interventions ne sont pas modifiés.
+
+### Gestion explicite d'une opération partielle
+
+Comme deux fichiers Markdown différents ne peuvent être modifiés
+en une seule opération atomique, un incident **déjà créé** en
+maintenance n'est jamais supprimé si le deuxième commit REC échoue
+(conflit concurrent, source devenue ambiguë, annulation...). Le
+service retourne un résultat **partiel explicite**, avec l'identifiant
+`INC-<GUID>` et une marche à suivre : actualiser le REC puis utiliser
+**« Incidents liés… »** pour associer **l'incident existant**.
+L'interface ne prétend ni que tout a réussi ni que rien n'a été
+créé, et demande de **ne pas recréer l'incident**.
+
+### Qualification dédiée sur Windows
+
+- Résultat `Failed` : création, sauvegarde du bloc en maintenance,
+  contrôle de sa provenance, lien REC actif, verdict initial inchangé.
+- Résultat `Blocked` : même flux avec contexte de blocage.
+- Résultat `Passed`, non exécuté, campagne fermée ou archive :
+  aucune création possible.
+- Annulation à chaque formulaire / confirmation : aucun fichier modifié.
+- Fiche maintenance manquante, invalide ou symlink : refus de créer
+  une nouvelle fiche ou d'écrire hors projet.
+- Maintenance modifiée depuis l'ouverture du formulaire :
+  conflit préalable **sans incident supplémentaire**.
+- REC devenu périmé avant la création : refus avant toute écriture.
+- REC changé **entre** la création maintenance et le lien REC :
+  nouveau bloc conservé, résultat partiel affiché, liaison manuelle
+  par identifiant stable — aucune création en doublon.
+- Fiche maintenance ouverte dans l'éditeur avec modifications non
+  sauvegardées : sauvegarder avant de créer ; tester le signalement
+  du conflit et la fraîcheur de l'onglet après l'opération.
+
+Un incident technique n'est jamais marqué corrigé/résolu et
+le test n'est jamais revalidé par cette opération seule.
