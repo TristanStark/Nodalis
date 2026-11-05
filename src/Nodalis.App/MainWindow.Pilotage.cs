@@ -382,11 +382,25 @@ public partial class MainWindow
             return;
         }
 
-        await OpenProjectJourneyAsync();
         ProjectJourneyTabEntry? tab = _projectJourneyTabs.FirstOrDefault(
             item => item.ProjectId == target.ProjectId &&
                 string.Equals(item.ProjectDirectory, target.ProjectPath,
                     StringComparison.OrdinalIgnoreCase));
+        if (tab is null)
+        {
+            await OpenProjectJourneyAsync();
+            tab = _projectJourneyTabs.FirstOrDefault(item =>
+                item.ProjectId == target.ProjectId &&
+                string.Equals(item.ProjectDirectory, target.ProjectPath,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            // An already open tab is the source of truth, even when the
+            // worktree selection still points at a different project.
+            ActivateProjectJourneyTab(tab);
+        }
+
         if (tab is null)
         {
             return;
@@ -483,7 +497,24 @@ public partial class MainWindow
     /// <returns>Existing project navigation node or null.</returns>
     private NavigationNodeViewModel? PilotageProject()
     {
-        NavigationNodeViewModel? project = GetArchiveContextProject();
+        NavigationNodeViewModel? project;
+        if (_activeProjectJourneyTab is ProjectJourneyTabEntry active &&
+            ProjectJourneyHost.Visibility == Visibility.Visible)
+        {
+            // The current journey surface wins over an old Worktree
+            // selection: never display another project's prompts while
+            // this tab is active.
+            project = _root.DescendantsAndSelf().FirstOrDefault(node =>
+                node.Kind == WorkspaceNodeKind.Project &&
+                node.Id == active.ProjectId &&
+                string.Equals(node.FullPath, active.ProjectDirectory,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            project = GetArchiveContextProject();
+        }
+
         if (project is null || project.Id == Guid.Empty ||
             _root.DescendantsAndSelf().Count(item =>
                 item.Kind == WorkspaceNodeKind.Project &&
