@@ -24,6 +24,14 @@ parcours, prompt ou incident simplement parce qu'il est ouvert.
 | **Maintenance** | Historique, nouvel incident, nouvelle intervention |
 | **Pilotage général** | Tâches, jalons, calendrier, Kanban, health check et couverture / cohérence |
 
+Les menus **chargent uniquement les en-têtes d'étapes** au
+premier survol. Les opérations d'une étape sont matérialisées en
+contrôles WPF **lorsqu'on développe cette étape**, pour éviter de
+reconstruire inutilement des milliers d'éléments graphiques. Aucune
+opération ne disparaît : la projection métier conserve toutes les
+opérations des étapes personnalisées. Le test de régression couvre un
+parcours fictif de **80 étapes et 4 800 opérations**.
+
 Les étapes détaillées de **préparation, de validation, de mise en
 production et de clôture** sont celles du **parcours propre au projet**,
 pas une liste fixe construite dans le menu. Les modèles Simple, Moyen et
@@ -54,7 +62,10 @@ avec la liste dynamique.
    brouillon est calculé à partir des sources approuvées et des variables.
    Il est **relisible et éditable avant copie**. La copie du prompt
    utilisateur est indépendante de la copie du système FRT-100, et aucun
-   modèle d'IA n'est exécuté automatiquement.
+   modèle d'IA n'est exécuté automatiquement. Si le parcours ou le
+   contexte projet a été modifié pendant la saisie des variables,
+   Nodalis **refuse d'afficher un brouillon devenu obsolète** et
+   demande de relancer la préparation.
 4. Pour changer une association de prompt, choisir l'opération via
    **Associer un prompt à une opération**. Nodalis sélectionne cette
    opération dans l'onglet Parcours et **ouvre directement** son
@@ -107,6 +118,9 @@ pas une mise en production ni une clôture automatiquement effectuée.
   consultation possible mais aucune édition ni association implicite.
 - Naviguer au clavier dans les sous-menus imbriqués, contrôler les
   intitulés, le thème sombre et les longues listes d'opérations.
+  Sur un projet volumineux, l'ouverture de Pilotage ne doit pas
+  créer tous les contrôles WPF des opérations ; seule l'étape
+  survolée les matérialise.
   Renommer une opération en `Copier_PROMPT` : le caractère souligné
   doit rester visible dans le menu sans créer de raccourci clavier.
 
