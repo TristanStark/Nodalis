@@ -18,7 +18,7 @@ parcours, prompt ou incident simplement parce qu'il est ouvert.
 | **Prompts et réponses IA → Associer un prompt à une opération** | Étape → opération ; ouverture du parcours sur la bonne opération, puis bouton « Associer un prompt… » |
 | **Prompts et réponses IA → Analyser / importer une réponse IA externe** | Prévisualisation locale, comparaison, décisions humaines ; aucune IA locale obligatoire |
 | **Prompts et réponses IA → Prompt de mise à jour depuis une réunion** | Workflow antérieur de synthèse de réunion / préparation de prompt, distinct des prompts FRT-100 des opérations |
-| **Exigences, critères et tests · 2.0** | Nouvelle exigence EXI, traçabilité EXI ↔ CA ↔ TEST, campagnes et passages REC, anomalies REC et revalidation humaine, GUID des blocs |
+| **Exigences, critères et tests · 2.0** | Nouvelle exigence EXI, traçabilité EXI ↔ CA ↔ TEST, campagnes et passages REC ; **accès direct** à la fenêtre des anomalies REC, incidents et revalidation humaine ; GUID des blocs |
 | **Risques, décisions et Go/No-Go · 2.0** | Registre RIS, registre des gates / réserves / Go-No-Go et décisions du projet |
 | **Préparation / migration · 2.0** | Prévisualisation, migration explicite et restauration de la structure Complexe |
 | **Maintenance** | Historique, nouvel incident, nouvelle intervention |
