@@ -39,6 +39,16 @@ public sealed record ProjectRecAnomalyOverview(
     IReadOnlyList<ProjectRecAnomalyRow> Rows,
     IReadOnlyList<string> Diagnostics)
 {
+    /// <summary>
+    /// Calculated incident-level follow-up from the same project sources.
+    /// No additional file, write or extra directory scan is required.
+    /// </summary>
+    public IReadOnlyList<ProjectRecIncidentFollowup> IncidentFollowups
+    {
+        get;
+        init;
+    } = [];
+
     /// <summary>Failures without an active incident association.</summary>
     public int UnlinkedCount => Rows.Count(item =>
         item.LinkedIncidentIds.Count == 0);
@@ -212,6 +222,10 @@ public static class ProjectRecAnomalyProjection
             .ThenBy(item => item.CampaignReference,
                 StringComparer.Ordinal)
             .ThenBy(item => item.PassageNumber)
-            .ToArray(), warnings);
+            .ToArray(), warnings)
+        {
+            IncidentFollowups = ProjectRecIncidentFollowupPlanner.Build(
+                projectId, rows, campaigns, maintenance)
+        };
     }
 }
