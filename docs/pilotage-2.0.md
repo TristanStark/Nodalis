@@ -40,7 +40,9 @@ avec la liste dynamique.
    ou un parcours demandent un projet non ambigu.
 2. Ouvrir **Pilotage → Parcours projet → Toutes les étapes du projet**.
    Les noms et opérations sont relus **à chaque ouverture** depuis
-   `.project-journey.json`, hors du thread UI. Si le parcours n'est pas
+   `.project-journey.json`, hors du thread UI. L'affichage numérote
+   les étapes **1, 2, 3…** selon leur ordre courant, y compris si
+   l'ordre technique du parcours a été réordonné ou renuméroté de zéro. Si le parcours n'est pas
    initialisé, une entrée **« Ouvrir / initialiser le parcours… »** est
    proposée : son activation **ne lance pas** l'initialisation sans
    le choix et la confirmation de l'utilisateur. Pour les modèles
@@ -78,8 +80,10 @@ pas une mise en production ni une clôture automatiquement effectuée.
   sans élément oublié, même si une opération n'a aucun prompt associé.
   Les tests smoke doivent contrôler la projection métier correspondante.
 - Renommer, déplacer et ajouter une étape/opération depuis le Parcours,
-  rouvrir le menu : le nouveau libellé, l'ordre et les liens apparaissent
-  immédiatement. Vérifier qu'un ancien élément devenu invalide est refusé.
+  rouvrir le menu : le nouveau libellé, l'ordre **1..N** et les liens
+  apparaissent immédiatement. Vérifier les parcours dont l'éditeur a
+  renuméroté les étapes à partir de **zéro** ; un ancien élément devenu
+  invalide est refusé.
 - Naviguer entre **deux projets différents** pendant un chargement
   lent : aucune action sur un autre projet ne doit être possible.
   Si l'onglet Parcours du projet A est visible mais que l'explorateur
