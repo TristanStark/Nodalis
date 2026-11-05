@@ -191,6 +191,7 @@ internal static class ProjectJourneySmokeTests
             IReadOnlyList<ProjectJourneyPilotageStage> customMenu =
                 ProjectJourneyPilotageProjection.Build(customizedMenu);
             Assert(customMenu.Count == saved.Document.Steps.Count + 1 &&
+                   customMenu[0].Order == 0 &&
                    customMenu.Single(item => item.Id == custom.Id)
                        .Operations.Single().Name == "Copier le prompt métier" &&
                    customMenu.SelectMany(item => item.Operations).Count() ==
@@ -198,6 +199,16 @@ internal static class ProjectJourneySmokeTests
                    saved.Document.Steps.All(item => item.Id != custom.Id),
                 "Pilotage lists newly customized stages and prompt " +
                 "operations without mutating the persisted original.");
+
+            ProjectJourneyDocument negativeOrder = customizedMenu with
+            {
+                Steps = customizedMenu.Steps.Select((step, index) =>
+                    index == 0 ? step with { Order = -1 } : step).ToList()
+            };
+            await RejectAsync(() => Task.FromResult(
+                ProjectJourneyPilotageProjection.Build(negativeOrder)),
+                "Pilotage rejects negative technical stage order while " +
+                "accepting zero-based numbering from the journey editor.");
 
             ProjectJourneyDocument ambiguousMenu = saved.Document with
             {
