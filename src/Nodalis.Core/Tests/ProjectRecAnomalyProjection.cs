@@ -1,4 +1,5 @@
 using Nodalis.Core.Maintenance;
+using Nodalis.Core.Projects;
 
 namespace Nodalis.Core.Tests;
 
@@ -76,13 +77,15 @@ public static class ProjectRecAnomalyProjection
         Dictionary<string, MaintenanceRecord> incidents = new(
             StringComparer.OrdinalIgnoreCase);
         HashSet<string> duplicated = maintenance
-            .Where(item => item.Kind == MaintenanceRecordKind.Incident)
+            .Where(item => item.Kind == MaintenanceRecordKind.Incident &&
+                ProjectGateValidation.IsIncidentId(item.Id))
             .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Count() != 1)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (MaintenanceRecord record in maintenance.Where(item =>
             item.Kind == MaintenanceRecordKind.Incident &&
+            ProjectGateValidation.IsIncidentId(item.Id) &&
             !duplicated.Contains(item.Id)))
         {
             incidents.Add(record.Id, record);
@@ -100,7 +103,7 @@ public static class ProjectRecAnomalyProjection
 
         Dictionary<string, int> interventions = maintenance
             .Where(item => item.Kind == MaintenanceRecordKind.Intervention &&
-                item.IncidentId is not null)
+                ProjectGateValidation.IsIncidentId(item.IncidentId))
             .GroupBy(item => item.IncidentId!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key,
                 group => group.Select(item => item.Id).Distinct(

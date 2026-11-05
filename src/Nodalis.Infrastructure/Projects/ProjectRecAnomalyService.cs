@@ -59,8 +59,18 @@ public sealed class ProjectRecAnomalyService
             {
                 byte[] bytes = await File.ReadAllBytesAsync(
                     verified, cancellationToken);
-                string markdown = new UTF8Encoding(false, true)
-                    .GetString(bytes);
+                string markdown;
+                try
+                {
+                    markdown = new UTF8Encoding(false, true)
+                        .GetString(bytes);
+                }
+                catch (DecoderFallbackException exception)
+                {
+                    throw new InvalidDataException(
+                        "Fiche de maintenance UTF-8 illisible.", exception);
+                }
+
                 MaintenanceParseResult parsed =
                     MaintenanceMarkdownCodec.Parse(markdown);
                 maintenance.AddRange(parsed.Records);
