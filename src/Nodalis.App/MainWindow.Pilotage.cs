@@ -135,12 +135,13 @@ public partial class MainWindow
                         Header = "Étapes proposées · modèle non activé",
                         ToolTip = "Aperçu en lecture seule, aucun parcours créé"
                     };
+                    int previewNumber = 0;
                     foreach (ProjectJourneyStepTemplate stage in proposed.Steps
                         .OrderBy(item => item.Order))
                     {
                         MenuItem proposedStep = new()
                         {
-                            Header = stage.Order + ". " + stage.Name
+                            Header = (++previewNumber) + ". " + stage.Name
                         };
                         foreach (ProjectJourneyOperationTemplate operation in
                             stage.Operations)
@@ -181,9 +182,12 @@ public partial class MainWindow
                 return;
             }
 
+            int stageNumber = 0;
             foreach (ProjectJourneyPilotageStage step in steps)
             {
-                string stepLabel = step.Order + ". " + step.Name;
+                // Human stage numbering is always 1..N, independently of
+                // the technical 0/10/20 values stored by the journey editor.
+                string stepLabel = (++stageNumber) + ". " + step.Name;
                 if (mode == PilotageJourneyMode.Steps)
                 {
                     stepLabel += " · " + PilotageStepStatus(step.Status);
