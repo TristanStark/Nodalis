@@ -1,6 +1,14 @@
-using Nodalis.Core.Tests;
-
 namespace Nodalis.Infrastructure.Projects;
+
+/// <summary>
+/// One current, unique test block offered by the existing REC selector.
+/// This detached projection prevents domain code depending on WPF models.
+/// </summary>
+/// <param name="Id">Stable indexed Markdown test GUID.</param>
+/// <param name="Label">Current test heading, not identity.</param>
+/// <param name="RelativePath">Current workspace-relative test source.</param>
+public sealed record ProjectCriterionSelectableTest(
+    Guid Id, string Label, string RelativePath);
 
 /// <summary>
 /// One current, uniquely identifiable test suggested for human selection
@@ -46,7 +54,7 @@ public static class ProjectCriterionRetestPlanner
     public static ProjectCriterionRetestProposal Propose(
         ProjectCriterionBaselineOverview baseline,
         ProjectRequirementTraceabilityOverview links,
-        IReadOnlyCollection<ProjectTestCandidate> availableTests)
+        IReadOnlyCollection<ProjectCriterionSelectableTest> availableTests)
     {
         ArgumentNullException.ThrowIfNull(baseline);
         ArgumentNullException.ThrowIfNull(links);
@@ -92,8 +100,8 @@ public static class ProjectCriterionRetestPlanner
             item.State is ProjectCriterionBaselineState.Changed or
                 ProjectCriterionBaselineState.Added).ToArray();
 
-        ProjectTestCandidate[] sources = availableTests.ToArray();
-        Dictionary<Guid, ProjectTestCandidate[]> sourceById = sources
+        ProjectCriterionSelectableTest[] sources = availableTests.ToArray();
+        Dictionary<Guid, ProjectCriterionSelectableTest[]> sourceById = sources
             .GroupBy(item => item.Id)
             .ToDictionary(group => group.Key, group => group.ToArray());
         Dictionary<Guid, ProjectRequirementTraceabilityRow[]> linksByCa =
@@ -101,7 +109,7 @@ public static class ProjectCriterionRetestPlanner
                 .GroupBy(item => item.Criterion.Id!.Value)
                 .ToDictionary(group => group.Key, group => group.ToArray());
 
-        Dictionary<Guid, (ProjectTestCandidate Source,
+        Dictionary<Guid, (ProjectCriterionSelectableTest Source,
             HashSet<Guid> Criteria, List<string> Reasons)> selected = [];
 
         foreach (ProjectCriterionBaselineRow change in dirty)
@@ -140,7 +148,7 @@ public static class ProjectCriterionRetestPlanner
             foreach (ProjectRequirementTestSource test in row.Tests)
             {
                 if (!sourceById.TryGetValue(test.BlockId,
-                        out ProjectTestCandidate[]? matches) ||
+                        out ProjectCriterionSelectableTest[]? matches) ||
                     matches.Length != 1 ||
                     !string.Equals(matches[0].RelativePath,
                         test.RelativePath, StringComparison.OrdinalIgnoreCase))
@@ -153,7 +161,7 @@ public static class ProjectCriterionRetestPlanner
                 }
 
                 if (!selected.TryGetValue(test.BlockId,
-                        out (ProjectTestCandidate Source,
+                        out (ProjectCriterionSelectableTest Source,
                             HashSet<Guid> Criteria,
                             List<string> Reasons) existing))
                 {
