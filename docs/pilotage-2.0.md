@@ -15,7 +15,7 @@ parcours, prompt ou incident simplement parce qu'il est ouvert.
 | **Parcours projet · 2.0 → Toutes les étapes du projet** | Liste dynamique des étapes *réelles du projet courant*, y compris étapes renommées, réordonnées ou personnalisées. Développer une étape puis une opération pour l'afficher, préparer son prompt ou rejoindre son association de prompt |
 | **Parcours projet · 2.0 → Modèles de parcours** | Éditeur des modèles de parcours du workspace ; aucune modification des parcours existants sans confirmation |
 | **Prompts et réponses IA → Préparer / copier les prompts du parcours** | Étape → opération → préparation locale du brouillon, choix éventuel des liaisons de variables, revue, copie séparée des prompts système et utilisateur |
-| **Prompts et réponses IA → Associer un prompt à une opération** | Étape → opération ; ouverture du parcours sur la bonne opération, puis bouton « Associer un prompt… » |
+| **Prompts et réponses IA → Associer un prompt à une opération** | Étape → opération ; sélection de l'opération réelle puis **ouverture automatique du sélecteur humain de prompts**, sans clic supplémentaire ni association automatique |
 | **Prompts et réponses IA → Analyser / importer une réponse IA externe** | Prévisualisation locale, comparaison, décisions humaines ; aucune IA locale obligatoire |
 | **Prompts et réponses IA → Prompt de mise à jour depuis une réunion** | Workflow antérieur de synthèse de réunion / préparation de prompt, distinct des prompts FRT-100 des opérations |
 | **Exigences, critères et tests · 2.0** | Nouvelle exigence EXI, traçabilité EXI ↔ CA ↔ TEST, campagnes et passages REC ; **accès direct** à la fenêtre des anomalies REC, incidents et revalidation humaine ; GUID des blocs |
@@ -53,8 +53,10 @@ avec la liste dynamique.
    modèle d'IA n'est exécuté automatiquement.
 4. Pour changer une association de prompt, choisir l'opération via
    **Associer un prompt à une opération**. Nodalis sélectionne cette
-   opération dans l'onglet Parcours. Le changement reste soumis à la
-   confirmation explicite déjà en place et au contrôle de révision.
+   opération dans l'onglet Parcours et **ouvre directement** son
+   sélecteur de prompts, même si l'onglet était encore en chargement.
+   Le changement reste soumis à la confirmation explicite déjà en
+   place et au contrôle de révision. Annuler ne modifie aucun fichier.
 5. Les options liées à l'écriture sont indisponibles pour un
    workspace en lecture seule ou un projet archivé. Le menu préserve
    les possibilités de consultation des parcours et des brouillons.
@@ -70,8 +72,9 @@ pas une mise en production ni une clôture automatiquement effectuée.
 ## Recette Windows manuelle
 
 - Ouvrir le menu avec un projet **Complexe** initialisé et vérifier
-  que **chaque étape et opération** du parcours apparaît, sans élément
-  oublié, même si une opération n'a aucun prompt associé.
+  que **chacune des 9 étapes** et chaque opération du parcours apparaît,
+  sans élément oublié, même si une opération n'a aucun prompt associé.
+  Les tests smoke doivent contrôler la projection métier correspondante.
 - Renommer, déplacer et ajouter une étape/opération depuis le Parcours,
   rouvrir le menu : le nouveau libellé, l'ordre et les liens apparaissent
   immédiatement. Vérifier qu'un ancien élément devenu invalide est refusé.
@@ -81,7 +84,9 @@ pas une mise en production ni une clôture automatiquement effectuée.
   écriture, option d'ouverture / initialisation visible.
 - Préparer/copier un prompt **avec** et **sans** variables, puis
   avec un prompt système distinct, en vérifiant les avertissements de
-  sources et l'absence d'envoi automatique.
+  sources et l'absence d'envoi automatique. Depuis **Associer un
+  prompt à une opération**, le sélecteur doit apparaître directement
+  sur la bonne opération, sans enregistrer si l'utilisateur annule.
 - Dans l'onglet Parcours, vérifier que la sélection pointe vers
   **la bonne étape et opération**, y compris quand l'onglet était
   déjà ouvert.
