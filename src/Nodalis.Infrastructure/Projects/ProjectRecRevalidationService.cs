@@ -216,7 +216,29 @@ public sealed class ProjectRecRevalidationService
         string markdown = ProjectRecRevalidationCodec.Append(
             session.Content, decision);
         cancellationToken.ThrowIfCancellationRequested();
-        await session.SaveAsync(markdown, cancellationToken);
+        string staged = Path.Combine(Path.GetDirectoryName(session.Path)!,
+            "." + Path.GetFileName(session.Path) + "." +
+            Guid.NewGuid().ToString("N") + ".stage");
+        try
+        {
+            // Exact SHA compare-and-swap avoids a competing text editor
+            // updating maintenance between a simple revision check and write.
+            await AtomicFileWriter.WriteNewAllTextAsync(
+                staged, markdown, cancellationToken);
+            string newSha = Convert.ToHexString(SHA256.HashData(
+                Encoding.UTF8.GetBytes(markdown)));
+            await AtomicFileWriter.ReplaceSnapshotIfUnchangedAsync(
+                session.Path, session.Revision.Sha256,
+                staged, newSha, cancellationToken);
+        }
+        finally
+        {
+            if (File.Exists(staged))
+            {
+                File.Delete(staged);
+            }
+        }
+
         return decision;
     }
 
