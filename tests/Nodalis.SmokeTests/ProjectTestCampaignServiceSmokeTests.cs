@@ -35,6 +35,7 @@ internal static class ProjectTestCampaignServiceSmokeTests
             ProjectCreationResult foreign = await creator.CreateAsync(
                 CreateProject("Projet B", applicationId, app));
             ProjectTestCampaignService service = new(workspace);
+            await CheckHumanRevalidationCodecAsync();
             ProjectTestCampaignCatalog initial = await service.ListAsync(
                 own.ProjectDirectory);
             Assert(initial.Campaigns.Count == 0 &&
@@ -947,11 +948,295 @@ internal static class ProjectTestCampaignServiceSmokeTests
                 ProjectTestOutcome.Passed, "Testeur fictif",
                 "Mauvais projet.", null),
                 "The campaign owner cannot be switched to another project.");
+            await CheckHumanRevalidationServiceAsync(
+                workspace, creator, app, applicationId);
         }
         finally
         {
             Directory.Delete(workspace, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// Confirms optional, strictly parsed revalidation audit works alongside
+    /// existing maintenance history without moving or rewriting interventions.
+    /// </summary>
+    /// <returns>Completed portable codec checks.</returns>
+    private static async Task CheckHumanRevalidationCodecAsync()
+    {
+        Guid failed = Guid.NewGuid();
+        Guid testId = Guid.NewGuid();
+        DateTimeOffset now = DateTimeOffset.UtcNow.AddDays(-5);
+        string incidentId = MaintenanceMarkdownCodec.NewId(
+            MaintenanceRecordKind.Incident);
+        ProjectRecRevalidationTestSnapshot test = new()
+        {
+            TestId = testId,
+            Reference = "TEST-0001",
+            FailureResultId = failed,
+            FailureUtc = now,
+            RetestResultId = Guid.NewGuid(),
+            RetestUtc = now.AddDays(2),
+            RetestOutcome = ProjectTestOutcome.Passed,
+            RetestEnvironment = "REC-A",
+            RetestVersion = "v2.0"
+        };
+        ProjectRecRevalidationEvent approved = new()
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = incidentId,
+            Disposition = ProjectRecRevalidationDisposition.Confirmed,
+            Actor = "Responsable fictif",
+            Rationale = "Validation explicite après revue des preuves.",
+            EvidenceReference = "Preuve fictive 2026 / archive locale",
+            TargetEnvironment = "REC-A",
+            TargetVersion = "v2.0",
+            SourceDefinitionsChecked = true,
+            EvidenceChecked = true,
+            ScopeChecked = true,
+            RecRegistrySha256 = new string('A', 64),
+            Tests = [test],
+            RecordedUtc = now.AddDays(3)
+        };
+        const string legacy = "# Fiche de maintenance fictive\n\n" +
+            "## Historique de maintenance\n\n";
+        string once = ProjectRecRevalidationCodec.Append(legacy, approved);
+        Assert(once.StartsWith(legacy, StringComparison.Ordinal) &&
+               ProjectRecRevalidationCodec.Read(legacy).Count == 0 &&
+               ProjectRecRevalidationCodec.Read(once).Single().Id ==
+                   approved.Id &&
+               MaintenanceMarkdownCodec.Parse(once).Diagnostics.Count == 0 &&
+               MaintenanceMarkdownCodec.Parse(once).Records.Count == 0,
+            "Human revalidation audit stays in the same canonical sheet, " +
+            "independent of incident/intervention Markdown parsing.");
+        ProjectRecRevalidationEvent rejected = approved with
+        {
+            Id = Guid.NewGuid(),
+            PreviousDecisionId = approved.Id,
+            Disposition = ProjectRecRevalidationDisposition.Rejected,
+            Rationale = "Réexamen humain conduisant au rejet de validation.",
+            EvidenceReference = "",
+            RecordedUtc = now.AddDays(4)
+        };
+        string twice = ProjectRecRevalidationCodec.Append(once, rejected);
+        IReadOnlyList<ProjectRecRevalidationEvent> replay =
+            ProjectRecRevalidationCodec.Read(twice);
+        Assert(replay.Count == 2 && replay[0] == approved &&
+               replay[1] == rejected &&
+               ProjectRecRevalidationCodec.Latest(replay, incidentId)?.Id ==
+                   rejected.Id &&
+               !twice.Contains("### Revalidation", StringComparison.Ordinal),
+            "New decisions link to their predecessor and preserve earlier " +
+            "human outcomes without creating intervention records.");
+        await RejectAsync(() => Task.FromResult(
+            ProjectRecRevalidationCodec.Append(once, rejected with
+            {
+                PreviousDecisionId = Guid.NewGuid()
+            })),
+            "Broken revalidation history chain must fail closed.");
+        await RejectAsync(() => Task.FromResult(
+            ProjectRecRevalidationCodec.Append(legacy, approved with
+            {
+                EvidenceChecked = false
+            })),
+            "A confirmed decision requires explicit evidence verification.");
+        await RejectAsync(() => Task.FromResult(
+            ProjectRecRevalidationCodec.Append(legacy, approved with
+            {
+                TargetVersion = "v1.0"
+            })),
+            "A confirmed decision cannot use a different target version.");
+        await RejectAsync(() => Task.FromResult(
+            ProjectRecRevalidationCodec.Append(legacy, approved with
+            {
+                Tests = [test, test]
+            })),
+            "Duplicate test GUIDs cannot appear in one audit snapshot.");
+        await RejectAsync(() => Task.FromResult(
+            ProjectRecRevalidationCodec.Read(twice +
+                "\n## Décisions de revalidation REC\n")),
+            "Duplicated audit sections must not hide existing decisions.");
+        await RejectAsync(() => Task.FromResult(
+            ProjectRecRevalidationCodec.Read(twice.Replace(
+                "<!-- nodalis:rec-revalidation:v1 -->",
+                "<!-- malformed:v1 -->", StringComparison.Ordinal))),
+            "Missing audit marker must fail instead of implying no history.");
+    }
+
+    /// <summary>
+    /// Exercises strict source revisions and human confirmation in a separate
+    /// fictional project, leaving the primary REC lifecycle fixture intact.
+    /// </summary>
+    /// <param name="workspace">Disposable owned workspace.</param>
+    /// <param name="creator">Existing test-only project creator.</param>
+    /// <param name="app">Synthetic application directory.</param>
+    /// <param name="applicationId">Synthetic application GUID.</param>
+    /// <returns>Human-reviewed audit lifecycle regression.</returns>
+    private static async Task CheckHumanRevalidationServiceAsync(
+        string workspace, FileSystemProjectCreator creator,
+        string app, Guid applicationId)
+    {
+        ProjectCreationResult target = await creator.CreateAsync(
+            CreateProject("Projet revalidation fictif", applicationId, app));
+        Guid testId = Guid.NewGuid();
+        string folder = Path.Combine(target.ProjectDirectory, "Tests");
+        Directory.CreateDirectory(folder);
+        string cahierPath = Path.Combine(folder, "CahierRevalidation.md");
+        await File.WriteAllTextAsync(cahierPath,
+            "# Cahier fictif\n\n" +
+            "## TEST-0001 — Reprise fonctionnelle fictive\n" +
+            MarkdownBlockIdentityCodec.FormatMarker(testId) +
+            "\n### Étapes\n- Cas simulé\n### Attendu\n- Conforme\n");
+        WorkspaceLinkIndexService.NotifyWorkspaceChanged(workspace);
+        LinkIndexCatalog index = await new WorkspaceLinkIndexService(workspace)
+            .RefreshAsync();
+        ProjectTestCampaignService rec = new(workspace);
+        ProjectTestCampaignCatalog initial = await rec.ListAsync(
+            target.ProjectDirectory);
+        ProjectTestCampaignEntry created = await rec.CreateAsync(
+            target.ProjectDirectory, "Recette fictive de revalidation",
+            initial.NextReference!);
+        ProjectTestCampaignEntry started = await rec.StartPassageAsync(
+            target.ProjectDirectory, created, index,
+            [testId], "REC-A", "v1.0", "Testeur fictif");
+        ProjectTestPassage first = started.Campaign.Passages.Single();
+        ProjectTestCampaignEntry failed = await rec.RecordResultAsync(
+            target.ProjectDirectory, started, first.Id, testId,
+            ProjectTestOutcome.Failed, "Testeur fictif",
+            "Défaut fictif confirmé par la recette.", null);
+        ProjectTestResultEvent failure = failed.Campaign.Passages[0]
+            .Results.Single();
+        string maintenanceFile = Path.Combine(target.ProjectDirectory,
+            "Fiche de Maintenance.md");
+        string previous = File.Exists(maintenanceFile)
+            ? await File.ReadAllTextAsync(maintenanceFile)
+            : "# Maintenance fictive\n";
+        string inc = MaintenanceMarkdownCodec.NewId(
+            MaintenanceRecordKind.Incident);
+        await File.WriteAllTextAsync(maintenanceFile,
+            MaintenanceMarkdownCodec.Append(previous, new MaintenanceRecord
+            {
+                Id = inc,
+                Kind = MaintenanceRecordKind.Incident,
+                Date = DateOnly.FromDateTime(DateTime.UtcNow),
+                Summary = "Défaut de revalidation fictif"
+            }));
+        ProjectTestCampaignEntry linked = await rec.RecordIncidentLinkAsync(
+            target.ProjectDirectory, failed, first.Id, failure.Id,
+            inc, ProjectTestIncidentLinkKind.Linked, "Testeur fictif",
+            "Incident fictif lié à la première exécution.");
+        ProjectRecRevalidationService reviews = new(workspace);
+        ProjectRecRevalidationPreview before = await reviews.InspectAsync(
+            target.ProjectDirectory, inc);
+        Assert(!before.Incident.ReviewMayBeProposed &&
+               before.Latest is null,
+            "A failed result alone cannot approve incident revalidation.");
+        await RejectAsync(() => reviews.RecordAsync(
+            target.ProjectDirectory, before,
+            ProjectRecRevalidationDisposition.Confirmed,
+            "Responsable fictif", "Approbation sans relecture interdite.",
+            "Preuve fictive de contrôle", "REC-A", "v1.0",
+            true, true, true),
+            "A human confirmation without a later test is forbidden.");
+        ProjectRecRevalidationEvent deferred = await reviews.RecordAsync(
+            target.ProjectDirectory, before,
+            ProjectRecRevalidationDisposition.Deferred,
+            "Responsable fictif", "Correction technique à qualifier.",
+            "", "REC-A", "v2.0", false, false, false);
+        Assert(ProjectRecRevalidationCodec.Read(
+                   await File.ReadAllTextAsync(maintenanceFile))
+                   .Single().Id == deferred.Id &&
+               (await rec.ListAsync(target.ProjectDirectory))
+                   .Campaigns.Single().Campaign.Passages[0].Results
+                   .Single().Outcome == ProjectTestOutcome.Failed,
+            "A deferred human review is audited in maintenance only.");
+        await RejectAsync(() => reviews.RecordAsync(
+            target.ProjectDirectory, before,
+            ProjectRecRevalidationDisposition.Rejected,
+            "Responsable fictif", "Vue périmée de maintenance.",
+            "", "REC-A", "v2.0", false, false, false),
+            "A stale maintenance SHA must reject duplicate decision writes.");
+        ProjectTestCampaignEntry replay = await rec.StartPassageAsync(
+            target.ProjectDirectory, linked, index,
+            [testId], "REC-A", "v2.0", "Testeur fictif");
+        ProjectTestPassage next = replay.Campaign.Passages[^1];
+        ProjectTestCampaignEntry passed = await rec.RecordResultAsync(
+            target.ProjectDirectory, replay, next.Id, testId,
+            ProjectTestOutcome.Passed, "Testeur fictif",
+            "Conformité déclarée après réexécution.", "preuve fictive");
+        ProjectRecRevalidationPreview eligible = await reviews.InspectAsync(
+            target.ProjectDirectory, inc);
+        Assert(eligible.Incident.ReviewMayBeProposed &&
+               eligible.Incident.Tests.Single().RetestResultId ==
+                   passed.Campaign.Passages[^1].Results.Single().Id &&
+               !eligible.LatestUsesCurrentRec,
+            "Human review detects the exact later test after REC source drift.");
+        await RejectAsync(() => reviews.RecordAsync(
+            target.ProjectDirectory, eligible,
+            ProjectRecRevalidationDisposition.Confirmed,
+            "Responsable fictif", "Cohérence de revalidation de test.",
+            "preuve : scénario fictif", "REC-A", "v1.0",
+            true, true, true),
+            "Wrong target version must not authorize confirmation.");
+        await RejectAsync(() => reviews.RecordAsync(
+            target.ProjectDirectory, eligible,
+            ProjectRecRevalidationDisposition.Confirmed,
+            "Responsable fictif", "Source non revue explicitement.",
+            "preuve : scénario fictif", "REC-A", "v2.0",
+            false, true, true),
+            "Human source attestation is mandatory.");
+        ProjectRecRevalidationEvent confirmed = await reviews.RecordAsync(
+            target.ProjectDirectory, eligible,
+            ProjectRecRevalidationDisposition.Confirmed,
+            "Responsable fictif", "Périmètre et preuves réellement revus.",
+            "preuve : scénario fictif vérifié", "REC-A", "v2.0",
+            true, true, true);
+        ProjectRecRevalidationPreview validated = await reviews.InspectAsync(
+            target.ProjectDirectory, inc);
+        Assert(validated.Latest?.Id == confirmed.Id &&
+               validated.LatestUsesCurrentRec &&
+               confirmed.PreviousDecisionId == deferred.Id &&
+               confirmed.Tests.Single().RetestResultId ==
+                   passed.Campaign.Passages[^1].Results.Single().Id &&
+               MaintenanceMarkdownCodec.Parse(
+                   await File.ReadAllTextAsync(maintenanceFile))
+                   .Records.Single(item => item.Id == inc).Kind ==
+                       MaintenanceRecordKind.Incident,
+            "A human confirmation preserves an unbroken audit, exact " +
+            "result provenance and untouched incident data.");
+        await RejectAsync(() => reviews.RecordAsync(
+            target.ProjectDirectory, validated,
+            ProjectRecRevalidationDisposition.Confirmed,
+            "Responsable fictif", "Dédoublement interdit sans nouvelle REC.",
+            "preuve : scénario fictif vérifié", "REC-A", "v2.0",
+            true, true, true),
+            "Duplicate confirmation on the same REC revision must be refused.");
+        ProjectRecRevalidationEvent rejected = await reviews.RecordAsync(
+            target.ProjectDirectory, validated,
+            ProjectRecRevalidationDisposition.Rejected,
+            "Responsable fictif", "Régression fonctionnelle à revérifier.",
+            "", "REC-A", "v2.0", false, true, false);
+        Assert(ProjectRecRevalidationCodec.Latest(
+                   ProjectRecRevalidationCodec.Read(
+                       await File.ReadAllTextAsync(maintenanceFile)), inc)
+                   ?.Id == rejected.Id &&
+               rejected.PreviousDecisionId == confirmed.Id,
+            "Human rejection supersedes but never erases prior approval.");
+        ProjectRecRevalidationPreview staleRec = await reviews.InspectAsync(
+            target.ProjectDirectory, inc);
+        ProjectTestCampaignEntry third = await rec.StartPassageAsync(
+            target.ProjectDirectory, passed, index,
+            [testId], "REC-A", "v2.1", "Testeur fictif");
+        await RejectAsync(() => reviews.RecordAsync(
+            target.ProjectDirectory, staleRec,
+            ProjectRecRevalidationDisposition.Deferred,
+            "Responsable fictif", "Les résultats REC viennent de changer.",
+            "", "REC-A", "v2.1", false, false, false),
+            "REC drift must require a fresh review before another decision.");
+        Assert(third.Campaign.Passages.Count == 3 &&
+               ProjectRecRevalidationCodec.Read(
+                   await File.ReadAllTextAsync(maintenanceFile)).Count == 3,
+            "Opening a new passage never silently mutates prior audit events.");
     }
 
     /// <summary>Creates only fictional projects.</summary>
