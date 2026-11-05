@@ -5,6 +5,7 @@ using Nodalis.App.Dialogs;
 using Nodalis.App.Navigation;
 using Nodalis.Core.Navigation;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Tests;
 using Nodalis.Infrastructure.AI;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
@@ -629,6 +630,60 @@ public partial class MainWindow
     private async void PilotageNewRequirement_Click(
         object sender, RoutedEventArgs e) =>
         await RunUiActionAsync("Créer une exigence", CreateProjectRequirementAsync);
+
+    /// <summary>
+    /// Opens the calculated anomaly and incident revalidation view directly,
+    /// without making the user navigate via the REC campaign manager.
+    /// </summary>
+    /// <returns>Consultation or explicit, revision-checked human decisions.</returns>
+    private async Task OpenPilotageRecAnomaliesAsync()
+    {
+        NavigationNodeViewModel? project = PilotageProject();
+        if (project is null)
+        {
+            ShowPilotageProjectHint("Anomalies de recette");
+            return;
+        }
+
+        ProjectRecAnomalyOverview overview = await Task.Run(() =>
+            new ProjectRecAnomalyService(_root.FullPath)
+                .ReadAsync(project.FullPath));
+        NavigationNodeViewModel? current = PilotageProject();
+        if (current?.Id != project.Id ||
+            !string.Equals(current.FullPath, project.FullPath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            StatusText.Text = "Projet modifié pendant la lecture des anomalies REC.";
+            return;
+        }
+
+        ProjectRecAnomaliesDialog dialog = new(
+            overview, _root.FullPath, project.FullPath,
+            PilotageReadOnly(project))
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+        if (dialog.Changed)
+        {
+            await RefreshNavigationAsync(project.FullPath);
+            StatusText.Text =
+                "Décision humaine de revalidation enregistrée dans Maintenance.";
+        }
+        else
+        {
+            StatusText.Text =
+                "Anomalies REC consultées · aucun incident modifié.";
+        }
+    }
+
+    /// <summary>Opens anomalies and revalidation for the current project.</summary>
+    /// <param name="sender">Menu item.</param>
+    /// <param name="e">Click event.</param>
+    private async void PilotageRecAnomalies_Click(
+        object sender, RoutedEventArgs e) =>
+        await RunUiActionAsync("Anomalies REC et revalidation",
+            OpenPilotageRecAnomaliesAsync);
 
     /// <summary>Opens the current EXI/CA/TEST traceability matrix.</summary>
     /// <param name="sender">Menu item.</param>
