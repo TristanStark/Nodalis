@@ -1422,6 +1422,11 @@ public partial class ProjectTestCampaignsDialog : Window
         Guid campaignId = campaign.Entry.Campaign.Id;
         Guid passageId = passage.Passage.Id;
         Guid testId = selection.Result.TestId;
+        int existingLinks = ProjectTestIncidentLinkPolicy.Active(
+            campaign.Entry.Campaign, recorded.Id).Count;
+        ProjectTestResultCorrectionEvent? correction =
+            campaign.Entry.Campaign.ResultCorrections?.SingleOrDefault(
+                item => item.ResultId == recorded.Id);
         ProjectRecIncidentCreationPreview preview = await Task.Run(() =>
             _service.InspectIncidentCreationAsync(
                 _projectDirectory, campaign.Entry, passageId, recorded.Id));
@@ -1475,8 +1480,17 @@ public partial class ProjectTestCampaignsDialog : Window
             "REC : " + campaign.Entry.Campaign.Reference +
                 " / passage " + passage.Passage.Number + "\n" +
             "Test : " + selection.Result.Reference + "\n" +
-            "Résultat : " + recorded.Outcome + "\n" +
-            "Incidents déjà présents : " + preview.IncidentCount + "\n\n" +
+            "Résultat historique : " + recorded.Outcome + "\n" +
+            "Rectification administrative : " +
+                (correction?.CorrectedOutcome.ToString() ?? "aucune") + "\n" +
+            "Liens actifs sur ce résultat : " + existingLinks + "\n" +
+            "Incidents déjà présents dans le projet : " +
+                preview.IncidentCount + "\n\n" +
+            (existingLinks > 0
+                ? "ATTENTION : ce résultat possède déjà des incidents " +
+                    "associés. Vérifiez qu'il s'agit d'une anomalie distincte " +
+                    "avant d'en créer un nouveau.\n\n"
+                : "") +
             "Après création dans la Fiche de Maintenance, Nodalis " +
             "tentera le lien REC dans une transaction distincte. " +
             "En cas de conflit, l'incident restera créé et " +
