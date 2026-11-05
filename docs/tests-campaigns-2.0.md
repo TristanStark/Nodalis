@@ -424,3 +424,51 @@ du test ou des exigences. L'ancien passage n'est jamais réécrit.
 Qualifier visuellement l'affichage sur le passage historique sélectionné,
 l'accès en lecture seule, le thème sombre, les annulations et
 le refus d'une fiche REC modifiée simultanément.
+
+
+## Chaîne REC → incidents de maintenance — incrément #201 (05/11/2026)
+
+Depuis un résultat humain **Non conforme** (`Failed`) ou **Bloqué**
+(`Blocked`), **« Incidents liés… »** propose uniquement les incidents
+canoniques existants et uniques de la même `Fiche de Maintenance.md` du
+projet. Les utilisateurs peuvent associer ou dissocier un incident, renseigner
+l'auteur et un motif d'au moins 10 caractères et confirmer séparément
+la publication. En lecture seule, l'action reste consultative.
+
+Les événements sont conservés en champ **optionnel** `incidentLinks`
+de la fiche REC v1. Les anciens REC sans ce champ ne sont pas migrés.
+Chaque événement réfère aux GUID du passage, du résultat et du bloc
+TEST et à l'identifiant `INC-<GUID>` du dossier maintenance.
+Une association non conforme au projet, absente ou ambiguë, est
+refusée ; la dissociation d'un lien ancien reste possible même si
+l'incident n'existe plus dans le catalogue courant. Les transitions
+doublonnées et les journaux altérés sont refusés à la lecture.
+
+La projection des liens actifs est **calculée**, sans persister un
+second registre d'incidents. Un résultat peut avoir plusieurs incidents
+et un incident plusieurs résultats REC. L'historique des dissociations
+reste conservé avec les liens antérieurs. Les writes utilisent
+la vérification SHA et la publication CAS de REC.
+
+Aucune association ne **crée, ne clôture, ni ne revalide** un incident
+ou un résultat, ne modifie les interventions ou l'état EXI. L'utilisateur
+décide des nouvelles exécutions dans une nouvelle campagne/passage.
+Étapes restantes #201 : création humaine d'incident depuis un résultat,
+vue transverse des anomalies de recette, liens aux interventions existantes,
+assistant de retest à partir d'un incident et décision explicite de
+revalidation.
+
+### Scénario de qualification Windows #201
+
+1. Créer deux incidents synthétiques dans la fiche de maintenance, puis
+   saisir un verdict REC Non conforme. Associer les deux incidents,
+   vérifier la présence des deux identifiants et le résultat inchangé.
+2. Dissocier l'un des deux, actualiser le gestionnaire et constater le
+   seul lien actif restant sans perte du journal historique REC.
+3. Contrôler l'action désactivée sur un résultat Conforme/non exécuté,
+   la consultation d'une campagne clôturée/archivée et le mode sombre.
+4. Faire disparaître le document d'un incident, puis vérifier que son
+   lien ancien reste visible/dissociable, et qu'il n'est plus proposé
+   pour une nouvelle association.
+5. Modifier le REC depuis un autre éditeur avant la confirmation :
+   le SHA obsolète doit empêcher tout écrasement silencieux.
