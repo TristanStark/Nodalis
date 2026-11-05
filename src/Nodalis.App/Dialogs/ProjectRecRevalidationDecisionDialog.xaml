@@ -1,0 +1,85 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectRecRevalidationDecisionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Décision humaine de revalidation REC · Nodalis 2.0"
+        Width="750" Height="740" MinWidth="570" MinHeight="540"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Décision humaine de revalidation"
+                       FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock x:Name="ContextText" TextWrapping="Wrap"
+                       Margin="0,6,0,0"
+                       Foreground="{StaticResource SecondaryTextBrush}"/>
+        </StackPanel>
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,12,0">
+                <TextBlock Text="Décision *" FontWeight="SemiBold"/>
+                <ComboBox x:Name="DispositionBox" MinHeight="32"
+                          Margin="0,5,0,12"
+                          DisplayMemberPath="Label"
+                          SelectionChanged="DispositionChanged"
+                          AutomationProperties.Name="Valider, rejeter ou reporter la revalidation"/>
+                <TextBlock Text="Responsable humain *"
+                           FontWeight="SemiBold"/>
+                <TextBox x:Name="ActorBox" MaxLength="160"
+                         Padding="7,5" Margin="0,5,0,12"
+                         AutomationProperties.Name="Responsable de la décision"/>
+                <TextBlock Text="Environnement explicitement concerné *"
+                           FontWeight="SemiBold"/>
+                <TextBox x:Name="EnvironmentBox" MaxLength="160"
+                         Padding="7,5" Margin="0,5,0,12"
+                         AutomationProperties.Name="Environnement de revalidation"/>
+                <TextBlock Text="Version applicative explicitement concernée *"
+                           FontWeight="SemiBold"/>
+                <TextBox x:Name="VersionBox" MaxLength="160"
+                         Padding="7,5" Margin="0,5,0,12"
+                         AutomationProperties.Name="Version couverte par la décision"/>
+                <TextBlock Text="Justification écrite * (10 caractères minimum)"
+                           FontWeight="SemiBold"/>
+                <TextBox x:Name="ReasonBox" MaxLength="2000"
+                         TextWrapping="Wrap" MinHeight="64"
+                         Padding="7,6" Margin="0,5,0,12"
+                         AutomationProperties.Name="Justification humaine de revalidation"/>
+                <TextBlock Text="Référence de preuve examinée (obligatoire pour confirmer)"
+                           FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBox x:Name="EvidenceBox" MaxLength="2000"
+                         TextWrapping="Wrap" MinHeight="44"
+                         Padding="7,6" Margin="0,5,0,12"
+                         AutomationProperties.Name="Référence de preuve déclarée et examinée"/>
+                <TextBlock Text="Attestations explicites du responsable"
+                           FontWeight="SemiBold" Margin="0,2,0,6"/>
+                <CheckBox x:Name="SourcesCheck" Margin="0,3,0,8"
+                          Content="J'ai contrôlé les définitions TEST actuelles."
+                          AutomationProperties.Name="Attestation de revue des sources TEST"/>
+                <CheckBox x:Name="EvidenceCheck" Margin="0,3,0,8"
+                          Content="J'ai examiné les preuves de chaque reprise."
+                          AutomationProperties.Name="Attestation de vérification humaine des preuves"/>
+                <CheckBox x:Name="ScopeCheck" Margin="0,3,0,8"
+                          Content="J'ai vérifié version cible, environnement, critères et non-régressions."
+                          AutomationProperties.Name="Attestation de contrôle du périmètre de revalidation"/>
+                <TextBlock x:Name="LimitText"
+                           Margin="0,10,0,0" TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"/>
+            </StackPanel>
+        </ScrollViewer>
+        <DockPanel Grid.Row="2" Margin="0,14,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Annuler" IsCancel="True"
+                        Padding="13,8" Margin="0,0,9,0"/>
+                <Button Content="Examiner la décision…" IsDefault="True"
+                        Padding="13,8" Click="Confirm_Click"/>
+            </StackPanel>
+            <TextBlock Text="La décision est ajoutée à la fiche maintenance ; aucun statut incident ou résultat REC n'est modifié automatiquement."
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center"
+                       Foreground="{StaticResource SecondaryTextBrush}"/>
+        </DockPanel>
+    </Grid>
+</Window>
