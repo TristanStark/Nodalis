@@ -472,3 +472,61 @@ revalidation.
    pour une nouvelle association.
 5. Modifier le REC depuis un autre éditeur avant la confirmation :
    le SHA obsolète doit empêcher tout écrasement silencieux.
+
+
+## Vue calculée « Anomalies de recette… » — incrément #201 (05/11/2026)
+
+Dans **Campagnes et passages de recette**, le bouton
+**« Anomalies de recette… »** ouvre une vue **consultative**, lisible
+également dans les projets archivés ou workspaces en lecture seule.
+L'opération relit hors Dispatcher les campagnes REC du projet et sa seule
+`Fiche de Maintenance.md`. Il n'existe **aucun nouveau registre
+d'anomalies** : les données sont projetées depuis les Markdown/JSON
+canoniques.
+
+Une ligne correspond à **un résultat humain historique** `Failed`
+ou `Blocked` d'un passage figé. La vue présente référence REC,
+passage, bloc TEST stable, environnement et version, verdict initial,
+rectification administrative éventuelle (distincte), preuve déclarée,
+incidents `INC-` actuellement liés et **nombre d'interventions
+déclarées** qui les mentionnent. Les associations actives sont calculées
+à partir des événements REC `incidentLinks` append-only et des
+identifiants de maintenance, sans multiplication artificielle pour
+un test lié à plusieurs incidents.
+
+Les incidents absents, malformés ou en doublon sont signalés comme
+**source absente/ambiguë**. Une fiche maintenance supprimée ou un
+REC illisible ne produit jamais un faux « zéro incident » ou une
+conformité : la vue expose les diagnostics de lecture.
+Les lignes sans lien actif restent visibles ; un ancien échec reste
+visible même si un autre passage a ensuite été déclaré `Passed`.
+Une intervention présente ne signifie **ni correction livrée, ni
+résolution, ni revalidation** : ces décisions sont humaines et
+indépendantes.
+
+Le traitement est borné à 10 000 événements historiques : en cas de
+dépassement, Nodalis refuse de présenter un tableau incomplet comme
+s'il était exhaustif. Les sources TEST ne sont **pas** revérifiées par
+cette vue : utiliser le contrôle de validité du gestionnaire REC.
+
+### Recette Windows dédiée
+
+1. Campagne fictive avec échec dans le passage 1, puis `Passed`
+   dans le passage 2 (version différente) : **l'échec historique reste**.
+2. Associer deux incidents distincts au même résultat, déclarer une
+   intervention reliée à l'un : **un résultat** dans la vue, deux
+   identifiants, une intervention informative, aucune résolution.
+3. Dissocier un incident : l'état actif est recalculé depuis l'audit REC,
+   sans suppression des événements d'association antérieurs.
+4. Supprimer/déplacer la fiche maintenance ou dupliquer un identifiant
+   incident : signalement de source absente/ambiguë, pas de verdict inféré.
+5. Contrôler rectification du verdict, absence d'auto-validation EXI,
+   consultation archives/lecture seule, annulation, navigation entre lignes,
+   thème sombre et ergonomie de la liste virtualisée.
+6. Avec un projet sans campagne REC ou un ancien fichier REC illisible,
+   confirmer que les avertissements restent visibles et qu'aucun objet
+   métier n'est créé.
+
+**Portée de cet incrément** : vue historique à la demande, pas encore
+assistant de résolution, création depuis un test ou proposition de retest
+par incident. Ces capacités restent prévues sous #201.
