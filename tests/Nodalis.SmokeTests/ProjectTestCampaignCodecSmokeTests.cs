@@ -250,7 +250,7 @@ internal static class ProjectTestCampaignCodecSmokeTests
         Reject(() => ProjectTestCampaignMarkdownCodec.Format(
             campaign with
             {
-                IncidentLinks = [link with { Rationale = "trop court" }]
+                IncidentLinks = [link with { Rationale = "court" }]
             }), "A human association requires a useful written rationale.");
         Reject(() => ProjectTestCampaignMarkdownCodec.Format(
             campaign with
