@@ -18,15 +18,24 @@ public partial class ProjectGateReservationIncidentLinksDialog : Window
     /// <param name="catalog">On-demand canonical incident candidates.</param>
     /// <param name="linked">Current incident identity projection.</param>
     /// <param name="readOnly">View-only mode for archived/read-only projects.</param>
+    /// <param name="subjectLabel">Visible reservation or REC result context.</param>
     public ProjectGateReservationIncidentLinksDialog(
         string description, ProjectGateIncidentCatalog catalog,
-        IReadOnlyList<string> linked, bool readOnly)
+        IReadOnlyList<string> linked, bool readOnly,
+        string subjectLabel = "Réserve")
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(linked);
         _readOnly = readOnly;
         InitializeComponent();
-        DescriptionText.Text = "Réserve : " + description;
+        DescriptionText.Text = subjectLabel + " : " + description;
+        HeaderText.Text = "Incidents liés à " + subjectLabel +
+            " · Nodalis 2.0";
+        Title = subjectLabel + " · incidents associés";
+        if (subjectLabel != "Réserve")
+        {
+            RationaleBox.MaxLength = 2000;
+        }
         DiagnosticsText.Text = catalog.Candidates.Count +
             " incident(s) canonique(s) du projet · " +
             catalog.ExcludedCount + " incident(s) non qualifiable(s)" +
@@ -119,7 +128,9 @@ public partial class ProjectGateReservationIncidentLinksDialog : Window
         string actor = ActorBox.Text.Trim();
         string rationale = RationaleBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(actor) || actor.Length > 120 ||
-            rationale.Length < 10 || rationale.Length > 4000)
+            rationale.Length < 10 ||
+            rationale.Length > RationaleBox.MaxLength ||
+            actor.Any(char.IsControl) || rationale.Any(char.IsControl))
         {
             MessageBox.Show(this,
                 "Auteur requis et justification humaine d'au moins " +

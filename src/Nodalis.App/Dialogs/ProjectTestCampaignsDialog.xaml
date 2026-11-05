@@ -171,6 +171,12 @@
                         Click="Rectify_Click"
                         ToolTip="Journaliser une rectification administrative du résultat sélectionné, sans réexécuter le test ni effacer le résultat initial."
                         AutomationProperties.Name="Rectifier avec justification un résultat humain déjà enregistré"/>
+                <Button x:Name="IncidentButton"
+                        Content="Incidents liés…"
+                        Padding="11,8" Margin="0,0,8,5"
+                        Click="IncidentLinks_Click"
+                        ToolTip="Associer ou dissocier les incidents de maintenance au résultat REC non conforme ou bloqué, sans créer d'incident ni valider automatiquement."
+                        AutomationProperties.Name="Incidents existants liés au résultat de recette"/>
                 <Button x:Name="OpenButton" Content="Ouvrir la fiche REC"
                         Padding="11,8" Margin="0,0,8,5"
                         Click="Open_Click"/>

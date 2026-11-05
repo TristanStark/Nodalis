@@ -13,7 +13,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0">
-            <TextBlock FontSize="18" FontWeight="SemiBold"
+            <TextBlock x:Name="HeaderText"
+                       FontSize="18" FontWeight="SemiBold"
                        Text="Incidents d'une réserve · Nodalis 2.0" />
             <TextBlock x:Name="DescriptionText" Margin="0,8,0,5"
                        TextWrapping="Wrap" />

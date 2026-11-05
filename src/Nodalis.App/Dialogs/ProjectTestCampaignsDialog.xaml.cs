@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Nodalis.Core.Links;
+using Nodalis.Core.Projects;
 using Nodalis.Core.Tests;
 using Nodalis.Infrastructure.Links;
 using Nodalis.Infrastructure.Projects;
@@ -327,6 +328,18 @@ public partial class ProjectTestCampaignsDialog : Window
                     (outcome?.EvidenceNote ?? "aucune / non vérifiée"),
                 "Aucune conformité ni validation métier n'est déduite."
             ]);
+            if (outcome is not null)
+            {
+                IReadOnlyList<ProjectTestLinkedIncident> links =
+                    ProjectTestIncidentLinkPolicy.Active(
+                        campaign.Entry.Campaign, outcome.Id);
+                details.Add("INCIDENTS ASSOCIÉS : " +
+                    (links.Count == 0 ? "aucun" :
+                        string.Join("; ", links.Select(item =>
+                            item.IncidentId))));
+                details.Add("Association humaine uniquement, sans " +
+                    "résolution de l'incident ni revalidation implicite.");
+            }
             if (correction is not null)
             {
                 details.AddRange(
@@ -425,6 +438,12 @@ public partial class ProjectTestCampaignsDialog : Window
                 item.TestId == result.Result.TestId &&
                 campaign.Entry.Campaign.ResultCorrections?.Any(correction =>
                     correction.ResultId == item.Id) != true);
+        IncidentButton.IsEnabled = !_busy && campaign is not null &&
+            passage is not null && result is not null &&
+            passage.Passage.Results.Any(item =>
+                item.TestId == result.Result.TestId &&
+                item.Outcome is
+                    (ProjectTestOutcome.Failed or ProjectTestOutcome.Blocked));
         OpenButton.IsEnabled = campaign is not null;
         RefreshButton.IsEnabled = !_busy;
         ProjectTestCampaignState? state = campaign?.Entry.Campaign.State;
@@ -1164,6 +1183,102 @@ public partial class ProjectTestCampaignsDialog : Window
         await ReloadAsync(saved.Campaign.Id);
         StatusText.Text = "Rectification historisée, verdict initial et " +
             "définitions TEST inchangés. Aucune revalidation automatique.";
+    }
+
+    /// <summary>Reviews links between REC results and existing incidents.</summary>
+    /// <param name="sender">Incident association button.</param>
+    /// <param name="e">Click.</param>
+    private async void IncidentLinks_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Associer un incident REC", ReviewIncidentLinksAsync);
+
+    /// <summary>
+    /// Offers only project-owned canonical maintenance incidents and requires
+    /// an explicit human decision and a second confirmation before writing.
+    /// </summary>
+    /// <returns>Committed link, read-only consultation or cancellation.</returns>
+    private async Task ReviewIncidentLinksAsync()
+    {
+        CampaignRow? campaign = SelectedCampaign();
+        PassageRow? passage = SelectedPassage();
+        ResultRow? selection = SelectedTest();
+        if (campaign is null || passage is null || selection is null)
+        {
+            return;
+        }
+
+        ProjectTestResultEvent? result = passage.Passage.Results
+            .SingleOrDefault(item => item.TestId == selection.Result.TestId);
+        if (result is null || result.Outcome is not
+            (ProjectTestOutcome.Failed or ProjectTestOutcome.Blocked))
+        {
+            return;
+        }
+
+        Guid campaignId = campaign.Entry.Campaign.Id;
+        Guid passageId = passage.Passage.Id;
+        Guid testId = selection.Result.TestId;
+        bool readOnly = _readOnly || campaign.Entry.Campaign.State is not
+            (ProjectTestCampaignState.InProgress or
+             ProjectTestCampaignState.InQualification);
+        string[] linked = ProjectTestIncidentLinkPolicy.Active(
+            campaign.Entry.Campaign, result.Id)
+            .Select(item => item.IncidentId).ToArray();
+        ProjectGateIncidentCatalog catalog = await Task.Run(() =>
+            new ProjectGateIncidentCatalogService(_workspaceRoot)
+                .ListAsync(_projectDirectory));
+        if (SelectedCampaign()?.Entry.Campaign.Id != campaignId ||
+            SelectedPassage()?.Passage.Id != passageId ||
+            SelectedTest()?.Result.TestId != testId)
+        {
+            StatusText.Text = "La sélection a changé : recommencez la revue.";
+            return;
+        }
+
+        ProjectGateReservationIncidentLinksDialog picker = new(
+            selection.Result.Reference + " · passage " +
+                passage.Passage.Number, catalog, linked, readOnly,
+                "Résultat REC")
+        {
+            Owner = this
+        };
+        if (picker.ShowDialog() != true || readOnly ||
+            picker.IncidentId is null || picker.ChangeKind is null ||
+            picker.Actor is null || picker.Rationale is null)
+        {
+            return;
+        }
+
+        ProjectTestIncidentLinkKind kind =
+            picker.ChangeKind == ProjectGateReservationIncidentLinkKind.Linked
+                ? ProjectTestIncidentLinkKind.Linked
+                : ProjectTestIncidentLinkKind.Unlinked;
+        if (MessageBox.Show(this,
+            "Confirmer le lien REC/incident ?\n\n" +
+            "Test : " + selection.Result.Reference +
+                " · passage " + passage.Passage.Number + "\n" +
+            "Incident : " + picker.IncidentId + "\n" +
+            "Action : " + kind + "\n" +
+            "Auteur : " + picker.Actor + "\n" +
+            "Justification : " + picker.Rationale + "\n\n" +
+            "Aucun incident n'est créé, résolu ou clôturé et " +
+            "aucun résultat n'est revalidé automatiquement.",
+            "REC · décision humaine",
+            MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+                MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectTestCampaignEntry saved = await Task.Run(() =>
+            _service.RecordIncidentLinkAsync(
+                _projectDirectory, campaign.Entry, passageId,
+                result.Id, picker.IncidentId, kind,
+                picker.Actor, picker.Rationale));
+        Changed = true;
+        WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
+        await ReloadAsync(saved.Campaign.Id);
+        StatusText.Text = "Association historisée, sans verdict " +
+            "REC ni statut incident modifié.";
     }
 
     /// <summary>Initiates a human-approved qualification review.</summary>
