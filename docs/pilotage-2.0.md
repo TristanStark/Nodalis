@@ -107,6 +107,8 @@ pas une mise en production ni une clôture automatiquement effectuée.
   consultation possible mais aucune édition ni association implicite.
 - Naviguer au clavier dans les sous-menus imbriqués, contrôler les
   intitulés, le thème sombre et les longues listes d'opérations.
+  Renommer une opération en `Copier_PROMPT` : le caractère souligné
+  doit rester visible dans le menu sans créer de raccourci clavier.
 
 Aucune capture d'écran ni nom réel de workspace ne doit être
 ajouté aux commits ou aux jeux de test.
