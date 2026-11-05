@@ -659,3 +659,77 @@ créé, et demande de **ne pas recréer l'incident**.
 
 Un incident technique n'est jamais marqué corrigé/résolu et
 le test n'est jamais revalidé par cette opération seule.
+
+
+## Suivi incident → intervention → retest : proposition d'examen humain (#201)
+
+Depuis la fenêtre **« Anomalies de recette… »**, la commande
+**« Suivi des incidents et reprises… »** affiche une vue **calculée,
+strictement en lecture seule**. L'agrégation réutilise les mêmes REC
+et la **Fiche de Maintenance.md** déjà chargés ; aucun registre
+d'incidents ni second document de suivi n'est créé.
+
+Pour chaque incident `INC-` encore associé à un ou plusieurs résultats
+REC `Failed` / `Blocked`, la vue rassemble :
+
+- Les **GUID TEST distincts** concernés ; si le même test est lié à
+  dix échecs du même incident, il compte une seule fois.
+- Le **dernier échec REC activement associé** de chaque test, son
+  environnement/version et la plus récente réexécution humaine du
+  même GUID TEST provenant d'un **autre passage** et enregistrée
+  **après cet échec**, y compris dans une autre campagne du projet.
+- Les résultats réellement enregistrés : non réexécuté, `Passed`,
+  `Failed`, `Blocked`, non applicable ; le dernier événement humain
+  détermine l'état consultatif. Une **régression ultérieure** annule
+  toute proposition antérieure d'examen.
+- Les environnements et versions des deux passages, ainsi que la
+  preuve **déclarée mais non vérifiée** lors de la réexécution.
+- Les interventions `INT-` explicitement reliées à l'incident dans
+  la fiche maintenance, leurs dates, résumés et champs `Statut`
+  **déclaratifs**. Une intervention terminée n'est jamais considérée
+  comme une preuve de résolution.
+
+Un avis **« examen humain envisageable »** est proposé seulement si
+la source INC est **unique et toujours présente** et si **tous les
+GUID TEST associés** ont été réexécutés après leur dernier échec
+associé avec un résultat `Passed` **dans le même environnement**.
+Cet avis n'est **pas une décision**, ne change aucun statut et
+n'établit **aucune équivalence** entre une version historique
+et la version actuellement déployée.
+
+**Limites explicites :** la version cible n'est pas déduite,
+les définitions TEST actuelles et preuves externes ne sont pas
+revérifiées par cet écran (utiliser le contrôle source REC), les
+exigences/critères et tests de non-régression additionnels doivent
+être examinés par le responsable. Les sources INC absentes ou
+dupliquées bloquent toute suggestion d'examen. Un résultat `Passed`
+après l'échec ne clôture jamais l'incident sans validation humaine.
+
+### Qualification Windows ciblée
+
+1. Incident associé à deux tests : après un seul `Passed` récent,
+   l'autre reste « non réexécuté », **aucune proposition d'examen**.
+2. Deux nouveaux `Passed` dans le même environnement :
+   proposition **d'examen humain** seulement ; ni maintenance,
+   ni REC, ni EXI modifiés.
+3. Réexécution `Passed` dans un environnement différent :
+   non comparable ; version différente : avertissement sur le
+   périmètre/version cible.
+4. Après les deux `Passed`, dernier résultat `Blocked` ou `Failed`
+   d'un test : plus de proposition d'examen ; l'ancien échec et
+   l'ancienne réussite restent traçables.
+5. Même TEST relié à plusieurs résultats de cet incident et même
+   incident lié à plusieurs campagnes : **un GUID TEST** dans le
+   récapitulatif, historique intègre.
+6. Intervention technique `INT-` marquée « Terminée » :
+   affichée comme donnée déclarative, **jamais comme validation**.
+7. Incident INC disparu ou doublonné : source absente/ambiguë,
+   aucune suggestion, avertissement consultable.
+8. Tester thème sombre, liste virtualisée, lecture seule et archives,
+   campagne avec de nombreux passages ; aucun scan global WPF.
+
+**Suite de #201** : autorisation/justification humaine *persistante*
+de la revalidation fonctionnelle, lien à des preuves vérifiées,
+et éventuelle transition de statut de l'incident dans son dossier
+canonique seulement après approbation. Aucune décision humaine de
+résolution n'est encore écrite depuis cette vue consultative.
