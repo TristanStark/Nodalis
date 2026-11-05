@@ -1,0 +1,47 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectRecIncidentAuditDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Incident issu de REC · confirmation humaine"
+        Width="680" Height="400" MinWidth="520" MinHeight="345"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Text="Auteur et justification de l'association REC"
+                   FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+        <TextBlock x:Name="ContextText" Grid.Row="1"
+                   Margin="0,8,0,11" TextWrapping="Wrap"
+                   Foreground="{StaticResource SecondaryTextBrush}"/>
+        <TextBlock Text="Auteur de la décision *" Grid.Row="2"
+                   FontWeight="SemiBold" Margin="0,0,0,5"/>
+        <TextBox x:Name="ActorBox" Grid.Row="3" MaxLength="160"
+                 Padding="7,5" MinHeight="30"
+                 AutomationProperties.Name="Auteur humain de création et association"/>
+        <StackPanel Grid.Row="4" Margin="0,12,0,0">
+            <TextBlock Text="Pourquoi associer cet incident à ce résultat ? *"
+                       FontWeight="SemiBold"/>
+            <TextBox x:Name="ReasonBox" Margin="0,6,0,0"
+                     Padding="7,6" MaxLength="2000"
+                     AcceptsReturn="True" TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto"
+                     MinHeight="70" MaxHeight="110"
+                     AutomationProperties.Name="Justification humaine de la relation incident résultat"/>
+            <TextBlock Margin="0,10,0,0" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Les sources maintenance et REC sont deux fichiers. Si le lien REC échoue après la création de l'incident, Nodalis conservera l'incident et affichera la marche à suivre sans le recréer."/>
+        </StackPanel>
+        <StackPanel Grid.Row="5" Margin="0,14,0,0"
+                    Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Annuler" IsCancel="True"
+                    Padding="12,8" Margin="0,0,8,0"/>
+            <Button Content="Vérifier et confirmer…" IsDefault="True"
+                    Padding="12,8" Click="Confirm_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
