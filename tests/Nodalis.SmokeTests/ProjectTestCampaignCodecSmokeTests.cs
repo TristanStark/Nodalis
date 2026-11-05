@@ -81,6 +81,94 @@ internal static class ProjectTestCampaignCodecSmokeTests
                ProjectTestCampaignMarkdownCodec.Format(parsed) == markdown,
             "Two passages must retain distinct frozen revisions and human results.");
 
+        ProjectTestResultCorrectionEvent correction = new()
+        {
+            Id = Guid.NewGuid(),
+            PassageId = campaign.Passages[0].Id,
+            ResultId = firstResult.Id,
+            TestId = testId,
+            CorrectedOutcome = ProjectTestOutcome.Blocked,
+            Actor = "Responsable fictif",
+            Reason = "Erreur de saisie constatée, sans nouveau test.",
+            RecordedUtc = beginning.AddHours(1).AddMinutes(30)
+        };
+        ProjectTestCampaign amended = campaign with
+        {
+            ResultCorrections = [correction]
+        };
+        string auditedMarkdown = ProjectTestCampaignMarkdownCodec.Format(amended);
+        ProjectTestCampaign audited =
+            ProjectTestCampaignMarkdownCodec.Parse(auditedMarkdown);
+        IReadOnlyList<ProjectTestResultCorrectionRow> audit =
+            ProjectTestResultCorrectionPolicy.ForPassage(
+                audited, campaign.Passages[0].Id);
+        Assert(audit.Count == 1 &&
+               audit[0].OriginalOutcome == ProjectTestOutcome.Failed &&
+               audit[0].CorrectedOutcome == ProjectTestOutcome.Blocked &&
+               audited.Passages[0].Results[0].Outcome ==
+                   ProjectTestOutcome.Failed &&
+               audited.Passages[1].Results[0].Outcome ==
+                   ProjectTestOutcome.Passed &&
+               ProjectTestCampaignMarkdownCodec.Format(audited) ==
+                   auditedMarkdown &&
+               ProjectTestCampaignMarkdownCodec.Format(campaign) == markdown,
+            "Correction is a separate durable audit event, not a rewritten " +
+            "historical result or a new passage.");
+
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            amended with
+            {
+                ResultCorrections =
+                [
+                    correction,
+                    correction with { Id = Guid.NewGuid() }
+                ]
+            }), "A result cannot receive two administrative corrections.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            amended with
+            {
+                ResultCorrections =
+                    [correction with { PassageId = campaign.Passages[1].Id }]
+            }), "A correction cannot target another frozen passage.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            amended with
+            {
+                ResultCorrections =
+                    [correction with { TestId = Guid.NewGuid() }]
+            }), "A correction cannot target another frozen test.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            amended with
+            {
+                ResultCorrections =
+                    [correction with { CorrectedOutcome =
+                        ProjectTestOutcome.Failed }]
+            }), "A no-op correction is not an audit event.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            amended with
+            {
+                ResultCorrections =
+                    [correction with { RecordedUtc =
+                        firstResult.RecordedUtc.AddMinutes(-1) }]
+            }), "Correction cannot predate its original human declaration.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            amended with
+            {
+                ResultCorrections =
+                    [correction with { Actor = " " }]
+            }), "A correction always has a human author.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            amended with
+            {
+                ResultCorrections =
+                    [correction with { Reason = " " }]
+            }), "A correction always has a human rationale.");
+        Reject(() => ProjectTestCampaignMarkdownCodec.Format(
+            amended with
+            {
+                ResultCorrections =
+                    [correction with { ResultId = Guid.NewGuid() }]
+            }), "A correction cannot refer to an absent result.");
+
         Assert(!ProjectTestCampaignMarkdownCodec.IsReference("REC-0000") &&
                ProjectTestCampaignMarkdownCodec.IsReference("REC-0001") &&
                !ProjectTestCampaignMarkdownCodec.IsReference("REC-10000"),

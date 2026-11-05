@@ -206,6 +206,42 @@ internal static class ProjectTestCampaignServiceSmokeTests
                        ProjectTestOutcome.Failed &&
                    await File.ReadAllTextAsync(legacyPath) == legacy,
                 "Reload retains both outcomes; unrelated legacy files stay untouched.");
+            ProjectTestResultEvent originalResult =
+                final.Campaign.Passages[0].Results[0];
+            ProjectTestCampaignEntry rectified =
+                await service.RectifyResultAsync(
+                    own.ProjectDirectory, final, passage1.Id,
+                    originalResult.Id, ProjectTestOutcome.Blocked,
+                    "Responsable fictif",
+                    "Erreur de saisie initiale, sans nouvelle exécution.");
+            Assert(rectified.Campaign.ResultCorrections?.Count == 1 &&
+                   rectified.Campaign.Passages[0].Results[0].Outcome ==
+                       ProjectTestOutcome.Failed &&
+                   rectified.Campaign.ResultCorrections[0].CorrectedOutcome ==
+                       ProjectTestOutcome.Blocked &&
+                   ProjectTestResultCorrectionPolicy.ForPassage(
+                       rectified.Campaign, passage1.Id).Single()
+                       .OriginalOutcome == ProjectTestOutcome.Failed &&
+                   (await service.ListAsync(own.ProjectDirectory))
+                       .Campaigns.Single().Campaign.ResultCorrections?.Count == 1,
+                "Administrative correction persists without rewriting a " +
+                "historical verdict or the test definition.");
+            await RejectAsync(() => service.RectifyResultAsync(
+                own.ProjectDirectory, final, passage1.Id,
+                originalResult.Id, ProjectTestOutcome.Passed,
+                "Responsable fictif", "Révision périmée."),
+                "Stale REC SHA cannot overwrite concurrently appended corrections.");
+            await RejectAsync(() => service.RectifyResultAsync(
+                own.ProjectDirectory, rectified, passage1.Id,
+                originalResult.Id, ProjectTestOutcome.Passed,
+                "Responsable fictif", "Seconde correction non autorisée."),
+                "Duplicate corrections for the same result must fail closed.");
+            await RejectAsync(() => service.RectifyResultAsync(
+                foreign.ProjectDirectory, rectified, passage1.Id,
+                originalResult.Id, ProjectTestOutcome.Passed,
+                "Responsable fictif", "Projet étranger."),
+                "A correction cannot escape its owning project.");
+            final = rectified;
             ProjectTestSourceValidityOverview live =
                 await service.AssessSourceValidityAsync(
                     own.ProjectDirectory, final, updatedIndex);
@@ -327,6 +363,12 @@ internal static class ProjectTestCampaignServiceSmokeTests
                        ProjectTestOutcome.Passed,
                 "Nonblocking closure stores human reservations, not an " +
                 "automatic EXI validation or a rewritten passage.");
+
+            await RejectAsync(() => service.RectifyResultAsync(
+                own.ProjectDirectory, closed, passage1.Id,
+                originalResult.Id, ProjectTestOutcome.Passed,
+                "Responsable fictif", "Rectification après clôture."),
+                "Closed campaigns require explicit human reopening.");
 
             ProjectTestCampaignEntry reopened =
                 await service.RecordDecisionAsync(
