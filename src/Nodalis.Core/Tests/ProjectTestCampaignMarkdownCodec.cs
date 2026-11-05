@@ -158,6 +158,17 @@ public sealed record ProjectTestCampaign
         get;
         init;
     }
+
+    /// <summary>
+    /// Optional append-only associations to existing canonical maintenance
+    /// incidents. Absence preserves old REC Markdown without migration.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ProjectTestIncidentLinkEvent>? IncidentLinks
+    {
+        get;
+        init;
+    }
 }
 
 /// <summary>
@@ -327,6 +338,7 @@ public static class ProjectTestCampaignMarkdownCodec
         ProjectTestCampaignDecisionPolicy.Validate(
             campaign.DecisionHistory, campaign.State, campaign.CreatedUtc);
         ProjectTestResultCorrectionPolicy.Validate(campaign);
+        ProjectTestIncidentLinkPolicy.Validate(campaign);
     }
 
     /// <summary>Serializes canonical readable Markdown with embedded JSON.</summary>
