@@ -45,7 +45,14 @@ public partial class MainWindow
     /// </summary>
     private sealed record PilotageStageMenuContext(
         Guid ProjectId, string ProjectPath,
-        ProjectJourneyPilotageStage Stage, PilotageJourneyMode Mode);
+        ProjectJourneyPilotageStage Stage, PilotageJourneyMode Mode)
+    {
+        /// <summary>
+        /// Operation controls were built for this one opening of the parent
+        /// menu. A fresh project menu creates a new context object.
+        /// </summary>
+        public bool Expanded { get; set; }
+    }
 
     /// <summary>Lists actual project stages when the submenu opens.</summary>
     /// <param name="sender">Journey stages submenu.</param>
@@ -257,7 +264,16 @@ public partial class MainWindow
             return;
         }
 
+        // Avoid rebuilding hundreds of WPF controls each time the pointer
+        // briefly re-enters an already expanded stage submenu. The parent
+        // menu always provides a fresh context on its next opening.
+        if (context.Expanded)
+        {
+            return;
+        }
+
         stage.Items.Clear();
+        context.Expanded = true;
         if (context.Mode == PilotageJourneyMode.Steps)
         {
             stage.Items.Add(PilotageTargetItem(
