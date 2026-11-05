@@ -404,3 +404,23 @@ journal portable, liens GUID, unicité, ordre temporel, acteur/motif,
 révision SHA obsolète, projet étranger, fermeture et résultats passés.
 Restent : commande WPF avec confirmation et visibilité de l'audit,
 CI Windows puis qualification visuelle avant livraison complète.
+
+
+### Interface de rectification REC (05/11/2026)
+
+Le gestionnaire **Campagnes et passages de tests** expose
+**« Rectifier une saisie… »** sur un résultat déjà enregistré dans
+une campagne ouverte ou en qualification. L'action est désactivée
+en lecture seule, sans résultat, sur une campagne fermée/annulée,
+ou après une première rectification. Le formulaire exige un nouveau
+verdict distinct, un auteur et un motif ; une seconde confirmation
+rappelle que ce n'est pas un retest. L'écriture passe hors Dispatcher
+et exige toujours la dernière révision SHA de la fiche.
+
+Dans **Détails et provenance**, le verdict initial reste visible et
+une section **RECTIFICATION ADMINISTRATIVE** présente séparément
+verdict corrigé, auteur, motif et date, sans déduire de conformité
+du test ou des exigences. L'ancien passage n'est jamais réécrit.
+Qualifier visuellement l'affichage sur le passage historique sélectionné,
+l'accès en lecture seule, le thème sombre, les annulations et
+le refus d'une fiche REC modifiée simultanément.

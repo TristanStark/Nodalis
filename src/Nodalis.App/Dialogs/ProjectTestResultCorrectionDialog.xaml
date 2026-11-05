@@ -1,0 +1,54 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectTestResultCorrectionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rectification administrative REC · Nodalis 2.0"
+        Width="630" Height="405" MinWidth="500" MinHeight="385"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Text="Rectifier une erreur de saisie"
+                   FontSize="19" FontWeight="SemiBold"/>
+        <TextBlock x:Name="ContextText" Grid.Row="1"
+                   Margin="0,7,0,12" TextWrapping="Wrap"
+                   Foreground="{StaticResource SecondaryTextBrush}"/>
+        <StackPanel Grid.Row="2" Margin="0,0,0,10">
+            <TextBlock Text="Déclaration rectifiée" Margin="0,0,0,5"/>
+            <ComboBox x:Name="OutcomeCombo" MinHeight="32"
+                      AutomationProperties.Name="Nouvelle déclaration administrative">
+                <ComboBoxItem Content="Conforme (déclaré)"/>
+                <ComboBoxItem Content="Non conforme"/>
+                <ComboBoxItem Content="Bloqué"/>
+                <ComboBoxItem Content="Non applicable"/>
+            </ComboBox>
+        </StackPanel>
+        <StackPanel Grid.Row="3" Margin="0,0,0,10">
+            <TextBlock Text="Auteur de rectification" Margin="0,0,0,5"/>
+            <TextBox x:Name="ActorBox" MinHeight="32"
+                     AutomationProperties.Name="Auteur de rectification"/>
+        </StackPanel>
+        <StackPanel Grid.Row="4" Margin="0,0,0,10">
+            <TextBlock Text="Motif de correction (obligatoire)" Margin="0,0,0,5"/>
+            <TextBox x:Name="ReasonBox" MinHeight="32"
+                     AutomationProperties.Name="Motif de correction du résultat"/>
+        </StackPanel>
+        <TextBlock Grid.Row="5" Margin="0,5,0,0" TextWrapping="Wrap"
+                   Foreground="{StaticResource SecondaryTextBrush}"
+                   Text="Le verdict initial est conservé, accompagné de votre correction. Cette action ne constitue ni une nouvelle exécution ni une validation du test : pour un retest, ouvrez un nouveau passage."/>
+        <DockPanel Grid.Row="6" Margin="0,10,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Annuler" IsCancel="True"
+                        Margin="0,0,8,0" Padding="13,8"/>
+                <Button Content="Relire et confirmer" IsDefault="True"
+                        Padding="13,8" Click="Confirm_Click"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

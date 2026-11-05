@@ -299,6 +299,10 @@ public partial class ProjectTestCampaignsDialog : Window
                 .FirstOrDefault(item => item.TestId == test.Result.TestId);
             ProjectTestResultEvent? outcome = passage.Passage.Results
                 .FirstOrDefault(item => item.TestId == test.Result.TestId);
+            ProjectTestResultCorrectionEvent? correction = outcome is null
+                ? null
+                : campaign.Entry.Campaign.ResultCorrections?.FirstOrDefault(
+                    item => item.ResultId == outcome.Id);
             details.AddRange(
             [
                 "",
@@ -323,6 +327,23 @@ public partial class ProjectTestCampaignsDialog : Window
                     (outcome?.EvidenceNote ?? "aucune / non vérifiée"),
                 "Aucune conformité ni validation métier n'est déduite."
             ]);
+            if (correction is not null)
+            {
+                details.AddRange(
+                [
+                    "",
+                    "RECTIFICATION ADMINISTRATIVE · ne constitue PAS un retest",
+                    "Verdict initial conservé : " +
+                        DescribeOutcome(outcome!.Outcome),
+                    "Déclaration rectifiée : " +
+                        DescribeOutcome(correction.CorrectedOutcome),
+                    "Auteur de rectification : " + correction.Actor,
+                    "Motif : " + correction.Reason,
+                    "Rectifié le : " + correction.RecordedUtc.ToLocalTime()
+                        .ToString("dd/MM/yyyy HH:mm"),
+                    "Pour une réexécution réelle, créer un nouveau passage."
+                ]);
+            }
         }
 
         DetailsBox.Text = string.Join(Environment.NewLine, details);
@@ -394,6 +415,16 @@ public partial class ProjectTestCampaignsDialog : Window
             result.Result.Outcome is null &&
             campaign.Entry.Campaign.Passages.LastOrDefault()?.Id ==
                 passage.Passage.Id;
+        CorrectionButton.IsEnabled = writable && campaign is not null &&
+            campaign.Entry.Campaign.State is
+                (ProjectTestCampaignState.InProgress or
+                 ProjectTestCampaignState.InQualification) &&
+            passage is not null && result is not null &&
+            result.Result.Outcome is not null &&
+            passage.Passage.Results.Any(item =>
+                item.TestId == result.Result.TestId &&
+                campaign.Entry.Campaign.ResultCorrections?.Any(correction =>
+                    correction.ResultId == item.Id) != true);
         OpenButton.IsEnabled = campaign is not null;
         RefreshButton.IsEnabled = !_busy;
         ProjectTestCampaignState? state = campaign?.Entry.Campaign.State;
@@ -1057,6 +1088,82 @@ public partial class ProjectTestCampaignsDialog : Window
         WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
         await ReloadAsync(saved.Campaign.Id);
         StatusText.Text = "Résultat enregistré, historique du passage préservé.";
+    }
+
+    /// <summary>Asks for an explicitly authorized correction with audit trail.</summary>
+    /// <param name="sender">Administrative correction button.</param>
+    /// <param name="e">Click.</param>
+    private async void Rectify_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync("Rectifier un résultat REC", RectifyRecordedResultAsync);
+
+    /// <summary>
+    /// Corrects a human input mistake, not a failed test by retesting it.
+    /// History and frozen original outcomes remain fully intact.
+    /// </summary>
+    /// <returns>Written append or unchanged REC on cancellation.</returns>
+    private async Task RectifyRecordedResultAsync()
+    {
+        CampaignRow? campaign = SelectedCampaign();
+        PassageRow? passage = SelectedPassage();
+        ResultRow? selected = SelectedTest();
+        if (_readOnly || campaign is null || passage is null ||
+            selected is null ||
+            campaign.Entry.Campaign.State is not
+                (ProjectTestCampaignState.InProgress or
+                 ProjectTestCampaignState.InQualification))
+        {
+            return;
+        }
+
+        ProjectTestResultEvent? original = passage.Passage.Results
+            .SingleOrDefault(item => item.TestId == selected.Result.TestId);
+        if (original is null ||
+            campaign.Entry.Campaign.ResultCorrections?.Any(item =>
+                item.ResultId == original.Id) == true)
+        {
+            return;
+        }
+
+        ProjectTestResultCorrectionDialog dialog = new(
+            selected.Result.Reference, passage.Passage.Number,
+            original.Outcome)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (MessageBox.Show(this,
+            "Confirmer la rectification ADMINISTRATIVE ?\n\n" +
+            "Test : " + selected.Result.Reference +
+                " · passage " + passage.Passage.Number + "\n" +
+            "Verdict initial, conservé : " +
+                DescribeOutcome(original.Outcome) + "\n" +
+            "Nouvelle déclaration : " +
+                DescribeOutcome(dialog.SelectedOutcome) + "\n" +
+            "Auteur : " + dialog.SelectedActor + "\n" +
+            "Motif : " + dialog.SelectedReason + "\n\n" +
+            "Ceci NE réexécute PAS le test et ne vérifie aucune preuve. " +
+            "Le journal sera ajouté sans modifier l'ancien verdict.",
+            "REC · confirmation de rectification",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectTestCampaignEntry saved = await Task.Run(() =>
+            _service.RectifyResultAsync(
+                _projectDirectory, campaign.Entry, passage.Passage.Id,
+                original.Id, dialog.SelectedOutcome,
+                dialog.SelectedActor, dialog.SelectedReason));
+        Changed = true;
+        WorkspaceLinkIndexService.NotifyWorkspaceChanged(_workspaceRoot);
+        await ReloadAsync(saved.Campaign.Id);
+        StatusText.Text = "Rectification historisée, verdict initial et " +
+            "définitions TEST inchangés. Aucune revalidation automatique.";
     }
 
     /// <summary>Initiates a human-approved qualification review.</summary>
