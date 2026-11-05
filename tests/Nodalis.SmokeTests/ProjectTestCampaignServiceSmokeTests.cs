@@ -365,6 +365,58 @@ internal static class ProjectTestCampaignServiceSmokeTests
                     [twoLinks.Campaign], new HashSet<Guid> { firstId })),
                 "Incident retest suggestion requires canonical stable INC IDs.");
 
+            DateTimeOffset repeatedStart = DateTimeOffset.UtcNow.AddHours(1);
+            ProjectTestResultEvent laterFailure = new()
+            {
+                Id = Guid.NewGuid(),
+                TestId = firstId,
+                Outcome = ProjectTestOutcome.Blocked,
+                Actor = "Testeur fictif",
+                Rationale = "Défaut non confirmé comme corrigé.",
+                RecordedUtc = repeatedStart.AddMinutes(1)
+            };
+            ProjectTestPassage repeated = passage2 with
+            {
+                Id = Guid.NewGuid(),
+                Number = 3,
+                StartedUtc = repeatedStart,
+                Results = [laterFailure]
+            };
+            ProjectTestIncidentLinkEvent secondFailureLink = new()
+            {
+                Id = Guid.NewGuid(),
+                PassageId = repeated.Id,
+                ResultId = laterFailure.Id,
+                TestId = firstId,
+                IncidentId = secondIncidentId,
+                Kind = ProjectTestIncidentLinkKind.Linked,
+                Actor = "Testeur fictif",
+                Rationale = "Anomalie réapparue dans un nouveau passage.",
+                RecordedUtc = laterFailure.RecordedUtc.AddMinutes(1)
+            };
+            ProjectTestCampaign twoFailures = twoLinks.Campaign with
+            {
+                Passages = [.. twoLinks.Campaign.Passages, repeated],
+                IncidentLinks =
+                    [.. twoLinks.Campaign.IncidentLinks!, secondFailureLink]
+            };
+            ProjectIncidentRetestProposal deduplicated =
+                ProjectIncidentRetestPlanner.Propose(
+                    own.Project.Id, secondIncidentId, [twoFailures],
+                    new HashSet<Guid> { firstId, secondId });
+            Assert(deduplicated.Candidates.Count == 1 &&
+                   deduplicated.Candidates[0].TestId == firstId &&
+                   deduplicated.Candidates[0].Reasons.Count == 2 &&
+                   !deduplicated.Candidates[0].HasLaterPassed &&
+                   deduplicated.Candidates[0]
+                       .HasAdministrativeCorrection &&
+                   twoFailures.Passages[0].Results[0].Outcome ==
+                       ProjectTestOutcome.Failed &&
+                   twoFailures.Passages[1].Results[0].Outcome ==
+                       ProjectTestOutcome.Passed,
+                "Two human incident-linked failures suggest only one GUID; " +
+                "an older Passed does not close a later blocked failure.");
+
             ProjectRecAnomalyService anomalyService = new(workspace);
             ProjectRecAnomalyOverview firstOverview =
                 await anomalyService.ReadAsync(own.ProjectDirectory);
