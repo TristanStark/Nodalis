@@ -44,7 +44,8 @@ public partial class MainWindow
     private async void PilotageJourneySteps_SubmenuOpened(
         object sender, RoutedEventArgs e)
     {
-        if (ReferenceEquals(sender, PilotageJourneyStepsMenu))
+        if (ReferenceEquals(sender, PilotageJourneyStepsMenu) &&
+            ReferenceEquals(e.OriginalSource, PilotageJourneyStepsMenu))
         {
             await PopulatePilotageJourneyAsync(PilotageJourneyStepsMenu,
                 PilotageJourneyMode.Steps);
@@ -57,7 +58,8 @@ public partial class MainWindow
     private async void PilotagePrompts_SubmenuOpened(
         object sender, RoutedEventArgs e)
     {
-        if (ReferenceEquals(sender, PilotagePromptsMenu))
+        if (ReferenceEquals(sender, PilotagePromptsMenu) &&
+            ReferenceEquals(e.OriginalSource, PilotagePromptsMenu))
         {
             await PopulatePilotageJourneyAsync(PilotagePromptsMenu,
                 PilotageJourneyMode.Prepare);
@@ -70,7 +72,8 @@ public partial class MainWindow
     private async void PilotagePromptAssignments_SubmenuOpened(
         object sender, RoutedEventArgs e)
     {
-        if (ReferenceEquals(sender, PilotagePromptAssignmentsMenu))
+        if (ReferenceEquals(sender, PilotagePromptAssignmentsMenu) &&
+            ReferenceEquals(e.OriginalSource, PilotagePromptAssignmentsMenu))
         {
             await PopulatePilotageJourneyAsync(
                 PilotagePromptAssignmentsMenu, PilotageJourneyMode.Assign);
