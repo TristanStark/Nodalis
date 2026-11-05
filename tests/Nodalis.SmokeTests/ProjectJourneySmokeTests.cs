@@ -107,6 +107,23 @@ internal static class ProjectJourneySmokeTests
                     step.Status == ProjectJourneyStepStatus.Todo),
                 "Explicit Complex initialization must create the nine prescribed steps.");
 
+            IReadOnlyList<ProjectJourneyPilotageStage> initialMenu =
+                ProjectJourneyPilotageProjection.Build(initialized.Document);
+            Assert(initialMenu.Count == 9 &&
+                initialMenu.Select(item => item.Name).SequenceEqual(
+                [
+                    "Cadrage", "Exigences", "Risques", "Conception",
+                    "Préparation développement", "Réalisation et changements",
+                    "Tests", "Mise en production", "Clôture"
+                ]) &&
+                initialMenu.SelectMany(stage => stage.Operations).Count() ==
+                    initialized.Document.Steps.Sum(
+                        stage => stage.Operations.Count) &&
+                initialMenu.Select(item => item.Id).SequenceEqual(
+                    initialized.Document.Steps.Select(item => item.Id)),
+                "Pilotage must display ALL nine 2.0 stages and every " +
+                "real operation using stable IDs, without hidden shortcuts.");
+
             Guid[] identities = initialized.Document.Steps.Select(item => item.Id)
                 .Concat(initialized.Document.Steps.SelectMany(
                     item => item.Operations.Select(operation => operation.Id))).ToArray();
@@ -150,6 +167,46 @@ internal static class ProjectJourneySmokeTests
                 saved.Document.Steps.Select(item => item.Id).SequenceEqual(
                     reloaded.Document.Steps.Select(item => item.Id)),
                 "Status and order may change without reallocating any GUID.");
+
+            IReadOnlyList<ProjectJourneyPilotageStage> updatedMenu =
+                ProjectJourneyPilotageProjection.Build(saved.Document);
+            Assert(updatedMenu.Select(item => item.Order)
+                       .SequenceEqual(updatedMenu.Select(item => item.Order)
+                           .OrderBy(order => order)) &&
+                   updatedMenu.Single(item => item.Name == "Risques")
+                       .Status == ProjectJourneyStepStatus.Completed &&
+                   updatedMenu.Select(item => item.Id).SequenceEqual(
+                       saved.Document.Steps.OrderBy(step => step.Order)
+                           .Select(step => step.Id)),
+                "Pilotage must reflect customized ordering and statuses, " +
+                "not original hard-coded template positions.");
+
+            ProjectJourneyDocument customizedMenu =
+                ProjectJourneyEditor.AddStep(
+                    saved.Document, "Préparation complémentaire");
+            ProjectJourneyStep custom = customizedMenu.Steps.Single(item =>
+                item.Name == "Préparation complémentaire");
+            customizedMenu = ProjectJourneyEditor.AddOperation(
+                customizedMenu, custom.Id, "Copier le prompt métier");
+            IReadOnlyList<ProjectJourneyPilotageStage> customMenu =
+                ProjectJourneyPilotageProjection.Build(customizedMenu);
+            Assert(customMenu.Count == saved.Document.Steps.Count + 1 &&
+                   customMenu.Single(item => item.Id == custom.Id)
+                       .Operations.Single().Name == "Copier le prompt métier" &&
+                   customMenu.SelectMany(item => item.Operations).Count() ==
+                       customizedMenu.Steps.Sum(item => item.Operations.Count) &&
+                   saved.Document.Steps.All(item => item.Id != custom.Id),
+                "Pilotage lists newly customized stages and prompt " +
+                "operations without mutating the persisted original.");
+
+            ProjectJourneyDocument ambiguousMenu = saved.Document with
+            {
+                Steps = [.. saved.Document.Steps, saved.Document.Steps[0]]
+            };
+            await RejectAsync(() => Task.FromResult(
+                ProjectJourneyPilotageProjection.Build(ambiguousMenu)),
+                "Pilotage must refuse duplicate step IDs instead of " +
+                "displaying shortcuts to an ambiguous project object.");
 
             await RejectAsync(() => service.SaveAsync(
                     complex.ProjectDirectory, reloaded.Document, reloaded.Sha256),
