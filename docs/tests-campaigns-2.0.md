@@ -316,3 +316,60 @@ La liste est affichée **avant** l'ouverture du sélecteur, avec référence de 
 Smoke tests synthétiques : deux CA modifiés liés à un même test, dédoublonnage, lien et test déplacés, source périmée, doublon de GUID test, référence absente, CA disparu/illisible, projet et EXI étrangers, aucune modification réelle de données et erreurs partielles conservées comme avertissements.
 
 Qualification visuelle à réaliser : scénario sans baseline, campagne brouillon/en cours, CA modifiés via éditeur Markdown, projet contenant plusieurs CA liés au même TEST, présélection modifiable, annulation avant et après le sélecteur, source déplacée, campagne clôturée, lecture seule et thème sombre.
+
+
+## Suivi consultatif après préparation d'une reprise CA — 05/11/2026
+
+Dans **Campagnes et passages de recette**, l'action
+**« Suivi des reprises CA… »** est disponible en lecture seule sur
+la campagne sélectionnée, y compris en consultation. Elle effectue
+une nouvelle lecture de la référence CA persistée, du registre EXI,
+des relations EXI→CA→TEST, des définitions TEST actuelles et de la
+fiche REC actuellement enregistrée.
+
+La projection pure `ProjectCriterionRetestProgress` compare uniquement
+les **tests actuellement proposés depuis les CA modifiés** au
+**dernier passage** de la campagne choisie. Chaque test est classé
+sans réécriture : aucun passage, passage antérieur à la référence
+CA, absent du dernier passage, figé sans résultat humain, résultat
+humain déclaré ou source de définition à revoir (déplacée,
+modifiée, absente ou ambiguë). Les GUID de tests sont uniques ;
+le même test concerné par plusieurs CA n'est compté qu'une fois.
+
+Le contrôle réutilise
+`ProjectTestCampaignService.AssessSourceValidityAsync` : les SHA
+des sections TEST figées sont comparés aux sources actuelles,
+indépendamment des résultats REC. Une source dont le contrôle
+est impossible reste **incertaine**, jamais automatiquement
+« inchangée ». Le traitement se fait hors thread WPF et vérifie
+que l'utilisateur n'a pas changé de campagne pendant l'analyse.
+
+**Sémantique impérative :** « résultat humain déclaré » signifie
+seulement qu'un résultat existe dans ce passage, et **pas**
+qu'une modification CA a été requalifiée. Les instantanés CA
+n'enregistrent pas l'heure exacte de chaque édition Markdown ;
+un passage antérieur ou même postérieur à la référence ne suffit
+donc pas à établir l'ordre entre changement et requalification.
+Un ancien `Passed` ne remplit jamais un passage ultérieur non
+exécuté ; aucune conformité n'est inférée.
+
+L'action affiche les tests restants dans le panneau détaillé,
+avec les comptages d'absents/non comparables, non exécutés,
+résultats humains présents et sources à revoir. Une baseline
+inexistante renvoie à l'action **« Activer suivi CA… »** de la
+matrice, sans inventer d'état antérieur. Aucune donnée EXI, TEST
+ou REC n'est créée, approuvée, corrigée ou clôturée par ce suivi.
+
+Scénarios Windows synthétiques : aucun passage ; CA avec test
+non sélectionné ; passage figé sans résultat ; résultat historique
+`Passed`, `Failed` ou `Blocked` ; passage récent non exécuté
+après ancien `Passed` ; version ou environnement différent ;
+source TEST déplacée ou SHA modifié ; campagne étrangère ; référence
+CA périmée ; index source indisponible ; doublons. Vérifier aussi
+les détails et les commandes en mode sombre.
+
+**Limite** : il s'agit d'une **vue d'observation à la demande**,
+pas encore d'une décision formelle de clôture d'une obligation
+de requalification. Un changement ultérieur de référence CA
+modifie la comparaison. La preuve de requalification reste
+strictement humaine, dans le workflow REC.
