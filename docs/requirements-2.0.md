@@ -281,3 +281,14 @@ l'ancien instantané reste lisible ; essayer depuis un
 projet archivé/lecture seule ; vérifier recherche/filtres
 et affichage en thème sombre. En absence de référence
 initiale, Nodalis doit afficher « non suivi », jamais « stable ».
+
+
+## Sélection ciblée des tests concernés par le suivi CA — 05/11/2026
+
+La matrice de traçabilité conserve les références CA humaines append-only. Le gestionnaire REC peut maintenant exploiter leur différence avec le Markdown actuel pour **proposer** les tests à reprendre. Les changements de titre ou corps CA sont identifiés par GUID et SHA, puis reliés aux TEST-/TST- disponibles via l'index de liens existant, sans nouveau registre de correspondances.
+
+Deux CA peuvent déclencher **le même test** : une seule proposition apparaît, mais tous les CA déclencheurs restent visibles dans ses motifs. Les CA disparus ou illisibles ne peuvent pas être rattachés avec certitude à leurs anciens tests à partir des seuls liens actuels ; Nodalis les signale pour examen manuel et ne présume pas d'un test à rejouer.
+
+Le bouton **« Proposer tests des CA modifiés… »** dans les campagnes REC présente cette sélection, puis ouvre le sélecteur de passage existant après accord explicite. La sélection reste éditable. Aucun résultat historique n'est modifié ; seules une sélection et un éventuel nouveau passage sont enregistrés après confirmation humaine et vérification des sources.
+
+Une première **« Activer suivi CA… »** dans la matrice demeure nécessaire. Les modifications antérieures à ce premier instantané ne peuvent pas être reconstituées automatiquement. Les résultats d'une campagne REC et le statut de vérification EXI restent totalement indépendants de cette suggestion.

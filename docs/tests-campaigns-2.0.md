@@ -301,3 +301,18 @@ Les prochaines tranches pourront exploiter les CA marqués
 reprise REC**. La réexécution, l'attribution d'un verdict,
 la vérification de preuves et toute décision de campagne
 restent explicitement humaines.
+
+
+## Reprise REC ciblée depuis les CA modifiés — 05/11/2026
+
+Le gestionnaire des campagnes propose désormais **« Proposer tests des CA modifiés… »** sur une campagne REC en brouillon ou en cours. Il ne dépend pas de l'existence d'un passage précédent. Cette commande relit une fois les exigences EXI du projet, le dernier instantané humain CA enregistré et l'index partagé de liens EXI→CA→TEST. Le calcul s'effectue hors du Dispatcher WPF.
+
+**ProjectCriterionRetestPlanner** produit une proposition pure et non autorisante depuis les CA identifiés **Changed** ou **Added**. Chaque test candidat doit avoir un GUID de bloc unique, une source actuelle et un lien de CA appartenant au même projet, avec la même identité EXI parente. Les mêmes tests liés à plusieurs CA sont **dédoublonnés par GUID** ; leurs différents motifs sont conservés. Une source de test déplacée, une identité en collision, une couverture périmée ou un lien de projet étranger n'est jamais présélectionné automatiquement.
+
+Les CA **Missing / Unresolved**, les références absentes et les index ou catalogues partiellement illisibles produisent des **avertissements visibles**. Le moteur ne reconstruit pas arbitrairement les anciens liens des CA disparus. Sans instantané humain préalable, aucune évolution historique n'est inférée. Une proposition vide n'écrit rien et oriente vers la sélection de passage manuelle.
+
+La liste est affichée **avant** l'ouverture du sélecteur, avec référence de baseline, nombre de CA en écart et motifs par test. L'utilisateur peut **ajouter ou retirer n'importe quel test** dans le sélecteur REC existant, saisir environnement, version et responsable, puis confirmer séparément le nouveau passage. Le service REC contrôle une dernière fois le projet, les identités de blocs et les sources avant de figer les définitions. **Aucun verdict, preuve, conformité ou décision de campagne n'est recopié depuis un passage précédent.**
+
+Smoke tests synthétiques : deux CA modifiés liés à un même test, dédoublonnage, lien et test déplacés, source périmée, doublon de GUID test, référence absente, CA disparu/illisible, projet et EXI étrangers, aucune modification réelle de données et erreurs partielles conservées comme avertissements.
+
+Qualification visuelle à réaliser : scénario sans baseline, campagne brouillon/en cours, CA modifiés via éditeur Markdown, projet contenant plusieurs CA liés au même TEST, présélection modifiable, annulation avant et après le sélecteur, source déplacée, campagne clôturée, lecture seule et thème sombre.
