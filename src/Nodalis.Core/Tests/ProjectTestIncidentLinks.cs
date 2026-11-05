@@ -157,7 +157,10 @@ public static class ProjectTestIncidentLinkPolicy
     public static IReadOnlyList<ProjectTestLinkedIncident> Active(
         ProjectTestCampaign campaign, Guid resultId)
     {
-        ProjectTestCampaignMarkdownCodec.Validate(campaign);
+        // REC snapshots are fully validated at Parse/OpenVerified. Replaying
+        // associations must not rehash and reparse 150+ frozen TEST sections
+        // on every WPF selection change; validate the small audit graph only.
+        Validate(campaign);
         Dictionary<string, ProjectTestLinkedIncident> active = new(
             StringComparer.OrdinalIgnoreCase);
         foreach (ProjectTestIncidentLinkEvent entry
