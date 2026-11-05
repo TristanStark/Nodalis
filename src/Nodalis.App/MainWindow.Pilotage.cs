@@ -39,6 +39,14 @@ public partial class MainWindow
         Guid ProjectId, string ProjectPath, Guid StepId,
         Guid? OperationId, PilotageTargetMode Mode);
 
+    /// <summary>
+    /// An immutable snapshot of one stage for deferred WPF menu materialization.
+    /// Stable IDs are rechecked against the project before any action runs.
+    /// </summary>
+    private sealed record PilotageStageMenuContext(
+        Guid ProjectId, string ProjectPath,
+        ProjectJourneyPilotageStage Stage, PilotageJourneyMode Mode);
+
     /// <summary>Lists actual project stages when the submenu opens.</summary>
     /// <param name="sender">Journey stages submenu.</param>
     /// <param name="e">WPF submenu open event.</param>
@@ -196,71 +204,16 @@ public partial class MainWindow
 
                 MenuItem stage = new()
                 {
-                    Header = PilotageMenuHeader(stepLabel)
+                    Header = PilotageMenuHeader(stepLabel),
+                    Tag = new PilotageStageMenuContext(
+                        projectId, directory, step, mode)
                 };
-                if (mode == PilotageJourneyMode.Steps)
-                {
-                    stage.Items.Add(PilotageTargetItem(
-                        "Ouvrir cette étape", projectId, directory,
-                        step.Id, null, PilotageTargetMode.Focus));
-                    if (step.Operations.Count > 0)
-                    {
-                        stage.Items.Add(new Separator());
-                    }
-
-                    foreach (ProjectJourneyPilotageOperation operation in
-                        step.Operations)
-                    {
-                        MenuItem nested = new()
-                        {
-                            Header = PilotageMenuHeader(operation.Name),
-                            ToolTip = operation.PromptKey is null
-                                ? "Aucun prompt associé : brouillon générique disponible."
-                                : "Prompt associé : " + operation.PromptKey
-                        };
-                        nested.Items.Add(PilotageTargetItem(
-                            "Afficher l'opération", projectId, directory,
-                            step.Id, operation.Id, PilotageTargetMode.Focus));
-                        nested.Items.Add(PilotageTargetItem(
-                            "Préparer / relire / copier le prompt…", projectId,
-                            directory, step.Id, operation.Id,
-                            PilotageTargetMode.Prepare));
-                        MenuItem assign = PilotageTargetItem(
-                            "Associer / changer le prompt dans le Parcours…",
-                            projectId, directory, step.Id, operation.Id,
-                            PilotageTargetMode.Assign);
-                        assign.IsEnabled = !PilotageReadOnly(project);
-                        nested.Items.Add(assign);
-                        stage.Items.Add(nested);
-                    }
-                }
-                else if (step.Operations.Count == 0)
-                {
-                    stage.Items.Add(PilotageNotice(
-                        "Aucune opération dans cette étape."));
-                }
-                else
-                {
-                    foreach (ProjectJourneyPilotageOperation operation in
-                        step.Operations)
-                    {
-                        string operationLabel = operation.Name +
-                            (operation.PromptKey is null
-                                ? " · prompt non associé" : "");
-                        MenuItem item = PilotageTargetItem(operationLabel,
-                            projectId, directory, step.Id, operation.Id,
-                            mode == PilotageJourneyMode.Prepare
-                                ? PilotageTargetMode.Prepare
-                                : PilotageTargetMode.Assign);
-                        if (mode == PilotageJourneyMode.Assign)
-                        {
-                            item.IsEnabled = !PilotageReadOnly(project);
-                        }
-
-                        stage.Items.Add(item);
-                    }
-                }
-
+                // Do not eagerly construct every operation MenuItem while
+                // hovering over Pilotage: large projects used to allocate
+                // thousands of WPF controls and could freeze the dispatcher.
+                stage.Items.Add(PilotageNotice(
+                    "Développer pour afficher les opérations…"));
+                stage.SubmenuOpened += PilotageStage_SubmenuOpened;
                 menu.Items.Add(stage);
             }
         }
@@ -274,6 +227,102 @@ public partial class MainWindow
                 menu.Items.Add(PilotageNotice(
                     "Parcours inaccessible : " + exception.GetType().Name));
             }
+        }
+    }
+
+    /// <summary>
+    /// Materializes only the chosen stage's operations when that stage is
+    /// expanded. No disk read or automatic change occurs on hover.
+    /// </summary>
+    /// <param name="sender">Current stage menu.</param>
+    /// <param name="e">Routed submenu event.</param>
+    private void PilotageStage_SubmenuOpened(
+        object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem stage ||
+            !ReferenceEquals(e.OriginalSource, stage) ||
+            stage.Tag is not PilotageStageMenuContext context)
+        {
+            return;
+        }
+
+        NavigationNodeViewModel? project = PilotageProject();
+        if (project is null || project.Id != context.ProjectId ||
+            !string.Equals(project.FullPath, context.ProjectPath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            stage.Items.Clear();
+            stage.Items.Add(PilotageNotice(
+                "Projet modifié : rouvrez Pilotage."));
+            return;
+        }
+
+        stage.Items.Clear();
+        if (context.Mode == PilotageJourneyMode.Steps)
+        {
+            stage.Items.Add(PilotageTargetItem(
+                "Ouvrir cette étape", context.ProjectId,
+                context.ProjectPath, context.Stage.Id, null,
+                PilotageTargetMode.Focus));
+            if (context.Stage.Operations.Count > 0)
+            {
+                stage.Items.Add(new Separator());
+            }
+        }
+
+        if (context.Stage.Operations.Count == 0 &&
+            context.Mode != PilotageJourneyMode.Steps)
+        {
+            stage.Items.Add(PilotageNotice(
+                "Aucune opération dans cette étape."));
+        }
+
+        foreach (ProjectJourneyPilotageOperation operation in
+            context.Stage.Operations)
+        {
+            if (context.Mode == PilotageJourneyMode.Steps)
+            {
+                MenuItem nested = new()
+                {
+                    Header = PilotageMenuHeader(operation.Name),
+                    ToolTip = operation.PromptKey is null
+                        ? "Aucun prompt associé : brouillon générique disponible."
+                        : "Prompt associé : " + operation.PromptKey
+                };
+                nested.Items.Add(PilotageTargetItem(
+                    "Afficher l'opération", context.ProjectId,
+                    context.ProjectPath, context.Stage.Id,
+                    operation.Id, PilotageTargetMode.Focus));
+                nested.Items.Add(PilotageTargetItem(
+                    "Préparer / relire / copier le prompt…",
+                    context.ProjectId, context.ProjectPath,
+                    context.Stage.Id, operation.Id,
+                    PilotageTargetMode.Prepare));
+                MenuItem assign = PilotageTargetItem(
+                    "Associer / changer le prompt…", context.ProjectId,
+                    context.ProjectPath, context.Stage.Id,
+                    operation.Id, PilotageTargetMode.Assign);
+                assign.IsEnabled = !PilotageReadOnly(project);
+                nested.Items.Add(assign);
+                stage.Items.Add(nested);
+                continue;
+            }
+
+            string operationLabel = operation.Name +
+                (operation.PromptKey is null
+                    ? " · prompt non associé" : "");
+            MenuItem item = PilotageTargetItem(
+                operationLabel, context.ProjectId, context.ProjectPath,
+                context.Stage.Id, operation.Id,
+                context.Mode == PilotageJourneyMode.Prepare
+                    ? PilotageTargetMode.Prepare
+                    : PilotageTargetMode.Assign);
+            if (context.Mode == PilotageJourneyMode.Assign)
+            {
+                item.IsEnabled = !PilotageReadOnly(project);
+            }
+
+            stage.Items.Add(item);
         }
     }
 
