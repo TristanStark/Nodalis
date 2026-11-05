@@ -115,7 +115,8 @@ public partial class MainWindow
         }
 
         ProjectJourneyQuickAccessDialog dialog = new(
-            index, PilotageReadOnly(project)) { Owner = this };
+            index, PilotageReadOnly(project))
+        { Owner = this };
         if (dialog.ShowDialog() != true ||
             dialog.Selection is not ProjectJourneyQuickSelection choice)
         {
