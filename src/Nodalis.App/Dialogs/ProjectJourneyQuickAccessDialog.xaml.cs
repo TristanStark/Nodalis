@@ -90,8 +90,18 @@ public partial class ProjectJourneyQuickAccessDialog : Window
     /// <param name="sender">Selected result list.</param>
     /// <param name="e">WPF selection event.</param>
     private void Results_SelectionChanged(
-        object sender, SelectionChangedEventArgs e)
+        object sender, SelectionChangedEventArgs e) =>
+        UpdateActions();
+
+    /// <summary>Controls use the same selected row after search or clicking.</summary>
+    private void UpdateActions()
     {
+        if (ResultsList is null || OpenButton is null ||
+            PrepareButton is null || AssignButton is null)
+        {
+            return;
+        }
+
         QuickRow? row = ResultsList.SelectedItem as QuickRow;
         OpenButton.IsEnabled = row is not null;
         PrepareButton.IsEnabled = row?.OperationId is not null;
@@ -175,10 +185,7 @@ public partial class ProjectJourneyQuickAccessDialog : Window
             " · " + _rows.Count + " éléments indexés.";
         ResultsList.SelectedIndex =
             ResultsList.Items.Count > 0 ? 0 : -1;
-        Results_SelectionChanged(ResultsList,
-            new SelectionChangedEventArgs(
-                Selector.SelectionChangedEvent,
-                [], []));
+        UpdateActions();
     }
 
     /// <summary>Readable stage lifecycle without status mutation.</summary>
