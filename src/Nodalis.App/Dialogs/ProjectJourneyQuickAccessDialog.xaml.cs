@@ -38,6 +38,7 @@ public partial class ProjectJourneyQuickAccessDialog : Window
         Interval = TimeSpan.FromMilliseconds(160)
     };
     private int _searchRevision;
+    private bool _searchPending;
 
     private readonly IReadOnlyList<ProjectJourneyPilotageSearchRow> _rows;
     private readonly bool _readOnly;
@@ -74,8 +75,15 @@ public partial class ProjectJourneyQuickAccessDialog : Window
         // One new revision per keystroke. Discard old background results and
         // avoid saturating WPF while searching a very large journey.
         _searchRevision++;
+        _searchPending = true;
         _filterTimer.Stop();
         _filterTimer.Start();
+        if (CountText is not null)
+        {
+            CountText.Text = "Recherche en cours…";
+        }
+
+        UpdateActions();
     }
 
     /// <summary>
@@ -123,9 +131,10 @@ public partial class ProjectJourneyQuickAccessDialog : Window
 
         ProjectJourneyPilotageSearchRow? row =
             ResultsList.SelectedItem as ProjectJourneyPilotageSearchRow;
-        OpenButton.IsEnabled = row is not null;
-        PrepareButton.IsEnabled = row?.OperationId is not null;
-        AssignButton.IsEnabled = !_readOnly &&
+        OpenButton.IsEnabled = !_searchPending && row is not null;
+        PrepareButton.IsEnabled = !_searchPending &&
+            row?.OperationId is not null;
+        AssignButton.IsEnabled = !_searchPending && !_readOnly &&
             row?.OperationId is not null;
     }
 
@@ -164,7 +173,8 @@ public partial class ProjectJourneyQuickAccessDialog : Window
     /// <param name="action">Chosen human interaction.</param>
     private void Finish(ProjectJourneyQuickAction action)
     {
-        if (ResultsList.SelectedItem is not ProjectJourneyPilotageSearchRow row ||
+        if (_searchPending ||
+            ResultsList.SelectedItem is not ProjectJourneyPilotageSearchRow row ||
             action != ProjectJourneyQuickAction.Open &&
                 row.OperationId is null ||
             action == ProjectJourneyQuickAction.Assign && _readOnly)
@@ -200,6 +210,7 @@ public partial class ProjectJourneyQuickAccessDialog : Window
     /// <param name="result">Pure immutable search response.</param>
     private void ShowResults(ProjectJourneyPilotageSearchResult result)
     {
+        _searchPending = false;
         ResultsList.ItemsSource = result.Rows;
         CountText.Text = result.Rows.Count +
             " résultat(s) affiché(s)" +
