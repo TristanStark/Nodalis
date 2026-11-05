@@ -1,0 +1,79 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectGateReuseReviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Réexaminer un GO historique · lecture seule"
+        Width="790" Height="665" MinWidth="570" MinHeight="455"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Requalification d'une décision passée"
+                       FontSize="20" FontWeight="SemiBold" />
+            <TextBlock TextWrapping="Wrap" Margin="0,5,0,0"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Comparaison consultative, sans écriture. Même sans écart, la réutilisation du GO nécessite une approbation humaine explicite et le contrôle séparé des procédures, du rollback, des incidents et des risques." />
+        </StackPanel>
+        <Border Grid.Row="1" Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="5" Padding="11"
+                Margin="0,0,0,12">
+            <TextBlock x:Name="HistoricalText" TextWrapping="Wrap" />
+        </Border>
+        <Grid Grid.Row="2" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Version cible" Margin="0,0,0,5" />
+                <TextBox x:Name="VersionBox" Padding="8,6"
+                         ToolTip="Version exacte, sans correspondance approximative" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Environnement cible" Margin="0,0,0,5" />
+                <TextBox x:Name="EnvironmentBox" Padding="8,6" />
+            </StackPanel>
+            <StackPanel Grid.Column="4">
+                <TextBlock Text="Périmètre cible" Margin="0,0,0,5" />
+                <TextBox x:Name="ScopeBox" Padding="8,6" />
+            </StackPanel>
+        </Grid>
+        <Grid Grid.Row="3">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBlock Text="DIAGNOSTIC · aucun GO automatique"
+                       FontSize="11" FontWeight="SemiBold"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Margin="0,0,0,7" />
+            <TextBox x:Name="ReportBox" Grid.Row="1" IsReadOnly="True"
+                     TextWrapping="Wrap" AcceptsReturn="True"
+                     FontFamily="Consolas" FontSize="12"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Disabled"
+                     Padding="10"
+                     Text="Aucun contrôle effectué. Cliquez sur « Comparer les sources » pour vérifier le registre et les empreintes actuelles." />
+        </Grid>
+        <DockPanel Grid.Row="4" Margin="0,12,0,0">
+            <TextBlock x:Name="StatusText" DockPanel.Dock="Left"
+                       VerticalAlignment="Center" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Sources vérifiées uniquement sur demande." />
+            <Button DockPanel.Dock="Right" Content="Fermer" Padding="12,7"
+                    Margin="8,0,0,0" IsCancel="True" Click="Close_Click" />
+            <Button x:Name="CompareButton" DockPanel.Dock="Right"
+                    Content="Comparer les sources" Padding="12,7"
+                    Click="Compare_Click" />
+        </DockPanel>
+    </Grid>
+</Window>

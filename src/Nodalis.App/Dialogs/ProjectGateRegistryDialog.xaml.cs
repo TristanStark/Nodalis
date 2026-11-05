@@ -343,6 +343,8 @@ public partial class ProjectGateRegistryDialog : Window
         RefreshMilestonesButton.IsEnabled = selected;
         AddProofButton.IsEnabled = canEdit && selected;
         RecordDecisionButton.IsEnabled = canEdit && selected;
+        RequalifyDecisionButton.IsEnabled = !_busy && _snapshot is not null &&
+            HistoryList.SelectedItem is HistoryRow;
         ChooseGateButton.IsEnabled = selected && _allowSelection && !_readOnly;
         LiftReservationButton.IsEnabled = canEdit &&
             ReservationsList.SelectedItem is ReservationRow open && open.IsOpen;
@@ -697,6 +699,28 @@ public partial class ProjectGateRegistryDialog : Window
                 "\n\nLa décision passée ne sera jamais réécrite.",
                 gate.Id);
         }, "Consigner une décision humaine");
+
+    /// <summary>
+    /// Opens a read-only comparison of the selected historical decision.
+    /// The new dialog rechecks the registry SHA and captures current proofs.
+    /// </summary>
+    /// <param name="sender">Requalification button.</param>
+    /// <param name="e">WPF routed click.</param>
+    private void RequalifyDecision_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _snapshot is null ||
+            HistoryList.SelectedItem is not HistoryRow selected)
+        {
+            return;
+        }
+
+        ProjectGateReuseReviewDialog dialog = new(_serviceWorkspaceRoot,
+            _projectDirectory, selected.Decision, _snapshot.Sha256)
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+    }
 
     /// <summary>Starts a reviewed lift of the selected reservation.</summary>
     /// <param name="sender">Lift button.</param>

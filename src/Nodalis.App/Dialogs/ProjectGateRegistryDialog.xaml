@@ -178,6 +178,11 @@
                         <Button x:Name="RecordDecisionButton" Content="Consigner une décision…"
                                 Padding="12,7" Click="RecordDecision_Click"
                                 Margin="0,0,7,0" />
+                        <Button x:Name="RequalifyDecisionButton"
+                                Content="Réexaminer ce GO…"
+                                Padding="12,7" Margin="0,0,7,6"
+                                Click="RequalifyDecision_Click"
+                                ToolTip="Comparer sans autoriser de nouvelle MEP" />
                         <Button x:Name="ChooseGateButton" Content="Lier au Parcours"
                                 Padding="12,7" Click="ChooseGate_Click"
                                 Margin="0,0,7,6" />

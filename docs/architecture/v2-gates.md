@@ -398,3 +398,20 @@ La suite ProjectGateReuseReviewSmokeTests vérifie les cas de modification
 du contexte, des preuves, de NO-GO, de réserves ouvertes/levées/réouvertes,
 de données historiques partielles et d'inventaires ambigus. L'UI de revue
 MEP et son journal de décision explicite restent à développer.
+
+
+### Accès à la comparaison depuis l'interface Gates
+
+Dans le **registre Gates**, sélectionner une décision historique, puis
+cliquer **Réexaminer ce GO…**. La fenêtre affiche son dossier figé,
+préremplit la version, l'environnement et le périmètre, que l'utilisateur
+peut remplacer par le contexte envisagé. **Comparer les sources**
+réouvre le registre et vérifie son SHA avant et après la capture des
+preuves locales, sans nouveau scan global du workspace. Un changement
+concurrent bloque le diagnostic. Les preuves non accessibles sont
+signalées comme manquantes, jamais comme conformes.
+
+Cette comparaison est disponible aussi en **lecture seule / archive**,
+ne produit aucune écriture et ne crée pas d'autorisation de déploiement.
+Les conditions de procédure, rollback, incidents et risques restent une
+étape de qualification humaine distincte avant #203.
