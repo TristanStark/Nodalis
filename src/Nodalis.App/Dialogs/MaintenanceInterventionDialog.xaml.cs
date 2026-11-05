@@ -88,6 +88,29 @@ public partial class MaintenanceInterventionDialog : Window
         Closing += ConfirmCancel;
     }
 
+    /// <summary>
+    /// Offers editable context for an incident initiated by a REC failure.
+    /// The user can remove all suggestions; authoritative provenance is
+    /// independently captured by the persistence service after approval.
+    /// </summary>
+    /// <param name="summary">Short suggested human incident description.</param>
+    /// <param name="symptoms">One-line frozen test and passage hint.</param>
+    public void PrefillIncident(string summary, string symptoms)
+    {
+        if (_kind != MaintenanceRecordKind.Incident || _existing is not null ||
+            string.IsNullOrWhiteSpace(summary) ||
+            summary.Any(char.IsControl) ||
+            symptoms.Any(char.IsControl))
+        {
+            throw new ArgumentException(
+                "Préremplissage réservé à la création d'un incident.");
+        }
+
+        SummaryTextBox.Text = summary;
+        SymptomsTextBox.Text = symptoms;
+        MoreFieldsExpander.IsExpanded = true;
+    }
+
     /// <summary>Gets the fully validated entry once the user accepts the dialog.</summary>
     public MaintenanceRecord? Result { get; private set; }
 
