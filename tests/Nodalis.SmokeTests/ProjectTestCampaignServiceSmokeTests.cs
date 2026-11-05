@@ -323,6 +323,48 @@ internal static class ProjectTestCampaignServiceSmokeTests
             Assert(ProjectTestIncidentLinkPolicy.Active(
                        twoLinks.Campaign, originalResult.Id).Count == 2,
                 "Multiple distinct incidents may be linked to one test result.");
+            ProjectIncidentRetestProposal suggestedIncident =
+                ProjectIncidentRetestPlanner.Propose(
+                    own.Project.Id, secondIncidentId,
+                    [twoLinks.Campaign], new HashSet<Guid>
+                    {
+                        firstId, secondId
+                    });
+            Assert(suggestedIncident.Candidates.Count == 1 &&
+                   suggestedIncident.Candidates[0].TestId == firstId &&
+                   suggestedIncident.Candidates[0].HasLaterPassed &&
+                   suggestedIncident.Candidates[0]
+                       .HasAdministrativeCorrection &&
+                   suggestedIncident.Candidates[0].Reasons.Count == 1 &&
+                   suggestedIncident.UnavailableCount == 0 &&
+                   twoLinks.Campaign.Passages[0].Results[0].Outcome ==
+                       ProjectTestOutcome.Failed &&
+                   twoLinks.Campaign.Passages[1].Results[0].Outcome ==
+                       ProjectTestOutcome.Passed,
+                "Human-linked incident proposes the deduplicated TEST ID, " +
+                "warning that later Passed and clerical corrections do " +
+                "not establish functional revalidation.");
+            ProjectIncidentRetestProposal missingTest =
+                ProjectIncidentRetestPlanner.Propose(
+                    own.Project.Id, secondIncidentId,
+                    [twoLinks.Campaign], new HashSet<Guid>());
+            Assert(missingTest.Candidates.Count == 0 &&
+                   missingTest.UnavailableCount == 1 &&
+                   missingTest.Warnings.Any(item => item.Contains(
+                       "non sélectionnable", StringComparison.Ordinal)),
+                "Unavailable or ambiguous current test IDs are never " +
+                "implicitly recovered from historical REC passages.");
+            await RejectAsync(() => Task.FromResult(
+                ProjectIncidentRetestPlanner.Propose(
+                    foreign.Project.Id, secondIncidentId,
+                    [twoLinks.Campaign], new HashSet<Guid> { firstId })),
+                "Incident-driven retesting cannot use foreign REC campaigns.");
+            await RejectAsync(() => Task.FromResult(
+                ProjectIncidentRetestPlanner.Propose(
+                    own.Project.Id, "INC-not-a-valid-id",
+                    [twoLinks.Campaign], new HashSet<Guid> { firstId })),
+                "Incident retest suggestion requires canonical stable INC IDs.");
+
             ProjectRecAnomalyService anomalyService = new(workspace);
             ProjectRecAnomalyOverview firstOverview =
                 await anomalyService.ReadAsync(own.ProjectDirectory);
