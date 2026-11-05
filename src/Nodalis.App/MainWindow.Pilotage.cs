@@ -108,6 +108,11 @@ public partial class MainWindow
             ProjectJourneyService service = new(_root.FullPath);
             ProjectJourneySnapshot? snapshot = await Task.Run(() =>
                 service.ReadAsync(directory));
+            ProjectJourneyTemplate? proposed = snapshot is null &&
+                mode == PilotageJourneyMode.Steps
+                    ? await Task.Run(() =>
+                        service.PreviewDefaultAsync(directory))
+                    : null;
             NavigationNodeViewModel? selected = PilotageProject();
             if (generation != _pilotageMenuRevision || !menu.IsSubmenuOpen ||
                 selected is null || selected.Id != projectId ||
@@ -122,6 +127,33 @@ public partial class MainWindow
             {
                 menu.Items.Add(PilotageNotice(
                     "Parcours non initialisé : aucun document créé."));
+                if (proposed is not null)
+                {
+                    MenuItem template = new()
+                    {
+                        Header = "Étapes proposées · modèle non activé",
+                        ToolTip = "Aperçu en lecture seule, aucun parcours créé"
+                    };
+                    foreach (ProjectJourneyStepTemplate stage in proposed.Steps
+                        .OrderBy(item => item.Order))
+                    {
+                        MenuItem proposedStep = new()
+                        {
+                            Header = stage.Order + ". " + stage.Name
+                        };
+                        foreach (ProjectJourneyOperationTemplate operation in
+                            stage.Operations)
+                        {
+                            proposedStep.Items.Add(PilotageNotice(
+                                operation.Name + " · opération proposée"));
+                        }
+
+                        template.Items.Add(proposedStep);
+                    }
+
+                    menu.Items.Add(template);
+                }
+
                 MenuItem open = new()
                 {
                     Header = "Ouvrir / initialiser le parcours…"
