@@ -147,6 +147,17 @@ public sealed record ProjectTestCampaign
         get;
         init;
     }
+
+    /// <summary>
+    /// Optional append-only administrative corrections. Null preserves
+    /// canonical REC v1 documents without read-time migration.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ProjectTestResultCorrectionEvent>? ResultCorrections
+    {
+        get;
+        init;
+    }
 }
 
 /// <summary>
@@ -315,6 +326,7 @@ public static class ProjectTestCampaignMarkdownCodec
 
         ProjectTestCampaignDecisionPolicy.Validate(
             campaign.DecisionHistory, campaign.State, campaign.CreatedUtc);
+        ProjectTestResultCorrectionPolicy.Validate(campaign);
     }
 
     /// <summary>Serializes canonical readable Markdown with embedded JSON.</summary>

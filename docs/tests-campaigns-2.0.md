@@ -373,3 +373,34 @@ pas encore d'une décision formelle de clôture d'une obligation
 de requalification. Un changement ultérieur de référence CA
 modifie la comparaison. La preuve de requalification reste
 strictement humaine, dans le workflow REC.
+
+
+## Journal de rectifications de résultats REC — 05/11/2026
+
+Le contrat REC v1 accepte désormais un champ **optionnel**
+`resultCorrections` : journal d'événements humains append-only,
+rattachés par GUID à un résultat et à son passage figé. L'absence
+du champ conserve strictement la sérialisation canonique des
+campagnes précédentes : aucune migration implicite.
+
+`ProjectTestCampaignService.RectifyResultAsync` constitue le premier
+incrément **service / contrat** (pas encore d'action WPF). Une campagne
+`InProgress` ou `InQualification` accepte une rectification
+administrative de saisie seulement avec acteur, motif et résultat
+différent. Projet, passage, résultat, SHA source et unicité sont vérifiés,
+puis la publication atomique utilise le CAS existant. Une seule
+rectification par résultat est admise ; sur campagne fermée/annulée,
+une réouverture humaine est requise avant toute modification.
+
+**Le résultat initial reste immuable** ; `ForPassage` présente
+séparément valeur initiale, valeur corrigée, auteur, motif et date.
+Aucun verdict historique n'est converti automatiquement et une
+rectification ne remplace jamais une exécution ni la vérification
+d'une preuve. Une nouvelle tentative de test nécessite un **nouveau
+passage**, pas une rectification administrative.
+
+Les régressions synthétiques couvrent ancien Markdown inchangé,
+journal portable, liens GUID, unicité, ordre temporel, acteur/motif,
+révision SHA obsolète, projet étranger, fermeture et résultats passés.
+Restent : commande WPF avec confirmation et visibilité de l'audit,
+CI Windows puis qualification visuelle avant livraison complète.
