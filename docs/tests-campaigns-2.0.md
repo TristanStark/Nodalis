@@ -530,3 +530,59 @@ cette vue : utiliser le contrôle de validité du gestionnaire REC.
 **Portée de cet incrément** : vue historique à la demande, pas encore
 assistant de résolution, création depuis un test ou proposition de retest
 par incident. Ces capacités restent prévues sous #201.
+
+
+## Proposition de reprise ciblée par incident — incrément #201 (05/11/2026)
+
+Le gestionnaire REC dispose de la commande **« Proposer reprise
+d'incident… »** sur une campagne en brouillon ou en cours. Un sélecteur
+liste les seuls incidents de maintenance canoniques et uniques **du
+projet**, sans créer ni modifier la source.
+
+Le moteur pur `ProjectIncidentRetestPlanner` rejoue les événements
+`incidentLinks` des campagnes REC du **même projet** : seuls les liens
+**encore actifs** à un résultat humain `Failed` ou `Blocked` peuvent
+proposer le GUID du TEST historique correspondant. Les doublons de test
+sont éliminés en conservant les motifs d'exécution précédents et leurs
+références REC. Les sources courantes sont filtrées via le catalogue
+des blocs TEST **globalement uniques du projet** ; les définitions
+absentes, déplacées ou ambiguës restent signalées et **non
+présélectionnables**. Maximum 500 TEST à la fois.
+
+Un ancien `Passed` postérieur à un échec est **signalé, pas interprété
+comme résolution de l'incident** : la version, l'environnement, le
+contexte fonctionnel et les preuves sont à vérifier par une personne.
+Les rectifications administratives de résultats sont également
+signalées séparément des réexécutions.
+
+Après prévisualisation et confirmation, Nodalis réutilise le
+**sélecteur de passage REC standard**, entièrement modifiable (ajout
+ou retrait de tests, environnement, version, responsable). Une dernière
+confirmation humaine précède l'appel au service existant
+`StartPassageAsync`, qui recontrôle les GUID, le SHA du cahier et la
+révision du REC avant de figer **un nouveau passage sans aucun
+résultat prérempli**. Aucun incident n'est clôturé, aucune intervention
+terminée automatiquement et aucune exigence approuvée.
+
+### Qualification Windows
+
+- Incident A relié au TEST-0001 d'un passage en échec, puis passage
+  ultérieur `Passed` : une proposition TEST-0001 reste possible,
+  avec un avertissement sur l'ancien succès, sans hériter du verdict.
+- Même incident relié à plusieurs résultats d'un même test :
+  le sélecteur présente **un GUID test**, avec plusieurs motifs
+  historiques, jamais des duplications.
+- Lien ensuite dissocié : aucun test proposé au titre de ce lien.
+- Source TEST supprimée, déplacée ou dupliquée : test historique
+  signalé mais non présélectionné. Sélection manuelle disponible.
+- Annuler au choix incident, à la prévisualisation, au sélecteur,
+  ou à la dernière confirmation : **aucun passage publié**.
+- Campagne clôturée/archivée, changement de sélection, fichier REC
+  ou cahier modifié entre le choix et le commit : refus sûr.
+- Plusieurs campagnes et projets : aucune fuite de tests étrangers.
+  Vérifier style sombre, clavier, et comportement avec de longues listes.
+
+**Limites :** il s'agit d'un assistant **de sélection**, pas d'un
+moteur d'exécution ou d'une décision formelle de revalidation.
+La prise en compte des tests du même CA et des non-régressions restera
+une extension sous #201. Les preuves et la résolution restent humaines.
