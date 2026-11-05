@@ -974,10 +974,23 @@ public partial class ProjectJourneyView : UserControl
             return;
         }
 
+        string? selectedSha256 = _snapshot?.Sha256;
+        if (selectedSha256 is null)
+        {
+            return;
+        }
+
         FileSystemAiPromptStore store = new(
             Path.Combine(AppContext.BaseDirectory, "Prompts"));
         IReadOnlyList<LocalAiPromptDescriptor> catalog =
             await store.ListAsync();
+        if (!StillSelectedPromptTarget(step.Id, operation.Id, selectedSha256))
+        {
+            StatusText.Text = "L'opération sélectionnée a changé avant " +
+                "l'ouverture du sélecteur de prompts.";
+            return;
+        }
+
         ProjectJourneyPromptPickerDialog dialog = new(
             store, catalog, operation.PromptKey)
         {
@@ -988,6 +1001,13 @@ public partial class ProjectJourneyView : UserControl
             return;
         }
 
+        if (!StillSelectedPromptTarget(step.Id, operation.Id, selectedSha256))
+        {
+            StatusText.Text = "L'opération sélectionnée a changé pendant " +
+                "la revue du prompt. Aucune association enregistrée.";
+            return;
+        }
+
         string? promptKey = dialog.SelectedKey;
         await CommitAsync("Changer la référence de prompt de « " +
             operation.Name + " » en « " + (promptKey ?? "aucun") +
@@ -995,6 +1015,23 @@ public partial class ProjectJourneyView : UserControl
             doc => ProjectJourneyEditor.SetPromptKey(doc, step.Id,
                 operation.Id, promptKey), step.Id, operation.Id);
     }
+
+    /// <summary>
+    /// Keeps a prompt-picker action bound to the original stage, operation
+    /// and in-memory revision even if UI selection changes while awaiting
+    /// the catalog or a human choice. The subsequent save still uses SHA-CAS.
+    /// </summary>
+    /// <param name="stepId">Human-selected stage GUID.</param>
+    /// <param name="operationId">Human-selected operation GUID.</param>
+    /// <param name="sha256">Original journey source revision.</param>
+    /// <returns>True only for the unchanged UI selection and revision.</returns>
+    private bool StillSelectedPromptTarget(
+        Guid stepId, Guid operationId, string sha256) =>
+        !_readOnly && _snapshot is not null &&
+        string.Equals(_snapshot.Sha256, sha256,
+            StringComparison.OrdinalIgnoreCase) &&
+        SelectedStep()?.Id == stepId &&
+        SelectedOperation()?.Id == operationId;
 
     /// <summary>
     /// Creates a bounded local draft for manual inspection/copy only.
