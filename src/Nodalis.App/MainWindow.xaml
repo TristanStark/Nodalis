@@ -383,7 +383,7 @@
                             <MenuItem Header="Campagnes, passages et résultats REC…"
                                       Click="PilotageTestCampaigns_Click" />
                             <MenuItem Header="Anomalies de recette, incidents et revalidations…"
-                                      Click="PilotageTestCampaigns_Click"
+                                      Click="PilotageRecAnomalies_Click"
                                       ToolTip="Dans les campagnes REC, ouvrir Anomalies de recette et son suivi de revalidation" />
                             <MenuItem Header="Identifier un titre de test ou critère…"
                                       Click="PilotageAssignBlockIdentity_Click" />
