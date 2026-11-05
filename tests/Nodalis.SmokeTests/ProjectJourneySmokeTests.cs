@@ -210,6 +210,39 @@ internal static class ProjectJourneySmokeTests
                 "Pilotage rejects negative technical stage order while " +
                 "accepting zero-based numbering from the journey editor.");
 
+            // The WPF Pilotage menu materializes only stage headers on
+            // opening. The detached projection must nevertheless contain
+            // every real operation of a large, synthetic project.
+            ProjectJourneyDocument largeJourney = saved.Document with
+            {
+                Steps = Enumerable.Range(0, 80).Select(stageIndex =>
+                    new ProjectJourneyStep
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = "Phase fictive " + stageIndex,
+                        Order = stageIndex,
+                        Operations = Enumerable.Range(0, 60)
+                            .Select(operationIndex =>
+                                new ProjectJourneyOperation
+                                {
+                                    Id = Guid.NewGuid(),
+                                    Name = "Opération fictive " +
+                                        operationIndex
+                                }).ToList()
+                    }).ToList()
+            };
+            IReadOnlyList<ProjectJourneyPilotageStage> largeMenu =
+                ProjectJourneyPilotageProjection.Build(largeJourney);
+            Assert(largeMenu.Count == 80 &&
+                   largeMenu.Sum(stage => stage.Operations.Count) == 4800 &&
+                   largeMenu[0].Order == 0 &&
+                   largeMenu[^1].Order == 79 &&
+                   largeMenu.SelectMany(stage => stage.Operations)
+                       .Select(operation => operation.Id)
+                       .Distinct().Count() == 4800,
+                "Pilotage must keep all 4,800 real operations accessible, " +
+                "without converting them into eager WPF controls.");
+
             ProjectJourneyDocument ambiguousMenu = saved.Document with
             {
                 Steps = [.. saved.Document.Steps, saved.Document.Steps[0]]
