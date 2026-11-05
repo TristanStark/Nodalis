@@ -33,9 +33,11 @@ avec la liste dynamique.
 ## Règles d'utilisation
 
 1. Sélectionner d'abord un projet ou un document **de ce projet** dans
-   l'explorateur. Les commandes générales restent disponibles sans
-   sélection de projet ; les vues liées à une campagne ou un parcours
-   demandent un projet non ambigu.
+   l'explorateur. Lorsque l'**onglet Parcours est affiché**, ce dernier
+   est le contexte prioritaire (il l'emporte sur une sélection
+   précédente dans l'explorateur). Les commandes générales restent
+   disponibles sans sélection de projet ; les vues liées à une campagne
+   ou un parcours demandent un projet non ambigu.
 2. Ouvrir **Pilotage → Parcours projet → Toutes les étapes du projet**.
    Les noms et opérations sont relus **à chaque ouverture** depuis
    `.project-journey.json`, hors du thread UI. Si le parcours n'est pas
@@ -80,6 +82,10 @@ pas une mise en production ni une clôture automatiquement effectuée.
   immédiatement. Vérifier qu'un ancien élément devenu invalide est refusé.
 - Naviguer entre **deux projets différents** pendant un chargement
   lent : aucune action sur un autre projet ne doit être possible.
+  Si l'onglet Parcours du projet A est visible mais que l'explorateur
+  conserve une sélection du projet B, **Pilotage doit afficher A** ;
+  en quittant ce parcours, le contexte redevient la sélection de
+  l'explorateur.
 - Ouvrir la liste des étapes sans parcours initialisé : aucune
   écriture, option d'ouverture / initialisation visible.
 - Préparer/copier un prompt **avec** et **sans** variables, puis
