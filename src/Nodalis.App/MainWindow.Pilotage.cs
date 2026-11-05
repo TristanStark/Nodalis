@@ -43,6 +43,9 @@ public partial class MainWindow
     /// An immutable snapshot of one stage for deferred WPF menu materialization.
     /// Stable IDs are rechecked against the project before any action runs.
     /// </summary>
+    private sealed record PilotageOpenJourneyTarget(
+        Guid ProjectId, string ProjectPath);
+
     private sealed record PilotageStageMenuContext(
         Guid ProjectId, string ProjectPath,
         ProjectJourneyPilotageStage Stage, PilotageJourneyMode Mode)
@@ -139,6 +142,39 @@ public partial class MainWindow
         object sender, RoutedEventArgs e) =>
         await RunUiActionAsync("Recherche dans le parcours 2.0",
             OpenPilotageQuickAccessAsync);
+
+    /// <summary>
+    /// Opens the exact menu-selected project when its journey does not yet
+    /// exist, without using another active Worktree document as a fallback.
+    /// </summary>
+    /// <param name="sender">Human initialization entry.</param>
+    /// <param name="e">Menu click.</param>
+    private async void PilotageOpenJourney_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem
+            {
+                Tag: PilotageOpenJourneyTarget target
+            })
+        {
+            return;
+        }
+
+        await RunUiActionAsync("Ouvrir un parcours non initialisé", () =>
+        {
+            NavigationNodeViewModel? project = PilotageProject();
+            if (project is null || project.Id != target.ProjectId ||
+                !string.Equals(project.FullPath, target.ProjectPath,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                StatusText.Text =
+                    "Projet modifié : rouvrez Pilotage avant initialisation.";
+                return Task.CompletedTask;
+            }
+
+            return OpenProjectJourneyAsync(project);
+        });
+    }
 
     /// <summary>Lists actual project stages when the submenu opens.</summary>
     /// <param name="sender">Journey stages submenu.</param>
@@ -260,9 +296,10 @@ public partial class MainWindow
 
                 MenuItem open = new()
                 {
-                    Header = "Ouvrir / initialiser le parcours…"
+                    Header = "Ouvrir / initialiser le parcours…",
+                    Tag = new PilotageOpenJourneyTarget(projectId, directory)
                 };
-                open.Click += OpenProjectJourney_Click;
+                open.Click += PilotageOpenJourney_Click;
                 menu.Items.Add(open);
                 return;
             }
@@ -560,7 +597,7 @@ public partial class MainWindow
                     StringComparison.OrdinalIgnoreCase));
         if (tab is null)
         {
-            await OpenProjectJourneyAsync();
+            await OpenProjectJourneyAsync(project);
             tab = _projectJourneyTabs.FirstOrDefault(item =>
                 item.ProjectId == target.ProjectId &&
                 string.Equals(item.ProjectDirectory, target.ProjectPath,

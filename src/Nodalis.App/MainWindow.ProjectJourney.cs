@@ -63,9 +63,17 @@ public partial class MainWindow
     /// navigating and without attaching a Markdown session or autosave.
     /// </summary>
     /// <returns>Completed UI action.</returns>
-    private Task OpenProjectJourneyAsync()
+    private Task OpenProjectJourneyAsync() =>
+        OpenProjectJourneyAsync(GetArchiveContextProject());
+
+    /// <summary>
+    /// Opens an explicitly selected project without falling back to a stale
+    /// Worktree selection (used by project-scoped Pilotage shortcuts).
+    /// </summary>
+    /// <param name="project">Exact current project navigation node.</param>
+    /// <returns>Completed navigation with no implicit journey creation.</returns>
+    private Task OpenProjectJourneyAsync(NavigationNodeViewModel? project)
     {
-        NavigationNodeViewModel? project = GetArchiveContextProject();
         if (project is null)
         {
             MessageBox.Show(this,
@@ -75,11 +83,15 @@ public partial class MainWindow
             return Task.CompletedTask;
         }
 
-        // A duplicated project GUID would make the tab identity ambiguous.
-        // Refuse to reuse a view for the wrong source folder.
+        // A duplicated, relocated or detached project identity must not
+        // cause Pilotage to activate a different project's journey tab.
         int sameIdProjects = _root.DescendantsAndSelf().Count(node =>
+            node.Kind == WorkspaceNodeKind.Project && node.Id == project.Id &&
+            string.Equals(node.FullPath, project.FullPath,
+                StringComparison.OrdinalIgnoreCase));
+        int allWithId = _root.DescendantsAndSelf().Count(node =>
             node.Kind == WorkspaceNodeKind.Project && node.Id == project.Id);
-        if (sameIdProjects != 1)
+        if (sameIdProjects != 1 || allWithId != 1)
         {
             MessageBox.Show(this,
                 "Cet identifiant de projet est absent ou partagé par plusieurs dossiers. " +
