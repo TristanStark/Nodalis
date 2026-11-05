@@ -41,7 +41,10 @@ avec la liste dynamique.
    `.project-journey.json`, hors du thread UI. Si le parcours n'est pas
    initialisé, une entrée **« Ouvrir / initialiser le parcours… »** est
    proposée : son activation **ne lance pas** l'initialisation sans
-   le choix et la confirmation de l'utilisateur.
+   le choix et la confirmation de l'utilisateur. Pour les modèles
+   applicables, les étapes et opérations proposées peuvent être
+   consultées dans le menu **avant création**, clairement marquées
+   comme aperçu et sans commande d'édition.
 3. Pour copier un prompt, ouvrir **Pilotage → Prompts… → Préparer / copier
    les prompts du parcours**, choisir l'étape puis l'opération. Un
    brouillon est calculé à partir des sources approuvées et des variables.
