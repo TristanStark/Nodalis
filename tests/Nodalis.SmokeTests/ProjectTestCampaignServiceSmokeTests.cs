@@ -264,6 +264,16 @@ internal static class ProjectTestCampaignServiceSmokeTests
                     });
             }
 
+            maintenance = MaintenanceMarkdownCodec.Append(maintenance,
+                new MaintenanceRecord
+                {
+                    Kind = MaintenanceRecordKind.Intervention,
+                    Id = MaintenanceMarkdownCodec.NewId(
+                        MaintenanceRecordKind.Intervention),
+                    IncidentId = secondIncidentId,
+                    Date = DateOnly.FromDateTime(DateTime.UtcNow),
+                    Summary = "Intervention technique fictive sans revalidation."
+                });
             await File.WriteAllTextAsync(maintenancePath, maintenance);
             ProjectTestCampaignEntry linked =
                 await service.RecordIncidentLinkAsync(
@@ -313,6 +323,38 @@ internal static class ProjectTestCampaignServiceSmokeTests
             Assert(ProjectTestIncidentLinkPolicy.Active(
                        twoLinks.Campaign, originalResult.Id).Count == 2,
                 "Multiple distinct incidents may be linked to one test result.");
+            ProjectRecAnomalyService anomalyService = new(workspace);
+            ProjectRecAnomalyOverview firstOverview =
+                await anomalyService.ReadAsync(own.ProjectDirectory);
+            Assert(firstOverview.Rows.Count == 1 &&
+                   firstOverview.Rows[0].ResultId == originalResult.Id &&
+                   firstOverview.Rows[0].OriginalOutcome ==
+                       ProjectTestOutcome.Failed &&
+                   firstOverview.Rows[0].RectifiedOutcome ==
+                       ProjectTestOutcome.Blocked &&
+                   firstOverview.Rows[0].LinkedIncidentIds.Count == 2 &&
+                   firstOverview.Rows[0].MissingIncidentIds.Count == 0 &&
+                   firstOverview.Rows[0].InterventionCount == 1 &&
+                   firstOverview.UnlinkedCount == 0 &&
+                   firstOverview.MissingSourceCount == 0 &&
+                   firstOverview.Diagnostics.Count > 0 &&
+                   firstOverview.Rows[0].ApplicationVersion == "v1.0" &&
+                   firstOverview.Rows.All(item =>
+                       item.PassageId != passage2.Id) &&
+                   (await service.ListAsync(own.ProjectDirectory))
+                       .Campaigns.Single().Campaign.Passages[1]
+                       .Results.Single().Outcome == ProjectTestOutcome.Passed,
+                "Calculated historical failure view never mistakes a later " +
+                "Passed or maintenance intervention for verified resolution.");
+            ProjectRecAnomalyOverview foreignOverview =
+                await anomalyService.ReadAsync(foreign.ProjectDirectory);
+            Assert(foreignOverview.Rows.Count == 0,
+                "Other projects do not inherit the current REC incidents.");
+            await RejectAsync(() => Task.FromResult(
+                ProjectRecAnomalyProjection.Build(Guid.NewGuid(),
+                    [twoLinks.Campaign], [], [])),
+                "Foreign project ownership cannot reuse REC failure results.");
+
             ProjectTestCampaignEntry unlinkFirst =
                 await service.RecordIncidentLinkAsync(
                     own.ProjectDirectory, twoLinks, passage1.Id,
@@ -333,6 +375,22 @@ internal static class ProjectTestCampaignServiceSmokeTests
                 ProjectTestIncidentLinkKind.Linked, "Testeur fictif",
                 "Incident indisponible dans la maintenance courante."),
                 "Missing maintenance incidents cannot be newly linked.");
+            ProjectRecAnomalyOverview afterMissing =
+                await anomalyService.ReadAsync(own.ProjectDirectory);
+            Assert(afterMissing.Rows.Count == 1 &&
+                   afterMissing.Rows[0].LinkedIncidentIds.Count == 1 &&
+                   afterMissing.Rows[0].LinkedIncidentIds.Single() ==
+                       secondIncidentId &&
+                   afterMissing.Rows[0].MissingIncidentIds.Single() ==
+                       secondIncidentId &&
+                   afterMissing.Rows[0].InterventionCount == 0 &&
+                   afterMissing.MissingSourceCount == 1 &&
+                   afterMissing.Diagnostics.Any(item => item.Contains(
+                       "source", StringComparison.OrdinalIgnoreCase)) &&
+                   unlinkFirst.Campaign.Passages[0].Results[0].Outcome ==
+                       ProjectTestOutcome.Failed,
+                "A disappeared maintenance sheet leaves old REC links " +
+                "visible but uncertain, never treated as resolved.");
             final = unlinkFirst;
             ProjectTestSourceValidityOverview live =
                 await service.AssessSourceValidityAsync(
