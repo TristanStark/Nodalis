@@ -54,6 +54,82 @@ public partial class MainWindow
         public bool Expanded { get; set; }
     }
 
+    /// <summary>
+    /// Searches the real journey in a virtualized dialog rather than
+    /// requiring a long hierarchical menu on large customized projects.
+    /// </summary>
+    /// <returns>Selected stable project operation through existing actions.</returns>
+    private async Task OpenPilotageQuickAccessAsync()
+    {
+        NavigationNodeViewModel? project = PilotageProject();
+        if (project is null)
+        {
+            ShowPilotageProjectHint("Recherche dans le parcours");
+            return;
+        }
+
+        Guid projectId = project.Id;
+        string directory = project.FullPath;
+        ProjectJourneySnapshot? snapshot = await Task.Run(() =>
+            new ProjectJourneyService(_root.FullPath)
+                .ReadAsync(directory));
+        NavigationNodeViewModel? current = PilotageProject();
+        if (current is null || current.Id != projectId ||
+            !string.Equals(current.FullPath, directory,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            StatusText.Text = "Projet modifié pendant la recherche Pilotage.";
+            return;
+        }
+
+        if (snapshot is null)
+        {
+            MessageBox.Show(this,
+                "Ce projet n'a pas encore de parcours initialisé. " +
+                "Ouvrez « Parcours projet » pour examiner puis " +
+                "confirmer une initialisation, sans création automatique.",
+                "Rechercher une étape · Pilotage 2.0",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (snapshot.Document.ProjectId != projectId)
+        {
+            throw new InvalidDataException(
+                "Le parcours ne correspond pas au projet sélectionné.");
+        }
+
+        IReadOnlyList<ProjectJourneyPilotageStage> stages =
+            ProjectJourneyPilotageProjection.Build(snapshot.Document);
+        ProjectJourneyQuickAccessDialog dialog = new(
+            stages, PilotageReadOnly(project)) { Owner = this };
+        if (dialog.ShowDialog() != true ||
+            dialog.Selection is not ProjectJourneyQuickSelection choice)
+        {
+            return;
+        }
+
+        PilotageTargetMode mode = choice.Action switch
+        {
+            ProjectJourneyQuickAction.Open => PilotageTargetMode.Focus,
+            ProjectJourneyQuickAction.Prepare => PilotageTargetMode.Prepare,
+            ProjectJourneyQuickAction.Assign => PilotageTargetMode.Assign,
+            _ => throw new InvalidDataException(
+                "Action de recherche Pilotage inconnue.")
+        };
+        await OpenPilotageTargetAsync(new PilotageJourneyTarget(
+            projectId, directory, choice.StepId, choice.OperationId,
+            mode));
+    }
+
+    /// <summary>Opens searchable direct navigation and prompt preparation.</summary>
+    /// <param name="sender">Pilotage search menu item.</param>
+    /// <param name="e">Click event.</param>
+    private async void PilotageQuickAccess_Click(
+        object sender, RoutedEventArgs e) =>
+        await RunUiActionAsync("Recherche dans le parcours 2.0",
+            OpenPilotageQuickAccessAsync);
+
     /// <summary>Lists actual project stages when the submenu opens.</summary>
     /// <param name="sender">Journey stages submenu.</param>
     /// <param name="e">WPF submenu open event.</param>
