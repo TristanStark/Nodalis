@@ -124,7 +124,19 @@ pas une mise en production ni une clôture automatiquement effectuée.
   sur la bonne opération, sans enregistrer si l'utilisateur annule.
 - Dans l'onglet Parcours, vérifier que la sélection pointe vers
   **la bonne étape et opération**, y compris quand l'onglet était
-  déjà ouvert.
+  déjà ouvert. Modifier le parcours depuis un autre processus pendant
+  que l'onglet reste ouvert : le raccourci Pilotage doit synchroniser
+  la vue avant d'ouvrir le sélecteur. Si une deuxième modification
+  intervient pendant cette synchronisation, la sélection périmée
+  doit être refusée sans changement.
+- Ouvrir **Associer un prompt**, puis modifier la sélection de l'étape
+  ou de l'opération pendant le chargement du catalogue ou pendant
+  l'affichage du sélecteur : aucune référence de prompt ne doit être
+  associée à une autre opération. Annuler doit rester sans effet.
+- Préparer un prompt depuis l'onglet Parcours avec un dialogue de
+  variables ouvert pendant une édition externe du parcours :
+  le brouillon ne doit pas être présenté comme à jour et aucune
+  copie ne doit avoir lieu automatiquement.
 - Ouvrir REC, anomalies, traçabilité EXI, RIS et Go/No-Go depuis
   Pilotage ; confirmer la même logique métier et les mêmes restrictions
   que via la palette ou l'onglet Parcours.
