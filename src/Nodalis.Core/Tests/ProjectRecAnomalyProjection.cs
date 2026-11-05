@@ -224,8 +224,11 @@ public static class ProjectRecAnomalyProjection
             .ThenBy(item => item.PassageNumber)
             .ToArray(), warnings)
         {
-            IncidentFollowups = ProjectRecIncidentFollowupPlanner.Build(
-                projectId, rows, campaigns, maintenance)
+            IncidentFollowups = rows.Any(item =>
+                item.LinkedIncidentIds.Count > 0)
+                ? ProjectRecIncidentFollowupPlanner.Build(
+                    projectId, rows, campaigns, maintenance)
+                : []
         };
     }
 }
