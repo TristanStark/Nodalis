@@ -1045,11 +1045,13 @@ public partial class ProjectJourneyView : UserControl
         {
             ProjectJourneyStep? step = SelectedStep();
             ProjectJourneyOperation? operation = SelectedOperation();
-            if (step is null || operation is null)
+            if (step is null || operation is null ||
+                _snapshot is not ProjectJourneySnapshot initial)
             {
                 return;
             }
 
+            string initialSha256 = initial.Sha256;
             string promptRoot = Path.Combine(
                 AppContext.BaseDirectory, "Prompts");
             ProjectJourneyPromptPreparationService preparer = new(
@@ -1089,6 +1091,22 @@ public partial class ProjectJourneyView : UserControl
             {
                 draft = await Task.Run(() =>
                     preparer.PrepareAsync(step, operation));
+            }
+
+            ProjectJourneySnapshot? latest = await Task.Run(() =>
+                _service.ReadAsync(_projectDirectory));
+            if (latest?.Document.ProjectId != initial.Document.ProjectId ||
+                !string.Equals(latest?.Sha256, initialSha256,
+                    StringComparison.OrdinalIgnoreCase) ||
+                _snapshot is null ||
+                !string.Equals(_snapshot.Sha256, initialSha256,
+                    StringComparison.OrdinalIgnoreCase) ||
+                SelectedStep()?.Id != step.Id ||
+                SelectedOperation()?.Id != operation.Id)
+            {
+                StatusText.Text = "Parcours ou opération modifié pendant " +
+                    "la préparation. Relancez le prompt avec les sources à jour.";
+                return;
             }
 
             ProjectJourneyPromptDraftDialog dialog = new(draft)
