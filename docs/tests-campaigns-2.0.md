@@ -736,3 +736,97 @@ de la revalidation fonctionnelle, lien à des preuves vérifiées,
 et éventuelle transition de statut de l'incident dans son dossier
 canonique seulement après approbation. Aucune décision humaine de
 résolution n'est encore écrite depuis cette vue consultative.
+
+
+## Décision humaine de revalidation persistante — EPIC #201 (05/11/2026)
+
+Le suivi d'incident REC dispose de la commande
+**« Enregistrer une décision humaine… »**, uniquement pour un projet
+modifiable. Le responsable choisit explicitement **Confirmer**,
+**Rejeter** ou **Reporter**, saisit son identité, sa justification,
+l'**environnement et la version cible**, et une référence de preuve
+déclarée. L'interface montre la décision précédente, y compris si
+les sources REC ont changé depuis.
+
+La décision est écrite dans la **fiche de maintenance canonique
+existante** `Fiche de Maintenance.md`, sous une section indépendante
+`## Décisions de revalidation REC` contenant un journal JSON
+`nodalis:rec-revalidation:v1`. Cela **ne crée pas de nouveau registre
+d'incidents**. Les entrées précédentes sont conservées et chaque
+nouvelle décision référence l'ID de la précédente pour **le même
+incident** ; les identifiants, ordre, chronologie et blocs TEST
+capturés sont contrôlés. Les historiques `Incident` et
+`Intervention` demeurent gérés par le codec existant et leurs
+notes Markdown ne sont pas modifiées lors de l'ajout d'une décision.
+
+### Préconditions de confirmation
+
+- Un seul incident `INC-` du **même projet**, toujours présent et
+  identifié sans ambiguïté dans la maintenance.
+- Aucun REC source illisible/ambigu dans le registre de campagnes.
+- Tous les TEST liés à l'incident ont une **nouvelle exécution**
+  déclarée `Passed` dans un passage **commencé après** le dernier
+  échec activement associé au test, **dans l'environnement et la
+  version cible expressément saisis**.
+- La **référence de preuve** contient une description utile (minimum
+  10 caractères) et le responsable valide personnellement
+  **trois attestations indépendantes** : vérification des définitions
+  TEST courantes, examen des preuves et revue de la version, du
+  périmètre, des critères et des non-régressions.
+- L'empreinte SHA de la **fiche maintenance** et l'empreinte calculée
+  de **l'ensemble des chemins, GUID et SHA des REC du projet** sont
+  identiques à celles de la prévisualisation approuvée. Toute dérive
+  provoque un refus : il faut relire les sources.
+- Une seconde confirmation humaine rappelle le risque de conflit
+  avec un onglet maintenance non sauvegardé.
+
+**Rejeter** et **Reporter** peuvent être journalisés même si tous
+les tests ne sont pas encore conformes ; le contexte et la
+justification humaine restent requis. Une décision `Confirmed`
+existante sur les **mêmes révisions REC** ne peut pas être dupliquée
+par mégarde. Une décision ultérieure `Rejected` peut la contredire
+explicitement, sans effacer la première. La consultation affiche
+la dernière décision comme **historique**, et signale lorsque son
+empreinte REC ne correspond plus à celle du projet.
+
+Une entrée mémorise le GUID de chaque TEST impacté, l'ID et l'heure
+de son échec de référence, le résultat réel de reprise (s'il existe),
+son environnement/version, l'empreinte REC du périmètre, l'auteur,
+le motif, la preuve référencée et les trois attestations. Ces
+éléments figés permettent l'audit de la décision sans modifier les
+passages ni perdre les preuves déclaratives antérieures.
+
+**Invariants essentiels :** Nodalis ne vérifie pas la vérité externe
+d'une preuve référencée. Il **n'en déduit jamais automatiquement**
+la clôture du statut incident, la réussite REC ou la validation EXI.
+La validation humaine de revalidation et l'état du ticket de
+maintenance demeurent deux décisions distinctes. Les projets
+archivés et workspaces ouverts en lecture seule restent consultables,
+sans création possible.
+
+### Recette Windows spécifique
+
+1. Résultat `Failed` seul → **Confirmer refusé**. Reporter avec
+   justification → audit ajouté, verdict et incident inchangés.
+2. Nouveau passage commencé après l'échec, `Passed` dans même
+   environnement et version cible choisie → confirmation possible
+   uniquement après les trois attestations, avec référence de preuve.
+3. Mauvaise version, autre environnement, second test non exécuté,
+   régression tardive, preuve vide ou attestation absente →
+   **Confirmation refusée**.
+4. Sauvegarde après modification de REC ou de la maintenance depuis
+   l'ouverture du formulaire → conflit/échec sans écrasement.
+5. Répéter une confirmation à l'identique → refus de doublon.
+   Enregistrer un rejet ultérieur → nouvelle décision avec chaînage
+   vers la précédente, sans l'effacer.
+6. Réouverture sur une autre révision REC → l'ancienne décision
+   reste affichée comme historique, **pas comme une autorisation
+   actuelle**.
+7. Fiche maintenance sans section de revalidation → lecture héritée
+   intacte. Section corrompue, dupliquée, ou chaînage brisé →
+   **refus de lecture / d'écriture** plutôt qu'une perte d'audit.
+8. Vérifier la navigation au clavier, le thème sombre, la
+   virtualisation, l'archivage et les conflits d'onglets ouverts.
+
+La qualification visuelle Windows et les workflows de la dernière
+révision restent à confirmer avant clôture de l'EPIC #201.
