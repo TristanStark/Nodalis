@@ -175,7 +175,6 @@ public partial class ProjectJourneyView : UserControl
         }
 
         Render(selectedStepId);
-        ApplyPilotageFocus();
         StatusText.Text = _snapshot is null
             ? _preview is not null
                 ? "Aucun parcours créé · modèle proposé sans écriture."
@@ -185,6 +184,7 @@ public partial class ProjectJourneyView : UserControl
             : _readOnly
                 ? "Projet archivé ou workspace en lecture seule : consultation uniquement."
                 : "Modifications individuelles soumises à confirmation et contrôle SHA-256.";
+        ApplyPilotageFocus();
     }
 
     /// <summary>Renders stages from one immutable selection snapshot.</summary>
@@ -434,6 +434,7 @@ public partial class ProjectJourneyView : UserControl
         finally
         {
             _busy = false;
+            ApplyPilotageFocus();
             UpdateButtons();
         }
     }
