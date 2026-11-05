@@ -46,13 +46,19 @@ public static class ProjectJourneyPilotageProjection
                 "Parcours introuvable ou trop volumineux pour Pilotage.");
         }
 
+        if (journey.Steps.Any(step => step is null))
+        {
+            throw new InvalidDataException(
+                "Une étape du parcours est absente : menu indisponible.");
+        }
+
         HashSet<Guid> identities = [];
         HashSet<int> orders = [];
         List<ProjectJourneyPilotageStage> stages = [];
         foreach (ProjectJourneyStep step in journey.Steps
             .OrderBy(item => item.Order))
         {
-            if (step is null || step.Id == Guid.Empty ||
+            if (step.Id == Guid.Empty || step.Order < 1 ||
                 !identities.Add(step.Id) || !orders.Add(step.Order) ||
                 !ValidName(step.Name) ||
                 !Enum.IsDefined(step.Status) || step.Operations is null ||
