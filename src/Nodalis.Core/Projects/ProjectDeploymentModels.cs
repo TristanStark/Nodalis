@@ -43,6 +43,10 @@ public sealed record ProjectDeploymentOperation
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ProjectDeploymentClosure? Closure { get; init; }
+
+    /// <summary>Optional append-only operational handover reviews.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ProjectDeploymentHandoverReview>? HandoverReviews { get; init; }
 }
 
 /// <summary>

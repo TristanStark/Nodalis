@@ -193,6 +193,43 @@ internal static class ProjectDeploymentPersistenceSmokeTests
             project.ProjectDirectory, firstSaved, first.Id),
             "Preflight must reject MEP source revisions that became stale.");
 
+        // Refusal of the transfer after an interrupted MEP is recorded
+        // explicitly; no transfer success is inferred from a failed attempt.
+        ProjectDeploymentHandoverReview refusal = new()
+        {
+            Id = Guid.NewGuid(),
+            AttemptId = first.Id,
+            RecordedUtc = first.StartedUtc.AddMinutes(3),
+            Actor = "Responsable MEP",
+            Recipient = "Exploitation",
+            Outcome = ProjectDeploymentHandoverOutcome.Refused,
+            Rationale = "Stabilisation non concluante, transfert refusé.",
+            Checks = ProjectDeploymentHandoverValidation.RequiredAreas.Select(
+                area => new ProjectDeploymentHandoverCheck
+                {
+                    Area = area,
+                    Status = ProjectDeploymentHandoverStatus.NotVerified,
+                    Note = "Qualification restant à réaliser."
+                }).ToList()
+        };
+        ProjectDeploymentOperation handoverDraft =
+            ProjectDeploymentEditor.ReviewHandover(closed.Operation, refusal);
+        ProjectDeploymentEntry savedTransfer = await service.SaveAsync(
+            project.ProjectDirectory, closed, handoverDraft);
+        Check(savedTransfer.Operation.HandoverReviews?.Single().Id == refusal.Id,
+            "Refused transfer must survive project-local Markdown persistence.");
+        await RejectAsync(() => service.SaveAsync(project.ProjectDirectory,
+            savedTransfer, savedTransfer.Operation with
+            {
+                HandoverReviews = []
+            }), "Historic handover cannot be deleted.");
+        await RejectAsync(() => service.SaveAsync(project.ProjectDirectory,
+            savedTransfer, savedTransfer.Operation with
+            {
+                HandoverReviews = [refusal with
+                    { Outcome = ProjectDeploymentHandoverOutcome.Deferred }]
+            }), "Historic handover verdict cannot be rewritten.");
+
         // Close one failed MEP explicitly, preserving all earlier events.
         ProjectDeploymentClosure closure = new()
         {
@@ -204,15 +241,16 @@ internal static class ProjectDeploymentPersistenceSmokeTests
             RecordedUtc = first.StartedUtc.AddMinutes(4)
         };
         ProjectDeploymentOperation closedDraft =
-            ProjectDeploymentEditor.Close(closed.Operation, closure);
+            ProjectDeploymentEditor.Close(savedTransfer.Operation, closure);
         ProjectDeploymentEntry savedClosure = await service.SaveAsync(
-            project.ProjectDirectory, closed, closedDraft);
+            project.ProjectDirectory, savedTransfer, closedDraft);
         Check(savedClosure.Operation.Closure?.Outcome ==
             ProjectDeploymentOutcome.Failed &&
             (await service.ListAsync(project.ProjectDirectory))
                 .Operations.Single().Operation.Closure?.Id == closure.Id &&
-            savedClosure.Operation.Events.Count == closed.Operation.Events.Count,
-            "Persistent closure must retain every historical attempt and event.");
+            savedClosure.Operation.Events.Count == closed.Operation.Events.Count &&
+            savedClosure.Operation.HandoverReviews?.Single().Id == refusal.Id,
+            "Closure must preserve both attempt events and refusal of handover.");
         await RejectAsync(() => service.SaveAsync(
             project.ProjectDirectory, savedClosure, savedClosure.Operation),
             "A frozen closure can never be written over.");

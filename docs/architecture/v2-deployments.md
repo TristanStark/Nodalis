@@ -175,3 +175,34 @@ le motif et les réserves (pour le verdict avec réserves) sont
 obligatoires selon le modèle. La sauvegarde conserve le verrouillage
 SHA-256 et refuse une modification du bilan déjà enregistré.
 Les archives sont consultables mais jamais modifiables.
+
+
+### Stabilisation et passation à l'exploitation (#203)
+
+Avant le bilan de clôture, une tentative terminée peut donner lieu à
+une ou plusieurs **revues de passation explicites et horodatées** :
+Acceptée, Acceptée avec réserves, Refusée ou Reportée. Elles restent
+dans la même fiche Markdown MEP, via le champ facultatif
+handoverReviews (absent des anciennes fiches v1). Les décisions
+précédentes ne sont jamais remplacées, même après un refus.
+
+Chaque revue identifie l'acteur, le destinataire et la tentative
+concernée. Sept domaines sont présentés obligatoirement :
+documentation ; supervision ; sauvegardes et reprise ; sécurité ;
+support et responsabilités ; risques/réserves ; tests de
+post-déploiement. Chaque ligne a un statut explicite (confirmé,
+réserve, non vérifié, sans objet), une justification et une
+preuve facultative (chemin relatif et SHA-256).
+
+Les preuves ne sont jamais fabriquées et l'application ne conclut
+pas que le système de production est sain. Une passation acceptée
+malgré des vérifications manquantes est signalée par des avertissements
+**non bloquants** et nécessite une validation humaine consciente.
+Une tentative échouée ne peut pas être déclarée acceptée en exploitation.
+Les contrôles ne changent aucun jalon, incident, tâche, campagne ou GO.
+
+La sauvegarde ne permet que l'ajout d'une revue, séparé du journal
+de tentative et du bilan de MEP. Les décisions passées et leurs
+preuves sont immuables, protégées par SHA-CAS. Un bilan final ferme
+également les possibilités d'ajouter des revues ; les archives sont
+toujours en consultation seule.

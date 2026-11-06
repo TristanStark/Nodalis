@@ -96,4 +96,31 @@ public static class ProjectDeploymentEditor
         return changed;
     }
 
+
+    /// <summary>
+    /// Appends an explicitly recorded operational handover before final
+    /// business closure. Earlier reviews are never mutated or inferred.
+    /// </summary>
+    /// <param name="operation">Validated canonical MEP ledger.</param>
+    /// <param name="review">Human review of seven operational control areas.</param>
+    /// <returns>New in-memory operation, without any source file writes.</returns>
+    public static ProjectDeploymentOperation ReviewHandover(
+        ProjectDeploymentOperation operation, ProjectDeploymentHandoverReview review)
+    {
+        ProjectDeploymentMarkdownCodec.Validate(operation);
+        ArgumentNullException.ThrowIfNull(review);
+        if (operation.Closure is not null)
+        {
+            throw new InvalidDataException(
+                "MEP clôturée : aucune nouvelle passation.");
+        }
+
+        ProjectDeploymentOperation proposed = operation with
+        {
+            HandoverReviews = [.. (operation.HandoverReviews ?? []), review]
+        };
+        ProjectDeploymentMarkdownCodec.Validate(proposed);
+        return proposed;
+    }
+
 }

@@ -204,6 +204,36 @@ public sealed class ProjectDeploymentService
                 "Cette MEP est déjà clôturée : aucune modification permise.");
         }
 
+        List<ProjectDeploymentHandoverReview> oldReviews =
+            old.HandoverReviews ?? [];
+        List<ProjectDeploymentHandoverReview> newReviews =
+            proposed.HandoverReviews ?? [];
+        if (newReviews.Count < oldReviews.Count)
+        {
+            throw new InvalidDataException(
+                "Ancienne décision de passation supprimée.");
+        }
+
+        for (int index = 0; index < oldReviews.Count; index++)
+        {
+            if (!string.Equals(JsonSerializer.Serialize(oldReviews[index]),
+                JsonSerializer.Serialize(newReviews[index]),
+                StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "Revue de passation historique modifiée.");
+            }
+        }
+
+        if (newReviews.Count > oldReviews.Count &&
+            (proposed.Attempts.Count != old.Attempts.Count ||
+             proposed.Events.Count != old.Events.Count ||
+             proposed.Closure is not null))
+        {
+            throw new InvalidDataException(
+                "Enregistrez la passation séparément des tentatives et du bilan.");
+        }
+
         if (proposed.Closure is not null &&
             (proposed.Attempts.Count != old.Attempts.Count ||
              proposed.Events.Count != old.Events.Count))

@@ -177,6 +177,8 @@ public static class ProjectDeploymentMarkdownCodec
                 "Événement hors tentative ou historique réordonné.");
         }
 
+        ProjectDeploymentHandoverValidation.Validate(operation);
+
         if (operation.Closure is ProjectDeploymentClosure closure)
         {
             if (closure.Id == Guid.Empty || !Enum.IsDefined(closure.Outcome) ||

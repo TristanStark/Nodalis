@@ -142,6 +142,72 @@ internal static class ProjectDeploymentSmokeTests
         // Old v1 Markdown must still parse without acquiring a closure field.
         Check(!markdown.Contains("\"closure\"", StringComparison.Ordinal),
             "Unclosed legacy Markdown must not gain an implicit closure field.");
+
+        Check(!markdown.Contains("\"handoverReviews\"", StringComparison.Ordinal),
+            "Canonical legacy MEP must omit absent handover history.");
+        ProjectDeploymentHandoverReview handover = new()
+        {
+            Id = Guid.NewGuid(),
+            AttemptId = second.Id,
+            RecordedUtc = started.AddSeconds(8),
+            Actor = "Responsable MEP",
+            Recipient = "Equipe exploitation",
+            Outcome = ProjectDeploymentHandoverOutcome.AcceptedWithReservations,
+            Rationale = "Passation confirmée après contrôles de stabilisation.",
+            Reservations = "Surveillance accrue pendant la montée en charge.",
+            Checks = ProjectDeploymentHandoverValidation.RequiredAreas.Select(
+                area => new ProjectDeploymentHandoverCheck
+                {
+                    Area = area,
+                    Status = area == ProjectDeploymentHandoverArea.Monitoring
+                        ? ProjectDeploymentHandoverStatus.Reservation
+                        : ProjectDeploymentHandoverStatus.Confirmed,
+                    Note = "Constat humain documenté.",
+                    Evidence = procedure
+                }).ToList()
+        };
+        ProjectDeploymentOperation transferred =
+            ProjectDeploymentEditor.ReviewHandover(success, handover);
+        ProjectDeploymentOperation rereadTransfer =
+            ProjectDeploymentMarkdownCodec.Parse(
+                ProjectDeploymentMarkdownCodec.Format(transferred));
+        Check(rereadTransfer.HandoverReviews?.Single().Id == handover.Id &&
+            ProjectDeploymentHandoverValidation.Warnings(handover).Count == 1,
+            "Passation must roundtrip and show the unresolved reservation.");
+        MustReject(() => ProjectDeploymentEditor.ReviewHandover(success,
+            handover with { Checks = handover.Checks.Skip(1).ToList() }),
+            "All seven domains are mandatory even for a non-blocking review.");
+        MustReject(() => ProjectDeploymentEditor.ReviewHandover(success,
+            handover with { AttemptId = Guid.NewGuid() }),
+            "A handover cannot refer to an unrelated attempt.");
+        MustReject(() => ProjectDeploymentEditor.ReviewHandover(success,
+            handover with { RecordedUtc = started.AddSeconds(1) }),
+            "Handover cannot precede terminal attempt event.");
+        MustReject(() => ProjectDeploymentEditor.ReviewHandover(failed,
+            handover with { AttemptId = first.Id }),
+            "Failed attempt cannot be accepted into operations.");
+        ProjectDeploymentOperation deferred = ProjectDeploymentEditor.ReviewHandover(
+            success, handover with
+            {
+                Id = Guid.NewGuid(),
+                Outcome = ProjectDeploymentHandoverOutcome.Deferred,
+                Reservations = null
+            });
+        ProjectDeploymentHandoverReview accepted = handover with
+        {
+            Id = Guid.NewGuid(),
+            RecordedUtc = started.AddSeconds(9),
+            Outcome = ProjectDeploymentHandoverOutcome.Accepted,
+            Reservations = null
+        };
+        ProjectDeploymentOperation reviewed =
+            ProjectDeploymentEditor.ReviewHandover(deferred, accepted);
+        Check(reviewed.HandoverReviews?.Count == 2 &&
+            reviewed.HandoverReviews[0].Outcome ==
+                ProjectDeploymentHandoverOutcome.Deferred &&
+            ProjectDeploymentHandoverValidation.Warnings(accepted).Count > 0,
+            "Second human review preserves first decision and warnings.");
+
         ProjectDeploymentClosure completed = new()
         {
             Id = Guid.NewGuid(),
@@ -166,6 +232,8 @@ internal static class ProjectDeploymentSmokeTests
             "Closure must roundtrip without rewriting historical attempts.");
         MustReject(() => ProjectDeploymentEditor.Close(closed, completed),
             "Double closure must be rejected.");
+        MustReject(() => ProjectDeploymentEditor.ReviewHandover(closed, handover),
+            "No handover changes after final MEP closure.");
         MustReject(() => ProjectDeploymentEditor.StartAttempt(
             closed, second with { Id = Guid.NewGuid(), Number = 3 }),
             "Closed operation cannot start another attempt.");
