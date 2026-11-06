@@ -160,7 +160,7 @@ internal static class ProjectDeploymentSmokeTests
             Failed = 1,
             Blocked = 1,
             NotApplicable = 0,
-            IncidentIds = ["INC-" + Guid.NewGuid().ToString("D")],
+            IncidentIds = ["INC-" + Guid.NewGuid().ToString("N")],
             RecordedUtc = started.AddSeconds(8),
             Actor = "Responsable REC",
             Rationale = "Contrôle post-MEP du passage réel, à requalifier.",

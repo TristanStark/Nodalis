@@ -1,5 +1,6 @@
 using Nodalis.Core.Domain;
 using Nodalis.Core.Markdown;
+using Nodalis.Core.Maintenance;
 using Nodalis.Core.Tests;
 using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.Persistence;
@@ -310,6 +311,29 @@ internal static class ProjectDeploymentPersistenceSmokeTests
         ProjectTestCampaignEntry rec = (await recService.ListAsync(
             project.ProjectDirectory)).Campaigns.Single();
 
+        // Canonical maintenance is the only incident source: no parallel
+        // incident registry is created by the MEP feature.
+        string maintenancePath = Path.Combine(project.ProjectDirectory,
+            "Fiche de Maintenance.md");
+        string maintenance = File.Exists(maintenancePath)
+            ? await File.ReadAllTextAsync(maintenancePath)
+            : "# Fiche de maintenance fictive\n";
+        string incidentId = MaintenanceMarkdownCodec.NewId(
+            MaintenanceRecordKind.Incident);
+        maintenance = MaintenanceMarkdownCodec.Append(maintenance,
+            new MaintenanceRecord
+            {
+                Kind = MaintenanceRecordKind.Incident,
+                Id = incidentId,
+                Date = DateOnly.FromDateTime(DateTime.UtcNow),
+                Summary = "Incident synthétique relevé après MEP."
+            });
+        await File.WriteAllTextAsync(maintenancePath, maintenance);
+        Check((await new ProjectGateIncidentCatalogService(workspace)
+            .ListAsync(project.ProjectDirectory)).Candidates.Any(item =>
+                item.Id == incidentId),
+            "The maintenance incident must exist with a canonical stable ID.");
+
         ProjectDeploymentPostCheck post = new()
         {
             Id = Guid.NewGuid(),
@@ -322,6 +346,7 @@ internal static class ProjectDeploymentPersistenceSmokeTests
             Failed = 1,
             Blocked = 0,
             NotApplicable = 0,
+            IncidentIds = [incidentId],
             RecordedUtc = first.StartedUtc.AddMinutes(3),
             Actor = "Responsable REC",
             Rationale = "Contrôle post-déploiement et non-conformité à suivre.",
@@ -354,20 +379,24 @@ internal static class ProjectDeploymentPersistenceSmokeTests
                     CampaignSha256 = new string('A', 64)
                 })),
             "Forged historical REC SHA must be rejected.");
+        // A changed campaign revision cannot be silently reused.
+        string recChanged = ProjectTestCampaignMarkdownCodec.Format(
+            canonicalRec with { Title = "Contrôles après MEP modifiés" });
+        await File.WriteAllTextAsync(recPath, recChanged);
+        ProjectTestCampaignEntry updatedRec = (await recService.ListAsync(
+            project.ProjectDirectory)).Campaigns.Single();
         await RejectAsync(() => service.SaveAsync(
             project.ProjectDirectory, postSaved,
             ProjectDeploymentEditor.RecordPostCheck(
                 postSaved.Operation, post with
                 {
                     Id = Guid.NewGuid(),
-                    CampaignSha256 = new string('B', 64),
-                    IncidentIds = ["INC-" + Guid.NewGuid().ToString("D")]
+                    CampaignSha256 = updatedRec.SourceSha256,
+                    IncidentIds = ["INC-" + Guid.NewGuid().ToString("N")]
                 })),
-            "Unknown incidents cannot be inferred as valid for a project.");
-        // A changed campaign revision cannot be silently reused.
-        string recChanged = ProjectTestCampaignMarkdownCodec.Format(
-            canonicalRec with { Title = "Contrôles après MEP modifiés" });
-        await File.WriteAllTextAsync(recPath, recChanged);
+            "A real but unrelated maintenance ID must be refused, even " +
+            "when the REC revision is current.");
+
         await RejectAsync(() => service.SaveAsync(
             project.ProjectDirectory, postSaved,
             ProjectDeploymentEditor.RecordPostCheck(
