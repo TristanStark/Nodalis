@@ -1,0 +1,71 @@
+# Nodalis 2.0 — Déploiements multi-tentatives (#203)
+
+**État :** contrat Core et première persistance sur develop. Aucune
+exécution technique de déploiement, aucune release 2.0.
+
+## Une opération, plusieurs tentatives
+
+Un projet conserve une fiche Markdown canonique
+Exploitation/Déploiement/Opérations/MEP-xxxx.md par opération.
+Le bloc JSON journalisé (marqueur nodalis:deployment-operation:v1)
+conserve le GUID de MEP, le propriétaire, les tentatives et
+les événements. Aucun second registre de source métier.
+
+- Une consultation se limite au dossier canonique (maximum 500 fichiers)
+  et ne crée aucun répertoire.
+- La création exige une action et une référence MEP-0001..9999
+  recontrôlée, sans écrasement d'un fichier existant.
+- La sauvegarde recalcule le SHA-256 des octets lus et effectue une
+  écriture atomique conditionnée à cette révision. Ni un instantané
+  de tentative ni un événement ancien ne peut être réécrit ou supprimé.
+- Fichiers illisibles, GUID dupliqués, sources hors projet, révisions
+  concurrentes, arborescences sous liens symboliques et archives
+  sont traités sans mutation silencieuse.
+
+## État réel et rollback
+
+Chaque tentative fige une version réellement constatée avant MEP,
+la version cible, le périmètre, l'environnement, les SHA-256 des
+procédures de déploiement et retour, la décision GO historique
+et la relecture humaine de cette décision.
+
+Événements distincts et append-only :
+ActionLogged, RollbackRequested, RollbackStarted, RollbackObserved,
+FinishedSucceeded, FinishedFailed et FinishedInterrupted.
+Un rollback observé garde son résultat
+(Succeeded, Partial, Failed, Interrupted) et la version constatée.
+
+Une demande de rollback n'est ni son démarrage ni sa confirmation.
+Une tentative ayant demandé un rollback ne peut pas être déclarée
+réussie, même en cas de retour en arrière réussi. Une seconde tentative
+nécessite la clôture explicite de la précédente et un nouvel état
+réel saisi, jamais déduit de l'ancienne version cible.
+
+## Réutilisation prudente d'un GO
+
+À l'enregistrement de chaque nouvelle tentative, le service vérifie
+la décision Gate dans le même projet, son verdict d'approbation et
+qu'aucune décision plus récente du même gate ne l'a remplacée.
+Il compare l'environnement, la version et le périmètre exacts,
+réévalue les empreintes de toutes les preuves Gate et re-hache les
+procédures de déploiement et rollback.
+
+Ce contrôle **ne produit pas d'autorisation automatique** :
+les incidents, les risques, l'état réel de l'environnement, les
+conditions opérationnelles et l'étendue de la revue doivent encore
+être examinés par une personne. Le statut d'un jalon et les décisions
+historiques sont indépendants.
+
+## Régressions et étapes restantes
+
+ProjectDeploymentSmokeTests couvre les tentatives, les événements,
+les retours partiels, les champs obligatoires, le format canonique
+et les historiques immuables. ProjectDeploymentPersistenceSmokeTests
+vérifie le workspace synthétique, la création, la relecture,
+les écrasements refusés, les conflits SHA, le GO sur version différente
+et la modification des procédures.
+
+À construire : interface WPF de préparation/journal/bilan, contrôle
+transversal incidents/risques, preuve du contexte MEP, stabilisation
+et passation exploitation. Qualification Windows et gate #205 nécessaires
+avant merge main, tag et release.
