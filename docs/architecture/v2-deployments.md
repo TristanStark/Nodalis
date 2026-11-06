@@ -303,3 +303,36 @@ verdict post-MEP « Conforme » ni « Conforme avec réserves », même
 si certains tests REC sont réussis ; elle peut conserver les
 constats « Non conforme » ou « À requalifier ». Les avis restent
 indépendants du bilan global de déploiement.
+
+
+### Suivi des réserves en exploitation (hors MEP clôturée)
+
+Une MEP clôturée est **immuable** : ses décisions et réserves
+historiques ne sont jamais réécrites pour signaler leur résolution
+ultérieure. Le projet peut posséder un registre Markdown unique
+Exploitation/Déploiement/Suivi/Reservations-MEP.md, créé seulement
+après action explicite. Sa lecture ne crée pas de répertoire. Il reste
+indépendant des incidents, tâches, gates, campagnes REC et jalons.
+
+Chaque réserve RES-xxxx reçoit un GUID stable, le GUID de la MEP
+propriétaire, l'origine précise (**passation, contrôle post-MEP ou
+bilan**), le GUID de cette décision, le SHA-256 de la fiche MEP et
+son extrait historique. Le responsable désigné, la description,
+l'auteur, la date de création et une échéance facultative forment
+l'identité initiale de l'obligation. Une même décision d'origine
+peut produire plusieurs réserves individuelles **validées
+manuellement**, sans fractionnement automatique du texte.
+
+Le journal est **append-only** : prise en charge, note, réattribution
+avec nouveau responsable, résolution humaine explicite et réouverture.
+La progression et la résolution ne ferment jamais implicitement
+l'incident, le test, le risque ou le jalon d'origine. Les transitions
+sont contrôlées ; une nouvelle intervention après résolution requiert
+une réouverture historisée.
+
+Les écritures restent limitées à une action par validation, isolées
+au projet propriétaire et protégées par révision SHA-256. Une preuve
+facultative conserve un chemin de fichier du projet et son empreinte,
+revérifiée avant écriture. La consultation reste permise en archive,
+mais l'ajout y est interdit. Les anciennes fiches MEP restent
+strictement identiques, y compris après une résolution de réserve.

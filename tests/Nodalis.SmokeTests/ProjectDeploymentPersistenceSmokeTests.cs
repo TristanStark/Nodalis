@@ -207,6 +207,7 @@ internal static class ProjectDeploymentPersistenceSmokeTests
             Recipient = "Exploitation",
             Outcome = ProjectDeploymentHandoverOutcome.Refused,
             Rationale = "Stabilisation non concluante, transfert refusé.",
+            Reservations = "Transférer la surveillance renforcée aux équipes.",
             Checks = ProjectDeploymentHandoverValidation.RequiredAreas.Select(
                 area => new ProjectDeploymentHandoverCheck
                 {
@@ -436,6 +437,159 @@ internal static class ProjectDeploymentPersistenceSmokeTests
         await RejectAsync(() => service.SaveAsync(
             project.ProjectDirectory, closed, closedDraft),
             "Old snapshot must not overwrite the persisted closure.");
+
+        // The MEP itself stays frozen, yet an explicitly transferred
+        // obligation must remain operable after its business closure.
+        ProjectDeploymentReservationService followup = new(workspace);
+        string followupFolder = Path.Combine(project.ProjectDirectory,
+            "Exploitation", "Déploiement", "Suivi");
+        ProjectDeploymentReservationSnapshot emptyFollowup =
+            await followup.ReadAsync(project.ProjectDirectory);
+        Check(emptyFollowup.SourceSha256 is null &&
+            !Directory.Exists(followupFolder) &&
+            emptyFollowup.Ledger.Items.Count == 0,
+            "Reading absent follow-up must not create folders or migrate MEP.");
+
+        ProjectDeploymentReservationSource origin =
+            ProjectDeploymentReservationOrigins.List(savedClosure.Operation)
+                .Single(item => item.Id == refusal.Id);
+        ProjectDeploymentReservation item = new()
+        {
+            Id = Guid.NewGuid(),
+            Reference = "RES-0001",
+            OperationId = savedClosure.Operation.Id,
+            OriginKind = origin.Kind,
+            OriginId = origin.Id,
+            OriginSha256 = savedClosure.SourceSha256,
+            OriginSummary = origin.Description,
+            Title = "Surveillance exploitation",
+            Description = "Contrôler les alertes et conserver la décision.",
+            CreatedBy = "Responsable MEP",
+            InitialOwner = "Équipe exploitation",
+            CreatedUtc = closure.RecordedUtc.AddSeconds(1),
+            DueDate = new DateOnly(2027, 1, 15)
+        };
+        ProjectDeploymentReservationSnapshot createdFollowup =
+            await followup.AddAsync(project.ProjectDirectory,
+                emptyFollowup, savedClosure, item);
+        Check(createdFollowup.Ledger.Items.Single().Id == item.Id &&
+            ProjectDeploymentReservationService.NextReference(
+                createdFollowup.Ledger) == "RES-0002" &&
+            (await service.ListAsync(project.ProjectDirectory)).Operations
+                .Single().SourceSha256 == savedClosure.SourceSha256,
+            "Reservation is tracked separately; sealed MEP bytes stay intact.");
+
+        await RejectAsync(() => followup.AddAsync(
+            project.ProjectDirectory, emptyFollowup, savedClosure,
+            item with { Id = Guid.NewGuid() }),
+            "A stale reservation registry revision must fail closed.");
+        await RejectAsync(() => followup.AddAsync(
+            project.ProjectDirectory, createdFollowup,
+            savedClosure with
+            {
+                Operation = savedClosure.Operation with { Id = Guid.NewGuid() }
+            },
+            item with
+            {
+                Id = Guid.NewGuid(),
+                Reference = "RES-0002",
+                OperationId = Guid.NewGuid()
+            }), "Foreign MEP owner must never create a reservation.");
+
+        ProjectDeploymentReservationEvent taken = new()
+        {
+            Id = Guid.NewGuid(),
+            ReservationId = item.Id,
+            Action = ProjectDeploymentReservationAction.TakeInCharge,
+            Actor = "Exploitant",
+            Rationale = "Prise en charge explicite et vérifiée.",
+            RecordedUtc = item.CreatedUtc.AddSeconds(1)
+        };
+        ProjectDeploymentReservationSnapshot inProgress =
+            await followup.RecordAsync(project.ProjectDirectory,
+                createdFollowup, taken);
+        Check(ProjectDeploymentReservationCodec.GetState(
+            inProgress.Ledger, item.Id).Status ==
+                ProjectDeploymentReservationStatus.InProgress,
+            "Taking charge is an explicit action, not inferred from MEP closure.");
+        ProjectDeploymentReservationEvent assignment = taken with
+        {
+            Id = Guid.NewGuid(),
+            Action = ProjectDeploymentReservationAction.Reassign,
+            NewOwner = "Équipe de supervision",
+            Rationale = "Reprise par l'équipe de supervision.",
+            RecordedUtc = taken.RecordedUtc.AddSeconds(1)
+        };
+        ProjectDeploymentReservationSnapshot reassigned =
+            await followup.RecordAsync(project.ProjectDirectory,
+                inProgress, assignment);
+        Check(ProjectDeploymentReservationCodec.GetState(
+            reassigned.Ledger, item.Id).Owner == "Équipe de supervision",
+            "Reassignment must be retained without overwriting original owner.");
+
+        ProjectDeploymentReservationEvent resolved = taken with
+        {
+            Id = Guid.NewGuid(),
+            Action = ProjectDeploymentReservationAction.Resolve,
+            Actor = "Responsable exploitation",
+            Rationale = "Contrôles stabilisés et acceptation humaine.",
+            RecordedUtc = assignment.RecordedUtc.AddSeconds(1)
+        };
+        ProjectDeploymentReservationSnapshot completedFollowup =
+            await followup.RecordAsync(project.ProjectDirectory,
+                reassigned, resolved);
+        Check(ProjectDeploymentReservationCodec.GetState(
+            completedFollowup.Ledger, item.Id).Status ==
+                ProjectDeploymentReservationStatus.Resolved &&
+            completedFollowup.Ledger.Events.Count == 3,
+            "Explicit human resolution is append-only.");
+        await RejectAsync(() => followup.RecordAsync(
+            project.ProjectDirectory, completedFollowup,
+            resolved with
+            {
+                Id = Guid.NewGuid(),
+                Action = ProjectDeploymentReservationAction.ProgressNote,
+                RecordedUtc = resolved.RecordedUtc.AddSeconds(1)
+            }), "Resolved reservation cannot silently receive progress events.");
+        await RejectAsync(() => followup.RecordAsync(
+            project.ProjectDirectory, inProgress,
+            resolved with { Id = Guid.NewGuid() }),
+            "Old source SHA cannot overwrite newer operational decisions.");
+        await RejectAsync(() => followup.RecordAsync(
+            project.ProjectDirectory, completedFollowup with
+            {
+                Ledger = completedFollowup.Ledger with
+                {
+                    Items = [item with { InitialOwner = "Falsifié" }]
+                }
+            }, resolved with
+            {
+                Id = Guid.NewGuid(),
+                Action = ProjectDeploymentReservationAction.Reopen,
+                RecordedUtc = resolved.RecordedUtc.AddSeconds(1)
+            }), "Forged initial owner must be rejected even with current SHA.");
+
+        ProjectDeploymentReservationEvent reopened = resolved with
+        {
+            Id = Guid.NewGuid(),
+            Action = ProjectDeploymentReservationAction.Reopen,
+            Rationale = "Incident de surveillance réapparu, réouvrir.",
+            RecordedUtc = resolved.RecordedUtc.AddSeconds(1)
+        };
+        ProjectDeploymentReservationSnapshot reopenedFollowup =
+            await followup.RecordAsync(project.ProjectDirectory,
+                completedFollowup, reopened);
+        ProjectDeploymentReservationSnapshot rereadFollowup =
+            await followup.ReadAsync(project.ProjectDirectory);
+        Check(rereadFollowup.SourceSha256 == reopenedFollowup.SourceSha256 &&
+            ProjectDeploymentReservationCodec.GetState(
+                rereadFollowup.Ledger, item.Id).Status ==
+                ProjectDeploymentReservationStatus.Open &&
+            rereadFollowup.Ledger.Events.Count == 4 &&
+            (await service.ListAsync(project.ProjectDirectory)).Operations
+                .Single().Operation.Closure?.Id == closure.Id,
+            "Reopening preserves every prior decision and the closed MEP.");
+
 
 
     }
