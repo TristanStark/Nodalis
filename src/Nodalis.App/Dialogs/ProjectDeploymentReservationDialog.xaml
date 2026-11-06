@@ -142,6 +142,10 @@
                    LastChildFill="True">
             <Button DockPanel.Dock="Right" Content="Fermer" IsCancel="True"
                     Padding="12,7" Click="Close_Click" />
+            <Button x:Name="RelationsButton" DockPanel.Dock="Right"
+                    Content="Liens tâche/jalon…" Click="Relations_Click"
+                    Padding="12,7" Margin="0,0,8,0"
+                    ToolTip="Associer/dissocier uniquement les identifiants persistants déjà présents dans le projet" />
             <Button DockPanel.Dock="Right" Content="Actualiser"
                     Padding="12,7" Margin="0,0,8,0"
                     Click="Refresh_Click" />

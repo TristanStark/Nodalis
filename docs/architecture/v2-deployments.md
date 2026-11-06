@@ -392,3 +392,22 @@ Les liens ne mettent jamais à jour automatiquement la tâche, le
 jalon, la MEP, la recette, l'incident ni le statut de la réserve.
 L'historique des liens est protégé par le SHA-CAS du registre et
 consultable en archive.
+
+
+### Interface d'association des tâches et jalons
+
+Depuis **Projet > Mises en production… > Suivi des réserves…**,
+sélectionner une réserve et choisir **Liens tâche/jalon…**.
+Un formulaire unique montre les liens actifs, les décisions historiques
+et deux opérations : associer ou dissocier un lien existant.
+Les cibles à GUID stable sont recherchées **uniquement** au clic sur
+« Charger les éléments du projet » ; les doublons et les éléments
+d'autres projets ne sont pas proposés. La dissociation ne requiert
+pas de relire une cible supprimée, grâce au journal historique.
+L'auteur, la justification et la confirmation sont nécessaires.
+
+Le registre canonique des réserves reçoit chaque décision, jamais
+le Markdown de la tâche ni le tableau des jalons. Une liaison ne
+change pas la progression ou le statut d'un projet ; elle sert
+exclusivement au suivi transversal des obligations de passation.
+Les projets archivés donnent accès à l'historique en lecture seule.

@@ -14,6 +14,7 @@ namespace Nodalis.App.Dialogs;
 public partial class ProjectDeploymentReservationDialog : Window
 {
     private readonly ProjectDeploymentReservationService _service;
+    private readonly string _workspaceRoot;
     private readonly ProjectGateRegistryService _gates;
     private readonly ProjectDeploymentEntry _mep;
     private readonly string _projectDirectory;
@@ -30,6 +31,7 @@ public partial class ProjectDeploymentReservationDialog : Window
         string projectDirectory, ProjectDeploymentEntry mep, bool readOnly)
     {
         ArgumentNullException.ThrowIfNull(mep);
+        _workspaceRoot = workspaceRoot;
         _service = new ProjectDeploymentReservationService(workspaceRoot);
         _gates = new ProjectGateRegistryService(workspaceRoot);
         _projectDirectory = projectDirectory;
@@ -164,6 +166,18 @@ public partial class ProjectDeploymentReservationDialog : Window
             }
         }
 
+        IReadOnlyList<ProjectDeploymentReservationActiveLink> links =
+            ProjectDeploymentReservationRelations.Active(
+                _snapshot.Ledger, item.Id);
+        lines.Add(string.Empty);
+        lines.Add("LIENS VERS LES TÂCHES ET JALONS · " + links.Count);
+        foreach (ProjectDeploymentReservationActiveLink link in links)
+        {
+            lines.Add("  " + link.Kind + " · " +
+                link.TargetId.ToString("D"));
+            lines.Add("  " + link.SourceRelativePath);
+        }
+
         DetailsBox.Text = string.Join(Environment.NewLine, lines);
     }
 
@@ -177,6 +191,8 @@ public partial class ProjectDeploymentReservationDialog : Window
             ProjectDeploymentReservationService.NextReference(
                 _snapshot!.Ledger) is not null;
         RecordButton.IsEnabled = editable && selected is not null;
+        RelationsButton.IsEnabled = !_busy && selected is not null &&
+            _snapshot is not null;
         List<ActionOption> actions = [];
         if (selected is not null)
         {
@@ -391,6 +407,33 @@ public partial class ProjectDeploymentReservationDialog : Window
             StatusText.Text = "Action historisée sur " +
                 selected.Item.Reference + " · aucune MEP ni anomalie modifiée.";
         }, "Consigner une action");
+
+    /// <summary>
+    /// Opens explicit relations without any task/jalon scans at dialog load.
+    /// Targets are indexed only when the human asks to load them.
+    /// </summary>
+    /// <param name="sender">Link management button.</param>
+    /// <param name="e">WPF routed click.</param>
+    private async void Relations_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (_snapshot is null || CurrentRow() is not ReservationRow item)
+            {
+                return;
+            }
+
+            ProjectDeploymentReservationRelationDialog dialog = new(
+                _workspaceRoot, _projectDirectory, _snapshot,
+                item.Item.Id, _readOnly) { Owner = this };
+            dialog.ShowDialog();
+            if (dialog.Changed)
+            {
+                Changed = true;
+                await ReloadAsync(item.Item.Id);
+                StatusText.Text = "Relation historisée · aucune tâche, " +
+                    "aucun jalon ni MEP n'a été modifié.";
+            }
+        }, "Liens vers tâches et jalons");
 
     /// <summary>Updates the selected human obligation without scanning files.</summary>
     /// <param name="sender">ListBox.</param>
