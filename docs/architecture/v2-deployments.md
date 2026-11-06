@@ -292,3 +292,14 @@ Les campagnes et fiches de maintenance restent entièrement inchangées.
 Une nouvelle réussite REC, une intervention terminée ou une revue
 « Conforme » dans le journal MEP ne clôture jamais automatiquement
 l'incident, la MEP, un jalon ni un risque. Archives en lecture seule.
+
+
+La liaison indique les **déclarations originales du passage REC** ;
+les rectifications administratives éventuelles (journal REC distinct)
+sont dénombrées et signalées à la personne avant confirmation. Une
+rectification ne constitue jamais une nouvelle exécution. Une
+tentative terminée en échec ou interruption ne peut pas recevoir un
+verdict post-MEP « Conforme » ni « Conforme avec réserves », même
+si certains tests REC sont réussis ; elle peut conserver les
+constats « Non conforme » ou « À requalifier ». Les avis restent
+indépendants du bilan global de déploiement.

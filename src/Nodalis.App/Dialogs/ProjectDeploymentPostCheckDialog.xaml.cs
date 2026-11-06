@@ -70,18 +70,23 @@ public partial class ProjectDeploymentPostCheckDialog : Window
             StringComparer.CurrentCultureIgnoreCase).ToArray();
         CampaignCombo.SelectedIndex = choices.Count > 0 ? 0 : -1;
         IncidentList.ItemsSource = _incidents;
-        VerdictCombo.ItemsSource = new[]
+        List<VerdictOption> verdicts =
+        [
+            new(ProjectDeploymentPostCheckVerdict.ToReview, "À requalifier"),
+            new(ProjectDeploymentPostCheckVerdict.NonConform, "Non conforme")
+        ];
+        if (attemptState.LastEventKind ==
+            ProjectDeploymentEventKind.FinishedSucceeded)
         {
-            new VerdictOption(ProjectDeploymentPostCheckVerdict.ToReview,
-                "À requalifier"),
-            new VerdictOption(ProjectDeploymentPostCheckVerdict.Conform,
-                "Conforme · validation humaine"),
-            new VerdictOption(
+            verdicts.Add(new VerdictOption(
+                ProjectDeploymentPostCheckVerdict.Conform,
+                "Conforme · validation humaine"));
+            verdicts.Add(new VerdictOption(
                 ProjectDeploymentPostCheckVerdict.ConformWithReservations,
-                "Conforme avec réserves"),
-            new VerdictOption(ProjectDeploymentPostCheckVerdict.NonConform,
-                "Non conforme")
-        };
+                "Conforme avec réserves"));
+        }
+
+        VerdictCombo.ItemsSource = verdicts;
         VerdictCombo.SelectedIndex = 0;
         AttemptText.Text = operation.Reference + " · tentative " +
             _attempt.Number + " · " + _attempt.Environment + " · " +
@@ -151,11 +156,15 @@ public partial class ProjectDeploymentPostCheckDialog : Window
             item.Outcome == ProjectTestOutcome.Failed);
         int blocked = passage.Results.Count(item =>
             item.Outcome == ProjectTestOutcome.Blocked);
+        int corrections = choice.Campaign.Campaign.ResultCorrections?
+            .Count(item => item.PassageId == passage.Id) ?? 0;
         PassageSummaryText.Text = passage.Tests.Count + " test(s) · " +
             passed + " conforme(s) · " + failed + " non conforme(s) · " +
             blocked + " bloqué(s) · " +
             (passage.Tests.Count - passage.Results.Count) +
-            " non exécuté(s) · révision SHA-256 conservée";
+            " non exécuté(s) · résultats d'origine · " +
+            corrections + " rectification(s) administrative(s) à relire · " +
+            "révision SHA-256 conservée";
     }
 
     /// <summary>Updates the count for the explicitly chosen frozen passage.</summary>
@@ -189,6 +198,17 @@ public partial class ProjectDeploymentPostCheckDialog : Window
         IReadOnlyList<string> warnings =
             ProjectDeploymentPostCheckPolicy.Warnings(check);
         string description = string.Join("\n", warnings.Take(5));
+        if (CampaignCombo.SelectedItem is PassageOption selected)
+        {
+            int corrections = selected.Campaign.Campaign.ResultCorrections?
+                .Count(item => item.PassageId == selected.Passage.Id) ?? 0;
+            if (corrections > 0)
+            {
+                description += "\n" + corrections +
+                    " rectification(s) administrative(s) : lire le " +
+                    "journal REC avant de statuer.";
+            }
+        }
         if (MessageBox.Show(this,
             "Enregistrer un lien post-déploiement à ce passage REC ?\n\n" +
             description + "\n\n" +

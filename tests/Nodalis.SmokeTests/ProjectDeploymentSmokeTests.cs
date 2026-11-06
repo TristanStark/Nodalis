@@ -194,6 +194,23 @@ internal static class ProjectDeploymentSmokeTests
             check with { Verdict =
                 ProjectDeploymentPostCheckVerdict.ConformWithReservations }),
             "Reservations are mandatory for a human reserved verdict.");
+        MustReject(() => ProjectDeploymentEditor.RecordPostCheck(failed,
+            check with
+            {
+                AttemptId = first.Id,
+                Verdict = ProjectDeploymentPostCheckVerdict.Conform
+            }),
+            "Failed or interrupted MEP attempt cannot be declared conform.");
+        ProjectDeploymentOperation failedReview =
+            ProjectDeploymentEditor.RecordPostCheck(failed,
+                check with
+                {
+                    AttemptId = first.Id,
+                    Verdict = ProjectDeploymentPostCheckVerdict.NonConform
+                });
+        Check(failedReview.PostChecks?.Single().Verdict ==
+            ProjectDeploymentPostCheckVerdict.NonConform,
+            "A failed attempt may retain a human nonconformity review.");
 
         ProjectDeploymentHandoverReview handover = new()
         {

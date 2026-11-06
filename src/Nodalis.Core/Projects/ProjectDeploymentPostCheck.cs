@@ -111,6 +111,15 @@ public static class ProjectDeploymentPostCheckPolicy
                     "Contrôle post-MEP hors de la fenêtre historique de la tentative.");
             }
 
+            if (terminal.Kind != ProjectDeploymentEventKind.FinishedSucceeded &&
+                check.Verdict is ProjectDeploymentPostCheckVerdict.Conform or
+                    ProjectDeploymentPostCheckVerdict.ConformWithReservations)
+            {
+                throw new InvalidDataException(
+                    "Tentative échouée ou interrompue : contrôle conforme " +
+                    "incompatible avec l'état réel de la MEP.");
+            }
+
             if (check.Verdict ==
                     ProjectDeploymentPostCheckVerdict.ConformWithReservations &&
                 !Note(check.Reservations, 4000))
