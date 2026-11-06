@@ -546,7 +546,8 @@ public partial class ProjectDeploymentRegistryDialog : Window
             ProjectGateIncidentCatalog incidents = await Task.Run(() =>
                 _incidents.ListAsync(_projectDirectory));
             ProjectDeploymentPostCheckDialog dialog = new(
-                operation, campaigns, incidents) { Owner = this };
+                operation, campaigns, incidents)
+            { Owner = this };
             if (dialog.EligiblePassages == 0)
             {
                 MessageBox.Show(this,
