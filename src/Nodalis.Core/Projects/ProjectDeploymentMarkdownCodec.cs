@@ -82,7 +82,8 @@ public static class ProjectDeploymentMarkdownCodec
             bool finished = false;
             last = attempt.StartedUtc;
             while (nextEvent < operation.Events.Count &&
-                operation.Events[nextEvent].AttemptId == attempt.Id)
+                operation.Events[nextEvent] is ProjectDeploymentAttemptEvent next &&
+                next.AttemptId == attempt.Id)
             {
                 ProjectDeploymentAttemptEvent action = operation.Events[nextEvent++];
                 if (action.Id == Guid.Empty || !events.Add(action.Id) ||

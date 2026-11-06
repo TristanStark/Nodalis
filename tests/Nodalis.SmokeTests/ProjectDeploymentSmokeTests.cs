@@ -135,6 +135,9 @@ internal static class ProjectDeploymentSmokeTests
         MustReject(() => ProjectDeploymentMarkdownCodec.Validate(
             success with { ProjectId = Guid.Empty }),
             "Unowned MEPs are invalid.");
+        MustReject(() => ProjectDeploymentMarkdownCodec.Validate(
+            success with { Events = [null!] }),
+            "Malformed null events must produce a controlled rejection.");
     }
 
     /// <summary>Produces a human event one or more seconds into attempt one.</summary>
