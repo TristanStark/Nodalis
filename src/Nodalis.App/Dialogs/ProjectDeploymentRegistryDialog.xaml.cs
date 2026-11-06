@@ -93,6 +93,8 @@ public partial class ProjectDeploymentRegistryDialog : Window
 
         ProjectDeploymentOperation operation = row.Entry.Operation;
         ProjectDeploymentClosure? closure = operation.Closure;
+        List<ProjectDeploymentHandoverReview> handovers =
+            operation.HandoverReviews ?? [];
         List<string> lines =
         [
             operation.Reference + " — " + operation.Title,
@@ -120,6 +122,31 @@ public partial class ProjectDeploymentRegistryDialog : Window
             if (!string.IsNullOrWhiteSpace(closure.Reservations))
             {
                 lines.Add("Réserves : " + closure.Reservations);
+            }
+        }
+
+        lines.Add(string.Empty);
+        lines.Add("PASSATION EXPLOITATION · " + handovers.Count + " revue(s)");
+        foreach (ProjectDeploymentHandoverReview review in handovers)
+        {
+            lines.Add(review.RecordedUtc.ToLocalTime().ToString(
+                "dd/MM/yyyy HH:mm") + " · " + review.Outcome);
+            lines.Add("  Responsable : " + review.Actor +
+                " · destinataire : " + review.Recipient);
+            lines.Add("  Justification : " + review.Rationale);
+            if (!string.IsNullOrWhiteSpace(review.Reservations))
+            {
+                lines.Add("  Réserves : " + review.Reservations);
+            }
+
+            foreach (ProjectDeploymentHandoverCheck check in review.Checks)
+            {
+                lines.Add("  " + check.Area + " : " + check.Status +
+                    " · " + check.Note);
+                if (check.Evidence is not null)
+                {
+                    lines.Add("    Preuve : " + check.Evidence.RelativePath);
+                }
             }
         }
 
@@ -181,6 +208,8 @@ public partial class ProjectDeploymentRegistryDialog : Window
             selected is not null && hasAttempt && !finished;
         CloseOperationButton.IsEnabled = !_busy && !_readOnly && open &&
             selected is not null && (!hasAttempt || finished);
+        HandoverButton.IsEnabled = !_busy && !_readOnly && open &&
+            selected is not null && hasAttempt && finished;
         RefreshButton.IsEnabled = !_busy;
     }
 
@@ -450,6 +479,66 @@ public partial class ProjectDeploymentRegistryDialog : Window
             StatusText.Text = "Bilan MEP figé · historique conservé. " +
                 "Aucun autre statut métier modifié.";
         }, "Clôturer une opération MEP");
+
+    /// <summary>
+    /// Records one explicit post-deployment stabilization and operational
+    /// handover review, protecting older decisions with SHA-CAS.
+    /// </summary>
+    /// <param name="sender">Handover button.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void Handover_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (_readOnly || CurrentRow() is not MepRow selected ||
+                selected.Entry.Operation.Closure is not null ||
+                selected.Entry.Operation.Attempts.Count == 0)
+            {
+                return;
+            }
+
+            ProjectDeploymentOperation operation = selected.Entry.Operation;
+            ProjectDeploymentAttemptState state =
+                ProjectDeploymentMarkdownCodec.GetAttemptState(
+                    operation, operation.Attempts[^1].Id);
+            if (!state.IsFinished)
+            {
+                throw new InvalidDataException(
+                    "Terminez la tentative avant la passation exploitation.");
+            }
+
+            ProjectDeploymentHandoverDialog dialog = new(operation)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            Dictionary<ProjectDeploymentHandoverArea,
+                ProjectGateEvidenceSnapshot?> evidence = [];
+            foreach (ProjectDeploymentHandoverDialog.ControlRow row in dialog.Rows)
+            {
+                if (string.IsNullOrWhiteSpace(row.EvidencePath))
+                {
+                    evidence[row.Area] = null;
+                    continue;
+                }
+
+                evidence[row.Area] = await _gates.CaptureEvidenceAsync(
+                    row.EvidencePath.Trim());
+            }
+
+            ProjectDeploymentHandoverReview review = dialog.BuildReview(evidence);
+            ProjectDeploymentOperation proposed =
+                ProjectDeploymentEditor.ReviewHandover(operation, review);
+            ProjectDeploymentEntry saved = await _service.SaveAsync(
+                _projectDirectory, selected.Entry, proposed);
+            Changed = true;
+            await ReloadAsync(saved.Operation.Id);
+            StatusText.Text = "Passation enregistrée dans l'historique. " +
+                "Les réserves restent visibles · aucun autre statut modifié.";
+        }, "Passation exploitation");
 
     /// <summary>Reloads the canonical folder only on explicit user request.</summary>
     /// <param name="sender">Refresh button.</param>

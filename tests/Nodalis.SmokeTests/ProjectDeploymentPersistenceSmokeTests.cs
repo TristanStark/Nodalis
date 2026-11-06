@@ -218,6 +218,26 @@ internal static class ProjectDeploymentPersistenceSmokeTests
             project.ProjectDirectory, closed, handoverDraft);
         Check(savedTransfer.Operation.HandoverReviews?.Single().Id == refusal.Id,
             "Refused transfer must survive project-local Markdown persistence.");
+
+        // An apparently valid source path and forged SHA cannot authenticate
+        // a transfer's evidence, even when the decision itself is well-formed.
+        ProjectDeploymentHandoverReview forged = refusal with
+        {
+            Id = Guid.NewGuid(),
+            Checks = refusal.Checks.Select(check => check with
+            {
+                Evidence = check.Area == ProjectDeploymentHandoverArea.Monitoring
+                    ? back with { Sha256 = new string('C', 64) }
+                    : null
+            }).ToList()
+        };
+        ProjectDeploymentOperation forgedDraft =
+            ProjectDeploymentEditor.ReviewHandover(
+                savedTransfer.Operation, forged);
+        await RejectAsync(() => service.SaveAsync(
+            project.ProjectDirectory, savedTransfer, forgedDraft),
+            "Forged or stale handover evidence must be refused at commit time.");
+
         await RejectAsync(() => service.SaveAsync(project.ProjectDirectory,
             savedTransfer, savedTransfer.Operation with
             {

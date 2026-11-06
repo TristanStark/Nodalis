@@ -206,3 +206,33 @@ de tentative et du bilan de MEP. Les décisions passées et leurs
 preuves sont immuables, protégées par SHA-CAS. Un bilan final ferme
 également les possibilités d'ajouter des revues ; les archives sont
 toujours en consultation seule.
+
+
+### Interface de revue de passation
+
+Dans **Projet > Mises en production…**, une opération ayant une
+tentative terminée et non encore clôturée expose **Passation
+exploitation…**. La fenêtre affiche la dernière tentative, les
+revues historiques déjà enregistrées et sept contrôles distincts.
+
+Pour chaque contrôle, l'utilisateur choisit un état explicite
+(Non vérifié, Confirmé, Réserve, Sans objet), écrit un constat et
+peut lier une preuve existante du workspace. L'empreinte SHA-256
+est recalculée à l'enregistrement ; seules les preuves issues du
+**projet propriétaire** sont acceptées. Aucun état ni aucune
+preuve ne sont déduits automatiquement.
+
+Le verdict humain (Acceptée, Acceptée avec réserves, Refusée,
+Reportée), l'auteur, le destinataire, la justification et les
+réserves sont confirmés après affichage des conditions non vérifiées,
+des réserves et des contrôles sans preuve. Les avertissements
+n'empêchent pas la décision mais exigent de la prendre en
+connaissance de cause. Une revue refusée ou reportée ne supprime
+pas les décisions précédentes ; une nouvelle revue est possible.
+
+Le registre MEP expose les revues et leurs constats dans la partie
+historique, avec le bilan et les tentatives toujours distincts.
+La fenêtre de bilan alerte également lorsque l'opération n'a
+aucune revue de passation, sans empêcher sa clôture guidée.
+La clôture définitive reste la dernière opération modifiable ;
+aucune revue ne peut être ajoutée après coup.

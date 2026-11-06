@@ -171,8 +171,14 @@ public partial class ProjectDeploymentClosureDialog : Window
                 ? "Date effective constatée : " +
                   deployed.ToLocalTime().ToString("dd/MM/yyyy HH:mm") +
                   "\n" : "") +
+            (_operation.HandoverReviews is null ||
+                _operation.HandoverReviews.Count == 0
+                ? "Aucune revue de passation exploitation enregistrée : " +
+                  "vérifiez consciemment les réserves et responsabilités.\n\n"
+                : "") +
             "La date de clôture est distincte. Après enregistrement, " +
-            "plus aucune tentative ni événement ne sera ajouté à cette MEP. " +
+            "plus aucune tentative, passation ni événement ne sera ajouté " +
+            "à cette MEP. " +
             "Aucun jalon, GO ou incident ne sera modifié.",
             "Confirmer le bilan métier", MessageBoxButton.YesNo,
             MessageBoxImage.Question) == MessageBoxResult.Yes)

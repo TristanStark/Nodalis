@@ -234,6 +234,44 @@ public sealed class ProjectDeploymentService
                 "Enregistrez la passation séparément des tentatives et du bilan.");
         }
 
+        // User-linked evidence must still exist in THIS project and match
+        // its observed bytes at save time. A valid SHA-shaped string alone
+        // cannot certify another project's documents or missing sources.
+        foreach (ProjectDeploymentHandoverReview review in newReviews.Skip(
+            oldReviews.Count))
+        {
+            foreach (ProjectDeploymentHandoverCheck check in review.Checks)
+            {
+                if (check.Evidence is not ProjectGateEvidenceSnapshot proof)
+                {
+                    continue;
+                }
+
+                string fullPath = _sources.ResolveExistingFile(
+                    proof.RelativePath);
+                string relative = Path.GetRelativePath(directory, fullPath);
+                if (Path.IsPathRooted(relative) || relative is "." or ".." ||
+                    relative.StartsWith(".." + Path.DirectorySeparatorChar,
+                        StringComparison.Ordinal) ||
+                    relative.StartsWith(".." + Path.AltDirectorySeparatorChar,
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        "Preuve de passation hors du projet propriétaire.");
+                }
+
+                ProjectGateEvidenceSnapshot current =
+                    await _gates.CaptureEvidenceAsync(
+                        proof.RelativePath, cancellationToken);
+                if (!string.Equals(current.Sha256, proof.Sha256,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Preuve de passation modifiée depuis la revue.");
+                }
+            }
+        }
+
         if (proposed.Closure is not null &&
             (proposed.Attempts.Count != old.Attempts.Count ||
              proposed.Events.Count != old.Events.Count))
