@@ -1,7 +1,7 @@
 <Window x:Class="Nodalis.App.Dialogs.ProjectDeploymentRegistryDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Opérations MEP · Pilotage 2.0"
+        Title="Mises en production · Opérations et tentatives"
         Width="1030" Height="740" MinWidth="650" MinHeight="475"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <Grid Margin="16">

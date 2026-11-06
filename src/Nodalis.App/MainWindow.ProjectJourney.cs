@@ -78,7 +78,7 @@ public partial class MainWindow
         {
             MessageBox.Show(this,
                 "Sélectionnez un projet ou un document appartenant à un projet.",
-                "Parcours projet · Nodalis 2.0",
+                "Parcours du projet",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return Task.CompletedTask;
         }

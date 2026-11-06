@@ -504,7 +504,7 @@
                                 Style="{StaticResource WorktreeHeaderButtonStyle}"
                                 Click="OpenProjectJourney_Click"
                                 Content="▦"
-                                ToolTip="Parcours du projet sélectionné · Nodalis 2.0"
+                                ToolTip="Parcours du projet sélectionné"
                                 AutomationProperties.Name="Ouvrir le parcours du projet" />
                     </Grid>
 

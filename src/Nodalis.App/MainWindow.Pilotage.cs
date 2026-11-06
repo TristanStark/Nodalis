@@ -507,7 +507,7 @@ public partial class MainWindow
         MessageBox.Show(this,
             "Sélectionnez un projet ou un document appartenant à un " +
             "projet dont l'identifiant est unique.",
-            context + " · Pilotage 2.0", MessageBoxButton.OK,
+            context + " · Projet", MessageBoxButton.OK,
             MessageBoxImage.Information);
     }
 
@@ -660,7 +660,7 @@ public partial class MainWindow
     /// <param name="e">Click event.</param>
     private async void PilotageMigrationPreview_Click(
         object sender, RoutedEventArgs e) =>
-        await RunUiActionAsync("Prévisualiser migration 2.0",
+        await RunUiActionAsync("Prévisualiser la migration du projet",
             ShowComplexMigrationPreviewAsync);
 
     /// <summary>Opens the existing approved complex migration workflow.</summary>
@@ -668,7 +668,7 @@ public partial class MainWindow
     /// <param name="e">Click event.</param>
     private async void PilotageMigrateComplex_Click(
         object sender, RoutedEventArgs e) =>
-        await RunUiActionAsync("Migration Complexe 2.0",
+        await RunUiActionAsync("Migrer la structure du projet",
             MigrateComplexProjectAsync);
 
     /// <summary>Opens the existing human-reviewed migration rollback.</summary>

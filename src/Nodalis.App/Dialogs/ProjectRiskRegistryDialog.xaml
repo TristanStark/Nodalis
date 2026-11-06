@@ -1,7 +1,7 @@
 <Window x:Class="Nodalis.App.Dialogs.ProjectRiskRegistryDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Registre des risques · Nodalis 2.0"
+        Title="Risques du projet"
         Width="890" Height="620" MinWidth="590" MinHeight="420"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <Grid Margin="16">

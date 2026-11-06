@@ -1,7 +1,7 @@
 <Window x:Class="Nodalis.App.Dialogs.ProjectGateRegistryDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Registre des gates · Parcours 2.0"
+        Title="Go / No-Go · Décisions et réserves"
         Width="1010" Height="760" MinWidth="690" MinHeight="490"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <Grid Margin="16">
