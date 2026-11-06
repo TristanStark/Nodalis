@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Tests;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Reliability;
 
@@ -35,6 +36,8 @@ public sealed class ProjectDeploymentService
     private readonly string _workspaceRoot;
     private readonly ProjectJourneySourceService _sources;
     private readonly ProjectGateRegistryService _gates;
+    private readonly ProjectTestCampaignService _campaigns;
+    private readonly ProjectGateIncidentCatalogService _incidents;
 
     /// <summary>Creates a workspace-isolated deployment service.</summary>
     /// <param name="workspaceRoot">Active workspace.</param>
@@ -45,6 +48,8 @@ public sealed class ProjectDeploymentService
             Path.GetFullPath(workspaceRoot));
         _sources = new ProjectJourneySourceService(_workspaceRoot);
         _gates = new ProjectGateRegistryService(_workspaceRoot);
+        _campaigns = new ProjectTestCampaignService(_workspaceRoot);
+        _incidents = new ProjectGateIncidentCatalogService(_workspaceRoot);
     }
 
     /// <summary>Lists existing MEPs, without creating a deployment folder.</summary>
@@ -268,6 +273,104 @@ public sealed class ProjectDeploymentService
                 {
                     throw new InvalidDataException(
                         "Preuve de passation modifiée depuis la revue.");
+                }
+            }
+        }
+
+        // Post-MEP checks are independent human decisions, not recomputed
+        // campaign verdicts. Preserve every prior exact REC passage snapshot.
+        List<ProjectDeploymentPostCheck> oldChecks = old.PostChecks ?? [];
+        List<ProjectDeploymentPostCheck> newChecks = proposed.PostChecks ?? [];
+        if (newChecks.Count < oldChecks.Count)
+        {
+            throw new InvalidDataException(
+                "Un contrôle post-MEP historique a été supprimé.");
+        }
+
+        for (int index = 0; index < oldChecks.Count; index++)
+        {
+            if (!string.Equals(JsonSerializer.Serialize(oldChecks[index]),
+                JsonSerializer.Serialize(newChecks[index]),
+                StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "Un contrôle REC/incident historique a été modifié.");
+            }
+        }
+
+        if (newChecks.Count > oldChecks.Count)
+        {
+            if (newReviews.Count != oldReviews.Count ||
+                proposed.Attempts.Count != old.Attempts.Count ||
+                proposed.Events.Count != old.Events.Count ||
+                proposed.Closure is not null)
+            {
+                throw new InvalidDataException(
+                    "Consignez un contrôle post-MEP séparément des autres actions.");
+            }
+
+            ProjectTestCampaignCatalog catalog =
+                await _campaigns.ListAsync(directory, cancellationToken);
+            ProjectGateIncidentCatalog? incidentCatalog = null;
+            foreach (ProjectDeploymentPostCheck check in newChecks.Skip(
+                oldChecks.Count))
+            {
+                ProjectDeploymentAttempt attempt = old.Attempts.Single(item =>
+                    item.Id == check.AttemptId);
+                ProjectTestCampaignEntry campaignEntry =
+                    catalog.Campaigns.SingleOrDefault(item =>
+                        item.Campaign.Id == check.CampaignId) ??
+                    throw new InvalidDataException(
+                        "Campagne REC absente ou étrangère au projet MEP.");
+                if (!string.Equals(campaignEntry.SourceSha256,
+                    check.CampaignSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Campagne REC modifiée depuis la revue : réactualisez.");
+                }
+
+                ProjectTestPassage passage =
+                    campaignEntry.Campaign.Passages.SingleOrDefault(item =>
+                        item.Id == check.PassageId) ??
+                    throw new InvalidDataException(
+                        "Passage REC absent de la révision affichée.");
+                if (!string.Equals(passage.Environment, attempt.Environment,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(passage.ApplicationVersion,
+                        attempt.TargetVersion, StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        "Passage REC hors version ou environnement de la tentative.");
+                }
+
+                if (check.FrozenTests != passage.Tests.Count ||
+                    check.Passed != passage.Results.Count(item =>
+                        item.Outcome == ProjectTestOutcome.Passed) ||
+                    check.Failed != passage.Results.Count(item =>
+                        item.Outcome == ProjectTestOutcome.Failed) ||
+                    check.Blocked != passage.Results.Count(item =>
+                        item.Outcome == ProjectTestOutcome.Blocked) ||
+                    check.NotApplicable != passage.Results.Count(item =>
+                        item.Outcome == ProjectTestOutcome.NotApplicable))
+                {
+                    throw new InvalidDataException(
+                        "Statistiques REC différentes du passage figé.");
+                }
+
+                if (check.IncidentIds.Count > 0)
+                {
+                    incidentCatalog ??= await _incidents.ListAsync(
+                        directory, cancellationToken);
+                    foreach (string incident in check.IncidentIds)
+                    {
+                        if (!incidentCatalog.Candidates.Any(item =>
+                            string.Equals(item.Id, incident,
+                                StringComparison.OrdinalIgnoreCase)))
+                        {
+                            throw new InvalidDataException(
+                                "Incident post-MEP introuvable ou ambigu dans ce projet.");
+                        }
+                    }
                 }
             }
         }

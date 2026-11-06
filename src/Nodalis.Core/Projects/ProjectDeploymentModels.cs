@@ -47,6 +47,10 @@ public sealed record ProjectDeploymentOperation
     /// <summary>Optional append-only operational handover reviews.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<ProjectDeploymentHandoverReview>? HandoverReviews { get; init; }
+
+    /// <summary>Optional human links to exact REC passes and incidents.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ProjectDeploymentPostCheck>? PostChecks { get; init; }
 }
 
 /// <summary>

@@ -145,6 +145,56 @@ internal static class ProjectDeploymentSmokeTests
 
         Check(!markdown.Contains("\"handoverReviews\"", StringComparison.Ordinal),
             "Canonical legacy MEP must omit absent handover history.");
+
+        Check(!markdown.Contains("\"postChecks\"", StringComparison.Ordinal),
+            "Legacy canonical MEP must omit post-deployment checks.");
+        ProjectDeploymentPostCheck check = new()
+        {
+            Id = Guid.NewGuid(),
+            AttemptId = second.Id,
+            CampaignId = Guid.NewGuid(),
+            PassageId = Guid.NewGuid(),
+            CampaignSha256 = new string('A', 64),
+            FrozenTests = 4,
+            Passed = 1,
+            Failed = 1,
+            Blocked = 1,
+            NotApplicable = 0,
+            IncidentIds = ["INC-" + Guid.NewGuid().ToString("D")],
+            RecordedUtc = started.AddSeconds(8),
+            Actor = "Responsable REC",
+            Rationale = "Contrôle post-MEP du passage réel, à requalifier.",
+            Verdict = ProjectDeploymentPostCheckVerdict.ToReview
+        };
+        ProjectDeploymentOperation checkedMep =
+            ProjectDeploymentEditor.RecordPostCheck(success, check);
+        ProjectDeploymentOperation rereadCheck =
+            ProjectDeploymentMarkdownCodec.Parse(
+                ProjectDeploymentMarkdownCodec.Format(checkedMep));
+        Check(rereadCheck.PostChecks?.Single().CampaignId == check.CampaignId &&
+            rereadCheck.PostChecks[0].Failed == 1 &&
+            ProjectDeploymentPostCheckPolicy.Warnings(check).Count >= 3,
+            "Exact REC snapshot and unresolved warnings must survive roundtrip.");
+        MustReject(() => ProjectDeploymentEditor.RecordPostCheck(success,
+            check with { FrozenTests = 2 }),
+            "A REC passage cannot contain more outcomes than frozen tests.");
+        MustReject(() => ProjectDeploymentEditor.RecordPostCheck(success,
+            check with { AttemptId = Guid.NewGuid() }),
+            "Post-check cannot link an unrelated attempt.");
+        MustReject(() => ProjectDeploymentEditor.RecordPostCheck(success,
+            check with { CampaignSha256 = "bad" }),
+            "Only 64-character SHA-256 revisions are accepted.");
+        MustReject(() => ProjectDeploymentEditor.RecordPostCheck(success,
+            check with { RecordedUtc = started.AddSeconds(2) }),
+            "Post-check cannot precede terminal attempt event.");
+        MustReject(() => ProjectDeploymentEditor.RecordPostCheck(checkedMep,
+            check with { Id = Guid.NewGuid() }),
+            "Identical campaign passage revision cannot be relinked.");
+        MustReject(() => ProjectDeploymentEditor.RecordPostCheck(success,
+            check with { Verdict =
+                ProjectDeploymentPostCheckVerdict.ConformWithReservations }),
+            "Reservations are mandatory for a human reserved verdict.");
+
         ProjectDeploymentHandoverReview handover = new()
         {
             Id = Guid.NewGuid(),
@@ -234,6 +284,8 @@ internal static class ProjectDeploymentSmokeTests
             "Double closure must be rejected.");
         MustReject(() => ProjectDeploymentEditor.ReviewHandover(closed, handover),
             "No handover changes after final MEP closure.");
+        MustReject(() => ProjectDeploymentEditor.RecordPostCheck(closed, check),
+            "No new REC links after final MEP closure.");
         MustReject(() => ProjectDeploymentEditor.StartAttempt(
             closed, second with { Id = Guid.NewGuid(), Number = 3 }),
             "Closed operation cannot start another attempt.");

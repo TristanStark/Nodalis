@@ -1,4 +1,6 @@
 using Nodalis.Core.Domain;
+using Nodalis.Core.Markdown;
+using Nodalis.Core.Tests;
 using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
@@ -250,6 +252,133 @@ internal static class ProjectDeploymentPersistenceSmokeTests
                     { Outcome = ProjectDeploymentHandoverOutcome.Deferred }]
             }), "Historic handover verdict cannot be rewritten.");
 
+        // A REC passage is a real project-owned canonical source. No
+        // independent MEP test register is invented for post-deployment checks.
+        string testsFolder = Path.Combine(project.ProjectDirectory,
+            "Tests", "Recette");
+        Directory.CreateDirectory(testsFolder);
+        Guid testId = Guid.NewGuid();
+        string testMarkdown = "## TEST-0001 — Vérification après MEP\n" +
+            MarkdownBlockIdentityCodec.FormatMarker(testId) +
+            "\n### Attendu\n- Comportement vérifié par un humain\n";
+        string testPath = Path.Combine(testsFolder, "Cahier.md");
+        await File.WriteAllTextAsync(testPath, testMarkdown);
+        ProjectTestDefinition definition = ProjectTestDefinitionCodec
+            .Inspect(testMarkdown).Tests.Single();
+        Check(definition.CanFreeze && definition.Id == testId,
+            "Synthetic test definition must be canonical.");
+        ProjectTestCampaignService recService = new(workspace);
+        ProjectTestCampaignEntry recDraft = await recService.CreateAsync(
+            project.ProjectDirectory, "Contrôles après MEP", "REC-0001");
+        ProjectTestPassage passage = new()
+        {
+            Id = Guid.NewGuid(),
+            Number = 1,
+            Environment = "PROD",
+            ApplicationVersion = "2.0.0",
+            StartedBy = "Testeur",
+            StartedUtc = first.StartedUtc.AddMinutes(2),
+            Tests = [new ProjectTestFrozenDefinition
+            {
+                TestId = testId,
+                Reference = definition.Reference,
+                SourceRelativePath =
+                    sources.GetReferenceForExistingFile(testPath),
+                Markdown = definition.Markdown,
+                Sha256 = definition.Sha256,
+                HeadingLine = 1
+            }],
+            Results = [new ProjectTestResultEvent
+            {
+                Id = Guid.NewGuid(),
+                TestId = testId,
+                Outcome = ProjectTestOutcome.Failed,
+                Actor = "Testeur",
+                Rationale = "Contrôle réel non conforme.",
+                RecordedUtc = first.StartedUtc.AddMinutes(3)
+            }]
+        };
+        ProjectTestCampaign canonicalRec = recDraft.Campaign with
+        {
+            State = ProjectTestCampaignState.InProgress,
+            Passages = [passage]
+        };
+        string recPath = Path.Combine(project.ProjectDirectory,
+            "Tests", "Campagnes", "REC-0001.md");
+        await File.WriteAllTextAsync(recPath,
+            ProjectTestCampaignMarkdownCodec.Format(canonicalRec));
+        ProjectTestCampaignEntry rec = (await recService.ListAsync(
+            project.ProjectDirectory)).Campaigns.Single();
+
+        ProjectDeploymentPostCheck post = new()
+        {
+            Id = Guid.NewGuid(),
+            AttemptId = first.Id,
+            CampaignId = rec.Campaign.Id,
+            PassageId = passage.Id,
+            CampaignSha256 = rec.SourceSha256,
+            FrozenTests = 1,
+            Passed = 0,
+            Failed = 1,
+            Blocked = 0,
+            NotApplicable = 0,
+            RecordedUtc = first.StartedUtc.AddMinutes(3),
+            Actor = "Responsable REC",
+            Rationale = "Contrôle post-déploiement et non-conformité à suivre.",
+            Verdict = ProjectDeploymentPostCheckVerdict.ToReview
+        };
+        ProjectDeploymentOperation withCheck =
+            ProjectDeploymentEditor.RecordPostCheck(
+                savedTransfer.Operation, post);
+        ProjectDeploymentEntry postSaved = await service.SaveAsync(
+            project.ProjectDirectory, savedTransfer, withCheck);
+        Check((await service.ListAsync(project.ProjectDirectory))
+            .Operations.Single().Operation.PostChecks?.Single().Id == post.Id &&
+            postSaved.Operation.HandoverReviews?.Single().Id == refusal.Id,
+            "Post-deployment link persists while preserving the transfer.");
+        await RejectAsync(() => service.SaveAsync(
+            project.ProjectDirectory, postSaved,
+            postSaved.Operation with { PostChecks = [] }),
+            "Historical post-deployment links cannot be removed.");
+        await RejectAsync(() => service.SaveAsync(
+            project.ProjectDirectory, postSaved,
+            postSaved.Operation with { PostChecks =
+                [post with { Verdict = ProjectDeploymentPostCheckVerdict.Conform }] }),
+            "Historical human assessments cannot be rewritten.");
+        await RejectAsync(() => service.SaveAsync(
+            project.ProjectDirectory, postSaved,
+            ProjectDeploymentEditor.RecordPostCheck(
+                postSaved.Operation, post with
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignSha256 = new string('A', 64)
+                })),
+            "Forged historical REC SHA must be rejected.");
+        await RejectAsync(() => service.SaveAsync(
+            project.ProjectDirectory, postSaved,
+            ProjectDeploymentEditor.RecordPostCheck(
+                postSaved.Operation, post with
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignSha256 = new string('B', 64),
+                    IncidentIds = ["INC-" + Guid.NewGuid().ToString("D")]
+                })),
+            "Unknown incidents cannot be inferred as valid for a project.");
+        // A changed campaign revision cannot be silently reused.
+        string recChanged = ProjectTestCampaignMarkdownCodec.Format(
+            canonicalRec with { Title = "Contrôles après MEP modifiés" });
+        await File.WriteAllTextAsync(recPath, recChanged);
+        await RejectAsync(() => service.SaveAsync(
+            project.ProjectDirectory, postSaved,
+            ProjectDeploymentEditor.RecordPostCheck(
+                postSaved.Operation, post with
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignSha256 = rec.SourceSha256,
+                    PassageId = Guid.NewGuid()
+                })),
+            "Missing passage or outdated REC source must not be accepted.");
+
         // Close one failed MEP explicitly, preserving all earlier events.
         ProjectDeploymentClosure closure = new()
         {
@@ -261,16 +390,17 @@ internal static class ProjectDeploymentPersistenceSmokeTests
             RecordedUtc = first.StartedUtc.AddMinutes(4)
         };
         ProjectDeploymentOperation closedDraft =
-            ProjectDeploymentEditor.Close(savedTransfer.Operation, closure);
+            ProjectDeploymentEditor.Close(postSaved.Operation, closure);
         ProjectDeploymentEntry savedClosure = await service.SaveAsync(
-            project.ProjectDirectory, savedTransfer, closedDraft);
+            project.ProjectDirectory, postSaved, closedDraft);
         Check(savedClosure.Operation.Closure?.Outcome ==
             ProjectDeploymentOutcome.Failed &&
             (await service.ListAsync(project.ProjectDirectory))
                 .Operations.Single().Operation.Closure?.Id == closure.Id &&
             savedClosure.Operation.Events.Count == closed.Operation.Events.Count &&
-            savedClosure.Operation.HandoverReviews?.Single().Id == refusal.Id,
-            "Closure must preserve both attempt events and refusal of handover.");
+            savedClosure.Operation.HandoverReviews?.Single().Id == refusal.Id &&
+            savedClosure.Operation.PostChecks?.Single().Id == post.Id,
+            "Closure must preserve attempts, transfer and REC post-check.");
         await RejectAsync(() => service.SaveAsync(
             project.ProjectDirectory, savedClosure, savedClosure.Operation),
             "A frozen closure can never be written over.");

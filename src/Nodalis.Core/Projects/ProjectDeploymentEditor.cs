@@ -123,4 +123,31 @@ public static class ProjectDeploymentEditor
         return proposed;
     }
 
+
+    /// <summary>
+    /// Adds a reviewed frozen campaign passage/incident reference. Historical
+    /// results, incidents and earlier MEP audits remain untouched.
+    /// </summary>
+    /// <param name="operation">Canonical operation.</param>
+    /// <param name="check">Human-linked REC passage snapshot.</param>
+    /// <returns>Append-only proposal without writing any document.</returns>
+    public static ProjectDeploymentOperation RecordPostCheck(
+        ProjectDeploymentOperation operation, ProjectDeploymentPostCheck check)
+    {
+        ProjectDeploymentMarkdownCodec.Validate(operation);
+        ArgumentNullException.ThrowIfNull(check);
+        if (operation.Closure is not null)
+        {
+            throw new InvalidDataException(
+                "MEP clôturée : aucune nouvelle revue post-déploiement.");
+        }
+
+        ProjectDeploymentOperation proposal = operation with
+        {
+            PostChecks = [.. (operation.PostChecks ?? []), check]
+        };
+        ProjectDeploymentMarkdownCodec.Validate(proposal);
+        return proposal;
+    }
+
 }

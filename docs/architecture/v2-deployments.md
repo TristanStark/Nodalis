@@ -236,3 +236,34 @@ La fenêtre de bilan alerte également lorsque l'opération n'a
 aucune revue de passation, sans empêcher sa clôture guidée.
 La clôture définitive reste la dernière opération modifiable ;
 aucune revue ne peut être ajoutée après coup.
+
+
+### Contrôles post-déploiement — sources REC et incidents canoniques
+
+Chaque tentative terminée peut recevoir des contrôles post-déploiement
+explicites, sans créer de nouveau moteur de tests ou d'anomalies.
+Le journal facultatif postChecks de la fiche MEP v1 enregistre :
+l'identifiant de campagne REC, le GUID du passage figé, le SHA-256
+de la révision source REC, les nombres exacts de tests sélectionnés,
+conformes, non conformes, bloqués, non applicables (donc non exécutés
+calculables), les éventuels IDs INC liés, l'auteur, l'horodatage,
+la justification et le **verdict humain**.
+
+Une nouvelle association est refusée si le passage REC n'appartient
+pas au même projet, si sa version ou son environnement diffèrent de
+la tentative, si la révision REC a changé ou si les nombres déclarés
+ne correspondent pas aux résultats du passage figé. Chaque lien
+INC doit exister avec ID canonique unique dans la fiche de maintenance
+du projet. Aucun statut « résolu » n'est inféré des incidents.
+
+L'historique post-MEP est append-only, distinct de la décision
+Go/No-Go, de la campagne REC, de la revue de passation et du bilan
+de MEP. Un résultat REC plus récent n'efface jamais l'ancien.
+Les tests non exécutés, non conformes, bloqués ou les incidents
+produisent des **avertissements consultatifs**, jamais un verdict
+automatique. Les anciens Markdown MEP ne possèdent pas de postChecks
+par défaut et restent canoniquement lisibles, sans migration.
+
+La sauvegarde utilise la révision SHA-CAS de la MEP et vérifie les
+sources REC/INC uniquement à la demande d'un nouveau contrôle.
+Après la clôture de la MEP, aucun nouveau lien n'est accepté.

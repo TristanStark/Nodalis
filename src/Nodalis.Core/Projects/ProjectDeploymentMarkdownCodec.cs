@@ -178,6 +178,7 @@ public static class ProjectDeploymentMarkdownCodec
         }
 
         ProjectDeploymentHandoverValidation.Validate(operation);
+        ProjectDeploymentPostCheckPolicy.Validate(operation);
 
         if (operation.Closure is ProjectDeploymentClosure closure)
         {
