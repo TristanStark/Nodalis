@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Nodalis.Core.Projects;
 
 /// <summary>Human-declared operations on one immutable deployment attempt.</summary>
@@ -35,6 +37,12 @@ public sealed record ProjectDeploymentOperation
     public required DateTimeOffset CreatedUtc { get; init; }
     public List<ProjectDeploymentAttempt> Attempts { get; init; } = [];
     public List<ProjectDeploymentAttemptEvent> Events { get; init; } = [];
+
+    /// <summary>
+    /// Optional human closure omitted for old canonical v1 MEP documents.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProjectDeploymentClosure? Closure { get; init; }
 }
 
 /// <summary>
@@ -86,4 +94,33 @@ public sealed record ProjectDeploymentAttemptState
     public required bool RollbackStarted { get; init; }
     public ProjectDeploymentRollbackOutcome? RollbackObserved { get; init; }
     public ProjectDeploymentEventKind? LastEventKind { get; init; }
+}
+
+
+/// <summary>
+/// Explicit business verdict for an entire MEP; no attempt or rollback
+/// automatically produces a successful operation.
+/// </summary>
+public enum ProjectDeploymentOutcome
+{
+    Succeeded,
+    SucceededWithReservations,
+    Failed,
+    Cancelled
+}
+
+/// <summary>
+/// Human-confirmed immutable closure with separately observed deployment
+/// date and later business closure date.
+/// </summary>
+public sealed record ProjectDeploymentClosure
+{
+    public required Guid Id { get; init; }
+    public required ProjectDeploymentOutcome Outcome { get; init; }
+    public Guid? AttemptId { get; init; }
+    public required DateTimeOffset RecordedUtc { get; init; }
+    public DateTimeOffset? EffectiveDeploymentUtc { get; init; }
+    public required string Actor { get; init; }
+    public required string Rationale { get; init; }
+    public string? Reservations { get; init; }
 }

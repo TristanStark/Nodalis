@@ -136,3 +136,23 @@ MEP n'est écrit par cette consultation.
 Les smoke tests vérifient les avertissements en présence de risques
 non qualifiés, l'absence d'autorisation implicite, la détection de
 preuves/procédures modifiées et le refus d'une révision MEP périmée.
+
+
+### Bilan global de MEP — décision et dates distinctes
+
+Une fiche MEP v1 peut porter une clôture métier optionnelle.
+Le champ JSON est **omis par défaut**, ce qui conserve la lecture
+canonique des anciens fichiers v1 sans conversion ni écriture.
+Le bilan est figé séparément des tentatives et événements.
+
+- **Réussie / Réussie avec réserves** : dernière tentative déclarée
+  réussie, date réelle de déploiement saisie explicitement, horodatage
+  de clôture ultérieur et réserves écrites pour le second verdict.
+- **Échouée** : dernière tentative achevée en échec ou interruption.
+- **Annulée** : pas de tentative, ou dernière tentative achevée
+  sans succès.
+
+Aucun succès déduit automatiquement d'un rollback ou d'un GO.
+Une fois la clôture enregistrée, aucune tentative ou action ne peut
+être rajoutée ; SaveAsync refuse tout changement d'un bilan existant.
+Aucun jalon, incident ni campagne n'est clôturé par ricochet.

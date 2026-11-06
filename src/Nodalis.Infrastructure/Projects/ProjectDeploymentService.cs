@@ -197,6 +197,21 @@ public sealed class ProjectDeploymentService
             }
         }
 
+        // A recorded closure freezes the full operation, even at the same SHA.
+        if (old.Closure is not null)
+        {
+            throw new InvalidDataException(
+                "Cette MEP est déjà clôturée : aucune modification permise.");
+        }
+
+        if (proposed.Closure is not null &&
+            (proposed.Attempts.Count != old.Attempts.Count ||
+             proposed.Events.Count != old.Events.Count))
+        {
+            throw new InvalidDataException(
+                "Enregistrez le bilan séparément des tentatives et événements.");
+        }
+
         foreach (ProjectDeploymentAttempt attempt in proposed.Attempts.Skip(
             old.Attempts.Count))
         {

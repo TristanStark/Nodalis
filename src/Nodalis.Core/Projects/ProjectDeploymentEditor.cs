@@ -38,6 +38,11 @@ public static class ProjectDeploymentEditor
         ProjectDeploymentOperation operation, ProjectDeploymentAttempt attempt)
     {
         ProjectDeploymentMarkdownCodec.Validate(operation);
+        if (operation.Closure is not null)
+        {
+            throw new InvalidDataException("MEP clôturée : aucune nouvelle tentative.");
+        }
+
         ArgumentNullException.ThrowIfNull(attempt);
         ProjectDeploymentOperation changed = operation with
         {
@@ -56,6 +61,11 @@ public static class ProjectDeploymentEditor
         ProjectDeploymentAttemptEvent action)
     {
         ProjectDeploymentMarkdownCodec.Validate(operation);
+        if (operation.Closure is not null)
+        {
+            throw new InvalidDataException("MEP clôturée : aucun nouvel événement.");
+        }
+
         ArgumentNullException.ThrowIfNull(action);
         ProjectDeploymentOperation changed = operation with
         {
@@ -64,4 +74,26 @@ public static class ProjectDeploymentEditor
         ProjectDeploymentMarkdownCodec.Validate(changed);
         return changed;
     }
+
+    /// <summary>
+    /// Freezes an explicit human business verdict without touching history.
+    /// </summary>
+    /// <param name="operation">Validated, not yet closed operation.</param>
+    /// <param name="closure">Reviewed closure declaration.</param>
+    /// <returns>In-memory immutable proposal; no source write.</returns>
+    public static ProjectDeploymentOperation Close(
+        ProjectDeploymentOperation operation, ProjectDeploymentClosure closure)
+    {
+        ProjectDeploymentMarkdownCodec.Validate(operation);
+        ArgumentNullException.ThrowIfNull(closure);
+        if (operation.Closure is not null)
+        {
+            throw new InvalidDataException("Un bilan MEP est déjà enregistré.");
+        }
+
+        ProjectDeploymentOperation changed = operation with { Closure = closure };
+        ProjectDeploymentMarkdownCodec.Validate(changed);
+        return changed;
+    }
+
 }

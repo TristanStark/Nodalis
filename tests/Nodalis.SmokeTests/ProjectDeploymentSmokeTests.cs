@@ -138,6 +138,79 @@ internal static class ProjectDeploymentSmokeTests
         MustReject(() => ProjectDeploymentMarkdownCodec.Validate(
             success with { Events = [null!] }),
             "Malformed null events must produce a controlled rejection.");
+
+        // Old v1 Markdown must still parse without acquiring a closure field.
+        Check(!markdown.Contains("\"closure\"", StringComparison.Ordinal),
+            "Unclosed legacy Markdown must not gain an implicit closure field.");
+        ProjectDeploymentClosure completed = new()
+        {
+            Id = Guid.NewGuid(),
+            AttemptId = second.Id,
+            Outcome = ProjectDeploymentOutcome.SucceededWithReservations,
+            Actor = "Responsable MEP",
+            Rationale = "Bilan validé humainement après contrôles.",
+            Reservations = "Supervision renforcée durant stabilisation.",
+            EffectiveDeploymentUtc = started.AddSeconds(7),
+            RecordedUtc = started.AddSeconds(10)
+        };
+        ProjectDeploymentOperation closed =
+            ProjectDeploymentEditor.Close(success, completed);
+        ProjectDeploymentOperation rereadClosure =
+            ProjectDeploymentMarkdownCodec.Parse(
+                ProjectDeploymentMarkdownCodec.Format(closed));
+        Check(rereadClosure.Closure?.Id == completed.Id &&
+            rereadClosure.Closure.RecordedUtc !=
+                rereadClosure.Closure.EffectiveDeploymentUtc &&
+            rereadClosure.Attempts.Count == 2 &&
+            rereadClosure.Events.Count == 5,
+            "Closure must roundtrip without rewriting historical attempts.");
+        MustReject(() => ProjectDeploymentEditor.Close(closed, completed),
+            "Double closure must be rejected.");
+        MustReject(() => ProjectDeploymentEditor.StartAttempt(
+            closed, second with { Id = Guid.NewGuid(), Number = 3 }),
+            "Closed operation cannot start another attempt.");
+        MustReject(() => Add(closed, second.Id,
+            ProjectDeploymentEventKind.ActionLogged, 12),
+            "Closed operation cannot append actions.");
+        MustReject(() => ProjectDeploymentEditor.Close(success,
+            completed with { Outcome = ProjectDeploymentOutcome.Succeeded,
+                Reservations = null, EffectiveDeploymentUtc = null }),
+            "Success without effective deployment date must be rejected.");
+        MustReject(() => ProjectDeploymentEditor.Close(success,
+            completed with { Outcome = ProjectDeploymentOutcome.Succeeded,
+                Reservations = null,
+                EffectiveDeploymentUtc = started.AddSeconds(11) }),
+            "Effective deployment must not postdate business closure.");
+        MustReject(() => ProjectDeploymentEditor.Close(success,
+            completed with { Outcome = ProjectDeploymentOutcome.Succeeded,
+                Reservations = null,
+                EffectiveDeploymentUtc = started.AddSeconds(-1) }),
+            "Effective deployment must not precede its attempt.");
+        MustReject(() => ProjectDeploymentEditor.Close(success,
+            completed with { Outcome =
+                ProjectDeploymentOutcome.SucceededWithReservations,
+                Reservations = null }),
+            "Success with reservations must contain human reservations.");
+        MustReject(() => ProjectDeploymentEditor.Close(failed,
+            completed with { Outcome = ProjectDeploymentOutcome.Succeeded,
+                Reservations = null, AttemptId = first.Id }),
+            "Failed attempt and rollback never imply a successful MEP.");
+        ProjectDeploymentOperation cancelled = ProjectDeploymentEditor.Close(
+            initial, completed with
+            {
+                Outcome = ProjectDeploymentOutcome.Cancelled,
+                AttemptId = null, EffectiveDeploymentUtc = null,
+                Reservations = null
+            });
+        Check(cancelled.Closure?.Outcome == ProjectDeploymentOutcome.Cancelled &&
+            cancelled.Attempts.Count == 0,
+            "A planned operation may be explicitly cancelled before any attempt.");
+        MustReject(() => ProjectDeploymentEditor.Close(initial,
+            completed with { Outcome = ProjectDeploymentOutcome.Failed,
+                AttemptId = null, EffectiveDeploymentUtc = null,
+                Reservations = null }),
+            "Failure requires a completed unsuccessful attempt.");
+
     }
 
     /// <summary>Produces a human event one or more seconds into attempt one.</summary>

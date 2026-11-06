@@ -176,6 +176,83 @@ public static class ProjectDeploymentMarkdownCodec
             throw new InvalidDataException(
                 "Événement hors tentative ou historique réordonné.");
         }
+
+        if (operation.Closure is ProjectDeploymentClosure closure)
+        {
+            if (closure.Id == Guid.Empty || !Enum.IsDefined(closure.Outcome) ||
+                closure.RecordedUtc < operation.CreatedUtc ||
+                !SingleLine(closure.Actor, 160) ||
+                !Text(closure.Rationale, 4000) ||
+                closure.Reservations is { Length: > 4000 } ||
+                closure.Reservations?.Contains('\0') == true)
+            {
+                throw new InvalidDataException("Bilan MEP incomplet ou invalide.");
+            }
+
+            ProjectDeploymentAttempt? lastAttempt =
+                operation.Attempts.LastOrDefault();
+            ProjectDeploymentAttemptEvent? lastEvent =
+                operation.Events.LastOrDefault();
+            if (lastAttempt is null)
+            {
+                if (closure.Outcome != ProjectDeploymentOutcome.Cancelled ||
+                    closure.AttemptId is not null || lastEvent is not null)
+                {
+                    throw new InvalidDataException(
+                        "Seule une MEP jamais démarrée peut être annulée sans tentative.");
+                }
+            }
+            else if (closure.AttemptId != lastAttempt.Id ||
+                lastEvent?.AttemptId != lastAttempt.Id ||
+                !IsFinish(lastEvent.Kind) ||
+                closure.RecordedUtc < lastEvent.RecordedUtc)
+            {
+                throw new InvalidDataException(
+                    "Bilan interdit : dernière tentative non terminée ou identité invalide.");
+            }
+
+            bool success = closure.Outcome is
+                ProjectDeploymentOutcome.Succeeded or
+                ProjectDeploymentOutcome.SucceededWithReservations;
+            if (success)
+            {
+                if (lastAttempt is null ||
+                    lastEvent?.Kind != ProjectDeploymentEventKind.FinishedSucceeded ||
+                    closure.EffectiveDeploymentUtc is not DateTimeOffset deployed ||
+                    deployed < lastAttempt.StartedUtc ||
+                    deployed > closure.RecordedUtc)
+                {
+                    throw new InvalidDataException(
+                        "La réussite exige une tentative réussie et une date effective constatée.");
+                }
+            }
+            else if (closure.EffectiveDeploymentUtc is not null ||
+                closure.Outcome == ProjectDeploymentOutcome.Failed &&
+                    lastEvent?.Kind is not
+                    (ProjectDeploymentEventKind.FinishedFailed or
+                     ProjectDeploymentEventKind.FinishedInterrupted) ||
+                closure.Outcome == ProjectDeploymentOutcome.Cancelled &&
+                    lastEvent?.Kind == ProjectDeploymentEventKind.FinishedSucceeded)
+            {
+                throw new InvalidDataException(
+                    "Échec ou annulation ne prouvent pas un déploiement réussi.");
+            }
+
+            if (closure.Outcome ==
+                ProjectDeploymentOutcome.SucceededWithReservations)
+            {
+                if (!Text(closure.Reservations, 4000))
+                {
+                    throw new InvalidDataException(
+                        "Réserves explicites requises pour une réussite avec réserves.");
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(closure.Reservations))
+            {
+                throw new InvalidDataException(
+                    "Réserves réservées au verdict « réussie avec réserves ».");
+            }
+        }
     }
 
     /// <summary>Serializes a fully validated, canonical MEP Markdown file.</summary>
