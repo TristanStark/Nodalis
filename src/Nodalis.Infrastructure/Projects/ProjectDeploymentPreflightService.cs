@@ -253,7 +253,6 @@ public sealed class ProjectDeploymentPreflightService
             AttemptId = attempt.Id,
             CheckedUtc = DateTimeOffset.UtcNow,
             HistoricalGateConditionsMatch = conditions,
-            ExplicitHumanReviewRequired = true,
             RisksFound = riskCatalog.Risks.Count,
             IncidentsFound = incidents.Candidates.Count,
             Findings = findings
