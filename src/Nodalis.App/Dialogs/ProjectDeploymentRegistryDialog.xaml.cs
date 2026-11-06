@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Nodalis.App.Reliability;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Tests;
 using Nodalis.Infrastructure.Projects;
 
 namespace Nodalis.App.Dialogs;
@@ -16,6 +17,8 @@ public partial class ProjectDeploymentRegistryDialog : Window
     private readonly ProjectDeploymentService _service;
     private readonly ProjectGateRegistryService _gates;
     private readonly ProjectDeploymentPreflightService _preflight;
+    private readonly ProjectTestCampaignService _campaigns;
+    private readonly ProjectGateIncidentCatalogService _incidents;
     private readonly string _workspaceRoot;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
@@ -32,6 +35,8 @@ public partial class ProjectDeploymentRegistryDialog : Window
         _service = new ProjectDeploymentService(workspaceRoot);
         _gates = new ProjectGateRegistryService(workspaceRoot);
         _preflight = new ProjectDeploymentPreflightService(workspaceRoot);
+        _campaigns = new ProjectTestCampaignService(workspaceRoot);
+        _incidents = new ProjectGateIncidentCatalogService(workspaceRoot);
         _workspaceRoot = workspaceRoot;
         _projectDirectory = projectDirectory;
         _readOnly = readOnly;
@@ -125,6 +130,34 @@ public partial class ProjectDeploymentRegistryDialog : Window
             }
         }
 
+        List<ProjectDeploymentPostCheck> postChecks = operation.PostChecks ?? [];
+        lines.Add(string.Empty);
+        lines.Add("CONTRÔLES POST-MEP · " + postChecks.Count + " revue(s)");
+        foreach (ProjectDeploymentPostCheck check in postChecks)
+        {
+            lines.Add(check.RecordedUtc.ToLocalTime().ToString(
+                "dd/MM/yyyy HH:mm") + " · " + check.Verdict);
+            lines.Add("  REC GUID : " + check.CampaignId.ToString("D") +
+                " · passage : " + check.PassageId.ToString("D"));
+            lines.Add("  " + check.Passed + " conforme(s), " +
+                check.Failed + " non conforme(s), " +
+                check.Blocked + " bloqué(s), " +
+                (check.FrozenTests - check.Passed - check.Failed -
+                 check.Blocked - check.NotApplicable) +
+                " non exécuté(s) · SHA REC figé");
+            lines.Add("  Auteur : " + check.Actor +
+                " · justification : " + check.Rationale);
+            if (!string.IsNullOrWhiteSpace(check.Reservations))
+            {
+                lines.Add("  Réserves : " + check.Reservations);
+            }
+
+            foreach (string incidentId in check.IncidentIds)
+            {
+                lines.Add("  Incident lié : " + incidentId);
+            }
+        }
+
         lines.Add(string.Empty);
         lines.Add("PASSATION EXPLOITATION · " + handovers.Count + " revue(s)");
         foreach (ProjectDeploymentHandoverReview review in handovers)
@@ -209,6 +242,8 @@ public partial class ProjectDeploymentRegistryDialog : Window
         CloseOperationButton.IsEnabled = !_busy && !_readOnly && open &&
             selected is not null && (!hasAttempt || finished);
         HandoverButton.IsEnabled = !_busy && !_readOnly && open &&
+            selected is not null && hasAttempt && finished;
+        PostCheckButton.IsEnabled = !_busy && !_readOnly && open &&
             selected is not null && hasAttempt && finished;
         RefreshButton.IsEnabled = !_busy;
     }
@@ -479,6 +514,65 @@ public partial class ProjectDeploymentRegistryDialog : Window
             StatusText.Text = "Bilan MEP figé · historique conservé. " +
                 "Aucun autre statut métier modifié.";
         }, "Clôturer une opération MEP");
+
+    /// <summary>
+    /// Explicitly links an exact REC campaign passage and selected canonical
+    /// maintenance incidents to the latest completed deployment attempt.
+    /// </summary>
+    /// <param name="sender">Post-deployment review button.</param>
+    /// <param name="e">WPF routed click.</param>
+    private async void PostCheck_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (_readOnly || CurrentRow() is not MepRow selected ||
+                selected.Entry.Operation.Closure is not null ||
+                selected.Entry.Operation.Attempts.Count == 0)
+            {
+                return;
+            }
+
+            ProjectDeploymentOperation operation = selected.Entry.Operation;
+            ProjectDeploymentAttemptState attemptState =
+                ProjectDeploymentMarkdownCodec.GetAttemptState(
+                    operation, operation.Attempts[^1].Id);
+            if (!attemptState.IsFinished)
+            {
+                throw new InvalidDataException(
+                    "Terminez la tentative avant la revue post-déploiement.");
+            }
+
+            ProjectTestCampaignCatalog campaigns = await Task.Run(() =>
+                _campaigns.ListAsync(_projectDirectory));
+            ProjectGateIncidentCatalog incidents = await Task.Run(() =>
+                _incidents.ListAsync(_projectDirectory));
+            ProjectDeploymentPostCheckDialog dialog = new(
+                operation, campaigns, incidents) { Owner = this };
+            if (dialog.EligiblePassages == 0)
+            {
+                MessageBox.Show(this,
+                    "Aucun passage REC du projet ne correspond à la version " +
+                    "et à l'environnement de cette tentative. " +
+                    "Enregistrez d'abord un passage dans Tests et recette.",
+                    "Contrôles post-MEP · passage requis",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (dialog.ShowDialog() != true ||
+                dialog.ConfirmedCheck is not ProjectDeploymentPostCheck check)
+            {
+                return;
+            }
+
+            ProjectDeploymentOperation proposed =
+                ProjectDeploymentEditor.RecordPostCheck(operation, check);
+            ProjectDeploymentEntry saved = await _service.SaveAsync(
+                _projectDirectory, selected.Entry, proposed);
+            Changed = true;
+            await ReloadAsync(saved.Operation.Id);
+            StatusText.Text = "Passage REC et éventuels incidents liés. " +
+                "Les résultats et statuts canoniques restent inchangés.";
+        }, "Contrôle post-déploiement");
 
     /// <summary>
     /// Records one explicit post-deployment stabilization and operational

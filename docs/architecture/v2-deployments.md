@@ -267,3 +267,28 @@ par défaut et restent canoniquement lisibles, sans migration.
 La sauvegarde utilise la révision SHA-CAS de la MEP et vérifie les
 sources REC/INC uniquement à la demande d'un nouveau contrôle.
 Après la clôture de la MEP, aucun nouveau lien n'est accepté.
+
+
+### Interface de liaison des tests post-MEP
+
+Dans **Projet > Mises en production… > Contrôles post-MEP…**, une
+tentative terminée propose uniquement les passages REC existants du
+même projet dont la version et l'environnement concordent avec la
+tentative. L'utilisateur choisit un passage précis, voit ses résultats
+figés, sélectionne éventuellement plusieurs incidents **INC**
+déjà présents dans la fiche de maintenance du même projet, puis
+renseigne explicitement auteur, motif, verdict et réserves.
+
+La confirmation présente les échecs, blocages, tests non exécutés
+et les liens vers incidents. La sauvegarde recalcule le catalogue
+REC, vérifie les GUID de campagne/passage, les comptages d'exécution,
+la révision REC SHA-256 et l'existence des INC choisis. La MEP
+est publiée sous son propre contrôle SHA-CAS uniquement si les
+sources sont restées identiques ; sinon la personne doit relire la
+nouvelle révision. La fenêtre du registre affiche les contrôles
+historiques avec leurs résultats, réserves et liens.
+
+Les campagnes et fiches de maintenance restent entièrement inchangées.
+Une nouvelle réussite REC, une intervention terminée ou une revue
+« Conforme » dans le journal MEP ne clôture jamais automatiquement
+l'incident, la MEP, un jalon ni un risque. Archives en lecture seule.
