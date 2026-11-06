@@ -281,7 +281,8 @@ public partial class ProjectDeploymentRegistryDialog : Window
             }
 
             ProjectDeploymentAttemptDialog dialog = new(
-                _workspaceRoot, eligible) { Owner = this };
+                _workspaceRoot, eligible)
+            { Owner = this };
             if (dialog.ShowDialog() != true)
             {
                 return;
