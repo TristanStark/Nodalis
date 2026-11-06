@@ -13,6 +13,8 @@ namespace Nodalis.App.Dialogs;
 public partial class ProjectDeploymentRegistryDialog : Window
 {
     private readonly ProjectDeploymentService _service;
+    private readonly ProjectGateRegistryService _gates;
+    private readonly string _workspaceRoot;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private ProjectDeploymentCatalog? _catalog;
@@ -26,6 +28,8 @@ public partial class ProjectDeploymentRegistryDialog : Window
         string projectDirectory, bool readOnly)
     {
         _service = new ProjectDeploymentService(workspaceRoot);
+        _gates = new ProjectGateRegistryService(workspaceRoot);
+        _workspaceRoot = workspaceRoot;
         _projectDirectory = projectDirectory;
         _readOnly = readOnly;
         InitializeComponent();
@@ -140,6 +144,15 @@ public partial class ProjectDeploymentRegistryDialog : Window
         CreateButton.IsEnabled = !_busy && !_readOnly &&
             _catalog?.NextReference is not null;
         OpenButton.IsEnabled = !_busy && CurrentRow() is not null;
+        ProjectDeploymentOperation? selected = CurrentRow()?.Entry.Operation;
+        bool hasAttempt = selected?.Attempts.Count > 0;
+        ProjectDeploymentAttemptEvent? last = selected?.Events.LastOrDefault();
+        bool finished = last is not null &&
+            ProjectDeploymentMarkdownCodec.IsFinish(last.Kind);
+        AttemptButton.IsEnabled = !_busy && !_readOnly &&
+            selected is not null && (!hasAttempt || finished);
+        EventButton.IsEnabled = !_busy && !_readOnly &&
+            selected is not null && hasAttempt && !finished;
         RefreshButton.IsEnabled = !_busy;
     }
 
@@ -221,6 +234,118 @@ public partial class ProjectDeploymentRegistryDialog : Window
             Changed = true;
             await ReloadAsync(saved.Operation.Id);
         }, "Créer une opération MEP");
+
+    /// <summary>
+    /// Starts a human-described attempt after explicit gate selection and
+    /// current-file SHA capture; a historical GO never approves a new MEP.
+    /// </summary>
+    /// <param name="sender">New attempt button.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void Attempt_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (_readOnly || CurrentRow() is not MepRow selected)
+            {
+                return;
+            }
+
+            ProjectDeploymentOperation operation = selected.Entry.Operation;
+            if (operation.Attempts.Count > 0)
+            {
+                ProjectDeploymentAttemptState state =
+                    ProjectDeploymentMarkdownCodec.GetAttemptState(operation,
+                        operation.Attempts[^1].Id);
+                if (!state.IsFinished)
+                {
+                    throw new InvalidOperationException(
+                        "Terminez explicitement la tentative en cours.");
+                }
+            }
+
+            ProjectGateRegistrySnapshot gates = await _gates.ReadAsync(
+                _projectDirectory);
+            ProjectGateDecision[] eligible = gates.Registry.Decisions
+                .GroupBy(item => item.GateId)
+                .Select(group => group.Last())
+                .Where(item => item.Verdict is ProjectGateVerdict.Go or
+                    ProjectGateVerdict.GoWithReservations)
+                .ToArray();
+            if (eligible.Length == 0)
+            {
+                MessageBox.Show(this,
+                    "Aucun GO humain actuellement admissible dans ce projet. " +
+                    "Consignez d'abord la décision depuis le registre Gates.",
+                    "MEP · décision requise", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            ProjectDeploymentAttemptDialog dialog = new(
+                _workspaceRoot, eligible) { Owner = this };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            ProjectGateEvidenceSnapshot procedure =
+                await _gates.CaptureEvidenceAsync(dialog.ProcedurePath);
+            ProjectGateEvidenceSnapshot rollback =
+                await _gates.CaptureEvidenceAsync(dialog.RollbackPath);
+            ProjectDeploymentAttempt attempt = dialog.BuildAttempt(
+                operation.Attempts.Count + 1, procedure, rollback);
+            ProjectDeploymentOperation proposed =
+                ProjectDeploymentEditor.StartAttempt(operation, attempt);
+            ProjectDeploymentEntry saved = await _service.SaveAsync(
+                _projectDirectory, selected.Entry, proposed);
+            Changed = true;
+            await ReloadAsync(saved.Operation.Id);
+            StatusText.Text = "Tentative consignée sous contrôle SHA. " +
+                "Aucune mise en production n'a été exécutée.";
+        }, "Nouvelle tentative");
+
+    /// <summary>
+    /// Appends a separate human event to the latest unfinished attempt,
+    /// including rollback requests, execution and observed outcomes.
+    /// </summary>
+    /// <param name="sender">Log event button.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void Event_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (_readOnly || CurrentRow() is not MepRow selected ||
+                selected.Entry.Operation.Attempts.Count == 0)
+            {
+                return;
+            }
+
+            ProjectDeploymentOperation operation = selected.Entry.Operation;
+            ProjectDeploymentAttempt attempt = operation.Attempts[^1];
+            ProjectDeploymentAttemptState state =
+                ProjectDeploymentMarkdownCodec.GetAttemptState(
+                    operation, attempt.Id);
+            if (state.IsFinished)
+            {
+                throw new InvalidOperationException(
+                    "Cette tentative est déjà terminée.");
+            }
+
+            ProjectDeploymentEventDialog dialog = new() { Owner = this };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            ProjectDeploymentAttemptEvent action =
+                dialog.BuildEvent(attempt.Id);
+            ProjectDeploymentOperation proposed =
+                ProjectDeploymentEditor.AppendEvent(operation, action);
+            ProjectDeploymentEntry saved = await _service.SaveAsync(
+                _projectDirectory, selected.Entry, proposed);
+            Changed = true;
+            await ReloadAsync(saved.Operation.Id);
+            StatusText.Text = "Événement historique ajouté. " +
+                "Aucun GO, jalon ni déploiement n'a été modifié.";
+        }, "Consigner un événement");
 
     /// <summary>Reloads the canonical folder only on explicit user request.</summary>
     /// <param name="sender">Refresh button.</param>

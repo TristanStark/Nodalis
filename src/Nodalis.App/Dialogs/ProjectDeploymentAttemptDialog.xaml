@@ -1,0 +1,84 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectDeploymentAttemptDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nouvelle tentative MEP · revue humaine"
+        Width="790" Height="790" MinWidth="550" MinHeight="510"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBlock FontSize="19" FontWeight="SemiBold"
+                       Text="Figer une nouvelle tentative de mise en production" />
+            <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Cette saisie est une déclaration humaine historisée. Le GO, les preuves et les procédures sont recontrôlés au moment de l'enregistrement. Nodalis n'exécute aucun déploiement." />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Annuler" IsCancel="True" Padding="13,7"
+                    Margin="0,0,8,0" />
+            <Button Content="Revoir puis enregistrer…" IsDefault="True"
+                    Padding="13,7" Click="Accept_Click" />
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="DÉCISION GO HISTORIQUE À REQUALIFIER"
+                           FontWeight="SemiBold" FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Margin="0,5,0,5" />
+                <ComboBox x:Name="GateDecisionCombo" Padding="8,6"
+                          DisplayMemberPath="Label"
+                          SelectionChanged="GateDecisionCombo_SelectionChanged" />
+                <TextBlock Text="Version réellement observée AVANT la tentative"
+                           Margin="0,12,0,4" />
+                <TextBox x:Name="ObservedBox" Padding="8,6"
+                         ToolTip="Saisie humaine obligatoire, y compris après rollback" />
+                <TextBlock Text="Version cible" Margin="0,10,0,4" />
+                <TextBox x:Name="TargetBox" Padding="8,6" />
+                <TextBlock Text="Environnement cible" Margin="0,10,0,4" />
+                <TextBox x:Name="EnvironmentBox" Padding="8,6" />
+                <TextBlock Text="Périmètre de cette tentative" Margin="0,10,0,4" />
+                <TextBox x:Name="ScopeBox" Padding="8,6" />
+                <TextBlock Text="PROCÉDURES DU WORKSPACE · empreintes au commit"
+                           FontWeight="SemiBold" FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Margin="0,14,0,6" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="ProcedureBox" Padding="8,6"
+                             ToolTip="Référence relative au workspace" />
+                    <Button Grid.Column="1" Content="Choisir…" Padding="8,6"
+                            Margin="6,0,0,0" Click="ChooseProcedure_Click" />
+                </Grid>
+                <TextBlock Text="Procédure de rollback" Margin="0,10,0,4" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="RollbackBox" Padding="8,6"
+                             ToolTip="Référence relative au workspace" />
+                    <Button Grid.Column="1" Content="Choisir…" Padding="8,6"
+                            Margin="6,0,0,0" Click="ChooseRollback_Click" />
+                </Grid>
+                <TextBlock Text="AUTEURS ET REVUE EXPLICITE"
+                           FontWeight="SemiBold" FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Margin="0,14,0,6" />
+                <TextBlock Text="Opérateur déclarant" Margin="0,0,0,4" />
+                <TextBox x:Name="OperatorBox" Padding="8,6" />
+                <TextBlock Text="Motif de la tentative" Margin="0,10,0,4" />
+                <TextBox x:Name="ReasonBox" Padding="8,6"
+                         TextWrapping="Wrap" AcceptsReturn="True" MinHeight="56" />
+                <TextBlock Text="Personne ayant revu le GO" Margin="0,10,0,4" />
+                <TextBox x:Name="ReviewerBox" Padding="8,6" />
+                <TextBlock Text="Motif et limites de la réutilisation du GO"
+                           Margin="0,10,0,4" />
+                <TextBox x:Name="ReviewReasonBox" Padding="8,6"
+                         TextWrapping="Wrap" AcceptsReturn="True" MinHeight="66" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

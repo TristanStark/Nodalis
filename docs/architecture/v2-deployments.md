@@ -89,3 +89,22 @@ L'UI n'implique ni GO automatique ni exécution réelle de déploiement.
 La saisie assistée des tentatives, la capture du contexte de mise en
 production, les contrôles d'incidents/risques et le bilan demeurent
 les incréments suivants de #203.
+
+
+### Saisie guidée depuis le registre MEP
+
+Le registre WPF comprend désormais Nouvelle tentative et Consigner
+un événement, activés seulement quand la transition est pertinente.
+Pour une tentative, l'utilisateur choisit une décision GO historique
+du projet, confirme les versions et le périmètre, saisit la version
+réellement constatée avant la MEP, choisit les procédures depuis le
+workspace et renseigne les auteurs ainsi que les motifs explicites.
+Les empreintes des fichiers sont capturées au commit ; le service
+recontrôle le GO et refuse un historique obsolète ou altéré.
+
+L'événement est consigné séparément (action, demande de rollback,
+démarrage, constat, réussite/échec/interruption). Un résultat de
+rollback et la version réellement constatée ne sont pas inventés :
+la personne les saisit explicitement. La validation Core rejette
+les ordres impossibles et les réécritures ; le service refuse les
+révisions concurrentes. Une action UI n'est jamais un déploiement réel.

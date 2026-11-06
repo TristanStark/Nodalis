@@ -79,21 +79,26 @@
                    Margin="0,10,0,0" MaxHeight="58"
                    Foreground="{StaticResource SecondaryTextBrush}"
                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-        <DockPanel Grid.Row="3" Margin="0,12,0,0" LastChildFill="True">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button x:Name="CreateButton" Content="Créer une MEP…"
-                        Click="Create_Click" Padding="12,7" Margin="0,0,6,0" />
-                <Button x:Name="OpenButton" Content="Ouvrir la fiche Markdown"
-                        Click="Open_Click" Padding="12,7" Margin="0,0,6,0" />
-                <Button x:Name="RefreshButton" Content="Actualiser"
-                        Click="Refresh_Click" Padding="12,7" Margin="0,0,6,0" />
-                <Button Content="Fermer" Padding="12,7"
-                        IsCancel="True" Click="Close_Click" />
-            </StackPanel>
-            <TextBlock x:Name="StatusText" VerticalAlignment="Center"
-                       TextWrapping="Wrap"
+        <StackPanel Grid.Row="3" Margin="0,12,0,0">
+            <TextBlock x:Name="StatusText" Margin="0,0,0,7"
                        Foreground="{StaticResource SecondaryTextBrush}"
+                       TextWrapping="Wrap"
                        Text="Lecture seule avant toute création explicite." />
-        </DockPanel>
+            <WrapPanel HorizontalAlignment="Right">
+                <Button x:Name="CreateButton" Content="Créer une MEP…"
+                        Click="Create_Click" Padding="12,7" Margin="0,0,6,5" />
+                <Button x:Name="AttemptButton" Content="Nouvelle tentative…"
+                        Click="Attempt_Click" Padding="12,7" Margin="0,0,6,5" />
+                <Button x:Name="EventButton" Content="Consigner un événement…"
+                        Click="Event_Click" Padding="12,7" Margin="0,0,6,5" />
+                <Button x:Name="OpenButton" Content="Ouvrir la fiche Markdown"
+                        Click="Open_Click" Padding="12,7" Margin="0,0,6,5" />
+                <Button x:Name="RefreshButton" Content="Actualiser"
+                        Click="Refresh_Click" Padding="12,7" Margin="0,0,6,5" />
+                <Button Content="Fermer" Padding="12,7"
+                        IsCancel="True" Click="Close_Click"
+                        Margin="0,0,0,5" />
+            </WrapPanel>
+        </StackPanel>
     </Grid>
 </Window>
