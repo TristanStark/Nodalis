@@ -260,10 +260,10 @@ public sealed class ProjectDeploymentService
                         "Preuve de passation hors du projet propriétaire.");
                 }
 
-                ProjectGateEvidenceSnapshot current =
+                ProjectGateEvidenceSnapshot currentProof =
                     await _gates.CaptureEvidenceAsync(
                         proof.RelativePath, cancellationToken);
-                if (!string.Equals(current.Sha256, proof.Sha256,
+                if (!string.Equals(currentProof.Sha256, proof.Sha256,
                     StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidDataException(
