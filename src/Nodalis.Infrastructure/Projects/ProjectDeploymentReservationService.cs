@@ -30,6 +30,7 @@ public sealed class ProjectDeploymentReservationService
     private readonly ProjectJourneySourceService _sources;
     private readonly ProjectDeploymentService _deployments;
     private readonly ProjectGateRegistryService _gates;
+    private readonly ProjectDeploymentReservationTargetService _targets;
 
     /// <summary>Creates a project-scoped, no-background-work service.</summary>
     /// <param name="workspaceRoot">Active workspace.</param>
@@ -41,6 +42,8 @@ public sealed class ProjectDeploymentReservationService
         _sources = new ProjectJourneySourceService(_workspaceRoot);
         _deployments = new ProjectDeploymentService(_workspaceRoot);
         _gates = new ProjectGateRegistryService(_workspaceRoot);
+        _targets = new ProjectDeploymentReservationTargetService(
+            _workspaceRoot);
     }
 
     /// <summary>
@@ -210,6 +213,63 @@ public sealed class ProjectDeploymentReservationService
             directory, manifest.Id, snapshot, next, cancellationToken);
     }
 
+    /// <summary>
+    /// Records one verified association or historical unlink, without
+    /// modifying the linked task, milestone or frozen MEP.
+    /// </summary>
+    /// <param name="projectDirectory">Project containing all three objects.</param>
+    /// <param name="snapshot">Current reservation register SHA snapshot.</param>
+    /// <param name="relation">One explicit human link or unlink event.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>New append-only reservation history.</returns>
+    public async Task<ProjectDeploymentReservationSnapshot>
+        RecordRelationAsync(
+            string projectDirectory, ProjectDeploymentReservationSnapshot snapshot,
+            ProjectDeploymentReservationRelationEvent relation,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(relation);
+        (string directory, ProjectManifest manifest, bool archived) =
+            await ResolveAsync(projectDirectory, cancellationToken);
+        RequireActive(archived);
+        if (snapshot.Ledger.ProjectId != manifest.Id)
+        {
+            throw new InvalidDataException(
+                "Lien de réserve demandé pour un projet étranger.");
+        }
+
+        // First validate the audit transition itself. A missing linked
+        // source may later be explicitly unlinked without recreating it.
+        ProjectDeploymentReservationLedger next =
+            ProjectDeploymentReservationRelations.Append(
+                snapshot.Ledger, relation);
+        if (relation.Action == ProjectDeploymentReservationRelationAction.Link)
+        {
+            await _targets.RequireCurrentAsync(directory, relation.Kind,
+                relation.TargetId, relation.SourceRelativePath,
+                cancellationToken);
+        }
+        else
+        {
+            ProjectDeploymentReservationActiveLink previous =
+                ProjectDeploymentReservationRelations.Active(
+                    snapshot.Ledger, relation.ReservationId)
+                    .Single(item => item.Kind == relation.Kind &&
+                        item.TargetId == relation.TargetId);
+            if (!string.Equals(previous.SourceRelativePath,
+                relation.SourceRelativePath,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Dissociation d'une source historique incohérente.");
+            }
+        }
+
+        return await PublishAsync(directory, manifest.Id,
+            snapshot, next, cancellationToken);
+    }
+
     /// <summary>Returns the next human-previewed RES number without mutation.</summary>
     /// <param name="ledger">Validated existing register.</param>
     /// <returns>Next unused reference, or null if exhausted.</returns>
@@ -256,10 +316,16 @@ public sealed class ProjectDeploymentReservationService
             now.Ledger.Items;
         IReadOnlyList<ProjectDeploymentReservationEvent> oldEvents =
             now.Ledger.Events;
+        IReadOnlyList<ProjectDeploymentReservationRelationEvent> oldRelations =
+            now.Ledger.Relations ?? [];
+        IReadOnlyList<ProjectDeploymentReservationRelationEvent> newRelations =
+            proposal.Relations ?? [];
         if (proposal.Items.Count < oldItems.Count ||
             proposal.Events.Count < oldEvents.Count ||
+            newRelations.Count < oldRelations.Count ||
             proposal.Items.Count - oldItems.Count +
-                proposal.Events.Count - oldEvents.Count != 1)
+                proposal.Events.Count - oldEvents.Count +
+                newRelations.Count - oldRelations.Count != 1)
         {
             throw new InvalidDataException(
                 "Enregistrez une seule action sans modifier l'historique.");
@@ -284,6 +350,17 @@ public sealed class ProjectDeploymentReservationService
             {
                 throw new InvalidDataException(
                     "Action historique de réserve modifiée.");
+            }
+        }
+
+        for (int index = 0; index < oldRelations.Count; index++)
+        {
+            if (!string.Equals(JsonSerializer.Serialize(oldRelations[index]),
+                JsonSerializer.Serialize(newRelations[index]),
+                StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "Relation tâche/jalon historique modifiée.");
             }
         }
 

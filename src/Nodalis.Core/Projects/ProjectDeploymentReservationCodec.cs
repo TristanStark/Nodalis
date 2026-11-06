@@ -70,6 +70,11 @@ public sealed record ProjectDeploymentReservationLedger
     public required Guid ProjectId { get; init; }
     public IReadOnlyList<ProjectDeploymentReservation> Items { get; init; } = [];
     public IReadOnlyList<ProjectDeploymentReservationEvent> Events { get; init; } = [];
+
+    /// <summary>Optional append-only task and milestone associations.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ProjectDeploymentReservationRelationEvent>? Relations
+    { get; init; }
 }
 
 /// <summary>Status and accountable owner derived from a validated audit history.</summary>
@@ -276,6 +281,8 @@ public static class ProjectDeploymentReservationCodec
                     action.NewOwner ?? previous.Owner, action.RecordedUtc);
             last = action.RecordedUtc;
         }
+
+        ProjectDeploymentReservationRelations.Validate(ledger);
     }
 
     /// <summary>

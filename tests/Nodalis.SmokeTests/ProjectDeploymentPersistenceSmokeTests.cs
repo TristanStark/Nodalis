@@ -2,6 +2,10 @@ using Nodalis.Core.Domain;
 using Nodalis.Core.Markdown;
 using Nodalis.Core.Maintenance;
 using Nodalis.Core.Tests;
+using Nodalis.Core.Tasks;
+using Nodalis.Core.Milestones;
+using Nodalis.Infrastructure.Tasks;
+using Nodalis.Infrastructure.Milestones;
 using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
@@ -618,6 +622,124 @@ internal static class ProjectDeploymentPersistenceSmokeTests
                 .Single().SourceSha256 == savedClosure.SourceSha256,
             "Multiple human obligations from different source decisions " +
             "must keep independent statuses and an immutable closed MEP.");
+
+        // Stable task/milestone identities come from their actual project
+        // sources; linking never creates or changes their business state.
+        WorkspaceTaskService taskService = new(workspace);
+        TaskItem task = await taskService.CreateTaskAsync(
+            project.ProjectDirectory, "Suivi de réserve exploitation",
+            new TaskMetadataUpdate());
+        WorkspaceMilestoneService milestoneService = new(workspace);
+        MilestoneItem milestone = await milestoneService.AddAsync(
+            project.ProjectDirectory,
+            new MilestoneDraft { Name = "Stabilisation après production" });
+        Check(task.PersistentId is Guid && milestone.Id != Guid.Empty,
+            "Human links require an existing stable task and milestone.");
+        ProjectDeploymentReservationTargetService targets = new(workspace);
+        ProjectDeploymentReservationTarget taskTarget =
+            (await targets.ListAsync(project.ProjectDirectory,
+                ProjectDeploymentReservationRelationKind.Task))
+            .Single(entry => entry.Id == task.PersistentId);
+        ProjectDeploymentReservationTarget milestoneTarget =
+            (await targets.ListAsync(project.ProjectDirectory,
+                ProjectDeploymentReservationRelationKind.Milestone))
+            .Single(entry => entry.Id == milestone.Id);
+        ProjectDeploymentReservationRelationEvent relation = new()
+        {
+            Id = Guid.NewGuid(),
+            ReservationId = item.Id,
+            Kind = ProjectDeploymentReservationRelationKind.Task,
+            TargetId = taskTarget.Id,
+            SourceRelativePath = taskTarget.SourceRelativePath,
+            Action = ProjectDeploymentReservationRelationAction.Link,
+            Actor = "Responsable exploitation",
+            Rationale = "Tâche de suivi déjà existante dans le projet.",
+            RecordedUtc = secondItem.CreatedUtc.AddMinutes(1)
+        };
+        ProjectDeploymentReservationSnapshot taskLinked =
+            await followup.RecordRelationAsync(project.ProjectDirectory,
+                twoItems, relation);
+        Check(ProjectDeploymentReservationRelations.Active(
+            taskLinked.Ledger, item.Id).Single().TargetId == task.PersistentId &&
+            taskLinked.Ledger.Relations?.Count == 1 &&
+            (await taskService.GetTasksAsync(project.ProjectDirectory,
+                includeCompleted: true)).Any(entry =>
+                    entry.PersistentId == task.PersistentId && !entry.IsCompleted),
+            "Linking a stable existing task may not complete or rewrite it.");
+        await RejectAsync(() => followup.RecordRelationAsync(
+            project.ProjectDirectory, taskLinked, relation with
+            {
+                Id = Guid.NewGuid(),
+                RecordedUtc = relation.RecordedUtc.AddSeconds(1)
+            }), "Duplicate active task links must not be created.");
+        await RejectAsync(() => followup.RecordRelationAsync(
+            project.ProjectDirectory, twoItems, relation with
+            {
+                Id = Guid.NewGuid(),
+                RecordedUtc = relation.RecordedUtc.AddSeconds(1)
+            }), "Stale reservation source SHA must reject relation writes.");
+        await RejectAsync(() => followup.RecordRelationAsync(
+            project.ProjectDirectory, taskLinked, relation with
+            {
+                Id = Guid.NewGuid(),
+                TargetId = Guid.NewGuid(),
+                RecordedUtc = relation.RecordedUtc.AddSeconds(1)
+            }), "Missing or foreign task GUID must not be linked.");
+
+        ProjectDeploymentReservationRelationEvent milestoneLink = relation with
+        {
+            Id = Guid.NewGuid(),
+            Kind = ProjectDeploymentReservationRelationKind.Milestone,
+            TargetId = milestoneTarget.Id,
+            SourceRelativePath = milestoneTarget.SourceRelativePath,
+            RecordedUtc = relation.RecordedUtc.AddSeconds(1)
+        };
+        ProjectDeploymentReservationSnapshot bothLinked =
+            await followup.RecordRelationAsync(project.ProjectDirectory,
+                taskLinked, milestoneLink);
+        Check(ProjectDeploymentReservationRelations.Active(
+                bothLinked.Ledger, item.Id).Count == 2 &&
+            ProjectDeploymentReservationRelations.Active(
+                bothLinked.Ledger, secondItem.Id).Count == 0,
+            "Milestone and task relationships have independent stable keys.");
+        ProjectDeploymentReservationRelationEvent unlink = relation with
+        {
+            Id = Guid.NewGuid(),
+            Action = ProjectDeploymentReservationRelationAction.Unlink,
+            Rationale = "Suivi repris directement par l'exploitation.",
+            RecordedUtc = milestoneLink.RecordedUtc.AddSeconds(1)
+        };
+        ProjectDeploymentReservationSnapshot taskUnlinked =
+            await followup.RecordRelationAsync(project.ProjectDirectory,
+                bothLinked, unlink);
+        Check(ProjectDeploymentReservationRelations.Active(
+                taskUnlinked.Ledger, item.Id).Single().Kind ==
+                ProjectDeploymentReservationRelationKind.Milestone &&
+            taskUnlinked.Ledger.Relations?.Count == 3,
+            "Dissociation must append history, without deleting milestone links.");
+        await RejectAsync(() => followup.RecordRelationAsync(
+            project.ProjectDirectory, taskUnlinked, unlink with
+            {
+                Id = Guid.NewGuid(),
+                RecordedUtc = unlink.RecordedUtc.AddSeconds(1)
+            }), "A target cannot be unlinked twice.");
+        await RejectAsync(() => followup.RecordRelationAsync(
+            project.ProjectDirectory, taskUnlinked, relation with
+            {
+                Id = Guid.NewGuid(),
+                Action = ProjectDeploymentReservationRelationAction.Unlink,
+                TargetId = milestoneTarget.Id,
+                Kind = ProjectDeploymentReservationRelationKind.Milestone,
+                SourceRelativePath = taskTarget.SourceRelativePath,
+                RecordedUtc = unlink.RecordedUtc.AddSeconds(1)
+            }), "Dissociation must preserve the last linked source path.");
+        ProjectDeploymentReservationSnapshot rereadLinks =
+            await followup.ReadAsync(project.ProjectDirectory);
+        Check(rereadLinks.Ledger.Relations?.Count == 3 &&
+            (await service.ListAsync(project.ProjectDirectory)).Operations
+                .Single().SourceSha256 == savedClosure.SourceSha256,
+            "Reopening and linking tasks/jalons never rewrites a closed MEP.");
+
 
 
 

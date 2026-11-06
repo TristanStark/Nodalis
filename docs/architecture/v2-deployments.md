@@ -361,3 +361,34 @@ sources MEP et REC d'origine, sans altérer les IDs ni les statuts
 des incidents, risques ou tâches. Le contrôle de cohérence SHA-CAS
 rejettera toute sauvegarde depuis une ancienne révision et invitera
 à actualiser.
+
+
+### Liens des réserves vers les tâches et jalons existants
+
+Une réserve opérationnelle RES-xxxx peut maintenant être reliée
+explicitement à une **tâche** ou un **jalon** du même projet, uniquement
+par leurs identifiants GUID persistants. Le registre
+Reservations-MEP.md possède un journal optionnel de relations :
+les anciens documents restent lisibles sans migration.
+
+Les associations et dissociations sont signées par une personne,
+horodatées et **append-only**. Une cible déjà liée ne peut pas être
+associée deux fois sans dissociation préalable ; la même cible peut
+être reliée à différentes réserves indépendantes. La suppression ou
+le déplacement du document cible n'efface pas l'historique du lien :
+la personne peut toujours dissocier explicitement une référence
+devenue introuvable.
+
+Lors de **l'association**, Nodalis revérifie dans les documents
+canoniques du projet que le GUID est unique et persistant, et que
+le chemin source n'a pas changé entre la sélection et la sauvegarde.
+Les cases à cocher sans ID persistant et les jalons sans ID écrit
+dans le tableau sont exclus ; les GUID de tâches ambigus dans
+l'ensemble du workspace sont refusés. Cette lecture des cibles
+n'intervient **qu'à la demande de l'utilisateur**, pas pendant le
+scroll ou au démarrage.
+
+Les liens ne mettent jamais à jour automatiquement la tâche, le
+jalon, la MEP, la recette, l'incident ni le statut de la réserve.
+L'historique des liens est protégé par le SHA-CAS du registre et
+consultable en archive.
