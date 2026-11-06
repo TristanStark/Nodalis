@@ -1,0 +1,40 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectDeploymentPreflightDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Contrôles pré-MEP · Revue sans autorisation"
+        Width="830" Height="680" MinWidth="540" MinHeight="410"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="Contrôles de préparation d'une MEP"
+                       FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,6,0,0"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Consultation du Go/No-Go, des empreintes des procédures, des risques et de la fiche de maintenance du projet. Ce diagnostic ne crée ni nouveau GO, ni autorisation, ni événement MEP." />
+        </StackPanel>
+        <Border Grid.Row="1" Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="5"
+                Padding="10" Margin="0,0,0,12">
+            <TextBlock x:Name="SummaryText" TextWrapping="Wrap" />
+        </Border>
+        <TextBox Grid.Row="2" x:Name="FindingsBox"
+                 IsReadOnly="True" TextWrapping="Wrap"
+                 AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Disabled"
+                 FontFamily="Consolas" FontSize="12" Padding="10" />
+        <DockPanel Grid.Row="3" Margin="0,12,0,0" LastChildFill="True">
+            <Button DockPanel.Dock="Right" Content="Fermer" IsCancel="True"
+                    Padding="12,7" />
+            <TextBlock Text="Revue humaine indispensable · aucun changement enregistré"
+                       VerticalAlignment="Center" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}" />
+        </DockPanel>
+    </Grid>
+</Window>

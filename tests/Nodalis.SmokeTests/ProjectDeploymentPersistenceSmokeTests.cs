@@ -118,6 +118,24 @@ internal static class ProjectDeploymentPersistenceSmokeTests
         Check((await service.ListAsync(project.ProjectDirectory))
             .Operations.Single().Operation.Attempts.Count == 1,
             "Explicit attempt must persist under the original operation.");
+
+        // Read-only preflight includes project risks even when the gate matches.
+        ProjectRiskRegistryService risks = new(workspace);
+        await risks.CreateAsync(project.ProjectDirectory,
+            "Risque synthétique de préparation");
+        ProjectDeploymentPreflightService preflight = new(workspace);
+        ProjectDeploymentPreflightReport beforeReview =
+            await preflight.ReviewAsync(
+                project.ProjectDirectory, firstSaved, first.Id);
+        Check(beforeReview.HistoricalGateConditionsMatch &&
+            beforeReview.ExplicitHumanReviewRequired &&
+            beforeReview.RisksFound >= 1 &&
+            beforeReview.Findings.Any(item => item.Area ==
+                ProjectDeploymentPreflightArea.Risks) &&
+            beforeReview.Findings.Any(item => item.Area ==
+                ProjectDeploymentPreflightArea.OperationalChecks),
+            "An unchanged GO still needs human risk and operational review.");
+
         await RejectAsync(() => service.SaveAsync(project.ProjectDirectory,
             created, starting), "Stale SHA must reject overwrite.");
         await RejectAsync(() => service.SaveAsync(project.ProjectDirectory,
@@ -162,6 +180,19 @@ internal static class ProjectDeploymentPersistenceSmokeTests
         Check((await service.ListAsync(project.ProjectDirectory))
             .Operations.Single().Operation.Attempts.Count == 1,
             "Rejected attempts must not corrupt persisted ledger.");
+
+        ProjectDeploymentPreflightReport changedSources =
+            await preflight.ReviewAsync(
+                project.ProjectDirectory, closed, first.Id);
+        Check(!changedSources.HistoricalGateConditionsMatch &&
+            changedSources.Findings.Any(item =>
+                item.Area == ProjectDeploymentPreflightArea.Procedure ||
+                item.Area == ProjectDeploymentPreflightArea.Gate),
+            "Changed proof or procedure must invalidate the historical match.");
+        await RejectAsync(() => preflight.ReviewAsync(
+            project.ProjectDirectory, firstSaved, first.Id),
+            "Preflight must reject MEP source revisions that became stale.");
+
     }
 
     /// <summary>Verifies a rejected persisted action.</summary>

@@ -91,6 +91,9 @@
                         Click="Attempt_Click" Padding="12,7" Margin="0,0,6,5" />
                 <Button x:Name="EventButton" Content="Consigner un événement…"
                         Click="Event_Click" Padding="12,7" Margin="0,0,6,5" />
+                <Button x:Name="PreflightButton" Content="Contrôles pré-MEP…"
+                        Click="Preflight_Click" Padding="12,7" Margin="0,0,6,5"
+                        ToolTip="Comparer les preuves GO, procédures, risques et incidents sans donner d'autorisation" />
                 <Button x:Name="OpenButton" Content="Ouvrir la fiche Markdown"
                         Click="Open_Click" Padding="12,7" Margin="0,0,6,5" />
                 <Button x:Name="RefreshButton" Content="Actualiser"

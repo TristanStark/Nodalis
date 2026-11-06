@@ -14,6 +14,7 @@ public partial class ProjectDeploymentRegistryDialog : Window
 {
     private readonly ProjectDeploymentService _service;
     private readonly ProjectGateRegistryService _gates;
+    private readonly ProjectDeploymentPreflightService _preflight;
     private readonly string _workspaceRoot;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
@@ -29,6 +30,7 @@ public partial class ProjectDeploymentRegistryDialog : Window
     {
         _service = new ProjectDeploymentService(workspaceRoot);
         _gates = new ProjectGateRegistryService(workspaceRoot);
+        _preflight = new ProjectDeploymentPreflightService(workspaceRoot);
         _workspaceRoot = workspaceRoot;
         _projectDirectory = projectDirectory;
         _readOnly = readOnly;
@@ -144,6 +146,8 @@ public partial class ProjectDeploymentRegistryDialog : Window
         CreateButton.IsEnabled = !_busy && !_readOnly &&
             _catalog?.NextReference is not null;
         OpenButton.IsEnabled = !_busy && CurrentRow() is not null;
+        PreflightButton.IsEnabled = !_busy &&
+            CurrentRow()?.Entry.Operation.Attempts.Count > 0;
         ProjectDeploymentOperation? selected = CurrentRow()?.Entry.Operation;
         bool hasAttempt = selected?.Attempts.Count > 0;
         ProjectDeploymentAttemptEvent? last = selected?.Events.LastOrDefault();
@@ -347,6 +351,33 @@ public partial class ProjectDeploymentRegistryDialog : Window
             StatusText.Text = "Événement historique ajouté. " +
                 "Aucun GO, jalon ni déploiement n'a été modifié.";
         }, "Consigner un événement");
+
+    /// <summary>
+    /// Rechecks a recorded attempt against current project-local GO proofs,
+    /// procedures, risks and incidents without writing any source file.
+    /// </summary>
+    /// <param name="sender">Human preflight request.</param>
+    /// <param name="e">WPF routed click event.</param>
+    private async void Preflight_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (CurrentRow() is not MepRow selected ||
+                selected.Entry.Operation.Attempts.Count == 0)
+            {
+                return;
+            }
+
+            Guid id = selected.Entry.Operation.Attempts[^1].Id;
+            ProjectDeploymentPreflightReport report = await Task.Run(() =>
+                _preflight.ReviewAsync(_projectDirectory, selected.Entry, id));
+            ProjectDeploymentPreflightDialog dialog = new(report)
+            {
+                Owner = this
+            };
+            dialog.ShowDialog();
+            StatusText.Text = "Contrôle pré-MEP consultatif · aucune " +
+                "autorisation ni événement enregistré.";
+        }, "Contrôles pré-MEP");
 
     /// <summary>Reloads the canonical folder only on explicit user request.</summary>
     /// <param name="sender">Refresh button.</param>

@@ -108,3 +108,31 @@ rollback et la version réellement constatée ne sont pas inventés :
 la personne les saisit explicitement. La validation Core rejette
 les ordres impossibles et les réécritures ; le service refuse les
 révisions concurrentes. Une action UI n'est jamais un déploiement réel.
+
+
+### Contrôles pré-MEP consultatifs
+
+Dans **Projet > Mises en production…**, sélectionner une MEP avec
+au moins une tentative puis choisir **Contrôles pré-MEP…**. Le service
+inspecte uniquement les registres canoniques du projet, à la demande.
+Il vérifie l'empreinte SHA de la MEP et du registre des gates avant
+et après l'inspection, le dernier verdict GO et ses preuves, la
+procédure de déploiement et le plan de rollback.
+
+Les risques du projet sont présentés à la revue avec leur qualification
+humaine et leur criticité résiduelle. Les risques non qualifiés, non
+évalués ou élevés sont signalés ; le périmètre d'applicabilité à cette
+MEP ne peut pas être inféré. Le nombre d'incidents à ID canonique et
+les enregistrements incomplets sont montrés sans supposer leur statut
+« ouvert/clos » : cette information doit être contrôlée dans la
+fiche de maintenance.
+
+Même lorsque toutes les empreintes concordent, les contrôles réels
+(sauvegardes, procédure applicable, état du serveur, supervision,
+fenêtre autorisée, sécurité, support, risques et incidents pertinents)
+restent **humains et explicites**. Aucun GO ni autorisation ni événement
+MEP n'est écrit par cette consultation.
+
+Les smoke tests vérifient les avertissements en présence de risques
+non qualifiés, l'absence d'autorisation implicite, la détection de
+preuves/procédures modifiées et le refus d'une révision MEP périmée.
