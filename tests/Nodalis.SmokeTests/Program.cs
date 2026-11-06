@@ -132,6 +132,7 @@ try
     await ProjectRiskTaskBacklinkSmokeTests.RunAsync(root);
     ProjectGateReservationOverviewSmokeTests.Run();
     await ProjectArchivesSmokeTests.RunAsync(root);
+    await ProjectClosureAuditSmokeTests.RunAsync(root);
     await VerifyProjectStructureAsync(root);
     await VerifyApplicationStructureAsync(root);
     await VerifyTrashAsync(root);
