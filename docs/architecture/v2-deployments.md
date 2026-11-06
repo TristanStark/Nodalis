@@ -156,3 +156,22 @@ Aucun succès déduit automatiquement d'un rollback ou d'un GO.
 Une fois la clôture enregistrée, aucune tentative ou action ne peut
 être rajoutée ; SaveAsync refuse tout changement d'un bilan existant.
 Aucun jalon, incident ni campagne n'est clôturé par ricochet.
+
+
+### Bilan depuis Projet > Mises en production
+
+Le registre affiche désormais **Bilan MEP…** lorsqu'une opération
+n'a pas encore de clôture et que sa dernière tentative est achevée
+(ou qu'elle n'a jamais démarré). Le formulaire propose uniquement
+les verdicts correspondant au dernier événement humain : Réussie
+ou Réussie avec réserves après une tentative réussie ; Échouée
+ou Annulée après une tentative non réussie ; Annulée seule
+pour une opération sans tentative.
+
+Pour une réussite, la personne renseigne elle-même la **date
+effective** au format jj/MM/aaaa HH:mm ; la **date de clôture**
+est distincte et horodatée à la confirmation. L'auteur,
+le motif et les réserves (pour le verdict avec réserves) sont
+obligatoires selon le modèle. La sauvegarde conserve le verrouillage
+SHA-256 et refuse une modification du bilan déjà enregistré.
+Les archives sont consultables mais jamais modifiables.

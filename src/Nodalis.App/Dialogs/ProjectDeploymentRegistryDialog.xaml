@@ -94,6 +94,10 @@
                 <Button x:Name="PreflightButton" Content="Contrôles pré-MEP…"
                         Click="Preflight_Click" Padding="12,7" Margin="0,0,6,5"
                         ToolTip="Comparer les preuves GO, procédures, risques et incidents sans donner d'autorisation" />
+                <Button x:Name="CloseOperationButton" Content="Bilan MEP…"
+                        Click="CloseOperation_Click"
+                        Padding="12,7" Margin="0,0,6,5"
+                        ToolTip="Enregistrer un verdict final humain avec date de déploiement effective et réserves" />
                 <Button x:Name="OpenButton" Content="Ouvrir la fiche Markdown"
                         Click="Open_Click" Padding="12,7" Margin="0,0,6,5" />
                 <Button x:Name="RefreshButton" Content="Actualiser"

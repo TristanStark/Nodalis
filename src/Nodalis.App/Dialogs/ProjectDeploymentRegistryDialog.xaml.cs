@@ -91,6 +91,7 @@ public partial class ProjectDeploymentRegistryDialog : Window
         }
 
         ProjectDeploymentOperation operation = row.Entry.Operation;
+        ProjectDeploymentClosure? closure = operation.Closure;
         List<string> lines =
         [
             operation.Reference + " — " + operation.Title,
@@ -100,8 +101,27 @@ public partial class ProjectDeploymentRegistryDialog : Window
             "Source : " + row.Entry.RelativePath,
             "Révision SHA-256 : " + row.Entry.SourceSha256,
             string.Empty,
-            "Les tentatives sont des déclarations humaines, pas des GO automatiques."
+            "Les tentatives sont des déclarations humaines, pas des GO automatiques.",
+            "Bilan : " + (closure?.Outcome.ToString() ?? "non enregistré")
         ];
+        if (closure is not null)
+        {
+            lines.Add("Clôture : " +
+                closure.RecordedUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm") +
+                " · responsable : " + closure.Actor);
+            if (closure.EffectiveDeploymentUtc is DateTimeOffset effective)
+            {
+                lines.Add("Déploiement effectif : " +
+                    effective.ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
+            }
+
+            lines.Add("Motif : " + closure.Rationale);
+            if (!string.IsNullOrWhiteSpace(closure.Reservations))
+            {
+                lines.Add("Réserves : " + closure.Reservations);
+            }
+        }
+
         foreach (ProjectDeploymentAttempt attempt in operation.Attempts)
         {
             lines.Add(string.Empty);
@@ -153,10 +173,13 @@ public partial class ProjectDeploymentRegistryDialog : Window
         ProjectDeploymentAttemptEvent? last = selected?.Events.LastOrDefault();
         bool finished = last is not null &&
             ProjectDeploymentMarkdownCodec.IsFinish(last.Kind);
-        AttemptButton.IsEnabled = !_busy && !_readOnly &&
+        bool open = selected?.Closure is null;
+        AttemptButton.IsEnabled = !_busy && !_readOnly && open &&
             selected is not null && (!hasAttempt || finished);
-        EventButton.IsEnabled = !_busy && !_readOnly &&
+        EventButton.IsEnabled = !_busy && !_readOnly && open &&
             selected is not null && hasAttempt && !finished;
+        CloseOperationButton.IsEnabled = !_busy && !_readOnly && open &&
+            selected is not null && (!hasAttempt || finished);
         RefreshButton.IsEnabled = !_busy;
     }
 
@@ -378,6 +401,54 @@ public partial class ProjectDeploymentRegistryDialog : Window
             StatusText.Text = "Contrôle pré-MEP consultatif · aucune " +
                 "autorisation ni événement enregistré.";
         }, "Contrôles pré-MEP");
+
+    /// <summary>
+    /// Consigns the single human business outcome separately from attempts,
+    /// without auto-closing gates, milestones, incidents or linked tasks.
+    /// </summary>
+    /// <param name="sender">Explicit MEP closure button.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void CloseOperation_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (_readOnly || CurrentRow() is not MepRow selected ||
+                selected.Entry.Operation.Closure is not null)
+            {
+                return;
+            }
+
+            ProjectDeploymentOperation operation = selected.Entry.Operation;
+            if (operation.Attempts.Count > 0)
+            {
+                ProjectDeploymentAttemptState state =
+                    ProjectDeploymentMarkdownCodec.GetAttemptState(
+                        operation, operation.Attempts[^1].Id);
+                if (!state.IsFinished)
+                {
+                    throw new InvalidDataException(
+                        "Terminez la dernière tentative avant le bilan.");
+                }
+            }
+
+            ProjectDeploymentClosureDialog dialog = new(operation)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true ||
+                dialog.ConfirmedClosure is not ProjectDeploymentClosure closure)
+            {
+                return;
+            }
+
+            ProjectDeploymentOperation proposed =
+                ProjectDeploymentEditor.Close(operation, closure);
+            ProjectDeploymentEntry saved = await _service.SaveAsync(
+                _projectDirectory, selected.Entry, proposed);
+            Changed = true;
+            await ReloadAsync(saved.Operation.Id);
+            StatusText.Text = "Bilan MEP figé · historique conservé. " +
+                "Aucun autre statut métier modifié.";
+        }, "Clôturer une opération MEP");
 
     /// <summary>Reloads the canonical folder only on explicit user request.</summary>
     /// <param name="sender">Refresh button.</param>

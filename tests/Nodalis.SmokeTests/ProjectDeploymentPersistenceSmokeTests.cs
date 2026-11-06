@@ -193,6 +193,34 @@ internal static class ProjectDeploymentPersistenceSmokeTests
             project.ProjectDirectory, firstSaved, first.Id),
             "Preflight must reject MEP source revisions that became stale.");
 
+        // Close one failed MEP explicitly, preserving all earlier events.
+        ProjectDeploymentClosure closure = new()
+        {
+            Id = Guid.NewGuid(),
+            AttemptId = first.Id,
+            Outcome = ProjectDeploymentOutcome.Failed,
+            Actor = "Responsable",
+            Rationale = "Bilan de clôture après interruption et qualification.",
+            RecordedUtc = first.StartedUtc.AddMinutes(4)
+        };
+        ProjectDeploymentOperation closedDraft =
+            ProjectDeploymentEditor.Close(closed.Operation, closure);
+        ProjectDeploymentEntry savedClosure = await service.SaveAsync(
+            project.ProjectDirectory, closed, closedDraft);
+        Check(savedClosure.Operation.Closure?.Outcome ==
+            ProjectDeploymentOutcome.Failed &&
+            (await service.ListAsync(project.ProjectDirectory))
+                .Operations.Single().Operation.Closure?.Id == closure.Id &&
+            savedClosure.Operation.Events.Count == closed.Operation.Events.Count,
+            "Persistent closure must retain every historical attempt and event.");
+        await RejectAsync(() => service.SaveAsync(
+            project.ProjectDirectory, savedClosure, savedClosure.Operation),
+            "A frozen closure can never be written over.");
+        await RejectAsync(() => service.SaveAsync(
+            project.ProjectDirectory, closed, closedDraft),
+            "Old snapshot must not overwrite the persisted closure.");
+
+
     }
 
     /// <summary>Verifies a rejected persisted action.</summary>
