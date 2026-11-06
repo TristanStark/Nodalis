@@ -245,6 +245,7 @@ public partial class ProjectDeploymentRegistryDialog : Window
             selected is not null && hasAttempt && finished;
         PostCheckButton.IsEnabled = !_busy && !_readOnly && open &&
             selected is not null && hasAttempt && finished;
+        ReservationButton.IsEnabled = !_busy && selected is not null;
         RefreshButton.IsEnabled = !_busy;
     }
 
@@ -634,6 +635,36 @@ public partial class ProjectDeploymentRegistryDialog : Window
             StatusText.Text = "Passation enregistrée dans l'historique. " +
                 "Les réserves restent visibles · aucun autre statut modifié.";
         }, "Passation exploitation");
+
+    /// <summary>
+    /// Opens the independent human follow-up registry, available even after
+    /// business closure. A completed MEP remains fully immutable.
+    /// </summary>
+    /// <param name="sender">Reservation tracking button.</param>
+    /// <param name="e">WPF routed click.</param>
+    private async void Reservation_Click(object sender, RoutedEventArgs e) =>
+        await GuardAsync(async () =>
+        {
+            if (CurrentRow() is not MepRow selected)
+            {
+                return;
+            }
+
+            ProjectDeploymentReservationDialog dialog = new(
+                _workspaceRoot, _projectDirectory, selected.Entry, _readOnly)
+            {
+                Owner = this
+            };
+            dialog.ShowDialog();
+            if (dialog.Changed)
+            {
+                Changed = true;
+                StatusText.Text = "Réserves suivies indépendamment de la MEP. " +
+                    "Aucune tentative, décision ou anomalie modifiée.";
+            }
+
+            await Task.CompletedTask;
+        }, "Suivi des réserves exploitation");
 
     /// <summary>Reloads the canonical folder only on explicit user request.</summary>
     /// <param name="sender">Refresh button.</param>

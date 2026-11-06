@@ -336,3 +336,28 @@ facultative conserve un chemin de fichier du projet et son empreinte,
 revérifiée avant écriture. La consultation reste permise en archive,
 mais l'ajout y est interdit. Les anciennes fiches MEP restent
 strictement identiques, y compris après une résolution de réserve.
+
+
+### Interface de reprise et suivi des réserves
+
+Dans **Projet > Mises en production… > Suivi des réserves…**,
+l'utilisateur sélectionne une MEP (clôturée ou non). La fenêtre
+charge uniquement les obligations de cette MEP dans le registre
+indépendant et propose deux actions dans le même écran :
+
+- **Créer une réserve** à partir d'un texte de réserves explicite
+  dans une décision de passation, un contrôle post-MEP non conforme
+  ou un bilan avec réserves ; choisir personnellement l'intitulé,
+  la description, le responsable et une éventuelle échéance ;
+- **Consulter / suivre** l'historique et enregistrer prise en charge,
+  note de progression, changement de responsable, résolution ou
+  réouverture. Les transitions impossibles ne sont pas proposées ;
+  chacune nécessite un auteur, un motif et une confirmation humaine.
+  Une preuve Markdown de ce projet peut être liée manuellement.
+
+La fenêtre est consultable sur une MEP clôturée et dans les archives,
+mais le statut archivé désactive toute écriture. Elle conserve les
+sources MEP et REC d'origine, sans altérer les IDs ni les statuts
+des incidents, risques ou tâches. Le contrôle de cohérence SHA-CAS
+rejettera toute sauvegarde depuis une ancienne révision et invitera
+à actualiser.

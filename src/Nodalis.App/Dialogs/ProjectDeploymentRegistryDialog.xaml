@@ -102,6 +102,10 @@
                         Click="Handover_Click" Padding="12,7"
                         Margin="0,0,6,5"
                         ToolTip="Documenter les sept contrôles, les réserves et la décision humaine de transfert" />
+                <Button x:Name="ReservationButton" Content="Suivi des réserves…"
+                        Click="Reservation_Click" Padding="12,7"
+                        Margin="0,0,6,5"
+                        ToolTip="Créer ou suivre les réserves d'exploitation, même après clôture de la MEP" />
                 <Button x:Name="CloseOperationButton" Content="Bilan MEP…"
                         Click="CloseOperation_Click"
                         Padding="12,7" Margin="0,0,6,5"
