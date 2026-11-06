@@ -1,0 +1,67 @@
+namespace Nodalis.Core.Projects;
+
+/// <summary>
+/// Human-only deployment journal commands; each command creates a new
+/// immutable snapshot rather than rewriting an older attempt or event.
+/// </summary>
+public static class ProjectDeploymentEditor
+{
+    /// <summary>Creates an in-memory proposal, never writes a source file.</summary>
+    /// <param name="projectId">Canonical owner project.</param>
+    /// <param name="reference">Reviewed MEP reference.</param>
+    /// <param name="title">Human-readable title.</param>
+    /// <returns>Empty proposed operation.</returns>
+    public static ProjectDeploymentOperation Create(
+        Guid projectId, string reference, string title)
+    {
+        ProjectDeploymentOperation proposed = new()
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            Reference = reference,
+            Title = title,
+            CreatedUtc = DateTimeOffset.UtcNow
+        };
+        ProjectDeploymentMarkdownCodec.Validate(proposed);
+        return proposed;
+    }
+
+    /// <summary>
+    /// Freezes one explicitly reviewed attempt, including real observed
+    /// pre-deployment version and human declaration of gate review.
+    /// This does not independently verify or grant deployment permission.
+    /// </summary>
+    /// <param name="operation">Current complete operation.</param>
+    /// <param name="attempt">Fully populated human-reviewed attempt.</param>
+    /// <returns>Extended operation, leaving original attempts untouched.</returns>
+    public static ProjectDeploymentOperation StartAttempt(
+        ProjectDeploymentOperation operation, ProjectDeploymentAttempt attempt)
+    {
+        ProjectDeploymentMarkdownCodec.Validate(operation);
+        ArgumentNullException.ThrowIfNull(attempt);
+        ProjectDeploymentOperation changed = operation with
+        {
+            Attempts = [.. operation.Attempts, attempt]
+        };
+        ProjectDeploymentMarkdownCodec.Validate(changed);
+        return changed;
+    }
+
+    /// <summary>Appends a user-declared event to its active attempt.</summary>
+    /// <param name="operation">Existing event ledger.</param>
+    /// <param name="action">New event with stable identity and human context.</param>
+    /// <returns>Extended operation, without changing earlier events.</returns>
+    public static ProjectDeploymentOperation AppendEvent(
+        ProjectDeploymentOperation operation,
+        ProjectDeploymentAttemptEvent action)
+    {
+        ProjectDeploymentMarkdownCodec.Validate(operation);
+        ArgumentNullException.ThrowIfNull(action);
+        ProjectDeploymentOperation changed = operation with
+        {
+            Events = [.. operation.Events, action]
+        };
+        ProjectDeploymentMarkdownCodec.Validate(changed);
+        return changed;
+    }
+}
