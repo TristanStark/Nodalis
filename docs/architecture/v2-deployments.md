@@ -69,3 +69,23 @@ et la modification des procédures.
 transversal incidents/risques, preuve du contexte MEP, stabilisation
 et passation exploitation. Qualification Windows et gate #205 nécessaires
 avant merge main, tag et release.
+
+
+## Interface WPF de première tranche
+
+Dans Pilotage > Mises en production · 2.0 >
+Opérations MEP et tentatives, le registre permet de consulter la liste
+canonique, l'historique des tentatives et les événements (y compris
+demande, démarrage et constat du rollback), puis d'ouvrir la fiche
+Markdown dans l'éditeur Nodalis.
+
+Le bouton Créer une MEP demande un intitulé et une confirmation distincte
+avant d'ajouter un unique document sans tentative et sans autorisation.
+Actualiser relit explicitement le dossier ; les listes et les détails
+sont recalculés en mémoire sans rescans à la sélection ou au scroll.
+Le mode archive/lecture seule conserve uniquement la consultation.
+L'UI n'implique ni GO automatique ni exécution réelle de déploiement.
+
+La saisie assistée des tentatives, la capture du contexte de mise en
+production, les contrôles d'incidents/risques et le bilan demeurent
+les incréments suivants de #203.

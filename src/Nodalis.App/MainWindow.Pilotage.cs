@@ -888,6 +888,37 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Opens the project-scoped canonical MEP ledger, without invoking any
+    /// deployment or inferring an authorization from an old GO.
+    /// </summary>
+    /// <returns>Completed human-driven MEP dialog and optional source opening.</returns>
+    private async Task OpenPilotageDeploymentsAsync()
+    {
+        NavigationNodeViewModel? project = PilotageProject();
+        if (project is null)
+        {
+            ShowPilotageProjectHint("Mises en production");
+            return;
+        }
+
+        ProjectDeploymentRegistryDialog dialog = new(
+            _root.FullPath, project.FullPath, PilotageReadOnly(project))
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+        if (dialog.Changed)
+        {
+            await RefreshNavigationAsync(project.FullPath);
+        }
+
+        if (dialog.SelectedSourcePath is string source)
+        {
+            await OpenProjectJourneySourceAsync(source);
+        }
+    }
+
     /// <summary>Explains project selection without silently switching context.</summary>
     /// <param name="context">Requested tool's localized title.</param>
     private void ShowPilotageProjectHint(string context)
@@ -1020,6 +1051,14 @@ public partial class MainWindow
         object sender, RoutedEventArgs e) =>
         await RunUiActionAsync("Gates et décisions Go/No-Go",
             () => OpenPilotageGatesAsync());
+
+    /// <summary>Opens the explicit MEP ledger from the Pilotage menu.</summary>
+    /// <param name="sender">Menu item.</param>
+    /// <param name="e">WPF click event.</param>
+    private async void PilotageDeployments_Click(
+        object sender, RoutedEventArgs e) =>
+        await RunUiActionAsync("Opérations MEP et tentatives",
+            OpenPilotageDeploymentsAsync);
 
     /// <summary>Opens the already available project decisions list.</summary>
     /// <param name="sender">Menu item.</param>

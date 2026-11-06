@@ -405,6 +405,11 @@
                             <MenuItem Header="Créer une décision…"
                                       Click="PilotageNewDecision_Click" />
                         </MenuItem>
+                        <MenuItem Header="Mises en production · 2.0">
+                            <MenuItem Header="Opérations MEP et tentatives…"
+                                      Click="PilotageDeployments_Click"
+                                      ToolTip="Créer ou consulter les fiches MEP et leurs historiques sans déployer" />
+                        </MenuItem>
                         <MenuItem Header="Préparation / migration · 2.0">
                             <MenuItem Header="Prévisualiser la structure Complexe 2.0…"
                                       Click="PilotageMigrationPreview_Click" />
