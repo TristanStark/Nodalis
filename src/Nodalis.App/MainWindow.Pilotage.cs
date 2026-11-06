@@ -13,21 +13,12 @@ using Nodalis.Infrastructure.Projects;
 namespace Nodalis.App;
 
 /// <summary>
-/// Centralizes existing Nodalis 2.0 project tools in the Pilotage menu.
-/// Stages and operations are read from the selected project's real journey,
-/// not from a stale list of hardcoded workflow names.
+/// Centralizes project tools in the compact Projet menu, using the
+/// searchable stage/prompt picker instead of cascading dynamic menus.
+/// Existing GUID/revision guards still protect each selected action.
 /// </summary>
 public partial class MainWindow
 {
-    private int _pilotageMenuRevision;
-
-    private enum PilotageJourneyMode
-    {
-        Steps,
-        Prepare,
-        Assign
-    }
-
     private enum PilotageTargetMode
     {
         Focus,
@@ -38,24 +29,6 @@ public partial class MainWindow
     private sealed record PilotageJourneyTarget(
         Guid ProjectId, string ProjectPath, Guid StepId,
         Guid? OperationId, PilotageTargetMode Mode);
-
-    /// <summary>
-    /// An immutable snapshot of one stage for deferred WPF menu materialization.
-    /// Stable IDs are rechecked against the project before any action runs.
-    /// </summary>
-    private sealed record PilotageOpenJourneyTarget(
-        Guid ProjectId, string ProjectPath);
-
-    private sealed record PilotageStageMenuContext(
-        Guid ProjectId, string ProjectPath,
-        ProjectJourneyPilotageStage Stage, PilotageJourneyMode Mode)
-    {
-        /// <summary>
-        /// Operation controls were built for this one opening of the parent
-        /// menu. A fresh project menu creates a new context object.
-        /// </summary>
-        public bool Expanded { get; set; }
-    }
 
     /// <summary>
     /// Searches the real journey in a virtualized dialog rather than
@@ -81,7 +54,7 @@ public partial class MainWindow
             !string.Equals(current.FullPath, directory,
                 StringComparison.OrdinalIgnoreCase))
         {
-            StatusText.Text = "Projet modifié pendant la recherche Pilotage.";
+            StatusText.Text = "Projet modifié pendant la recherche des étapes.";
             return;
         }
 
@@ -91,7 +64,7 @@ public partial class MainWindow
                 "Ce projet n'a pas encore de parcours initialisé. " +
                 "Ouvrez « Parcours projet » pour examiner puis " +
                 "confirmer une initialisation, sans création automatique.",
-                "Rechercher une étape · Pilotage 2.0",
+                "Étapes et prompts · Projet",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -110,7 +83,7 @@ public partial class MainWindow
             !string.Equals(stillSelected.FullPath, directory,
                 StringComparison.OrdinalIgnoreCase))
         {
-            StatusText.Text = "Projet modifié pendant l'indexation Pilotage.";
+            StatusText.Text = "Projet modifié pendant l'indexation des étapes.";
             return;
         }
 
@@ -129,7 +102,7 @@ public partial class MainWindow
             ProjectJourneyQuickAction.Prepare => PilotageTargetMode.Prepare,
             ProjectJourneyQuickAction.Assign => PilotageTargetMode.Assign,
             _ => throw new InvalidDataException(
-                "Action de recherche Pilotage inconnue.")
+                "Action de recherche du projet inconnue.")
         };
         await OpenPilotageTargetAsync(new PilotageJourneyTarget(
             projectId, directory, choice.StepId, choice.OperationId,
@@ -141,7 +114,7 @@ public partial class MainWindow
     /// <param name="e">Click event.</param>
     private async void PilotageQuickAccess_Click(
         object sender, RoutedEventArgs e) =>
-        await RunUiActionAsync("Recherche dans le parcours 2.0",
+        await RunUiActionAsync("Étapes et prompts du projet",
             OpenPilotageQuickAccessAsync);
 
     /// <summary>Opens the actual Pilotage project, not an old document selection.</summary>
@@ -162,398 +135,6 @@ public partial class MainWindow
         });
 
     /// <summary>
-    /// Opens the exact menu-selected project when its journey does not yet
-    /// exist, without using another active Worktree document as a fallback.
-    /// </summary>
-    /// <param name="sender">Human initialization entry.</param>
-    /// <param name="e">Menu click.</param>
-    private async void PilotageOpenJourney_Click(
-        object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem
-            {
-                Tag: PilotageOpenJourneyTarget target
-            })
-        {
-            return;
-        }
-
-        await RunUiActionAsync("Ouvrir un parcours non initialisé", () =>
-        {
-            NavigationNodeViewModel? project = PilotageProject();
-            if (project is null || project.Id != target.ProjectId ||
-                !string.Equals(project.FullPath, target.ProjectPath,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                StatusText.Text =
-                    "Projet modifié : rouvrez Pilotage avant initialisation.";
-                return Task.CompletedTask;
-            }
-
-            return OpenProjectJourneyAsync(project);
-        });
-    }
-
-    /// <summary>Lists actual project stages when the submenu opens.</summary>
-    /// <param name="sender">Journey stages submenu.</param>
-    /// <param name="e">WPF submenu open event.</param>
-    private async void PilotageJourneySteps_SubmenuOpened(
-        object sender, RoutedEventArgs e)
-    {
-        if (ReferenceEquals(sender, PilotageJourneyStepsMenu) &&
-            ReferenceEquals(e.OriginalSource, PilotageJourneyStepsMenu))
-        {
-            await PopulatePilotageJourneyAsync(PilotageJourneyStepsMenu,
-                PilotageJourneyMode.Steps);
-        }
-    }
-
-    /// <summary>Lists all actual project operations for copy-ready prompts.</summary>
-    /// <param name="sender">Prompt submenu.</param>
-    /// <param name="e">WPF submenu open event.</param>
-    private async void PilotagePrompts_SubmenuOpened(
-        object sender, RoutedEventArgs e)
-    {
-        if (ReferenceEquals(sender, PilotagePromptsMenu) &&
-            ReferenceEquals(e.OriginalSource, PilotagePromptsMenu))
-        {
-            await PopulatePilotageJourneyAsync(PilotagePromptsMenu,
-                PilotageJourneyMode.Prepare);
-        }
-    }
-
-    /// <summary>Lists actual operations for navigating to their prompt picker.</summary>
-    /// <param name="sender">Prompt assignment submenu.</param>
-    /// <param name="e">WPF submenu open event.</param>
-    private async void PilotagePromptAssignments_SubmenuOpened(
-        object sender, RoutedEventArgs e)
-    {
-        if (ReferenceEquals(sender, PilotagePromptAssignmentsMenu) &&
-            ReferenceEquals(e.OriginalSource, PilotagePromptAssignmentsMenu))
-        {
-            await PopulatePilotageJourneyAsync(
-                PilotagePromptAssignmentsMenu, PilotageJourneyMode.Assign);
-        }
-    }
-
-    /// <summary>
-    /// Loads the current project-only journey asynchronously. It never
-    /// initializes a missing journey or modifies any project document.
-    /// </summary>
-    /// <param name="menu">Submenu that requested the stage list.</param>
-    /// <param name="mode">Stage navigation, draft preparation or assignment.</param>
-    /// <returns>Menu items for the exact current project or safe diagnostics.</returns>
-    private async Task PopulatePilotageJourneyAsync(
-        MenuItem menu, PilotageJourneyMode mode)
-    {
-        int generation = ++_pilotageMenuRevision;
-        menu.Items.Clear();
-        menu.Items.Add(PilotageNotice("Lecture du parcours…"));
-        NavigationNodeViewModel? project = PilotageProject();
-        if (project is null)
-        {
-            menu.Items.Clear();
-            menu.Items.Add(PilotageNotice("Sélectionnez d'abord un projet."));
-            return;
-        }
-
-        string directory = project.FullPath;
-        Guid projectId = project.Id;
-        try
-        {
-            ProjectJourneyService service = new(_root.FullPath);
-            ProjectJourneySnapshot? snapshot = await Task.Run(() =>
-                service.ReadAsync(directory));
-            ProjectJourneyTemplate? proposed = snapshot is null &&
-                mode == PilotageJourneyMode.Steps
-                    ? await Task.Run(() =>
-                        service.PreviewDefaultAsync(directory))
-                    : null;
-            NavigationNodeViewModel? selected = PilotageProject();
-            if (generation != _pilotageMenuRevision || !menu.IsSubmenuOpen ||
-                selected is null || selected.Id != projectId ||
-                !string.Equals(selected.FullPath, directory,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            menu.Items.Clear();
-            if (snapshot is null)
-            {
-                menu.Items.Add(PilotageNotice(
-                    "Parcours non initialisé : aucun document créé."));
-                if (proposed is not null)
-                {
-                    MenuItem template = new()
-                    {
-                        Header = "Étapes proposées · modèle non activé",
-                        ToolTip = "Aperçu en lecture seule, aucun parcours créé"
-                    };
-                    int previewNumber = 0;
-                    foreach (ProjectJourneyStepTemplate stage in proposed.Steps
-                        .OrderBy(item => item.Order))
-                    {
-                        MenuItem proposedStep = new()
-                        {
-                            Header = PilotageMenuHeader(
-                                (++previewNumber) + ". " + stage.Name)
-                        };
-                        foreach (ProjectJourneyOperationTemplate operation in
-                            stage.Operations)
-                        {
-                            proposedStep.Items.Add(PilotageNotice(
-                                operation.Name + " · opération proposée"));
-                        }
-
-                        template.Items.Add(proposedStep);
-                    }
-
-                    menu.Items.Add(template);
-                }
-
-                MenuItem open = new()
-                {
-                    Header = "Ouvrir / initialiser le parcours…",
-                    Tag = new PilotageOpenJourneyTarget(projectId, directory)
-                };
-                open.Click += PilotageOpenJourney_Click;
-                menu.Items.Add(open);
-                return;
-            }
-
-            if (snapshot.Document.ProjectId != projectId)
-            {
-                menu.Items.Add(PilotageNotice(
-                    "Identité du parcours différente du projet."));
-                return;
-            }
-
-            ProjectJourneyPilotageStage[] steps =
-                ProjectJourneyPilotageProjection.Build(snapshot.Document)
-                    .ToArray();
-            if (steps.Length == 0)
-            {
-                menu.Items.Add(PilotageNotice(
-                    "Aucune étape : éditez le parcours pour en créer."));
-                return;
-            }
-
-            int stageNumber = 0;
-            foreach (ProjectJourneyPilotageStage step in steps)
-            {
-                // Human stage numbering is always 1..N, independently of
-                // the technical 0/10/20 values stored by the journey editor.
-                string stepLabel = (++stageNumber) + ". " + step.Name;
-                if (mode == PilotageJourneyMode.Steps)
-                {
-                    stepLabel += " · " + PilotageStepStatus(step.Status);
-                }
-
-                MenuItem stage = new()
-                {
-                    Header = PilotageMenuHeader(stepLabel),
-                    Tag = new PilotageStageMenuContext(
-                        projectId, directory, step, mode)
-                };
-                // Do not eagerly construct every operation MenuItem while
-                // hovering over Pilotage: large projects used to allocate
-                // thousands of WPF controls and could freeze the dispatcher.
-                stage.Items.Add(PilotageNotice(
-                    "Développer pour afficher les opérations…"));
-                stage.SubmenuOpened += PilotageStage_SubmenuOpened;
-                menu.Items.Add(stage);
-            }
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or
-            InvalidOperationException or UnauthorizedAccessException)
-        {
-            if (generation == _pilotageMenuRevision && menu.IsSubmenuOpen)
-            {
-                menu.Items.Clear();
-                menu.Items.Add(PilotageNotice(
-                    "Parcours inaccessible : " + exception.GetType().Name));
-            }
-        }
-    }
-
-    /// <summary>
-    /// Materializes only the chosen stage's operations when that stage is
-    /// expanded. No disk read or automatic change occurs on hover.
-    /// </summary>
-    /// <param name="sender">Current stage menu.</param>
-    /// <param name="e">Routed submenu event.</param>
-    private void PilotageStage_SubmenuOpened(
-        object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem stage ||
-            !ReferenceEquals(e.OriginalSource, stage) ||
-            stage.Tag is not PilotageStageMenuContext context)
-        {
-            return;
-        }
-
-        NavigationNodeViewModel? project = PilotageProject();
-        if (project is null || project.Id != context.ProjectId ||
-            !string.Equals(project.FullPath, context.ProjectPath,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            stage.Items.Clear();
-            stage.Items.Add(PilotageNotice(
-                "Projet modifié : rouvrez Pilotage."));
-            return;
-        }
-
-        // Avoid rebuilding hundreds of WPF controls each time the pointer
-        // briefly re-enters an already expanded stage submenu. The parent
-        // menu always provides a fresh context on its next opening.
-        if (context.Expanded)
-        {
-            return;
-        }
-
-        stage.Items.Clear();
-        if (context.Mode == PilotageJourneyMode.Steps)
-        {
-            stage.Items.Add(PilotageTargetItem(
-                "Ouvrir cette étape", context.ProjectId,
-                context.ProjectPath, context.Stage.Id, null,
-                PilotageTargetMode.Focus));
-            if (context.Stage.Operations.Count > 0)
-            {
-                stage.Items.Add(new Separator());
-            }
-        }
-
-        if (context.Stage.Operations.Count == 0 &&
-            context.Mode != PilotageJourneyMode.Steps)
-        {
-            stage.Items.Add(PilotageNotice(
-                "Aucune opération dans cette étape."));
-        }
-
-        foreach (ProjectJourneyPilotageOperation operation in
-            context.Stage.Operations)
-        {
-            if (context.Mode == PilotageJourneyMode.Steps)
-            {
-                MenuItem nested = new()
-                {
-                    Header = PilotageMenuHeader(operation.Name),
-                    ToolTip = operation.PromptKey is null
-                        ? "Aucun prompt associé : brouillon générique disponible."
-                        : "Prompt associé : " + operation.PromptKey
-                };
-                nested.Items.Add(PilotageTargetItem(
-                    "Afficher l'opération", context.ProjectId,
-                    context.ProjectPath, context.Stage.Id,
-                    operation.Id, PilotageTargetMode.Focus));
-                nested.Items.Add(PilotageTargetItem(
-                    "Préparer / relire / copier le prompt…",
-                    context.ProjectId, context.ProjectPath,
-                    context.Stage.Id, operation.Id,
-                    PilotageTargetMode.Prepare));
-                MenuItem assign = PilotageTargetItem(
-                    "Associer / changer le prompt…", context.ProjectId,
-                    context.ProjectPath, context.Stage.Id,
-                    operation.Id, PilotageTargetMode.Assign);
-                assign.IsEnabled = !PilotageReadOnly(project);
-                nested.Items.Add(assign);
-                stage.Items.Add(nested);
-                continue;
-            }
-
-            string operationLabel = operation.Name +
-                (operation.PromptKey is null
-                    ? " · prompt non associé" : "");
-            MenuItem item = PilotageTargetItem(
-                operationLabel, context.ProjectId, context.ProjectPath,
-                context.Stage.Id, operation.Id,
-                context.Mode == PilotageJourneyMode.Prepare
-                    ? PilotageTargetMode.Prepare
-                    : PilotageTargetMode.Assign);
-            if (context.Mode == PilotageJourneyMode.Assign)
-            {
-                item.IsEnabled = !PilotageReadOnly(project);
-            }
-
-            stage.Items.Add(item);
-        }
-
-        // Only consider this stage materialized once all controls exist.
-        // An interrupted construction can be retried on the next opening.
-        context.Expanded = true;
-    }
-
-    /// <summary>Uses the same readable French stage statuses as the journey.</summary>
-    /// <param name="status">Canonical stage state.</param>
-    /// <returns>Stable human-facing label, not a task status.</returns>
-    private static string PilotageStepStatus(ProjectJourneyStepStatus status) =>
-        status switch
-        {
-            ProjectJourneyStepStatus.Todo => "À faire",
-            ProjectJourneyStepStatus.InProgress => "En cours",
-            ProjectJourneyStepStatus.Completed => "Terminée",
-            ProjectJourneyStepStatus.NotApplicable => "Non applicable",
-            _ => "Inconnu"
-        };
-
-    /// <summary>Builds one disabled, noninteractive menu diagnostic.</summary>
-    /// <param name="message">Safe user-visible status.</param>
-    /// <returns>Disabled WPF menu item.</returns>
-    private static MenuItem PilotageNotice(string message) =>
-        new() { Header = PilotageMenuHeader(message), IsEnabled = false };
-
-    /// <summary>
-    /// Escapes WPF access-key underscores in user-customized stage/operation
-    /// labels. The visible title must not lose characters or define
-    /// accidental keyboard shortcuts.
-    /// </summary>
-    /// <param name="title">Human label, including custom project names.</param>
-    /// <returns>WPF-safe literal header text.</returns>
-    private static string PilotageMenuHeader(string title) =>
-        title.Replace("_", "__", StringComparison.Ordinal);
-
-    /// <summary>Creates one strongly identified project-local shortcut.</summary>
-    /// <param name="label">Menu action text.</param>
-    /// <param name="projectId">Stable selected project GUID.</param>
-    /// <param name="projectPath">Exact selected project directory.</param>
-    /// <param name="stepId">Stable stage GUID.</param>
-    /// <param name="operationId">Optional operation GUID.</param>
-    /// <param name="mode">Navigation, prompt draft or prompt assignment.</param>
-    /// <returns>One action wired to existing project views.</returns>
-    private MenuItem PilotageTargetItem(string label, Guid projectId,
-        string projectPath, Guid stepId, Guid? operationId,
-        PilotageTargetMode mode)
-    {
-        MenuItem item = new()
-        {
-            Header = PilotageMenuHeader(label),
-            Tag = new PilotageJourneyTarget(
-                projectId, projectPath, stepId, operationId, mode)
-        };
-        item.Click += PilotageJourneyTarget_Click;
-        return item;
-    }
-
-    /// <summary>Revalidates current project before opening a live operation.</summary>
-    /// <param name="sender">Action containing stable project/step IDs.</param>
-    /// <param name="e">Click event.</param>
-    private async void PilotageJourneyTarget_Click(
-        object sender, RoutedEventArgs e)
-    {
-        if (sender is MenuItem
-            {
-                Tag: PilotageJourneyTarget target
-            })
-        {
-            await RunUiActionAsync("Pilotage 2.0 · étape du projet",
-                () => OpenPilotageTargetAsync(target));
-        }
-    }
-
-    /// <summary>
     /// Opens the correct project scope and never reuses an operation ID from a
     /// different selection or a journey changed since the menu was built.
     /// </summary>
@@ -566,7 +147,7 @@ public partial class MainWindow
             !string.Equals(project.FullPath, target.ProjectPath,
                 StringComparison.OrdinalIgnoreCase))
         {
-            StatusText.Text = "Projet modifié depuis l'ouverture de Pilotage : " +
+            StatusText.Text = "Projet modifié depuis la sélection des étapes : " +
                 "sélectionnez à nouveau l'étape.";
             return;
         }
@@ -599,7 +180,7 @@ public partial class MainWindow
                 !stage.Operations.Any(item => item.Id == opId))
         {
             StatusText.Text = "Étape du parcours modifiée : " +
-                "rouvrez la liste Pilotage.";
+                "rouvrez les étapes et prompts.";
             return;
         }
 
@@ -671,7 +252,7 @@ public partial class MainWindow
             PilotageProject()?.Id != target.ProjectId)
         {
             StatusText.Text = "La sélection ou le parcours a changé : " +
-                "relancez la préparation depuis Pilotage.";
+                "relancez la préparation depuis Projet.";
             return;
         }
 
@@ -733,9 +314,9 @@ public partial class MainWindow
                 "modifié pendant sa préparation.";
             MessageBox.Show(this,
                 "Le projet ou le parcours a changé depuis la sélection " +
-                "de l'opération. Rouvrez Pilotage et préparez le prompt " +
+                "de l'opération. Rouvrez Étapes et prompts et préparez le prompt " +
                 "avec les sources à jour.",
-                "Pilotage 2.0 · préparation devenue obsolète",
+                "Projet · préparation devenue obsolète",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }

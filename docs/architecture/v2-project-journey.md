@@ -364,3 +364,27 @@ et les grandes listes.
    révision et les performances sur gros workspaces.
 3. Réserver la publication de Nodalis 2.0 à la qualification humaine
    des EPICs et à la conformité des workflows Windows.
+
+
+## Menu « Projet » : accès simplifiés
+
+Le menu Pilotage devient **Projet**. Les actions fréquentes (parcours,
+**Étapes et prompts…**, exigences, tests REC, risques, gates Go/No-Go,
+mises en production, tâches, jalons, calendrier et Kanban) sont
+accessibles en un clic dans le menu principal. **IA externe**,
+**Maintenance** et **Outils avancés** regroupent les actions restantes
+à un seul niveau. Le numéro « 2.0 » n'apparaît plus dans ces entrées.
+
+L'ancien parcours en menus cascade (étape → opération → action) a été
+remplacé par la fenêtre virtuelle et filtrable **Étapes et prompts**.
+Elle liste les étapes et opérations du parcours choisi, y compris
+les éléments personnalisés, et préserve les actions **Ouvrir**,
+**Préparer / copier le prompt** et **Associer un prompt**. Les
+résultats sont bornés à l'affichage puis filtrables ; l'opération
+reste liée à son GUID et à la révision SHA du projet recontrôlés
+avant exécution. Pas de création implicite ni d'IA locale requise.
+
+Qualification Windows à faire : navigation clavier, thème sombre,
+DPI 125/150 %, gros parcours, archive en lecture seule, projet
+modifié pendant la sélection, ouverture, copie et association des
+prompts, accès à tous les anciens outils depuis les trois sous-menus.
