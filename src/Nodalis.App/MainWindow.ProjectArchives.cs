@@ -91,12 +91,42 @@ public partial class MainWindow
             return;
         }
 
+        // Run the project-scoped, read-only inventory only after an explicit
+        // archive request. A large canonical register must not freeze WPF.
+        Guid selectedProjectId = project.Id;
+        string selectedProjectPath = project.FullPath;
+        ProjectClosureAuditService auditService =
+            new ProjectClosureAuditService(_root.FullPath);
+        ProjectClosureAuditSnapshot audit = await Task.Run(() =>
+            auditService.ReadAsync(selectedProjectPath));
+        NavigationNodeViewModel? currentProject = GetArchiveContextProject();
+        if (currentProject is null || currentProject.Id != selectedProjectId ||
+            !string.Equals(currentProject.FullPath, selectedProjectPath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            StatusText.Text = "Projet sélectionné modifié pendant le pré-audit : " +
+                "recommencez la clôture.";
+            return;
+        }
+
+        if (HasOpenProjectTabs(selectedProjectPath))
+        {
+            MessageBox.Show(this,
+                "Des onglets ont été ouverts pendant le pré-audit. " +
+                "Enregistrez et fermez-les avant l'archivage.",
+                "Clore et archiver", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
         if (MessageBox.Show(this,
-            "Clore le projet « " + project.DisplayName + " » et déplacer tout son contenu " +
-            "dans Archives ?\n\nCette action est réversible avec « Réouvrir le projet ». " +
-            "Elle ne supprime aucun fichier.",
-            "Clore et archiver", MessageBoxButton.YesNo,
-            MessageBoxImage.Question) != MessageBoxResult.Yes)
+            "Clore « " + project.DisplayName + " » et conserver tous ses " +
+            "documents en Archives ?\n\n" +
+            audit.FormatPreview(8) + "\n" +
+            "Les alertes sont non bloquantes et ce déplacement est réversible. " +
+            "Poursuivre l'archivage après revue ?",
+            "Pré-audit · Clore et archiver", MessageBoxButton.YesNo,
+            MessageBoxImage.Warning) != MessageBoxResult.Yes)
         {
             return;
         }
