@@ -424,7 +424,8 @@ public partial class ProjectDeploymentReservationDialog : Window
 
             ProjectDeploymentReservationRelationDialog dialog = new(
                 _workspaceRoot, _projectDirectory, _snapshot,
-                item.Item.Id, _readOnly) { Owner = this };
+                item.Item.Id, _readOnly)
+            { Owner = this };
             dialog.ShowDialog();
             if (dialog.Changed)
             {
