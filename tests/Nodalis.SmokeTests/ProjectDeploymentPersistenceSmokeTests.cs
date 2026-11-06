@@ -590,6 +590,36 @@ internal static class ProjectDeploymentPersistenceSmokeTests
                 .Single().Operation.Closure?.Id == closure.Id,
             "Reopening preserves every prior decision and the closed MEP.");
 
+        ProjectDeploymentReservationSource postOrigin =
+            ProjectDeploymentReservationOrigins.List(savedClosure.Operation)
+                .Single(source => source.Id == post.Id);
+        ProjectDeploymentReservation secondItem = item with
+        {
+            Id = Guid.NewGuid(),
+            Reference = "RES-0002",
+            OriginKind = postOrigin.Kind,
+            OriginId = postOrigin.Id,
+            OriginSummary = postOrigin.Description,
+            Title = "Requalifier l'anomalie de recette",
+            Description = "Contrôle de la correction et du nouveau passage.",
+            CreatedUtc = closure.RecordedUtc.AddSeconds(2)
+        };
+        ProjectDeploymentReservationSnapshot twoItems =
+            await followup.AddAsync(project.ProjectDirectory,
+                rereadFollowup, savedClosure, secondItem);
+        IReadOnlyDictionary<Guid, ProjectDeploymentReservationState> states =
+            ProjectDeploymentReservationCodec.GetStates(twoItems.Ledger);
+        Check(states.Count == 2 &&
+            states[item.Id].Status == ProjectDeploymentReservationStatus.Open &&
+            states[item.Id].Owner == "Équipe de supervision" &&
+            states[secondItem.Id].Status == ProjectDeploymentReservationStatus.Open &&
+            twoItems.Ledger.Events.Count == 4 &&
+            (await service.ListAsync(project.ProjectDirectory)).Operations
+                .Single().SourceSha256 == savedClosure.SourceSha256,
+            "Multiple human obligations from different source decisions " +
+            "must keep independent statuses and an immutable closed MEP.");
+
+
 
 
     }

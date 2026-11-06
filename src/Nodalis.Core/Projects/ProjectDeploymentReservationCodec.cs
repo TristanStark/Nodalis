@@ -278,24 +278,26 @@ public static class ProjectDeploymentReservationCodec
         }
     }
 
-    /// <summary>Returns the exact state derived from already validated history.</summary>
-    /// <param name="ledger">Complete event log.</param>
-    /// <param name="reservationId">Original stable reservation identity.</param>
-    /// <returns>Current state and owner, without writing anything.</returns>
-    public static ProjectDeploymentReservationState GetState(
-        ProjectDeploymentReservationLedger ledger, Guid reservationId)
+    /// <summary>
+    /// Calculates all reservation statuses and accountable owners in one
+    /// validated linear replay, suitable for a large virtualized WPF list.
+    /// </summary>
+    /// <param name="ledger">Canonical follow-up register.</param>
+    /// <returns>Stable identity to calculated current status/owner map.</returns>
+    public static IReadOnlyDictionary<Guid, ProjectDeploymentReservationState>
+        GetStates(ProjectDeploymentReservationLedger ledger)
     {
         Validate(ledger);
-        ProjectDeploymentReservation item = ledger.Items.Single(
-            entry => entry.Id == reservationId);
-        ProjectDeploymentReservationStatus status =
-            ProjectDeploymentReservationStatus.Open;
-        string owner = item.InitialOwner;
-        DateTimeOffset latest = item.CreatedUtc;
-        foreach (ProjectDeploymentReservationEvent action in ledger.Events.Where(
-            entry => entry.ReservationId == reservationId))
+        Dictionary<Guid, ProjectDeploymentReservationState> states =
+            ledger.Items.ToDictionary(item => item.Id, item =>
+                new ProjectDeploymentReservationState(
+                    ProjectDeploymentReservationStatus.Open,
+                    item.InitialOwner, item.CreatedUtc));
+        foreach (ProjectDeploymentReservationEvent action in ledger.Events)
         {
-            status = action.Action switch
+            ProjectDeploymentReservationState previous =
+                states[action.ReservationId];
+            ProjectDeploymentReservationStatus status = action.Action switch
             {
                 ProjectDeploymentReservationAction.TakeInCharge =>
                     ProjectDeploymentReservationStatus.InProgress,
@@ -303,13 +305,29 @@ public static class ProjectDeploymentReservationCodec
                     ProjectDeploymentReservationStatus.Resolved,
                 ProjectDeploymentReservationAction.Reopen =>
                     ProjectDeploymentReservationStatus.Open,
-                _ => status
+                _ => previous.Status
             };
-            owner = action.NewOwner ?? owner;
-            latest = action.RecordedUtc;
+            states[action.ReservationId] =
+                new ProjectDeploymentReservationState(
+                    status, action.NewOwner ?? previous.Owner,
+                    action.RecordedUtc);
         }
 
-        return new ProjectDeploymentReservationState(status, owner, latest);
+        return states;
+    }
+
+    /// <summary>Returns the current state of one validated reservation.</summary>
+    /// <param name="ledger">Complete event log.</param>
+    /// <param name="reservationId">Stable reservation GUID.</param>
+    /// <returns>Human-derived status and current owner.</returns>
+    public static ProjectDeploymentReservationState GetState(
+        ProjectDeploymentReservationLedger ledger, Guid reservationId)
+    {
+        IReadOnlyDictionary<Guid, ProjectDeploymentReservationState> states =
+            GetStates(ledger);
+        return states.TryGetValue(reservationId,
+            out ProjectDeploymentReservationState? status) ? status :
+            throw new InvalidDataException("Réserve inconnue dans le registre.");
     }
 
     /// <summary>Appends an explicitly created, assigned obligation.</summary>

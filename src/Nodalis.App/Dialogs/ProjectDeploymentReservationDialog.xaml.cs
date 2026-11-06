@@ -64,23 +64,43 @@ public partial class ProjectDeploymentReservationDialog : Window
     /// <returns>Completed refresh.</returns>
     private async Task ReloadAsync(Guid? selectedId)
     {
-        ProjectDeploymentReservationSnapshot snapshot = await Task.Run(() =>
-            _service.ReadAsync(_projectDirectory));
-        _snapshot = snapshot;
-        ReservationRow[] rows = snapshot.Ledger.Items
-            .Where(item => item.OperationId == _mep.Operation.Id)
-            .Select(item =>
+        // One background read and one O(items+events) status projection,
+        // not a full audit replay on every row or selection change.
+        (ProjectDeploymentReservationSnapshot Snapshot, ReservationRow[] Rows)
+            loaded = await Task.Run(async () =>
             {
-                ProjectDeploymentReservationState state =
-                    ProjectDeploymentReservationCodec.GetState(
-                        snapshot.Ledger, item.Id);
-                return new ReservationRow(item, state,
-                    item.Reference + " · " + item.Title,
-                    "État : " + StatusLabel(state.Status) + " · " +
-                    state.Owner + (item.DueDate is DateOnly due
-                        ? " · cible : " + due.ToString("dd/MM/yyyy")
-                        : ""));
-            }).ToArray();
+                ProjectDeploymentReservationSnapshot snapshot =
+                    await _service.ReadAsync(_projectDirectory);
+                IReadOnlyDictionary<Guid, ProjectDeploymentReservationState>
+                    states = ProjectDeploymentReservationCodec.GetStates(
+                        snapshot.Ledger);
+                ReservationRow[] prepared = snapshot.Ledger.Items
+                    .Where(item => item.OperationId == _mep.Operation.Id)
+                    .Select(item =>
+                    {
+                        ProjectDeploymentReservationState state = states[item.Id];
+                        bool late = item.DueDate is DateOnly due &&
+                            due < DateOnly.FromDateTime(DateTime.Today) &&
+                            state.Status !=
+                                ProjectDeploymentReservationStatus.Resolved;
+                        return new ReservationRow(item, state,
+                            item.Reference + " · " + item.Title,
+                            "État : " + StatusLabel(state.Status) + " · " +
+                            state.Owner + (item.DueDate is DateOnly target
+                                ? " · cible : " + target.ToString("dd/MM/yyyy")
+                                : "") +
+                            (late ? " · échéance dépassée" : ""));
+                    })
+                    .OrderBy(item => item.State.Status ==
+                        ProjectDeploymentReservationStatus.Resolved ? 1 : 0)
+                    .ThenBy(item => item.Item.DueDate ?? DateOnly.MaxValue)
+                    .ThenBy(item => item.Item.Reference,
+                        StringComparer.Ordinal)
+                    .ToArray();
+                return (Snapshot: snapshot, Rows: prepared);
+            });
+        _snapshot = loaded.Snapshot;
+        ReservationRow[] rows = loaded.Rows;
         ReservationsList.ItemsSource = rows;
         ReservationsList.SelectedItem = rows.FirstOrDefault(item =>
             item.Item.Id == selectedId) ?? rows.FirstOrDefault();
