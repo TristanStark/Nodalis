@@ -309,7 +309,7 @@ public sealed class ProjectDeploymentService
                     "Consignez un contrôle post-MEP séparément des autres actions.");
             }
 
-            ProjectTestCampaignCatalog catalog =
+            ProjectTestCampaignCatalog recCatalog =
                 await _campaigns.ListAsync(directory, cancellationToken);
             ProjectGateIncidentCatalog? incidentCatalog = null;
             foreach (ProjectDeploymentPostCheck check in newChecks.Skip(
@@ -318,7 +318,7 @@ public sealed class ProjectDeploymentService
                 ProjectDeploymentAttempt attempt = old.Attempts.Single(item =>
                     item.Id == check.AttemptId);
                 ProjectTestCampaignEntry campaignEntry =
-                    catalog.Campaigns.SingleOrDefault(item =>
+                    recCatalog.Campaigns.SingleOrDefault(item =>
                         item.Campaign.Id == check.CampaignId) ??
                     throw new InvalidDataException(
                         "Campagne REC absente ou étrangère au projet MEP.");
