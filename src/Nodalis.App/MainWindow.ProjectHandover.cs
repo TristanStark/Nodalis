@@ -164,6 +164,25 @@ public partial class MainWindow
             if (requirementPlan.Intent.Method ==
                 Nodalis.Core.Projects.ProjectHandoverMethod.MoveOriginal)
             {
+                IReadOnlyList<Guid> approvedCriterionIds = [];
+                string criterionRationale = string.Empty;
+                if (requirementPlan.CriteriaForReview.Count > 0)
+                {
+                    ProjectRequirementCriteriaReviewDialog criterionReview = new(
+                        requirementPlan.CriteriaForReview)
+                    {
+                        Owner = this
+                    };
+                    if (criterionReview.ShowDialog() != true)
+                    {
+                        return;
+                    }
+
+                    approvedCriterionIds =
+                        criterionReview.ApprovedCriteriaIds;
+                    criterionRationale = criterionReview.Rationale;
+                }
+
                 string moveDetails = requirementPlan.FormatReview() +
                     "\n\nDÉPLACEMENT RÉEL A : le GUID d'origine est conservé. " +
                     "La référence lisible changera pour " +
@@ -181,7 +200,9 @@ public partial class MainWindow
 
                 ProjectRequirementMoveJournal moved = await Task.Run(() =>
                     moveTransactions.ExecuteAsync(
-                        requirementPlan, approved: true));
+                        requirementPlan, approved: true,
+                        reviewedCriteriaIds: approvedCriterionIds,
+                        criteriaReviewRationale: criterionRationale));
                 string destinationProject = Path.GetFullPath(Path.Combine(
                     _root.FullPath, moved.TargetRelativePath[
                         ..moved.TargetRelativePath.IndexOf(
