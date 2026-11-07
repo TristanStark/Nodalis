@@ -41,7 +41,8 @@ public sealed record ProjectRequirementHandoverPreview
     /// human acknowledgement before successor creation.
     /// </summary>
     public IReadOnlyList<ProjectRequirementCriterionSuccession>
-        ProposedCriterionSuccession { get; init; } = [];
+        ProposedCriterionSuccession
+    { get; init; } = [];
 
     /// <summary>Reasons preventing preparation of an unambiguous card.</summary>
     public IReadOnlyList<string> Blockers { get; init; } = [];

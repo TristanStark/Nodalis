@@ -50,7 +50,8 @@ public sealed record ProjectRequirementSuccessorJournal
     /// Human-acknowledged original/new CA GUID mapping; no inherited proof.
     /// </summary>
     public IReadOnlyList<ProjectRequirementCriterionSuccession>
-        CriterionSuccession { get; init; } = [];
+        CriterionSuccession
+    { get; init; } = [];
 
     /// <summary>Human explanation of the new, unverified CA lineage.</summary>
     public string CriteriaReviewRationale { get; init; } = string.Empty;
