@@ -59,6 +59,19 @@
                          AcceptsReturn="True" Padding="10"
                          VerticalScrollBarVisibility="Auto"
                          HorizontalScrollBarVisibility="Disabled" />
+                <TextBlock Text="Exigences · vérification avant transfert"
+                           FontWeight="SemiBold" Margin="0,16,0,5" />
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="Inspecter une intention EXI et sa future référence : aperçu uniquement, aucun déplacement d'exigence." />
+                <ComboBox x:Name="RequirementPreviewCombo"
+                          DisplayMemberPath="Label" Margin="0,7,0,6"
+                          Padding="8,6"
+                          AutomationProperties.Name="Intention d'exigence à prévisualiser" />
+                <Button x:Name="RequirementPreviewButton"
+                        Content="Prévisualiser une passation EXI…"
+                        HorizontalAlignment="Left" Padding="12,7"
+                        Click="PreviewRequirement_Click" />
                 <TextBlock Text="Exécution réelle · tâches simples uniquement"
                            FontWeight="SemiBold" Margin="0,16,0,5" />
                 <TextBlock TextWrapping="Wrap"
