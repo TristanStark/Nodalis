@@ -20,16 +20,19 @@ public static class ProjectRequirementHandoverCodec
     /// <param name="targetId">Original GUID A or independent GUID B.</param>
     /// <param name="intentId">Existing approved human intent.</param>
     /// <param name="method">Reviewed A/B intent.</param>
+    /// <param name="approvedUtc">Stable creation time of the human-reviewed B intent.</param>
     /// <returns>Canonical prospective destination Markdown; never saved.</returns>
     public static string Prepare(
         string originalMarkdown, ProjectRequirementCard source,
         Guid targetProjectId, string targetReference, Guid targetId,
-        Guid intentId, ProjectHandoverMethod method)
+        Guid intentId, ProjectHandoverMethod method,
+        DateTimeOffset? approvedUtc = null)
     {
         ArgumentNullException.ThrowIfNull(originalMarkdown);
         ProjectRequirementMarkdownCodec.Validate(source);
         if (targetProjectId == Guid.Empty || targetProjectId == source.ProjectId ||
             targetId == Guid.Empty || intentId == Guid.Empty ||
+            approvedUtc == default && approvedUtc.HasValue ||
             !Enum.IsDefined(method) ||
             !ProjectRequirementMarkdownCodec.IsReference(targetReference) ||
             (method == ProjectHandoverMethod.MoveOriginal &&
@@ -100,7 +103,7 @@ public static class ProjectRequirementHandoverCodec
             ProjectId = targetProjectId,
             Reference = targetReference,
             CreatedUtc = method == ProjectHandoverMethod.MoveOriginal
-                ? source.CreatedUtc : DateTimeOffset.UtcNow,
+                ? source.CreatedUtc : approvedUtc ?? source.CreatedUtc,
             Validation = method == ProjectHandoverMethod.MoveOriginal
                 ? source.Validation : ProjectRequirementValidation.Draft,
             Implementation = method == ProjectHandoverMethod.MoveOriginal
