@@ -11,7 +11,7 @@ namespace Nodalis.Infrastructure.Projects;
 /// checkboxes are supported. Each journal retains both original and proposed
 /// snapshots, even after success, for human rollback.
 /// </summary>
-public sealed class ProjectHandoverTaskTransactionService
+public sealed partial class ProjectHandoverTaskTransactionService
 {
     private const string FolderName = ".handover-task-transactions";
     private const string JournalName = "journal.json";
@@ -78,11 +78,21 @@ public sealed class ProjectHandoverTaskTransactionService
 
         await using FileStream operationLock =
             await AcquireLockAsync(cancellationToken);
-        if ((await ListPendingAsync(cancellationToken)).Count > 0)
+        IReadOnlyList<(string Directory, ProjectHandoverTaskJournal Journal)> all =
+            await ReadJournalsAsync(cancellationToken);
+        if (all.Any(entry =>
+            entry.Journal.Phase is not ("completed" or "rolled-back")))
         {
             throw new InvalidOperationException(
                 "Une passation précédente est interrompue : " +
                 "récupérez-la avant un nouveau transfert.");
+        }
+
+        if (all.Any(entry => entry.Journal.IntentId == reviewed.Intent.Id))
+        {
+            throw new InvalidOperationException(
+                "Cette intention a déjà donné lieu à une transaction, " +
+                "y compris si elle a ensuite été restaurée.");
         }
 
         string sourceProject = ResolveRelative(
@@ -294,7 +304,7 @@ public sealed class ProjectHandoverTaskTransactionService
                 "Le transfert n'accepte que les fichiers Tâches.md.");
         }
 
-        return relativeTaskDocument[..^"/Tâches.md".Length];
+        return relativeTaskDocument[..^("/Tâches.md".Length)];
     }
 
     /// <summary>
