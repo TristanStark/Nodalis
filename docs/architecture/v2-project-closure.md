@@ -341,7 +341,9 @@ de tâches, **aucun déplacement ou successeur EXI n'est encore écrit**
 - La source Markdown EXI versionnée, le même SHA-256 que la lecture
   canonique, le même GUID, le même propriétaire et le même code
   `EXI-xxxx`. Les registres présentant des sources ambiguës bloquent
-  une préparation fiable.
+  une préparation fiable. Les sources UTF-8 LF ou CRLF sont acceptées
+  sans conversion silencieuse : les fiches produites sous Windows avec
+  `AppendLine()` conservent leur CRLF dans le candidat.
 - La prochaine référence `EXI-xxxx` libre et non encore réservée
   chez le destinataire ; aucun dossier ou fichier de destination
   n'est créé.
