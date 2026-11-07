@@ -147,7 +147,7 @@
                         Click="Rollback_Click" />
                 <TextBlock Margin="0,12,0,0" TextWrapping="Wrap"
                            Foreground="{StaticResource SecondaryTextBrush}"
-                           Text="Aucune passation n'est faite lors de la préparation d'une intention. L'exécution séparée conserve quatre snapshots, refuse les références non vérifiées et journalise chaque étape. Les autres objets métier restent exclus de ce premier exécuteur." />
+                           Text="Une intention seule ne transfère aucun document. Les tâches et les exigences utilisent des transactions distinctes, des snapshots SHA-256, une reprise contrôlée et un rollback humain. Les critères et liens non requalifiés restent bloquants." />
             </StackPanel>
         </ScrollViewer>
     </DockPanel>
