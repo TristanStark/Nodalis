@@ -1,4 +1,5 @@
 using System.Text;
+using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.Persistence;
 
 namespace Nodalis.Infrastructure.Projects;
