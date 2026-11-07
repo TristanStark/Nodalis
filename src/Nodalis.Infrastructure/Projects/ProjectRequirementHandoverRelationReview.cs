@@ -134,6 +134,19 @@ public static class ProjectRequirementHandoverRelationReview
         }
 
         List<string> diagnostics = [];
+        if (requirements.ProjectId != preview.Intent.SourceProjectId)
+        {
+            diagnostics.Add("Catalogue des exigences provenant d'un " +
+                "autre projet : revue non fiable.");
+        }
+
+        if (campaigns.Campaigns.Any(item =>
+            item.Campaign.ProjectId != preview.Intent.SourceProjectId))
+        {
+            diagnostics.Add("Catalogue REC contenant une campagne " +
+                "étrangère au projet d'origine.");
+        }
+
         ProjectRequirementEntry[] selected = requirements.Requirements
             .Where(item => item.Card.Id == preview.Intent.SourceObjectId &&
                 item.RelativePath == preview.SourceRelativePath &&
@@ -293,6 +306,7 @@ public static class ProjectRequirementHandoverRelationReview
 
         HashSet<Guid> targets = [owner.Card.Id, .. caIds];
         Guid[] documentIds = index.Targets.Where(t =>
+                t.Kind == LinkTargetKind.Document &&
                 string.Equals(t.RelativePath, owner.RelativePath,
                     StringComparison.OrdinalIgnoreCase))
             .Select(t => t.Id).Distinct().ToArray();
