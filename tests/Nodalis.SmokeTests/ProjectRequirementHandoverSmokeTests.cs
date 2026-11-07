@@ -144,6 +144,22 @@ internal static class ProjectRequirementHandoverSmokeTests
         Assert(await File.ReadAllTextAsync(sourceFile) == criteria,
             "A rejected CA succession must preserve original content.");
 
+        // The canonical EXI writer uses AppendLine(), which produces CRLF
+        // on Windows. Both LF and CRLF must be accepted without normalization
+        // of the original bytes or mixed newlines in the candidate.
+        string windowsSource = original.Replace("\r\n", "\n",
+            StringComparison.Ordinal).Replace("\n", "\r\n",
+            StringComparison.Ordinal);
+        string windowsDraft = ProjectRequirementHandoverCodec.Prepare(
+            windowsSource, entry.Card, recipient.Id, "EXI-0004",
+            entry.Card.Id, Guid.NewGuid(), ProjectHandoverMethod.MoveOriginal);
+        Assert(windowsDraft.Contains("\r\n", StringComparison.Ordinal) &&
+               !windowsDraft.Replace("\r\n", string.Empty,
+                   StringComparison.Ordinal).Contains('\r') &&
+               ProjectRequirementMarkdownCodec.Parse(windowsDraft).Id ==
+                   entry.Card.Id,
+            "Windows-generated canonical EXI cards must retain CRLF in previews.");
+
         // Pure codec: even an explicitly approved/verified old requirement
         // may only produce a fresh B draft. The historical source is unchanged.
         ProjectRequirementCard approved = entry.Card with
