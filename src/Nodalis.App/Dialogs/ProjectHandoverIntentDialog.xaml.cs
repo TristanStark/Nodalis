@@ -90,6 +90,26 @@ public partial class ProjectHandoverIntentDialog : Window
             : "Choisissez l'objet source, le destinataire et A ou B. " +
               "Une prévisualisation vérifiera les collisions et les " +
               "changements d'état avant d'autoriser l'enregistrement.";
+        ProjectHandoverExecutionChoice[] requirements = history
+            .Where(intent => intent.SourceObjectKind == "Exigences")
+            .Select(intent => new ProjectHandoverExecutionChoice(
+                intent.Id, intent.SourceReference + " · " + intent.Method +
+                " · " + intent.TargetProjectRelativePath)).ToArray();
+        RequirementPreviewCombo.ItemsSource = requirements;
+        if (requirements.Length > 0)
+        {
+            RequirementPreviewCombo.SelectedIndex = 0;
+        }
+
+        RequirementPreviewCombo.IsEnabled = !readOnly &&
+            requirements.Length > 0;
+        RequirementPreviewButton.IsEnabled = !readOnly &&
+            requirements.Length > 0;
+        if (readOnly)
+        {
+            RequirementPreviewButton.Visibility = Visibility.Collapsed;
+        }
+
         ProjectHandoverIntent[] executable = history.Where(intent =>
             intent.SourceObjectKind == "Tâches ouvertes" &&
             intent.SourceRelativePath.EndsWith("/Tâches.md",
@@ -164,6 +184,9 @@ public partial class ProjectHandoverIntentDialog : Window
     /// <summary>Request returned only after validating all explicit inputs.</summary>
     public ProjectHandoverRequest? ApprovedRequest { get; private set; }
 
+    /// <summary>Selected EXI intention requiring a read-only dry-run.</summary>
+    public Guid? RequestedRequirementIntentId { get; private set; }
+
     /// <summary>Selected human intention for a separately approved task mutation.</summary>
     public Guid? RequestedExecutionIntentId { get; private set; }
 
@@ -206,6 +229,19 @@ public partial class ProjectHandoverIntentDialog : Window
         ApprovedRequest = new ProjectHandoverRequest(
             item.Id, target.Directory, method.Method, actor, rationale);
         DialogResult = true;
+    }
+
+    /// <summary>Requests an EXI preview with no side effects.</summary>
+    /// <param name="sender">EXI preview button.</param>
+    /// <param name="e">Click.</param>
+    private void PreviewRequirement_Click(object sender, RoutedEventArgs e)
+    {
+        if (RequirementPreviewCombo.SelectedItem is
+            ProjectHandoverExecutionChoice choice)
+        {
+            RequestedRequirementIntentId = choice.Id;
+            DialogResult = true;
+        }
     }
 
     /// <summary>Requests an independently preflighted physical task transfer.</summary>
