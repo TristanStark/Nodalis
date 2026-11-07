@@ -168,6 +168,31 @@ internal static class ProjectHandoverTaskTransactionSmokeTests
             }
 
             ProjectHandoverTaskTransactionService restorer = new(root);
+            if (!fault && method == ProjectHandoverMethod.LinkedSuccessor)
+            {
+                string editedTarget = Path.Combine(target, "Tâches.md");
+                await File.AppendAllTextAsync(editedTarget,
+                    "\nÉdition humaine après la passation");
+                bool refused = false;
+                try
+                {
+                    await restorer.RollbackAsync(
+                        journal.TransactionId, approved: true);
+                }
+                catch (InvalidDataException)
+                {
+                    refused = true;
+                }
+
+                Assert(refused && (await File.ReadAllTextAsync(editedTarget))
+                    .Contains("Édition humaine après la passation",
+                        StringComparison.Ordinal),
+                    "Rollback must never overwrite a newer human document edit.");
+                // The synthetic fixture explicitly restores its known
+                // published bytes before reapproving the rollback.
+                await File.WriteAllTextAsync(editedTarget, targetResult);
+            }
+
             ProjectHandoverTaskJournal restored = await restorer.RollbackAsync(
                 journal.TransactionId, approved: true);
             Assert(restored.Phase == "rolled-back" &&
