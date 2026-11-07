@@ -138,9 +138,14 @@ internal static class ProjectRequirementHandoverSmokeTests
             {
                 Id = Guid.NewGuid(), Name = "CriterionRecipient"
             }));
-        string criteria = original +
-            "\n\n### CA-01 — Vérification locale\n" +
-            "Condition métier à requalifier.\n";
+        string newline = original.Contains("\r\n", StringComparison.Ordinal)
+            ? "\r\n" : "\n";
+        string criteria = original.Replace("## Dépendances et preuves",
+            "### CA-01 — Vérification locale" + newline +
+            "Condition métier à requalifier." + newline + newline +
+            "## Dépendances et preuves", StringComparison.Ordinal);
+        Assert(ProjectRequirementCriterionCodec.Inspect(criteria).Criteria.Count == 1,
+            "The fixture must place CA-01 in the canonical acceptance section.");
         await File.WriteAllTextAsync(sourceFile, criteria);
         ProjectHandoverPreview withCa = await preflight.PrepareAsync(
             source, criteriaTarget, entry.Card.Id,
@@ -154,7 +159,8 @@ internal static class ProjectRequirementHandoverSmokeTests
         Assert(!blocked.CanPrepare &&
                blocked.Blockers.Any(item => item.Contains(
                    "critères", StringComparison.OrdinalIgnoreCase)),
-            "B cannot clone acceptance-criteria identities or unqualified CA.");
+            "B cannot clone acceptance-criteria identities or unqualified CA. " +
+            blocked.FormatReview());
         Assert(await File.ReadAllTextAsync(sourceFile) == criteria,
             "A rejected CA succession must preserve original content.");
 
