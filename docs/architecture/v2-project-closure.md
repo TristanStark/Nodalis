@@ -115,3 +115,53 @@ d'écraser un bilan libre existant.
 
 Les tâches, jalons, incidents, campagnes, décisions de gate, justifications
 par objet et transferts inter-projets restent à intégrer au suivi #204.
+
+
+## Troisième incrément — inventaire local élargi (07/11/2026)
+
+Le **pré-audit de clôture** et le **bilan versionné** consultent désormais
+également les sources réelles du projet sélectionné :
+
+- **Campagnes REC** : seules les campagnes v1 uniques et valides du
+  projet sont retenues ; les cycles `Draft`, `InProgress` et
+  `InQualification` sont proposés comme actions de suivi. Un cycle
+  `Closed` ou `Canceled` n'est pas automatiquement considéré comme un
+  résultat de test conforme.
+- **Incidents de maintenance** : seuls les `INC-<GUID>` canoniques,
+  uniques et complets de la fiche de maintenance locale sont examinés.
+  Le `Statut` reste un texte libre : **tous les incidents recensés sont
+  présentés comme « à vérifier »**, sans déduire une résolution.
+  Les fiches incomplètes ou doublonnées donnent des diagnostics.
+- **Tâches Markdown** : lecture des cases à cocher existantes, y compris
+  hors du document `Tâches.md`, en réutilisant le codec d'identité
+  persistante ; les cases cochées sont exclues. Une case ouverte sans
+  GUID stable ou une identité dupliquée est **signalée**, pas inventée.
+  Les blocs de code fenced ne deviennent pas des tâches.
+- **Jalons** : lecture directe du fichier singleton de Jalons du
+  projet, en réutilisant le parseur existant et en interdisant la
+  migration implicite. Les jalons explicitement terminés ou annulés
+  sont exclus ; les IDs calculés à partir de la position d'une ligne
+  ne sont pas jugés transférables et donnent un diagnostic.
+
+L'exploration ne traverse **aucun sous-projet portant son propre
+`.project.json`** ni aucun lien symbolique. Elle reste sur le projet
+demandé, sans actualisation de l'index global du Worktree, avec une
+limite de 2 000 fichiers Markdown, 2 Mio par fichier et 96 Mio par
+inspection. Une limite dépassée **interrompt explicitement la revue** :
+elle ne produit jamais un bilan prétendant qu'il n'y a plus d'actions
+à reprendre.
+
+L'empreinte SHA-256 combine les révisions RIS/EXI/MEP/RES, les
+campagnes REC, les fichiers Markdown locaux examinés (y compris ceux
+qui ne contiennent pas de case ouverte), et les diagnostics. Elle est
+relue lors de l'enregistrement d'un bilan, qui refuse une source
+modifiée ou nouvellement créée depuis le pré-audit.
+
+Le comptage reste un **inventaire consultatif**. Les incidents
+« vérifiés » et les campagnes fermées ne prouvent ni la résolution
+formelle des anomalies ni la réussite des tests ; les réserves,
+liens, décisions GO et preuves nécessitent toujours revue humaine.
+Aucun objet n'est transféré automatiquement à ce stade.
+`ProjectClosureAdditionalSmokeTests` couvre l'isolation des
+sous-projets, les identités de tâches, les jalons, les INC, les REC,
+les sources inchangées et la détection d'un audit devenu obsolète.
