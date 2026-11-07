@@ -16,7 +16,14 @@ namespace Nodalis.Infrastructure.Projects;
 /// </summary>
 public sealed record ProjectClosureAdditionalSnapshot(
     IReadOnlyList<ProjectClosureAuditItem> Items,
-    IReadOnlyList<string> Diagnostics, string Fingerprint);
+    IReadOnlyList<string> Diagnostics, string Fingerprint)
+{
+    /// <summary>
+    /// All stable identities discovered locally, including checked tasks and
+    /// closed campaigns, to detect collisions before any proposed passation.
+    /// </summary>
+    public IReadOnlyList<Guid> AllKnownObjectIds { get; init; } = [];
+}
 
 /// <summary>
 /// Inspects only the owning project's tree, excluding nested project manifests
@@ -75,6 +82,7 @@ public sealed class ProjectClosureAdditionalInventoryService
         List<string> diagnostics = [];
         StringBuilder revisions = new();
         revisions.AppendLine(projectId.ToString("D"));
+        HashSet<Guid> knownIdentities = [];
 
         ProjectTestCampaignCatalog campaigns =
             await new ProjectTestCampaignService(_root)
@@ -89,6 +97,7 @@ public sealed class ProjectClosureAdditionalInventoryService
                     "Campagne REC étrangère dans le pré-audit.");
             }
 
+            knownIdentities.Add(entry.Campaign.Id);
             revisions.Append("REC|").Append(entry.Campaign.Id).Append('|')
                 .AppendLine(entry.SourceSha256);
             if (entry.Campaign.State is ProjectTestCampaignState.Closed or
@@ -125,6 +134,7 @@ public sealed class ProjectClosureAdditionalInventoryService
                 continue;
             }
 
+            knownIdentities.Add(identity);
             // Maintenance does not expose a standardized closed/open status.
             // Every incident requires a human review, including those whose
             // free-text Status sounds resolved.
@@ -259,6 +269,11 @@ public sealed class ProjectClosureAdditionalInventoryService
 
             foreach (TaskPersistentIdentityEntry entry in scan.Entries)
             {
+                if (entry.Id is Guid stableId && stableId != Guid.Empty)
+                {
+                    knownIdentities.Add(stableId);
+                }
+
                 if (entry.RawLine.Length == 0 ||
                     Regex.IsMatch(entry.RawLine,
                         @"^[ \t]*[-*+]\s+\[[xX]\]",
@@ -325,6 +340,7 @@ public sealed class ProjectClosureAdditionalInventoryService
                 continue;
             }
 
+            knownIdentities.Add(milestone.Id);
             string status = milestone.Status.Trim();
             if (status.Equals("Terminé", StringComparison.OrdinalIgnoreCase) ||
                 status.Equals("Terminée", StringComparison.OrdinalIgnoreCase) ||
@@ -367,6 +383,9 @@ public sealed class ProjectClosureAdditionalInventoryService
                 .ToArray(),
             diagnostics.ToArray(),
             Convert.ToHexString(SHA256.HashData(
-                Encoding.UTF8.GetBytes(revisions.ToString()))));
+                Encoding.UTF8.GetBytes(revisions.ToString()))))
+        {
+            AllKnownObjectIds = knownIdentities.OrderBy(id => id).ToArray()
+        };
     }
 }
