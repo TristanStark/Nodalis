@@ -42,9 +42,12 @@ public partial class MainWindow
             new ProjectHandoverIntentService(_root.FullPath);
         ProjectHandoverTaskTransactionService transactions =
             new ProjectHandoverTaskTransactionService(_root.FullPath);
+        ProjectRequirementSuccessorTransactionService exiTransactions =
+            new ProjectRequirementSuccessorTransactionService(_root.FullPath);
         (ProjectClosureAuditSnapshot? Audit,
             ProjectHandoverIntentSnapshot History,
-            IReadOnlyList<ProjectHandoverTaskJournal> Transactions)
+            IReadOnlyList<ProjectHandoverTaskJournal> Transactions,
+            IReadOnlyList<ProjectRequirementSuccessorJournal> ExiTransactions)
             loaded = await Task.Run(async () =>
             {
                 ProjectHandoverIntentSnapshot history =
@@ -53,7 +56,9 @@ public partial class MainWindow
                     ? null : await audits.ReadAsync(sourcePath);
                 IReadOnlyList<ProjectHandoverTaskJournal> transactionHistory =
                     await transactions.ListHistoryAsync();
-                return (audit, history, transactionHistory);
+                IReadOnlyList<ProjectRequirementSuccessorJournal> exiHistory =
+                    await exiTransactions.ListHistoryAsync();
+                return (audit, history, transactionHistory, exiHistory);
             });
         NavigationNodeViewModel? selected = PilotageProject();
         if (selected is null || selected.Id != sourceId ||
@@ -76,7 +81,7 @@ public partial class MainWindow
             .ToArray();
         ProjectHandoverIntentDialog dialog = new(
             loaded.Audit, targets, loaded.History,
-            loaded.Transactions, readOnly)
+            loaded.Transactions, loaded.ExiTransactions, readOnly)
         { Owner = this };
         if (dialog.ShowDialog() != true)
         {
@@ -107,6 +112,20 @@ public partial class MainWindow
             return;
         }
 
+        if (dialog.RequestedExiRecovery)
+        {
+            await RecoverRequirementSuccessorsAsync(exiTransactions,
+                sourcePath);
+            return;
+        }
+
+        if (dialog.RequestedExiRollbackId is Guid exiRollbackId)
+        {
+            await RollbackRequirementSuccessorAsync(exiTransactions,
+                loaded.ExiTransactions, exiRollbackId, sourcePath);
+            return;
+        }
+
         if (dialog.RequestedRequirementIntentId is Guid requirementIntentId)
         {
             ProjectRequirementHandoverPreviewService requirementPreviews =
@@ -114,13 +133,47 @@ public partial class MainWindow
             ProjectRequirementHandoverPreview requirementPlan =
                 await Task.Run(() => requirementPreviews.PrepareAsync(
                     sourcePath, requirementIntentId));
-            MessageBox.Show(this, requirementPlan.FormatReview(),
-                requirementPlan.CanPrepare
-                    ? "Prévisualisation EXI · aucune écriture"
-                    : "Exigence à requalifier avant passation",
-                MessageBoxButton.OK,
-                requirementPlan.CanPrepare
-                    ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            if (!requirementPlan.CanPrepare ||
+                requirementPlan.Intent.Method ==
+                    Nodalis.Core.Projects.ProjectHandoverMethod.MoveOriginal)
+            {
+                MessageBox.Show(this, requirementPlan.FormatReview(),
+                    requirementPlan.CanPrepare
+                        ? "Mode A EXI · aperçu uniquement"
+                        : "Exigence à requalifier avant passation",
+                    MessageBoxButton.OK,
+                    requirementPlan.CanPrepare
+                        ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                return;
+            }
+
+            string details = requirementPlan.FormatReview() + "\n\n" +
+                "EXÉCUTION RÉELLE DU MODE B : créer la fiche " +
+                requirementPlan.ProposedReference + " avec son nouveau GUID " +
+                requirementPlan.ProposedId.ToString("D") + ".\n" +
+                "L'exigence source restera intacte. Un journal et un " +
+                "snapshot permettront la reprise et le retrait explicites.\n\n" +
+                "Créer maintenant ce successeur ?";
+            if (MessageBox.Show(this, details,
+                "Confirmer la création réelle du successeur EXI B",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            ProjectRequirementSuccessorJournal created = await Task.Run(() =>
+                exiTransactions.ExecuteAsync(requirementPlan, approved: true));
+            string targetProject = Path.GetFullPath(Path.Combine(
+                _root.FullPath, created.TargetRelativePath[
+                    ..created.TargetRelativePath.IndexOf(
+                        "/Documentation/Exigences/",
+                        StringComparison.Ordinal)].Replace('/',
+                    Path.DirectorySeparatorChar)));
+            await RefreshNavigationAsync(targetProject);
+            StatusText.Text = "Successeur EXI " + created.TargetReference +
+                " créé · transaction " + created.TransactionId.ToString("D") +
+                " · original conservé, rollback explicite disponible.";
             return;
         }
 
@@ -176,6 +229,85 @@ public partial class MainWindow
         StatusText.Text = "Passation préparée · intention n°" +
             recorded.Ledger.Intents.Count +
             " conservée, aucun objet ni lien déplacé.";
+    }
+
+    /// <summary>Runs a separately approved restart of interrupted EXI B journals.</summary>
+    /// <param name="transactions">Workspace-wide EXI B journal owner.</param>
+    /// <param name="sourcePath">Current selected project for navigation refresh.</param>
+    /// <returns>Human-approved recovery outcome.</returns>
+    private async Task RecoverRequirementSuccessorsAsync(
+        ProjectRequirementSuccessorTransactionService transactions,
+        string sourcePath)
+    {
+        IReadOnlyList<ProjectRequirementSuccessorJournal> pending =
+            await Task.Run(() => transactions.ListPendingAsync());
+        if (pending.Count == 0)
+        {
+            StatusText.Text = "Aucune création EXI interrompue.";
+            return;
+        }
+
+        string details = pending.Count + " opération(s) EXI interrompue(s).\n\n" +
+            string.Join("\n", pending.Take(8).Select(item =>
+                item.TransactionId.ToString("D") + " · " + item.Phase +
+                " · " + item.TargetReference + " · " +
+                item.TargetRelativePath)) + "\n\n" +
+            "Reprendre les publications ou restaurations sans écraser " +
+            "aucun document extérieur modifié ?";
+        if (MessageBox.Show(this, details,
+            "Confirmer la reprise de journaux EXI",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        int recovered = await Task.Run(() =>
+            transactions.RecoverPendingAsync(approved: true));
+        await RefreshNavigationAsync(sourcePath);
+        StatusText.Text = recovered +
+            " transaction(s) de succession EXI récupérée(s).";
+    }
+
+    /// <summary>Explicitly withdraws a published EXI B without editing original.</summary>
+    /// <param name="transactions">Workspace-wide journal owner.</param>
+    /// <param name="history">Frozen human-reviewed completed journals.</param>
+    /// <param name="transactionId">Selected completed EXI B transaction.</param>
+    /// <param name="sourcePath">Current selected project for refresh.</param>
+    /// <returns>Explicitly approved withdrawal or safe refusal.</returns>
+    private async Task RollbackRequirementSuccessorAsync(
+        ProjectRequirementSuccessorTransactionService transactions,
+        IReadOnlyList<ProjectRequirementSuccessorJournal> history,
+        Guid transactionId, string sourcePath)
+    {
+        ProjectRequirementSuccessorJournal? item = history.SingleOrDefault(
+            journal => journal.TransactionId == transactionId &&
+                journal.Phase == "completed");
+        if (item is null)
+        {
+            throw new InvalidDataException(
+                "Transaction EXI absente ou non terminée.");
+        }
+
+        string details = "Retirer le successeur EXI " +
+            item.TargetReference + " du destinataire ?\n\n" +
+            item.TargetRelativePath + "\n\n" +
+            "Le fichier publié sera déplacé vers la sauvegarde du journal. " +
+            "L'original reste inchangé. Si quelqu'un a modifié le " +
+            "successeur, aucun retrait n'aura lieu.";
+        if (MessageBox.Show(this, details,
+            "Confirmer le rollback du successeur EXI B",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectRequirementSuccessorJournal restored = await Task.Run(() =>
+            transactions.RollbackAsync(transactionId, approved: true));
+        await RefreshNavigationAsync(sourcePath);
+        StatusText.Text = "Successeur EXI " + restored.TargetReference +
+            " retiré du projet destinataire · sauvegarde conservée.";
     }
 
     /// <summary>Publishes an approved standalone task after a separate confirmation.</summary>
