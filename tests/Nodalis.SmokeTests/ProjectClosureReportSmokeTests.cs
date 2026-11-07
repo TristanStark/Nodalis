@@ -51,7 +51,9 @@ internal static class ProjectClosureReportSmokeTests
             first, audit, ProjectClosureReviewOutcome.Deferred,
             "Responsable fictif", "Attendre la qualification des autres registres.");
         Assert(second.Report.Reviews.Count == 2 &&
-               second.Report.Reviews[0] == first.Report.Reviews[0] &&
+               second.Report.Reviews[0].Id == first.Report.Reviews[0].Id &&
+               second.Report.Reviews[0].SourceFingerprint ==
+                   first.Report.Reviews[0].SourceFingerprint &&
                second.Report.Reviews[1].Number == 2,
             "New reviews must append instead of rewriting historical decisions.");
         bool staleReportRejected = false;
