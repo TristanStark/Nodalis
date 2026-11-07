@@ -87,10 +87,7 @@ internal sealed class ProjectRequirementMoveReferenceGuard
                      !path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) ||
                     string.Equals(path, ignoredPath,
                         StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(Path.GetFileName(path), "Passations.md",
-                        StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(Path.GetFileName(path), "Bilan de clôture.md",
-                        StringComparison.OrdinalIgnoreCase))
+                    IsCanonicalHistoricalLedger(path))
                 {
                     continue;
                 }
@@ -123,6 +120,24 @@ internal sealed class ProjectRequirementMoveReferenceGuard
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Excludes only the canonical append-only management ledgers, never
+    /// arbitrary user documents coincidentally named Passations.md.
+    /// </summary>
+    /// <param name="path">Physical Markdown file under Applications.</param>
+    /// <returns>Whether the document is a historical management ledger.</returns>
+    private static bool IsCanonicalHistoricalLedger(string path)
+    {
+        string name = Path.GetFileName(path);
+        string? directory = Path.GetFileName(Path.GetDirectoryName(path));
+        return string.Equals(directory, "Management",
+                   StringComparison.OrdinalIgnoreCase) &&
+            (string.Equals(name, "Passations.md",
+                 StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(name, "Bilan de clôture.md",
+                 StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
