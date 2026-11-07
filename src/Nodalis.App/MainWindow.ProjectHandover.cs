@@ -44,10 +44,13 @@ public partial class MainWindow
             new ProjectHandoverTaskTransactionService(_root.FullPath);
         ProjectRequirementSuccessorTransactionService exiTransactions =
             new ProjectRequirementSuccessorTransactionService(_root.FullPath);
+        ProjectRequirementMoveTransactionService moveTransactions =
+            new ProjectRequirementMoveTransactionService(_root.FullPath);
         (ProjectClosureAuditSnapshot? Audit,
             ProjectHandoverIntentSnapshot History,
             IReadOnlyList<ProjectHandoverTaskJournal> Transactions,
-            IReadOnlyList<ProjectRequirementSuccessorJournal> ExiTransactions)
+            IReadOnlyList<ProjectRequirementSuccessorJournal> ExiTransactions,
+            IReadOnlyList<ProjectRequirementMoveJournal> MoveTransactions)
             loaded = await Task.Run(async () =>
             {
                 ProjectHandoverIntentSnapshot history =
@@ -58,7 +61,10 @@ public partial class MainWindow
                     await transactions.ListHistoryAsync();
                 IReadOnlyList<ProjectRequirementSuccessorJournal> exiHistory =
                     await exiTransactions.ListHistoryAsync();
-                return (audit, history, transactionHistory, exiHistory);
+                IReadOnlyList<ProjectRequirementMoveJournal> moveHistory =
+                    await moveTransactions.ListHistoryAsync();
+                return (audit, history, transactionHistory, exiHistory,
+                    moveHistory);
             });
         NavigationNodeViewModel? selected = PilotageProject();
         if (selected is null || selected.Id != sourceId ||
@@ -81,7 +87,8 @@ public partial class MainWindow
             .ToArray();
         ProjectHandoverIntentDialog dialog = new(
             loaded.Audit, targets, loaded.History,
-            loaded.Transactions, loaded.ExiTransactions, readOnly)
+            loaded.Transactions, loaded.ExiTransactions,
+            loaded.MoveTransactions, readOnly)
         { Owner = this };
         if (dialog.ShowDialog() != true)
         {
@@ -126,6 +133,19 @@ public partial class MainWindow
             return;
         }
 
+        if (dialog.RequestedMoveRecovery)
+        {
+            await RecoverRequirementMovesAsync(moveTransactions, sourcePath);
+            return;
+        }
+
+        if (dialog.RequestedMoveRollbackId is Guid moveRollbackId)
+        {
+            await RollbackRequirementMoveAsync(moveTransactions,
+                loaded.MoveTransactions, moveRollbackId, sourcePath);
+            return;
+        }
+
         if (dialog.RequestedRequirementIntentId is Guid requirementIntentId)
         {
             ProjectRequirementHandoverPreviewService requirementPreviews =
@@ -133,17 +153,46 @@ public partial class MainWindow
             ProjectRequirementHandoverPreview requirementPlan =
                 await Task.Run(() => requirementPreviews.PrepareAsync(
                     sourcePath, requirementIntentId));
-            if (!requirementPlan.CanPrepare ||
-                requirementPlan.Intent.Method ==
-                    Nodalis.Core.Projects.ProjectHandoverMethod.MoveOriginal)
+            if (!requirementPlan.CanPrepare)
             {
                 MessageBox.Show(this, requirementPlan.FormatReview(),
-                    requirementPlan.CanPrepare
-                        ? "Mode A EXI · aperçu uniquement"
-                        : "Exigence à requalifier avant passation",
-                    MessageBoxButton.OK,
-                    requirementPlan.CanPrepare
-                        ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                    "Passation EXI bloquée", MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (requirementPlan.Intent.Method ==
+                Nodalis.Core.Projects.ProjectHandoverMethod.MoveOriginal)
+            {
+                string moveDetails = requirementPlan.FormatReview() +
+                    "\n\nDÉPLACEMENT RÉEL A : le GUID d'origine est conservé. " +
+                    "La référence lisible changera pour " +
+                    requirementPlan.ProposedReference + ".\n" +
+                    "Le fichier original est d'abord mis en sûreté dans le " +
+                    "journal. Les liens GUID et EXI-xxxx non résolus " +
+                    "empêchent la transaction.\n\nExécuter ce déplacement ?";
+                if (MessageBox.Show(this, moveDetails,
+                    "Confirmer le déplacement réel EXI A",
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                    MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                ProjectRequirementMoveJournal moved = await Task.Run(() =>
+                    moveTransactions.ExecuteAsync(
+                        requirementPlan, approved: true));
+                string destinationProject = Path.GetFullPath(Path.Combine(
+                    _root.FullPath, moved.TargetRelativePath[
+                        ..moved.TargetRelativePath.IndexOf(
+                            "/Documentation/Exigences/",
+                            StringComparison.Ordinal)].Replace('/',
+                        Path.DirectorySeparatorChar)));
+                await RefreshNavigationAsync(sourcePath);
+                await RefreshNavigationAsync(destinationProject);
+                StatusText.Text = "Exigence EXI " + moved.SourceReference +
+                    " déplacée vers " + moved.TargetReference +
+                    " · GUID conservé · rollback explicite disponible.";
                 return;
             }
 
@@ -229,6 +278,85 @@ public partial class MainWindow
         StatusText.Text = "Passation préparée · intention n°" +
             recorded.Ledger.Intents.Count +
             " conservée, aucun objet ni lien déplacé.";
+    }
+
+    /// <summary>Recovers EXI A parking/publication under distinct approval.</summary>
+    /// <param name="transactions">Workspace EXI A journal owner.</param>
+    /// <param name="sourcePath">Current source project.</param>
+    /// <returns>Completed, explicit transaction recovery.</returns>
+    private async Task RecoverRequirementMovesAsync(
+        ProjectRequirementMoveTransactionService transactions,
+        string sourcePath)
+    {
+        IReadOnlyList<ProjectRequirementMoveJournal> pending =
+            await Task.Run(() => transactions.ListPendingAsync());
+        if (pending.Count == 0)
+        {
+            StatusText.Text = "Aucun déplacement EXI A interrompu.";
+            return;
+        }
+
+        string details = pending.Count + " déplacement(s) EXI A " +
+            "interrompu(s) :\n" +
+            string.Join("\n", pending.Take(8).Select(item =>
+                item.SourceReference + " vers " + item.TargetReference +
+                " · " + item.Phase + " · " +
+                item.TransactionId.ToString("D"))) +
+            "\n\nReprendre uniquement les snapshots intacts ?";
+        if (MessageBox.Show(this, details,
+            "Confirmer la reprise des EXI A",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        int recovered = await Task.Run(() =>
+            transactions.RecoverPendingAsync(approved: true));
+        await RefreshNavigationAsync(sourcePath);
+        StatusText.Text = recovered +
+            " déplacement(s) EXI A récupéré(s).";
+    }
+
+    /// <summary>Restores the original EXI owner after human confirmation.</summary>
+    /// <param name="transactions">Workspace A transaction owner.</param>
+    /// <param name="history">Frozen journal history shown in the UI.</param>
+    /// <param name="transactionId">Selected completed A transaction.</param>
+    /// <param name="sourcePath">Current source project.</param>
+    /// <returns>Byte-exact restoration or explicit safe refusal.</returns>
+    private async Task RollbackRequirementMoveAsync(
+        ProjectRequirementMoveTransactionService transactions,
+        IReadOnlyList<ProjectRequirementMoveJournal> history,
+        Guid transactionId, string sourcePath)
+    {
+        ProjectRequirementMoveJournal? selected = history.SingleOrDefault(
+            item => item.TransactionId == transactionId &&
+                item.Phase == "completed");
+        if (selected is null)
+        {
+            throw new InvalidDataException(
+                "Aucun déplacement EXI A terminé avec cet identifiant.");
+        }
+
+        string details = "Restaurer EXI " + selected.SourceReference +
+            " avec son GUID original dans son projet d'origine ?\n\n" +
+            selected.SourceRelativePath + "\n" +
+            selected.TargetRelativePath + "\n\n" +
+            "La fiche publiée sera retirée et conservée dans le journal. " +
+            "Une édition humaine ou une référence entrante bloque la restauration.";
+        if (MessageBox.Show(this, details,
+            "Confirmer la restauration EXI A",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectRequirementMoveJournal restored = await Task.Run(() =>
+            transactions.RollbackAsync(transactionId, approved: true));
+        await RefreshNavigationAsync(sourcePath);
+        StatusText.Text = "EXI " + restored.SourceReference +
+            " restaurée exactement dans son projet d'origine.";
     }
 
     /// <summary>Runs a separately approved restart of interrupted EXI B journals.</summary>
