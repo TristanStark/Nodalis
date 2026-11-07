@@ -112,12 +112,24 @@ internal static class ProjectRequirementHandoverSmokeTests
             "An approved EXI intent must reject a later source change.");
         await File.WriteAllTextAsync(sourceFile, original);
 
+        // A different recipient is required: the earlier B intention for
+        // the first recipient is immutable and must never be duplicated.
+        string criteriaTarget = Path.Combine(application, "Projets",
+            "CriterionRecipient");
+        Directory.CreateDirectory(criteriaTarget);
+        await File.WriteAllTextAsync(
+            Path.Combine(criteriaTarget, ".project.json"),
+            JsonSerializer.Serialize(recipient with
+            {
+                Id = Guid.NewGuid(), Name = "CriterionRecipient"
+            }));
         string criteria = original +
             "\n\n### CA-01 — Vérification locale\n" +
             "Condition métier à requalifier.\n";
         await File.WriteAllTextAsync(sourceFile, criteria);
         ProjectHandoverPreview withCa = await preflight.PrepareAsync(
-            source, target, entry.Card.Id, ProjectHandoverMethod.LinkedSuccessor);
+            source, criteriaTarget, entry.Card.Id,
+            ProjectHandoverMethod.LinkedSuccessor);
         ProjectHandoverIntentSnapshot latest = await intentions.ReadAsync(source);
         ProjectHandoverIntentSnapshot withCriteria =
             await intentions.RecordIntentAsync(withCa, latest,
