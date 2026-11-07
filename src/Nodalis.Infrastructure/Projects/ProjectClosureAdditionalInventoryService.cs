@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Nodalis.Core.Milestones;
+using System.Text.RegularExpressions;
 using Nodalis.Core.Tasks;
 using Nodalis.Core.Tests;
 using Nodalis.Infrastructure.Milestones;
@@ -129,10 +130,15 @@ public sealed class ProjectClosureAdditionalInventoryService
                 ? entry.Summary : entry.Summary[..240];
             items.Add(new ProjectClosureAuditItem(
                 "Incidents à vérifier", identity, entry.Id, summary,
-                "statut déclaré : " +
+                ("statut déclaré : " +
                 (string.IsNullOrWhiteSpace(entry.Status)
                     ? "non renseigné" : entry.Status) +
-                " · clôture non déduite", entry.RelativePath));
+                " · clôture non déduite")[..Math.Min(1000,
+                    ("statut déclaré : " +
+                    (string.IsNullOrWhiteSpace(entry.Status)
+                        ? "non renseigné" : entry.Status) +
+                    " · clôture non déduite").Length)],
+                entry.RelativePath));
         }
 
         // Enumerate only this project and its ordinary descendant folders.
@@ -227,7 +233,9 @@ public sealed class ProjectClosureAdditionalInventoryService
             foreach (TaskPersistentIdentityEntry entry in scan.Entries)
             {
                 if (entry.RawLine.Length == 0 ||
-                    entry.RawLine.Contains("[x]", StringComparison.OrdinalIgnoreCase))
+                    Regex.IsMatch(entry.RawLine,
+                        @"^[ \t]*[-*+]\s+\[[xX]\]",
+                        RegexOptions.CultureInvariant))
                 {
                     continue;
                 }
@@ -292,8 +300,9 @@ public sealed class ProjectClosureAdditionalInventoryService
 
             string status = milestone.Status.Trim();
             if (status.Equals("Terminé", StringComparison.OrdinalIgnoreCase) ||
-                status.Equals("Terminé(e)", StringComparison.OrdinalIgnoreCase) ||
-                status.Equals("Annulé", StringComparison.OrdinalIgnoreCase))
+                status.Equals("Terminée", StringComparison.OrdinalIgnoreCase) ||
+                status.Equals("Annulé", StringComparison.OrdinalIgnoreCase) ||
+                status.Equals("Annulée", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
