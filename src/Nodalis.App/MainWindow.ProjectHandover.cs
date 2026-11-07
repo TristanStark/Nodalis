@@ -107,6 +107,23 @@ public partial class MainWindow
             return;
         }
 
+        if (dialog.RequestedRequirementIntentId is Guid requirementIntentId)
+        {
+            ProjectRequirementHandoverPreviewService requirementPreviews =
+                new ProjectRequirementHandoverPreviewService(_root.FullPath);
+            ProjectRequirementHandoverPreview requirementPlan =
+                await Task.Run(() => requirementPreviews.PrepareAsync(
+                    sourcePath, requirementIntentId));
+            MessageBox.Show(this, requirementPlan.FormatReview(),
+                requirementPlan.CanPrepare
+                    ? "Prévisualisation EXI · aucune écriture"
+                    : "Exigence à requalifier avant passation",
+                MessageBoxButton.OK,
+                requirementPlan.CanPrepare
+                    ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            return;
+        }
+
         if (dialog.RequestedExecutionIntentId is Guid intentId)
         {
             await ExecuteProjectHandoverTaskAsync(
