@@ -62,18 +62,18 @@ public static class ProjectRequirementHandoverCodec
             TaskPersistentIdentityCodec.Inspect(
                 originalMarkdown.Replace("\r\n", "\n",
                     StringComparison.Ordinal).Split('\n'));
-        if (method == ProjectHandoverMethod.LinkedSuccessor &&
-            (criteria.Criteria.Count > 0 || criteria.Diagnostics.Count > 0 ||
-             blocks.Blocks.Any(block => block.Id.HasValue) ||
-             tasks.Entries.Count > 0 || tasks.Issues.Count > 0 ||
-             HasAcceptanceContent(originalMarkdown) ||
-             originalMarkdown.Contains("[[", StringComparison.Ordinal) ||
-             originalMarkdown.Contains("](", StringComparison.Ordinal)))
+        if (criteria.Criteria.Count > 0 || criteria.Diagnostics.Count > 0 ||
+            blocks.Blocks.Any(block => block.Id.HasValue) ||
+            blocks.Issues.Count > 0 ||
+            tasks.Entries.Count > 0 || tasks.Issues.Count > 0 ||
+            HasAcceptanceContent(originalMarkdown) ||
+            originalMarkdown.Contains("[[", StringComparison.Ordinal) ||
+            originalMarkdown.Contains("](", StringComparison.Ordinal))
         {
             throw new InvalidDataException(
-                "Succession EXI avec critères, blocs identifiés, tâches " +
-                "ou liens Markdown : requalification explicite requise " +
-                "avant de cloner leur contenu.");
+                "Passation EXI A/B avec critères, blocs identifiés, " +
+                "tâches ou liens Markdown : requalification des relations " +
+                "requise avant toute mutation.");
         }
 
         if (originalMarkdown.StartsWith('\uFEFF') ||
