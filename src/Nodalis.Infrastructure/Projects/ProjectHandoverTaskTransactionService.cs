@@ -42,6 +42,18 @@ public sealed partial class ProjectHandoverTaskTransactionService
         _checkpoint = checkpoint;
     }
 
+    /// <summary>Lists completed, pending and restored task transactions for review.</summary>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Immutable durable journal headers, newest first.</returns>
+    public async Task<IReadOnlyList<ProjectHandoverTaskJournal>> ListHistoryAsync(
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<(string Directory, ProjectHandoverTaskJournal Journal)> all =
+            await ReadJournalsAsync(cancellationToken);
+        return all.Select(item => item.Journal)
+            .OrderByDescending(item => item.CreatedUtc).ToArray();
+    }
+
     /// <summary>Returns durable incomplete journals without taking a write lock.</summary>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Transactions awaiting explicit recovery or rollback.</returns>
