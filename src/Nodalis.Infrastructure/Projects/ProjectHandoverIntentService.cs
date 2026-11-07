@@ -127,9 +127,20 @@ public sealed class ProjectHandoverIntentService
         string target = Path.Combine(_root,
             reviewed.TargetProjectRelativePath.Replace('/',
                 Path.DirectorySeparatorChar));
-        ProjectHandoverPreview verified = await _preflight.PrepareAsync(
-            source, target, reviewed.SourceObjectId, reviewed.Method,
-            reviewed.ProposedTargetObjectId, cancellationToken);
+        ProjectHandoverPreview verified;
+        try
+        {
+            verified = await _preflight.PrepareAsync(
+                source, target, reviewed.SourceObjectId, reviewed.Method,
+                reviewed.ProposedTargetObjectId, cancellationToken);
+        }
+        catch (IOException exception) when (exception is
+            FileNotFoundException or DirectoryNotFoundException)
+        {
+            throw new InvalidDataException(
+                "Projet déplacé, archivé ou supprimé depuis la préparation : " +
+                "aucune intention enregistrée.", exception);
+        }
         if (!verified.CanRecord ||
             !string.Equals(verified.SourceProjectRelativePath,
                 reviewed.SourceProjectRelativePath, StringComparison.Ordinal) ||
