@@ -82,6 +82,25 @@ public static class ProjectHandoverTaskCodec
                 "sont prises en charge par ce premier transfert.");
         }
 
+        if (method == ProjectHandoverMethod.MoveOriginal)
+        {
+            string otherSource = string.Join("\n", lines.Where(
+                (line, position) => position != index));
+            if (MentionsGuid(otherSource, taskId) ||
+                MentionsGuid(target, taskId))
+            {
+                throw new InvalidDataException(
+                    "Un autre passage de Tâches.md cite ce GUID : " +
+                    "revue manuelle des références requise avant A.");
+            }
+        }
+        else if (MentionsGuid(source, successorId) ||
+                 MentionsGuid(target, successorId))
+        {
+            throw new InvalidDataException(
+                "GUID du successeur déjà référencé dans un des deux documents.");
+        }
+
         TaskPersistentIdentityScan targetScan =
             TaskPersistentIdentityCodec.Inspect(target.Split('\n'));
         if (targetScan.Issues.Count > 0 ||
@@ -128,4 +147,12 @@ public static class ProjectHandoverTaskCodec
         return new ProjectHandoverTaskRewrites(
             resultingSource, result.ToString());
     }
+
+    /// <summary>Detects an existing GUID reference, including compact form.</summary>
+    /// <param name="text">Existing local Markdown.</param>
+    /// <param name="id">Exact stable GUID.</param>
+    /// <returns>True when the document already mentions this identity.</returns>
+    private static bool MentionsGuid(string text, Guid id) =>
+        text.Contains(id.ToString("D"), StringComparison.OrdinalIgnoreCase) ||
+        text.Contains(id.ToString("N"), StringComparison.OrdinalIgnoreCase);
 }
