@@ -59,7 +59,7 @@ public sealed record ProjectRequirementSuccessorJournal
 /// Rollback moves the exact published target into the private transaction
 /// history, never silently deleting an edited document.
 /// </summary>
-public sealed class ProjectRequirementSuccessorTransactionService
+public sealed partial class ProjectRequirementSuccessorTransactionService
 {
     private const string TransactionFolder = ".exi-successor-transactions";
     private const string JournalName = "journal.json";
