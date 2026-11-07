@@ -62,18 +62,40 @@ public static class ProjectRequirementHandoverCodec
             TaskPersistentIdentityCodec.Inspect(
                 originalMarkdown.Replace("\r\n", "\n",
                     StringComparison.Ordinal).Split('\n'));
-        if (criteria.Criteria.Count > 0 || criteria.Diagnostics.Count > 0 ||
-            blocks.Blocks.Any(block => block.Id.HasValue) ||
-            blocks.Issues.Count > 0 ||
-            tasks.Entries.Count > 0 || tasks.Issues.Count > 0 ||
-            HasAcceptanceContent(originalMarkdown) ||
+        bool embeddedLinksOrTasks = tasks.Entries.Count > 0 ||
+            tasks.Issues.Count > 0 ||
             originalMarkdown.Contains("[[", StringComparison.Ordinal) ||
-            originalMarkdown.Contains("](", StringComparison.Ordinal))
+            originalMarkdown.Contains("](", StringComparison.Ordinal);
+        bool hasCriteria = criteria.Criteria.Count > 0;
+        bool allCriterionMarkers = hasCriteria &&
+            criteria.Diagnostics.Count == 0 &&
+            blocks.Issues.Count == 0 &&
+            criteria.Criteria.All(item =>
+                item.Id.HasValue && item.LocallyIdentified) &&
+            blocks.Blocks.Where(item => item.Id.HasValue).All(item =>
+                criteria.Criteria.Any(criterion => criterion.Id == item.Id &&
+                    criterion.HeadingLine == item.HeadingLine)) &&
+            System.Text.RegularExpressions.Regex.Matches(
+                originalMarkdown, "<!-- nodalis:block:",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase).Count ==
+                criteria.Criteria.Count &&
+            !HasUnscopedAcceptanceContent(originalMarkdown);
+        bool plainWithoutCriteria = !hasCriteria &&
+            criteria.Diagnostics.Count == 0 &&
+            blocks.Issues.Count == 0 &&
+            !blocks.Blocks.Any(item => item.Id.HasValue) &&
+            !HasAcceptanceContent(originalMarkdown);
+        if (embeddedLinksOrTasks ||
+            method == ProjectHandoverMethod.LinkedSuccessor &&
+            !plainWithoutCriteria ||
+            method == ProjectHandoverMethod.MoveOriginal &&
+            !plainWithoutCriteria && !allCriterionMarkers)
         {
             throw new InvalidDataException(
-                "Passation EXI A/B avec critères, blocs identifiés, " +
-                "tâches ou liens Markdown : requalification des relations " +
-                "requise avant toute mutation.");
+                "Passation EXI : critères CA sans GUID stable, blocs " +
+                "non reliés, tâches ou liens Markdown à requalifier. " +
+                "Le mode A accepte uniquement les CA complètement identifiés ; " +
+                "le mode B reste limité aux fiches sans CA.");
         }
 
         if (originalMarkdown.StartsWith('\uFEFF') ||
@@ -189,6 +211,47 @@ public static class ProjectRequirementHandoverCodec
             }
 
             if (inside && !string.IsNullOrWhiteSpace(line))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Refuses unowned acceptance prose before the first stable CA heading.
+    /// Existing criterion bodies remain untouched in a mode-A migration.
+    /// </summary>
+    /// <param name="markdown">Full original Markdown.</param>
+    /// <returns>True when acceptance text is not attributable to a CA.</returns>
+    private static bool HasUnscopedAcceptanceContent(string markdown)
+    {
+        bool inAcceptance = false;
+        bool hasFirstCriterion = false;
+        foreach (string line in markdown.Replace("\r\n", "\n",
+            StringComparison.Ordinal).Split('\n'))
+        {
+            if (line.StartsWith("## ", StringComparison.Ordinal))
+            {
+                inAcceptance = string.Equals(
+                    line[3..].Trim().Replace('’', '\''),
+                    "Critères d'acceptation",
+                    StringComparison.OrdinalIgnoreCase);
+                hasFirstCriterion = false;
+                continue;
+            }
+
+            if (!inAcceptance)
+            {
+                continue;
+            }
+
+            if (line.StartsWith("### CA-", StringComparison.Ordinal))
+            {
+                hasFirstCriterion = true;
+            }
+            else if (!hasFirstCriterion && !string.IsNullOrWhiteSpace(line))
             {
                 return true;
             }
