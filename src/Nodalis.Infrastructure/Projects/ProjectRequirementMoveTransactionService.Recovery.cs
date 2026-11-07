@@ -194,6 +194,8 @@ public sealed partial class ProjectRequirementMoveTransactionService
         {
             await VerifyHashAsync(parked, journal.OriginalSha256, token);
             await _guard.AssertNoIncomingAsync(journal.RequirementId,
+                journal.TargetReference, journal.TargetRelativePath, token);
+            await _guard.AssertNoIncomingAsync(journal.RequirementId,
                 journal.SourceReference, journal.SourceRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(parked, source);
