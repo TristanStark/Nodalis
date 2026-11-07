@@ -32,6 +32,10 @@ public sealed record ProjectRequirementHandoverPreview
     /// <summary>Prospective complete Markdown, never written by this service.</summary>
     public string? ProposedMarkdown { get; init; }
 
+    /// <summary>SHA-bound acceptance criteria requiring explicit A review.</summary>
+    public IReadOnlyList<ProjectRequirementCriterion> CriteriaForReview
+        { get; init; } = [];
+
     /// <summary>Reasons preventing preparation of an unambiguous card.</summary>
     public IReadOnlyList<string> Blockers { get; init; } = [];
 
@@ -65,6 +69,24 @@ public sealed record ProjectRequirementHandoverPreview
         foreach (string warning in Warnings.Take(7))
         {
             text.AppendLine("Vigilance : " + warning);
+        }
+
+        if (CriteriaForReview.Count > 0)
+        {
+            text.AppendLine().Append("CA à requalifier explicitement pour A : ")
+                .AppendLine(CriteriaForReview.Count.ToString());
+            foreach (ProjectRequirementCriterion criterion in
+                CriteriaForReview.Take(25))
+            {
+                text.Append(criterion.Reference).Append(" · ")
+                    .Append(criterion.Title).Append(" · GUID ")
+                    .AppendLine(criterion.Id?.ToString("D") ?? "(absent)");
+            }
+
+            if (CriteriaForReview.Count > 25)
+            {
+                text.AppendLine("… Liste complète dans la revue dédiée.");
+            }
         }
 
         text.AppendLine().AppendLine(
@@ -246,8 +268,10 @@ public sealed class ProjectRequirementHandoverPreviewService
             }
             else
             {
-                warnings.Add("L'exigence possède des critères CA liés : " +
-                    "liens et résultats devront suivre le GUID original.");
+                warnings.Add("L'exigence possède des critères CA : " +
+                    "les GUID et les corps seront conservés seulement si " +
+                    "chaque identité est stable. Une revue humaine de tous " +
+                    "les critères et des liens reste obligatoire.");
             }
         }
 
@@ -287,6 +311,7 @@ public sealed class ProjectRequirementHandoverPreviewService
             ProposedId = intent.ProposedTargetObjectId,
             SourceSha256 = sha,
             ProposedMarkdown = proposed,
+            CriteriaForReview = original.Criteria.ToArray(),
             Blockers = blockers,
             Warnings = warnings
         };
