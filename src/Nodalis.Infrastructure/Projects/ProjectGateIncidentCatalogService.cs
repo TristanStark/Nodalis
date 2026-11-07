@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Nodalis.Core.Maintenance;
 using Nodalis.Core.Projects;
 
@@ -29,7 +31,14 @@ public sealed record ProjectGateIncidentCandidate(
 /// <param name="ExcludedCount">Malformed or repeated incident candidates.</param>
 public sealed record ProjectGateIncidentCatalog(
     IReadOnlyList<ProjectGateIncidentCandidate> Candidates,
-    int ExcludedCount);
+    int ExcludedCount)
+{
+    /// <summary>
+    /// Fingerprint of the maintenance Markdown actually parsed, or null when
+    /// the file is absent; useful for source-consistent human closure reviews.
+    /// </summary>
+    public string? SourceSha256 { get; init; }
+}
 
 /// <summary>
 /// Resolves only a project's own Fiche de Maintenance.md, never task positions,
@@ -75,7 +84,10 @@ public sealed class ProjectGateIncidentCatalogService
                 "Fiche maintenance trop grande pour la revue des incidents.");
         }
 
-        string markdown = await File.ReadAllTextAsync(resolved, cancellationToken);
+        byte[] bytes = await File.ReadAllBytesAsync(
+            resolved, cancellationToken);
+        string markdown = new UTF8Encoding(false, true).GetString(bytes)
+            .TrimStart('\uFEFF');
         IReadOnlyList<MaintenanceHistoryItem> items =
             MaintenanceHistoryIndex.Parse(resolved,
                 Path.GetFileName(projectDirectory), markdown);
@@ -96,6 +108,9 @@ public sealed class ProjectGateIncidentCatalogService
             .OrderBy(item => item.Summary, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase).ToArray();
         return new ProjectGateIncidentCatalog(
-            candidates, incidents.Length - candidates.Length);
+            candidates, incidents.Length - candidates.Length)
+        {
+            SourceSha256 = Convert.ToHexString(SHA256.HashData(bytes))
+        };
     }
 }
