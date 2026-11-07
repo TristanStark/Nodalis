@@ -131,9 +131,15 @@ internal sealed class ProjectRequirementMoveReferenceGuard
     private static bool IsCanonicalHistoricalLedger(string path)
     {
         string name = Path.GetFileName(path);
-        string? directory = Path.GetFileName(Path.GetDirectoryName(path));
+        string? parent = Path.GetDirectoryName(path);
+        string? directory = Path.GetFileName(parent);
+        string? owner = parent is null ? null :
+            Path.GetDirectoryName(parent);
         return string.Equals(directory, "Management",
                    StringComparison.OrdinalIgnoreCase) &&
+            owner is not null &&
+            File.Exists(Path.Combine(owner,
+                WorkspaceLayout.ProjectManifestFileName)) &&
             (string.Equals(name, "Passations.md",
                  StringComparison.OrdinalIgnoreCase) ||
              string.Equals(name, "Bilan de clôture.md",
