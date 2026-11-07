@@ -84,7 +84,8 @@ public sealed record ProjectClosureAuditSnapshot(
         preview.AppendLine()
             .AppendLine("Ce pré-audit ne constitue pas un bilan signé et ne " +
                 "clôture aucun objet. Les tâches, jalons, incidents et " +
-                "campagnes restent à vérifier séparément.");
+                "campagnes sont inventoriés sans déduire leurs verdicts ; " +
+                "liens, périmètres et preuves restent à confirmer.");
         return preview.ToString();
     }
 }
@@ -260,7 +261,7 @@ public sealed class ProjectClosureAuditService
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
     }
 
-    /// <summary>Reads four independent project-owned canonical registries.</summary>
+    /// <summary>Reads project-owned canonical and bounded local registers.</summary>
     /// <param name="projectDirectory">Project directory verified by the readers.</param>
     /// <param name="cancellationToken">Cancellation of the on-demand audit.</param>
     /// <returns>Partial audit with explicit coverage limitations.</returns>
@@ -280,7 +281,39 @@ public sealed class ProjectClosureAuditService
             await new ProjectDeploymentReservationService(_workspaceRoot)
                 .ReadAsync(projectDirectory, cancellationToken);
 
-        return ProjectClosureAuditProjection.Build(requirements.ProjectId,
-            risks, requirements, deployments, reservations);
+        ProjectClosureAuditSnapshot baseline =
+            ProjectClosureAuditProjection.Build(requirements.ProjectId,
+                risks, requirements, deployments, reservations);
+        ProjectClosureAdditionalSnapshot extended =
+            await new ProjectClosureAdditionalInventoryService(_workspaceRoot)
+                .ReadAsync(projectDirectory, baseline.ProjectId, cancellationToken);
+
+        List<ProjectClosureAuditItem> items =
+            baseline.Items.Concat(extended.Items).ToList();
+        List<string> diagnostics =
+            baseline.Diagnostics.Concat(extended.Diagnostics).ToList();
+        HashSet<Guid> ambiguousIds = items.GroupBy(item => item.Id)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key).ToHashSet();
+        if (ambiguousIds.Count > 0)
+        {
+            diagnostics.Add("Clôture : " + ambiguousIds.Count +
+                " identité(s) conflictuelle(s) entre registres exclues. " +
+                "Correction manuelle nécessaire.");
+            items.RemoveAll(item => ambiguousIds.Contains(item.Id));
+        }
+
+        // Both source fingerprints include settled/ignored records.
+        // A later review rejects any change in either real source set.
+        string fingerprint = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(baseline.SourceFingerprint + "|" +
+                extended.Fingerprint)));
+        return new ProjectClosureAuditSnapshot(baseline.ProjectId,
+            items.OrderBy(item => item.Kind, StringComparer.Ordinal)
+                .ThenBy(item => item.Reference, StringComparer.Ordinal)
+                .ToArray(), diagnostics.ToArray())
+        {
+            SourceFingerprint = fingerprint
+        };
     }
 }
