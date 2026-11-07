@@ -67,10 +67,15 @@ public sealed record ProjectRequirementHandoverPreview
             text.AppendLine("Vigilance : " + warning);
         }
 
-        text.AppendLine()
-            .AppendLine("Aucun fichier EXI n'a été créé, modifié ou déplacé. " +
-                "Le transfert réel, la gestion des backlinks et le rollback " +
-                "EXI restent à implémenter.");
+        text.AppendLine().AppendLine(
+            Intent.Method == ProjectHandoverMethod.LinkedSuccessor
+            ? "Cet aperçu ne modifie aucun document. Si le plan est sans " +
+              "blocage, une confirmation séparée permet de créer le " +
+              "successeur EXI B avec journal, reprise et rollback. " +
+              "Les critères CA et liens non requalifiés restent bloquants."
+            : "Cet aperçu ne déplace aucun document. Le transfert réel " +
+              "EXI A reste indisponible jusqu'à une transaction traitant " +
+              "les backlinks, les références et la restauration.");
         return text.ToString();
     }
 }
@@ -248,8 +253,12 @@ public sealed class ProjectRequirementHandoverPreviewService
         warnings.Add("Une EXI contient potentiellement des liens " +
             "par référence EXI-xxxx, GUID ou critères CA. La migration A " +
             "requiert encore la réécriture et le journal des backlinks.");
-        warnings.Add("Ce résultat est uniquement un aperçu mémoire ; " +
-            "le transfert transactionnel EXI n'est pas activé.");
+        warnings.Add(intent.Method == ProjectHandoverMethod.LinkedSuccessor
+            ? "Cet aperçu n'écrit rien ; le successeur EXI B n'est créé " +
+              "qu'après une confirmation humaine distincte et un contrôle " +
+              "transactionnel des sources et de la référence disponible."
+            : "La mutation A reste indisponible tant que les backlinks " +
+              "EXI et les anciennes références ne sont pas requalifiés.");
 
         string? proposed = null;
         if (blockers.Count == 0 && next is not null)
