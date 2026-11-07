@@ -1,0 +1,163 @@
+using Nodalis.Core.Projects;
+
+namespace Nodalis.Core.Requirements;
+
+/// <summary>
+/// Pure in-memory EXI reassignment/succession. This codec does not publish a
+/// source tombstone, move a card or imply that existing links are rewired.
+/// </summary>
+public static class ProjectRequirementHandoverCodec
+{
+    /// <summary>
+    /// Prepares a canonical destination card while retaining the exact
+    /// human-authored Markdown body. For B, the new identity starts at Draft,
+    /// NotStarted and NotVerified; existing CA blocks forbid blind cloning.
+    /// </summary>
+    /// <param name="originalMarkdown">Exact versioned EXI source.</param>
+    /// <param name="source">Expected canonical source metadata.</param>
+    /// <param name="targetProjectId">New owner of A or successor owner B.</param>
+    /// <param name="targetReference">Unreserved EXI code in destination.</param>
+    /// <param name="targetId">Original GUID A or independent GUID B.</param>
+    /// <param name="intentId">Existing approved human intent.</param>
+    /// <param name="method">Reviewed A/B intent.</param>
+    /// <returns>Canonical prospective destination Markdown; never saved.</returns>
+    public static string Prepare(
+        string originalMarkdown, ProjectRequirementCard source,
+        Guid targetProjectId, string targetReference, Guid targetId,
+        Guid intentId, ProjectHandoverMethod method)
+    {
+        ArgumentNullException.ThrowIfNull(originalMarkdown);
+        ProjectRequirementMarkdownCodec.Validate(source);
+        if (targetProjectId == Guid.Empty || targetProjectId == source.ProjectId ||
+            targetId == Guid.Empty || intentId == Guid.Empty ||
+            !Enum.IsDefined(method) ||
+            !ProjectRequirementMarkdownCodec.IsReference(targetReference) ||
+            (method == ProjectHandoverMethod.MoveOriginal &&
+             targetId != source.Id) ||
+            (method == ProjectHandoverMethod.LinkedSuccessor &&
+             targetId == source.Id))
+        {
+            throw new InvalidDataException(
+                "Identité, référence ou stratégie EXI incompatible.");
+        }
+
+        ProjectRequirementCard actual =
+            ProjectRequirementMarkdownCodec.Parse(originalMarkdown);
+        if (actual != source)
+        {
+            throw new InvalidDataException(
+                "L'exigence a changé depuis l'identification de la source.");
+        }
+
+        ProjectRequirementCriterionScan criteria =
+            ProjectRequirementCriterionCodec.Inspect(originalMarkdown);
+        if (method == ProjectHandoverMethod.LinkedSuccessor &&
+            (criteria.Criteria.Count > 0 || criteria.Diagnostics.Count > 0))
+        {
+            throw new InvalidDataException(
+                "Succession EXI avec critères d'acceptation : " +
+                "clonage des identifiants CA interdit avant requalification.");
+        }
+
+        if (originalMarkdown.StartsWith('\uFEFF') ||
+            originalMarkdown.Contains('\r'))
+        {
+            throw new InvalidDataException(
+                "Ce préparateur EXI exige un Markdown UTF-8 LF canonique.");
+        }
+
+        string[] lines = originalMarkdown.Split('\n');
+        if (lines.Length < 15 || lines[0] != "---")
+        {
+            throw new InvalidDataException("En-tête EXI incomplet.");
+        }
+
+        int closing = Array.IndexOf(lines, "---", 1);
+        if (closing < 0 || closing >= 30 ||
+            closing + 1 >= lines.Length)
+        {
+            throw new InvalidDataException(
+                "Sections de la fiche EXI non reconnues.");
+        }
+
+        string expectedHeading = "# " + source.Reference + " — " + source.Title;
+        if (lines[closing + 1] != expectedHeading)
+        {
+            throw new InvalidDataException(
+                "Titre Markdown et référence EXI incohérents.");
+        }
+
+        ProjectRequirementCard destination = source with
+        {
+            Id = targetId,
+            ProjectId = targetProjectId,
+            Reference = targetReference,
+            CreatedUtc = method == ProjectHandoverMethod.MoveOriginal
+                ? source.CreatedUtc : DateTimeOffset.UtcNow,
+            Validation = method == ProjectHandoverMethod.MoveOriginal
+                ? source.Validation : ProjectRequirementValidation.Draft,
+            Implementation = method == ProjectHandoverMethod.MoveOriginal
+                ? source.Implementation :
+                    ProjectRequirementImplementation.NotStarted,
+            Verification = method == ProjectHandoverMethod.MoveOriginal
+                ? source.Verification :
+                    ProjectRequirementVerification.NotVerified
+        };
+
+        ReplaceField(lines, closing, "requirement-id",
+            destination.Id.ToString("D"));
+        ReplaceField(lines, closing, "project-id",
+            destination.ProjectId.ToString("D"));
+        ReplaceField(lines, closing, "reference",
+            destination.Reference);
+        ReplaceField(lines, closing, "created-utc",
+            destination.CreatedUtc.ToUniversalTime().ToString(
+                "O", System.Globalization.CultureInfo.InvariantCulture));
+        ReplaceField(lines, closing, "validation",
+            destination.Validation.ToString());
+        ReplaceField(lines, closing, "implementation",
+            destination.Implementation.ToString());
+        ReplaceField(lines, closing, "verification",
+            destination.Verification.ToString());
+        lines[closing + 1] = "# " + destination.Reference + " — " +
+            destination.Title;
+
+        string result = string.Join("\n", lines);
+        string provenance = "\n\n> Passation " +
+            (method == ProjectHandoverMethod.MoveOriginal ? "A" : "B") +
+            " · source " + source.ProjectId.ToString("D") +
+            " / " + source.Id.ToString("D") +
+            " / " + source.Reference +
+            " · intention " + intentId.ToString("D") + "\n";
+        result = result.TrimEnd('\n') + provenance;
+        ProjectRequirementCard parsed =
+            ProjectRequirementMarkdownCodec.Parse(result);
+        if (parsed != destination)
+        {
+            throw new InvalidDataException(
+                "Reconstruction du nouveau propriétaire EXI invalide.");
+        }
+
+        return result;
+    }
+
+    /// <summary>Replaces exactly one front-matter key without editing the body.</summary>
+    /// <param name="lines">Mutable copy of original Markdown lines.</param>
+    /// <param name="closing">Front-matter boundary.</param>
+    /// <param name="field">Canonical metadata key.</param>
+    /// <param name="value">Replacement scalar.</param>
+    private static void ReplaceField(
+        string[] lines, int closing, string field, string value)
+    {
+        string prefix = field + ": ";
+        int[] indices = Enumerable.Range(1, closing - 1).Where(index =>
+            lines[index].StartsWith(prefix, StringComparison.Ordinal)).ToArray();
+        if (indices.Length != 1)
+        {
+            throw new InvalidDataException(
+                "Métadonnées EXI manquantes ou ambiguës : " + field);
+        }
+
+        lines[indices[0]] = prefix + value;
+    }
+}
