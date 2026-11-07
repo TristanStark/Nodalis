@@ -1,0 +1,68 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectHandoverIntentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Préparer une passation · Projet"
+        Width="790" Height="720" MinWidth="570" MinHeight="460"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBlock Text="Préparer une passation entre projets"
+                       FontWeight="SemiBold" FontSize="19" />
+            <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Prévisualisation vérifiée, choix humain et intention historisée. Ni déplacement, ni copie, ni changement de propriétaire." />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Fermer" IsCancel="True"
+                    Padding="12,7" Margin="0,0,8,0" />
+            <Button x:Name="PrepareButton"
+                    Content="Prévisualiser et préparer…"
+                    Padding="12,7" IsDefault="True"
+                    Click="Prepare_Click" />
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock x:Name="HistoryText"
+                           FontWeight="SemiBold" TextWrapping="Wrap"
+                           Margin="0,0,0,10" />
+                <TextBlock x:Name="WarningText" TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Margin="0,0,0,10" />
+                <TextBlock Text="Élément à reprendre"
+                           Margin="0,2,0,5" />
+                <ComboBox x:Name="ItemCombo" DisplayMemberPath="Label"
+                          Padding="8,6"
+                          AutomationProperties.Name="Objet source de passation" />
+                <TextBlock Text="Projet destinataire" Margin="0,12,0,5" />
+                <ComboBox x:Name="TargetCombo" DisplayMemberPath="Label"
+                          Padding="8,6"
+                          AutomationProperties.Name="Projet destinataire" />
+                <TextBlock Text="Mode de passation" Margin="0,12,0,5" />
+                <ComboBox x:Name="MethodCombo" DisplayMemberPath="Label"
+                          Padding="8,6"
+                          AutomationProperties.Name="Stratégie de passation" />
+                <TextBlock Text="Auteur / responsable du plan"
+                           Margin="0,12,0,4" />
+                <TextBox x:Name="ActorBox" MaxLength="160" Padding="8,6" />
+                <TextBlock Text="Justification et destinataire du suivi"
+                           Margin="0,12,0,4" />
+                <TextBox x:Name="RationaleBox" MaxLength="4000"
+                         AcceptsReturn="True" MinHeight="90"
+                         TextWrapping="Wrap" Padding="8,6"
+                         VerticalScrollBarVisibility="Auto" />
+                <TextBlock Text="Historique récent des préparations"
+                           FontWeight="SemiBold" Margin="0,16,0,5" />
+                <TextBox x:Name="PreviousText" MinHeight="95" Height="130"
+                         IsReadOnly="True" TextWrapping="Wrap"
+                         AcceptsReturn="True" Padding="10"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled" />
+                <TextBlock Margin="0,12,0,0" TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="Le préflight contrôle les GUID, les sources et la cible au moment de l'enregistrement. Le déplacement A et la création du successeur B nécessiteront une opération transactionnelle ultérieure." />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>
