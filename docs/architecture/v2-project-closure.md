@@ -557,3 +557,98 @@ les fichiers Markdown/JSON inspectés dans le périmètre du workspace
 Le code et les smoke tests doivent passer les deux workflows Windows,
 et une qualification visuelle reste obligatoire avant un merge vers
 `main`, un tag ou une release v2.0.
+
+
+## Neuvième incrément — requalification des critères CA en passation EXI A (07/11/2026)
+
+Le mode A permet désormais de préparer **et d'exécuter** le déplacement
+d'une EXI possédant des critères d'acceptation, mais uniquement si tous
+les CA sont non ambigus, équipés d'un GUID stable et révisés
+**individuellement par une personne**. Le modèle B reste interdit
+pour les exigences avec CA existants : il nécessiterait de nouvelles
+identités ainsi qu'une requalification des preuves et verdicts,
+qui ne sont pas déduits automatiquement.
+
+### Préflight structurel des fiches
+
+`ProjectRequirementHandoverCodec` utilise
+`ProjectRequirementCriterionCodec` et
+`MarkdownBlockIdentityCodec` pour distinguer :
+
+- Une fiche EXI sans critère : comportement A/B antérieur maintenu.
+- Une fiche EXI avec CA identifiés : **A uniquement**, à condition
+  que chaque CA-xx possède un GUID stable, sans doublon, sans diagnostic
+  structurel, et que chaque marqueur de bloc concerne précisément
+  l'un des CA identifiés. Le texte du critère et son GUID ne changent
+  pas pendant la mutation. Aucun texte hors d'un critère identifiable
+  n'est accepté dans la section avant son premier CA.
+- Une fiche avec CA sans GUID, CA dupliqués, bloc identifié hors CA,
+  checkbox/tâche, lien Markdown `[[...]]` ou `[...](...)` :
+  transfert refusé, en attendant la requalification correspondante.
+
+Le prévisualiseur `ProjectRequirementHandoverPreviewService`
+expose la **liste complète des CA et GUID** de sa source SHA-256 :
+les diagnostics et les critères sans identité empêchent de produire
+un candidat exécutable.
+
+### Requalification humaine et audit
+
+L'interface **Projet > Préparer une passation…**, sans nouveau menu,
+ouvre `ProjectRequirementCriteriaReviewDialog` lorsque la
+prévisualisation A contient des CA. La boîte de dialogue demande
+de **cocher chaque critère séparément** et de fournir une
+justification écrite. Son bouton d'approbation reste désactivé
+tant que la liste est incomplète ou la justification absente.
+L'étape suivante conserve la confirmation générale avant mutation.
+
+`ProjectRequirementMoveTransactionService.ExecuteAsync` impose
+indépendamment de WPF un ensemble *exact* de GUID approuvés.
+Il refuse les approbations implicites, incomplètes ou dupliquées
+et les motifs vides. La transaction conserve dans le journal
+`ReviewedCriteria` (code local et GUID), `CriteriaReviewRationale`
+et `CriteriaReviewedUtc`. Le journal et les snapshots sont
+vérifiés à chaque étape de reprise : les CA originaux et déplacés
+doivent avoir exactement les mêmes GUID, codes et intitulés.
+
+**Important :** la revue n'approuve ni un nouveau verdict de test,
+ni un changement de preuve, ni un changement de relation. Elle
+autorise seulement la conservation des identités après contrôle
+de l'absence de références entrantes non résolues. Les verdicts
+existants ne sont pas réécrits.
+
+### Liens entrants CA : audit explicite à la demande
+
+`ProjectRequirementMoveCriteriaGuard` vérifie en une seule
+inspection bornée tous les GUID des critères contre les sources
+Markdown/JSON du workspace actif. Il recherche aussi les mentions
+textuelles `CA-xx` dans les projets source et destinataire ;
+seules les déclarations `### CA-xx ...` d'autres fiches EXI
+indépendantes peuvent être ignorées en tant que définitions locales.
+Une référence potentiellement entrante, un fichier illisible,
+une jonction ou un plafond dépassé bloque la mutation. Le scan
+s'exécute lors du déplacement, de sa reprise et du rollback,
+pas en tâche de fond ni pendant les interactions du Worktree.
+
+La transaction d'origine reste inchangée : l'EXI source est
+mise à l'abri avant publication de la destination avec son GUID,
+puis une restauration retire d'abord la cible. Les critères CA
+voyagent à l'intérieur du document : aucun ID ou corps CA n'est
+copié indépendamment et aucune preuve n'est remplacée.
+
+### Tests et limites
+
+`ProjectRequirementMoveCriteriaSmokeTests` vérifie le refus de
+mutation sans revue, avec revue partielle ou sans justification,
+la conservation d'identité de deux CA, les snapshots et motifs
+historiques, la reprise après une interruption, la restauration
+octet exacte, le rejet des backlinks GUID et des références
+`CA-xx`, le refus des critères sans GUID ou des blocs hors CA,
+et le maintien du blocage B.
+
+Les relations externes structurées qui demandent un déplacement
+coordonné, les critères sans identité stable et les successeurs
+avec CA **ne sont pas migrés automatiquement**. La présence
+de sources non-Markdown/JSON ou de liens non structurés nécessite
+encore une revue humaine spécifique. Aucune mutation multifiche
+n'est dite atomique. La qualification visuelle humaine et la
+validation des deux workflows Windows sont requises avant release.
