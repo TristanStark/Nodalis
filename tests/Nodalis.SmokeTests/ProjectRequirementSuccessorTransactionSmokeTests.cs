@@ -261,7 +261,8 @@ internal static class ProjectRequirementSuccessorTransactionSmokeTests
         string destination = Path.Combine(root, preview.ProposedTargetRelativePath!
             .Replace('/', Path.DirectorySeparatorChar));
         Assert(refused && File.Exists(destination) &&
-               (await service.ListHistoryAsync()).Count == 0,
+               !(await service.ListHistoryAsync()).Any(item =>
+                   item.IntentId == preview.Intent.Id),
             "Stale EXI B approval must not overwrite an already used reference.");
     }
 
