@@ -345,6 +345,10 @@ public sealed partial class ProjectRequirementMoveTransactionService
             await VerifyHashAsync(target, journal.DestinationSha256, token);
             await _guard.AssertNoIncomingAsync(journal.RequirementId,
                 journal.TargetReference, journal.TargetRelativePath, token);
+            await new ProjectRequirementMoveCriteriaGuard(_root)
+                .AssertNoIncomingAsync(journal.ReviewedCriteria,
+                    journal.SourceRelativePath,
+                    journal.TargetRelativePath, token);
             journal = journal with { Phase = "rollback-prepared" };
             await AtomicJsonFile.WriteAsync(
                 Path.Combine(directory, JournalName), journal, token);
