@@ -652,3 +652,93 @@ de sources non-Markdown/JSON ou de liens non structurés nécessite
 encore une revue humaine spécifique. Aucune mutation multifiche
 n'est dite atomique. La qualification visuelle humaine et la
 validation des deux workflows Windows sont requises avant release.
+
+
+## Dixième incrément — succession EXI B avec CA requalifiés (07/11/2026)
+
+Le **mode B** peut désormais proposer et exécuter une **nouvelle
+exigence avec ses propres critères d'acceptation**, sans prétendre
+qu'un critère du projet source a déjà été vérifié dans le projet
+destinataire. L'exigence originale et ses campagnes historiques
+demeurent intactes. Cette extension concerne les CA qui possèdent
+déjà des GUID stables et des références `CA-xx` non ambiguës.
+
+### Résultat : nouvelles identités et aucune preuve héritée
+
+`ProjectRequirementCriterionSuccessorCodec` fabrique, sans écrire de
+fichiers, un **brouillon entièrement neuf** à partir du modèle
+`ProjectRequirementMarkdownCodec.Format`, et non d'une copie de
+la fiche source. Il conserve uniquement le titre d'exigence,
+le type de fiche, les codes locaux `CA-xx` et les intitulés des
+critères. Il n'hérite **d'aucun corps de critère**, résultat de test,
+preuve, verdict, état d'implémentation ou contenu historique libre.
+Ses états reviennent à `Draft / NotStarted / NotVerified`.
+
+Les GUID des CA successeurs sont déterministes et distincts de
+leurs sources : `DeriveId(intentId, originalCaId)` calcule un
+SHA-256 avec un préfixe de domaine et retient une identité GUID.
+Le brouillon présente une filiation détaillée
+`CA-xx : GUID source → GUID successeur · À requalifier` dans
+la section **Filiation et requalification**.
+Le plan est répétable octet pour octet à partir de l'intention
+persistée et de son horodatage, sans recours à un générateur
+de GUID au moment de l'exécution.
+
+Les sources mal identifiées (GUID CA absent/dupliqué, marqueur
+de bloc hors CA, diagnostics de structure, titre CA contenant
+des liens Markdown non requalifiés) restent bloquées.
+Les éventuels contenus métier et liens présents dans la
+source ne sont **jamais** recopiés silencieusement dans le
+successeur B : la personne devra renseigner et relier
+explicitement les éléments pertinents après création.
+
+### Étapes humaines et journal durable
+
+Depuis **Projet > Préparer une passation… > Prévisualiser une
+passation EXI…**, le mode B propose l'ensemble des nouvelles
+identités au regard des anciennes. La même fenêtre de revue
+que pour A possède un mode B, affichant **ancien GUID / nouveau
+GUID** pour chaque CA, et l'absence de preuves héritées.
+Chaque case doit être cochée individuellement et une justification
+écrite est obligatoire. Une **seconde confirmation** valide
+ensuite la création de l'exigence dans le destinataire.
+
+Le service `ProjectRequirementSuccessorTransactionService`
+refuse également, indépendamment de l'interface, une validation
+partielle, dupliquée ou sans motif. Il persiste, avec les
+snapshots `successor.md` et `journal.json`, le mapping ordonné
+des CA, `CriteriaReviewRationale` et `CriteriaReviewedUtc`.
+Son protocole reste une **création atomique CreateNew d'un
+unique document** ; aucun lien ni document du projet source
+n'est modifié.
+
+À la **reprise** d'un journal `prepared`, le contenu stagé
+est vérifié par SHA-256, puis les GUID CA / références / intitulés
+sont comparés au journal d'origine avant de reconnaître ou
+rejouer la publication. La restauration explicite refuse tout
+document édité depuis création. En plus du contrôle des liens
+vers le GUID de l'exigence elle-même, un scan borné bloque le
+retrait si une autre source mentionne un **nouveau GUID CA**
+ou sa référence `CA-xx` dans le projet destinataire.
+La fiche retirée reste conservée dans
+`withdrawn-successor.md`.
+
+### Régressions et frontières
+
+`ProjectRequirementSuccessorCriteriaSmokeTests` couvre :
+accord humain requis pour **tous** les CA, justification,
+répétabilité des nouveaux GUID, absence des canaris de preuve
+et verdict source, brouillon non vérifié, source byte-exacte,
+reprise après une interruption avant/après CreateNew,
+rollback bloqué par liens GUID et `CA-xx`,
+restauration après désassociation, et refus des CA
+sans identité source fiable.
+
+Cette opération n'entraîne **aucune revalidation de tests** :
+des définitions de critères nouvelles et vides ont été créées,
+mais les résultats de campagne, Go/No-Go, procès-verbaux,
+provenances croisées et liens vers exigences restent à
+requalifier explicitement. Les formats hors Markdown/JSON,
+les tests et incidents reliés nécessitent encore une démarche
+humaine ; aucun traitement atomique multi-document n'est affirmé.
+La qualification WPF visuelle est indispensable avant release.
