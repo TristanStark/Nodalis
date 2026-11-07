@@ -141,6 +141,7 @@ try
     await ProjectRequirementSuccessorTransactionSmokeTests.RunAsync(root);
     await ProjectRequirementMoveTransactionSmokeTests.RunAsync(root);
     await ProjectRequirementMoveCriteriaSmokeTests.RunAsync(root);
+    await ProjectRequirementSuccessorCriteriaSmokeTests.RunAsync(root);
     await VerifyProjectStructureAsync(root);
     await VerifyApplicationStructureAsync(root);
     await VerifyTrashAsync(root);
