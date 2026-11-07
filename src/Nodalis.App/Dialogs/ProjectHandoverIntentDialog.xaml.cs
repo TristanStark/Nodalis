@@ -37,13 +37,16 @@ public partial class ProjectHandoverIntentDialog : Window
     /// <param name="audit">Selected project's fresh read-only audit.</param>
     /// <param name="targets">Existing navigation project candidates.</param>
     /// <param name="snapshot">Canonical intention history.</param>
-    /// <param name="transactions">Durable execution and recovery journals.</param>
+    /// <param name="transactions">Durable task execution and recovery journals.</param>
+    /// <param name="exiTransactions">Durable EXI B successor journals.</param>
     /// <param name="readOnly">Archived or read-only workspace flag.</param>
     public ProjectHandoverIntentDialog(
         ProjectClosureAuditSnapshot? audit,
         IReadOnlyList<ProjectHandoverTargetChoice> targets,
         ProjectHandoverIntentSnapshot snapshot,
-        IReadOnlyList<ProjectHandoverTaskJournal> transactions, bool readOnly)
+        IReadOnlyList<ProjectHandoverTaskJournal> transactions,
+        IReadOnlyList<ProjectRequirementSuccessorJournal> exiTransactions,
+        bool readOnly)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ProjectHandoverIntentCodec.Validate(snapshot.Ledger);
@@ -77,7 +80,10 @@ public partial class ProjectHandoverIntentDialog : Window
         ProjectHandoverIntent[] history = snapshot.Ledger.Intents.ToArray();
         HistoryText.Text = history.Length == 0
             ? "Aucune passation préparée."
-            : history.Length + " intention(s) conservée(s) sans exécution.";
+            : history.Length + " intention(s) historisée(s), " +
+              (transactions.Count(item => item.Phase == "completed") +
+               exiTransactions.Count(item => item.Phase == "completed")) +
+              " transaction(s) achevée(s) dans le workspace.";
         PreviousText.Text = history.Length == 0
             ? "Les futures préparations seront listées ici."
             : string.Join("\n", history.TakeLast(20).Select(item =>
@@ -108,6 +114,41 @@ public partial class ProjectHandoverIntentDialog : Window
         if (readOnly)
         {
             RequirementPreviewButton.Visibility = Visibility.Collapsed;
+        }
+
+        ProjectRequirementSuccessorJournal[] exiPending = exiTransactions
+            .Where(item => item.Phase is not
+                ("completed" or "rolled-back")).ToArray();
+        ProjectRequirementSuccessorJournal[] exiCompleted = exiTransactions
+            .Where(item => item.SourceProjectId == snapshot.Ledger.ProjectId &&
+                item.Phase == "completed").ToArray();
+        ProjectRequirementSuccessorJournal[] visibleExi = exiTransactions
+            .Where(item => item.SourceProjectId == snapshot.Ledger.ProjectId ||
+                item.Phase is not ("completed" or "rolled-back")).ToArray();
+        ExiTransactionText.Text = visibleExi.Length == 0
+            ? "Aucune création de successeur EXI pour ce projet."
+            : string.Join("\n", visibleExi.Take(25).Select(item =>
+                item.TransactionId.ToString("D") + " · " + item.Phase +
+                " · " + item.TargetReference + " · " +
+                item.TargetRelativePath));
+        ExiRecoveryButton.IsEnabled = !readOnly && exiPending.Length > 0;
+        ExiRollbackCombo.ItemsSource = exiCompleted.Select(item =>
+            new ProjectHandoverExecutionChoice(item.TransactionId,
+                item.TargetReference + " · " +
+                item.CreatedUtc.ToLocalTime().ToString("dd/MM HH:mm")))
+            .ToArray();
+        if (exiCompleted.Length > 0)
+        {
+            ExiRollbackCombo.SelectedIndex = 0;
+        }
+
+        ExiRollbackCombo.IsEnabled = !readOnly &&
+            exiPending.Length == 0 && exiCompleted.Length > 0;
+        ExiRollbackButton.IsEnabled = ExiRollbackCombo.IsEnabled;
+        if (readOnly)
+        {
+            ExiRecoveryButton.Visibility = Visibility.Collapsed;
+            ExiRollbackButton.Visibility = Visibility.Collapsed;
         }
 
         ProjectHandoverIntent[] executable = history.Where(intent =>
@@ -184,8 +225,14 @@ public partial class ProjectHandoverIntentDialog : Window
     /// <summary>Request returned only after validating all explicit inputs.</summary>
     public ProjectHandoverRequest? ApprovedRequest { get; private set; }
 
-    /// <summary>Selected EXI intention requiring a read-only dry-run.</summary>
+    /// <summary>Selected EXI intention requiring an independent dry-run.</summary>
     public Guid? RequestedRequirementIntentId { get; private set; }
+
+    /// <summary>True only after the user clicked EXI recovery.</summary>
+    public bool RequestedExiRecovery { get; private set; }
+
+    /// <summary>Completed EXI successor chosen for explicit withdrawal.</summary>
+    public Guid? RequestedExiRollbackId { get; private set; }
 
     /// <summary>Selected human intention for a separately approved task mutation.</summary>
     public Guid? RequestedExecutionIntentId { get; private set; }
@@ -240,6 +287,28 @@ public partial class ProjectHandoverIntentDialog : Window
             ProjectHandoverExecutionChoice choice)
         {
             RequestedRequirementIntentId = choice.Id;
+            DialogResult = true;
+        }
+    }
+
+    /// <summary>Requests an explicitly approved EXI journal recovery.</summary>
+    /// <param name="sender">EXI recovery button.</param>
+    /// <param name="e">Click.</param>
+    private void RecoverExi_Click(object sender, RoutedEventArgs e)
+    {
+        RequestedExiRecovery = true;
+        DialogResult = true;
+    }
+
+    /// <summary>Requests human approval to withdraw a completed EXI B.</summary>
+    /// <param name="sender">EXI rollback button.</param>
+    /// <param name="e">Click.</param>
+    private void RollbackExi_Click(object sender, RoutedEventArgs e)
+    {
+        if (ExiRollbackCombo.SelectedItem is
+            ProjectHandoverExecutionChoice selected)
+        {
+            RequestedExiRollbackId = selected.Id;
             DialogResult = true;
         }
     }
