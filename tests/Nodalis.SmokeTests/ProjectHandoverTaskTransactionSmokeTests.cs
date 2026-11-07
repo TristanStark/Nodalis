@@ -196,11 +196,11 @@ internal static class ProjectHandoverTaskTransactionSmokeTests
             await CreateFixtureAsync(root, "Links");
         try
         {
-            ProjectHandoverIntent intention = await RecordAsync(root,
-                source, target, taskId, ProjectHandoverMethod.MoveOriginal);
             string linkPath = Path.Combine(source, "Compte rendu.md");
             await File.WriteAllTextAsync(linkPath,
                 "# Lien manuel vers " + taskId.ToString("D"));
+            ProjectHandoverIntent intention = await RecordAsync(root,
+                source, target, taskId, ProjectHandoverMethod.MoveOriginal);
             ProjectHandoverTaskExecutionPlan plan =
                 await new ProjectHandoverTaskExecutionPlanner(root)
                     .PrepareAsync(source, intention.Id);
