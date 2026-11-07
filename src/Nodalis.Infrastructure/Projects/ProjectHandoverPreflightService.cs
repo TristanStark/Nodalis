@@ -121,14 +121,19 @@ public sealed class ProjectHandoverPreflightService
     /// <param name="targetProjectDirectory">Explicit recipient project.</param>
     /// <param name="objectId">Selected unresolved canonical item.</param>
     /// <param name="method">Requested non-executing handover strategy.</param>
+    /// <param name="proposedSuccessorId">Previously reviewed B identity when rechecking.</param>
     /// <param name="cancellationToken">Cancellation of the preflight.</param>
     /// <returns>Immutable review with human-readable blockers and warnings.</returns>
     public async Task<ProjectHandoverPreview> PrepareAsync(
         string sourceProjectDirectory, string targetProjectDirectory,
         Guid objectId, ProjectHandoverMethod method,
+        Guid? proposedSuccessorId = null,
         CancellationToken cancellationToken = default)
     {
-        if (objectId == Guid.Empty || !Enum.IsDefined(method))
+        if (objectId == Guid.Empty || !Enum.IsDefined(method) ||
+            (method == ProjectHandoverMethod.MoveOriginal &&
+             proposedSuccessorId.HasValue &&
+             proposedSuccessorId != objectId))
         {
             throw new InvalidDataException(
                 "Objet ou stratégie de passation invalide.");
@@ -177,7 +182,13 @@ public sealed class ProjectHandoverPreflightService
         }
 
         Guid proposed = method == ProjectHandoverMethod.MoveOriginal
-            ? item.Id : Guid.NewGuid();
+            ? item.Id : proposedSuccessorId ?? Guid.NewGuid();
+        if (proposed == Guid.Empty ||
+            (method == ProjectHandoverMethod.LinkedSuccessor &&
+             proposed == item.Id))
+        {
+            blockers.Add("Le successeur doit recevoir un GUID nouveau et non vide.");
+        }
         if (sourceAudit.AllKnownObjectIds.Contains(proposed) &&
             proposed != item.Id ||
             targetAudit.AllKnownObjectIds.Contains(proposed))
