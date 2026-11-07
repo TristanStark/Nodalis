@@ -63,6 +63,21 @@ public sealed partial class ProjectRequirementMoveTransactionService
                 journal.TargetReference, journal.SourceRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(source, parked);
+            try
+            {
+                await VerifyHashAsync(parked, journal.OriginalSha256,
+                    CancellationToken.None);
+            }
+            catch
+            {
+                if (!Path.Exists(source))
+                {
+                    File.Move(parked, source);
+                }
+
+                throw;
+            }
+
             _checkpoint?.Invoke("source-parked");
             hasSource = false;
             hasParked = true;
@@ -180,6 +195,21 @@ public sealed partial class ProjectRequirementMoveTransactionService
                 journal.TargetReference, journal.TargetRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(target, withdrawn);
+            try
+            {
+                await VerifyHashAsync(withdrawn, journal.DestinationSha256,
+                    CancellationToken.None);
+            }
+            catch
+            {
+                if (!Path.Exists(target))
+                {
+                    File.Move(withdrawn, target);
+                }
+
+                throw;
+            }
+
             _checkpoint?.Invoke("target-withdrawn");
         }
 
