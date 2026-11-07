@@ -108,6 +108,8 @@ public sealed class ProjectClosureAdditionalInventoryService
         ProjectGateIncidentCatalog incidents =
             await new ProjectGateIncidentCatalogService(_root)
                 .ListAsync(directory, cancellationToken);
+        revisions.Append("INC|")
+            .AppendLine(incidents.SourceSha256 ?? "(absent)");
         if (incidents.ExcludedCount > 0)
         {
             diagnostics.Add("Maintenance : " + incidents.ExcludedCount +
@@ -178,13 +180,26 @@ public sealed class ProjectClosureAdditionalInventoryService
                     pending.Push(entry);
                 }
                 else if (entry.EndsWith(".md",
-                    StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(Path.GetFullPath(entry),
-                        Path.Combine(directory, "Management",
-                            "Bilan de clôture.md"),
-                        StringComparison.OrdinalIgnoreCase))
+                    StringComparison.OrdinalIgnoreCase))
                 {
-                    markdownFiles.Add(entry);
+                    string localPath = Path.GetRelativePath(directory, entry)
+                        .Replace(Path.DirectorySeparatorChar, '/');
+                    // Opaque REC/MEP ledgers are already parsed and hashed by
+                    // their canonical services; never scan their embedded JSON
+                    // as user checkboxes or reject valid 16 MiB REC files.
+                    bool separatelyIndexed =
+                        localPath.StartsWith("Tests/Campagnes/",
+                            StringComparison.OrdinalIgnoreCase) ||
+                        localPath.StartsWith("Exploitation/Déploiement/Opérations/",
+                            StringComparison.OrdinalIgnoreCase) ||
+                        localPath.StartsWith("Exploitation/Déploiement/Suivi/",
+                            StringComparison.OrdinalIgnoreCase);
+                    if (!separatelyIndexed &&
+                        !string.Equals(localPath, "Management/Bilan de clôture.md",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        markdownFiles.Add(entry);
+                    }
                 }
 
                 if (markdownFiles.Count > MaxMarkdownFiles)
@@ -205,7 +220,11 @@ public sealed class ProjectClosureAdditionalInventoryService
             string relative = _sources.GetReferenceForExistingFile(path);
             string verified = _sources.ResolveExistingFile(relative);
             FileInfo source = new(verified);
-            if (source.Length > MaxSingleFileBytes ||
+            long singleLimit = string.Equals(
+                Path.GetRelativePath(directory, verified),
+                "Fiche de Maintenance.md", StringComparison.OrdinalIgnoreCase)
+                ? 25 * 1024 * 1024 : MaxSingleFileBytes;
+            if (source.Length > singleLimit ||
                 inspectedBytes + source.Length > MaxTotalBytes)
             {
                 throw new InvalidDataException(
@@ -216,8 +235,19 @@ public sealed class ProjectClosureAdditionalInventoryService
             byte[] bytes = await File.ReadAllBytesAsync(verified,
                 cancellationToken);
             inspectedBytes += bytes.Length;
+            string documentHash = Convert.ToHexString(SHA256.HashData(bytes));
+            if (string.Equals(Path.GetRelativePath(directory, verified),
+                    "Fiche de Maintenance.md", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(documentHash, incidents.SourceSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Fiche de maintenance modifiée pendant l'inventaire " +
+                    "des incidents : relancez le pré-audit.");
+            }
+
             revisions.Append("DOC|").Append(relative).Append('|')
-                .AppendLine(Convert.ToHexString(SHA256.HashData(bytes)));
+                .AppendLine(documentHash);
             string text = new UTF8Encoding(false, true).GetString(bytes);
             TaskPersistentIdentityScan scan =
                 TaskPersistentIdentityCodec.Inspect(text.Split('\n'));
