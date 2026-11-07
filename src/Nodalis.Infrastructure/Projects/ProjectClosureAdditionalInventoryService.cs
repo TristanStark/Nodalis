@@ -128,16 +128,13 @@ public sealed class ProjectClosureAdditionalInventoryService
             // free-text Status sounds resolved.
             string summary = entry.Summary.Length <= 240
                 ? entry.Summary : entry.Summary[..240];
-            items.Add(new ProjectClosureAuditItem(
-                "Incidents à vérifier", identity, entry.Id, summary,
-                ("statut déclaré : " +
+            string detail = "statut déclaré : " +
                 (string.IsNullOrWhiteSpace(entry.Status)
                     ? "non renseigné" : entry.Status) +
-                " · clôture non déduite")[..Math.Min(1000,
-                    ("statut déclaré : " +
-                    (string.IsNullOrWhiteSpace(entry.Status)
-                        ? "non renseigné" : entry.Status) +
-                    " · clôture non déduite").Length)],
+                " · clôture non déduite";
+            items.Add(new ProjectClosureAuditItem(
+                "Incidents à vérifier", identity, entry.Id, summary,
+                detail.Length <= 1000 ? detail : detail[..1000],
                 entry.RelativePath));
         }
 
