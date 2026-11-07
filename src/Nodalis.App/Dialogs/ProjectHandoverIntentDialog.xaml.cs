@@ -37,11 +37,13 @@ public partial class ProjectHandoverIntentDialog : Window
     /// <param name="audit">Selected project's fresh read-only audit.</param>
     /// <param name="targets">Existing navigation project candidates.</param>
     /// <param name="snapshot">Canonical intention history.</param>
+    /// <param name="transactions">Durable execution and recovery journals.</param>
     /// <param name="readOnly">Archived or read-only workspace flag.</param>
     public ProjectHandoverIntentDialog(
         ProjectClosureAuditSnapshot? audit,
         IReadOnlyList<ProjectHandoverTargetChoice> targets,
-        ProjectHandoverIntentSnapshot snapshot, bool readOnly)
+        ProjectHandoverIntentSnapshot snapshot,
+        IReadOnlyList<ProjectHandoverTaskJournal> transactions, bool readOnly)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ProjectHandoverIntentCodec.Validate(snapshot.Ledger);
@@ -88,6 +90,58 @@ public partial class ProjectHandoverIntentDialog : Window
             : "Choisissez l'objet source, le destinataire et A ou B. " +
               "Une prévisualisation vérifiera les collisions et les " +
               "changements d'état avant d'autoriser l'enregistrement.";
+        ProjectHandoverIntent[] executable = history.Where(intent =>
+            intent.SourceObjectKind == "Tâches ouvertes" &&
+            intent.SourceRelativePath.EndsWith("/Tâches.md",
+                StringComparison.OrdinalIgnoreCase) &&
+            !transactions.Any(transaction =>
+                transaction.IntentId == intent.Id)).ToArray();
+        ProjectHandoverExecutionChoice[] executionChoices = executable
+            .Select(intent => new ProjectHandoverExecutionChoice(
+                intent.Id, intent.SourceReference + " · " + intent.Method +
+                " · " + intent.TargetProjectRelativePath)).ToArray();
+        ExecutionCombo.ItemsSource = executionChoices;
+        if (executionChoices.Length > 0)
+        {
+            ExecutionCombo.SelectedIndex = 0;
+        }
+
+        ProjectHandoverTaskJournal[] pending = transactions.Where(item =>
+            item.Phase is not ("completed" or "rolled-back")).ToArray();
+        ProjectHandoverTaskJournal[] completed = transactions.Where(item =>
+            item.SourceProjectId == snapshot.Ledger.ProjectId &&
+            item.Phase == "completed").ToArray();
+        TransactionText.Text = transactions.Count == 0
+            ? "Aucune exécution transactionnelle dans ce workspace."
+            : string.Join("\n", transactions.Take(30).Select(item =>
+                item.TransactionId.ToString("D") + " · " + item.Method +
+                " · " + item.Phase + " · " +
+                item.SourceProjectRelativePath + " vers " +
+                item.TargetProjectRelativePath));
+        RollbackCombo.ItemsSource = completed.Select(item =>
+            new ProjectHandoverExecutionChoice(item.TransactionId,
+                item.TaskId.ToString("D") + " · " + item.Method +
+                " · " + item.CreatedUtc.ToLocalTime().ToString("dd/MM HH:mm")))
+            .ToArray();
+        if (completed.Length > 0)
+        {
+            RollbackCombo.SelectedIndex = 0;
+        }
+
+        ExecutionCombo.IsEnabled = !readOnly && pending.Length == 0;
+        ExecuteButton.IsEnabled = !readOnly && pending.Length == 0 &&
+            executionChoices.Length > 0;
+        RecoveryButton.IsEnabled = !readOnly && pending.Length > 0;
+        RollbackCombo.IsEnabled = !readOnly && pending.Length == 0 &&
+            completed.Length > 0;
+        RollbackButton.IsEnabled = RollbackCombo.IsEnabled;
+        if (readOnly)
+        {
+            ExecuteButton.Visibility = Visibility.Collapsed;
+            RecoveryButton.Visibility = Visibility.Collapsed;
+            RollbackButton.Visibility = Visibility.Collapsed;
+        }
+
         bool allowEdit = !readOnly && items.Length > 0 && targets.Count > 0;
         ItemCombo.IsEnabled = allowEdit;
         TargetCombo.IsEnabled = allowEdit;
@@ -105,6 +159,15 @@ public partial class ProjectHandoverIntentDialog : Window
 
     /// <summary>Request returned only after validating all explicit inputs.</summary>
     public ProjectHandoverRequest? ApprovedRequest { get; private set; }
+
+    /// <summary>Selected human intention for a separately approved task mutation.</summary>
+    public Guid? RequestedExecutionIntentId { get; private set; }
+
+    /// <summary>True only after the user clicked the explicit recovery action.</summary>
+    public bool RequestedRecovery { get; private set; }
+
+    /// <summary>Selected already-completed transaction for explicit rollback.</summary>
+    public Guid? RequestedRollbackTransactionId { get; private set; }
 
     /// <summary>Validates selections before the external read-only preflight.</summary>
     /// <param name="sender">Prepare button.</param>
@@ -140,6 +203,46 @@ public partial class ProjectHandoverIntentDialog : Window
             item.Id, target.Directory, method.Method, actor, rationale);
         DialogResult = true;
     }
+
+    /// <summary>Requests an independently preflighted physical task transfer.</summary>
+    /// <param name="sender">Execution button.</param>
+    /// <param name="e">Click.</param>
+    private void Execute_Click(object sender, RoutedEventArgs e)
+    {
+        if (ExecutionCombo.SelectedItem is
+            ProjectHandoverExecutionChoice choice)
+        {
+            RequestedExecutionIntentId = choice.Id;
+            DialogResult = true;
+        }
+    }
+
+    /// <summary>Requests explicit recovery of pending durable journals.</summary>
+    /// <param name="sender">Recovery button.</param>
+    /// <param name="e">Click.</param>
+    private void Recovery_Click(object sender, RoutedEventArgs e)
+    {
+        RequestedRecovery = true;
+        DialogResult = true;
+    }
+
+    /// <summary>Requests a separately approved two-document rollback.</summary>
+    /// <param name="sender">Rollback button.</param>
+    /// <param name="e">Click.</param>
+    private void Rollback_Click(object sender, RoutedEventArgs e)
+    {
+        if (RollbackCombo.SelectedItem is
+            ProjectHandoverExecutionChoice choice)
+        {
+            RequestedRollbackTransactionId = choice.Id;
+            DialogResult = true;
+        }
+    }
+
+    /// <summary>A verified plan or completed transaction selection.</summary>
+    /// <param name="Id">Stable intention or transaction GUID.</param>
+    /// <param name="Label">Localized display.</param>
+    private sealed record ProjectHandoverExecutionChoice(Guid Id, string Label);
 
     /// <summary>Localized choice of a non-executing handover strategy.</summary>
     /// <param name="Method">Persisted strategy.</param>
