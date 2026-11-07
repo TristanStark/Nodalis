@@ -32,6 +32,12 @@ public sealed record ProjectClosureAuditSnapshot(
     /// </summary>
     public string SourceFingerprint { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Identities present even in settled or completed canonical objects.
+    /// This set is read-only preflight evidence, not transfer permission.
+    /// </summary>
+    public IReadOnlyList<Guid> AllKnownObjectIds { get; init; } = [];
+
     /// <summary>Formats a bounded, truthful pre-archive confirmation preview.</summary>
     /// <param name="maximumItems">Maximum number of individual objects displayed.</param>
     /// <returns>Preview including omissions and limits, not a closure decision.</returns>
@@ -240,7 +246,12 @@ public static class ProjectClosureAuditProjection
                 .ThenBy(item => item.Reference, StringComparer.Ordinal)
                 .ToArray(), diagnostics.ToArray())
         {
-            SourceFingerprint = fingerprint
+            SourceFingerprint = fingerprint,
+            AllKnownObjectIds = risks.Risks.Select(entry => entry.Card.Id)
+                .Concat(requirements.Requirements.Select(entry => entry.Card.Id))
+                .Concat(deployments.Operations.Select(entry => entry.Operation.Id))
+                .Concat(reservations.Ledger.Items.Select(entry => entry.Id))
+                .Distinct().OrderBy(id => id).ToArray()
         };
     }
 }
@@ -313,7 +324,10 @@ public sealed class ProjectClosureAuditService
                 .ThenBy(item => item.Reference, StringComparer.Ordinal)
                 .ToArray(), diagnostics.ToArray())
         {
-            SourceFingerprint = fingerprint
+            SourceFingerprint = fingerprint,
+            AllKnownObjectIds = baseline.AllKnownObjectIds
+                .Concat(extended.AllKnownObjectIds)
+                .Distinct().OrderBy(id => id).ToArray()
         };
     }
 }
