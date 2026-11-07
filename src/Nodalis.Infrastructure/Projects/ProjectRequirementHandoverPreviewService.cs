@@ -259,7 +259,7 @@ public sealed class ProjectRequirementHandoverPreviewService
                 proposed = ProjectRequirementHandoverCodec.Prepare(
                     markdown, original.Card, basic.TargetProjectId,
                     next, intent.ProposedTargetObjectId, intent.Id,
-                    intent.Method);
+                    intent.Method, intent.RecordedUtc);
             }
             catch (InvalidDataException exception)
             {
