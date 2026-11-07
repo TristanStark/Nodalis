@@ -29,7 +29,7 @@ internal static class ProjectRequirementHandoverRelationReviewSmokeTests
         Guid testBlockId = Guid.NewGuid();
         Guid passageId = Guid.NewGuid();
         Guid resultId = Guid.NewGuid();
-        string incidentId = "INC-" + Guid.NewGuid().ToString("D");
+        string incidentId = "INC-" + Guid.NewGuid().ToString("N");
         DateTimeOffset utc = DateTimeOffset.UtcNow.AddDays(-1);
 
         ProjectRequirementCard card = new()
