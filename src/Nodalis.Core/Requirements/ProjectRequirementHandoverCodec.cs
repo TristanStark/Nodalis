@@ -1,4 +1,6 @@
+using Nodalis.Core.Markdown;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Tasks;
 
 namespace Nodalis.Core.Requirements;
 
@@ -54,12 +56,24 @@ public static class ProjectRequirementHandoverCodec
 
         ProjectRequirementCriterionScan criteria =
             ProjectRequirementCriterionCodec.Inspect(originalMarkdown);
+        MarkdownBlockIdentityScan blocks =
+            MarkdownBlockIdentityCodec.Inspect(originalMarkdown);
+        TaskPersistentIdentityScan tasks =
+            TaskPersistentIdentityCodec.Inspect(
+                originalMarkdown.Replace("\r\n", "\n",
+                    StringComparison.Ordinal).Split('\n'));
         if (method == ProjectHandoverMethod.LinkedSuccessor &&
-            (criteria.Criteria.Count > 0 || criteria.Diagnostics.Count > 0))
+            (criteria.Criteria.Count > 0 || criteria.Diagnostics.Count > 0 ||
+             blocks.Blocks.Any(block => block.Id.HasValue) ||
+             tasks.Entries.Count > 0 || tasks.Issues.Count > 0 ||
+             HasAcceptanceContent(originalMarkdown) ||
+             originalMarkdown.Contains("[[", StringComparison.Ordinal) ||
+             originalMarkdown.Contains("](", StringComparison.Ordinal)))
         {
             throw new InvalidDataException(
-                "Succession EXI avec critères d'acceptation : " +
-                "clonage des identifiants CA interdit avant requalification.");
+                "Succession EXI avec critères, blocs identifiés, tâches " +
+                "ou liens Markdown : requalification explicite requise " +
+                "avant de cloner leur contenu.");
         }
 
         if (originalMarkdown.StartsWith('\uFEFF') ||
@@ -149,6 +163,38 @@ public static class ProjectRequirementHandoverCodec
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Detects any human-authored text or heading beneath acceptance criteria,
+    /// including free-form text with no canonical CA identity. The default
+    /// generated empty section is the only safe B clone.
+    /// </summary>
+    /// <param name="markdown">Original requirement source.</param>
+    /// <returns>True if acceptance content must be requalified.</returns>
+    private static bool HasAcceptanceContent(string markdown)
+    {
+        string[] lines = markdown.Replace("\r\n", "\n",
+            StringComparison.Ordinal).Split('\n');
+        bool inside = false;
+        foreach (string line in lines)
+        {
+            if (line.StartsWith("## ", StringComparison.Ordinal))
+            {
+                inside = string.Equals(
+                    line.Replace('’', '\''),
+                    "## Critères d'acceptation",
+                    StringComparison.OrdinalIgnoreCase);
+                continue;
+            }
+
+            if (inside && !string.IsNullOrWhiteSpace(line))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Replaces exactly one front-matter key without editing the body.</summary>
