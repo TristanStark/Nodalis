@@ -36,6 +36,13 @@ public sealed record ProjectRequirementHandoverPreview
     public IReadOnlyList<ProjectRequirementCriterion> CriteriaForReview
     { get; init; } = [];
 
+    /// <summary>
+    /// Deterministically derived B criterion lineage, requiring explicit
+    /// human acknowledgement before successor creation.
+    /// </summary>
+    public IReadOnlyList<ProjectRequirementCriterionSuccession>
+        ProposedCriterionSuccession { get; init; } = [];
+
     /// <summary>Reasons preventing preparation of an unambiguous card.</summary>
     public IReadOnlyList<string> Blockers { get; init; } = [];
 
@@ -71,7 +78,20 @@ public sealed record ProjectRequirementHandoverPreview
             text.AppendLine("Vigilance : " + warning);
         }
 
-        if (CriteriaForReview.Count > 0)
+        if (ProposedCriterionSuccession.Count > 0)
+        {
+            text.AppendLine().Append("CA nouveaux, sans preuve copiée : ")
+                .AppendLine(ProposedCriterionSuccession.Count.ToString());
+            foreach (ProjectRequirementCriterionSuccession item in
+                ProposedCriterionSuccession.Take(25))
+            {
+                text.Append(item.Reference).Append(" · ").Append(item.Title)
+                    .Append(" · origine ").Append(item.OriginalId.ToString("D"))
+                    .Append(" → nouveau ").AppendLine(
+                        item.SuccessorId.ToString("D"));
+            }
+        }
+        else if (CriteriaForReview.Count > 0)
         {
             text.AppendLine().Append("CA à requalifier explicitement pour A : ")
                 .AppendLine(CriteriaForReview.Count.ToString());
@@ -94,7 +114,8 @@ public sealed record ProjectRequirementHandoverPreview
             ? "Cet aperçu ne modifie aucun document. Si le plan est sans " +
               "blocage, une confirmation séparée permet de créer le " +
               "successeur EXI B avec journal, reprise et rollback. " +
-              "Les critères CA et liens non requalifiés restent bloquants."
+              "La duplication de critères CA impose une revue spécifique ; " +
+              "le successeur repart sans résultats ni preuves hérités."
             : "Cet aperçu ne déplace aucun document. Un mode A simple " +
               "peut être exécuté avec une deuxième confirmation distincte " +
               "seulement si un contrôle exhaustif, borné et explicite des " +
@@ -263,8 +284,10 @@ public sealed class ProjectRequirementHandoverPreviewService
         {
             if (intent.Method == ProjectHandoverMethod.LinkedSuccessor)
             {
-                blockers.Add("Successeur B d'une EXI avec critères " +
-                    "d'acceptation : nouveaux identifiants CA à concevoir.");
+                warnings.Add("Succession B avec CA : de nouveaux GUID sont " +
+                    "générés à partir de l'intention ; seuls les titres et " +
+                    "références CA sont repris. Les preuves, résultats et " +
+                    "textes métier doivent être requalifiés.");
             }
             else
             {
@@ -287,14 +310,29 @@ public sealed class ProjectRequirementHandoverPreviewService
               "Les références ambiguës bloquent le déplacement.");
 
         string? proposed = null;
+        IReadOnlyList<ProjectRequirementCriterionSuccession> succession = [];
         if (blockers.Count == 0 && next is not null)
         {
             try
             {
-                proposed = ProjectRequirementHandoverCodec.Prepare(
-                    markdown, original.Card, basic.TargetProjectId,
-                    next, intent.ProposedTargetObjectId, intent.Id,
-                    intent.Method, intent.RecordedUtc);
+                if (intent.Method == ProjectHandoverMethod.LinkedSuccessor &&
+                    original.Criteria.Count > 0)
+                {
+                    ProjectRequirementCriterionSuccessorDraft draft =
+                        ProjectRequirementCriterionSuccessorCodec.Prepare(
+                            markdown, original.Card, basic.TargetProjectId,
+                            next, intent.ProposedTargetObjectId,
+                            intent.Id, intent.RecordedUtc);
+                    proposed = draft.Markdown;
+                    succession = draft.Criteria;
+                }
+                else
+                {
+                    proposed = ProjectRequirementHandoverCodec.Prepare(
+                        markdown, original.Card, basic.TargetProjectId,
+                        next, intent.ProposedTargetObjectId, intent.Id,
+                        intent.Method, intent.RecordedUtc);
+                }
             }
             catch (InvalidDataException exception)
             {
@@ -312,6 +350,7 @@ public sealed class ProjectRequirementHandoverPreviewService
             SourceSha256 = sha,
             ProposedMarkdown = proposed,
             CriteriaForReview = original.Criteria.ToArray(),
+            ProposedCriterionSuccession = succession,
             Blockers = blockers,
             Warnings = warnings
         };
