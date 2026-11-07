@@ -217,13 +217,33 @@ public partial class MainWindow
                 return;
             }
 
+            IReadOnlyList<Guid> reviewedSourceCriteria = [];
+            string successorRationale = string.Empty;
+            if (requirementPlan.ProposedCriterionSuccession.Count > 0)
+            {
+                ProjectRequirementCriteriaReviewDialog review = new(
+                    requirementPlan.ProposedCriterionSuccession)
+                {
+                    Owner = this
+                };
+                if (review.ShowDialog() != true)
+                {
+                    return;
+                }
+
+                reviewedSourceCriteria = review.ApprovedCriteriaIds;
+                successorRationale = review.Rationale;
+            }
+
             string details = requirementPlan.FormatReview() + "\n\n" +
                 "EXÉCUTION RÉELLE DU MODE B : créer la fiche " +
                 requirementPlan.ProposedReference + " avec son nouveau GUID " +
                 requirementPlan.ProposedId.ToString("D") + ".\n" +
-                "L'exigence source restera intacte. Un journal et un " +
-                "snapshot permettront la reprise et le retrait explicites.\n\n" +
-                "Créer maintenant ce successeur ?";
+                "L'exigence source restera intacte. Pour les CA, seuls " +
+                "les références et intitulés seront repris avec de NOUVEAUX " +
+                "GUID : AUCUN résultat, preuve ou verdict n'est copié. " +
+                "Un journal permettra la reprise et le retrait explicites.\n\n" +
+                "Créer maintenant ce successeur non vérifié ?";
             if (MessageBox.Show(this, details,
                 "Confirmer la création réelle du successeur EXI B",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
@@ -233,7 +253,9 @@ public partial class MainWindow
             }
 
             ProjectRequirementSuccessorJournal created = await Task.Run(() =>
-                exiTransactions.ExecuteAsync(requirementPlan, approved: true));
+                exiTransactions.ExecuteAsync(requirementPlan, approved: true,
+                    approvedCriteriaIds: reviewedSourceCriteria,
+                    criteriaReviewRationale: successorRationale));
             string targetProject = Path.GetFullPath(Path.Combine(
                 _root.FullPath, created.TargetRelativePath[
                     ..created.TargetRelativePath.IndexOf(
