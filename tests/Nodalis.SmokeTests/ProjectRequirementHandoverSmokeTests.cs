@@ -180,6 +180,44 @@ internal static class ProjectRequirementHandoverSmokeTests
                    entry.Card.Id,
             "Windows-generated canonical EXI cards must retain CRLF in previews.");
 
+        string emptyCriteriaHeading = "## Critères d'acceptation";
+        string freeForm = original.Replace(
+            emptyCriteriaHeading,
+            emptyCriteriaHeading + "\nUne règle sans identifiant CA",
+            StringComparison.Ordinal);
+        bool refusedFreeForm = false;
+        try
+        {
+            ProjectRequirementHandoverCodec.Prepare(
+                freeForm, entry.Card, recipient.Id, "EXI-0003",
+                Guid.NewGuid(), Guid.NewGuid(),
+                ProjectHandoverMethod.LinkedSuccessor);
+        }
+        catch (InvalidDataException)
+        {
+            refusedFreeForm = true;
+        }
+
+        Assert(refusedFreeForm,
+            "EXI B must refuse free-form acceptance text even without CA-xx.");
+
+        string embeddedTask = original + "\n- [ ] Tâche externe\n";
+        bool refusedTaskClone = false;
+        try
+        {
+            ProjectRequirementHandoverCodec.Prepare(
+                embeddedTask, entry.Card, recipient.Id, "EXI-0003",
+                Guid.NewGuid(), Guid.NewGuid(),
+                ProjectHandoverMethod.LinkedSuccessor);
+        }
+        catch (InvalidDataException)
+        {
+            refusedTaskClone = true;
+        }
+
+        Assert(refusedTaskClone,
+            "EXI B may not clone embedded task identities or checkboxes.");
+
         // Pure codec: even an explicitly approved/verified old requirement
         // may only produce a fresh B draft. The historical source is unchanged.
         ProjectRequirementCard approved = entry.Card with
