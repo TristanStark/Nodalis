@@ -116,6 +116,7 @@ try
     ProjectRequirementCriterionSmokeTests.Run();
     ProjectRequirementTraceabilitySmokeTests.Run();
     ProjectRequirementCampaignTraceabilitySmokeTests.Run();
+    ProjectRequirementHandoverRelationReviewSmokeTests.Run();
     ProjectCriterionRetestPlannerSmokeTests.Run();
     ProjectCriterionRetestProgressSmokeTests.Run();
     ProjectTestDefinitionSmokeTests.Run();
