@@ -228,11 +228,13 @@ public sealed class ProjectClosureReportService
         }
 
         string[] parts = relative.Split(Path.DirectorySeparatorChar);
-        if (parts.Length < 3 ||
-            !(string.Equals(parts[0], WorkspaceLayout.ApplicationsDirectoryName,
-                StringComparison.OrdinalIgnoreCase) ||
-              string.Equals(parts[0], WorkspaceLayout.ArchivesDirectoryName,
-                StringComparison.OrdinalIgnoreCase)))
+        bool activeProjectPath = parts.Length >= 4 &&
+            string.Equals(parts[0], WorkspaceLayout.ApplicationsDirectoryName,
+                StringComparison.OrdinalIgnoreCase);
+        bool archivedProjectPath = parts.Length >= 2 &&
+            string.Equals(parts[0], WorkspaceLayout.ArchivesDirectoryName,
+                StringComparison.OrdinalIgnoreCase);
+        if (!activeProjectPath && !archivedProjectPath)
         {
             throw new InvalidDataException("Projet de clôture non canonique.");
         }
