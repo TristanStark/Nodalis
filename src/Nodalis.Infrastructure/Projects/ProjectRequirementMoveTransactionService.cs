@@ -56,6 +56,12 @@ public sealed record ProjectRequirementMoveJournal
     public IReadOnlyList<ProjectRequirementReviewedCriterion> ReviewedCriteria
         { get; init; } = [];
 
+    /// <summary>Written reason for retaining the approved CA identities.</summary>
+    public string CriteriaReviewRationale { get; init; } = string.Empty;
+
+    /// <summary>Exact time of explicit human CA acknowledgement.</summary>
+    public DateTimeOffset? CriteriaReviewedUtc { get; init; }
+
     /// <summary>Prepared, completed, rollback-prepared or rolled-back.</summary>
     public required string Phase { get; init; }
 
@@ -133,11 +139,13 @@ public sealed partial class ProjectRequirementMoveTransactionService
     /// <param name="approved">Separate human execution approval.</param>
     /// <param name="token">Cancellation before committing a journal.</param>
     /// <param name="reviewedCriteriaIds">Explicitly acknowledged CA GUIDs.</param>
+    /// <param name="criteriaReviewRationale">Required written review reason for CA moves.</param>
     /// <returns>Committed or recoverable transaction identity.</returns>
     public async Task<ProjectRequirementMoveJournal> ExecuteAsync(
         ProjectRequirementHandoverPreview reviewed, bool approved,
         CancellationToken token = default,
-        IReadOnlyList<Guid>? reviewedCriteriaIds = null)
+        IReadOnlyList<Guid>? reviewedCriteriaIds = null,
+        string? criteriaReviewRationale = null)
     {
         ArgumentNullException.ThrowIfNull(reviewed);
         if (!approved || !reviewed.CanPrepare ||
@@ -158,7 +166,10 @@ public sealed partial class ProjectRequirementMoveTransactionService
             .OrderBy(item => item).ToArray();
         if (criteria.Any(item => item.Id == Guid.Empty) ||
             approvedCriteria.Length != approvedCriteria.Distinct().Count() ||
-            !approvedCriteria.OrderBy(item => item).SequenceEqual(expected))
+            !approvedCriteria.OrderBy(item => item).SequenceEqual(expected) ||
+            criteria.Length > 0 &&
+            (string.IsNullOrWhiteSpace(criteriaReviewRationale) ||
+             criteriaReviewRationale.Trim().Length > 2000))
         {
             throw new InvalidOperationException(
                 "Chaque critère CA doit être vérifié et approuvé " +
@@ -249,6 +260,10 @@ public sealed partial class ProjectRequirementMoveTransactionService
             OriginalSha256 = originalHash,
             DestinationSha256 = Hash(fresh.ProposedMarkdown!),
             ReviewedCriteria = criteria,
+            CriteriaReviewRationale = criteria.Length == 0 ? string.Empty :
+                criteriaReviewRationale!.Trim(),
+            CriteriaReviewedUtc = criteria.Length == 0 ? null :
+                DateTimeOffset.UtcNow,
             Phase = "prepared"
         };
         await AtomicJsonFile.WriteAsync(
