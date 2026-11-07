@@ -153,11 +153,38 @@ public partial class MainWindow
             ProjectRequirementHandoverPreview requirementPlan =
                 await Task.Run(() => requirementPreviews.PrepareAsync(
                     sourcePath, requirementIntentId));
+            // Refresh the shared index only on an explicit EXI passation
+            // request. All source, REC and relation reads run off Dispatcher;
+            // this is a review, not an authorization to change any links.
+            ProjectRequirementRelationReview relationReview =
+                await Task.Run(async () =>
+                {
+                    ProjectRequirementCatalog requirements =
+                        await new ProjectRequirementRegistryService(
+                            _root.FullPath).ListAsync(sourcePath);
+                    Nodalis.Core.Links.LinkIndexCatalog index =
+                        await _linkIndexService.RefreshAsync();
+                    ProjectTestCampaignCatalog campaigns =
+                        await new ProjectTestCampaignService(_root.FullPath)
+                            .ListAsync(sourcePath);
+                    return ProjectRequirementHandoverRelationReview.Build(
+                        requirementPlan, requirements, index, campaigns);
+                });
+            ProjectRequirementHandoverRelationsDialog linkDialog = new(
+                relationReview)
+            {
+                Owner = this
+            };
+            if (linkDialog.ShowDialog() != true)
+            {
+                return;
+            }
+
             if (!requirementPlan.CanPrepare)
             {
                 MessageBox.Show(this, requirementPlan.FormatReview(),
-                    "Passation EXI bloquée", MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                    "Passation EXI bloquée · relations à requalifier",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
