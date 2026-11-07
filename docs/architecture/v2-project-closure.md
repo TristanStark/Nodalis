@@ -321,3 +321,59 @@ jalons et campagnes ; détection/traitement approfondi des liens
 métier et des références visibles, journal d'exécution consultable
 dans la navigation, qualification visuelle et tests de grande
 volumétrie. Il n'y a toujours ni merge `main`, ni tag ni release v2.0.
+
+
+## Sixième incrément — préparation des passations EXI (07/11/2026)
+
+La fenêtre **Projet > Préparer une passation…** propose désormais
+**Prévisualiser une passation EXI…** pour les intentions d'exigences
+déjà validées humainement. Contrairement à l'exécuteur transactionnel
+de tâches, **aucun déplacement ou successeur EXI n'est encore écrit**
+à cette étape.
+
+`ProjectRequirementHandoverPreviewService` vérifie sur demande :
+
+- Le propriétaire et le projet destinataire actifs (manifestes
+  distincts, chemins du workspace et sans liens symboliques).
+- L'intention A/B append-only, son GUID exact et ses empreintes
+  `SourceFingerprint` / `TargetFingerprint` ; toute évolution d'une
+  source ou d'un destinataire invalide la préparation historique.
+- La source Markdown EXI versionnée, le même SHA-256 que la lecture
+  canonique, le même GUID, le même propriétaire et le même code
+  `EXI-xxxx`. Les registres présentant des sources ambiguës bloquent
+  une préparation fiable.
+- La prochaine référence `EXI-xxxx` libre et non encore réservée
+  chez le destinataire ; aucun dossier ou fichier de destination
+  n'est créé.
+
+`ProjectRequirementHandoverCodec` construit un candidat **en mémoire**
+en préservant les descriptions et sections Markdown métier :
+
+- **A** : le GUID de la fiche EXI et ses statuts explicites sont
+  conservés ; le propriétaire `project-id` et la référence lisible
+  deviennent ceux de la future destination. Les liens et anciens
+  codes doivent être requalifiés avant tout véritable déplacement.
+- **B** : un nouveau GUID approuvé est utilisé, la référence du
+  destinataire est différente et l'historique métier de l'original
+  reste en place ; les nouveaux états repartent explicitement de
+  `Draft / NotStarted / NotVerified`, jamais d'une approbation
+  ou d'un verdict de tests copiés.
+- Toute EXI contenant déjà des **critères d'acceptation CA** est
+  refusée pour une succession B tant que le renouvellement de leurs
+  identités, liens et preuves n'est pas conçu et validé. A signale
+  les critères comme liens à vérifier.
+
+La provenance source, référence historique, GUID et intention
+est inscrite **dans le candidat uniquement**, non dans une fiche
+persistée. Les tests `ProjectRequirementHandoverSmokeTests` contrôlent
+le nouveau GUID, la prochaine référence disponible, la préservation
+octet des sources, le refus d'un préflight périmé, le refus de B avec
+CA et la non-reprise d'approbations / verdicts passés.
+
+**Étape restante :** exécuteur EXI spécifique avec une
+contrepartie/source de provenance, journal durable des renommages,
+gestion des références EXI textuelles et des backlinks, snapshots,
+reprise et rollback comme pour les tâches ; une nouvelle confirmation
+humaine sera requise avant toute écriture. La qualification WPF est à
+faire sur workspace de démonstration. Aucun merge `main`, tag ou
+release v2.0.
