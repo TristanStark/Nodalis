@@ -352,7 +352,7 @@
                     <MenuItem Header="Go / No-Go…" Click="PilotageGates_Click" />
                     <MenuItem Header="Mises en production…" Click="PilotageDeployments_Click" ToolTip="Préparer et suivre les opérations MEP sans exécution automatique" />
                     <MenuItem Header="Bilan de clôture…" Click="PilotageClosureReview_Click" ToolTip="Consulter et consigner une revue humaine, sans archiver automatiquement" />
-                    <MenuItem Header="Préparer une passation…" Click="PilotageHandoverIntent_Click" ToolTip="Prévisualiser les stratégies A/B, valider les identités et consigner une intention sans transfert automatique" />
+                    <MenuItem Header="Préparer une passation…" Click="PilotageHandoverIntent_Click" ToolTip="Préparer une intention A/B, exécuter des transferts de tâches simples, récupérer ou restaurer une opération" />
                     <Separator />
                     <MenuItem Header="Tâches" Click="ShowAllTasks_Click" />
                     <MenuItem Header="Jalons" Click="ShowMilestones_Click" />
