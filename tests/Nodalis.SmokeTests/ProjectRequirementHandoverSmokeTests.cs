@@ -112,6 +112,20 @@ internal static class ProjectRequirementHandoverSmokeTests
         Assert(rejectedStale,
             "An approved EXI intent must reject a later source change.");
         await File.WriteAllTextAsync(sourceFile, original);
+        await registry.CreateAsync(target, "Nouvelle exigence destinataire");
+        bool rejectedChangedTarget = false;
+        try
+        {
+            await previews.PrepareAsync(
+                source, recordedA.Ledger.Intents[0].Id);
+        }
+        catch (InvalidDataException)
+        {
+            rejectedChangedTarget = true;
+        }
+
+        Assert(rejectedChangedTarget,
+            "An EXI intent must reject a destination that reserved a new code.");
 
         // A different recipient is required: the earlier B intention for
         // the first recipient is immutable and must never be duplicated.
