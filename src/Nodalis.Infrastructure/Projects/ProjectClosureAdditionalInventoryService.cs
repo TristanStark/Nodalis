@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
-using Nodalis.Core.Milestones;
 using System.Text.RegularExpressions;
+using Nodalis.Core.Milestones;
 using Nodalis.Core.Tasks;
 using Nodalis.Core.Tests;
 using Nodalis.Infrastructure.Milestones;
@@ -304,13 +304,14 @@ public sealed class ProjectClosureAdditionalInventoryService
                 continue;
             }
 
+            string detail = "statut déclaré : " +
+                (string.IsNullOrWhiteSpace(status) ? "inconnu" : status);
             items.Add(new ProjectClosureAuditItem(
                 "Jalons à suivre", milestone.Id,
                 "JALON-" + milestone.Id.ToString("D"),
                 milestone.Name.Length <= 240
                     ? milestone.Name : milestone.Name[..240],
-                "statut déclaré : " +
-                (string.IsNullOrWhiteSpace(status) ? "inconnu" : status),
+                detail.Length <= 1000 ? detail : detail[..1000],
                 milestone.SourceRelativePath));
         }
 
