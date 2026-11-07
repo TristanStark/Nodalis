@@ -463,3 +463,97 @@ critères CA et des liens entre objets, recherche des références
 humaines plus sophistiquée, UX de navigation et qualification
 visuelle sur workspace de démonstration. La publication `main`,
 le tag et la release v2.0 ne sont pas déclenchés.
+
+
+## Huitième incrément — déplacement EXI A avec GUID stable (07/11/2026)
+
+Le mode **A** n'est plus seulement une intention : depuis
+**Projet > Préparer une passation… > Prévisualiser une passation EXI…**,
+une EXI *simple et sans relations détectées* peut être déplacée
+réellement vers un autre projet actif après un second accord humain.
+La même fenêtre expose les transactions A interrompues, leur reprise
+explicite et le rollback de celles terminées. Aucun nouveau sous-menu
+`2.0` n'a été ajouté.
+
+### Propriété et périmètre des fiches
+
+`ProjectRequirementHandoverCodec` conserve le **GUID historique**
+pour A, sa date de création et ses états explicitement validés, tout
+en inscrivant le `project-id` cible et la nouvelle référence
+`EXI-xxxx` calculée dans son registre. Un court marqueur de provenance
+dans le document destinataire relie l'intention A à l'identité et à la
+référence de l'origine. L'ancienne fiche source est déplacée telle
+quelle dans le journal ; elle n'est ni réécrite, ni effacée.
+
+**A et B refusent** dans ce premier périmètre les documents contenant
+des critères d'acceptation (y compris texte libre), des blocs
+identifiés, des tâches/checkboxes, des liens Markdown ou d'autres
+relations qui nécessitent une requalification humaine préalable.
+
+### Contrôle des références
+
+`ProjectRequirementMoveReferenceGuard` est lancé uniquement à
+l'exécution/reprise/restauration demandée par une personne, pas au
+scroll du Worktree. Il inspecte de façon **bornée** les sources
+Markdown et JSON sous `Applications` pour trouver :
+
+- le GUID original (`D` et `N`) dans d'autres documents ;
+- la référence `EXI-xxxx` d'origine ;
+- la future référence `EXI-xxxx` du destinataire avant toute
+  publication, et cette dernière avant toute restauration.
+
+Les simples déclarations de référence dans la fiche *indépendante*
+`Exigences/EXI-xxxx.md` d'un autre projet ne sont pas traitées comme
+des liens, mais sa prose reste inspectée. Les registres d'intentions
+`Passations.md` et bilans historiques sont exclus. Toute autre
+mention, un lien symbolique, un fichier non lisible ou un dépassement
+de limites empêche une mutation automatique. Les formats autres que
+Markdown/JSON n'étant pas analysés par cette première version,
+leur présence éventuelle n'est **pas** une preuve d'absence de liens :
+une requalification reste nécessaire en cas de relations hors périmètre.
+
+### Transaction A et reprises
+
+`ProjectRequirementMoveTransactionService` conserve sous
+`Imports/.exi-move-transactions/<UUID>/` :
+
+- `journal.json`, incluant intention, projets source/cible, GUID,
+  références et SHA-256 des deux versions et phase ;
+- `original.md`, snapshot octet exact de la fiche source ;
+- `destination.md`, snapshot complet de la nouvelle fiche ;
+- `parked-original.md`, fichier source original **déplacé** hors
+  du projet avant toute publication chez le destinataire ;
+- `withdrawn-destination.md`, exemplaire exact de la version publiée
+  conservé pendant une restauration.
+
+Le journal et les deux snapshots sont persistés **avant toute
+mutation métier**. L'ordre d'exécution est strict :
+
+1. Préflight de l'intention, des deux propriétaires et de la prochaine
+   référence disponible ; audit à la demande des références ;
+2. déplacement de l'original dans son journal (GUID actif absent
+   momentanément, jamais dupliqué entre les deux projets) ;
+3. création **CreateNew** de la fiche destinataire (jamais d'écrasement),
+   vérification de sa SHA et du GUID ;
+4. phase `completed` enregistrée durablement.
+
+Une panne après n'importe quel checkpoint laisse une phase
+`prepared` inspectable. La reprise approuvée humainement reconnaît
+la présence du fichier déplacé ou de la cible créée par leurs SHA.
+Une nouvelle occupation de référence, une édition externe ou un
+fichier source inattendu bloque la reprise au lieu de forcer l'écriture.
+
+Le rollback, lui aussi humain, vérifie le SHA de la cible et les
+backlinks ; puis déplace **d'abord** la cible dans le journal,
+et **ensuite** restaure les octets originaux dans le projet initial.
+La phase `rollback-prepared` rend les deux checkpoints récupérables,
+et la version destinataire reste consultable dans le journal.
+
+**Limites explicites :** pas de réécriture automatique de liens
+entrants, pas de déplacement avec critères CA, pas de garantie
+d'atomicité multi-fichier ni de blocage des éditeurs externes ; seuls
+les fichiers Markdown/JSON inspectés dans le périmètre du workspace
+établissent le résultat des scans. Les échecs sont conservateurs.
+Le code et les smoke tests doivent passer les deux workflows Windows,
+et une qualification visuelle reste obligatoire avant un merge vers
+`main`, un tag ou une release v2.0.
