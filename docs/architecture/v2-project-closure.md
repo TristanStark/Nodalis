@@ -146,8 +146,14 @@ Le **pré-audit de clôture** et le **bilan versionné** consultent désormais
 L'exploration ne traverse **aucun sous-projet portant son propre
 `.project.json`** ni aucun lien symbolique. Elle reste sur le projet
 demandé, sans actualisation de l'index global du Worktree, avec une
-limite de 2 000 fichiers Markdown, 2 Mio par fichier et 96 Mio par
-inspection. Une limite dépassée **interrompt explicitement la revue** :
+limite de 2 000 fichiers Markdown, 2 Mio par fichier
+(25 Mio pour la fiche de maintenance) et 96 Mio par inspection.
+Les registres structurés `Tests/Campagnes`,
+`Exploitation/Déploiement/Opérations` et
+`Exploitation/Déploiement/Suivi` sont hachés par leurs lecteurs
+canoniques sans être reparcourus comme de simples tâches ; le bilan
+de clôture lui-même est exclu du recalcul pour ne pas modifier sa
+propre empreinte. Une limite dépassée **interrompt explicitement la revue** :
 elle ne produit jamais un bilan prétendant qu'il n'y a plus d'actions
 à reprendre.
 
@@ -164,4 +170,7 @@ liens, décisions GO et preuves nécessitent toujours revue humaine.
 Aucun objet n'est transféré automatiquement à ce stade.
 `ProjectClosureAdditionalSmokeTests` couvre l'isolation des
 sous-projets, les identités de tâches, les jalons, les INC, les REC,
-les sources inchangées et la détection d'un audit devenu obsolète.
+les sources inchangées et la détection d'un audit devenu obsolète. Le lecteur INC restitue
+également le SHA-256 des octets exacts qu'il a analysés ; si la fiche
+de maintenance change avant le relevé local de tâches, le pré-audit
+s'interrompt au lieu de mélanger deux états de la source.
