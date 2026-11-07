@@ -40,14 +40,20 @@ public partial class MainWindow
             new ProjectClosureAuditService(_root.FullPath);
         ProjectHandoverIntentService intentions =
             new ProjectHandoverIntentService(_root.FullPath);
-        (ProjectClosureAuditSnapshot? Audit, ProjectHandoverIntentSnapshot History)
+        ProjectHandoverTaskTransactionService transactions =
+            new ProjectHandoverTaskTransactionService(_root.FullPath);
+        (ProjectClosureAuditSnapshot? Audit,
+            ProjectHandoverIntentSnapshot History,
+            IReadOnlyList<ProjectHandoverTaskJournal> Transactions)
             loaded = await Task.Run(async () =>
             {
                 ProjectHandoverIntentSnapshot history =
                     await intentions.ReadAsync(sourcePath);
                 ProjectClosureAuditSnapshot? audit = readOnly
                     ? null : await audits.ReadAsync(sourcePath);
-                return (audit, history);
+                IReadOnlyList<ProjectHandoverTaskJournal> transactionHistory =
+                    await transactions.ListHistoryAsync();
+                return (audit, history, transactionHistory);
             });
         NavigationNodeViewModel? selected = PilotageProject();
         if (selected is null || selected.Id != sourceId ||
@@ -69,10 +75,10 @@ public partial class MainWindow
             .OrderBy(node => node.Label, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
         ProjectHandoverIntentDialog dialog = new(
-            loaded.Audit, targets, loaded.History, readOnly)
+            loaded.Audit, targets, loaded.History,
+            loaded.Transactions, readOnly)
         { Owner = this };
-        if (dialog.ShowDialog() != true ||
-            dialog.ApprovedRequest is not ProjectHandoverRequest choice)
+        if (dialog.ShowDialog() != true)
         {
             return;
         }
@@ -85,6 +91,31 @@ public partial class MainWindow
         {
             StatusText.Text =
                 "Projet source déplacé ou en lecture seule : préparation annulée.";
+            return;
+        }
+
+        if (dialog.RequestedRecovery)
+        {
+            await RecoverProjectHandoverTasksAsync(transactions, sourcePath);
+            return;
+        }
+
+        if (dialog.RequestedRollbackTransactionId is Guid transactionId)
+        {
+            await RollbackProjectHandoverTaskAsync(
+                transactions, loaded.Transactions, transactionId, sourcePath);
+            return;
+        }
+
+        if (dialog.RequestedExecutionIntentId is Guid intentId)
+        {
+            await ExecuteProjectHandoverTaskAsync(
+                transactions, sourcePath, intentId);
+            return;
+        }
+
+        if (dialog.ApprovedRequest is not ProjectHandoverRequest choice)
+        {
             return;
         }
 
@@ -128,5 +159,132 @@ public partial class MainWindow
         StatusText.Text = "Passation préparée · intention n°" +
             recorded.Ledger.Intents.Count +
             " conservée, aucun objet ni lien déplacé.";
+    }
+
+    /// <summary>Publishes an approved standalone task after a separate confirmation.</summary>
+    /// <param name="transactions">Workspace transaction engine.</param>
+    /// <param name="sourcePath">Original project root.</param>
+    /// <param name="intentId">Selected pending human intention.</param>
+    /// <returns>Completed or recoverable task publication.</returns>
+    private async Task ExecuteProjectHandoverTaskAsync(
+        ProjectHandoverTaskTransactionService transactions,
+        string sourcePath, Guid intentId)
+    {
+        ProjectHandoverTaskExecutionPlanner planner =
+            new ProjectHandoverTaskExecutionPlanner(_root.FullPath);
+        ProjectHandoverTaskExecutionPlan plan = await Task.Run(() =>
+            planner.PrepareAsync(sourcePath, intentId));
+        if (!plan.CanExecute)
+        {
+            MessageBox.Show(this,
+                "Passation non exécutable : " +
+                string.Join("\n", plan.Warnings.Take(8)),
+                "Liens ou sources à revoir", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        string details = "Transfert RÉEL de " +
+            plan.Intent.SourceReference + "\n" +
+            "Mode : " + plan.Intent.Method + "\n" +
+            "Source : " + plan.SourceDocumentRelativePath + "\n" +
+            "Destination : " + plan.TargetDocumentRelativePath + "\n\n" +
+            "Sauvegarde et journal de reprise conservés. " +
+            "Deux fichiers Tâches.md seront réellement modifiés.\n\n" +
+            string.Join("\n", plan.Warnings.Take(5)) + "\n\n" +
+            "Confirmez-vous la publication de cette passation ?";
+        if (MessageBox.Show(this, details, "Exécuter la passation de tâche",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectHandoverTaskJournal journal = await Task.Run(() =>
+            transactions.ExecuteAsync(plan, approved: true));
+        await RefreshNavigationAsync(sourcePath);
+        StatusText.Text = "Passation exécutée · transaction " +
+            journal.TransactionId.ToString("D") +
+            " · snapshots conservés, restauration explicite disponible.";
+    }
+
+    /// <summary>Offers human-controlled recovery after interrupted publication.</summary>
+    /// <param name="transactions">Durable journal owner.</param>
+    /// <param name="sourcePath">Current Worktree project for refresh.</param>
+    /// <returns>Explicit recovery result.</returns>
+    private async Task RecoverProjectHandoverTasksAsync(
+        ProjectHandoverTaskTransactionService transactions,
+        string sourcePath)
+    {
+        IReadOnlyList<ProjectHandoverTaskJournal> pending = await Task.Run(() =>
+            transactions.ListPendingAsync());
+        if (pending.Count == 0)
+        {
+            StatusText.Text = "Aucune passation interrompue à reprendre.";
+            return;
+        }
+
+        string details = pending.Count +
+            " transaction(s) interrompue(s) dans le workspace.\n\n" +
+            string.Join("\n", pending.Take(8).Select(item =>
+                item.TransactionId.ToString("D") + " · " + item.Method +
+                " · " + item.Phase + " · " +
+                item.SourceProjectRelativePath + " vers " +
+                item.TargetProjectRelativePath)) +
+            "\n\nLa reprise compare chaque fichier et sa sauvegarde. " +
+            "Toute modification inconnue bloque l'écriture. Reprendre ?";
+        if (MessageBox.Show(this, details,
+            "Confirmer la reprise des passations",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        int restored = await Task.Run(() =>
+            transactions.RecoverPendingAsync(approved: true));
+        await RefreshNavigationAsync(sourcePath);
+        StatusText.Text = restored + " transaction(s) récupérée(s).";
+    }
+
+    /// <summary>Restores a completed task passation without silently discarding edits.</summary>
+    /// <param name="transactions">Durable journal owner.</param>
+    /// <param name="history">Frozen transaction selection from the dialog.</param>
+    /// <param name="transactionId">Human-selected completed operation.</param>
+    /// <param name="sourcePath">Original project for navigation refresh.</param>
+    /// <returns>Explicitly approved two-file restoration.</returns>
+    private async Task RollbackProjectHandoverTaskAsync(
+        ProjectHandoverTaskTransactionService transactions,
+        IReadOnlyList<ProjectHandoverTaskJournal> history,
+        Guid transactionId, string sourcePath)
+    {
+        ProjectHandoverTaskJournal? selected = history.SingleOrDefault(item =>
+            item.TransactionId == transactionId && item.Phase == "completed");
+        if (selected is null)
+        {
+            throw new InvalidDataException(
+                "Transaction non terminée ou différente de la sélection.");
+        }
+
+        string details = "Restaurer deux documents Tâches.md depuis leurs " +
+            "sauvegardes d'avant transfert ?\n\n" +
+            "Transaction : " + transactionId.ToString("D") + "\n" +
+            "Source : " + selected.SourceDocumentRelativePath + "\n" +
+            "Cible : " + selected.TargetDocumentRelativePath + "\n\n" +
+            "Toute édition intervenue depuis la passation entraînera un refus, " +
+            "sans écrasement. Cette action est journalisée.";
+        if (MessageBox.Show(this, details,
+            "Confirmer la restauration de passation",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectHandoverTaskJournal restored = await Task.Run(() =>
+            transactions.RollbackAsync(transactionId, approved: true));
+        await RefreshNavigationAsync(sourcePath);
+        StatusText.Text = "Transaction " + restored.TransactionId.ToString("D") +
+            " · deux documents restaurés depuis les snapshots.";
     }
 }
