@@ -59,9 +59,42 @@
                          AcceptsReturn="True" Padding="10"
                          VerticalScrollBarVisibility="Auto"
                          HorizontalScrollBarVisibility="Disabled" />
+                <TextBlock Text="Exécution réelle · tâches simples uniquement"
+                           FontWeight="SemiBold" Margin="0,16,0,5" />
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="La publication exige une intention enregistrée et deux fichiers Tâches.md existants. Un nouveau contrôle des liens et une confirmation séparée sont obligatoires." />
+                <ComboBox x:Name="ExecutionCombo"
+                          DisplayMemberPath="Label" Margin="0,7,0,6"
+                          Padding="8,6"
+                          AutomationProperties.Name="Intention de tâche à exécuter" />
+                <Button x:Name="ExecuteButton"
+                        Content="Contrôler puis exécuter une tâche…"
+                        HorizontalAlignment="Left" Padding="12,7"
+                        Click="Execute_Click" />
+                <TextBlock Text="Reprise et restauration des transactions"
+                           FontWeight="SemiBold" Margin="0,16,0,5" />
+                <TextBox x:Name="TransactionText" MinHeight="80" Height="105"
+                         IsReadOnly="True" TextWrapping="Wrap"
+                         AcceptsReturn="True" Padding="10"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled" />
+                <Button x:Name="RecoveryButton"
+                        Content="Reprendre les transactions interrompues…"
+                        HorizontalAlignment="Left" Padding="12,7"
+                        Margin="0,7,0,7"
+                        Click="Recovery_Click" />
+                <ComboBox x:Name="RollbackCombo"
+                          DisplayMemberPath="Label" Margin="0,4,0,6"
+                          Padding="8,6"
+                          AutomationProperties.Name="Transaction à restaurer" />
+                <Button x:Name="RollbackButton"
+                        Content="Restaurer les deux documents…"
+                        HorizontalAlignment="Left" Padding="12,7"
+                        Click="Rollback_Click" />
                 <TextBlock Margin="0,12,0,0" TextWrapping="Wrap"
                            Foreground="{StaticResource SecondaryTextBrush}"
-                           Text="Le préflight contrôle les GUID, les sources et la cible au moment de l'enregistrement. Le déplacement A et la création du successeur B nécessiteront une opération transactionnelle ultérieure." />
+                           Text="Aucune passation n'est faite lors de la préparation d'une intention. L'exécution séparée conserve quatre snapshots, refuse les références non vérifiées et journalise chaque étape. Les autres objets métier restent exclus de ce premier exécuteur." />
             </StackPanel>
         </ScrollViewer>
     </DockPanel>
