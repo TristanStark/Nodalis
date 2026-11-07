@@ -351,6 +351,7 @@
                     <MenuItem Header="Risques…" Click="PilotageRisks_Click" />
                     <MenuItem Header="Go / No-Go…" Click="PilotageGates_Click" />
                     <MenuItem Header="Mises en production…" Click="PilotageDeployments_Click" ToolTip="Préparer et suivre les opérations MEP sans exécution automatique" />
+                    <MenuItem Header="Bilan de clôture…" Click="PilotageClosureReview_Click" ToolTip="Consulter et consigner une revue humaine, sans archiver automatiquement" />
                     <Separator />
                     <MenuItem Header="Tâches" Click="ShowAllTasks_Click" />
                     <MenuItem Header="Jalons" Click="ShowMilestones_Click" />
