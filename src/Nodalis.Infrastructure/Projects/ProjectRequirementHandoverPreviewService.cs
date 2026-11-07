@@ -34,7 +34,7 @@ public sealed record ProjectRequirementHandoverPreview
 
     /// <summary>SHA-bound acceptance criteria requiring explicit A review.</summary>
     public IReadOnlyList<ProjectRequirementCriterion> CriteriaForReview
-        { get; init; } = [];
+    { get; init; } = [];
 
     /// <summary>Reasons preventing preparation of an unambiguous card.</summary>
     public IReadOnlyList<string> Blockers { get; init; } = [];

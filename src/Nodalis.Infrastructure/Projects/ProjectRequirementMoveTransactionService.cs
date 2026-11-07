@@ -54,7 +54,7 @@ public sealed record ProjectRequirementMoveJournal
 
     /// <summary>Individually reviewed, SHA-pinned CA IDs retained by A.</summary>
     public IReadOnlyList<ProjectRequirementReviewedCriterion> ReviewedCriteria
-        { get; init; } = [];
+    { get; init; } = [];
 
     /// <summary>Written reason for retaining the approved CA identities.</summary>
     public string CriteriaReviewRationale { get; init; } = string.Empty;
