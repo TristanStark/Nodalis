@@ -178,6 +178,8 @@ public sealed partial class ProjectRequirementMoveTransactionService
 
         await _guard.AssertNoIncomingAsync(fresh.ProposedId,
             fresh.Intent.SourceReference, fresh.SourceRelativePath, token);
+        await _guard.AssertNoIncomingAsync(fresh.ProposedId,
+            fresh.ProposedReference!, fresh.SourceRelativePath, token);
         (string original, string originalHash) =
             await ProjectHandoverTaskExecutionPlanner
                 .ReadExactTaskDocumentAsync(source, token);
