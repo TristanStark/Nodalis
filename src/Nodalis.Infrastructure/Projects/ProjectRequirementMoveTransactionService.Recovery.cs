@@ -313,8 +313,9 @@ public sealed partial class ProjectRequirementMoveTransactionService
         Plain(directory);
         ProjectRequirementMoveJournal saved =
             await ReadJournalAsync(directory, token);
-        if (saved with { ReviewedCriteria = [] } !=
-                journal with { ReviewedCriteria = [] } ||
+        IReadOnlyList<ProjectRequirementReviewedCriterion> empty = [];
+        if (saved with { ReviewedCriteria = empty } !=
+                journal with { ReviewedCriteria = empty } ||
             !saved.ReviewedCriteria.SequenceEqual(journal.ReviewedCriteria))
         {
             throw new InvalidDataException(
