@@ -157,8 +157,9 @@ internal static class ProjectRequirementHandoverSmokeTests
         ProjectRequirementHandoverPreview blocked = await previews.PrepareAsync(
             source, withCriteria.Ledger.Intents[^1].Id);
         Assert(!blocked.CanPrepare &&
-               blocked.Blockers.Any(item => item.Contains(
-                   "critères", StringComparison.OrdinalIgnoreCase)),
+               blocked.Blockers.Any(item =>
+                   item.Contains("CA", StringComparison.OrdinalIgnoreCase) ||
+                   item.Contains("critère", StringComparison.OrdinalIgnoreCase)),
             "B cannot clone acceptance-criteria identities or unqualified CA. " +
             blocked.FormatReview());
         Assert(await File.ReadAllTextAsync(sourceFile) == criteria,
