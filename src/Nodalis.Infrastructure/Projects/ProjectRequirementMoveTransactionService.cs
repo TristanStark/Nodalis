@@ -7,6 +7,15 @@ using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.Projects;
 
+/// <summary>
+/// Explicitly human-reviewed acceptance criterion carried by an EXI A
+/// transaction. Reference is local; GUID remains the durable identity.
+/// </summary>
+/// <param name="Reference">Original CA-xx reference kept in the moved card.</param>
+/// <param name="Id">Original stable Markdown block GUID.</param>
+public sealed record ProjectRequirementReviewedCriterion(
+    string Reference, Guid Id);
+
 /// <summary>Durable A move of exactly one standalone EXI and its original GUID.</summary>
 public sealed record ProjectRequirementMoveJournal
 {
@@ -42,6 +51,10 @@ public sealed record ProjectRequirementMoveJournal
 
     /// <summary>Exact proposed recipient source SHA.</summary>
     public required string DestinationSha256 { get; init; }
+
+    /// <summary>Individually reviewed, SHA-pinned CA IDs retained by A.</summary>
+    public IReadOnlyList<ProjectRequirementReviewedCriterion> ReviewedCriteria
+        { get; init; } = [];
 
     /// <summary>Prepared, completed, rollback-prepared or rolled-back.</summary>
     public required string Phase { get; init; }
@@ -119,10 +132,12 @@ public sealed partial class ProjectRequirementMoveTransactionService
     /// <param name="reviewed">Displayed, unblocked preflight.</param>
     /// <param name="approved">Separate human execution approval.</param>
     /// <param name="token">Cancellation before committing a journal.</param>
+    /// <param name="reviewedCriteriaIds">Explicitly acknowledged CA GUIDs.</param>
     /// <returns>Committed or recoverable transaction identity.</returns>
     public async Task<ProjectRequirementMoveJournal> ExecuteAsync(
         ProjectRequirementHandoverPreview reviewed, bool approved,
-        CancellationToken token = default)
+        CancellationToken token = default,
+        IReadOnlyList<Guid>? reviewedCriteriaIds = null)
     {
         ArgumentNullException.ThrowIfNull(reviewed);
         if (!approved || !reviewed.CanPrepare ||
@@ -132,6 +147,22 @@ public sealed partial class ProjectRequirementMoveTransactionService
             throw new InvalidOperationException(
                 "Exécution A exigeant une intention et une confirmation " +
                 "humaine distinctes, avec conservation du GUID.");
+        }
+
+        ProjectRequirementReviewedCriterion[] criteria = reviewed
+            .CriteriaForReview.Select(item => new
+                ProjectRequirementReviewedCriterion(
+                    item.Reference, item.Id ?? Guid.Empty)).ToArray();
+        Guid[] approvedCriteria = reviewedCriteriaIds?.ToArray() ?? [];
+        Guid[] expected = criteria.Select(item => item.Id)
+            .OrderBy(item => item).ToArray();
+        if (criteria.Any(item => item.Id == Guid.Empty) ||
+            approvedCriteria.Length != approvedCriteria.Distinct().Count() ||
+            !approvedCriteria.OrderBy(item => item).SequenceEqual(expected))
+        {
+            throw new InvalidOperationException(
+                "Chaque critère CA doit être vérifié et approuvé " +
+                "explicitement avant un déplacement EXI A.");
         }
 
         await using FileStream locked = await AcquireLockAsync(token);
@@ -162,7 +193,11 @@ public sealed partial class ProjectRequirementMoveTransactionService
             fresh.ProposedReference != reviewed.ProposedReference ||
             fresh.ProposedId != reviewed.ProposedId ||
             fresh.SourceSha256 != reviewed.SourceSha256 ||
-            fresh.ProposedMarkdown != reviewed.ProposedMarkdown)
+            fresh.ProposedMarkdown != reviewed.ProposedMarkdown ||
+            !fresh.CriteriaForReview.Select(item =>
+                new ProjectRequirementReviewedCriterion(
+                    item.Reference, item.Id ?? Guid.Empty))
+                .SequenceEqual(criteria))
         {
             throw new InvalidDataException(
                 "Source, référence ou fiche EXI A modifiée : nouvelle revue.");
@@ -180,6 +215,9 @@ public sealed partial class ProjectRequirementMoveTransactionService
             fresh.Intent.SourceReference, fresh.SourceRelativePath, token);
         await _guard.AssertNoIncomingAsync(fresh.ProposedId,
             fresh.ProposedReference!, fresh.SourceRelativePath, token);
+        await new ProjectRequirementMoveCriteriaGuard(_root)
+            .AssertNoIncomingAsync(criteria, fresh.SourceRelativePath,
+                fresh.ProposedTargetRelativePath!, token);
         (string original, string originalHash) =
             await ProjectHandoverTaskExecutionPlanner
                 .ReadExactTaskDocumentAsync(source, token);
@@ -210,6 +248,7 @@ public sealed partial class ProjectRequirementMoveTransactionService
             TargetReference = fresh.ProposedReference!,
             OriginalSha256 = originalHash,
             DestinationSha256 = Hash(fresh.ProposedMarkdown!),
+            ReviewedCriteria = criteria,
             Phase = "prepared"
         };
         await AtomicJsonFile.WriteAsync(
