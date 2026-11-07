@@ -379,3 +379,87 @@ reprise et rollback comme pour les tâches ; une nouvelle confirmation
 humaine sera requise avant toute écriture. La qualification WPF est à
 faire sur workspace de démonstration. Aucun merge `main`, tag ou
 release v2.0.
+
+
+## Septième incrément — succession EXI B exécutable et réversible (07/11/2026)
+
+La première mutation **réelle** de fiche EXI est désormais possible :
+**Projet > Préparer une passation… > Prévisualiser une passation EXI…**.
+L'intention doit avoir été consignée séparément. Une dernière fenêtre
+affiche le GUID, la référence destinataire, la provenance, les blocages,
+et demande une **seconde confirmation humaine** avant de créer
+la fiche `Documentation/Exigences/EXI-xxxx.md` dans le destinataire.
+
+### Périmètre exact
+
+- **B — successeur lié : actif uniquement pour une EXI simple**, sans
+  critères d'acceptation, texte libre dans les critères, blocs avec
+  GUID, checkbox/tâche, ou liens Markdown nécessitant requalification.
+  Le nouveau GUID est celui de l'intention immuable, et sa date de
+  création est déterministe (date de l'intention). La nouvelle EXI
+  repart de `Draft / NotStarted / NotVerified`. La provenance est
+  inscrite dans sa fiche. L'EXI source reste byte-exacte et son
+  historique d'intentions reste dans `Management/Passations.md`.
+- **A — transfert de l'original : encore aperçu uniquement.**
+  Déplacer réellement l'original et son GUID exigerait le traitement
+  des backlinks et des références humaines : il n'y a aucun
+  déplacement implicite ou remplacement silencieux.
+- Le nouveau numéro `EXI-xxxx` reste une **proposition** jusqu'à
+  l'exécution. Un second préflight vérifie le projet source, le
+  destinataire, les sources, les empreintes et la référence disponible.
+  La création utilise exclusivement `WriteNewAllTextAsync`
+  (`CreateNew`) : un fichier apparu entre la prévisualisation
+  et la publication ne sera jamais écrasé.
+
+### Journal durable
+
+`ProjectRequirementSuccessorTransactionService` conserve sous
+`Imports/.exi-successor-transactions/<UUID>/` :
+
+- `journal.json` : identité de l'intention, GUIDs source et cible,
+  chemin de la fiche créée, code EXI choisi, SHA-256 source et cible,
+  phase `prepared`, `completed`, `rollback-prepared` ou
+  `rolled-back` ;
+- `successor.md` : copie intégrale figée de la nouvelle fiche,
+  persistée **avant** tout acte de création ;
+- `withdrawn-successor.md` : fiche retirée, conservée **après**
+  restauration, jamais détruite silencieusement.
+
+Un verrou opérationnel workspace sérialise les transactions de
+succession EXI B. Une panne après le `CreateNew` peut laisser
+`prepared` avec un fichier déjà créé : la récupération explicite
+compare son SHA-256 au snapshot et le reconnaît sans le réécrire.
+Si le fichier est absent, la reprise ne le crée que si la source
+originelle et la prochaine référence destinataire correspondent
+encore au plan. Toute divergence ou modification humaine interdit
+l'écriture.
+
+Le rollback est **explicite et limité au successeur**. La fiche
+d'origine est intacte. Le retrait exige le hash exact du successeur,
+puis cherche les liens entrants avant de déplacer le fichier vers
+le journal. `ProjectRequirementSuccessorBacklinkGuard` effectue
+uniquement sur cette demande une recherche bornée : citations
+du GUID dans les Markdown/JSON du workspace actif et citations du
+code `EXI-xxxx` dans le projet destinataire. Un lien, une jonction,
+un scan dépassant les plafonds ou une édition inconnue bloquent
+le retrait. Un rollback interrompu juste après le déplacement est
+reconnu grâce au fichier de conservation et à son hash exact.
+**Aucune intégrité transactionnelle multifiche n'est revendiquée** :
+il n'y a qu'un fichier métier créé ou retiré par cet exécuteur.
+
+### Tests et limites
+
+`ProjectRequirementSuccessorTransactionSmokeTests` vérifie les
+confirmations humaines, la création sans modification source,
+la non-réutilisation d'une intention, le redémarrage après un arrêt
+avant/après `CreateNew`, le rollback interrompu, la restauration
+exacte, l'interdiction d'écraser une édition humaine, et le rejet
+d'une référence réservée par un autre processus. Les régressions
+sur les références GUID et `EXI-xxxx`, critères libres, blocs et
+checkboxes intégrés complètent cette couverture.
+
+**Restes à faire :** transfert physique A, requalification des
+critères CA et des liens entre objets, recherche des références
+humaines plus sophistiquée, UX de navigation et qualification
+visuelle sur workspace de démonstration. La publication `main`,
+le tag et la release v2.0 ne sont pas déclenchés.
