@@ -119,6 +119,57 @@ public sealed class WorkspaceMilestoneService
     }
 
     /// <summary>
+    /// Reads only the selected project's existing canonical milestone source
+    /// without performing the usual edit-time migration or refreshing the
+    /// workspace-wide link index. Used by the closure pre-audit.
+    /// </summary>
+    /// <param name="projectDirectory">Existing project path.</param>
+    /// <param name="cancellationToken">Read cancellation.</param>
+    /// <returns>Milestones with unchanged source lines, never created or edited.</returns>
+    public async Task<IReadOnlyList<MilestoneItem>> ReadProjectForClosureAsync(
+        string projectDirectory, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
+        string directory = Path.GetFullPath(projectDirectory);
+        string manifestPath = Path.Combine(directory,
+            WorkspaceLayout.ProjectManifestFileName);
+        ProjectJourneySourceService sources = new(_workspaceRoot);
+        string verifiedManifest = sources.ResolveExistingFile(
+            sources.GetReferenceForExistingFile(manifestPath));
+        ProjectManifest manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+            verifiedManifest, cancellationToken);
+        if (manifest.Id == Guid.Empty)
+        {
+            throw new InvalidDataException("Projet de jalons sans GUID valide.");
+        }
+
+        SectionManifest? section = manifest.Sections.FirstOrDefault(item =>
+            string.Equals(item.TemplateKey, "milestones",
+                StringComparison.OrdinalIgnoreCase));
+        ProjectSingletonDocumentResolution resolution = section is not null
+            ? ProjectSingletonDocumentLayout.Resolve(directory, section,
+                migrateIfSafe: false)
+            : ProjectSingletonDocumentLayout.Resolve(
+                directory, "Jalons", "milestones", migrateIfSafe: false);
+        if (!File.Exists(resolution.ActivePath))
+        {
+            return [];
+        }
+
+        string source = sources.ResolveExistingFile(
+            sources.GetReferenceForExistingFile(resolution.ActivePath));
+        if (new FileInfo(source).Length > 4 * 1024 * 1024)
+        {
+            throw new InvalidDataException(
+                "Fichier de jalons trop volumineux pour le pré-audit.");
+        }
+
+        string[] lines = await File.ReadAllLinesAsync(source, cancellationToken);
+        return ParseTable(lines, manifest.Id, manifest.Name,
+            sources.GetReferenceForExistingFile(source));
+    }
+
+    /// <summary>
     /// Performs the <c>GetUpcomingAsync</c> operation.
     /// </summary>
     /// <param name="today">The <c>today</c> value.</param>
