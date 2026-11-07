@@ -75,7 +75,7 @@
                 <TextBlock TextWrapping="Wrap"
                            Foreground="{StaticResource SecondaryTextBrush}"
                            Margin="0,5,0,7"
-                           Text="Mode B : après l'aperçu, créer un successeur EXI distinct avec confirmation et journal. Mode A : aperçu uniquement, liens non encore migrés." />
+                           Text="Modes A/B : après l'aperçu, un second accord peut déclencher la transaction. Mode A uniquement pour une EXI sans liens ou critères à requalifier." />
                 <TextBox x:Name="ExiTransactionText" Height="75"
                          IsReadOnly="True" TextWrapping="Wrap"
                          AcceptsReturn="True" Padding="10"
@@ -93,6 +93,25 @@
                         Content="Restaurer une passation EXI B…"
                         HorizontalAlignment="Left" Padding="12,7"
                         Click="RollbackExi_Click" />
+                <TextBlock Text="Déplacement EXI A · conservation du GUID"
+                           FontWeight="SemiBold" Margin="0,16,0,5" />
+                <TextBox x:Name="MoveTransactionText" Height="75"
+                         IsReadOnly="True" TextWrapping="Wrap"
+                         AcceptsReturn="True" Padding="10"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled" />
+                <Button x:Name="MoveRecoveryButton"
+                        Content="Reprendre un déplacement EXI interrompu…"
+                        HorizontalAlignment="Left" Margin="0,6,0,7"
+                        Padding="12,7" Click="RecoverMove_Click" />
+                <ComboBox x:Name="MoveRollbackCombo"
+                          DisplayMemberPath="Label" Margin="0,4,0,6"
+                          Padding="8,6"
+                          AutomationProperties.Name="Déplacement EXI A à restaurer" />
+                <Button x:Name="MoveRollbackButton"
+                        Content="Restaurer l'exigence EXI A d'origine…"
+                        HorizontalAlignment="Left" Padding="12,7"
+                        Click="RollbackMove_Click" />
                 <TextBlock Text="Exécution réelle · tâches simples uniquement"
                            FontWeight="SemiBold" Margin="0,16,0,5" />
                 <TextBlock TextWrapping="Wrap"
