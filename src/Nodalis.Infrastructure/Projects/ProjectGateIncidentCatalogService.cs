@@ -16,6 +16,12 @@ public sealed record ProjectGateIncidentCandidate(
 
     /// <summary>Source navigation hint, not a persistent identity.</summary>
     public string Location => RelativePath + ":" + LineNumber;
+
+    /// <summary>
+    /// Human-entered maintenance status. Never interpreted as a guaranteed
+    /// incident resolution by a read-only closure inventory.
+    /// </summary>
+    public string Status { get; init; } = string.Empty;
 }
 
 /// <summary>Read-only eligible incidents and excluded legacy count.</summary>
@@ -85,7 +91,8 @@ public sealed class ProjectGateIncidentCatalogService
             .Where(item => !item.IsIncomplete && item.Id is not null &&
                 uniqueIds.Contains(item.Id))
             .Select(item => new ProjectGateIncidentCandidate(
-                item.Id!, item.Summary, relative, item.LineNumber))
+                item.Id!, item.Summary, relative, item.LineNumber)
+            { Status = item.Status })
             .OrderBy(item => item.Summary, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase).ToArray();
         return new ProjectGateIncidentCatalog(
