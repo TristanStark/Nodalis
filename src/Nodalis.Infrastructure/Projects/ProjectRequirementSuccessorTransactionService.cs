@@ -286,6 +286,10 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
             // human-edited: a future approval must not hijack their changes.
             string target = ResolveExisting(journal.TargetRelativePath);
             await RequireHashAsync(target, journal.SuccessorSha256, token);
+            (string sourceProject, string targetProject, string targetFile) =
+                await ResolveOwnersAsync(journal, token);
+            await new ProjectRequirementSuccessorBacklinkGuard(_root)
+                .AssertNoLinksAsync(journal, targetProject, token);
             journal = journal with { Phase = "rollback-prepared" };
             await AtomicJsonFile.WriteAsync(
                 Path.Combine(directory, JournalName), journal, token);
