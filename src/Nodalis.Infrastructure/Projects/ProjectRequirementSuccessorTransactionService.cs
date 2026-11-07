@@ -46,6 +46,18 @@ public sealed record ProjectRequirementSuccessorJournal
     /// <summary>SHA-256 of the exact, immutable created successor document.</summary>
     public required string SuccessorSha256 { get; init; }
 
+    /// <summary>
+    /// Human-acknowledged original/new CA GUID mapping; no inherited proof.
+    /// </summary>
+    public IReadOnlyList<ProjectRequirementCriterionSuccession>
+        CriterionSuccession { get; init; } = [];
+
+    /// <summary>Human explanation of the new, unverified CA lineage.</summary>
+    public string CriteriaReviewRationale { get; init; } = string.Empty;
+
+    /// <summary>Recorded human review time for a succession with CA.</summary>
+    public DateTimeOffset? CriteriaReviewedUtc { get; init; }
+
     /// <summary>Prepared, completed, rollback-prepared or rolled-back.</summary>
     public required string Phase { get; init; }
 
@@ -120,10 +132,14 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
     /// <param name="reviewed">Previously presented EXI plan.</param>
     /// <param name="approved">Separate human execution confirmation.</param>
     /// <param name="token">Preparation cancellation.</param>
+    /// <param name="approvedCriteriaIds">Individually reviewed source CA GUIDs.</param>
+    /// <param name="criteriaReviewRationale">Required explanation of B requalification.</param>
     /// <returns>Durable creation journal or explicit recovery on failure.</returns>
     public async Task<ProjectRequirementSuccessorJournal> ExecuteAsync(
         ProjectRequirementHandoverPreview reviewed, bool approved,
-        CancellationToken token = default)
+        CancellationToken token = default,
+        IReadOnlyList<Guid>? approvedCriteriaIds = null,
+        string? criteriaReviewRationale = null)
     {
         ArgumentNullException.ThrowIfNull(reviewed);
         if (!approved || !reviewed.CanPrepare ||
@@ -133,6 +149,22 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
             throw new InvalidOperationException(
                 "Une création EXI B exige une prévisualisation sûre " +
                 "et une validation humaine distincte. Le mode A n'est pas exécutable.");
+        }
+
+        ProjectRequirementCriterionSuccession[] mapping =
+            reviewed.ProposedCriterionSuccession.ToArray();
+        Guid[] reviewedIds = approvedCriteriaIds?.ToArray() ?? [];
+        Guid[] expected = mapping.Select(item => item.OriginalId)
+            .OrderBy(item => item).ToArray();
+        if (reviewedIds.Length != reviewedIds.Distinct().Count() ||
+            !reviewedIds.OrderBy(item => item).SequenceEqual(expected) ||
+            mapping.Length > 0 &&
+            (string.IsNullOrWhiteSpace(criteriaReviewRationale) ||
+             criteriaReviewRationale.Trim().Length > 2000))
+        {
+            throw new InvalidOperationException(
+                "Chaque CA source du successeur B exige une revue humaine " +
+                "individuelle et un motif écrit, sans verdict hérité.");
         }
 
         await using FileStream operationLock = await AcquireLockAsync(token);
@@ -164,7 +196,8 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
             fresh.SourceRelativePath != reviewed.SourceRelativePath ||
             fresh.ProposedTargetRelativePath !=
                 reviewed.ProposedTargetRelativePath ||
-            fresh.ProposedMarkdown != reviewed.ProposedMarkdown)
+            fresh.ProposedMarkdown != reviewed.ProposedMarkdown ||
+            !fresh.ProposedCriterionSuccession.SequenceEqual(mapping))
         {
             throw new InvalidDataException(
                 "Les exigences, la référence libre ou la proposition ont changé : " +
@@ -201,6 +234,11 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
             TargetReference = fresh.ProposedReference!,
             SourceSha256 = fresh.SourceSha256,
             SuccessorSha256 = targetHash,
+            CriterionSuccession = mapping,
+            CriteriaReviewRationale = mapping.Length == 0 ? string.Empty :
+                criteriaReviewRationale!.Trim(),
+            CriteriaReviewedUtc = mapping.Length == 0 ? null :
+                DateTimeOffset.UtcNow,
             Phase = "prepared"
         };
         await AtomicJsonFile.WriteAsync(
@@ -290,6 +328,7 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
                 await ResolveOwnersAsync(journal, token);
             await new ProjectRequirementSuccessorBacklinkGuard(_root)
                 .AssertNoLinksAsync(journal, targetProject, token);
+            await AssertNoCriterionBacklinksAsync(journal, token);
             journal = journal with { Phase = "rollback-prepared" };
             await AtomicJsonFile.WriteAsync(
                 Path.Combine(directory, JournalName), journal, token);
