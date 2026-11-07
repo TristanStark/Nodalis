@@ -34,17 +34,32 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
 
         ProjectRequirementSuccessorJournal stored =
             await ReadJournalAsync(directory, token);
-        if (stored != journal)
+        if (!SameJournal(stored, journal))
         {
-            throw new InvalidDataException("Journal EXI changé pendant la reprise.");
+            throw new InvalidDataException(
+                "Journal ou filiation CA EXI B changé pendant la reprise.");
         }
 
         string staged = ResolveExisting(_sources.GetReferenceForExistingFile(
             Path.Combine(directory, StagedName)));
         await RequireHashAsync(staged, journal.SuccessorSha256, token);
+        string preparedMarkdown = await File.ReadAllTextAsync(staged, token);
         ProjectRequirementCard successor =
-            ProjectRequirementMarkdownCodec.Parse(
-                await File.ReadAllTextAsync(staged, token));
+            ProjectRequirementMarkdownCodec.Parse(preparedMarkdown);
+        ProjectRequirementCriterionScan criterionScan =
+            ProjectRequirementCriterionCodec.Inspect(preparedMarkdown);
+        if (criterionScan.Diagnostics.Count > 0 ||
+            !criterionScan.Criteria.Select(item =>
+                new ProjectRequirementCriterionSuccession(
+                    item.Reference, item.Title, Guid.Empty,
+                    item.Id ?? Guid.Empty))
+                .SequenceEqual(journal.CriterionSuccession.Select(item =>
+                    item with { OriginalId = Guid.Empty })))
+        {
+            throw new InvalidDataException(
+                "Les GUID CA du successeur ne correspondent pas " +
+                "au journal B approuvé.");
+        }
         if (successor.Id != journal.SuccessorRequirementId ||
             successor.ProjectId != journal.TargetProjectId ||
             successor.Reference != journal.TargetReference)
@@ -140,10 +155,10 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
 
         ProjectRequirementSuccessorJournal stored =
             await ReadJournalAsync(directory, token);
-        if (stored != journal)
+        if (!SameJournal(stored, journal))
         {
             throw new InvalidDataException(
-                "Journal EXI modifié pendant la restauration.");
+                "Journal ou filiation CA EXI B modifié pendant le rollback.");
         }
 
         (string source, string target, string destination) =
@@ -169,6 +184,7 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
             await RequireHashAsync(current, journal.SuccessorSha256, token);
             await new ProjectRequirementSuccessorBacklinkGuard(_root)
                 .AssertNoLinksAsync(journal, target, token);
+            await AssertNoCriterionBacklinksAsync(journal, token);
             token.ThrowIfCancellationRequested();
             File.Move(current, withdrawn);
             _checkpoint?.Invoke("target-withdrawn");
@@ -354,6 +370,35 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
                 journal.TargetReference + ".md", StringComparison.Ordinal) ||
             !ValidHash(journal.SourceSha256) ||
             !ValidHash(journal.SuccessorSha256) ||
+            journal.CriterionSuccession is null ||
+            journal.CriterionSuccession.Count > 99 ||
+            journal.CriterionSuccession.Any(item =>
+                item.OriginalId == Guid.Empty ||
+                item.SuccessorId == Guid.Empty ||
+                item.SuccessorId == item.OriginalId ||
+                item.SuccessorId == journal.SourceRequirementId ||
+                item.SuccessorId == journal.SuccessorRequirementId ||
+                string.IsNullOrWhiteSpace(item.Title) ||
+                !ProjectRequirementCriterionCodec.IsReference(
+                    item.Reference) ||
+                item.SuccessorId !=
+                    ProjectRequirementCriterionSuccessorCodec.DeriveId(
+                        journal.IntentId, item.OriginalId)) ||
+            journal.CriterionSuccession.Select(item => item.OriginalId)
+                .Distinct().Count() != journal.CriterionSuccession.Count ||
+            journal.CriterionSuccession.Select(item => item.SuccessorId)
+                .Distinct().Count() != journal.CriterionSuccession.Count ||
+            journal.CriterionSuccession.Select(item => item.Reference)
+                .Distinct(StringComparer.Ordinal).Count() !=
+                    journal.CriterionSuccession.Count ||
+            journal.CriteriaReviewRationale is null ||
+            journal.CriteriaReviewRationale.Length > 2000 ||
+            (journal.CriterionSuccession.Count > 0 &&
+             (string.IsNullOrWhiteSpace(journal.CriteriaReviewRationale) ||
+              journal.CriteriaReviewedUtc is null)) ||
+            (journal.CriterionSuccession.Count == 0 &&
+             (journal.CriteriaReviewRationale.Length > 0 ||
+              journal.CriteriaReviewedUtc is not null)) ||
             journal.Phase is not
                 ("prepared" or "completed" or
                  "rollback-prepared" or "rolled-back"))
@@ -361,6 +406,49 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
             throw new InvalidDataException(
                 "Journal de succession EXI invalide.");
         }
+    }
+
+    /// <summary>
+    /// Journal values must match, not the deserialized list reference.
+    /// </summary>
+    /// <param name="stored">Reloaded snapshot.</param>
+    /// <param name="expected">Approved in-memory snapshot.</param>
+    /// <returns>True only for identical scalar fields and ordered CA entries.</returns>
+    private static bool SameJournal(
+        ProjectRequirementSuccessorJournal stored,
+        ProjectRequirementSuccessorJournal expected)
+    {
+        IReadOnlyList<ProjectRequirementCriterionSuccession> empty = [];
+        return stored with { CriterionSuccession = empty } ==
+               expected with { CriterionSuccession = empty } &&
+            stored.CriterionSuccession.SequenceEqual(
+                expected.CriterionSuccession);
+    }
+
+    /// <summary>
+    /// Rejects rollback if anyone references a NEW successor CA GUID or
+    /// its local code inside the target project. The original CA remains
+    /// untouched and never becomes the subject of this rollback.
+    /// </summary>
+    /// <param name="journal">Durable B mapping and target path.</param>
+    /// <param name="token">Explicit cancellation.</param>
+    /// <returns>Safe rejection-only backlink audit.</returns>
+    private async Task AssertNoCriterionBacklinksAsync(
+        ProjectRequirementSuccessorJournal journal, CancellationToken token)
+    {
+        if (journal.CriterionSuccession.Count == 0)
+        {
+            return;
+        }
+
+        ProjectRequirementReviewedCriterion[] newCriteria =
+            journal.CriterionSuccession.Select(item =>
+                new ProjectRequirementReviewedCriterion(
+                    item.Reference, item.SuccessorId)).ToArray();
+        await new ProjectRequirementMoveCriteriaGuard(_root)
+            .AssertNoIncomingAsync(newCriteria,
+                journal.TargetRelativePath,
+                journal.TargetRelativePath, token);
     }
 
     /// <summary>Requires an exact canonical SHA-256 hex token.</summary>
