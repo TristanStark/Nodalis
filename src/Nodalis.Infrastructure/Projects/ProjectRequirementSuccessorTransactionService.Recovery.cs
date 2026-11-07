@@ -167,6 +167,8 @@ public sealed partial class ProjectRequirementSuccessorTransactionService
         {
             string current = ResolveExisting(journal.TargetRelativePath);
             await RequireHashAsync(current, journal.SuccessorSha256, token);
+            await new ProjectRequirementSuccessorBacklinkGuard(_root)
+                .AssertNoLinksAsync(journal, target, token);
             token.ThrowIfCancellationRequested();
             File.Move(current, withdrawn);
             _checkpoint?.Invoke("target-withdrawn");
