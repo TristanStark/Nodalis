@@ -835,3 +835,21 @@ Elle ne peut pas remplacer la validation humaine de preuves
 ni garantir que des formats non indexés contiennent zéro lien.
 La qualification visuelle WPF reste nécessaire avant une
 release 2.0.
+
+ 
+## Incrément 12 — inventaire borné et replay REC mutualisé (07/11/2026)
+
+La checklist EXI/CA/TEST/REC/INC s'arrête dès l'atteinte de **1 200
+entrées**, y compris au milieu des boucles de tests, passages et incidents.
+Si d'autres éléments existent, un diagnostic de troncature marque le rapport
+incomplet ; aucune gigantesque liste n'est d'abord construite puis raccourcie.
+
+Les décisions humaines REC→incident sont désormais validées et rejouées une
+seule fois par campagne, puis regroupées par GUID de résultat. Un événement
+de dissociation retire le lien actif, sans effacer son historique et sans
+transférer de résultat ou présumer de la résolution de l'incident.
+L'API historique de lecture pour un seul résultat reste compatible.
+
+Les smoke tests synthétiques vérifient le plafond de 1 200 éléments et la
+séparation de deux résultats avec liaison/déliaison. Aucun document métier
+n'est modifié par la revue ; qualification CI Windows et visuelle requises.

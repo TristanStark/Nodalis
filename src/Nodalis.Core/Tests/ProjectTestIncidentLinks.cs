@@ -186,6 +186,47 @@ public static class ProjectTestIncidentLinkPolicy
             StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
+    /// <summary>
+    /// Replays one validated REC incident journal for every result at once.
+    /// Avoids repeating full validation for each test in a large campaign.
+    /// </summary>
+    /// <param name="campaign">Canonical REC snapshot.</param>
+    /// <returns>Active incident links by exact result GUID. An explicitly
+    /// unlinked result may retain an empty collection.</returns>
+    public static IReadOnlyDictionary<Guid,
+        IReadOnlyList<ProjectTestLinkedIncident>> ActiveByResult(
+        ProjectTestCampaign campaign)
+    {
+        Validate(campaign);
+        Dictionary<Guid, Dictionary<string, ProjectTestLinkedIncident>>
+            states = [];
+        foreach (ProjectTestIncidentLinkEvent entry in campaign.IncidentLinks ?? [])
+        {
+            if (!states.TryGetValue(entry.ResultId,
+                out Dictionary<string, ProjectTestLinkedIncident>? links))
+            {
+                links = new(StringComparer.OrdinalIgnoreCase);
+                states.Add(entry.ResultId, links);
+            }
+
+            if (entry.Kind == ProjectTestIncidentLinkKind.Unlinked)
+            {
+                links.Remove(entry.IncidentId);
+            }
+            else
+            {
+                links[entry.IncidentId] = new ProjectTestLinkedIncident(
+                    entry.IncidentId, entry.RecordedUtc, entry.Actor);
+            }
+        }
+
+        return states.ToDictionary(
+            entry => entry.Key,
+            entry => (IReadOnlyList<ProjectTestLinkedIncident>)
+                entry.Value.Values.OrderBy(link => link.IncidentId,
+                    StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
     /// <summary>Checks a bounded human audit field.</summary>
     /// <param name="value">Actor or rationale.</param>
     /// <param name="maximum">Maximum characters.</param>

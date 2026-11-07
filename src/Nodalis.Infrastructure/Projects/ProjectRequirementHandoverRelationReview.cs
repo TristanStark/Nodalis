@@ -170,6 +170,8 @@ public static class ProjectRequirementHandoverRelationReview
         diagnostics.AddRange(coverage.Diagnostics);
         diagnostics.AddRange(history.Diagnostics);
         List<ProjectRequirementRelationReviewItem> items = [];
+        Dictionary<Guid, IReadOnlyDictionary<Guid,
+            IReadOnlyList<ProjectTestLinkedIncident>>> activeIncidentLookups = [];
         string destination = preview.Intent.Method ==
             ProjectHandoverMethod.MoveOriginal
                 ? "Vérifier l'emplacement du même GUID et relier les tests " +
@@ -183,12 +185,14 @@ public static class ProjectRequirementHandoverRelationReview
         {
             if (items.Count >= MaxItems)
             {
-                diagnostics.Add("Inventaire des liens trop volumineux : " +
-                    "inspection incomplète et requalification requise.");
-                break;
+                return Finish(preview, items, diagnostics, true);
             }
             string identity = owner.Card.Reference + "/" + criterion.Reference +
                 " · " + (criterion.Id?.ToString("D") ?? "GUID absent");
+            if (items.Count >= MaxItems)
+            {
+                return Finish(preview, items, diagnostics, true);
+            }
             items.Add(new ProjectRequirementRelationReviewItem(
                 ProjectRequirementRelationReviewKind.Criterion,
                 criterion.Id, identity, owner.RelativePath, criterion.Title,
@@ -222,6 +226,10 @@ public static class ProjectRequirementHandoverRelationReview
 
             foreach (ProjectRequirementTestSource test in row.Tests)
             {
+                if (items.Count >= MaxItems)
+                {
+                    return Finish(preview, items, diagnostics, true);
+                }
                 items.Add(new ProjectRequirementRelationReviewItem(
                     ProjectRequirementRelationReviewKind.Test,
                     criterion.Id, test.BlockId.ToString("D"),
@@ -273,6 +281,10 @@ public static class ProjectRequirementHandoverRelationReview
                         " / " + passage.ApplicationVersion +
                         " · résultat historique " +
                         (passage.Outcome?.ToString() ?? "non exécuté");
+                    if (items.Count >= MaxItems)
+                    {
+                        return Finish(preview, items, diagnostics, true);
+                    }
                     items.Add(new ProjectRequirementRelationReviewItem(
                         ProjectRequirementRelationReviewKind.CampaignPassage,
                         criterion.Id, passage.PassageId.ToString("D"),
@@ -285,10 +297,28 @@ public static class ProjectRequirementHandoverRelationReview
                         continue;
                     }
 
-                    foreach (ProjectTestLinkedIncident incident in
-                        ProjectTestIncidentLinkPolicy.Active(
-                            owners[0].Campaign, result.Id))
+                    if (!activeIncidentLookups.TryGetValue(
+                        owners[0].Campaign.Id,
+                        out IReadOnlyDictionary<Guid,
+                            IReadOnlyList<ProjectTestLinkedIncident>>? byResult))
                     {
+                        byResult = ProjectTestIncidentLinkPolicy.ActiveByResult(
+                            owners[0].Campaign);
+                        activeIncidentLookups.Add(owners[0].Campaign.Id, byResult);
+                    }
+
+                    if (!byResult.TryGetValue(result.Id,
+                        out IReadOnlyList<ProjectTestLinkedIncident>? incidents))
+                    {
+                        continue;
+                    }
+
+                    foreach (ProjectTestLinkedIncident incident in incidents)
+                    {
+                        if (items.Count >= MaxItems)
+                        {
+                            return Finish(preview, items, diagnostics, true);
+                        }
                         items.Add(new ProjectRequirementRelationReviewItem(
                             ProjectRequirementRelationReviewKind.Incident,
                             criterion.Id, incident.IncidentId,
@@ -338,6 +368,10 @@ public static class ProjectRequirementHandoverRelationReview
                     relation.RawTargetId);
             }
 
+            if (items.Count >= MaxItems)
+            {
+                return Finish(preview, items, diagnostics, true);
+            }
             items.Add(new ProjectRequirementRelationReviewItem(
                 ProjectRequirementRelationReviewKind.TypedRelation,
                 relation.TargetId is Guid ca && caIds.Contains(ca)
@@ -348,11 +382,24 @@ public static class ProjectRequirementHandoverRelationReview
                 "documents concernés. Aucun lien n'est réécrit."));
         }
 
-        if (items.Count > MaxItems)
+        return Finish(preview, items, diagnostics, false);
+    }
+
+    /// <summary>Finishes a bounded checklist without a silent truncation.</summary>
+    /// <param name="preview">Exact reviewed intention and source SHA.</param>
+    /// <param name="items">At most 1,200 inspected relations.</param>
+    /// <param name="diagnostics">Current source and linkage limitations.</param>
+    /// <param name="truncated">Whether other entries remain uninspected.</param>
+    /// <returns>Read-only assessment, incomplete when truncated.</returns>
+    private static ProjectRequirementRelationReview Finish(
+        ProjectRequirementHandoverPreview preview,
+        List<ProjectRequirementRelationReviewItem> items,
+        List<string> diagnostics, bool truncated)
+    {
+        if (truncated)
         {
             diagnostics.Add("Plus de " + MaxItems +
-                " relations : audit tronqué, validation non fiable.");
-            items = items.Take(MaxItems).ToList();
+                " éléments à vérifier : audit tronqué, validation non fiable.");
         }
 
         return new ProjectRequirementRelationReview(

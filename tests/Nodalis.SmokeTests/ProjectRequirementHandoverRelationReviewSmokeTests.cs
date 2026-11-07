@@ -226,6 +226,81 @@ internal static class ProjectRequirementHandoverRelationReviewSmokeTests
                !staleIndex.Items.Any(item =>
                    item.Kind == ProjectRequirementRelationReviewKind.Test),
             "A stale EXI index cannot claim a confirmed test link.");
+
+        // Even 1,250 distinct relations must not create an oversized
+        // checklist or appear complete after reaching the hard limit.
+        LinkIndexCatalog oversizedIndex = index with
+        {
+            Relations = Enumerable.Range(0, 1250).Select(number =>
+                new TypedRelationEntry
+                {
+                    SourceId = testDocumentId,
+                    SourceBlockId = testBlockId,
+                    TargetId = criterionId,
+                    RawTargetId = criterionId.ToString("D"),
+                    RelationType = "référence",
+                    LineNumber = number + 1,
+                    Excerpt = "Synthetic relation without business data"
+                }).ToArray()
+        };
+        ProjectRequirementRelationReview oversized =
+            ProjectRequirementHandoverRelationReview.Build(
+                preview, requirements, oversizedIndex, campaigns);
+        Assert(!oversized.IsComplete && oversized.Items.Count == 1200 &&
+               oversized.Diagnostics.Any(message => message.Contains(
+                   "tronqué", StringComparison.OrdinalIgnoreCase)),
+            "A review with more than 1,200 entries must be bounded " +
+            "and explicitly incomplete.");
+
+        // One REC may have several results, with independent human
+        // incident associations and later unlink decisions.
+        Guid secondTestId = Guid.NewGuid();
+        ProjectTestResultEvent secondResult = outcome with
+        {
+            Id = Guid.NewGuid(),
+            TestId = secondTestId,
+            RecordedUtc = utc.AddMinutes(6)
+        };
+        ProjectTestPassage secondPassage = passage with
+        {
+            Id = Guid.NewGuid(),
+            Number = 2,
+            StartedUtc = utc.AddMinutes(6),
+            Tests = [passage.Tests[0] with { TestId = secondTestId }],
+            Results = [secondResult]
+        };
+        ProjectTestIncidentLinkEvent secondLink = campaign.IncidentLinks![0] with
+        {
+            Id = Guid.NewGuid(),
+            PassageId = secondPassage.Id,
+            ResultId = secondResult.Id,
+            TestId = secondTestId,
+            IncidentId = "INC-" + Guid.NewGuid().ToString("N"),
+            RecordedUtc = utc.AddMinutes(12)
+        };
+        ProjectTestIncidentLinkEvent unlink = secondLink with
+        {
+            Id = Guid.NewGuid(),
+            Kind = ProjectTestIncidentLinkKind.Unlinked,
+            RecordedUtc = utc.AddMinutes(13)
+        };
+        ProjectTestCampaign multipleResults = campaign with
+        {
+            Passages = [passage, secondPassage],
+            IncidentLinks = [campaign.IncidentLinks[0], secondLink, unlink]
+        };
+        IReadOnlyDictionary<Guid, IReadOnlyList<ProjectTestLinkedIncident>>
+            grouped = ProjectTestIncidentLinkPolicy.ActiveByResult(
+                multipleResults);
+        Assert(grouped.TryGetValue(resultId,
+                   out IReadOnlyList<ProjectTestLinkedIncident>? firstLinks) &&
+               firstLinks.Count == 1 &&
+               firstLinks[0].IncidentId == incidentId &&
+               grouped.TryGetValue(secondResult.Id,
+                   out IReadOnlyList<ProjectTestLinkedIncident>? secondLinks) &&
+               secondLinks.Count == 0,
+            "Grouped REC replay must preserve independently linked " +
+            "incidents and honor explicit unlink decisions.");
     }
 
     /// <summary>Creates an indexed document with a pinned content SHA.</summary>
