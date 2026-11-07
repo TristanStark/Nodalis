@@ -174,3 +174,69 @@ les sources inchangées et la détection d'un audit devenu obsolète. Le lecteur
 également le SHA-256 des octets exacts qu'il a analysés ; si la fiche
 de maintenance change avant le relevé local de tâches, le pré-audit
 s'interrompt au lieu de mélanger deux états de la source.
+
+
+## Quatrième incrément — préflight de passation A/B (07/11/2026)
+
+Le menu unique **Projet > Préparer une passation…** ouvre une fenêtre
+dédiée aux éléments encore à reprendre, aux projets destinataires
+existants, aux deux stratégies, à l'auteur et à la justification.
+L'historique des intentions du projet source est consultable en lecture
+seule après archivage.
+
+Le **préflight est strictement non mutateur**. Il exige deux projets
+réels et actifs de ce workspace, dotés de manifestes distincts et d'un
+emplacement canonique (y compris les sous-projets). Il refuse un
+objet absent du pré-audit du propriétaire ou une sélection ambiguë,
+puis relit indépendamment les deux inventaires et leurs empreintes.
+
+- **A — Déplacer l'original** : la future identité du propriétaire est
+  le GUID actuel. Le préflight bloque si ce GUID apparaît déjà dans
+  le destinataire, même dans une tâche cochée ou une fiche soldée.
+- **B — Créer un successeur lié** : un nouveau GUID est proposé et
+  présenté avant consentement. L'original conserve son propriétaire
+  et son état. Le GUID exact proposé est vérifié à nouveau lors de
+  l'enregistrement de l'intention ; aucun successeur n'est créé ici.
+
+Les diagnostics des sources et les différences d'applications sont
+signalés sans être masqués. Les identités découvertes incluent les
+RIS/EXI/MEP/RES, REC, INC, tâches à GUID même cochées et jalons à
+identité persistante. **Ce n'est pas encore une preuve exhaustive de
+non-collision** : documents invalides ou objets non indexés, liens
+externes, références transversales et historiques de gates restent à
+prendre en charge par l'exécuteur transactionnel.
+
+Une confirmation humaine distincte crée un événement **append-only**
+dans `Management/Passations.md`, au format exact
+`nodalis:handover-intents:v1`, avec source/destination, identité,
+référence, mode, nouveau GUID proposé, empreintes SHA-256 des
+inventaires, auteur, date et justification. Ce registre n'est ni un
+journal d'exécution ni une seconde source de vérité métier.
+L'écriture est opt-in, bornée, réalisée en `CreateNew` ou par
+remplacement atomique conditionné au hash précédent (SHA-CAS).
+Les anciennes intentions ne sont pas réécrites. Les bilans libres
+existant sous ce nom ne sont pas remplacés.
+
+Le service relit source et destinataire **avant** toute écriture
+et refuse un objet modifié, des collisions nouvelles, un changement
+de cible ou une archive. Les décisions A/B ne modifient aucune tâche,
+fiche Markdown métier, MEP, campagne REC ou lien : l'utilisateur ne
+peut pas les prendre pour un transfert exécuté.
+
+Les nouveaux tests `ProjectHandoverIntentSmokeTests` valident
+les GUID A/B, les collisions avec les objets terminés, le refus de
+relecture obsolète (source, destinataire ou journal), la protection
+des projets archivés, la non-mutation des documents et la
+préservation des anciens fichiers libres.
+
+### Suite — exécution transactionnelle (non livrée)
+
+Avant toute activation d'un véritable transfert, la feuille de route
+exige encore : dry-run complet des backlinks, confirmation des
+références visibles dans la destination, snapshot de sauvegarde du
+source et de la cible, journal durable de phases, reprise / rollback
+après interruption, garantie d'un seul propriétaire actif pour A,
+et provenance bidirectionnelle liée pour B. La qualification visuelle
+Windows et les tests d'interruption devront précéder cette activation.
+
+Aucun merge, tag ni release 2.0 n'est engagé.
