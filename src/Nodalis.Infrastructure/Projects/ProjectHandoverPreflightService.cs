@@ -175,7 +175,8 @@ public sealed class ProjectHandoverPreflightService
 
         List<string> blockers = [];
         List<string> warnings = [];
-        if (targetAudit.AllKnownObjectIds.Contains(item.Id))
+        if (method == ProjectHandoverMethod.MoveOriginal &&
+            targetAudit.AllKnownObjectIds.Contains(item.Id))
         {
             blockers.Add("Identifiant technique déjà présent dans le projet " +
                 "destinataire, y compris parmi les objets soldés.");
