@@ -206,6 +206,8 @@ public sealed class ProjectClosureAdditionalInventoryService
                             StringComparison.OrdinalIgnoreCase);
                     if (!separatelyIndexed &&
                         !string.Equals(localPath, "Management/Bilan de clôture.md",
+                            StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(localPath, "Management/Passations.md",
                             StringComparison.OrdinalIgnoreCase))
                     {
                         markdownFiles.Add(entry);
