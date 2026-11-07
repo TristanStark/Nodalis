@@ -241,7 +241,7 @@ internal static class ProjectRequirementHandoverRelationReviewSmokeTests
                     RelationType = "référence",
                     LineNumber = number + 1,
                     Excerpt = "Synthetic relation without business data"
-                }).ToArray()
+                }).ToList()
         };
         ProjectRequirementRelationReview oversized =
             ProjectRequirementHandoverRelationReview.Build(
