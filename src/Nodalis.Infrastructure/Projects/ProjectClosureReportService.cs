@@ -172,6 +172,18 @@ public sealed class ProjectClosureReportService
                 "Bilan de clôture trop volumineux pour être relu sans danger.");
         }
 
+        // An archive or restore may move the project while the audit is
+        // running. Never recreate a now-missing former project directory.
+        (string checkedDirectory, ProjectManifest checkedManifest,
+            bool nowArchived) = await ResolveAsync(directory, cancellationToken);
+        if (nowArchived || checkedManifest.Id != manifest.Id ||
+            !string.Equals(checkedDirectory, directory,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Projet déplacé, archivé ou réattribué pendant la revue.");
+        }
+
         string folder = Path.Combine(directory, "Management");
         if (!Directory.Exists(folder))
         {
