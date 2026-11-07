@@ -44,9 +44,10 @@ public partial class ProjectClosureReviewDialog : Window
             "Le pré-audit des sources ne s'exécute pas automatiquement en archive.";
         WarningText.Text = readOnly
             ? "Lecture seule : aucune nouvelle décision ni transfert possible."
-            : "Le pré-audit est partiel (tâches, jalons, incidents et campagnes " +
-              "encore à vérifier). Même une revue « prêt à archiver » ne " +
-              "déplace pas le projet.";
+            : "Le pré-audit couvre les registres du projet et ses documents " +
+              "locaux ; les statuts libres, objets sans GUID, preuves et " +
+              "transferts restent à qualifier humainement. " +
+              "« Prêt à archiver » ne déplace pas le projet.";
         OutcomeCombo.ItemsSource = new[]
         {
             new OutcomeChoice(ProjectClosureReviewOutcome.ReviewRecorded,
