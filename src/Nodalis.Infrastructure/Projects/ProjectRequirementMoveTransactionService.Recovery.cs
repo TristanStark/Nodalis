@@ -59,6 +59,8 @@ public sealed partial class ProjectRequirementMoveTransactionService
 
             await _guard.AssertNoIncomingAsync(journal.RequirementId,
                 journal.SourceReference, journal.SourceRelativePath, token);
+            await _guard.AssertNoIncomingAsync(journal.RequirementId,
+                journal.TargetReference, journal.SourceRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(source, parked);
             _checkpoint?.Invoke("source-parked");
@@ -191,6 +193,8 @@ public sealed partial class ProjectRequirementMoveTransactionService
         if (Path.Exists(parked) && !Path.Exists(source))
         {
             await VerifyHashAsync(parked, journal.OriginalSha256, token);
+            await _guard.AssertNoIncomingAsync(journal.RequirementId,
+                journal.SourceReference, journal.SourceRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(parked, source);
             _checkpoint?.Invoke("source-restored");
