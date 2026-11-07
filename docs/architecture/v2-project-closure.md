@@ -742,3 +742,96 @@ requalifier explicitement. Les formats hors Markdown/JSON,
 les tests et incidents reliés nécessitent encore une démarche
 humaine ; aucun traitement atomique multi-document n'est affirmé.
 La qualification WPF visuelle est indispensable avant release.
+
+
+## Onzième incrément — revue guidée des relations EXI/CA/TEST/REC/INC (07/11/2026)
+
+Le parcours de passation **Projet > Préparer une passation…**
+présente maintenant, lors de la sélection d'une intention EXI A/B,
+une **revue des dépendances réelles à requalifier** avant toute
+confirmation de création/déplacement. La lecture est explicitement
+demandée par la personne, avec opérations de registre, rafraîchissement
+de l'index partagé et lecture des campagnes REC exécutés **hors du
+Dispatcher WPF**. Aucun scan permanent n'est ajouté au Worktree.
+
+### Sources déjà existantes et vérifications
+
+`ProjectRequirementHandoverRelationReview.Build` rejoint sans écrire :
+
+1. le catalogue de fiches EXI du **projet source** : carte et
+   critères `CA-xx` ancrés à la SHA de la prévisualisation ;
+2. le `LinkIndexCatalog` partagé, rafraîchi à la demande :
+   sources documentaires, identifiants de blocs, relations typées
+   entrantes/sortantes et collisions éventuelles ;
+3. la projection existante `ProjectRequirementTraceability` :
+   liens `TEST/TST → CA` seulement lorsque leurs GUID, chemin,
+   bloc et source sont reconnus, uniques et à jour ;
+4. la projection `ProjectRequirementCampaignTraceability` :
+   historique des passages REC figés, avec environnement/version,
+   résultat déclaré et absence de résultat, sans promotion de
+   conformité ;
+5. les seules associations REC/incident explicitement approuvées,
+   reconstituées avec `ProjectTestIncidentLinkPolicy.Active`
+   depuis les événements du catalogue REC source.
+
+Le service construit une liste limitée à **1 200 entrées**,
+sans reconstruire un index spécifique aux passations ni rescanner
+tous les fichiers pour chaque CA. Les erreurs de source, de SHA,
+d'index, d'identité ou de résultat et les listes tronquées
+deviennent des **diagnostics visibles**, pas des liens supposés
+valides. Une exigence devenue différente de la SHA affichée ne
+reçoit pas un état de revue « terminé ».
+
+### Interface et décisions laissées à une personne
+
+`ProjectRequirementHandoverRelationsDialog` affiche une liste
+défilante regroupant des actions distinctes selon le type :
+**critère**, **test lié**, **ancien passage de campagne REC**,
+**incident explicitement associé à un résultat**, **relation
+typée** et **diagnostic**. Les GUID et chemins des sources
+sont indiqués avec leurs contextes et les démarches suggérées.
+
+L'utilisateur peut **copier la liste des actions** pour la suivre
+dans Nodalis ou ailleurs ; cette fonctionnalité n'écrit aucun
+document du workspace. « Poursuivre sans migrer les liens »
+signifie seulement prendre connaissance de l'audit. Ce bouton
+**n'accepte pas les critères comme vérifiés**, ne modifie ni
+relations, ni tests, ni incidents, ni bilans. Les confirmations
+spécifiques A/B et leurs garde-fous transactionnels demeurent
+obligatoires et indépendants :
+
+- A conserve le GUID d'origine, mais les scanners de backlinks
+  existants refusent toujours un déplacement lorsque les liens
+  présents ne peuvent pas être requalifiés ;
+- B crée une nouvelle exigence et, s'il y a des CA, de nouveaux
+  GUID. Les anciens liens, REC, résultats et incidents restent dans
+  la source ; le rapport indique ce qu'il faut explicitement
+  recréer ou associer plus tard.
+
+Le rapport peut être consulté même si le préflight EXI contient
+déjà un **blocage de structure** : il aide à comprendre les
+dépendances à traiter avant de relancer une intention valide.
+
+### Tests et limites actuelles
+
+`ProjectRequirementHandoverRelationReviewSmokeTests` assure
+sur données synthétiques :
+
+- liaison d'un GUID CA unique à un TEST indexé de son propre
+  projet, jamais une conclusion de réussite ;
+- conservation du résultat REC historique et du contexte de
+  passage ;
+- référencement d'un incident uniquement via une association
+  REC explicite (aucun incident inféré d'un échec) ;
+- présence de la relation typée d'origine et une liste d'actions
+  stable pour les mêmes entrées ;
+- refus de prétendre que l'audit est complet en cas de SHA
+  source changée ou d'index obsolète.
+
+**Limite volontariste de cet incrément :** il s'agit d'une
+**projection et d'une checklist, pas encore d'un moteur de
+réécriture transactionnelle** pour les liens TEST/REC/INC.
+Elle ne peut pas remplacer la validation humaine de preuves
+ni garantir que des formats non indexés contiennent zéro lien.
+La qualification visuelle WPF reste nécessaire avant une
+release 2.0.
