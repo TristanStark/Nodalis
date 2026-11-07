@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Nodalis.Core.Projects;
 using Nodalis.Core.Requirements;
 using Nodalis.Core.Risks;
@@ -24,6 +26,12 @@ public sealed record ProjectClosureAuditSnapshot(
     Guid ProjectId, IReadOnlyList<ProjectClosureAuditItem> Items,
     IReadOnlyList<string> Diagnostics)
 {
+    /// <summary>
+    /// Fingerprint of all read canonical objects and diagnostics, including
+    /// sources already settled and excluded from the visible follow-up list.
+    /// </summary>
+    public string SourceFingerprint { get; init; } = string.Empty;
+
     /// <summary>Formats a bounded, truthful pre-archive confirmation preview.</summary>
     /// <param name="maximumItems">Maximum number of individual objects displayed.</param>
     /// <returns>Preview including omissions and limits, not a closure decision.</returns>
@@ -193,10 +201,46 @@ public static class ProjectClosureAuditProjection
                 " · responsable " + state.Owner, reservations.RelativePath));
         }
 
+        StringBuilder revisions = new();
+        revisions.AppendLine(projectId.ToString("D"));
+        foreach (ProjectRiskEntry entry in risks.Risks.OrderBy(
+            entry => entry.Card.Id))
+        {
+            revisions.AppendLine("RIS").AppendLine(entry.SourceSha256)
+                .AppendLine(JsonSerializer.Serialize(entry.Card));
+        }
+
+        foreach (ProjectRequirementEntry entry in
+            requirements.Requirements.OrderBy(entry => entry.Card.Id))
+        {
+            revisions.AppendLine("EXI").AppendLine(entry.SourceSha256)
+                .AppendLine(JsonSerializer.Serialize(entry.Card));
+        }
+
+        foreach (ProjectDeploymentEntry entry in
+            deployments.Operations.OrderBy(entry => entry.Operation.Id))
+        {
+            revisions.AppendLine("MEP").AppendLine(entry.SourceSha256)
+                .AppendLine(JsonSerializer.Serialize(entry.Operation));
+        }
+
+        revisions.AppendLine("RES")
+            .AppendLine(reservations.SourceSha256 ?? "(absent)")
+            .AppendLine(JsonSerializer.Serialize(reservations.Ledger));
+        foreach (string diagnostic in diagnostics)
+        {
+            revisions.AppendLine("DIAGNOSTIC").AppendLine(diagnostic);
+        }
+
+        string fingerprint = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(revisions.ToString())));
         return new ProjectClosureAuditSnapshot(projectId,
             items.OrderBy(item => item.Kind, StringComparer.Ordinal)
                 .ThenBy(item => item.Reference, StringComparer.Ordinal)
-                .ToArray(), diagnostics.ToArray());
+                .ToArray(), diagnostics.ToArray())
+        {
+            SourceFingerprint = fingerprint
+        };
     }
 }
 
