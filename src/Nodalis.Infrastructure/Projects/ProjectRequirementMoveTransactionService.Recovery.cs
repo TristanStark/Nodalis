@@ -61,6 +61,10 @@ public sealed partial class ProjectRequirementMoveTransactionService
                 journal.SourceReference, journal.SourceRelativePath, token);
             await _guard.AssertNoIncomingAsync(journal.RequirementId,
                 journal.TargetReference, journal.SourceRelativePath, token);
+            await new ProjectRequirementMoveCriteriaGuard(_root)
+                .AssertNoIncomingAsync(journal.ReviewedCriteria,
+                    journal.SourceRelativePath,
+                    journal.TargetRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(source, parked);
             try
@@ -92,6 +96,10 @@ public sealed partial class ProjectRequirementMoveTransactionService
         await VerifyHashAsync(parked, journal.OriginalSha256, token);
         if (!Path.Exists(target))
         {
+            await new ProjectRequirementMoveCriteriaGuard(_root)
+                .AssertNoIncomingAsync(journal.ReviewedCriteria,
+                    journal.SourceRelativePath,
+                    journal.TargetRelativePath, token);
             ProjectRequirementCatalog catalog =
                 await new ProjectRequirementRegistryService(_root)
                     .ListAsync(targetProject, token);
@@ -193,6 +201,10 @@ public sealed partial class ProjectRequirementMoveTransactionService
             await VerifyHashAsync(parked, journal.OriginalSha256, token);
             await _guard.AssertNoIncomingAsync(journal.RequirementId,
                 journal.TargetReference, journal.TargetRelativePath, token);
+            await new ProjectRequirementMoveCriteriaGuard(_root)
+                .AssertNoIncomingAsync(journal.ReviewedCriteria,
+                    journal.SourceRelativePath,
+                    journal.TargetRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(target, withdrawn);
             try
@@ -227,6 +239,10 @@ public sealed partial class ProjectRequirementMoveTransactionService
                 journal.TargetReference, journal.TargetRelativePath, token);
             await _guard.AssertNoIncomingAsync(journal.RequirementId,
                 journal.SourceReference, journal.SourceRelativePath, token);
+            await new ProjectRequirementMoveCriteriaGuard(_root)
+                .AssertNoIncomingAsync(journal.ReviewedCriteria,
+                    journal.SourceRelativePath,
+                    journal.TargetRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(parked, source);
             _checkpoint?.Invoke("source-restored");
@@ -297,24 +313,49 @@ public sealed partial class ProjectRequirementMoveTransactionService
         Plain(directory);
         ProjectRequirementMoveJournal saved =
             await ReadJournalAsync(directory, token);
-        if (saved != journal)
+        if (saved with { ReviewedCriteria = [] } !=
+                journal with { ReviewedCriteria = [] } ||
+            !saved.ReviewedCriteria.SequenceEqual(journal.ReviewedCriteria))
         {
             throw new InvalidDataException(
-                "Journal EXI A modifié pendant la transaction.");
+                "Journal ou revue CA EXI A modifié pendant la transaction.");
         }
 
         await VerifyHashAsync(
             Path.Combine(directory, Original), journal.OriginalSha256, token);
         await VerifyHashAsync(
             Path.Combine(directory, Proposed), journal.DestinationSha256, token);
+        string originalMarkdown = await File.ReadAllTextAsync(
+            Path.Combine(directory, Original), token);
+        string proposedMarkdown = await File.ReadAllTextAsync(
+            Path.Combine(directory, Proposed), token);
         ProjectRequirementCard before =
-            ProjectRequirementMarkdownCodec.Parse(
-                await File.ReadAllTextAsync(
-                    Path.Combine(directory, Original), token));
+            ProjectRequirementMarkdownCodec.Parse(originalMarkdown);
         ProjectRequirementCard after =
-            ProjectRequirementMarkdownCodec.Parse(
-                await File.ReadAllTextAsync(
-                    Path.Combine(directory, Proposed), token));
+            ProjectRequirementMarkdownCodec.Parse(proposedMarkdown);
+        ProjectRequirementCriterionScan originalCriteria =
+            ProjectRequirementCriterionCodec.Inspect(originalMarkdown);
+        ProjectRequirementCriterionScan movedCriteria =
+            ProjectRequirementCriterionCodec.Inspect(proposedMarkdown);
+        ProjectRequirementReviewedCriterion[] originallyPresent =
+            originalCriteria.Criteria.Select(item =>
+                new ProjectRequirementReviewedCriterion(
+                    item.Reference, item.Id ?? Guid.Empty)).ToArray();
+        ProjectRequirementReviewedCriterion[] movedPresent =
+            movedCriteria.Criteria.Select(item =>
+                new ProjectRequirementReviewedCriterion(
+                    item.Reference, item.Id ?? Guid.Empty)).ToArray();
+        if (originalCriteria.Diagnostics.Count > 0 ||
+            movedCriteria.Diagnostics.Count > 0 ||
+            !originallyPresent.SequenceEqual(journal.ReviewedCriteria) ||
+            !movedPresent.SequenceEqual(journal.ReviewedCriteria) ||
+            !originalCriteria.Criteria.Select(item => item.Title).SequenceEqual(
+                movedCriteria.Criteria.Select(item => item.Title)))
+        {
+            throw new InvalidDataException(
+                "Critères d'acceptation modifiés ou non revus dans " +
+                "les snapshots EXI A.");
+        }
         if (before.Id != journal.RequirementId ||
             after.Id != journal.RequirementId ||
             before.ProjectId != journal.SourceProjectId ||
@@ -427,6 +468,16 @@ public sealed partial class ProjectRequirementMoveTransactionService
                 journal.TargetReference + ".md", StringComparison.Ordinal) ||
             !ValidSha(journal.OriginalSha256) ||
             !ValidSha(journal.DestinationSha256) ||
+            journal.ReviewedCriteria is null ||
+            journal.ReviewedCriteria.Count > 99 ||
+            journal.ReviewedCriteria.Any(item =>
+                item.Id == Guid.Empty ||
+                !ProjectRequirementCriterionCodec.IsReference(item.Reference)) ||
+            journal.ReviewedCriteria.Select(item => item.Id)
+                .Distinct().Count() != journal.ReviewedCriteria.Count ||
+            journal.ReviewedCriteria.Select(item => item.Reference)
+                .Distinct(StringComparer.Ordinal).Count() !=
+                    journal.ReviewedCriteria.Count ||
             journal.Phase is not ("prepared" or "completed" or
                 "rollback-prepared" or "rolled-back"))
         {
