@@ -292,6 +292,25 @@ internal static class ProjectRequirementMoveTransactionSmokeTests
         Assert(sameNameRefused && File.Exists(file) &&
                (await service.ListHistoryAsync()).Count == 0,
             "Arbitrary user Passations.md documents must still be inspected.");
+        File.Delete(arbitrary);
+        string misleading = Path.Combine(root, "Applications", "Notes",
+            "Management", "Passations.md");
+        Directory.CreateDirectory(Path.GetDirectoryName(misleading)!);
+        await File.WriteAllTextAsync(misleading,
+            "Linked GUID: " + reviewed.Intent.SourceObjectId.ToString("D"));
+        bool unmanagedRefused = false;
+        try
+        {
+            await service.ExecuteAsync(reviewed, approved: true);
+        }
+        catch (InvalidDataException)
+        {
+            unmanagedRefused = true;
+        }
+
+        Assert(unmanagedRefused && File.Exists(file) &&
+               (await service.ListHistoryAsync()).Count == 0,
+            "Only genuine project management ledgers may be excluded.");
     }
 
     /// <summary>Builds two valid synthetic projects and a source-owned A intent.</summary>
