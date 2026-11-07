@@ -84,7 +84,8 @@ public partial class ProjectHandoverIntentDialog : Window
             ? "Aucune passation préparée."
             : history.Length + " intention(s) historisée(s), " +
               (transactions.Count(item => item.Phase == "completed") +
-               exiTransactions.Count(item => item.Phase == "completed")) +
+               exiTransactions.Count(item => item.Phase == "completed") +
+               moveTransactions.Count(item => item.Phase == "completed")) +
               " transaction(s) achevée(s) dans le workspace.";
         PreviousText.Text = history.Length == 0
             ? "Les futures préparations seront listées ici."
