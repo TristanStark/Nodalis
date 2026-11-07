@@ -195,6 +195,18 @@ public static class ProjectRequirementHandoverRelationReview
                 continue;
             }
 
+            ProjectRequirementCampaignCriterionHistory[] matchingHistory =
+                history.Rows.Where(item =>
+                    item.Criterion.Requirement.RelativePath ==
+                        owner.RelativePath &&
+                    item.Criterion.Criterion.Id == criterion.Id).ToArray();
+            if (matchingHistory.Length != 1)
+            {
+                diagnostics.Add(identity +
+                    " : historique REC non réconcilié avec le critère.");
+                continue;
+            }
+
             foreach (ProjectRequirementTestSource test in row.Tests)
             {
                 items.Add(new ProjectRequirementRelationReviewItem(
@@ -203,53 +215,77 @@ public static class ProjectRequirementHandoverRelationReview
                     test.RelativePath, test.HeadingTitle,
                     "Revalider la définition, le contexte et le rattachement " +
                     "à ce CA ; aucun ancien test ne devient conforme."));
-                foreach (ProjectTestCampaignEntry entry in campaigns.Campaigns)
+
+                ProjectRequirementCampaignTestHistory[] linkedHistory =
+                    matchingHistory[0].Tests.Where(item =>
+                        item.Test.BlockId == test.BlockId).ToArray();
+                if (linkedHistory.Length != 1)
                 {
-                    if (entry.Campaign.ProjectId != owner.Card.ProjectId)
+                    diagnostics.Add(test.BlockId.ToString("D") +
+                        " : lien TEST/REC non réconcilié.");
+                    continue;
+                }
+
+                foreach (ProjectRequirementCampaignOccurrence passage in
+                    linkedHistory[0].Occurrences)
+                {
+                    ProjectTestCampaignEntry[] owners = campaigns.Campaigns
+                        .Where(item => item.Campaign.Id == passage.CampaignId &&
+                            item.RelativePath == passage.CampaignRelativePath &&
+                            item.Campaign.ProjectId == owner.Card.ProjectId)
+                        .ToArray();
+                    if (owners.Length != 1 || !passage.MatchesLinkedSource)
                     {
-                        diagnostics.Add(entry.RelativePath +
-                            " : campagne associée à un autre projet.");
+                        diagnostics.Add(passage.CampaignReference +
+                            " : source REC obsolète ou ambiguë.");
                         continue;
                     }
 
-                    foreach (ProjectTestPassage passage in entry.Campaign.Passages
-                        .Where(p => p.Tests.Any(t => t.TestId == test.BlockId)))
+                    ProjectTestPassage[] passages = owners[0].Campaign.Passages
+                        .Where(item => item.Id == passage.PassageId &&
+                            item.Tests.Any(frozen =>
+                                frozen.TestId == test.BlockId)).ToArray();
+                    if (passages.Length != 1)
                     {
-                        ProjectTestResultEvent? result = passage.Results
-                            .SingleOrDefault(r => r.TestId == test.BlockId);
-                        string description = entry.Campaign.Reference +
-                            " / passage " + passage.Number +
-                            " · contexte " + passage.Environment +
-                            " / " + passage.ApplicationVersion +
-                            " · résultat historique " +
-                            (result?.Outcome.ToString() ?? "non exécuté");
-                        items.Add(new ProjectRequirementRelationReviewItem(
-                            ProjectRequirementRelationReviewKind.CampaignPassage,
-                            criterion.Id, passage.Id.ToString("D"),
-                            entry.RelativePath, description,
-                            "Conserver cet historique dans la source. " +
-                            "Programmer une campagne distincte si la " +
-                            "nouvelle exigence doit être testée."));
-                        if (result is null)
-                        {
-                            continue;
-                        }
+                        diagnostics.Add(passage.CampaignReference +
+                            " : passage non retrouvé sans ambiguïté.");
+                        continue;
+                    }
 
-                        foreach (ProjectTestLinkedIncident incident in
-                            ProjectTestIncidentLinkPolicy.Active(
-                                entry.Campaign, result.Id))
-                        {
-                            items.Add(new ProjectRequirementRelationReviewItem(
-                                ProjectRequirementRelationReviewKind.Incident,
-                                criterion.Id, incident.IncidentId,
-                                entry.RelativePath,
-                                "Incident lié au résultat " +
-                                result.Id.ToString("D") + " · " +
-                                entry.Campaign.Reference,
-                                "Décider séparément du traitement ou du " +
-                                "successeur de l'incident ; aucun transfert " +
-                                "ni changement de statut automatique."));
-                        }
+                    ProjectTestResultEvent? result = passages[0].Results
+                        .SingleOrDefault(item => item.TestId == test.BlockId);
+                    string description = passage.CampaignReference +
+                        " / passage " + passage.PassageNumber +
+                        " · contexte " + passage.Environment +
+                        " / " + passage.ApplicationVersion +
+                        " · résultat historique " +
+                        (passage.Outcome?.ToString() ?? "non exécuté");
+                    items.Add(new ProjectRequirementRelationReviewItem(
+                        ProjectRequirementRelationReviewKind.CampaignPassage,
+                        criterion.Id, passage.PassageId.ToString("D"),
+                        passage.CampaignRelativePath, description,
+                        "Conserver cet historique dans la source. " +
+                        "Programmer une campagne distincte si la " +
+                        "nouvelle exigence doit être testée."));
+                    if (result is null)
+                    {
+                        continue;
+                    }
+
+                    foreach (ProjectTestLinkedIncident incident in
+                        ProjectTestIncidentLinkPolicy.Active(
+                            owners[0].Campaign, result.Id))
+                    {
+                        items.Add(new ProjectRequirementRelationReviewItem(
+                            ProjectRequirementRelationReviewKind.Incident,
+                            criterion.Id, incident.IncidentId,
+                            passage.CampaignRelativePath,
+                            "Incident lié au résultat " +
+                            result.Id.ToString("D") + " · " +
+                            passage.CampaignReference,
+                            "Décider séparément du traitement ou du " +
+                            "successeur de l'incident ; aucun transfert " +
+                            "ni changement de statut automatique."));
                     }
                 }
             }
