@@ -133,6 +133,7 @@ try
     ProjectGateReservationOverviewSmokeTests.Run();
     await ProjectArchivesSmokeTests.RunAsync(root);
     await ProjectClosureAuditSmokeTests.RunAsync(root);
+    await ProjectClosureReportSmokeTests.RunAsync(root);
     await VerifyProjectStructureAsync(root);
     await VerifyApplicationStructureAsync(root);
     await VerifyTrashAsync(root);
