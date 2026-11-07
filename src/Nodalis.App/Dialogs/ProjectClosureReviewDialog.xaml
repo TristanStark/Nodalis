@@ -1,0 +1,61 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectClosureReviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bilan de clôture · revue humaine"
+        Width="740" Height="690" MinWidth="550" MinHeight="440"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBlock Text="Bilan de clôture du projet"
+                       FontSize="19" FontWeight="SemiBold" />
+            <TextBlock Text="Revue historisée, distincte de l'archivage et des transferts."
+                       TextWrapping="Wrap" Margin="0,5,0,0"
+                       Foreground="{StaticResource SecondaryTextBrush}" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Fermer" IsCancel="True"
+                    Padding="12,7" Margin="0,0,8,0" />
+            <Button x:Name="SaveButton"
+                    Content="Vérifier et consigner la revue…"
+                    IsDefault="True" Padding="12,7"
+                    Click="Save_Click" />
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock x:Name="HistoryText" TextWrapping="Wrap"
+                           FontWeight="SemiBold" Margin="0,0,0,10" />
+                <TextBlock Text="Pré-audit et limites connues"
+                           FontWeight="SemiBold" Margin="0,2,0,5" />
+                <TextBox x:Name="AuditBox" IsReadOnly="True"
+                         MinHeight="140" Height="185"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled"
+                         Padding="10" FontSize="13"
+                         AutomationProperties.Name="Pré-audit de clôture" />
+                <TextBlock x:Name="WarningText" TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Margin="0,10,0,8" />
+                <TextBlock Text="Décision de revue (sans archivage automatique)"
+                           Margin="0,8,0,4" />
+                <ComboBox x:Name="OutcomeCombo" DisplayMemberPath="Label"
+                          Padding="8,6" />
+                <TextBlock Text="Auteur / responsable" Margin="0,12,0,4" />
+                <TextBox x:Name="ActorBox" Padding="8,6" MaxLength="160"
+                         AutomationProperties.Name="Auteur de la revue" />
+                <TextBlock Text="Justification et actions de passation restantes"
+                           Margin="0,12,0,4" />
+                <TextBox x:Name="ReasonBox" AcceptsReturn="True"
+                         TextWrapping="Wrap" MinHeight="90"
+                         MaxLength="4000" Padding="8,6"
+                         VerticalScrollBarVisibility="Auto"
+                         AutomationProperties.Name="Justification de clôture" />
+                <TextBlock Margin="0,14,0,0" TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="Aucune exigence, tâche, réserve, MEP ni aucun jalon n'est clôturé par cette revue. Une archive exige une commande séparée ; les sources seront relues avant l'enregistrement." />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>
