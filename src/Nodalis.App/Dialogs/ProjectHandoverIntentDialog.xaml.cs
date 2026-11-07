@@ -39,6 +39,7 @@ public partial class ProjectHandoverIntentDialog : Window
     /// <param name="snapshot">Canonical intention history.</param>
     /// <param name="transactions">Durable task execution and recovery journals.</param>
     /// <param name="exiTransactions">Durable EXI B successor journals.</param>
+    /// <param name="moveTransactions">Durable EXI A move journals.</param>
     /// <param name="readOnly">Archived or read-only workspace flag.</param>
     public ProjectHandoverIntentDialog(
         ProjectClosureAuditSnapshot? audit,
@@ -46,6 +47,7 @@ public partial class ProjectHandoverIntentDialog : Window
         ProjectHandoverIntentSnapshot snapshot,
         IReadOnlyList<ProjectHandoverTaskJournal> transactions,
         IReadOnlyList<ProjectRequirementSuccessorJournal> exiTransactions,
+        IReadOnlyList<ProjectRequirementMoveJournal> moveTransactions,
         bool readOnly)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -151,6 +153,42 @@ public partial class ProjectHandoverIntentDialog : Window
             ExiRollbackButton.Visibility = Visibility.Collapsed;
         }
 
+        ProjectRequirementMoveJournal[] movePending = moveTransactions
+            .Where(item => item.Phase is not
+                ("completed" or "rolled-back")).ToArray();
+        ProjectRequirementMoveJournal[] moveCompleted = moveTransactions
+            .Where(item => item.SourceProjectId == snapshot.Ledger.ProjectId &&
+                item.Phase == "completed").ToArray();
+        ProjectRequirementMoveJournal[] moveVisible = moveTransactions
+            .Where(item => item.SourceProjectId == snapshot.Ledger.ProjectId ||
+                item.Phase is not ("completed" or "rolled-back")).ToArray();
+        MoveTransactionText.Text = moveVisible.Length == 0
+            ? "Aucun déplacement EXI A pour ce projet."
+            : string.Join("\n", moveVisible.Take(25).Select(item =>
+                item.TransactionId.ToString("D") + " · " + item.Phase +
+                " · " + item.SourceReference + " vers " +
+                item.TargetReference));
+        MoveRecoveryButton.IsEnabled = !readOnly &&
+            movePending.Length > 0;
+        MoveRollbackCombo.ItemsSource = moveCompleted.Select(item =>
+            new ProjectHandoverExecutionChoice(item.TransactionId,
+                item.SourceReference + " vers " + item.TargetReference +
+                " · " + item.CreatedUtc.ToLocalTime().ToString("dd/MM HH:mm")))
+            .ToArray();
+        if (moveCompleted.Length > 0)
+        {
+            MoveRollbackCombo.SelectedIndex = 0;
+        }
+
+        MoveRollbackCombo.IsEnabled = !readOnly &&
+            movePending.Length == 0 && moveCompleted.Length > 0;
+        MoveRollbackButton.IsEnabled = MoveRollbackCombo.IsEnabled;
+        if (readOnly)
+        {
+            MoveRecoveryButton.Visibility = Visibility.Collapsed;
+            MoveRollbackButton.Visibility = Visibility.Collapsed;
+        }
+
         ProjectHandoverIntent[] executable = history.Where(intent =>
             intent.SourceObjectKind == "Tâches ouvertes" &&
             intent.SourceRelativePath.EndsWith("/Tâches.md",
@@ -234,6 +272,12 @@ public partial class ProjectHandoverIntentDialog : Window
     /// <summary>Completed EXI successor chosen for explicit withdrawal.</summary>
     public Guid? RequestedExiRollbackId { get; private set; }
 
+    /// <summary>Explicit restart of pending EXI A move journal.</summary>
+    public bool RequestedMoveRecovery { get; private set; }
+
+    /// <summary>Completed EXI A relocation chosen for human-approved undo.</summary>
+    public Guid? RequestedMoveRollbackId { get; private set; }
+
     /// <summary>Selected human intention for a separately approved task mutation.</summary>
     public Guid? RequestedExecutionIntentId { get; private set; }
 
@@ -309,6 +353,28 @@ public partial class ProjectHandoverIntentDialog : Window
             ProjectHandoverExecutionChoice selected)
         {
             RequestedExiRollbackId = selected.Id;
+            DialogResult = true;
+        }
+    }
+
+    /// <summary>Requests human-approved recovery of interrupted EXI A journals.</summary>
+    /// <param name="sender">Move recovery button.</param>
+    /// <param name="e">Click.</param>
+    private void RecoverMove_Click(object sender, RoutedEventArgs e)
+    {
+        RequestedMoveRecovery = true;
+        DialogResult = true;
+    }
+
+    /// <summary>Requests an EXI A rollback with a second confirmation.</summary>
+    /// <param name="sender">Move rollback button.</param>
+    /// <param name="e">Click.</param>
+    private void RollbackMove_Click(object sender, RoutedEventArgs e)
+    {
+        if (MoveRollbackCombo.SelectedItem is
+            ProjectHandoverExecutionChoice choice)
+        {
+            RequestedMoveRollbackId = choice.Id;
             DialogResult = true;
         }
     }
