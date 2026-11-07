@@ -113,7 +113,8 @@ internal sealed class ProjectRequirementMoveCriteriaGuard
                     string.Equals(path, source,
                         StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(path, target,
-                        StringComparison.OrdinalIgnoreCase))
+                        StringComparison.OrdinalIgnoreCase) ||
+                    IsHistoricalProjectLedger(path))
                 {
                     continue;
                 }
@@ -155,6 +156,33 @@ internal sealed class ProjectRequirementMoveCriteriaGuard
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Excludes only the canonical append-only project management history,
+    /// not other human notes with matching names.
+    /// </summary>
+    /// <param name="path">Examined Markdown or JSON source.</param>
+    /// <returns>True for a real project-owned historical ledger.</returns>
+    private static bool IsHistoricalProjectLedger(string path)
+    {
+        string? parent = Path.GetDirectoryName(path);
+        string? project = parent is null ?
+            null : Path.GetDirectoryName(parent);
+        if (parent is null || project is null ||
+            !string.Equals(Path.GetFileName(parent), "Management",
+                StringComparison.OrdinalIgnoreCase) ||
+            !File.Exists(Path.Combine(project,
+                WorkspaceLayout.ProjectManifestFileName)))
+        {
+            return false;
+        }
+
+        string filename = Path.GetFileName(path);
+        return string.Equals(filename, "Passations.md",
+                   StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(filename, "Bilan de clôture.md",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Tests strict containment in one project directory.</summary>
