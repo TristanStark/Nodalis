@@ -61,7 +61,8 @@ internal static class ProjectRequirementHandoverSmokeTests
                previewA.ProposedTargetRelativePath!.EndsWith(
                    "/Documentation/Exigences/EXI-0002.md",
                    StringComparison.Ordinal),
-            "A proposes next free target reference with original GUID.");
+            "A proposes next free target reference with original GUID. " +
+            previewA.FormatReview());
         ProjectRequirementCard cardA =
             ProjectRequirementMarkdownCodec.Parse(previewA.ProposedMarkdown!);
         Assert(cardA.Id == entry.Card.Id &&
