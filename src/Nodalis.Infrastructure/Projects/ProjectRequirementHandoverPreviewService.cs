@@ -224,9 +224,11 @@ public sealed class ProjectRequirementHandoverPreviewService
 
         string markdown = new UTF8Encoding(false, true).GetString(bytes);
         if (bytes.Length != Encoding.UTF8.GetByteCount(markdown) ||
-            markdown.StartsWith('\uFEFF') || markdown.Contains('\r'))
+            markdown.StartsWith('\uFEFF') ||
+            markdown.Replace("\r\n", string.Empty,
+                StringComparison.Ordinal).Contains('\r'))
         {
-            blockers.Add("Markdown source non canonique UTF-8 LF.");
+            blockers.Add("Markdown source non canonique UTF-8 (BOM ou CR isolé).");
         }
 
         if (original.Criteria.Count > 0 || original.CriterionDiagnostics.Count > 0)
