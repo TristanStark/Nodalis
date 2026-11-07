@@ -66,3 +66,52 @@ qualification visuelle Windows restent nécessaires.
    prévention des liens cassés et qualification visuelle.
 
 Aucun merge `main`, tag ni release ne découle de ce lot.
+
+
+## Deuxième incrément — bilan Markdown historisé et interface (07/11/2026)
+
+Dans **Projet > Bilan de clôture…**, la fenêtre présente l'historique
+des revues du projet, le pré-audit consultatif actuel et les limites
+explicites de couverture. La saisie rassemble un verdict, un auteur et
+une justification ; la confirmation est distincte de l'archivage.
+
+Le document canonique opt-in `Management/Bilan de clôture.md` contient
+un bloc JSON typé marqué `nodalis:closure-report:v1` et des **revues
+append-only** (GUID, numéro, date, acteur, justification et résultat).
+Chaque revue fige les objets du pré-audit, leurs références, leurs états
+déclarés, leurs chemins sources et les diagnostics disponibles à la date
+de la revue. Les anciens événements ne peuvent pas être supprimés ou
+modifiés via ce service. Les trois issues possibles sont :
+`ReviewRecorded`, `ReadyForArchive` ou `Deferred`. Elles expriment
+uniquement la position humaine au moment de la revue ; « prêt à archiver »
+**ne déclenche aucun transfert, déplacement, clôture d'objet ou archive**.
+
+La projection ajoute un **SHA-256 de sources de l'audit** : toutes les
+fiches canoniques RIS, EXI et MEP, le registre RES, les statuts et les
+diagnostics sont inclus, même si un objet ne figure pas parmi les dettes
+ouvertes. Au moment de consigner une nouvelle revue, le service relit
+les sources et refuse une empreinte différente. La révision du bilan
+est également vérifiée par SHA-256, avec création sans écrasement et
+remplacement conditionnel atomique. Un fichier de bilan libre préexistant,
+non conforme au contrat v1, n'est **jamais remplacé**.
+
+La consultation ne crée aucun fichier. Le dossier Management et le
+bilan n'apparaissent qu'après approbation humaine. Les archives sont
+consultables en lecture seule, y compris à leur emplacement déplacé.
+La fenêtre permet de consulter les quatre dernières revues et les
+totaux, sans essayer de reconstituer les sources d'un projet archivé.
+
+**Contrainte de cohérence :** la vérification des sources juste avant
+l'écriture ne constitue pas une transaction atomique multi-documents.
+Le SHA enregistré représente les sources **revues** et non une garantie
+d'immutabilité future des RIS/EXI/MEP/RES. L'archivage reste une
+commande distincte et réaffiche son propre pré-audit.
+
+**Régressions :** `ProjectClosureReportSmokeTests` vérifie la création
+opt-in, le format Markdown canonique, plusieurs versions append-only,
+le rejet d'une révision obsolète, la détection d'une nouvelle EXI,
+la lecture en archive et le refus d'écriture dans les archives ou
+d'écraser un bilan libre existant.
+
+Les tâches, jalons, incidents, campagnes, décisions de gate, justifications
+par objet et transferts inter-projets restent à intégrer au suivi #204.
