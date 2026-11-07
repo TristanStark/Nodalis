@@ -73,9 +73,10 @@ public sealed record ProjectRequirementHandoverPreview
               "blocage, une confirmation séparée permet de créer le " +
               "successeur EXI B avec journal, reprise et rollback. " +
               "Les critères CA et liens non requalifiés restent bloquants."
-            : "Cet aperçu ne déplace aucun document. Le transfert réel " +
-              "EXI A reste indisponible jusqu'à une transaction traitant " +
-              "les backlinks, les références et la restauration.");
+            : "Cet aperçu ne déplace aucun document. Un mode A simple " +
+              "peut être exécuté avec une deuxième confirmation distincte " +
+              "seulement si un contrôle exhaustif, borné et explicite des " +
+              "backlinks GUID et références EXI-xxxx ne trouve aucun lien.");
         return text.ToString();
     }
 }
@@ -257,8 +258,9 @@ public sealed class ProjectRequirementHandoverPreviewService
             ? "Cet aperçu n'écrit rien ; le successeur EXI B n'est créé " +
               "qu'après une confirmation humaine distincte et un contrôle " +
               "transactionnel des sources et de la référence disponible."
-            : "La mutation A reste indisponible tant que les backlinks " +
-              "EXI et les anciennes références ne sont pas requalifiés.");
+            : "L'exécution A n'est autorisée qu'après une nouvelle " +
+              "inspection à la demande des liens GUID et EXI-xxxx. " +
+              "Les références ambiguës bloquent le déplacement.");
 
         string? proposed = null;
         if (blockers.Count == 0 && next is not null)
