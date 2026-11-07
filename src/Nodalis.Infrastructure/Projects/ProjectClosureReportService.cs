@@ -166,6 +166,12 @@ public sealed class ProjectClosureReportService
             Reviews = latest.Report.Reviews.Append(review).ToArray()
         };
         string markdown = ProjectClosureReportCodec.Format(proposed);
+        if (Encoding.UTF8.GetByteCount(markdown) > MaxBytes)
+        {
+            throw new InvalidDataException(
+                "Bilan de clôture trop volumineux pour être relu sans danger.");
+        }
+
         string folder = Path.Combine(directory, "Management");
         if (!Directory.Exists(folder))
         {
