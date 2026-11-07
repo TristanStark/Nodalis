@@ -1,6 +1,8 @@
 using System.Text;
 using Nodalis.Core.Links;
 using Nodalis.Core.Projects;
+using Nodalis.Core.Requirements;
+using Nodalis.Core.Relations;
 using Nodalis.Core.Tests;
 
 namespace Nodalis.Infrastructure.Projects;
@@ -164,8 +166,14 @@ public static class ProjectRequirementHandoverRelationReview
 
         HashSet<Guid> caIds = owner.Criteria.Where(c => c.Id.HasValue)
             .Select(c => c.Id!.Value).ToHashSet();
-        foreach (var criterion in owner.Criteria)
+        foreach (ProjectRequirementCriterion criterion in owner.Criteria)
         {
+            if (items.Count >= MaxItems)
+            {
+                diagnostics.Add("Inventaire des liens trop volumineux : " +
+                    "inspection incomplète et requalification requise.");
+                break;
+            }
             string identity = owner.Card.Reference + "/" + criterion.Reference +
                 " · " + (criterion.Id?.ToString("D") ?? "GUID absent");
             items.Add(new ProjectRequirementRelationReviewItem(
@@ -173,10 +181,13 @@ public static class ProjectRequirementHandoverRelationReview
                 criterion.Id, identity, owner.RelativePath, criterion.Title,
                 destination));
 
-            ProjectRequirementTraceabilityRow? row = coverage.Rows
-                .SingleOrDefault(r => r.Requirement.RelativePath ==
+            ProjectRequirementTraceabilityRow[] matching = coverage.Rows
+                .Where(r => r.Requirement.RelativePath ==
                     owner.RelativePath &&
-                    r.Criterion.Reference == criterion.Reference);
+                    r.Criterion.Id == criterion.Id &&
+                    r.Criterion.Reference == criterion.Reference).ToArray();
+            ProjectRequirementTraceabilityRow? row =
+                matching.Length == 1 ? matching[0] : null;
             if (row is null || row.Diagnostic is not null)
             {
                 diagnostics.Add(identity +
@@ -263,7 +274,7 @@ public static class ProjectRequirementHandoverRelationReview
             .GroupBy(t => t.Id).ToDictionary(g => g.Key,
                 g => g.Select(t => t.RelativePath).Distinct(
                     StringComparer.OrdinalIgnoreCase).ToArray());
-        foreach (var relation in index.Relations.Where(r =>
+        foreach (TypedRelationEntry relation in index.Relations.Where(r =>
             r.TargetId is Guid target && targets.Contains(target) ||
             documentIds.Contains(r.SourceId)).Take(MaxItems + 1))
         {
