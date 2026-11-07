@@ -240,3 +240,84 @@ et provenance bidirectionnelle liée pour B. La qualification visuelle
 Windows et les tests d'interruption devront précéder cette activation.
 
 Aucun merge, tag ni release 2.0 n'est engagé.
+
+
+## Cinquième incrément — transfert transactionnel de tâches simples (07/11/2026)
+
+Le dialogue **Projet > Préparer une passation…** permet désormais de
+déclencher une exécution **distincte de la préparation** uniquement
+pour une intention A/B déjà consignée et visant une tâche ouverte
+identifiée par GUID dans le fichier racine `Tâches.md` de chacun des
+deux projets. L'exécution n'est **pas** activée pour les tâches
+imbriquées, les checkboxes dans d'autres documents Markdown, les
+tâches générées à partir d'un jalon, les fiches RIS/EXI, campagnes
+REC, incidents INC, réserves ou jalons.
+
+### Double vérification avant publication
+
+Le dry-run `ProjectHandoverTaskExecutionPlanner` exige deux projets
+actifs et des fichiers `Tâches.md` existants, UTF-8 sans BOM et de
+moins de 2 Mio. Il contrôle l'intention humaine append-only, les
+GUIDs, la source et le destinataire, leurs empreintes, les fichiers
+physiques et les tâches uniques sans sous-checkbox ni lien intégré.
+Pour A uniquement, il effectue **à la demande de l'utilisateur**
+une inspection bornée du workspace (Markdown et JSON, 6 000 fichiers,
+96 Mio) : toute référence au GUID trouvé en dehors des deux fichiers
+de tâches sélectionnés bloque le déplacement, sans réécriture
+automatique de backlinks. Des jonctions ou scans trop volumineux
+refusent également A, plutôt que d'afficher une certitude trompeuse.
+
+Une dernière fenêtre présente les fichiers exacts à modifier et les
+avertissements avant de demander une **deuxième confirmation humaine**
+d'exécution. Préparer l'intention ne déclenche jamais cette action.
+
+### Journal, snapshots et propriété
+
+`ProjectHandoverTaskTransactionService` stocke ses journaux dans
+`Imports/.handover-task-transactions/<UUID>/` avec les fichiers
+`original-source.md`, `original-target.md`,
+`proposed-source.md`, `proposed-target.md` et `journal.json`.
+Les quatre copies durables et leurs SHA-256 sont écrits **avant**
+la première publication ; le transfert est sérialisé par un verrou
+workspace et les remplacements individuels utilisent
+`AtomicFileWriter.ReplaceSnapshotIfUnchangedAsync`.
+
+- **A — déplacer** : la case source disparaît et est remplacée par
+  une trace Markdown lisible ; l'original avec son GUID exact est
+  ajouté à `Tâches.md` du destinataire. Ordre : retrait à la source
+  **avant** insertion à destination, sans doublon actif entre les
+  deux publications. Les backlinks hors des deux fichiers bloquent A.
+- **B — successeur** : la case d'origine et son GUID sont conservés ;
+  une case distincte avec le GUID approuvé est ajoutée à destination,
+  et les deux documents conservent les identifiants de provenance
+  et de l'intention. Ordre : successeur d'abord, provenance ensuite.
+
+La publication reste **atomique fichier par fichier**, et non une
+transaction du système de fichiers englobant deux fichiers. Une panne
+entre les deux publications laisse un journal **pending** explicite,
+aucune reprise silencieuse, et bloque les transferts suivants.
+
+### Reprise et rollback
+
+Les commandes de la même fenêtre permettent la **reprise explicite**
+des journaux interrompus et le **rollback manuel** depuis les quatre
+snapshots conservés. La récupération confronte les SHA des fichiers
+réels aux états exacts originaux ou publiés. Elle rejette tout état
+étranger, fichier manquant, propriétaire déplacé ou sauvegarde altérée,
+sans écraser une modification humaine. Elle réapplique uniquement
+l'étape manquante, dans l'ordre garantissant l'absence de deux
+propriétaires actifs pour A. Le rollback utilise l'ordre inverse ;
+les journaux et sauvegardes restent conservés. Une intention déjà
+consommée ne peut pas être rejouée silencieusement.
+
+Les tests `ProjectHandoverTaskTransactionSmokeTests` couvrent A/B,
+la validation distincte, l'interruption après la première publication,
+la reprise par une nouvelle instance, la restauration octet pour
+octet, le refus de backlinks non examinés et la protection d'une
+édition concurrente durant la panne.
+
+**Restes à faire** : exécuteur analogue pour les objets RIS/EXI/INC,
+jalons et campagnes ; détection/traitement approfondi des liens
+métier et des références visibles, journal d'exécution consultable
+dans la navigation, qualification visuelle et tests de grande
+volumétrie. Il n'y a toujours ni merge `main`, ni tag ni release v2.0.
