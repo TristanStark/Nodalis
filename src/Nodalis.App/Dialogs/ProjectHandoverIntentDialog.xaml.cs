@@ -111,9 +111,13 @@ public partial class ProjectHandoverIntentDialog : Window
         ProjectHandoverTaskJournal[] completed = transactions.Where(item =>
             item.SourceProjectId == snapshot.Ledger.ProjectId &&
             item.Phase == "completed").ToArray();
-        TransactionText.Text = transactions.Count == 0
-            ? "Aucune exécution transactionnelle dans ce workspace."
-            : string.Join("\n", transactions.Take(30).Select(item =>
+        ProjectHandoverTaskJournal[] visibleTransactions =
+            transactions.Where(item =>
+                item.SourceProjectId == snapshot.Ledger.ProjectId ||
+                item.Phase is not ("completed" or "rolled-back")).ToArray();
+        TransactionText.Text = visibleTransactions.Length == 0
+            ? "Aucune exécution transactionnelle pour ce projet."
+            : string.Join("\n", visibleTransactions.Take(30).Select(item =>
                 item.TransactionId.ToString("D") + " · " + item.Method +
                 " · " + item.Phase + " · " +
                 item.SourceProjectRelativePath + " vers " +
