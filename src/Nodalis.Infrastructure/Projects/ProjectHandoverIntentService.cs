@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Nodalis.Core.Projects;
+using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Reliability;
 
 namespace Nodalis.Infrastructure.Projects;
