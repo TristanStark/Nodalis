@@ -136,6 +136,7 @@ try
     await ProjectClosureAdditionalSmokeTests.RunAsync(root);
     await ProjectClosureReportSmokeTests.RunAsync(root);
     await ProjectHandoverIntentSmokeTests.RunAsync(root);
+    await ProjectHandoverTaskTransactionSmokeTests.RunAsync(root);
     await VerifyProjectStructureAsync(root);
     await VerifyApplicationStructureAsync(root);
     await VerifyTrashAsync(root);
