@@ -57,6 +57,50 @@ public partial class ProjectRequirementCriteriaReviewDialog : Window
         RefreshApproval();
     }
 
+    /// <summary>
+    /// B review: displays explicit source-to-new GUID mapping and makes clear
+    /// that only titles are carried to a completely unverified draft.
+    /// </summary>
+    /// <param name="mapping">Frozen source/new CA mapping from B preview.</param>
+    public ProjectRequirementCriteriaReviewDialog(
+        IReadOnlyList<ProjectRequirementCriterionSuccession> mapping)
+        : this(mapping.Select(item => new ProjectRequirementCriterion(
+            item.Reference, item.Title, item.OriginalId, 0, true)).ToArray())
+    {
+        ArgumentNullException.ThrowIfNull(mapping);
+        if (mapping.Count != _criteria.Count ||
+            mapping.Any(item =>
+                item.OriginalId == Guid.Empty ||
+                item.SuccessorId == Guid.Empty ||
+                item.OriginalId == item.SuccessorId) ||
+            mapping.Select(item => item.SuccessorId).Distinct().Count() !=
+                mapping.Count)
+        {
+            throw new InvalidDataException(
+                "Filiation CA B ambiguë : revue humaine impossible.");
+        }
+
+        Title = "Requalification des CA · Nouveau successeur EXI B";
+        ReviewExplanationText.Text =
+            "Mode B : chaque critère repart avec un NOUVEAU GUID. " +
+            "Seuls le code CA et son intitulé sont repris ; le contenu, " +
+            "les résultats, les verdicts et les preuves de l'original " +
+            "ne sont PAS copiés. Confirmez chaque filiation proposée.";
+        for (int index = 0; index < mapping.Count; index++)
+        {
+            ProjectRequirementCriterionSuccession item = mapping[index];
+            _checks[index].Box.Content = new TextBlock
+            {
+                Text = item.Reference + " · " + item.Title +
+                    "\nAncien CA : " + item.OriginalId.ToString("D") +
+                    "\nNouveau CA : " + item.SuccessorId.ToString("D") +
+                    "\nÀ requalifier : sans preuve héritée",
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 625
+            };
+        }
+    }
+
     /// <summary>Only human-confirmed CA GUIDs, empty on cancellation.</summary>
     public IReadOnlyList<Guid> ApprovedCriteriaIds { get; private set; } = [];
 
