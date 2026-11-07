@@ -278,7 +278,7 @@ public sealed class ProjectHandoverPreflightService
                 "Manifeste de passation invalide ou projet archivé.");
         }
 
-        string name = Path.GetFileName(Path.GetDirectoryName(full));
+        string? name = Path.GetFileName(Path.GetDirectoryName(full));
         if (!string.Equals(name, WorkspaceLayout.ProjectsDirectoryName,
                 StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(name, WorkspaceLayout.SubProjectsDirectoryName,
