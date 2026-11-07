@@ -478,6 +478,14 @@ public sealed partial class ProjectRequirementMoveTransactionService
             journal.ReviewedCriteria.Select(item => item.Reference)
                 .Distinct(StringComparer.Ordinal).Count() !=
                     journal.ReviewedCriteria.Count ||
+            journal.CriteriaReviewRationale is null ||
+            journal.CriteriaReviewRationale.Length > 2000 ||
+            (journal.ReviewedCriteria.Count > 0 &&
+             (string.IsNullOrWhiteSpace(journal.CriteriaReviewRationale) ||
+              journal.CriteriaReviewedUtc is null)) ||
+            (journal.ReviewedCriteria.Count == 0 &&
+             (journal.CriteriaReviewRationale.Length > 0 ||
+              journal.CriteriaReviewedUtc is not null)) ||
             journal.Phase is not ("prepared" or "completed" or
                 "rollback-prepared" or "rolled-back"))
         {
