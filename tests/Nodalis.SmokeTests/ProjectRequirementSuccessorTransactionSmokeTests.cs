@@ -21,6 +21,7 @@ internal static class ProjectRequirementSuccessorTransactionSmokeTests
             await CheckInterruptedPublicationAsync(workspace, "target-created");
             await CheckInterruptedRollbackAsync(workspace);
             await CheckHumanEditAsync(workspace);
+            await CheckBacklinkRefusalAsync(workspace);
             await CheckStaleReferenceAsync(workspace);
         }
         finally
@@ -235,6 +236,64 @@ internal static class ProjectRequirementSuccessorTransactionSmokeTests
         // Fixture cleanup: restore exact staged bytes and roll back.
         await File.WriteAllTextAsync(destination, preview.ProposedMarkdown!);
         await service.RollbackAsync(completed.TransactionId, approved: true);
+    }
+
+    /// <summary>
+    /// Both an in-project EXI-xxxx citation and a workspace GUID citation
+    /// must block rollback until human review removes the live relationship.
+    /// </summary>
+    /// <param name="root">Disposable workspace root.</param>
+    /// <returns>Completed backlink protection tests.</returns>
+    private static async Task CheckBacklinkRefusalAsync(string root)
+    {
+        (string source, string target, string path,
+            ProjectRequirementHandoverPreview preview) =
+            await CreateApprovedPreviewAsync(root, "Backlinks");
+        ProjectRequirementSuccessorTransactionService service = new(root);
+        ProjectRequirementSuccessorJournal completed =
+            await service.ExecuteAsync(preview, approved: true);
+        string destination = Path.Combine(root, preview.ProposedTargetRelativePath!
+            .Replace('/', Path.DirectorySeparatorChar));
+        string localReference = Path.Combine(target, "Références.md");
+        await File.WriteAllTextAsync(localReference,
+            "Suivi du code " + completed.TargetReference);
+        bool refusedLocal = false;
+        try
+        {
+            await service.RollbackAsync(completed.TransactionId, approved: true);
+        }
+        catch (InvalidDataException)
+        {
+            refusedLocal = true;
+        }
+
+        Assert(refusedLocal && File.Exists(destination) &&
+               (await service.ListPendingAsync()).Count == 0,
+            "A cited local EXI-xxxx reference must block a destructive rollback.");
+        File.Delete(localReference);
+
+        string globalReference = Path.Combine(source, "Références.md");
+        await File.WriteAllTextAsync(globalReference,
+            "Référence externe " + completed.SuccessorRequirementId.ToString("D"));
+        bool refusedGlobal = false;
+        try
+        {
+            await service.RollbackAsync(completed.TransactionId, approved: true);
+        }
+        catch (InvalidDataException)
+        {
+            refusedGlobal = true;
+        }
+
+        Assert(refusedGlobal && File.Exists(destination) &&
+               (await service.ListPendingAsync()).Count == 0,
+            "A live cross-project GUID reference must block EXI B rollback.");
+        File.Delete(globalReference);
+        ProjectRequirementSuccessorJournal restored =
+            await service.RollbackAsync(completed.TransactionId, approved: true);
+        Assert(restored.Phase == "rolled-back" &&
+               !File.Exists(destination),
+            "Once references are removed, explicit rollback is allowed.");
     }
 
     /// <summary>Refuses an EXI code claimed after a preview was approved.</summary>
