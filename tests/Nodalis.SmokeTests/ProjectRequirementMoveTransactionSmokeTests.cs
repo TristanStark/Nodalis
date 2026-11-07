@@ -258,6 +258,40 @@ internal static class ProjectRequirementMoveTransactionSmokeTests
         Assert(codeRefused && File.Exists(file) &&
                (await service.ListHistoryAsync()).Count == 0,
             "EXI A must refuse ambiguous human EXI-xxxx references.");
+        await File.WriteAllTextAsync(external,
+            "Future target: " + reviewed.ProposedReference);
+        bool destinationCodeRefused = false;
+        try
+        {
+            await service.ExecuteAsync(reviewed, approved: true);
+        }
+        catch (InvalidDataException)
+        {
+            destinationCodeRefused = true;
+        }
+
+        Assert(destinationCodeRefused && File.Exists(file) &&
+               (await service.ListHistoryAsync()).Count == 0,
+            "A proposed EXI destination code must not capture existing links.");
+        File.Delete(external);
+        string arbitrary = Path.Combine(root, "Applications", "Notes",
+            "Passations.md");
+        Directory.CreateDirectory(Path.GetDirectoryName(arbitrary)!);
+        await File.WriteAllTextAsync(arbitrary,
+            "External reference: " + reviewed.Intent.SourceReference);
+        bool sameNameRefused = false;
+        try
+        {
+            await service.ExecuteAsync(reviewed, approved: true);
+        }
+        catch (InvalidDataException)
+        {
+            sameNameRefused = true;
+        }
+
+        Assert(sameNameRefused && File.Exists(file) &&
+               (await service.ListHistoryAsync()).Count == 0,
+            "Arbitrary user Passations.md documents must still be inspected.");
     }
 
     /// <summary>Builds two valid synthetic projects and a source-owned A intent.</summary>
