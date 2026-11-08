@@ -99,6 +99,24 @@ public partial class ProjectHandoverIntentDialog : Window
             : "Choisissez l'objet source, le destinataire et A ou B. " +
               "Une prévisualisation vérifiera les collisions et les " +
               "changements d'état avant d'autoriser l'enregistrement.";
+        ProjectHandoverExecutionChoice[] risks = history
+            .Where(intent => intent.SourceObjectKind == "Risques")
+            .Select(intent => new ProjectHandoverExecutionChoice(
+                intent.Id, intent.SourceReference + " · " + intent.Method +
+                " · " + intent.TargetProjectRelativePath)).ToArray();
+        RiskPreviewCombo.ItemsSource = risks;
+        if (risks.Length > 0)
+        {
+            RiskPreviewCombo.SelectedIndex = 0;
+        }
+
+        RiskPreviewCombo.IsEnabled = !readOnly && risks.Length > 0;
+        RiskPreviewButton.IsEnabled = !readOnly && risks.Length > 0;
+        if (readOnly)
+        {
+            RiskPreviewButton.Visibility = Visibility.Collapsed;
+        }
+
         ProjectHandoverExecutionChoice[] requirements = history
             .Where(intent => intent.SourceObjectKind == "Exigences")
             .Select(intent => new ProjectHandoverExecutionChoice(
@@ -264,6 +282,9 @@ public partial class ProjectHandoverIntentDialog : Window
     /// <summary>Request returned only after validating all explicit inputs.</summary>
     public ProjectHandoverRequest? ApprovedRequest { get; private set; }
 
+    /// <summary>Selected RIS intention for read-only A/B preflight.</summary>
+    public Guid? RequestedRiskIntentId { get; private set; }
+
     /// <summary>Selected EXI intention requiring an independent dry-run.</summary>
     public Guid? RequestedRequirementIntentId { get; private set; }
 
@@ -321,6 +342,19 @@ public partial class ProjectHandoverIntentDialog : Window
         ApprovedRequest = new ProjectHandoverRequest(
             item.Id, target.Directory, method.Method, actor, rationale);
         DialogResult = true;
+    }
+
+    /// <summary>Requests read-only RIS inspection, never execution.</summary>
+    /// <param name="sender">RIS preview button.</param>
+    /// <param name="e">Click.</param>
+    private void PreviewRisk_Click(object sender, RoutedEventArgs e)
+    {
+        if (RiskPreviewCombo.SelectedItem is
+            ProjectHandoverExecutionChoice choice)
+        {
+            RequestedRiskIntentId = choice.Id;
+            DialogResult = true;
+        }
     }
 
     /// <summary>Requests an EXI preview with no side effects.</summary>

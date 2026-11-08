@@ -146,6 +146,24 @@ public partial class MainWindow
             return;
         }
 
+        if (dialog.RequestedRiskIntentId is Guid riskIntentId)
+        {
+            ProjectRiskHandoverPreviewService riskPreviews =
+                new ProjectRiskHandoverPreviewService(_root.FullPath);
+            ProjectRiskHandoverPreview riskPlan = await Task.Run(() =>
+                riskPreviews.PrepareAsync(sourcePath, riskIntentId));
+            // This is strictly a read-only preview: no RIS transaction,
+            // migration, journal or automatic human decision is authorized.
+            MessageBox.Show(this, riskPlan.FormatReview(),
+                riskPlan.CanPreview
+                    ? "Aperçu de passation RIS · sans exécution"
+                    : "Passation RIS à corriger",
+                MessageBoxButton.OK,
+                riskPlan.CanPreview
+                    ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            return;
+        }
+
         if (dialog.RequestedRequirementIntentId is Guid requirementIntentId)
         {
             ProjectRequirementHandoverPreviewService requirementPreviews =

@@ -59,6 +59,22 @@
                          AcceptsReturn="True" Padding="10"
                          VerticalScrollBarVisibility="Auto"
                          HorizontalScrollBarVisibility="Disabled" />
+                <TextBlock Text="Risques · préparation sans transfert"
+                           FontWeight="SemiBold" Margin="0,16,0,5" />
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="Une intention RIS peut être inspectée sans déplacer le risque. En B, seuls le titre et les nouveaux identifiants sont proposés : ni évaluations ni traitements ne sont repris." />
+                <ComboBox x:Name="RiskPreviewCombo"
+                          DisplayMemberPath="Label" Margin="0,7,0,6"
+                          Padding="8,6"
+                          AutomationProperties.Name="Intention de risque à prévisualiser" />
+                <Button x:Name="RiskPreviewButton"
+                        Content="Prévisualiser une passation RIS…"
+                        HorizontalAlignment="Left" Padding="12,7"
+                        Click="PreviewRisk_Click" />
+                <TextBlock TextWrapping="Wrap" Margin="0,5,0,8"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="Aucun bouton d'exécution RIS : les transactions, backlinks et restaurations devront être qualifiés séparément." />
                 <TextBlock Text="Exigences · vérification avant transfert"
                            FontWeight="SemiBold" Margin="0,16,0,5" />
                 <TextBlock TextWrapping="Wrap"

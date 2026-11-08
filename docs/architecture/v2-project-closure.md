@@ -853,3 +853,30 @@ L'API historique de lecture pour un seul résultat reste compatible.
 Les smoke tests synthétiques vérifient le plafond de 1 200 éléments et la
 séparation de deux résultats avec liaison/déliaison. Aucun document métier
 n'est modifié par la revue ; qualification CI Windows et visuelle requises.
+
+ 
+## Incrément 13 — Préflight RIS A/B, sans exécution (08/11/2026)
+
+Une intention de passation **RIS** déjà approuvée est désormais accessible dans
+**Projet > Préparer une passation > Risques**. Le service relit la source
+et le destinataire actifs, leurs inventaires, l'intention append-only et
+l'empreinte SHA-256 exacte de la fiche de risque. Toute divergence source,
+cible, projet propriétaire, référence ou journal bloque le préflight.
+
+- **A :** propose la même identité RIS, sans déplacer le fichier ; les
+  évaluations, mesures, tâches associées et liens doivent être audités avant
+  la mise au point d'un exécuteur transactionnel, de sa reprise et de son rollback.
+- **B :** prépare uniquement en mémoire un Markdown de successeur au GUID et
+  à la référence du projet cible. Le titre est la seule donnée métier reprise.
+  Qualification = ToReview, cycle = Open, cotations initiale/résiduelle non
+  évaluées, aucune preuve, mesure, revue, traitement ni événement historique.
+  Aucun lien de provenance n'est persisté avant une future transaction approuvée.
+- Les dossiers RIS absents ne sont pas créés en consultation. Une référence
+  existante, des diagnostics de registre ou un projet archivé interdisent
+  une préparation présentée comme fiable.
+
+Le bouton RIS affiche un aperçu sombre via la fenêtre de passation existante ;
+il **n'existe pas** de commande « exécuter RIS » dans cet incrément.
+La suite `ProjectRiskHandoverPreviewSmokeTests` couvre le mode B vierge,
+le mode A non mutateur, les sources devenues obsolètes, les références et
+la propriété des fichiers sans données métier réelles.
