@@ -153,8 +153,8 @@ public static class ProjectRiskHandoverRelationReviewBuilder
         ProjectRiskEntry owner = owners[0];
         List<ProjectRiskHandoverRelationItem> items = [];
         Guid? currentTreatment = owner.Treatments.LastOrDefault()?.Id;
-        foreach (IGrouping<(Guid Treatment, ProjectRiskMeasureKind Kind,
-            Guid Task), ProjectRiskTaskLinkEvent> group in owner.TaskLinks
+        foreach (IGrouping<(Guid TreatmentId, ProjectRiskMeasureKind Kind,
+            Guid TaskId), ProjectRiskTaskLinkEvent> group in owner.TaskLinks
                 .GroupBy(item => (item.TreatmentId, item.Kind, item.TaskId))
                 .OrderBy(item => item.Key.TreatmentId)
                 .ThenBy(item => item.Key.Kind)
