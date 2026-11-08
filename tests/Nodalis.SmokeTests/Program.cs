@@ -140,6 +140,7 @@ try
     await ProjectRiskHandoverPreviewSmokeTests.RunAsync(root);
     await ProjectRiskSuccessorTransactionSmokeTests.RunAsync(root);
     await ProjectRiskMoveTransactionSmokeTests.RunAsync(root);
+    await ProjectRiskHandoverRelationReviewSmokeTests.RunAsync(root);
     await ProjectHandoverTaskTransactionSmokeTests.RunAsync(root);
     await ProjectRequirementHandoverSmokeTests.RunAsync(root);
     await ProjectRequirementSuccessorTransactionSmokeTests.RunAsync(root);

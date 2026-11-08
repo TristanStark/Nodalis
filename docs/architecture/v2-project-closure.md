@@ -963,3 +963,32 @@ source ou destinataire : la présence du même code **dans une application
 étrangère** ne constitue pas, à elle seule, un lien au risque déplacé.
 L'audit reste borné et refusant sur incohérence ; les liens par GUID
 entre applications restent bloquants. La suite Windows couvre les deux cas.
+
+
+## Incrément 16 — revue RIS ↔ tâches ↔ réserves Gate (08/11/2026)
+
+Avant toute exécution RIS A ou B depuis `Projet > Préparer une passation`,
+Nodalis montre une **checklist de relations en lecture seule** :
+- chaque association explicite d'une tâche par GUID est identifiée
+  par version de plan et mesure (prévention, atténuation, contingence) ;
+  seules les associations encore liées au **plan courant** sont
+  signalées comme actives, tandis que les déliaisons et anciens plans
+  demeurent historiques ;
+- chaque réserve Gate liée ou historiquement déliée au risque est
+  rapportée avec son GUID, décision, verdict original et état ouvert/levé ;
+  les liens actifs demandent une nouvelle décision humaine et ne
+  transfèrent pas le Go/No-Go ;
+- le rapport inclut l'intention et le SHA-256 exacts, les diagnostics de
+  catalogue, un plafond strict de 1000 entrées et un bouton de copie.
+  Il n'écrit ni dans les tâches ni dans les Gates.
+
+Les registres RIS et Gate sont relus uniquement à la demande, en dehors
+du Dispatcher. Une source devenue obsolète, un propriétaire ambigu ou
+une liste tronquée rendent l'inventaire incomplet et bloquent le flux
+WPF avant la confirmation d'exécution ; les gardes transactionnels
+continuent de s'appliquer indépendamment.
+
+Le nouveau smoke test `ProjectRiskHandoverRelationReviewSmokeTests` exerce
+les liens actifs, unlinks, anciens plans, réserves liées/déliées,
+une source SHA obsolète, une mauvaise identité Gate et la limite de
+1000 relations, sans données métier réelles ni captures d'écran.

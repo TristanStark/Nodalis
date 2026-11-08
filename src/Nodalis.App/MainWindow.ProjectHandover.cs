@@ -189,6 +189,60 @@ public partial class MainWindow
                 new ProjectRiskHandoverPreviewService(_root.FullPath);
             ProjectRiskHandoverPreview riskPlan = await Task.Run(() =>
                 riskPreviews.PrepareAsync(sourcePath, riskIntentId));
+            if (!riskPlan.CanPreview)
+            {
+                MessageBox.Show(this, riskPlan.FormatReview(),
+                    "Passation RIS bloquée · source à revoir",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Explicit, off-Dispatcher RIS→task and frozen Gate reservation
+            // review. This checklist is never a business approval. The
+            // transaction engines still recheck source SHA and backlinks.
+            ProjectRiskHandoverRelationReview riskRelations =
+                await Task.Run(async () =>
+                {
+                    ProjectRiskRegistryService registry =
+                        new ProjectRiskRegistryService(_root.FullPath);
+                    ProjectRiskCatalog catalog =
+                        await registry.ListAsync(sourcePath);
+                    ProjectRiskEntry current = catalog.Risks.SingleOrDefault(
+                        item => item.Card.Id ==
+                            riskPlan.Intent.SourceObjectId &&
+                            item.RelativePath == riskPlan.SourceRelativePath &&
+                            string.Equals(item.SourceSha256,
+                                riskPlan.SourceSha256,
+                                StringComparison.OrdinalIgnoreCase)) ??
+                        throw new InvalidDataException(
+                            "RIS modifié pendant la lecture des relations.");
+                    ProjectRiskGateBacklinkCatalog gates =
+                        await new ProjectRiskGateBacklinkService(
+                            _root.FullPath).ListAsync(sourcePath, current);
+                    return ProjectRiskHandoverRelationReviewBuilder.Build(
+                        riskPlan, catalog, gates);
+                });
+            ProjectRiskHandoverRelationsDialog riskRelationsDialog = new(
+                riskRelations)
+            {
+                Owner = this
+            };
+            if (riskRelationsDialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            if (!riskRelations.IsComplete)
+            {
+                MessageBox.Show(this,
+                    "Inventaire RIS incomplet : " +
+                    string.Join("\n", riskRelations.Diagnostics.Take(8)) +
+                    "\nCorrigez les sources avant la passation.",
+                    "Liens RIS à requalifier",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             if (riskPlan.Intent.Method ==
                 Nodalis.Core.Projects.ProjectHandoverMethod.MoveOriginal)
             {

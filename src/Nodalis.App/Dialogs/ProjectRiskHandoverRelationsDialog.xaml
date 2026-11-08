@@ -1,0 +1,40 @@
+<Window x:Class="Nodalis.App.Dialogs.ProjectRiskHandoverRelationsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Relations à requalifier · Passation RIS"
+        Width="850" Height="670" MinWidth="560" MinHeight="450"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBlock Text="Revue des relations de la passation"
+                       FontSize="19" FontWeight="SemiBold" />
+            <TextBlock x:Name="SummaryText" TextWrapping="Wrap"
+                       Margin="0,8,0,3"
+                       Foreground="{StaticResource SecondaryTextBrush}" />
+            <TextBlock Text="La liste est une aide à la requalification : elle ne modifie ni les tâches, ni les réserves Gate, ni les verdicts Go/No-Go."
+                       TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Poursuivre n'approuve aucun lien. Le mode A est refusé en présence de liens actifs non requalifiés ; le mode B ne réutilise ni décisions Gate ni tâches historiques." />
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Content="Copier la liste des actions"
+                        Padding="12,7" Margin="0,0,8,0"
+                        Click="Copy_Click" />
+                <Button Content="Retour sans exécuter"
+                        Padding="12,7" Margin="0,0,8,0"
+                        IsCancel="True" />
+                <Button Content="Poursuivre sans migrer les liens…"
+                        Padding="12,7" IsDefault="True"
+                        Click="Continue_Click" />
+            </StackPanel>
+        </StackPanel>
+        <TextBox x:Name="ChecklistText" IsReadOnly="True"
+                 TextWrapping="Wrap" AcceptsReturn="True"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Disabled"
+                 Padding="12" />
+    </DockPanel>
+</Window>
