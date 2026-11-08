@@ -200,6 +200,43 @@ internal static class ProjectRiskSuccessorTransactionSmokeTests
                (await service.ListPendingAsync()).Count == 0,
             "Recovery must accept an exact existing file after CreateNew.");
 
+        ProjectRiskSuccessorJournal thirdJournal =
+            (await service.ListHistoryAsync()).Single(item =>
+                item.IntentId == thirdPreview.Intent.Id &&
+                item.Phase == "completed");
+        ProjectRiskSuccessorTransactionService interruptedRollback = new(
+            root, stage =>
+            {
+                if (stage == "target-withdrawn")
+                {
+                    throw new InvalidOperationException(
+                        "Synthetic crash after withdrawal, before final journal");
+                }
+            });
+        bool withdrawalInterrupted = false;
+        try
+        {
+            await interruptedRollback.RollbackAsync(
+                thirdJournal.TransactionId, approved: true);
+        }
+        catch (InvalidOperationException)
+        {
+            withdrawalInterrupted = true;
+        }
+
+        Assert(withdrawalInterrupted &&
+               (await service.ListPendingAsync()).Count == 1 &&
+               !(await risks.ListAsync(target)).Risks.Any(item =>
+                   item.Card.Id == thirdPreview.TargetId),
+            "A withdrawn file must remain recoverable after a journal crash.");
+        Assert(await service.RecoverPendingAsync(approved: true) == 1 &&
+               (await service.ListPendingAsync()).Count == 0 &&
+               (await service.ListHistoryAsync()).Any(item =>
+                   item.TransactionId == thirdJournal.TransactionId &&
+                   item.Phase == "rolled-back"),
+            "Recovery must finalize a byte-exact withdrawn RIS without " +
+            "silently restoring a previously approved successor.");
+
         Directory.Delete(application, recursive: true);
     }
 
