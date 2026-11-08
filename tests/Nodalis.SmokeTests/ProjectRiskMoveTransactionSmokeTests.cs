@@ -84,6 +84,32 @@ internal static class ProjectRiskMoveTransactionSmokeTests
             "Incoming RIS GUID backlink must block unsafe A execution.");
         File.Delete(sourceNote);
 
+        string unrelatedApplication = Path.Combine(root, "Applications",
+            "UnrelatedRiskApplication");
+        Directory.CreateDirectory(unrelatedApplication);
+        string unrelatedNote = Path.Combine(
+            unrelatedApplication, "UnrelatedNotes.md");
+        await File.WriteAllTextAsync(unrelatedNote,
+            "Local code RIS-0001 in a different application.");
+        // A GUID is globally unique: it must still block across apps.
+        await File.AppendAllTextAsync(unrelatedNote,
+            "\n" + initialRisk.Card.Id.ToString("D"));
+        bool crossAppGuidRejected = false;
+        try
+        {
+            await service.ExecuteAsync(first, approved: true);
+        }
+        catch (InvalidDataException)
+        {
+            crossAppGuidRejected = true;
+        }
+
+        Assert(crossAppGuidRejected &&
+               File.Exists(originalPath),
+            "Cross-application GUID backlinks must still block RIS A.");
+        await File.WriteAllTextAsync(unrelatedNote,
+            "Local code RIS-0001 in a different application.");
+
         ProjectRiskMoveJournal moved = await service.ExecuteAsync(
             first, approved: true);
         string targetFile = Path.Combine(target, "Analyse", "Risques",
@@ -286,6 +312,7 @@ internal static class ProjectRiskMoveTransactionSmokeTests
             "unlinked and older historical associations do not.");
 
         Directory.Delete(application, recursive: true);
+        Directory.Delete(unrelatedApplication, recursive: true);
     }
 
     /// <summary>Registers an explicit A intention and obtains its latest preview.</summary>

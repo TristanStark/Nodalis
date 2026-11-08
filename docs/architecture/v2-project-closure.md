@@ -952,3 +952,14 @@ L'interface propose un historique RIS A distinct avec commandes
 de reprise/retrait ; Worktree source et cible sont rafraîchis hors
 scans de peinture. Qualification Windows CI et visuelle toujours
 requises avant `main` et la release v2.0.
+
+
+### Précision des références RIS inter-applications
+
+Le garde-fou de passation RIS A examine tous les GUID dans les documents
+actifs de `Applications`, même dans une autre application. En revanche,
+un code lisible `RIS-xxxx` est interprété seulement dans l'application
+source ou destinataire : la présence du même code **dans une application
+étrangère** ne constitue pas, à elle seule, un lien au risque déplacé.
+L'audit reste borné et refusant sur incohérence ; les liens par GUID
+entre applications restent bloquants. La suite Windows couvre les deux cas.

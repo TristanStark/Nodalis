@@ -58,9 +58,11 @@ public sealed partial class ProjectRiskMoveTransactionService
             }
 
             await _guard.AssertNoIncomingAsync(journal.RiskId,
-                journal.SourceReference, journal.SourceRelativePath, token);
+                journal.SourceReference, journal.SourceRelativePath,
+                journal.TargetRelativePath, token);
             await _guard.AssertNoIncomingAsync(journal.RiskId,
-                journal.TargetReference, journal.SourceRelativePath, token);
+                journal.TargetReference, journal.SourceRelativePath,
+                journal.TargetRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(source, parked);
             try
@@ -94,9 +96,11 @@ public sealed partial class ProjectRiskMoveTransactionService
         {
             // Incoming links created after parking still prevent publication.
             await _guard.AssertNoIncomingAsync(journal.RiskId,
-                journal.SourceReference, journal.SourceRelativePath, token);
+                journal.SourceReference, journal.SourceRelativePath,
+                journal.TargetRelativePath, token);
             await _guard.AssertNoIncomingAsync(journal.RiskId,
-                journal.TargetReference, journal.SourceRelativePath, token);
+                journal.TargetReference, journal.SourceRelativePath,
+                journal.TargetRelativePath, token);
             ProjectRiskCatalog catalog = await new ProjectRiskRegistryService(
                 _root).ListAsync(targetProject, token);
             if (catalog.Diagnostics.Count > 0 ||
@@ -182,7 +186,8 @@ public sealed partial class ProjectRiskMoveTransactionService
                 journal.TargetRelativePath), journal.DestinationSha256, token);
             await VerifyHashAsync(parked, journal.OriginalSha256, token);
             await _guard.AssertNoIncomingAsync(journal.RiskId,
-                journal.TargetReference, journal.TargetRelativePath, token);
+                journal.TargetReference, journal.TargetRelativePath,
+                journal.SourceRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(target, withdrawn);
             try
@@ -214,9 +219,11 @@ public sealed partial class ProjectRiskMoveTransactionService
         {
             await VerifyHashAsync(parked, journal.OriginalSha256, token);
             await _guard.AssertNoIncomingAsync(journal.RiskId,
-                journal.TargetReference, journal.TargetRelativePath, token);
+                journal.TargetReference, journal.TargetRelativePath,
+                journal.SourceRelativePath, token);
             await _guard.AssertNoIncomingAsync(journal.RiskId,
-                journal.SourceReference, journal.SourceRelativePath, token);
+                journal.SourceReference, journal.SourceRelativePath,
+                journal.TargetRelativePath, token);
             token.ThrowIfCancellationRequested();
             File.Move(parked, source);
             _checkpoint?.Invoke("source-restored");

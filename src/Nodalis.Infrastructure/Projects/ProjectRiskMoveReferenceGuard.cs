@@ -34,15 +34,17 @@ internal sealed class ProjectRiskMoveReferenceGuard
     /// <param name="id">Original stable RIS identity.</param>
     /// <param name="reference">Human-readable RIS-xxxx being relocated.</param>
     /// <param name="excludedRelative">Source or target owning this identity.</param>
+    /// <param name="counterpartRelative">Other active project RIS path.</param>
     /// <param name="token">On-demand scan cancellation.</param>
     /// <returns>Completed verification without side effects.</returns>
     internal async Task AssertNoIncomingAsync(
         Guid id, string reference, string excludedRelative,
-        CancellationToken token)
+        string counterpartRelative, CancellationToken token)
     {
         if (id == Guid.Empty || !Nodalis.Core.Risks.
             ProjectRiskMarkdownCodec.IsReference(reference) ||
-            !ProjectJourneySourcePath.IsSafe(excludedRelative))
+            !ProjectJourneySourcePath.IsSafe(excludedRelative) ||
+            !ProjectJourneySourcePath.IsSafe(counterpartRelative))
         {
             throw new InvalidDataException("Identité RIS A non vérifiable.");
         }
@@ -57,6 +59,11 @@ internal sealed class ProjectRiskMoveReferenceGuard
 
         string ignoredPath = Path.GetFullPath(Path.Combine(_root,
             excludedRelative.Replace('/', Path.DirectorySeparatorChar)));
+        // RIS-xxxx is a locally scoped code. A GUID mention anywhere
+        // in Applications is always significant, but an unrelated app's
+        // text-only RIS-xxxx cannot identify this particular risk.
+        string firstApplication = ApplicationRoot(excludedRelative);
+        string secondApplication = ApplicationRoot(counterpartRelative);
         Stack<string> pending = new();
         pending.Push(applications);
         int count = 0;
@@ -111,6 +118,8 @@ internal sealed class ProjectRiskMoveReferenceGuard
                         StringComparison.OrdinalIgnoreCase) ||
                     content.Contains(id.ToString("N"),
                         StringComparison.OrdinalIgnoreCase) ||
+                    (WithinApplication(path, firstApplication) ||
+                     WithinApplication(path, secondApplication)) &&
                     HasOtherReadableReference(content, path, reference))
                 {
                     throw new InvalidDataException(
@@ -121,6 +130,35 @@ internal sealed class ProjectRiskMoveReferenceGuard
             }
         }
     }
+
+    /// <summary>Finds one active application directory from a RIS path.</summary>
+    /// <param name="relative">Safe workspace-relative RIS document.</param>
+    /// <returns>Absolute containing application root.</returns>
+    private string ApplicationRoot(string relative)
+    {
+        string[] segments = relative.Split('/');
+        if (segments.Length < 5 ||
+            !string.Equals(segments[0],
+                WorkspaceLayout.ApplicationsDirectoryName,
+                StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(segments[1]) ||
+            !relative.Contains("/Analyse/Risques/", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "Portée d'application RIS A non vérifiable.");
+        }
+
+        return Path.GetFullPath(Path.Combine(_root,
+            segments[0], segments[1]));
+    }
+
+    /// <summary>Checks app root without matching similarly prefixed apps.</summary>
+    /// <param name="path">Existing physical file.</param>
+    /// <param name="application">Verified containing application.</param>
+    /// <returns>Whether a human code can belong to this application.</returns>
+    private static bool WithinApplication(string path, string application) =>
+        path.StartsWith(application + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Excludes only the canonical append-only management ledgers, never

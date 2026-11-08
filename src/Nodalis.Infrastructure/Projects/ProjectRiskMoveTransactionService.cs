@@ -182,9 +182,11 @@ public sealed partial class ProjectRiskMoveTransactionService
         }
 
         await _guard.AssertNoIncomingAsync(fresh.TargetId,
-            fresh.Intent.SourceReference, fresh.SourceRelativePath, token);
+            fresh.Intent.SourceReference, fresh.SourceRelativePath,
+            fresh.TargetRelativePath!, token);
         await _guard.AssertNoIncomingAsync(fresh.TargetId,
-            fresh.TargetReference!, fresh.SourceRelativePath, token);
+            fresh.TargetReference!, fresh.SourceRelativePath,
+            fresh.TargetRelativePath!, token);
         (string original, string originalSha) =
             await ProjectHandoverTaskExecutionPlanner
                 .ReadExactTaskDocumentAsync(source, token);
@@ -300,7 +302,8 @@ public sealed partial class ProjectRiskMoveTransactionService
             journal.TargetRelativePath);
         await VerifyHashAsync(target, journal.DestinationSha256, token);
         await _guard.AssertNoIncomingAsync(journal.RiskId,
-            journal.TargetReference, journal.TargetRelativePath, token);
+            journal.TargetReference, journal.TargetRelativePath,
+            journal.SourceRelativePath, token);
         journal = journal with { Phase = "rollback-prepared" };
         await AtomicJsonFile.WriteAsync(
             Path.Combine(directory, JournalName), journal, token);
