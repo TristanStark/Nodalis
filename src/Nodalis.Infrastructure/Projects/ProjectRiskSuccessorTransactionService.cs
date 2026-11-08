@@ -272,6 +272,10 @@ public sealed class ProjectRiskSuccessorTransactionService
                 "Seul un successeur RIS B publié peut être restauré.");
         }
 
+        // Verify both active project owners BEFORE transitioning the journal.
+        // An archived/relocated target must never leave an orphaned
+        // rollback-prepared event when no withdrawal was possible.
+        await ResolveOwnersAsync(journal, token);
         string target = _sources.ResolveExistingFile(
             journal.TargetRelativePath);
         await RequireHashAsync(target, journal.SuccessorSha256, token);
