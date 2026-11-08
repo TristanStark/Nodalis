@@ -40,8 +40,8 @@ internal sealed class ProjectRiskMoveReferenceGuard
         Guid id, string reference, string excludedRelative,
         CancellationToken token)
     {
-        if (id == Guid.Empty || !Nodalis.Core.Requirements.
-            ProjectRequirementMarkdownCodec.IsReference(reference) ||
+        if (id == Guid.Empty || !Nodalis.Core.Risks.
+            ProjectRiskMarkdownCodec.IsReference(reference) ||
             !ProjectJourneySourcePath.IsSafe(excludedRelative))
         {
             throw new InvalidDataException("Identité RIS A non vérifiable.");
