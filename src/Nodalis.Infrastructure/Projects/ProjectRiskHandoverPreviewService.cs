@@ -33,6 +33,9 @@ public sealed record ProjectRiskHandoverPreview
     /// <summary>Source state retained only as historical context.</summary>
     public string OriginalState { get; init; } = string.Empty;
 
+    /// <summary>Prospective A draft with the complete original history intact.</summary>
+    public string? MoveMarkdown { get; init; }
+
     /// <summary>Fresh B draft with no copied results, proofs, or histories.</summary>
     public string? SuccessorMarkdown { get; init; }
 
@@ -296,10 +299,11 @@ public sealed class ProjectRiskHandoverPreviewService
                 "Métadonnées RIS incompatibles avec la fiche lue.");
         }
 
-        warnings.Add("Les revues de risques, évaluations, plans, mesures, " +
-            "tâches associées et décisions Go/No-Go sont historiques et " +
-            "ne se transfèrent jamais sans requalification humaine.");
+        warnings.Add("Les liens externes RIS→tâches / Go-No-Go et " +
+            "références entrantes doivent être requalifiés humainement. " +
+            "Leur audit est distinct de cette prévisualisation.");
         string? proposedMarkdown = null;
+        string? moveMarkdown = null;
         if (intent.Method == ProjectHandoverMethod.LinkedSuccessor &&
             blockers.Count == 0 && next is not null)
         {
@@ -311,9 +315,16 @@ public sealed class ProjectRiskHandoverPreviewService
         }
         else if (intent.Method == ProjectHandoverMethod.MoveOriginal)
         {
-            warnings.Add("Le mode A conserverait historique et GUID, mais " +
-                "nécessite encore un exécuteur transactionnel avec audit " +
-                "des backlinks, sauvegarde, reprise et rollback.");
+            if (blockers.Count == 0 && next is not null)
+            {
+                moveMarkdown = ProjectRiskMoveDraft.Prepare(
+                    markdown, original.TargetProjectId, next);
+            }
+
+            warnings.Add("Le mode A conserve le GUID, les cotations " +
+                "et les historiques octet à octet hors en-tête/titre. " +
+                "L'exécution doit d'abord contrôler les backlinks et " +
+                "préparer sa sauvegarde transactionnelle.");
         }
 
         return new ProjectRiskHandoverPreview
@@ -326,6 +337,7 @@ public sealed class ProjectRiskHandoverPreviewService
             TargetId = intent.ProposedTargetObjectId,
             OriginalState = entry.Summary,
             SuccessorMarkdown = proposedMarkdown,
+            MoveMarkdown = moveMarkdown,
             Blockers = blockers.ToArray(),
             Warnings = warnings.ToArray()
         };

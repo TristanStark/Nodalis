@@ -127,8 +127,44 @@ internal static class ProjectRiskHandoverPreviewSmokeTests
         Assert(movePreview.CanPreview &&
                movePreview.TargetId == original.Card.Id &&
                movePreview.SuccessorMarkdown is null &&
+               movePreview.MoveMarkdown is not null &&
+               movePreview.MoveMarkdown.Contains("CANARY_RIS_123",
+                   StringComparison.Ordinal) &&
+               ProjectRiskMarkdownCodec.Parse(movePreview.MoveMarkdown).Id ==
+                   original.Card.Id &&
+               ProjectRiskMarkdownCodec.Parse(movePreview.MoveMarkdown).ProjectId ==
+                   targetManifest.Id &&
+               ProjectRiskMarkdownCodec.Parse(movePreview.MoveMarkdown).Reference ==
+                   "RIS-0001" &&
                (await File.ReadAllTextAsync(file)) == unchanged,
-            "A preview cannot move the source or create a successor.");
+            "A preview retains the complete original history and GUID " +
+            "but only changes the prospective owner/reference.");
+
+        string historical = unchanged + "\nHuman note: RIS-0001, unchanged.\n";
+        string movedHistory = ProjectRiskMoveDraft.Prepare(
+            historical, targetManifest.Id, "RIS-0002");
+        Assert(movedHistory.Contains(
+                   "Human note: RIS-0001, unchanged.",
+                   StringComparison.Ordinal) &&
+               movedHistory.Contains("CANARY_RIS_123", StringComparison.Ordinal) &&
+               movedHistory.Contains("# RIS-0002 — ", StringComparison.Ordinal),
+            "A must preserve references inside historic notes and their bytes.");
+
+        bool malformedHeadingRejected = false;
+        try
+        {
+            ProjectRiskMoveDraft.Prepare(
+                unchanged.Replace("# RIS-0001 — ", "# Mislabelled — ",
+                    StringComparison.Ordinal),
+                targetManifest.Id, "RIS-0002");
+        }
+        catch (InvalidDataException)
+        {
+            malformedHeadingRejected = true;
+        }
+
+        Assert(malformedHeadingRejected,
+            "Noncanonical RIS heading must fail closed before any move.");
 
         await File.AppendAllTextAsync(file,
             "\nRévision après préparation de la passation.\n");
