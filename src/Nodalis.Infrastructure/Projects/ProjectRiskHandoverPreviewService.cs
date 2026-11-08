@@ -80,8 +80,8 @@ public sealed record ProjectRiskHandoverPreview
 
         text.AppendLine()
             .AppendLine("La prévisualisation ne modifie aucune source. " +
-                "Seul le mode B peut créer un successeur après une deuxième " +
-                "confirmation distincte. Le mode A reste non exécutable.");
+                "Les modes A et B nécessitent une seconde confirmation " +
+                "distincte ; liens et historique restent à requalifier.");
         return text.ToString();
     }
 }

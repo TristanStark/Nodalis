@@ -916,3 +916,39 @@ unique, édition humaine et backlinks bloquants, interruption avant et
 après publication et reprise guidée. Qualification visuelle encore requise.
 Aucun déplacement RIS A, aucune mise à jour automatique des relations
 risques↔tâches/Go-No-Go, ni merge/release 2.0 n'est réalisé dans ce lot.
+
+
+## Incrément 15 — déplacement RIS A avec original préservé (08/11/2026)
+
+Le mode **A** des passations RIS est désormais distinct du mode B et
+peut s'exécuter seulement après prévisualisation puis **seconde
+confirmation humaine** depuis `Projet > Préparer une passation`.
+L'inventaire préalable des liens RIS GUID et références visibles est
+réalisé à la demande, borné (nombre de fichiers et volume), et refuse
+les liens externes, sources liées/symboliques, dépassements et données
+non vérifiables. Les liens risques↔tâches/GO ne sont **jamais migrés ou
+réécrits implicitement** ; ils doivent être requalifiés séparément.
+
+`ProjectRiskMoveDraft` ne change que trois déclarations :
+`project-id`, `reference` et le titre principal de la fiche. Le
+GUID original, la qualification, les cotations, les traitements et le
+contenu historique Markdown sont conservés à l'identique. Les fiches
+modifiées ou malformées sont refusées.
+
+Le journal `Imports/.ris-move-transactions/<GUID>/` conserve les
+snapshots `original.md` et `destination.md` avant tout déplacement.
+L'exécution gare l'original sous `parked-original.md` **avant**
+d'écrire la cible par `CreateNew` ; le même GUID ne possède donc jamais
+deux propriétaires actifs. Les états `prepared`, `completed`,
+`rollback-prepared` et `rolled-back` sont persistés et rejoués
+uniquement après nouvel accord. Le rollback retire d'abord l'exacte
+destination dans `withdrawn-destination.md`, puis restaure les octets
+originaux. Aucune édition humaine ou lien externe ambigu n'est écrasé.
+
+`ProjectRiskMoveTransactionSmokeTests` couvre les consentements,
+identités, retours en arrière, backlinks et interruptions aux
+frontières de source garée, cible publiée et cible retirée.
+L'interface propose un historique RIS A distinct avec commandes
+de reprise/retrait ; Worktree source et cible sont rafraîchis hors
+scans de peinture. Qualification Windows CI et visuelle toujours
+requises avant `main` et la release v2.0.

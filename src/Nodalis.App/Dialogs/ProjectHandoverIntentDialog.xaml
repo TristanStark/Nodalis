@@ -92,6 +92,28 @@
                         Content="Restaurer une succession RIS B…"
                         HorizontalAlignment="Left" Padding="12,7"
                         Click="RollbackRisk_Click" />
+                <TextBlock Text="Risques · déplacement A avec GUID conservé"
+                           FontWeight="SemiBold" Margin="0,16,0,5" />
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           Text="Le déplacement A conserve l'intégralité de l'historique RIS. Des liens entrants ou fichiers modifiés bloquent l'exécution ou la restauration." />
+                <TextBox x:Name="RiskMoveTransactionText" Height="75"
+                         IsReadOnly="True" TextWrapping="Wrap"
+                         AcceptsReturn="True" Padding="10"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled" />
+                <Button x:Name="RiskMoveRecoveryButton"
+                        Content="Reprendre un déplacement RIS interrompu…"
+                        HorizontalAlignment="Left" Margin="0,6,0,7"
+                        Padding="12,7" Click="RecoverRiskMove_Click" />
+                <ComboBox x:Name="RiskMoveRollbackCombo"
+                          DisplayMemberPath="Label" Margin="0,4,0,6"
+                          Padding="8,6"
+                          AutomationProperties.Name="Déplacement RIS A à restaurer" />
+                <Button x:Name="RiskMoveRollbackButton"
+                        Content="Restaurer un déplacement RIS A…"
+                        HorizontalAlignment="Left" Padding="12,7"
+                        Click="RollbackRiskMove_Click" />
                 <TextBlock Text="Exigences · vérification avant transfert"
                            FontWeight="SemiBold" Margin="0,16,0,5" />
                 <TextBlock TextWrapping="Wrap"

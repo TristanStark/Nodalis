@@ -41,6 +41,7 @@ public partial class ProjectHandoverIntentDialog : Window
     /// <param name="exiTransactions">Durable EXI B successor journals.</param>
     /// <param name="moveTransactions">Durable EXI A move journals.</param>
     /// <param name="riskTransactions">Durable RIS B successor journals.</param>
+    /// <param name="riskMoves">Durable RIS A original-move journals.</param>
     /// <param name="readOnly">Archived or read-only workspace flag.</param>
     public ProjectHandoverIntentDialog(
         ProjectClosureAuditSnapshot? audit,
@@ -50,6 +51,7 @@ public partial class ProjectHandoverIntentDialog : Window
         IReadOnlyList<ProjectRequirementSuccessorJournal> exiTransactions,
         IReadOnlyList<ProjectRequirementMoveJournal> moveTransactions,
         IReadOnlyList<ProjectRiskSuccessorJournal> riskTransactions,
+        IReadOnlyList<ProjectRiskMoveJournal> riskMoves,
         bool readOnly)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -88,7 +90,8 @@ public partial class ProjectHandoverIntentDialog : Window
               (transactions.Count(item => item.Phase == "completed") +
                exiTransactions.Count(item => item.Phase == "completed") +
                moveTransactions.Count(item => item.Phase == "completed") +
-               riskTransactions.Count(item => item.Phase == "completed")) +
+               riskTransactions.Count(item => item.Phase == "completed") +
+               riskMoves.Count(item => item.Phase == "completed")) +
               " transaction(s) achevée(s) dans le workspace.";
         PreviousText.Text = history.Length == 0
             ? "Les futures préparations seront listées ici."
@@ -152,6 +155,41 @@ public partial class ProjectHandoverIntentDialog : Window
         {
             RiskRecoveryButton.Visibility = Visibility.Collapsed;
             RiskRollbackButton.Visibility = Visibility.Collapsed;
+        }
+
+        ProjectRiskMoveJournal[] riskMovePending = riskMoves
+            .Where(item => item.Phase is not
+                ("completed" or "rolled-back")).ToArray();
+        ProjectRiskMoveJournal[] riskMoveCompleted = riskMoves
+            .Where(item => item.SourceProjectId == snapshot.Ledger.ProjectId &&
+                item.Phase == "completed").ToArray();
+        ProjectRiskMoveJournal[] visibleRiskMoves = riskMoves
+            .Where(item => item.SourceProjectId == snapshot.Ledger.ProjectId ||
+                item.Phase is not ("completed" or "rolled-back")).ToArray();
+        RiskMoveTransactionText.Text = visibleRiskMoves.Length == 0
+            ? "Aucun déplacement RIS A pour ce projet."
+            : string.Join("\n", visibleRiskMoves.Take(25).Select(item =>
+                item.SourceReference + " → " + item.TargetReference +
+                " · " + item.Phase));
+        RiskMoveRecoveryButton.IsEnabled = !readOnly &&
+            riskMovePending.Length > 0;
+        RiskMoveRollbackCombo.ItemsSource = riskMoveCompleted.Select(item =>
+            new ProjectHandoverExecutionChoice(item.TransactionId,
+                item.SourceReference + " → " + item.TargetReference +
+                " · " + item.CreatedUtc.ToLocalTime().ToString("dd/MM HH:mm")))
+            .ToArray();
+        if (riskMoveCompleted.Length > 0)
+        {
+            RiskMoveRollbackCombo.SelectedIndex = 0;
+        }
+
+        RiskMoveRollbackCombo.IsEnabled = !readOnly &&
+            riskMovePending.Length == 0 && riskMoveCompleted.Length > 0;
+        RiskMoveRollbackButton.IsEnabled = RiskMoveRollbackCombo.IsEnabled;
+        if (readOnly)
+        {
+            RiskMoveRecoveryButton.Visibility = Visibility.Collapsed;
+            RiskMoveRollbackButton.Visibility = Visibility.Collapsed;
         }
 
         ProjectHandoverExecutionChoice[] requirements = history
@@ -328,6 +366,12 @@ public partial class ProjectHandoverIntentDialog : Window
     /// <summary>Completed RIS B journal selected for human undo.</summary>
     public Guid? RequestedRiskRollbackId { get; private set; }
 
+    /// <summary>Human request to replay a pending RIS A move.</summary>
+    public bool RequestedRiskMoveRecovery { get; private set; }
+
+    /// <summary>Completed RIS A selected for explicit undo.</summary>
+    public Guid? RequestedRiskMoveRollbackId { get; private set; }
+
     /// <summary>Selected EXI intention requiring an independent dry-run.</summary>
     public Guid? RequestedRequirementIntentId { get; private set; }
 
@@ -418,6 +462,28 @@ public partial class ProjectHandoverIntentDialog : Window
             ProjectHandoverExecutionChoice choice)
         {
             RequestedRiskRollbackId = choice.Id;
+            DialogResult = true;
+        }
+    }
+
+    /// <summary>Requests human-approved recovery of pending RIS A moves.</summary>
+    /// <param name="sender">RIS A recovery button.</param>
+    /// <param name="e">Click.</param>
+    private void RecoverRiskMove_Click(object sender, RoutedEventArgs e)
+    {
+        RequestedRiskMoveRecovery = true;
+        DialogResult = true;
+    }
+
+    /// <summary>Requests separate approval of a completed RIS A rollback.</summary>
+    /// <param name="sender">RIS A rollback button.</param>
+    /// <param name="e">Click.</param>
+    private void RollbackRiskMove_Click(object sender, RoutedEventArgs e)
+    {
+        if (RiskMoveRollbackCombo.SelectedItem is
+            ProjectHandoverExecutionChoice item)
+        {
+            RequestedRiskMoveRollbackId = item.Id;
             DialogResult = true;
         }
     }
