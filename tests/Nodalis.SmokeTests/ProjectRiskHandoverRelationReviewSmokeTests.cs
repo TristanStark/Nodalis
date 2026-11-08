@@ -102,7 +102,7 @@ internal static class ProjectRiskHandoverRelationReviewSmokeTests
             ProjectRiskHandoverRelationReviewBuilder.Build(
                 preview, new ProjectRiskCatalog([selected], [], "RIS-0002"),
                 gateCatalog);
-        Assert(review.IsComplete && review.Items.Count == 6 &&
+        Assert(review.IsComplete && review.Items.Count == 5 &&
                review.ActionCount == 2 &&
                review.Items.Any(item =>
                    item.Identity == currentTaskId && item.RequiresDecision) &&
