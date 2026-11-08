@@ -252,6 +252,39 @@ internal static class ProjectRiskMoveTransactionSmokeTests
                    item.Card.Id == thirdRisk.Card.Id),
             "Recovery must restore the original A owner, without duplicates.");
 
+
+        // An A transfer cannot carry a current-plan task association into
+        // another owner, but historic link/unlink decisions remain visible.
+        Guid planId = Guid.NewGuid();
+        Guid linkedTaskId = Guid.NewGuid();
+        ProjectRiskTaskLinkEvent link = new()
+        {
+            Id = Guid.NewGuid(),
+            RiskId = first.TargetId,
+            TreatmentId = planId,
+            Kind = ProjectRiskMeasureKind.Prevention,
+            TaskId = linkedTaskId,
+            Action = ProjectRiskTaskLinkAction.Link,
+            Actor = "Synthetic reviewer",
+            Rationale = "Synthetic link for guard qualification",
+            RecordedUtc = DateTimeOffset.UtcNow
+        };
+        ProjectRiskTaskLinkEvent unlink = link with
+        {
+            Id = Guid.NewGuid(),
+            PreviousId = link.Id,
+            Action = ProjectRiskTaskLinkAction.Unlink,
+            RecordedUtc = link.RecordedUtc.AddMinutes(1)
+        };
+        Assert(ProjectRiskMoveOutboundGuard.HasActiveTaskLinks(
+                   planId, [link]) &&
+               !ProjectRiskMoveOutboundGuard.HasActiveTaskLinks(
+                   planId, [link, unlink]) &&
+               !ProjectRiskMoveOutboundGuard.HasActiveTaskLinks(
+                   Guid.NewGuid(), [link]),
+            "Only live links of the latest treatment block RIS A; " +
+            "unlinked and older historical associations do not.");
+
         Directory.Delete(application, recursive: true);
     }
 

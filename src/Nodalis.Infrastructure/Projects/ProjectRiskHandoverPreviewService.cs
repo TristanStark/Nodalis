@@ -242,6 +242,15 @@ public sealed class ProjectRiskHandoverPreviewService
                 "avant toute préparation de transfert.");
         }
 
+        if (intent.Method == ProjectHandoverMethod.MoveOriginal &&
+            ProjectRiskMoveOutboundGuard.HasActiveTaskLinks(
+                entry.Treatments.LastOrDefault()?.Id, entry.TaskLinks))
+        {
+            blockers.Add("Le risque possède des liens actifs vers des tâches " +
+                "du projet d'origine : délier ou requalifier explicitement " +
+                "les mesures avant un déplacement RIS A.");
+        }
+
         string? next = targetCatalog.NextReference;
         if (next is null)
         {
