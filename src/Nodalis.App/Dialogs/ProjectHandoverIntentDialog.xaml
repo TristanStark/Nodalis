@@ -59,11 +59,11 @@
                          AcceptsReturn="True" Padding="10"
                          VerticalScrollBarVisibility="Auto"
                          HorizontalScrollBarVisibility="Disabled" />
-                <TextBlock Text="Risques · préparation sans transfert"
+                <TextBlock Text="Risques · succession B et suivi transactionnel"
                            FontWeight="SemiBold" Margin="0,16,0,5" />
                 <TextBlock TextWrapping="Wrap"
                            Foreground="{StaticResource SecondaryTextBrush}"
-                           Text="Une intention RIS peut être inspectée sans déplacer le risque. En B, seuls le titre et les nouveaux identifiants sont proposés : ni évaluations ni traitements ne sont repris." />
+                           Text="Prévisualiser une intention RIS A/B. En B, un deuxième accord peut créer un nouveau risque sans reprendre les évaluations et traitements ; A reste en lecture seule." />
                 <ComboBox x:Name="RiskPreviewCombo"
                           DisplayMemberPath="Label" Margin="0,7,0,6"
                           Padding="8,6"
@@ -74,7 +74,24 @@
                         Click="PreviewRisk_Click" />
                 <TextBlock TextWrapping="Wrap" Margin="0,5,0,8"
                            Foreground="{StaticResource SecondaryTextBrush}"
-                           Text="Aucun bouton d'exécution RIS : les transactions, backlinks et restaurations devront être qualifiés séparément." />
+                           Text="Seul le mode B possède un exécuteur. Les mutations sont journalisées, récupérables et leur retrait refuse toute référence ou édition inconnue." />
+                <TextBox x:Name="RiskTransactionText" Height="75"
+                         IsReadOnly="True" TextWrapping="Wrap"
+                         AcceptsReturn="True" Padding="10"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled" />
+                <Button x:Name="RiskRecoveryButton"
+                        Content="Reprendre une succession RIS interrompue…"
+                        HorizontalAlignment="Left" Margin="0,6,0,7"
+                        Padding="12,7" Click="RecoverRisk_Click" />
+                <ComboBox x:Name="RiskRollbackCombo"
+                          DisplayMemberPath="Label" Margin="0,4,0,6"
+                          Padding="8,6"
+                          AutomationProperties.Name="Successeur RIS à retirer" />
+                <Button x:Name="RiskRollbackButton"
+                        Content="Restaurer une succession RIS B…"
+                        HorizontalAlignment="Left" Padding="12,7"
+                        Click="RollbackRisk_Click" />
                 <TextBlock Text="Exigences · vérification avant transfert"
                            FontWeight="SemiBold" Margin="0,16,0,5" />
                 <TextBlock TextWrapping="Wrap"

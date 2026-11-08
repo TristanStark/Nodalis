@@ -46,11 +46,14 @@ public partial class MainWindow
             new ProjectRequirementSuccessorTransactionService(_root.FullPath);
         ProjectRequirementMoveTransactionService moveTransactions =
             new ProjectRequirementMoveTransactionService(_root.FullPath);
+        ProjectRiskSuccessorTransactionService riskTransactions =
+            new ProjectRiskSuccessorTransactionService(_root.FullPath);
         (ProjectClosureAuditSnapshot? Audit,
             ProjectHandoverIntentSnapshot History,
             IReadOnlyList<ProjectHandoverTaskJournal> Transactions,
             IReadOnlyList<ProjectRequirementSuccessorJournal> ExiTransactions,
-            IReadOnlyList<ProjectRequirementMoveJournal> MoveTransactions)
+            IReadOnlyList<ProjectRequirementMoveJournal> MoveTransactions,
+            IReadOnlyList<ProjectRiskSuccessorJournal> RiskTransactions)
             loaded = await Task.Run(async () =>
             {
                 ProjectHandoverIntentSnapshot history =
@@ -63,8 +66,10 @@ public partial class MainWindow
                     await exiTransactions.ListHistoryAsync();
                 IReadOnlyList<ProjectRequirementMoveJournal> moveHistory =
                     await moveTransactions.ListHistoryAsync();
+                IReadOnlyList<ProjectRiskSuccessorJournal> riskHistory =
+                    await riskTransactions.ListHistoryAsync();
                 return (audit, history, transactionHistory, exiHistory,
-                    moveHistory);
+                    moveHistory, riskHistory);
             });
         NavigationNodeViewModel? selected = PilotageProject();
         if (selected is null || selected.Id != sourceId ||
@@ -88,7 +93,7 @@ public partial class MainWindow
         ProjectHandoverIntentDialog dialog = new(
             loaded.Audit, targets, loaded.History,
             loaded.Transactions, loaded.ExiTransactions,
-            loaded.MoveTransactions, readOnly)
+            loaded.MoveTransactions, loaded.RiskTransactions, readOnly)
         { Owner = this };
         if (dialog.ShowDialog() != true)
         {
@@ -146,21 +151,66 @@ public partial class MainWindow
             return;
         }
 
+        if (dialog.RequestedRiskRecovery)
+        {
+            await RecoverRiskSuccessorsAsync(riskTransactions, sourcePath);
+            return;
+        }
+
+        if (dialog.RequestedRiskRollbackId is Guid riskRollbackId)
+        {
+            await RollbackRiskSuccessorAsync(riskTransactions,
+                loaded.RiskTransactions, riskRollbackId, sourcePath);
+            return;
+        }
+
         if (dialog.RequestedRiskIntentId is Guid riskIntentId)
         {
             ProjectRiskHandoverPreviewService riskPreviews =
                 new ProjectRiskHandoverPreviewService(_root.FullPath);
             ProjectRiskHandoverPreview riskPlan = await Task.Run(() =>
                 riskPreviews.PrepareAsync(sourcePath, riskIntentId));
-            // This is strictly a read-only preview: no RIS transaction,
-            // migration, journal or automatic human decision is authorized.
-            MessageBox.Show(this, riskPlan.FormatReview(),
-                riskPlan.CanPreview
-                    ? "Aperçu de passation RIS · sans exécution"
-                    : "Passation RIS à corriger",
-                MessageBoxButton.OK,
-                riskPlan.CanPreview
-                    ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            if (riskPlan.Intent.Method !=
+                    Nodalis.Core.Projects.ProjectHandoverMethod.LinkedSuccessor ||
+                !riskPlan.CanPreview || riskPlan.SuccessorMarkdown is null)
+            {
+                MessageBox.Show(this, riskPlan.FormatReview(),
+                    riskPlan.CanPreview
+                        ? "Mode RIS A · aperçu uniquement"
+                        : "Passation RIS à corriger",
+                    MessageBoxButton.OK,
+                    riskPlan.CanPreview
+                        ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                return;
+            }
+
+            string details = riskPlan.FormatReview() + "\n\n" +
+                "CRÉATION RÉELLE DU MODE B : un nouveau RIS sera publié " +
+                "dans le projet destinataire, avec un GUID distinct. " +
+                "L'original et ses preuves resteront intacts. " +
+                "Ni cotation, ni traitement, ni approbation n'est repris.\n" +
+                "Un journal privé permet la reprise après interruption " +
+                "et le rollback contrôlé.\n\n" +
+                "Créer maintenant ce successeur non évalué ?";
+            if (MessageBox.Show(this, details,
+                "Confirmer la création RIS B",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+                MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            ProjectRiskSuccessorJournal created = await Task.Run(() =>
+                riskTransactions.ExecuteAsync(riskPlan, approved: true));
+            string targetProject = Path.GetFullPath(Path.Combine(
+                _root.FullPath, created.TargetRelativePath[
+                    ..created.TargetRelativePath.IndexOf(
+                        "/Analyse/Risques/",
+                        StringComparison.Ordinal)].Replace('/',
+                    Path.DirectorySeparatorChar)));
+            await RefreshNavigationAsync(targetProject);
+            StatusText.Text = "Successeur RIS " + created.TargetReference +
+                " créé, sans résultat hérité · rollback explicite disponible.";
             return;
         }
 
@@ -366,6 +416,81 @@ public partial class MainWindow
         StatusText.Text = "Passation préparée · intention n°" +
             recorded.Ledger.Intents.Count +
             " conservée, aucun objet ni lien déplacé.";
+    }
+
+    /// <summary>Explicit restart of unfinished RIS B journal operations.</summary>
+    /// <param name="transactions">Workspace RIS B transaction engine.</param>
+    /// <param name="sourcePath">Current selected project for UI refresh.</param>
+    /// <returns>Approved replay count or an explicit refusal.</returns>
+    private async Task RecoverRiskSuccessorsAsync(
+        ProjectRiskSuccessorTransactionService transactions, string sourcePath)
+    {
+        IReadOnlyList<ProjectRiskSuccessorJournal> pending =
+            await Task.Run(() => transactions.ListPendingAsync());
+        if (pending.Count == 0)
+        {
+            StatusText.Text = "Aucune succession RIS interrompue.";
+            return;
+        }
+
+        string details = pending.Count + " transaction(s) RIS inachevée(s).\n" +
+            string.Join("\n", pending.Take(8).Select(item =>
+                item.TargetReference + " · " + item.Phase + " · " +
+                item.TransactionId.ToString("D"))) +
+            "\n\nReprendre uniquement les snapshots intacts, " +
+            "sans écrasement ni validation métier ?";
+        if (MessageBox.Show(this, details,
+            "Confirmer la reprise RIS B",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        int count = await Task.Run(() =>
+            transactions.RecoverPendingAsync(approved: true));
+        await RefreshNavigationAsync(sourcePath);
+        StatusText.Text = count + " succession(s) RIS récupérée(s).";
+    }
+
+    /// <summary>Withdraws exactly one human-approved unmodified RIS B.</summary>
+    /// <param name="transactions">Workspace RIS B transaction engine.</param>
+    /// <param name="history">Previously shown, project-scoped journals.</param>
+    /// <param name="transactionId">Human-selected completed B.</param>
+    /// <param name="sourcePath">Selected project for UI refresh.</param>
+    /// <returns>Journaled safe withdrawal, or an explicit refusal.</returns>
+    private async Task RollbackRiskSuccessorAsync(
+        ProjectRiskSuccessorTransactionService transactions,
+        IReadOnlyList<ProjectRiskSuccessorJournal> history,
+        Guid transactionId, string sourcePath)
+    {
+        ProjectRiskSuccessorJournal? item = history.SingleOrDefault(
+            journal => journal.TransactionId == transactionId &&
+                journal.Phase == "completed");
+        if (item is null)
+        {
+            throw new InvalidDataException(
+                "Succession RIS absente ou non terminée.");
+        }
+
+        string details = "Retirer le successeur RIS " +
+            item.TargetReference + " ?\n\n" + item.TargetRelativePath +
+            "\n\nLe fichier exact sera conservé dans le journal. " +
+            "Toute édition ou référence entrante bloque cette action. " +
+            "L'original reste intact.";
+        if (MessageBox.Show(this, details,
+            "Confirmer le rollback RIS B",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ProjectRiskSuccessorJournal rolledBack = await Task.Run(() =>
+            transactions.RollbackAsync(transactionId, approved: true));
+        await RefreshNavigationAsync(sourcePath);
+        StatusText.Text = "Successeur RIS " + rolledBack.TargetReference +
+            " retiré · sauvegarde conservée dans le journal.";
     }
 
     /// <summary>Recovers EXI A parking/publication under distinct approval.</summary>

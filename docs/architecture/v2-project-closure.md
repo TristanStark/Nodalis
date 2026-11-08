@@ -880,3 +880,39 @@ il **n'existe pas** de commande « exécuter RIS » dans cet incrément.
 La suite `ProjectRiskHandoverPreviewSmokeTests` couvre le mode B vierge,
 le mode A non mutateur, les sources devenues obsolètes, les références et
 la propriété des fichiers sans données métier réelles.
+
+ 
+## Incrément 14 — succession RIS B journalisée et rollback explicite (08/11/2026)
+
+Après le préflight RIS de l'incrément 13, le mode B peut être **exécuté**
+uniquement après une **deuxième confirmation humaine** dans
+**Projet > Préparer une passation**. Le mode A n'est toujours pas exécutable.
+
+La transaction utilise un répertoire privé
+`Imports/.ris-successor-transactions/<GUID>/` et produit le
+`journal.json` ainsi qu'un `successor.md` préparé, avant
+l'écriture `CreateNew` exclusive de la fiche RIS du destinataire.
+La proposition B reprend seulement le titre, le nouveau GUID et la référence
+du projet cible. Aucun historique de cotation, traitement, tâche, preuve
+ou qualification ne devient une réussite héritée. Le risque source est
+préservé à l'octet près et les registres RIS demeurent les seules sources
+métier canoniques (le journal n'est qu'un audit de transaction).
+
+Une opération interrompue avant ou juste après `CreateNew` est reconnue
+par identité, référence, projet propriétaire, SHA source et SHA destination
+avant reprise **explicitement approuvée**. Une intention ne peut pas être
+réexécutée une deuxième fois, y compris après rollback.
+
+Le bouton de restauration RIS B exige également un accord distinct.
+Seule une fiche cible au SHA exact, sans backlinks GUID ni référence locale
+RIS-xxxx active détectée, peut être déplacée dans le journal privé et marquée
+`rolled-back`. Une modification, une référence, un projet archivé, une
+source devenue obsolète ou une inspection des liens incomplète entraîne
+un refus sûr. Le rollback ne détruit pas la sauvegarde.
+
+La suite `ProjectRiskSuccessorTransactionSmokeTests` couvre approbation,
+identité nouvelle, absence de fuite de données historiques, exécution
+unique, édition humaine et backlinks bloquants, interruption avant et
+après publication et reprise guidée. Qualification visuelle encore requise.
+Aucun déplacement RIS A, aucune mise à jour automatique des relations
+risques↔tâches/Go-No-Go, ni merge/release 2.0 n'est réalisé dans ce lot.

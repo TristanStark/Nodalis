@@ -76,9 +76,9 @@ public sealed record ProjectRiskHandoverPreview
         }
 
         text.AppendLine()
-            .AppendLine("Aucun transfert RIS n'est encore implémenté. " +
-                "Cette fenêtre ne modifie aucune source, n'approuve " +
-                "aucune évaluation et ne déclenche aucune transaction.");
+            .AppendLine("La prévisualisation ne modifie aucune source. " +
+                "Seul le mode B peut créer un successeur après une deuxième " +
+                "confirmation distincte. Le mode A reste non exécutable.");
         return text.ToString();
     }
 }
