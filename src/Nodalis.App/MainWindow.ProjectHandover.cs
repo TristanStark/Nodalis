@@ -449,7 +449,19 @@ public partial class MainWindow
 
         int count = await Task.Run(() =>
             transactions.RecoverPendingAsync(approved: true));
-        await RefreshNavigationAsync(sourcePath);
+        // The operation may belong to a different application. Refresh each
+        // actual recipient, not only the currently selected source project.
+        foreach (string recipient in pending.Select(item =>
+            item.TargetRelativePath[
+                ..item.TargetRelativePath.IndexOf("/Analyse/Risques/",
+                    StringComparison.Ordinal)])
+            .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            await RefreshNavigationAsync(Path.GetFullPath(Path.Combine(
+                _root.FullPath, recipient.Replace('/',
+                    Path.DirectorySeparatorChar))));
+        }
+
         StatusText.Text = count + " succession(s) RIS récupérée(s).";
     }
 
@@ -488,7 +500,12 @@ public partial class MainWindow
 
         ProjectRiskSuccessorJournal rolledBack = await Task.Run(() =>
             transactions.RollbackAsync(transactionId, approved: true));
-        await RefreshNavigationAsync(sourcePath);
+        string recipient = rolledBack.TargetRelativePath[
+            ..rolledBack.TargetRelativePath.IndexOf(
+                "/Analyse/Risques/", StringComparison.Ordinal)];
+        await RefreshNavigationAsync(Path.GetFullPath(Path.Combine(
+            _root.FullPath, recipient.Replace('/',
+                Path.DirectorySeparatorChar))));
         StatusText.Text = "Successeur RIS " + rolledBack.TargetReference +
             " retiré · sauvegarde conservée dans le journal.";
     }
