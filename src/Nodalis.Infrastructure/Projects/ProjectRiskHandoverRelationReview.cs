@@ -156,9 +156,9 @@ public static class ProjectRiskHandoverRelationReviewBuilder
         foreach (IGrouping<(Guid Treatment, ProjectRiskMeasureKind Kind,
             Guid Task), ProjectRiskTaskLinkEvent> group in owner.TaskLinks
                 .GroupBy(item => (item.TreatmentId, item.Kind, item.TaskId))
-                .OrderBy(item => item.Key.Treatment)
+                .OrderBy(item => item.Key.TreatmentId)
                 .ThenBy(item => item.Key.Kind)
-                .ThenBy(item => item.Key.Task))
+                .ThenBy(item => item.Key.TaskId))
         {
             if (items.Count >= MaxItems)
             {
@@ -169,15 +169,15 @@ public static class ProjectRiskHandoverRelationReviewBuilder
 
             ProjectRiskTaskLinkEvent last = group.Last();
             bool active = last.Action == ProjectRiskTaskLinkAction.Link;
-            bool current = group.Key.Treatment == currentTreatment;
+            bool current = group.Key.TreatmentId == currentTreatment;
             bool requiresDecision = active && current;
             string status = !active ? "Délié · historique" :
                 current ? "Lié au plan de traitement courant" :
                 "Lié à un plan remplacé · historique";
             items.Add(new ProjectRiskHandoverRelationItem(
-                ProjectRiskHandoverRelationKind.Task, group.Key.Task,
+                ProjectRiskHandoverRelationKind.Task, group.Key.TaskId,
                 owner.RelativePath, status,
-                "Plan " + group.Key.Treatment.ToString("D") +
+                "Plan " + group.Key.TreatmentId.ToString("D") +
                     " · mesure " + group.Key.Kind,
                 requiresDecision
                     ? "Requalifier cette tâche et son propriétaire, puis " +
