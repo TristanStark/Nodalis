@@ -40,6 +40,32 @@ pas une liste fixe construite dans le menu. Les modèles Simple, Moyen et
 Complexe, et toutes les personnalisations, restent donc synchronisés
 avec la liste dynamique.
 
+## Préparation IA : schéma de réponse et opérations en lot
+
+Dans l'onglet **Parcours**, l'action **Lier des fichiers…** accepte
+désormais une sélection multiple (Ctrl/Shift dans le sélecteur Windows).
+Les fichiers doivent déjà appartenir au même workspace ; Nodalis valide
+toute la sélection, ignore les doublons et effectue **une seule sauvegarde
+confirmée** du Parcours, sans toucher au contenu des fichiers.
+
+Le bouton **Préparer tous les prompts** rassemble en une action les
+opérations dont un prompt est associé, dans l'ordre des étapes du projet.
+La préparation conserve le **prompt système FRT-100 séparé** du message
+utilisateur. Le brouillon global est modifiable, copiable et exportable,
+sans exécuter de modèle IA. Les sources sont limitées par opération
+(8 fichiers textuels, 12 000 caractères par fichier et 40 000 caractères
+d'extraits), et le lot entier est plafonné à 500 000 caractères.
+Les avertissements indiquent les limites, les sources manquantes et les
+variables qui devront être renseignées manuellement. Si un lot est
+tronqué, les opérations restantes doivent être préparées séparément.
+
+**Tous les brouillons individuels et groupés contiennent le contrat
+de sortie JSON `nodalis.import.v1`**, avec un exemple complet et les
+valeurs autorisées. Dans le LLM externe, coller le prompt utilisateur
+préparé, ajouter le système FRT-100 séparément si nécessaire, puis
+coller le JSON renvoyé dans **Analyser une réponse IA…**. Les propositions
+ne sont jamais validées ni publiées sans revue humaine.
+
 ## Règles d'utilisation
 
 1. Sélectionner d'abord un projet ou un document **de ce projet** dans
