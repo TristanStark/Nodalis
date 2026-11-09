@@ -1,4 +1,5 @@
 using Nodalis.Core.Domain;
+using Nodalis.Core.Importing;
 using Nodalis.Core.Projects;
 using Nodalis.Infrastructure.Persistence;
 using Nodalis.Infrastructure.Projects;
@@ -96,6 +97,21 @@ internal static class ProjectJourneyEvidenceSmokeTests
                 original.Document, stage.Id, operation.Id, source);
             changed = ProjectJourneyEditor.AddSource(
                 changed, stage.Id, operation.Id, image);
+            ProjectJourneyDocument grouped = ProjectJourneyEditor.AddSources(
+                original.Document, stage.Id, operation.Id,
+                [source, image, source]);
+            Assert(grouped.Steps.Single(item => item.Id == stage.Id)
+                    .Operations.Single(item => item.Id == operation.Id)
+                    .SourcePaths.SequenceEqual([source, image]) &&
+                original.Document.Steps.Single(item => item.Id == stage.Id)
+                    .Operations.Single(item => item.Id == operation.Id)
+                    .SourcePaths.Count == 0,
+                "Multi-link must deduplicate and leave the old revision intact.");
+            await RejectAsync(() => Task.FromResult(
+                ProjectJourneyEditor.AddSources(original.Document,
+                    stage.Id, operation.Id, [source, "../outside.md"])),
+                "One unsafe entry must reject the entire source selection.");
+
             changed = ProjectJourneyEditor.SetPromptKey(
                 changed, stage.Id, operation.Id, "evidence-review");
             Assert(operation.SourcePaths.Count == 0 &&
@@ -125,6 +141,36 @@ internal static class ProjectJourneyEvidenceSmokeTests
 
             ProjectJourneyPromptDraft draft = await preparer.PrepareAsync(
                 selected, withReferences);
+            ProjectAiResponsePreview validExample =
+                ProjectAiResponseImport.Parse(
+                    ProjectAiResponsePromptContract.ExampleJson);
+            Assert(validExample.Document.Schema ==
+                    ProjectAiResponsePromptContract.Schema &&
+                validExample.Document.Proposals.Count == 1 &&
+                draft.Content.Contains(
+                    ProjectAiResponsePromptContract.Instructions,
+                    StringComparison.Ordinal),
+                "The embedded prompt contract must match the working import parser.");
+
+            ProjectJourneyDocument secondJourney =
+                ProjectJourneyEditor.AddOperation(changed, stage.Id,
+                    "Deuxième opération");
+            Guid secondOperationId = secondJourney.Steps
+                .Single(item => item.Id == stage.Id).Operations.Last().Id;
+            secondJourney = ProjectJourneyEditor.SetPromptKey(
+                secondJourney, stage.Id, secondOperationId, "evidence-review");
+            ProjectJourneyPromptDraft batch = await preparer.PrepareAllAsync(
+                secondJourney);
+            Assert(batch.PromptCount == 2 &&
+                batch.IncludedSources == 1 &&
+                batch.Content.Contains("Préparation groupée", StringComparison.Ordinal) &&
+                batch.Content.Contains("Deuxième opération", StringComparison.Ordinal) &&
+                batch.Content.Split("Format obligatoire de la réponse",
+                    StringSplitOptions.None).Length == 2 &&
+                batch.SystemPrompt is null,
+                "Batch preparation must include each configured operation and " +
+                "only one external import contract, with no LLM invocation.");
+
             Assert(draft.IncludedSources == 1 &&
                 draft.Warnings.Count == 0 &&
                 draft.Content.Contains("Examine uniquement les preuves citées",
