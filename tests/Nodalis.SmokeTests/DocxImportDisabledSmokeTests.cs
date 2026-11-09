@@ -37,6 +37,7 @@ internal static class DocxImportDisabledSmokeTests
         await recovery.ListPendingProjectsAsync();
     }
 
+    /// <summary>Asserts an asynchronous entry point is blocked by the compliance policy.</summary>
     private static async Task AssertForbiddenAsync(Func<Task> operation)
     {
         try
@@ -52,6 +53,7 @@ internal static class DocxImportDisabledSmokeTests
         throw new InvalidOperationException("DOCX import/processing was not blocked.");
     }
 
+    /// <summary>Asserts a synchronous entry point is blocked by the compliance policy.</summary>
     private static void AssertForbidden(Action operation)
     {
         try
