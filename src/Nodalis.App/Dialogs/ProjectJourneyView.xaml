@@ -210,7 +210,7 @@
                             </ListBox>
                             <WrapPanel>
                                 <Button x:Name="LinkSourceButton"
-                                        Content="Lier un fichier…"
+                                        Content="Lier des fichiers…"
                                         Margin="0,0,7,7" Padding="10,5"
                                         Click="LinkSource_Click" />
                                 <Button x:Name="OpenSourceButton"
