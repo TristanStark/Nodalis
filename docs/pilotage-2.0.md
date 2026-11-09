@@ -53,8 +53,9 @@ opérations dont un prompt est associé, dans l'ordre des étapes du projet.
 La préparation conserve le **prompt système FRT-100 séparé** du message
 utilisateur. Le brouillon global est modifiable, copiable et exportable,
 sans exécuter de modèle IA. Les sources sont limitées par opération
-(8 fichiers textuels, 12 000 caractères par fichier et 40 000 caractères
-d'extraits), et le lot entier est plafonné à 500 000 caractères.
+(64 fichiers référencés, 12 000 caractères par fichier et 60 000 caractères
+d'extraits répartis entre les fichiers textuels), et le lot entier est
+plafonné à 500 000 caractères.
 Les avertissements indiquent les limites, les sources manquantes et les
 variables qui devront être renseignées manuellement. Si un lot est
 tronqué, les opérations restantes doivent être préparées séparément.
