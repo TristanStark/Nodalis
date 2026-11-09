@@ -136,7 +136,9 @@ public static class ProjectAiResponseImport
         catch (JsonException exception)
         {
             throw new InvalidDataException(
-                "Réponse IA hors contrat nodalis.import.v1.", exception);
+                "Réponse IA hors contrat nodalis.import.v1 : JSON invalide " +
+                "ou propriétés incompatibles. Consultez le schéma " +
+                "intégré au prompt préparé.", exception);
         }
     }
 
@@ -172,7 +174,7 @@ public static class ProjectAiResponseImport
     public static void Validate(ProjectAiResponseEnvelope envelope)
     {
         ArgumentNullException.ThrowIfNull(envelope);
-        if (envelope.Schema != "nodalis.import.v1" ||
+        if (envelope.Schema != ProjectAiResponsePromptContract.Schema ||
             envelope.ResponseId == Guid.Empty ||
             envelope.Proposals is null ||
             envelope.Proposals.Count is < 1 or > 100 ||
