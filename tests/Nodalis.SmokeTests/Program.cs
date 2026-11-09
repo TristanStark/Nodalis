@@ -97,6 +97,9 @@ try
     await ProjectMeetingPromptSmokeTests.RunAsync(root);
     await VerifyDecisionsAsync(root);
     await DocxImportDisabledSmokeTests.RunAsync(root);
+    // Retain historical fixture functions without running prohibited DOCX imports.
+    _ = (Func<string, Task>)VerifyDocxImportAsync;
+    _ = (Func<string, Task>)VerifyDocxImportAnalysisAsync;
     await MarkdownBulkImportSmokeTests.RunAsync(root);
     await ProjectExportSmokeTests.RunAsync(root);
     await MeetingExtractionSmokeTests.RunAsync(root);
