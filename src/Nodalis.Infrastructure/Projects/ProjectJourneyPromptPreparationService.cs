@@ -13,9 +13,9 @@ namespace Nodalis.Infrastructure.Projects;
 /// </summary>
 public sealed class ProjectJourneyPromptPreparationService
 {
-    private const int MaximumSources = 8;
+    private const int MaximumSources = 64;
     private const int MaximumSourceCharacters = 12000;
-    private const int MaximumCombinedCharacters = 40000;
+    private const int MaximumCombinedCharacters = 60000;
 
     private readonly ProjectJourneySourceService _sources;
     private readonly string _promptRoot;
@@ -298,7 +298,14 @@ public sealed class ProjectJourneyPromptPreparationService
         }
         else
         {
-            foreach (string reference in operation.SourcePaths.Take(MaximumSources))
+            string[] references = operation.SourcePaths.Take(MaximumSources)
+                .ToArray();
+            int remainingTextFiles = references.Count(reference =>
+                Path.GetExtension(reference).Equals(".md",
+                    StringComparison.OrdinalIgnoreCase) ||
+                Path.GetExtension(reference).Equals(".txt",
+                    StringComparison.OrdinalIgnoreCase));
+            foreach (string reference in references)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 draft.AppendLine();
@@ -325,7 +332,12 @@ public sealed class ProjectJourneyPromptPreparationService
                     continue;
                 }
 
-                int allowed = Math.Min(MaximumSourceCharacters, remainingCharacters);
+                // Share the remaining excerpt budget fairly so linking many
+                // requirements does not silently starve all but the first files.
+                int allowed = Math.Min(MaximumSourceCharacters,
+                    remainingTextFiles > 0
+                        ? remainingCharacters / remainingTextFiles : 0);
+                remainingTextFiles--;
                 if (allowed == 0)
                 {
                     warnings.Add("Budget d'extraits atteint : " + reference);
