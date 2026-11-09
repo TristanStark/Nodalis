@@ -51,14 +51,47 @@ public sealed class GlossaryTextBoxAdorner : Adorner
         base.OnRender(drawingContext);
 
         if (_matches.Count == 0 ||
-            _textBox.Text.Length == 0)
+            _textBox.Text.Length == 0 ||
+            !_textBox.IsVisible)
+        {
+            return;
+        }
+
+        try
+        {
+            RenderVisibleMatches(drawingContext);
+        }
+        catch (ArgumentException)
+        {
+            // A TextBox can report visible lines from an old layout while
+            // rebuilding its line map during resize or visibility changes.
+            // Glossary underlines are decorative and must never block input.
+        }
+        catch (InvalidOperationException)
+        {
+            // The visual line map may be temporarily unavailable during reflow.
+        }
+    }
+
+    /// <summary>
+    /// Draws visible glossary matches only while the TextBox has valid lines.
+    /// </summary>
+    /// <param name="drawingContext">The drawing context.</param>
+    private void RenderVisibleMatches(
+            DrawingContext drawingContext)
+    {
+        int lineCount = _textBox.LineCount;
+        if (lineCount <= 0)
         {
             return;
         }
 
         int firstVisibleLine = _textBox.GetFirstVisibleLineIndex();
         int lastVisibleLine = _textBox.GetLastVisibleLineIndex();
-        if (firstVisibleLine < 0 || lastVisibleLine < firstVisibleLine)
+        if (firstVisibleLine < 0 ||
+            lastVisibleLine < firstVisibleLine ||
+            firstVisibleLine >= lineCount ||
+            lastVisibleLine >= lineCount)
         {
             return;
         }
