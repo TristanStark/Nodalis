@@ -297,6 +297,11 @@
                                 Content="Préparer / copier"
                                 Margin="0,0,7,7" Padding="10,5"
                                 Click="PrepareOperationPrompt_Click" />
+                        <Button x:Name="PrepareAllOperationPromptsButton"
+                                 Content="Préparer tous les prompts"
+                                 Margin="0,0,7,7" Padding="10,5"
+                                 ToolTip="Préparer les prompts de toutes les opérations du parcours sans lancer d'IA"
+                                 Click="PrepareAllOperationPrompts_Click" />
                         <Button x:Name="InspectAiResponseButton"
                                 Content="Analyser une réponse IA…"
                                 Margin="0,0,7,7" Padding="10,5"
