@@ -36,6 +36,8 @@ public sealed class DocxParser
             string docxPath,
             CancellationToken cancellationToken = default)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentException.ThrowIfNullOrWhiteSpace(docxPath);
 
         string fullPath = Path.GetFullPath(docxPath);

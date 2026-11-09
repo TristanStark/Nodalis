@@ -2898,20 +2898,6 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the <c>ImportDocx_Click</c> operation.
-    /// </summary>
-    /// <param name="sender">The <c>sender</c> value.</param>
-    /// <param name="e">The <c>e</c> value.</param>
-    private async void ImportDocx_Click(
-            object sender,
-            RoutedEventArgs e)
-    {
-        await RunUiActionAsync(
-            "Import DOCX",
-            ImportDocxAsync);
-    }
-
-    /// <summary>
     /// Opens the bulk Markdown import workflow.
     /// </summary>
     /// <param name="sender">The event sender.</param>
@@ -5163,14 +5149,6 @@ public partial class MainWindow : Window
             },
             new()
             {
-                Id = "docx.import",
-                Title = "Importer un DOCX",
-                Subtitle = "Prévisualiser, remapper puis valider un document Word local",
-                Keywords = ["docx", "word", "import", "prévisualisation", "mapping"],
-                ExecuteAsync = ImportDocxAsync
-            },
-            new()
-            {
                 Id = "docx.recovery",
                 Title = "Récupérer un import DOCX interrompu",
                 Subtitle = "Vérifier les journaux et restaurer les fichiers après un arrêt brutal",
@@ -6993,135 +6971,6 @@ public partial class MainWindow : Window
             "Récupération import DOCX", MessageBoxButton.OK,
             MessageBoxImage.Information);
         return true;
-    }
-
-    /// <summary>
-    /// Performs the <c>ImportDocxAsync</c> operation.
-    /// </summary>
-    /// <returns>The result of the operation.</returns>
-    private async Task ImportDocxAsync()
-    {
-        global::Microsoft.Win32.OpenFileDialog picker = new OpenFileDialog
-        {
-            Title = "Importer un document Word",
-            Filter = "Documents Word (*.docx)|*.docx",
-            Multiselect = false,
-            CheckFileExists = true
-        };
-
-        if (picker.ShowDialog(this) != true)
-        {
-            return;
-        }
-
-        DocxImportPreview? preview = null;
-
-        try
-        {
-            if (!await TryRecoverFirstDocxImportsAsync())
-            {
-                return;
-            }
-
-            StatusText.Text =
-                "Import DOCX · analyse du document…";
-
-            preview = await _docxImportService.PreparePreviewAsync(
-                picker.FileName);
-
-            global::Nodalis.App.Dialogs.DocxImportPreviewDialog dialog = new DocxImportPreviewDialog(
-                preview,
-                request => _docxImportService.BuildPlanAsync(
-                    preview,
-                    request),
-                _docxImportService.WorkspaceRoot)
-            {
-                Owner = this
-            };
-
-            if (dialog.ShowDialog() != true ||
-                dialog.CommitRequest is null)
-            {
-                _docxImportService.DiscardStagedCopy(
-                    preview.StagedImport);
-
-                preview = null;
-                StatusText.Text =
-                    "Import DOCX annulé";
-                return;
-            }
-
-            StatusText.Text =
-                "Import DOCX · écriture dans le workspace…";
-
-            global::Nodalis.Core.Importing.DocxImportCommitResult result = await _docxImportService.CommitAsync(
-                preview,
-                dialog.CommitRequest);
-
-            preview = null;
-
-            try
-            {
-                // RefreshNavigationAsync already rebuilt the link index. Reuse
-                // that exact snapshot for both business projections instead
-                // of scanning the imported workspace three more times.
-                await RefreshNavigationAsync(
-                    result.ProjectDirectory);
-                if (_selectedNode?.Kind == WorkspaceNodeKind.Document)
-                {
-                    UpdateLinkContext(_selectedNode.FullPath);
-                }
-
-                await RefreshDashboardTasksAsync(_linkIndex);
-                await RefreshDashboardMilestonesAsync(_linkIndex);
-            }
-            catch (Exception refreshException) when (
-                refreshException is IOException or
-                UnauthorizedAccessException or
-                InvalidDataException)
-            {
-                MessageBox.Show(
-                    this,
-                    "L'import DOCX est terminé, mais l'interface n'a pas pu être " +
-                    $"rafraîchie complètement.\n\n{refreshException.Message}",
-                    "Import DOCX",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-
-                StatusText.Text =
-                    $"Import DOCX terminé · rafraîchissement incomplet · {result.GeneratedFiles.Count} fichier(s) créé(s)";
-                return;
-            }
-
-            StatusText.Text =
-                $"Import DOCX terminé · {result.GeneratedFiles.Count} fichier(s) Markdown créé(s)";
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            InvalidDataException or
-            InvalidOperationException)
-        {
-            MessageBox.Show(
-                this,
-                $"Le document Word n'a pas pu être importé.\n\n{exception.Message}",
-                "Import DOCX",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-
-            StatusText.Text =
-                "Import DOCX en échec";
-        }
-        finally
-        {
-            if (preview is not null &&
-                File.Exists(
-                    preview.StagedImport.StagedCopyPath))
-            {
-                _docxImportService.DiscardStagedCopy(
-                    preview.StagedImport);
-            }
-        }
     }
 
     /// <summary>

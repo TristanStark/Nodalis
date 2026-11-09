@@ -403,8 +403,6 @@
                     </MenuItem>
 
                     <MenuItem Header="Données">
-                        <MenuItem Header="Importer DOCX"
-                                  Click="ImportDocx_Click" />
                         <MenuItem Header="Importer Markdown"
                                   Click="ImportMarkdown_Click" />
                         <MenuItem Header="Exporter le projet"
