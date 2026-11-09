@@ -152,13 +152,24 @@ public sealed class ProjectJourneyPromptPreparationService
             }
         }
 
-        combined.AppendLine();
-        combined.AppendLine(ProjectAiResponsePromptContract.Instructions);
         if (targets.Count > 100)
         {
             warnings.Add("Plus de 100 opérations préparables : la réponse " +
                 "JSON doit contenir 100 propositions maximum par analyse.");
         }
+
+        if (warnings.Count > 0)
+        {
+            combined.AppendLine();
+            combined.AppendLine("## Avertissements de préparation groupée");
+            foreach (string warning in warnings)
+            {
+                combined.AppendLine("- " + warning);
+            }
+        }
+
+        combined.AppendLine();
+        combined.AppendLine(ProjectAiResponsePromptContract.Instructions);
 
         return new ProjectJourneyPromptDraft(
             combined.ToString(), included, warnings)
