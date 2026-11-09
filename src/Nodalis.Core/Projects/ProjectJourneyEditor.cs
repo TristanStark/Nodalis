@@ -216,6 +216,56 @@ public static class ProjectJourneyEditor
     }
 
     /// <summary>
+    /// Adds a user-selected set of existing workspace-relative sources in one
+    /// immutable transformation. Validation fails the entire selection before
+    /// any journey can be saved; duplicates are skipped case-insensitively.
+    /// </summary>
+    /// <param name="document">Current journey.</param>
+    /// <param name="stepId">Owning stage.</param>
+    /// <param name="operationId">Owning operation.</param>
+    /// <param name="relativePaths">Explicitly selected workspace paths.</param>
+    /// <returns>New journey with the distinct additional references.</returns>
+    public static ProjectJourneyDocument AddSources(
+        ProjectJourneyDocument document, Guid stepId, Guid operationId,
+        IReadOnlyCollection<string> relativePaths)
+    {
+        ArgumentNullException.ThrowIfNull(relativePaths);
+        if (relativePaths.Count is < 1 or > 500)
+        {
+            throw new ArgumentOutOfRangeException(nameof(relativePaths),
+                "Sélectionnez entre 1 et 500 sources par opération.");
+        }
+
+        List<string> validated = [];
+        HashSet<string> distinct = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string reference in relativePaths)
+        {
+            string safe = ProjectJourneySourcePath.RequireSafe(reference);
+            if (distinct.Add(safe))
+            {
+                validated.Add(safe);
+            }
+        }
+
+        return UpdateOperation(document, stepId, operationId, operation =>
+        {
+            List<string> paths = operation.SourcePaths.ToList();
+            HashSet<string> linked = new(paths, StringComparer.OrdinalIgnoreCase);
+            foreach (string reference in validated)
+            {
+                if (linked.Add(reference))
+                {
+                    paths.Add(reference);
+                }
+            }
+
+            return paths.Count == operation.SourcePaths.Count
+                ? operation
+                : operation with { SourcePaths = paths };
+        });
+    }
+
+    /// <summary>
     /// Removes only a non-owning source reference. The underlying file and
     /// its contents are never deleted.
     /// </summary>
