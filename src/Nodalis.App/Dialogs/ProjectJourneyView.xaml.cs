@@ -881,10 +881,10 @@ public partial class ProjectJourneyView : UserControl
 
             OpenFileDialog dialog = new()
             {
-                Title = "Lier une preuve ou un document existant du workspace",
+                Title = "Lier plusieurs preuves ou documents existants du workspace",
                 InitialDirectory = _projectDirectory,
                 CheckFileExists = true,
-                Multiselect = false,
+                Multiselect = true,
                 Filter = "Tous les fichiers (*.*)|*.*|Documents Markdown (*.md)|*.md"
             };
             if (dialog.ShowDialog(Window.GetWindow(this)) != true)
@@ -892,18 +892,31 @@ public partial class ProjectJourneyView : UserControl
                 return;
             }
 
-            string reference = _sources.GetReferenceForExistingFile(dialog.FileName);
-            if (operation.SourcePaths.Any(item => string.Equals(item,
-                    reference, StringComparison.OrdinalIgnoreCase)))
+            // Resolve ALL selected paths before proposing any edit: an unsafe
+            // or external file rejects the whole batch, not a partial link.
+            string[] selected = dialog.FileNames.Select(
+                _sources.GetReferenceForExistingFile).Distinct(
+                    StringComparer.OrdinalIgnoreCase).ToArray();
+            if (selected.Length > 500)
             {
-                StatusText.Text = "Cette source est déjà reliée à l'opération.";
+                throw new InvalidDataException(
+                    "Sélection trop importante : 500 documents maximum par lot.");
+            }
+
+            string[] newReferences = selected.Where(reference =>
+                !operation.SourcePaths.Contains(reference,
+                    StringComparer.OrdinalIgnoreCase)).ToArray();
+            if (newReferences.Length == 0)
+            {
+                StatusText.Text = "Tous les documents sélectionnés sont déjà liés.";
                 return;
             }
 
-            await CommitAsync("Lier le fichier existant « " + reference +
-                " » à l'opération « " + operation.Name + " »",
-                doc => ProjectJourneyEditor.AddSource(doc, step.Id,
-                    operation.Id, reference), step.Id, operation.Id);
+            await CommitAsync("Lier " + newReferences.Length +
+                " fichier(s) existant(s) à l'opération « " +
+                operation.Name + " » en une seule opération",
+                doc => ProjectJourneyEditor.AddSources(doc, step.Id,
+                    operation.Id, newReferences), step.Id, operation.Id);
         }, "Lier une source existante");
 
     /// <summary>Opens the selected source without editing the journey file.</summary>
