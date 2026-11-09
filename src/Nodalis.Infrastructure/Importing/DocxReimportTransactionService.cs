@@ -89,6 +89,8 @@ public sealed class DocxReimportTransactionService
         DocxReimportProvenancePackage? provenance,
         CancellationToken cancellationToken)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentNullException.ThrowIfNull(plan);
         if (operationId == Guid.Empty ||
             !string.Equals(approvedFingerprint, Fingerprint(plan),
