@@ -38,7 +38,7 @@ public static class ProjectAiResponsePromptContract
     /// French output instructions inserted into every user prompt and batch.
     /// The example is part of the same import contract as the validator.
     /// </summary>
-    public static string Instructions => """
+    public static string Instructions => $"""
         ## Format obligatoire de la réponse pour réimport Nodalis
 
         Réponds UNIQUEMENT avec un objet JSON conforme au contrat
@@ -47,9 +47,7 @@ public static class ProjectAiResponsePromptContract
         Ne renvoie pas de prose à la place du JSON.
 
         Structure JSON attendue (exemple de forme, PAS d'identifiants à recopier) :
-        """ + "\n" + ExampleJson + """
-
-        
+        {ExampleJson}
 
         Règles impératives :
         - `schema` = `nodalis.import.v1` (exactement).
