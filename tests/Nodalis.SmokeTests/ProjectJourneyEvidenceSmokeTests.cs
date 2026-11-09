@@ -186,6 +186,33 @@ internal static class ProjectJourneyEvidenceSmokeTests
                 "A draft must reference selected evidence without executing a model " +
                 "or writing the journey JSON.");
 
+            List<string> manyReferences = [];
+            for (int index = 1; index <= 12; index++)
+            {
+                string requirementPath = Path.Combine(evidenceDirectory,
+                    "EXI-" + index.ToString("D2") + ".md");
+                await File.WriteAllTextAsync(requirementPath,
+                    "# Exigence " + index + "\n\nPreuve unique " + index);
+                manyReferences.Add(sources.GetReferenceForExistingFile(
+                    requirementPath));
+            }
+
+            ProjectJourneyDocument manyLinked =
+                ProjectJourneyEditor.AddSources(changed, stage.Id,
+                    operation.Id, manyReferences);
+            ProjectJourneyStep manyStage = manyLinked.Steps.Single(
+                item => item.Id == stage.Id);
+            ProjectJourneyOperation manyOperation = manyStage.Operations.Single(
+                item => item.Id == operation.Id);
+            ProjectJourneyPromptDraft broad = await preparer.PrepareAsync(
+                manyStage, manyOperation);
+            Assert(broad.IncludedSources == 13 &&
+                broad.Content.Contains("Preuve unique 12",
+                    StringComparison.Ordinal) &&
+                broad.Warnings.Count == 0,
+                "Prompt preparation must include more than eight short, " +
+                "explicitly linked requirement files without silently omitting any.");
+
             string largePath = Path.Combine(evidenceDirectory, "Long.md");
             await File.WriteAllTextAsync(largePath, new string('Z', 16000));
             string longReference = sources.GetReferenceForExistingFile(largePath);
