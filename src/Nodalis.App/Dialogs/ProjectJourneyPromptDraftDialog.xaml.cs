@@ -22,7 +22,8 @@ public partial class ProjectJourneyPromptDraftDialog : Window
         SystemTab.IsEnabled = !string.IsNullOrWhiteSpace(draft.SystemPrompt);
         CopySystemButton.IsEnabled = SystemTab.IsEnabled;
         ExportSystemButton.IsEnabled = SystemTab.IsEnabled;
-        SummaryText.Text = draft.IncludedSources +
+        SummaryText.Text = draft.PromptCount +
+            " prompt(s) préparé(s) · " + draft.IncludedSources +
             " document(s) textuel(s) inclus · " +
             draft.Warnings.Count + " avertissement(s). " +
             (SystemTab.IsEnabled
