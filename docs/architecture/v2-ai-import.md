@@ -1,6 +1,16 @@
 # Nodalis 2.0 — import de réponses IA externes (premier contrat)
 
 Issue #197, dépendances #193 et #196. **Ce contrat ne modifie aucun projet**.
+**Depuis la préparation du Parcours (prompts individuels ou en lot)** :
+le texte remis à l'IA externe embarque désormais la description du
+contrat JSON, un exemple complet valide et les contraintes réelles du
+parseur. Les instructions de la bibliothèque FRT-100 restent intactes :
+le contrat est ajouté lors de l'assemblage du brouillon, et non injecté
+dans les modèles source. Les valeurs `schema`, `kind`, `operation`,
+`certainty`, les GUID et les champs texte sont explicités. Le
+résultat de l'IA est toujours non fiable, même s'il respecte ce format.
+Une sortie de plusieurs enveloppes doit être analysée une par une.
+
 `nodalis.import.v1` est une enveloppe JSON de PROPOSITIONS et non un
 protocole d'ordres exécutables.
 
