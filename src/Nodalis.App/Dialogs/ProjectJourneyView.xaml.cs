@@ -349,6 +349,9 @@ public partial class ProjectJourneyView : UserControl
         UnlinkRelationButton.IsEnabled = operation && SelectedRelation() is not null;
         SetOperationPromptButton.IsEnabled = operation;
         PrepareOperationPromptButton.IsEnabled = viewableOperation;
+        PrepareAllOperationPromptsButton.IsEnabled = !_busy &&
+            _snapshot?.Document.Steps.Any(step => step.Operations.Any(
+                operation => operation.PromptKey is not null)) == true;
     }
 
     /// <summary>Gets the currently selected stable stage.</summary>
@@ -1136,6 +1139,47 @@ public partial class ProjectJourneyView : UserControl
             };
             dialog.ShowDialog();
         }, "Préparer un prompt sans IA");
+
+    /// <summary>
+    /// Builds all configured operation prompts from one immutable snapshot.
+    /// No implicit per-variable source choice, LLM call, or workspace write.
+    /// </summary>
+    /// <param name="sender">Prepare-all button.</param>
+    /// <param name="e">Click event.</param>
+    private async void PrepareAllOperationPrompts_Click(
+        object sender, RoutedEventArgs e) =>
+        await RunActionAsync(async () =>
+        {
+            if (_snapshot is not ProjectJourneySnapshot initial)
+            {
+                return;
+            }
+
+            ProjectJourneyPromptPreparationService preparer = new(
+                _workspaceRoot, Path.Combine(AppContext.BaseDirectory, "Prompts"));
+            ProjectJourneyPromptDraft draft = await Task.Run(() =>
+                preparer.PrepareAllAsync(initial.Document));
+
+            ProjectJourneySnapshot? latest = await Task.Run(() =>
+                _service.ReadAsync(_projectDirectory));
+            if (latest?.Document.ProjectId != initial.Document.ProjectId ||
+                !string.Equals(latest?.Sha256, initial.Sha256,
+                    StringComparison.OrdinalIgnoreCase) ||
+                _snapshot is null ||
+                !string.Equals(_snapshot.Sha256, initial.Sha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                StatusText.Text = "Le parcours a évolué pendant la préparation " +
+                    "groupée. Rechargez et recommencez avec les sources à jour.";
+                return;
+            }
+
+            ProjectJourneyPromptDraftDialog dialog = new(draft)
+            {
+                Owner = Window.GetWindow(this)
+            };
+            dialog.ShowDialog();
+        }, "Préparer tous les prompts sans IA");
 
     /// <summary>
     /// Opens a strictly read-only review of JSON from an external AI.
