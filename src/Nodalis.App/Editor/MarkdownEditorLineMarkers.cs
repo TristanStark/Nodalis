@@ -142,7 +142,21 @@ internal sealed class MarkdownEditorLineMarkers : IDisposable
     private void RefreshTimer_Tick(object? sender, EventArgs e)
     {
         _refreshTimer.Stop();
-        RefreshVisibleMarkers();
+
+        try
+        {
+            RefreshVisibleMarkers();
+        }
+        catch (ArgumentException)
+        {
+            // TextBox line indices can become stale during WPF text reflow.
+            _markers.Children.Clear();
+        }
+        catch (InvalidOperationException)
+        {
+            // The editor may be changing its visual tree while resizing.
+            _markers.Children.Clear();
+        }
     }
 
     /// <summary>
@@ -153,16 +167,21 @@ internal sealed class MarkdownEditorLineMarkers : IDisposable
         _markers.Children.Clear();
 
         if (!_editor.IsVisible ||
+            _editor.LineCount <= 0 ||
             _markers.ActualWidth <= 0 ||
             _markers.ActualHeight <= 0)
         {
             return;
         }
 
+        int lineCount = _editor.LineCount;
         int firstVisibleLine = _editor.GetFirstVisibleLineIndex();
         int lastVisibleLine = _editor.GetLastVisibleLineIndex();
 
-        if (firstVisibleLine < 0 || lastVisibleLine < firstVisibleLine)
+        if (firstVisibleLine < 0 ||
+            lastVisibleLine < firstVisibleLine ||
+            firstVisibleLine >= lineCount ||
+            lastVisibleLine >= lineCount)
         {
             return;
         }
