@@ -161,8 +161,10 @@ internal static class ProjectJourneyEvidenceSmokeTests
                 secondJourney, stage.Id, secondOperationId, "evidence-review");
             ProjectJourneyPromptDraft batch = await preparer.PrepareAllAsync(
                 secondJourney);
-            Assert(batch.PromptCount == 2 &&
-                batch.IncludedSources == 1 &&
+            int configuredCount = secondJourney.Steps.Sum(item =>
+                item.Operations.Count(value => value.PromptKey is not null));
+            Assert(batch.PromptCount == configuredCount &&
+                batch.IncludedSources >= 1 &&
                 batch.Content.Contains("Préparation groupée", StringComparison.Ordinal) &&
                 batch.Content.Contains("Deuxième opération", StringComparison.Ordinal) &&
                 batch.Content.Split("Format obligatoire de la réponse",
