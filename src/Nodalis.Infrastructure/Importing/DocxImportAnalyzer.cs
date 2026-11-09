@@ -37,6 +37,8 @@ public sealed class DocxImportAnalyzer
             string sourceFileName,
             CancellationToken cancellationToken = default)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceFileName);
 

@@ -38,6 +38,8 @@ public sealed class DocxReimportApprovalService
         CancellationToken cancellationToken = default,
         IReadOnlyCollection<DocxReimportNewSectionAssignment>? newSectionAssignments = null)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
         ArgumentNullException.ThrowIfNull(latest);
         ArgumentNullException.ThrowIfNull(identities);
@@ -144,6 +146,8 @@ public sealed class DocxReimportApprovalService
         DocxImportPreview latest,
         CancellationToken cancellationToken = default)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentNullException.ThrowIfNull(approved);
         ArgumentNullException.ThrowIfNull(latest);
 

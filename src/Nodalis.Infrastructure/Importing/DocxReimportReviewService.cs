@@ -48,6 +48,8 @@ public sealed class DocxReimportReviewService
         IReadOnlyCollection<DocxReimportSectionMatchOverride> overrides,
         CancellationToken cancellationToken = default)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentNullException.ThrowIfNull(overrides);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
         ArgumentNullException.ThrowIfNull(previous);

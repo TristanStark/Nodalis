@@ -237,6 +237,8 @@ public sealed class WorkspaceDocxImportService
             DocxImportCommitRequest request,
             CancellationToken cancellationToken = default)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentNullException.ThrowIfNull(preview);
         ArgumentNullException.ThrowIfNull(request);
 
@@ -549,6 +551,8 @@ public sealed class WorkspaceDocxImportService
             DocxImportCommitRequest request,
             CancellationToken cancellationToken = default)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentNullException.ThrowIfNull(preview);
         ArgumentNullException.ThrowIfNull(request);
 
@@ -1187,6 +1191,8 @@ public sealed class WorkspaceDocxImportService
             string sourcePath,
             CancellationToken cancellationToken = default)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
 
         string fullSourcePath = Path.GetFullPath(sourcePath);

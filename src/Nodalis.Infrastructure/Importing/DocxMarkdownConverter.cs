@@ -13,6 +13,8 @@ public static class DocxMarkdownConverter
     public static string ConvertBlocks(
             IReadOnlyList<DocxBlock> blocks)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentNullException.ThrowIfNull(blocks);
 
         global::System.Text.StringBuilder builder = new StringBuilder();

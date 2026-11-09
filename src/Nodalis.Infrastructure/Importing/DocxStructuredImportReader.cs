@@ -19,6 +19,8 @@ public sealed class DocxStructuredImportReader : IImportDocumentReader
         string sourcePath,
         CancellationToken cancellationToken = default)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         string fullPath = Path.GetFullPath(sourcePath);
 
@@ -45,6 +47,8 @@ public sealed class DocxStructuredImportReader : IImportDocumentReader
         string fileName,
         string sha256)
     {
+        DocxImportPolicy.EnsureAllowed();
+
         ArgumentNullException.ThrowIfNull(document);
 
         List<MutableNode> roots = [];
