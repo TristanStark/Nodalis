@@ -69,6 +69,10 @@
                     MinWidth="145" Margin="0,0,10,0" Padding="9,6"
                     ToolTip="Publier une ACT dont le PM parent est déjà identifié et inchangé"
                     Click="PublishActivity_Click"/>
+            <Button x:Name="PublishRequirementButton" Content="Publier cette exigence…"
+                    MinWidth="175" Margin="0,0,10,0" Padding="9,6"
+                    ToolTip="Créer uniquement l'EXU, EXS ou EXR sélectionnée avec C/SC/RM existantes, après confirmation"
+                    Click="PublishRequirement_Click"/>
             <Button Content="Fermer" Width="100" IsCancel="True"/>
         </StackPanel>
     </Grid>

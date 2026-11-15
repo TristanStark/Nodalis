@@ -264,6 +264,7 @@ public sealed class SfdImportReviewService
                 ProposedDescription = proposal.Description,
                 ProposedParentKey = proposal.ParentKey,
                 ProposedUiMode = proposal.UiMode,
+                ProposedRegulatorySource = proposal.RegulatorySource,
                 SourceKeys = proposal.SourceKeys.ToArray(),
                 ActivityKeys = proposal.ActivityKeys.ToArray(),
                 RequirementKeys = proposal.RequirementKeys.ToArray(),

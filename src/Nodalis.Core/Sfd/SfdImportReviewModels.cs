@@ -32,6 +32,9 @@ public sealed record SfdImportReviewItem
 
     public string? ProposedUiMode { get; init; }
 
+    /// <summary>Source EXR claimed by the external model, never proof of validity.</summary>
+    public string? ProposedRegulatorySource { get; init; }
+
     public required IReadOnlyList<string> SourceKeys { get; init; }
 
     public required IReadOnlyList<string> ActivityKeys { get; init; }

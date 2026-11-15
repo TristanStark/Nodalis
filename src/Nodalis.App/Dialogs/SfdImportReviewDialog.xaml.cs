@@ -17,6 +17,7 @@ public partial class SfdImportReviewDialog : Window
     private readonly SfdImportReviewService _service;
     private readonly SfdApprovedProcessImportService _publisher;
     private readonly SfdApprovedActivityImportService _activityPublisher;
+    private readonly SfdApprovedRequirementImportService _requirementPublisher;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private long _revision;
@@ -34,6 +35,7 @@ public partial class SfdImportReviewDialog : Window
         _service = new SfdImportReviewService(workspaceRoot);
         _publisher = new SfdApprovedProcessImportService(workspaceRoot);
         _activityPublisher = new SfdApprovedActivityImportService(workspaceRoot);
+        _requirementPublisher = new SfdApprovedRequirementImportService(workspaceRoot);
         _projectDirectory = projectDirectory;
         _readOnly = readOnly;
         InitializeComponent();
@@ -260,6 +262,87 @@ public partial class SfdImportReviewDialog : Window
         }
     }
 
+    /// <summary>
+    /// Confirms one EXU/EXS/EXR creation including authored C/SC and canonical
+    /// RM GUID references; no automatic source validation or bulk approval.
+    /// </summary>
+    /// <param name="sender">Explicitly selected requirement publish command.</param>
+    /// <param name="e">Click event.</param>
+    private async void PublishRequirement_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _snapshot is null ||
+            _analyzedResponse is null ||
+            ProposalsList.SelectedItem is not ReviewRow selected ||
+            selected.Item.Kind is not ("userRequirement" or
+                "systemRequirement" or "regulatoryRequirement") ||
+            selected.Item.Operation != "create" ||
+            selected.Item.Status is not (SfdImportReviewStatus.NewCandidate or
+                SfdImportReviewStatus.IncompleteDraft) ||
+            selected.Item.ResolvedParentId is not Guid parent)
+        {
+            return;
+        }
+
+        string response = _analyzedResponse;
+        SfdImportReviewSnapshot snapshot = _snapshot;
+        string key = selected.Item.ClientKey;
+        string kind = selected.Item.Kind;
+        string warning = selected.Item.Status == SfdImportReviewStatus.IncompleteDraft
+            ? "\n\nATTENTION : cette exigence sera créée comme BROUILLON INCOMPLET ; " +
+                "aucune C/SC/RM manquante ne sera fabriquée."
+            : string.Empty;
+        MessageBoxResult approval = MessageBox.Show(this,
+            "Créer uniquement cette " + kind + " après vérification ?\n\n" +
+            selected.Item.Title + "\n\n" +
+            "ACT parente : " + parent.ToString("D") +
+            "\nBlocs proposés : " + selected.Item.ConditionCount + " C, " +
+                selected.Item.SubconditionCount + " SC, " +
+                selected.Item.RuleLinkCount + " références RM" +
+            "\nSource EXR fournie : " +
+                (selected.Item.ProposedRegulatorySource ?? "Aucune (à confirmer)") +
+            warning + "\n\nLa fiche restera À CONFIRMER. " +
+            "Toute référence RM devra déjà exister dans le catalogue ; " +
+            "aucune autre fiche ne sera créée.",
+            "Confirmer la création d'exigence SFD",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+        if (approval != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            SfdApprovedRequirementResult result = await Task.Run(() =>
+                _requirementPublisher.PublishAsync(_projectDirectory,
+                    response, snapshot, key));
+            Changed = Changed || !result.AlreadyApplied;
+            _revision++;
+            _snapshot = null;
+            _analyzedResponse = null;
+            ProposalsList.ItemsSource = null;
+            DetailsBox.Text = string.Empty;
+            SummaryText.Text = result.AlreadyApplied
+                ? "Exigence déjà publiée, GUID conservé : " + result.Reference
+                : "Exigence publiée après confirmation : " + result.Reference;
+            StatusText.Text = "Aucune autre proposition appliquée. " +
+                "Réanalysez le lot avant une nouvelle publication.";
+        }
+        catch (Exception exception) when (exception is IOException or
+            InvalidOperationException or UnauthorizedAccessException or ArgumentException)
+        {
+            MessageBox.Show(this, exception.Message,
+                "Publication EXU/EXS/EXR suspendue",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
     /// <summary>Displays explicit provenance, comparison and blocking cause.</summary>
     /// <param name="sender">Selected candidate.</param>
     /// <param name="e">Selection event.</param>
@@ -288,6 +371,8 @@ public partial class SfdImportReviewDialog : Window
             "\nSHA du PM au moment de la revue : " +
                 (item.ResolvedParentSha256 ?? "Non disponible") +
             "\nMode IHM : " + (item.ProposedUiMode ?? "Sans objet") +
+            "\nSource EXR proposée (NON vérifiée) : " +
+                (item.ProposedRegulatorySource ?? "Non renseignée") +
             "\nSources déclarées : " + string.Join(", ", item.SourceKeys) +
             "\nACT liées : " + string.Join(", ", item.ActivityKeys) +
             "\nExigences sources : " + string.Join(", ", item.RequirementKeys) +
@@ -324,6 +409,16 @@ public partial class SfdImportReviewDialog : Window
                 activity.Item.Status == SfdImportReviewStatus.NewCandidate &&
                 activity.Item.ResolvedParentId.HasValue &&
                 activity.Item.ResolvedParentSha256 is not null;
+            PublishRequirementButton.IsEnabled = !_busy && !_readOnly &&
+                _snapshot is not null && _analyzedResponse is not null &&
+                ProposalsList.SelectedItem is ReviewRow requirement &&
+                requirement.Item.Kind is ("userRequirement" or
+                    "systemRequirement" or "regulatoryRequirement") &&
+                requirement.Item.Operation == "create" &&
+                requirement.Item.Status is (SfdImportReviewStatus.NewCandidate or
+                    SfdImportReviewStatus.IncompleteDraft) &&
+                requirement.Item.ResolvedParentId.HasValue &&
+                requirement.Item.ResolvedParentSha256 is not null;
         }
     }
 }
