@@ -348,6 +348,9 @@
                     <Separator />
                     <MenuItem Header="Nouvel objet SFD…" Click="PilotageNewSfdDocument_Click"
                               ToolTip="Créer PM, ACT, EXU, EXS, EXR ou FCT dans un Projet avec spec" />
+                    <MenuItem Header="Associer activités / fonctionnalités SFD…"
+                              Click="PilotageSfdLinks_Click"
+                              ToolTip="Gérer les liens N:N ACT↔FCT sans copie documentaire" />
                     <MenuItem Header="Nouvelle exigence…" Click="PilotageNewRequirement_Click" />
                     <MenuItem Header="Campagnes de tests…" Click="PilotageTestCampaigns_Click" />
                     <MenuItem Header="Risques…" Click="PilotageRisks_Click" />

@@ -34,3 +34,9 @@ Test de fumée ajouté : `ProjectSfdSmokeTests`, appelé depuis `Nodalis.SmokeTe
 - Le périmètre de stockage des EMO, la création des blocs C/SC identifiés et les liens N:N ACT/FCT restent des étapes suivantes. Ces sujets ne sont **pas** assimilés à une structure déduite de chemins de dossiers.
 
 Tests ajoutés dans `SfdAuthoringSmokeTests` : parcours PM → ACT → EXU/EXS/EXR, FCT avec/sans IHM, parse/format, renommage d'un dossier parent, absence de règles fictives, refus des parents invalides et des identifiants dupliqués.
+
+## Tranche complémentaire #214/#216 — relations ACT↔FCT
+
+La commande **Projet → Associer activités / fonctionnalités SFD…** édite les associations plusieurs-à-plusieurs des GUID métier. Le registre canonique `.sfd-activity-functionality.json` vit à la racine du projet SFD ; les fiches ACT ne sont jamais recopiées sous une FCT. L'enregistrement est conditionné à la révision SHA-256 lue et refuse les écritures concurrentes, les doublons et les objets hors projet. Toute association/dissociation est explicite ; les activités manuelles ou hors périmètre peuvent rester sans FCT. La projection en lecture dans les fiches Markdown et la traçabilité exigences↔EMO restent à faire.
+
+Tests : activité associée à deux FCT, FCT associée à deux ACT, liens stables après renommage, idempotence, type de parent invalide et refus de révision périmée.

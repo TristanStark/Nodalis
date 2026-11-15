@@ -10,6 +10,45 @@ namespace Nodalis.App;
 /// <summary>Project-menu entry point for human-authorized SFD document creation.</summary>
 public partial class MainWindow
 {
+    /// <summary>Opens explicit project-local SFD activity/functionality linking.</summary>
+    /// <param name="sender">Project menu item.</param>
+    /// <param name="e">Click event.</param>
+    private async void PilotageSfdLinks_Click(object sender, RoutedEventArgs e) =>
+        await RunUiActionAsync("Liens activités et fonctionnalités SFD",
+            OpenSfdLinksAsync);
+
+    /// <summary>Resolves one SFD project and opens the GUID-based N:N links editor.</summary>
+    /// <returns>Completed user-reviewed association editing.</returns>
+    private async Task OpenSfdLinksAsync()
+    {
+        NavigationNodeViewModel? project = PilotageProject();
+        if (project is null)
+        {
+            ShowPilotageProjectHint("Liens ACT/FCT SFD");
+            return;
+        }
+
+        SfdDocumentRegistryService registry = new(_root.FullPath);
+        SfdDocumentCatalog catalog = await registry.ListAsync(project.FullPath);
+        if (catalog.ProjectId != project.Id || catalog.Diagnostics.Count > 0)
+        {
+            throw new InvalidDataException(
+                "Identités SFD incohérentes : corrigez les fiches avant de lier.");
+        }
+
+        SfdActivityLinksDialog dialog = new(
+            new SfdActivityFunctionalityService(_root.FullPath),
+            project.FullPath, catalog, PilotageReadOnly(project))
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+        if (dialog.Changed)
+        {
+            StatusText.Text = "Associations ACT/FCT SFD enregistrées.";
+        }
+    }
+
     /// <summary>Opens the SFD draft form under the actual selected project.</summary>
     /// <param name="sender">Project menu item.</param>
     /// <param name="e">Click event.</param>

@@ -142,6 +142,62 @@ internal static class SfdAuthoringSmokeTests
 
         string updatedUserPath = renamed.Entries.Single(item =>
             item.Card.Id == user.Card.Id).AbsolutePath;
+        SfdActivityFunctionalityService linkService = new(workspace);
+        SfdActivityFunctionalitySnapshot noLinks = await linkService.ReadAsync(
+            project.ProjectDirectory);
+        Require(noLinks.Registry.Links.Count == 0 && noLinks.Sha256 is null,
+            "Reading a new project must not materialize any invented ACT/FCT link.");
+        await linkService.LinkAsync(project.ProjectDirectory, activity.Card.Id,
+            ui.Card.Id);
+        await linkService.LinkAsync(project.ProjectDirectory, activity.Card.Id,
+            noUi.Card.Id);
+        await linkService.LinkAsync(project.ProjectDirectory, anotherActivity.Card.Id,
+            noUi.Card.Id);
+        SfdActivityFunctionalitySnapshot links = await linkService.ReadAsync(
+            project.ProjectDirectory);
+        Require(links.Registry.Links.Count == 3 &&
+            links.Registry.Links.Count(item => item.ActivityId == activity.Card.Id) == 2 &&
+            links.Registry.Links.Count(item => item.FunctionalityId == noUi.Card.Id) == 2,
+            "ACT↔FCT must support N:N GUID links after PM directory rename.");
+
+        SfdActivityFunctionalitySnapshot repeated = await linkService.LinkAsync(
+            project.ProjectDirectory, activity.Card.Id, ui.Card.Id);
+        Require(repeated.Registry.Links.Count == 3,
+            "Linking an existing pair must be idempotent.");
+
+        bool invalidRelationRefused = false;
+        try
+        {
+            await linkService.LinkAsync(project.ProjectDirectory, process.Card.Id,
+                noUi.Card.Id);
+        }
+        catch (InvalidDataException)
+        {
+            invalidRelationRefused = true;
+        }
+
+        Require(invalidRelationRefused,
+            "A process cannot stand in for an ACT in a functionality link.");
+
+        SfdActivityFunctionalitySnapshot stale = await linkService.ReadAsync(
+            project.ProjectDirectory);
+        await linkService.UnlinkAsync(project.ProjectDirectory, activity.Card.Id,
+            ui.Card.Id);
+        bool staleRefused = false;
+        try
+        {
+            await linkService.SaveAsync(project.ProjectDirectory, stale.Registry,
+                stale.Sha256);
+        }
+        catch (InvalidDataException)
+        {
+            staleRefused = true;
+        }
+
+        Require(staleRefused &&
+            (await linkService.ReadAsync(project.ProjectDirectory)).Registry.Links.Count == 2,
+            "A stale relation revision must never overwrite newer human choices.");
+
         string copied = Path.Combine(Path.GetDirectoryName(updatedUserPath)!,
             "EXU-9999 - clone.md");
         await File.WriteAllTextAsync(copied, exuMarkdown);
