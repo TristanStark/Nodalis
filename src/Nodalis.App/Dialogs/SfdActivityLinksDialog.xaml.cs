@@ -119,7 +119,7 @@ public partial class SfdActivityLinksDialog : Window
             Changed = true;
             await ReloadAsync();
         }
-        catch (Exception exception) when (exception is IOException or
+        catch (Exception exception) when (exception is IOException or InvalidDataException or
             InvalidOperationException or UnauthorizedAccessException)
         {
             MessageBox.Show(this, exception.Message,
@@ -145,7 +145,7 @@ public partial class SfdActivityLinksDialog : Window
             Changed = true;
             await ReloadAsync();
         }
-        catch (Exception exception) when (exception is IOException or
+        catch (Exception exception) when (exception is IOException or InvalidDataException or
             InvalidOperationException or UnauthorizedAccessException)
         {
             MessageBox.Show(this, exception.Message,
