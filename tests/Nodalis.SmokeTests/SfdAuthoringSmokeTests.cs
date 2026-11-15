@@ -198,6 +198,149 @@ internal static class SfdAuthoringSmokeTests
             (await linkService.ReadAsync(project.ProjectDirectory)).Registry.Links.Count == 2,
             "A stale relation revision must never overwrite newer human choices.");
 
+        // All examples below are invented; none is copied from a workplace SFD.
+        SfdStructuredAuthoringService structured = new(workspace);
+        SfdCompletionReviewService completeness = new(workspace);
+        SfdCompletionSnapshot initialCompleteness = await completeness.ReviewAsync(
+            project.ProjectDirectory);
+        Require(initialCompleteness.Findings.Any(item =>
+                item.Reference == user.Card.Reference &&
+                item.Code == "SFD_C_MISSING") &&
+            initialCompleteness.Findings.Any(item =>
+                item.Reference == regulatory.Card.Reference &&
+                item.Code == "SFD_EXR_SOURCE_MISSING"),
+            "An EXU without C and an EXR without legal source stay visible but incomplete.");
+
+        bool fabricatedConfirmedRuleRefused = false;
+        try
+        {
+            await structured.AddRuleAsync(project.ProjectDirectory,
+                "Une demande fictive dispose d'un numéro unique.",
+                certainty: SfdAssertionCertainty.Confirmed);
+        }
+        catch (InvalidDataException)
+        {
+            fabricatedConfirmedRuleRefused = true;
+        }
+
+        Require(fabricatedConfirmedRuleRefused,
+            "An RM cannot be marked confirmed without a declared source.");
+
+        SfdBusinessRule sharedRule = await structured.AddRuleAsync(
+            project.ProjectDirectory,
+            "Toute demande fictive doit porter un numéro fictif non vide.",
+            "Compte rendu fictif pour tests de validation",
+            SfdAssertionCertainty.Confirmed);
+        SfdBusinessRule otherRule = await structured.AddRuleAsync(
+            project.ProjectDirectory,
+            "La date fictive doit respecter le calendrier de simulation.");
+        Require(sharedRule.Reference == "RM-0001" &&
+            otherRule.Reference == "RM-0002" &&
+            (await structured.ReadRulesAsync(project.ProjectDirectory)).Rules.Count == 2,
+            "Business rules must have unique stable references in one canonical Markdown file.");
+
+        SfdConditionBlock firstCondition = await structured.AddConditionAsync(
+            project.ProjectDirectory, user.Card.Id,
+            "Quand une demande fictive arrive, l'utilisateur doit pouvoir consulter son résultat.");
+        SfdCompletionSnapshot cOnly = await completeness.ReviewAsync(
+            project.ProjectDirectory);
+        Require(cOnly.Findings.Any(item =>
+                item.Reference == user.Card.Reference &&
+                item.Code == "SFD_SC_MISSING") &&
+            !cOnly.Findings.Any(item =>
+                item.Reference == user.Card.Reference &&
+                item.Code == "SFD_C_MISSING"),
+            "Adding a C removes the missing-C gap but leaves missing-SC incomplete.");
+
+        SfdSubconditionBlock userSubcondition = await structured.AddSubconditionAsync(
+            project.ProjectDirectory, user.Card.Id, firstCondition.Id,
+            "En tant que conseiller fictif, je veux consulter une réponse afin de répondre à la demande sur [CANAL À CONFIRMER].");
+        SfdCompletionSnapshot scOnly = await completeness.ReviewAsync(
+            project.ProjectDirectory);
+        Require(scOnly.Findings.Any(item =>
+                item.Reference == user.Card.Reference &&
+                item.Code == "SFD_RM_MISSING") &&
+            scOnly.Findings.Any(item =>
+                item.Reference == user.Card.Reference &&
+                item.Code == "SFD_SC_CHANNEL_TO_CONFIRM"),
+            "An SC with no rule or confirmed channel remains an incomplete draft.");
+
+        await structured.LinkRuleAsync(project.ProjectDirectory,
+            user.Card.Id, userSubcondition.Id, sharedRule.Id);
+        SfdRequirementBlockSnapshot linkedUser = await structured.ReadRequirementAsync(
+            project.ProjectDirectory, user.Card.Id);
+        Require(linkedUser.Blocks.Count == 1 &&
+            linkedUser.Blocks[0].Id == firstCondition.Id &&
+            linkedUser.Blocks[0].Subconditions[0].Id == userSubcondition.Id &&
+            linkedUser.Blocks[0].Subconditions[0].BusinessRuleIds
+                .SequenceEqual([sharedRule.Id]),
+            "SFD C/SC keep GUID identities and only references to shared RM.");
+
+        SfdConditionBlock systemCondition = await structured.AddConditionAsync(
+            project.ProjectDirectory, system.Card.Id,
+            "Quand une demande fictive est reçue, le système doit permettre de produire un accusé.");
+        SfdSubconditionBlock systemSubcondition = await structured.AddSubconditionAsync(
+            project.ProjectDirectory, system.Card.Id, systemCondition.Id,
+            "Le système génère exactement un identifiant fictif contrôlable.");
+        await structured.LinkRuleAsync(project.ProjectDirectory,
+            system.Card.Id, systemSubcondition.Id, sharedRule.Id);
+        SfdRequirementBlockSnapshot linkedSystem = await structured.ReadRequirementAsync(
+            project.ProjectDirectory, system.Card.Id);
+        Require(linkedSystem.Blocks[0].Subconditions[0].BusinessRuleIds.Contains(
+                sharedRule.Id) &&
+            !File.ReadAllText(updatedUserPath).Contains(sharedRule.Statement,
+                StringComparison.Ordinal) &&
+            !File.ReadAllText(
+                (await registry.ListAsync(project.ProjectDirectory)).Entries
+                    .Single(item => item.Card.Id == system.Card.Id).AbsolutePath)
+                .Contains(sharedRule.Statement, StringComparison.Ordinal),
+            "Two SC in separate requirement files must share the same RM without copying its text.");
+
+        SfdRequirementBlockSnapshot idempotent = await structured.LinkRuleAsync(
+            project.ProjectDirectory, user.Card.Id, userSubcondition.Id, sharedRule.Id);
+        Require(idempotent.Blocks[0].Subconditions[0].BusinessRuleIds.Count == 1,
+            "Re-adding the same RM reference must never produce a duplicate.");
+
+        bool badFormalismRefused = false;
+        try
+        {
+            await structured.AddConditionAsync(project.ProjectDirectory,
+                user.Card.Id, "Le système fait une action automatique.");
+        }
+        catch (InvalidDataException)
+        {
+            badFormalismRefused = true;
+        }
+
+        Require(badFormalismRefused,
+            "Only confirmed EXU C syntax is accepted for actual authored conditions.");
+
+        bool missingRuleRefused = false;
+        try
+        {
+            await structured.LinkRuleAsync(project.ProjectDirectory, user.Card.Id,
+                userSubcondition.Id, Guid.NewGuid());
+        }
+        catch (InvalidDataException)
+        {
+            missingRuleRefused = true;
+        }
+
+        Require(missingRuleRefused,
+            "A user cannot associate an invented RM GUID.");
+
+        SfdCompletionSnapshot withSharedRules = await completeness.ReviewAsync(
+            project.ProjectDirectory);
+        Require(!withSharedRules.Findings.Any(item =>
+                item.Code == "SFD_RM_UNRESOLVED") &&
+            !withSharedRules.Findings.Any(item =>
+                item.Reference == system.Card.Reference &&
+                item.Code == "SFD_RM_MISSING") &&
+            withSharedRules.Findings.Any(item =>
+                item.Reference == otherRule.Reference &&
+                item.Code == "SFD_RM_UNUSED"),
+            "Completeness must resolve shared rules and report unreferenced ones.");
+
         string copied = Path.Combine(Path.GetDirectoryName(updatedUserPath)!,
             "EXU-9999 - clone.md");
         await File.WriteAllTextAsync(copied, exuMarkdown);

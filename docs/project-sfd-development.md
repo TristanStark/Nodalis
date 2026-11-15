@@ -40,3 +40,15 @@ Tests ajoutés dans `SfdAuthoringSmokeTests` : parcours PM → ACT → EXU/EXS/E
 La commande **Projet → Associer activités / fonctionnalités SFD…** édite les associations plusieurs-à-plusieurs des GUID métier. Le registre canonique `.sfd-activity-functionality.json` vit à la racine du projet SFD ; les fiches ACT ne sont jamais recopiées sous une FCT. L'enregistrement est conditionné à la révision SHA-256 lue et refuse les écritures concurrentes, les doublons et les objets hors projet. Toute association/dissociation est explicite ; les activités manuelles ou hors périmètre peuvent rester sans FCT. La projection en lecture dans les fiches Markdown et la traçabilité exigences↔EMO restent à faire.
 
 Tests : activité associée à deux FCT, FCT associée à deux ACT, liens stables après renommage, idempotence, type de parent invalide et refus de révision périmée.
+
+## Tranche #216 — blocs C/SC et catalogue RM canonique
+
+- `SfdConditionBlockCodec` encode les conditions C et sous-conditions SC par **marqueurs GUID versionnés** dans chaque fiche d'exigence, avec un titre lisible (`C-0001` et `SC-0001`). Le parseur refuse doublons, GUID invalides, SC orphelines et conteneurs incohérents.
+- Le fichier unique `DOCUMENTATION/liste des règles métiers.md` reçoit des RM identifiées (`RM-0001`, GUID, degré de certitude et source éventuelle). Seule cette fiche possède les formulations des RM ; chaque SC conserve 0..N **GUID de références**.
+- `SfdStructuredAuthoringService` : création humaine de C, création de SC sous une C, ajout de RM au catalogue, liaison SC→RM. Les écritures suivent les révisions SHA-256, sans écraser les modifications externes.
+- Les patrons confirmés de conditions EXU/EXS/EXR et de SC-EXU sont vérifiés ; aucun patron obligatoire n'est imposé pour les SC-EXS/EXR. Les textes à trous ne sont jamais acceptés comme conditions effectivement renseignées.
+- `SfdCompletionReviewService` : projection **lecture seule** des brouillons sans C, C sans SC, SC sans RM, GUID RM introuvables, FCT sans ACT et EXR sans source réglementaire applicable. Une ACT sans FCT est **informative et autorisée**, pas une erreur ni un lien à fabriquer.
+- Les RM encore à confirmer, non utilisées ou sans source sont visibles en diagnostics ; les constats de complétude ne changent jamais les degrés de fiabilité/validation.
+- Test régression : deux SC (EXU + EXS) partagent un même GUID RM sans copier la définition, cas incomplets, patrons de texte et refus de règles supposées confirmées sans source.
+
+Les EMO restent un rôle canonique unique, sans localisation primaire décidée. Leur ajout physique demeure différé jusqu'à l'arbitrage métier explicite.
