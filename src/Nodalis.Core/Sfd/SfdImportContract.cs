@@ -9,7 +9,7 @@ public sealed record SfdImportEnvelope
     public required string Schema { get; init; }
     public required string Step { get; init; }
     public required string RunId { get; init; }
-    public List<SfdImportProposal> Proposals { get; init; } = [];
+    public required List<SfdImportProposal> Proposals { get; init; } = [];
 }
 
 /// <summary>Explicit proposal; no client-generated persisted GUID or path is allowed.</summary>
@@ -20,15 +20,15 @@ public sealed record SfdImportProposal
     public required string Operation { get; init; }
     public required string Certainty { get; init; }
     public required string Title { get; init; }
-    public string Description { get; init; } = string.Empty;
+    public required string Description { get; init; } = string.Empty;
     public string? ParentKey { get; init; }
     public Guid? TargetId { get; init; }
     public string? UiMode { get; init; }
     public string? RegulatorySource { get; init; }
-    public List<string> SourceKeys { get; init; } = [];
-    public List<string> ActivityKeys { get; init; } = [];
-    public List<string> RequirementKeys { get; init; } = [];
-    public List<SfdImportCondition> Conditions { get; init; } = [];
+    public required List<string> SourceKeys { get; init; } = [];
+    public required List<string> ActivityKeys { get; init; } = [];
+    public required List<string> RequirementKeys { get; init; } = [];
+    public required List<SfdImportCondition> Conditions { get; init; } = [];
 }
 
 /// <summary>One C candidate nested in its owning requirement or EMO proposal.</summary>
@@ -36,7 +36,7 @@ public sealed record SfdImportCondition
 {
     public required string ClientKey { get; init; }
     public required string Statement { get; init; }
-    public List<SfdImportSubcondition> Subconditions { get; init; } = [];
+    public required List<SfdImportSubcondition> Subconditions { get; init; } = [];
 }
 
 /// <summary>One SC candidate referencing reusable RM client/existing keys.</summary>
@@ -44,7 +44,7 @@ public sealed record SfdImportSubcondition
 {
     public required string ClientKey { get; init; }
     public required string Statement { get; init; }
-    public List<string> BusinessRuleKeys { get; init; } = [];
+    public required List<string> BusinessRuleKeys { get; init; } = [];
 }
 
 /// <summary>
