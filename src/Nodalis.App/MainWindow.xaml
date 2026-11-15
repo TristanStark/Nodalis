@@ -346,6 +346,8 @@
                     <MenuItem Header="Ouvrir le parcours" Click="PilotageOpenCurrentJourney_Click" ToolTip="Afficher le parcours du projet actif" />
                     <MenuItem Header="Étapes et prompts…" Click="PilotageQuickAccess_Click" ToolTip="Rechercher ou parcourir toutes les étapes et opérations, ouvrir, préparer/copier et associer leurs prompts" />
                     <Separator />
+                    <MenuItem Header="Nouvel objet SFD…" Click="PilotageNewSfdDocument_Click"
+                              ToolTip="Créer PM, ACT, EXU, EXS, EXR ou FCT dans un Projet avec spec" />
                     <MenuItem Header="Nouvelle exigence…" Click="PilotageNewRequirement_Click" />
                     <MenuItem Header="Campagnes de tests…" Click="PilotageTestCampaigns_Click" />
                     <MenuItem Header="Risques…" Click="PilotageRisks_Click" />

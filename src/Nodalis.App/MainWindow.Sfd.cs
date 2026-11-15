@@ -1,0 +1,82 @@
+using System.IO;
+using System.Windows;
+using Nodalis.App.Dialogs;
+using Nodalis.App.Navigation;
+using Nodalis.Core.Sfd;
+using Nodalis.Infrastructure.Projects;
+
+namespace Nodalis.App;
+
+/// <summary>Project-menu entry point for human-authorized SFD document creation.</summary>
+public partial class MainWindow
+{
+    /// <summary>Opens the SFD draft form under the actual selected project.</summary>
+    /// <param name="sender">Project menu item.</param>
+    /// <param name="e">Click event.</param>
+    private async void PilotageNewSfdDocument_Click(
+        object sender, RoutedEventArgs e) =>
+        await RunUiActionAsync("Nouvel objet SFD", CreateSfdDocumentAsync);
+
+    /// <summary>
+    /// Resolves the current project and creates one reviewed SFD document.
+    /// No implicit default objects, IA invocation or 2.0 journey activation.
+    /// </summary>
+    /// <returns>Completed user-approved creation and navigation.</returns>
+    private async Task CreateSfdDocumentAsync()
+    {
+        NavigationNodeViewModel? project = PilotageProject();
+        if (project is null)
+        {
+            ShowPilotageProjectHint("Nouvel objet SFD");
+            return;
+        }
+
+        if (PilotageReadOnly(project))
+        {
+            MessageBox.Show(this, "Le projet est en lecture seule.",
+                "Nouvel objet SFD", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        Guid projectId = project.Id;
+        string projectPath = project.FullPath;
+        SfdDocumentRegistryService service = new(_root.FullPath);
+        SfdDocumentCatalog catalog = await service.ListAsync(projectPath);
+        if (catalog.ProjectId != projectId || catalog.Diagnostics.Count > 0)
+        {
+            MessageBox.Show(this,
+                catalog.Diagnostics.Count > 0
+                    ? "Des fiches SFD présentent des identités incohérentes :\n" +
+                      string.Join("\n", catalog.Diagnostics.Take(5))
+                    : "Le projet sélectionné a changé d'identité.",
+                "Création SFD suspendue", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        SfdNewDocumentDialog dialog = new(catalog.Entries)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        NavigationNodeViewModel? stillSelected = PilotageProject();
+        if (stillSelected is null || stillSelected.Id != projectId ||
+            !string.Equals(stillSelected.FullPath, projectPath,
+                StringComparison.OrdinalIgnoreCase) ||
+            PilotageReadOnly(stillSelected))
+        {
+            StatusText.Text = "Projet SFD modifié depuis la sélection : création annulée.";
+            return;
+        }
+
+        SfdDocumentEntry created = await service.CreateAsync(
+            projectPath, dialog.SelectedKind, dialog.DocumentTitle,
+            dialog.SelectedParentId, dialog.SelectedMode);
+        await RefreshNavigationAsync(created.AbsolutePath);
+        StatusText.Text = "Fiche SFD créée · " + created.Card.Reference;
+    }
+}
