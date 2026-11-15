@@ -127,3 +127,12 @@ Tests synthétiques : PM/ACT candidats non matérialisés, mise à jour par GUID
 - `SfdApprovedRequirementImportSmokeTests` vérifie les trois types, deux SC EXU utilisant la même RM, le partage de cette RM avec une SC EXS, la publication d'une EXR incomplète, l'idempotence, la reprise interrompue, la protection des éditions humaines, les parents hors projet et le refus d'un catalogue RM modifié.
 
 **Périmètre encore fermé :** publication en lot, publication de nouvelles RM depuis l'IA, mises à jour 3-way, FCT/EMO, source réglementaire humainement confirmée, historique global et décisions de revue par champ. Aucune conversion/import DOCX n'est réactivée.
+
+## Tranche complémentaire #218/#220 — GUID entre étapes et revue intégrale
+
+- Les prompts des étapes 01→04 contiennent désormais un **index borné des GUID canoniques existants** pertinent pour chaque étape (PM/ACT pour les besoins ; ACT/FCT pour les fonctionnalités ; exigences/FCT/RM pour la mise en œuvre). L'étape 02 fournit les GUID des ACT et des RM pour renseigner `parentKey` et `businessRuleKeys` de manière vérifiable, au lieu d'utiliser une `clientKey` fictive d'un autre lot. L'index est **distinct des extraits de sources explicitement sélectionnés**, marqué **« À VÉRIFIER AVANT PARTAGE »**, limité à 80 fiches et 80 RM et jamais transmis automatiquement.
+- La fenêtre de comparaison conserve et affiche à présent **le texte complet des C et SC proposées**, avec leurs clés temporaires et chaque GUID RM, et non plus seulement les nombres agrégés. La confirmation d'une EXU/EXS/EXR reprend un extrait visible, et renvoie au détail complet avant approbation.
+- Le contrôle de version des RM (`RulesCatalogSha256`) entre dans le fingerprint de revue : tout changement de formulation, source, existence ou certitude d'une RM entre revue et publication invalide le plan. Les propositions de RM non publiées par une autre voie sont bloquées, elles ne sont pas adoptées silencieusement.
+- Régressions : test de préparation de l'étape 02 avec une ACT et une RM réellement identifiées ; test d'un catalogue RM modifié après revue ; préservation du même GUID RM dans des SC EXU et EXS distinctes.
+
+Il reste à faire : publication contrôlée de nouvelles RM et des FCT, édition des propositions avant décision, diff 3-way par champ, traitement en lot atomique et localisation physique des EMO après arbitrage explicite.
