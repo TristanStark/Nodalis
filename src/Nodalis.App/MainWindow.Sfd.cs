@@ -35,12 +35,21 @@ public partial class MainWindow
                 "Projet SFD incohérent : analyse suspendue.");
         }
 
-        SfdImportReviewDialog dialog = new(_root.FullPath, project.FullPath)
+        SfdImportReviewDialog dialog = new(_root.FullPath, project.FullPath,
+            PilotageReadOnly(project))
         {
             Owner = this
         };
         dialog.ShowDialog();
-        StatusText.Text = "Analyse SFD locale terminée · aucune écriture.";
+        if (dialog.Changed)
+        {
+            await RefreshNavigationAsync(project.FullPath);
+            StatusText.Text = "PM SFD publié après validation humaine.";
+        }
+        else
+        {
+            StatusText.Text = "Analyse SFD terminée · aucune écriture supplémentaire.";
+        }
     }
 
     /// <summary>Opens the SFD journey from the Projet menu.</summary>

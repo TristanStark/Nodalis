@@ -15,18 +15,25 @@ public partial class SfdImportReviewDialog : Window
     private sealed record ReviewRow(SfdImportReviewItem Item, string Label);
 
     private readonly SfdImportReviewService _service;
+    private readonly SfdApprovedProcessImportService _publisher;
     private readonly string _projectDirectory;
+    private readonly bool _readOnly;
     private long _revision;
     private bool _busy;
     private SfdImportReviewSnapshot? _snapshot;
+    private string? _analyzedResponse;
 
     /// <summary>Initializes one project-scoped, local-only proposal review window.</summary>
     /// <param name="workspaceRoot">Authorized workspace root.</param>
     /// <param name="projectDirectory">Canonical selected SFD project.</param>
-    public SfdImportReviewDialog(string workspaceRoot, string projectDirectory)
+    /// <param name="readOnly">Whether project or workspace is read-only.</param>
+    public SfdImportReviewDialog(string workspaceRoot, string projectDirectory,
+        bool readOnly = false)
     {
         _service = new SfdImportReviewService(workspaceRoot);
+        _publisher = new SfdApprovedProcessImportService(workspaceRoot);
         _projectDirectory = projectDirectory;
+        _readOnly = readOnly;
         InitializeComponent();
         UpdateButtons();
     }
@@ -46,6 +53,7 @@ public partial class SfdImportReviewDialog : Window
 
         _revision++;
         _snapshot = null;
+        _analyzedResponse = null;
         ProposalsList.ItemsSource = null;
         DetailsBox.Text = string.Empty;
         SummaryText.Text = "Texte modifié : l'analyse précédente n'est plus valide.";
@@ -77,6 +85,7 @@ public partial class SfdImportReviewDialog : Window
             }
 
             _snapshot = snapshot;
+            _analyzedResponse = input;
             ReviewRow[] rows = snapshot.Items.Select(item => new ReviewRow(
                 item, item.Status + " · " + item.Kind +
                     " · " + item.Title)).ToArray();
@@ -97,10 +106,78 @@ public partial class SfdImportReviewDialog : Window
             }
 
             _snapshot = null;
+            _analyzedResponse = null;
             ProposalsList.ItemsSource = null;
             DetailsBox.Text = string.Empty;
             SummaryText.Text = "Réponse non exploitable : " + exception.Message;
             StatusText.Text = "Aucun objet créé, modifié ou validé.";
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>Whether one user-approved PM was actually published.</summary>
+    public bool Changed { get; private set; }
+
+    /// <summary>Publishes a single reviewed new PM through the durable journal.</summary>
+    /// <param name="sender">Publish selected PM button.</param>
+    /// <param name="e">Click event.</param>
+    private async void Publish_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _snapshot is null ||
+            _analyzedResponse is null ||
+            ProposalsList.SelectedItem is not ReviewRow selected ||
+            selected.Item.Kind != "businessProcess" ||
+            selected.Item.Operation != "create" ||
+            selected.Item.Status != SfdImportReviewStatus.NewCandidate)
+        {
+            return;
+        }
+
+        SfdImportReviewSnapshot snapshot = _snapshot;
+        string response = _analyzedResponse;
+        string clientKey = selected.Item.ClientKey;
+        string description = selected.Item.ProposedDescription;
+        MessageBoxResult confirmed = MessageBox.Show(this,
+            "Créer uniquement ce PM à partir de la proposition examinée ?\\n\\n" +
+            selected.Item.Title + "\\n\\nDescription :\\n" +
+            (description.Length > 700 ? description[..700] + "…" : description) +
+            "\\n\\nUn journal permettra la reprise après interruption. " +
+            "La fiche restera À CONFIRMER ; aucune autre proposition ne sera publiée.",
+            "Confirmer la publication du PM", MessageBoxButton.YesNo,
+            MessageBoxImage.Question, MessageBoxResult.No);
+        if (confirmed != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            SfdApprovedProcessResult result = await Task.Run(() =>
+                _publisher.PublishAsync(_projectDirectory, response,
+                    snapshot, clientKey));
+            Changed = Changed || !result.AlreadyApplied;
+            _revision++;
+            _snapshot = null;
+            _analyzedResponse = null;
+            ProposalsList.ItemsSource = null;
+            DetailsBox.Text = string.Empty;
+            SummaryText.Text = result.AlreadyApplied
+                ? "PM déjà présent, même identité : " + result.Reference
+                : "PM créé avec journal : " + result.Reference;
+            StatusText.Text = "Ré-analysez les autres propositions avant publication.";
+        }
+        catch (Exception exception) when (exception is IOException or
+            InvalidOperationException or UnauthorizedAccessException or ArgumentException)
+        {
+            MessageBox.Show(this, exception.Message,
+                "Publication PM suspendue", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         }
         finally
         {
@@ -122,6 +199,7 @@ public partial class SfdImportReviewDialog : Window
         }
 
         SfdImportReviewItem item = selected.Item;
+        UpdateButtons();
         DetailsBox.Text =
             "Étape : " + _snapshot.Step +
             "\nLot : " + _snapshot.RunId +
@@ -129,6 +207,14 @@ public partial class SfdImportReviewDialog : Window
             "\nType / opération : " + item.Kind + " / " + item.Operation +
             "\nStatut d'analyse : " + item.Status +
             "\nTitre proposé : " + item.Title +
+            "\nDescription proposée : " + item.ProposedDescription +
+            "\nParent proposé : " + (item.ProposedParentKey ?? "Aucun") +
+            "\nMode IHM : " + (item.ProposedUiMode ?? "Sans objet") +
+            "\nSources déclarées : " + string.Join(", ", item.SourceKeys) +
+            "\nACT liées : " + string.Join(", ", item.ActivityKeys) +
+            "\nExigences sources : " + string.Join(", ", item.RequirementKeys) +
+            "\nBlocs C/SC/RM : " + item.ConditionCount + " / " +
+                item.SubconditionCount + " / " + item.RuleLinkCount +
             "\nIdentité canonique existante : " +
                 (item.ExistingId?.ToString("D") ?? "Aucune") +
             "\nRéférence existante : " +
@@ -146,6 +232,12 @@ public partial class SfdImportReviewDialog : Window
         {
             AnalyzeButton.IsEnabled = !_busy &&
                 !string.IsNullOrWhiteSpace(ResponseTextBox.Text);
+            PublishButton.IsEnabled = !_busy && !_readOnly &&
+                _snapshot is not null && _analyzedResponse is not null &&
+                ProposalsList.SelectedItem is ReviewRow row &&
+                row.Item.Kind == "businessProcess" &&
+                row.Item.Operation == "create" &&
+                row.Item.Status == SfdImportReviewStatus.NewCandidate;
         }
     }
 }

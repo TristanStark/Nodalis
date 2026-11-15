@@ -17,7 +17,7 @@
                    FontSize="20" FontWeight="SemiBold" Margin="0,0,0,7"/>
         <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,10"
                    Foreground="{StaticResource SecondaryTextBrush}"
-                   Text="Collez une réponse JSON nodalis.sfd.import.v1. Elle est analysée localement et comparée aux GUID du projet. Aucune proposition n'est appliquée, aucune source n'est envoyée à une IA."/>
+                   Text="Collez une réponse nodalis.sfd.import.v1. Une proposition PM nouvelle peut être publiée après confirmation ; les autres objets restent en revue seule. Aucun appel IA n'est effectué."/>
         <Grid Grid.Row="2" Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -61,6 +61,10 @@
             <TextBlock x:Name="StatusText" Margin="0,0,14,0"
                        VerticalAlignment="Center" TextWrapping="Wrap"
                        Foreground="{StaticResource SecondaryTextBrush}"/>
+            <Button x:Name="PublishButton" Content="Publier ce PM…"
+                    MinWidth="145" Margin="0,0,10,0" Padding="9,6"
+                    ToolTip="Publier uniquement un nouveau processus métier après confirmation"
+                    Click="Publish_Click"/>
             <Button Content="Fermer" Width="100" IsCancel="True"/>
         </StackPanel>
     </Grid>
