@@ -15,6 +15,7 @@ namespace Nodalis.App.Dialogs;
 public partial class SfdJourneyDialog : Window
 {
     private readonly SfdJourneyService _service;
+    private readonly SfdPromptPreparationService _preparer;
     private readonly SfdDocumentRegistryService _documents;
     private readonly SfdCompletionReviewService _review;
     private readonly ProjectJourneySourceService _sources;
@@ -44,6 +45,7 @@ public partial class SfdJourneyDialog : Window
         bool readOnly)
     {
         _service = new SfdJourneyService(workspaceRoot);
+        _preparer = new SfdPromptPreparationService(workspaceRoot);
         _documents = new SfdDocumentRegistryService(workspaceRoot);
         _review = new SfdCompletionReviewService(workspaceRoot);
         _sources = new ProjectJourneySourceService(workspaceRoot);
@@ -171,6 +173,10 @@ public partial class SfdJourneyDialog : Window
         RenameOperationButton.IsEnabled = writable && selectedOperation;
         LinkSourcesButton.IsEnabled = writable && selectedOperation;
         SaveStatusButton.IsEnabled = writable && selectedStage;
+        PreparePromptButton.IsEnabled = _snapshot is not null &&
+            SelectedOperation()?.PromptKey is
+                ("sfd-01" or "sfd-02" or "sfd-03" or "sfd-04");
+        PrepareAllButton.IsEnabled = _snapshot is not null;
         StatusCombo.IsEnabled = writable && selectedStage;
     }
 
@@ -351,6 +357,36 @@ public partial class SfdJourneyDialog : Window
                 await SaveEditAsync(document => ProjectJourneyEditor.RenameOperation(
                     document, step.Id, operation.Id, dialog.Value), step.Id);
             }
+        });
+
+    /// <summary>Builds one complete SFD prompt for explicit human review.</summary>
+    /// <param name="sender">Prepare selected generation.</param>
+    /// <param name="e">Click event.</param>
+    private async void PreparePrompt_Click(object sender, RoutedEventArgs e) =>
+        await RunSafeAsync(async () =>
+        {
+            if (SelectedStep() is not ProjectJourneyStep stage ||
+                SelectedOperation() is not ProjectJourneyOperation operation)
+            {
+                return;
+            }
+
+            SfdPreparedPrompt prepared = await _preparer.PrepareAsync(
+                _projectDirectory, stage.Id, operation.Id);
+            SfdPromptPreviewDialog preview = new(prepared) { Owner = this };
+            preview.ShowDialog();
+        });
+
+    /// <summary>Builds the four separate step responses, not a merged JSON envelope.</summary>
+    /// <param name="sender">Prepare batch.</param>
+    /// <param name="e">Click event.</param>
+    private async void PrepareAll_Click(object sender, RoutedEventArgs e) =>
+        await RunSafeAsync(async () =>
+        {
+            SfdPreparedPrompt prepared = await _preparer.PrepareAllAsync(
+                _projectDirectory);
+            SfdPromptPreviewDialog preview = new(prepared) { Owner = this };
+            preview.ShowDialog();
         });
 
     /// <summary>

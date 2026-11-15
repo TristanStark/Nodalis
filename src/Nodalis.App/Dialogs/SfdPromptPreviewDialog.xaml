@@ -1,0 +1,36 @@
+<Window x:Class="Nodalis.App.Dialogs.SfdPromptPreviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Prévisualisation du prompt SFD"
+        Width="970" Height="730" MinWidth="680" MinHeight="520"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="TitleText" FontSize="18"
+                   FontWeight="SemiBold" Margin="0,0,0,8"
+                   TextWrapping="Wrap"/>
+        <TextBlock x:Name="WarningsText" Grid.Row="1"
+                   Margin="0,0,0,12" TextWrapping="Wrap"
+                   Foreground="{StaticResource SecondaryTextBrush}"/>
+        <TextBox x:Name="PromptTextBox" Grid.Row="2"
+                 IsReadOnly="True" AcceptsReturn="True"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Auto"
+                 TextWrapping="NoWrap" Padding="10"
+                 FontFamily="Consolas" FontSize="12"
+                 AutomationProperties.Name="Prompt SFD à relire avant copie"/>
+        <StackPanel Grid.Row="3" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center"
+                       Margin="0,0,12,0"/>
+            <Button Width="120" Content="Tout copier"
+                    Margin="0,0,8,0" Click="Copy_Click"/>
+            <Button Width="100" Content="Fermer" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

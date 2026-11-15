@@ -81,6 +81,10 @@
                     Padding="9,5" Margin="0,0,7,7" Click="RenameOperation_Click"/>
             <Button x:Name="LinkSourcesButton" Content="Ajouter des sources…"
                     Padding="9,5" Margin="0,0,7,7" Click="LinkSources_Click"/>
+            <Button x:Name="PreparePromptButton" Content="Préparer ce prompt…"
+                    Padding="9,5" Margin="0,0,7,7" Click="PreparePrompt_Click"/>
+            <Button x:Name="PrepareAllButton" Content="Préparer les 4 prompts…"
+                    Padding="9,5" Margin="0,0,7,7" Click="PrepareAll_Click"/>
         </WrapPanel>
         <TextBlock Grid.Row="6" Text="Sources liées à l'opération (non copiées)"
                    FontWeight="SemiBold" Margin="0,0,0,8"/>
