@@ -62,3 +62,15 @@ Le panneau de complétude affiche des diagnostics typés `Information`, `Incompl
 Les éditeurs de blocs et de règles conservent les fins de lignes Windows CRLF, n'écrasent pas les modifications concurrentes et refusent les sections RM préexistantes sans identité : une conversion manuelle explicite sera nécessaire dans ce cas. Les indications « aucune condition/sous-condition » des gabarits sont retirées lorsqu'un vrai bloc est enregistré.
 
 **Restes à qualifier :** rendu WPF réel (DPI/clavier/focus), extraction structurée d'une source EXR via un champ dédié, opérations de déplacement/suppression transactionnelles, enrichissement de la matrice métier et EMO après arbitrage de rangement. Aucun import DOCX n'est activé.
+
+## Lot #217 — parcours SFD isolé
+
+- Le modèle `SfdJourneyDefaults` propose **cinq étapes**, les quatre premières liées respectivement aux clés de prompts `sfd-01`, `sfd-02`, `sfd-03`, `sfd-04`, la cinquième étant transversale aux réunions, décisions, tâches, jalons et tests.
+- Le `SfdJourneyService` utilise les mêmes modèles portables `ProjectJourneyDocument` et opérations pures `ProjectJourneyEditor` que le moteur 2.0, **mais un fichier distinct `.sfd-journey.json`**. Aucun parcours n'est créé à la consultation ; l'initialisation exige un choix humain explicite.
+- Les statuts sont saisis explicitement et sont **indépendants de la complétude C/SC/RM**, des approbations et des résultats de tests. Les GUID d'étape/opération survivent aux renommages et déplacements.
+- Le menu **Projet → Parcours SFD…**, la commande générale « Ouvrir le parcours » et l'accès Worktree redirigent les projets de type SFD vers le parcours dédié sans activer le parcours classique.
+- Dans le dialogue SFD, possibilité d'ajouter une étape/opération, renommer, déplacer, déclarer le statut et **lier plusieurs fichiers Markdown/TXT du workspace en une action**, sans copier les fichiers ni passer par une importation DOCX. Les références sont contrôlées et la sauvegarde est conditionnée au SHA-256 de la dernière lecture.
+- Le modèle affiche le nombre d'objets existants et les résultats de complétude en **lecture seule** ; aucun jalon ni FCT/EMO n'est créé par le changement d'étape.
+- Les clés `sfd-01..04` sont **réservées à la préparation spécialisée** (#218/#219). Tant que la définition complète du contrat SFD n'est pas intégrée, ce dialogue ne permet **pas** de produire un prompt de réponse/import incomplet ou de déclencher une IA.
+
+Tests : parcours proposé sans écriture, cinq étapes et quatre clés distinctes, initialisation explicite et idempotence par refus du doublon, GUID conservés au renommage, liens multisélection, révisions périmées, absence de migration des projets 2.0.
