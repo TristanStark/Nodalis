@@ -291,6 +291,7 @@ public partial class SfdImportReviewDialog : Window
             ? "\n\nATTENTION : cette exigence sera créée comme BROUILLON INCOMPLET ; " +
                 "aucune C/SC/RM manquante ne sera fabriquée."
             : string.Empty;
+        string structured = FormatStructuredBlocks(selected.Item.ProposedConditions);
         MessageBoxResult approval = MessageBox.Show(this,
             "Créer uniquement cette " + kind + " après vérification ?\n\n" +
             selected.Item.Title + "\n\n" +
@@ -300,6 +301,9 @@ public partial class SfdImportReviewDialog : Window
                 selected.Item.RuleLinkCount + " références RM" +
             "\nSource EXR fournie : " +
                 (selected.Item.ProposedRegulatorySource ?? "Aucune (à confirmer)") +
+            "\n\nC/SC/RM proposées :\n" +
+            (structured.Length > 1100 ? structured[..1100] +
+                "\n… relisez le détail complet avant d'approuver." : structured) +
             warning + "\n\nLa fiche restera À CONFIRMER. " +
             "Toute référence RM devra déjà exister dans le catalogue ; " +
             "aucune autre fiche ne sera créée.",
@@ -385,7 +389,48 @@ public partial class SfdImportReviewDialog : Window
             "\nTitre existant : " + (item.ExistingTitle ?? "Aucun") +
             "\nSHA source : " + (item.ExistingSha256 ?? "Non applicable") +
             "\nDécision métier : NON VALIDÉE" +
+            "\n\n## C/SC/RM proposées (texte intégral à relire)\n" +
+                FormatStructuredBlocks(item.ProposedConditions) +
             "\n\n" + item.Message;
+    }
+
+    /// <summary>
+    /// Formats all exact model-proposed conditions, subconditions and RM
+    /// GUID references for informed, pre-publication human review.
+    /// No part of this text is executed or imported by simply opening it.
+    /// </summary>
+    /// <param name="conditions">Untrusted, parsed proposal blocks.</param>
+    /// <returns>Plain readable text without invented blocks.</returns>
+    private static string FormatStructuredBlocks(
+        IReadOnlyList<SfdImportCondition> conditions)
+    {
+        if (conditions.Count == 0)
+        {
+            return "Aucune C proposée — brouillon incomplet.";
+        }
+
+        System.Text.StringBuilder text = new();
+        foreach (SfdImportCondition condition in conditions)
+        {
+            text.Append("C [").Append(condition.ClientKey)
+                .Append("] ").AppendLine(condition.Statement);
+            if (condition.Subconditions.Count == 0)
+            {
+                text.AppendLine("  Aucune SC proposée — brouillon incomplet.");
+            }
+
+            foreach (SfdImportSubcondition subcondition in condition.Subconditions)
+            {
+                text.Append("  SC [").Append(subcondition.ClientKey)
+                    .Append("] ").AppendLine(subcondition.Statement);
+                text.Append("    Références RM (GUID) : ")
+                    .AppendLine(subcondition.BusinessRuleKeys.Count == 0
+                        ? "Aucune — brouillon incomplet."
+                        : string.Join(", ", subcondition.BusinessRuleKeys));
+            }
+        }
+
+        return text.ToString();
     }
 
     /// <summary>Disables repeated analysis while the read-only task is running.</summary>
