@@ -88,6 +88,7 @@ try
     await SfdPromptSmokeTests.RunAsync(root);
     await SfdImportReviewSmokeTests.RunAsync(root);
     await SfdApprovedProcessImportSmokeTests.RunAsync(root);
+    await SfdApprovedActivityImportSmokeTests.RunAsync(root);
     await ComplexProjectLayoutSmokeTests.RunAsync(root);
     await ProjectJourneySmokeTests.RunAsync(root);
     await ProjectJourneyEditingSmokeTests.RunAsync(root);
