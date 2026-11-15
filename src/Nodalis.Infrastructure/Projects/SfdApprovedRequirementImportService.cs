@@ -183,6 +183,12 @@ public sealed class SfdApprovedRequirementImportService
 
             SfdBusinessRuleSnapshot rules = await _rules.ReadRulesAsync(
                 root, cancellationToken);
+            if (rules.Sha256 != reviewed.RulesCatalogSha256)
+            {
+                throw new InvalidDataException(
+                    "Catalogue RM modifié depuis la revue : nouvelle analyse requise.");
+            }
+
             HashSet<Guid> ruleIds = rules.Rules.Select(rule => rule.Id).ToHashSet();
             List<SfdConditionBlock> blocks = [];
             int number = 0;
