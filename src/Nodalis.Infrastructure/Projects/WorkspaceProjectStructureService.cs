@@ -818,6 +818,7 @@ public sealed class WorkspaceProjectStructureService
                 section.TemplateKey);
 
         if (requiredRole is not null &&
+            manifest.Kind == ProjectKind.Standard &&
             manifest.InitialComplexity != ProjectComplexity.UltraSimple)
         {
             bool hasAnotherRole =
@@ -1227,7 +1228,8 @@ public sealed class WorkspaceProjectStructureService
     {
         // Ultra-simple projects intentionally start without the four standard roles.
         // Users may add sections manually at any point.
-        if (manifest.InitialComplexity == ProjectComplexity.UltraSimple)
+        if (manifest.Kind == ProjectKind.WithSpecifications ||
+            manifest.InitialComplexity == ProjectComplexity.UltraSimple)
         {
             return;
         }

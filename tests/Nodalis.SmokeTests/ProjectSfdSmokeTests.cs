@@ -77,6 +77,25 @@ internal static class ProjectSfdSmokeTests
                 "withSpecifications", "SFD family must survive persistence.");
         }
 
+        ProjectJourneyService journey = new(workspace);
+        Assert((await journey.ListApplicableTemplatesAsync(created.ProjectDirectory)).Count == 0 &&
+            await journey.PreviewDefaultAsync(created.ProjectDirectory) is null,
+            "SFD must not advertise a Simple 2.0 journey template.");
+        bool rejectedClassicJourney = false;
+        try
+        {
+            await journey.InitializeAsync(created.ProjectDirectory);
+        }
+        catch (InvalidOperationException)
+        {
+            rejectedClassicJourney = true;
+        }
+
+        Assert(rejectedClassicJourney &&
+            !File.Exists(Path.Combine(created.ProjectDirectory,
+                ProjectJourneyService.JourneyFileName)),
+            "SFD cannot create a classic journey even through a direct service call.");
+
         ProjectCreationResult standard = await creator.CreateAsync(new ProjectCreationRequest
         {
             Name = "Projet classique",
