@@ -54,6 +54,12 @@ public sealed record SfdImportReviewItem
 
     public string? ExistingSha256 { get; init; }
 
+    /// <summary>Actual PM parent GUID used for ACT publication, if resolved.</summary>
+    public Guid? ResolvedParentId { get; init; }
+
+    /// <summary>Exact parent PM SHA captured at review time.</summary>
+    public string? ResolvedParentSha256 { get; init; }
+
     public required string Message { get; init; }
 
     public required bool NeedsHumanReview { get; init; }

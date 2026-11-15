@@ -182,6 +182,49 @@ public sealed class SfdImportReviewService
                 }
             }
 
+            // For ACT publication, record the EXACT PM identity and byte
+            // revision from the visible review, not just a title or key.
+            Guid? parentId = null;
+            string? parentSha = null;
+            if (proposal.Kind == "businessActivity" &&
+                proposal.Operation == "create" &&
+                proposal.ParentKey is string parentKey)
+            {
+                SfdDocumentEntry? parent = null;
+                if (Guid.TryParseExact(parentKey, "D", out Guid existingGuid) &&
+                    byId.TryGetValue(existingGuid, out SfdDocumentEntry? byGuid) &&
+                    byGuid.Card.Kind == SfdDocumentKind.Process)
+                {
+                    parent = byGuid;
+                }
+                else if (byKey.TryGetValue(parentKey, out SfdImportProposal? proposedPm) &&
+                    proposedPm.Kind == "businessProcess" &&
+                    proposedPm.Operation == "create")
+                {
+                    parent = await new SfdApprovedProcessImportService(
+                        _sources.WorkspaceRoot).FindPublishedAsync(
+                        projectDirectory, rawJson, parentKey, cancellationToken);
+                }
+
+                if (parent is not null)
+                {
+                    _sources.GetReferenceForExistingFile(parent.AbsolutePath);
+                    SfdTextRevision source = await SfdMarkdownRevisionWriter.ReadAsync(
+                        parent.AbsolutePath, cancellationToken);
+                    SfdDocumentCard parentCard =
+                        SfdDocumentMarkdownCodec.Parse(source.Content);
+                    if (parentCard.Id != parent.Card.Id ||
+                        parentCard.ProjectId != catalog.ProjectId)
+                    {
+                        throw new InvalidDataException(
+                            "Parent PM modifié pendant la préparation de l'ACT.");
+                    }
+
+                    parentId = parent.Card.Id;
+                    parentSha = source.Sha256;
+                }
+            }
+
             if (proposal.SourceKeys.Count > 0)
             {
                 reason += " Références de sources externes à vérifier manuellement " +
@@ -211,6 +254,8 @@ public sealed class SfdImportReviewService
                 ExistingReference = current?.Card.Reference ?? currentRule?.Reference,
                 ExistingTitle = current?.Card.Title ?? currentRule?.Statement,
                 ExistingSha256 = revision,
+                ResolvedParentId = parentId,
+                ResolvedParentSha256 = parentSha,
                 Message = reason,
                 NeedsHumanReview = true
             });
@@ -226,7 +271,8 @@ public sealed class SfdImportReviewService
             rows = items.Select(item => new
             {
                 item.ClientKey, item.Kind, item.Operation, item.Status,
-                item.ExistingId, item.ExistingSha256, item.Title
+                item.ExistingId, item.ExistingSha256,
+                item.ResolvedParentId, item.ResolvedParentSha256, item.Title
             })
         });
         string fingerprint = Convert.ToHexString(SHA256.HashData(
