@@ -140,7 +140,9 @@ internal static class SfdAuthoringSmokeTests
             anotherActivity.AbsolutePath.Contains("renommé", StringComparison.Ordinal),
             "New ACT must resolve its PM using GUID, after a directory rename.");
 
-        string copied = Path.Combine(Path.GetDirectoryName(user.AbsolutePath)!,
+        string updatedUserPath = renamed.Entries.Single(item =>
+            item.Card.Id == user.Card.Id).AbsolutePath;
+        string copied = Path.Combine(Path.GetDirectoryName(updatedUserPath)!,
             "EXU-9999 - clone.md");
         await File.WriteAllTextAsync(copied, exuMarkdown);
         SfdDocumentCatalog conflicted = await registry.ListAsync(project.ProjectDirectory);
