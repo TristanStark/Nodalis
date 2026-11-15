@@ -232,6 +232,53 @@ public sealed class SfdStructuredAuthoringService
         return new SfdRequirementBlockSnapshot(entry.Card, updatedBlocks, sha);
     }
 
+    /// <summary>Removes one explicit SC→RM link, keeping the shared RM unchanged.</summary>
+    /// <param name="projectDirectory">SFD project.</param>
+    /// <param name="requirementId">Owning requirement GUID.</param>
+    /// <param name="subconditionId">Existing SC GUID.</param>
+    /// <param name="ruleId">Canonical RM GUID to dissociate.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Persisted structure with its updated byte revision.</returns>
+    public async Task<SfdRequirementBlockSnapshot> UnlinkRuleAsync(
+        string projectDirectory, Guid requirementId, Guid subconditionId,
+        Guid ruleId, CancellationToken cancellationToken = default)
+    {
+        await EnsureActiveAsync(projectDirectory, cancellationToken);
+        (SfdDocumentEntry entry, SfdTextRevision source) = await LoadRequirementAsync(
+            projectDirectory, requirementId, cancellationToken);
+        IReadOnlyList<SfdConditionBlock> blocks =
+            SfdConditionBlockCodec.Parse(source.Content);
+        SfdSubconditionBlock? matched = blocks
+            .SelectMany(condition => condition.Subconditions)
+            .SingleOrDefault(subcondition => subcondition.Id == subconditionId);
+        if (matched is null)
+        {
+            throw new InvalidDataException("SC inexistante dans cette exigence.");
+        }
+
+        if (!matched.BusinessRuleIds.Contains(ruleId))
+        {
+            return new SfdRequirementBlockSnapshot(entry.Card, blocks, source.Sha256);
+        }
+
+        SfdConditionBlock[] updatedBlocks = blocks.Select(condition =>
+            condition with
+            {
+                Subconditions = condition.Subconditions.Select(subcondition =>
+                    subcondition.Id == subconditionId
+                        ? subcondition with
+                        {
+                            BusinessRuleIds = subcondition.BusinessRuleIds
+                                .Where(id => id != ruleId).ToList()
+                        }
+                        : subcondition).ToList()
+            }).ToArray();
+        string updated = SfdConditionBlockCodec.Apply(source.Content, updatedBlocks);
+        string sha = await SfdMarkdownRevisionWriter.ReplaceAsync(
+            entry.AbsolutePath, updated, source.Sha256, cancellationToken);
+        return new SfdRequirementBlockSnapshot(entry.Card, updatedBlocks, sha);
+    }
+
     /// <summary>Read-only manual completeness checks are handled by the projection service.</summary>
     /// <param name="projectDirectory">SFD project folder.</param>
     /// <param name="requirementId">User selected requirement GUID.</param>
