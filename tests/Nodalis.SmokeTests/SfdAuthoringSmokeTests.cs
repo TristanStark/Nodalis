@@ -341,6 +341,64 @@ internal static class SfdAuthoringSmokeTests
                 item.Code == "SFD_RM_UNUSED"),
             "Completeness must resolve shared rules and report unreferenced ones.");
 
+        // A second SC may refer to the same RM without copying or owning it.
+        await structured.UnlinkRuleAsync(project.ProjectDirectory, user.Card.Id,
+            userSubcondition.Id, sharedRule.Id);
+        SfdRequirementBlockSnapshot afterUnlink = await structured.ReadRequirementAsync(
+            project.ProjectDirectory, user.Card.Id);
+        Require(afterUnlink.Blocks[0].Subconditions[0].BusinessRuleIds.Count == 0 &&
+            (await structured.ReadRequirementAsync(project.ProjectDirectory,
+                system.Card.Id)).Blocks[0].Subconditions[0].BusinessRuleIds
+                    .Contains(sharedRule.Id) &&
+            (await structured.ReadRulesAsync(project.ProjectDirectory)).Rules.Any(
+                rule => rule.Id == sharedRule.Id),
+            "Unlinking a shared RM must not remove the RM definition or other backlinks.");
+        await structured.LinkRuleAsync(project.ProjectDirectory, user.Card.Id,
+            userSubcondition.Id, sharedRule.Id);
+
+        string initialExuCrLf = exuMarkdown.Replace("\n", "\r\n",
+            StringComparison.Ordinal);
+        string preview = SfdConditionBlockCodec.Apply(initialExuCrLf,
+            [firstCondition with
+            {
+                Subconditions =
+                [
+                    userSubcondition with { BusinessRuleIds = [sharedRule.Id] }
+                ]
+            }]);
+        Require(preview.Contains("\r\n", StringComparison.Ordinal) &&
+            !preview.Replace("\r\n", string.Empty, StringComparison.Ordinal)
+                .Contains('\n') &&
+            !preview.Contains("_Aucune condition renseignée",
+                StringComparison.Ordinal) &&
+            !preview.Contains("_Aucune sous-condition renseignée",
+                StringComparison.Ordinal) &&
+            SfdConditionBlockCodec.Parse(preview).Count == 1,
+            "C/SC roundtrip must preserve CRLF and clear obsolete draft hints.");
+
+        string rulesCrLf = "# Liste des règles métiers\r\n\r\n_Aucune règle métier définie._\r\n";
+        string rulesPreview = SfdBusinessRuleMarkdownCodec.Apply(rulesCrLf,
+            [sharedRule]);
+        Require(rulesPreview.Contains("\r\n", StringComparison.Ordinal) &&
+            SfdBusinessRuleMarkdownCodec.Parse(rulesPreview).Count == 1 &&
+            !rulesPreview.Contains("_Aucune règle métier définie._",
+                StringComparison.Ordinal),
+            "RM canonical catalog must preserve Windows line endings and remove empty hint.");
+
+        bool manualRuleRefused = false;
+        try
+        {
+            SfdBusinessRuleMarkdownCodec.Parse(
+                "# Liste des règles métiers\n## RM-9999 — règle sans identité\n");
+        }
+        catch (InvalidDataException)
+        {
+            manualRuleRefused = true;
+        }
+
+        Require(manualRuleRefused,
+            "Undecorated pre-existing RM text must not be silently adopted or overwritten.");
+
         string copied = Path.Combine(Path.GetDirectoryName(updatedUserPath)!,
             "EXU-9999 - clone.md");
         await File.WriteAllTextAsync(copied, exuMarkdown);
