@@ -16,6 +16,7 @@ public partial class SfdImportReviewDialog : Window
 
     private readonly SfdImportReviewService _service;
     private readonly SfdApprovedProcessImportService _publisher;
+    private readonly SfdApprovedActivityImportService _activityPublisher;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private long _revision;
@@ -32,6 +33,7 @@ public partial class SfdImportReviewDialog : Window
     {
         _service = new SfdImportReviewService(workspaceRoot);
         _publisher = new SfdApprovedProcessImportService(workspaceRoot);
+        _activityPublisher = new SfdApprovedActivityImportService(workspaceRoot);
         _projectDirectory = projectDirectory;
         _readOnly = readOnly;
         InitializeComponent();
@@ -186,6 +188,78 @@ public partial class SfdImportReviewDialog : Window
         }
     }
 
+    /// <summary>
+    /// Explicit publication of ONE activity with a GUID-resolved PM parent.
+    /// User confirmation is separate from JSON analysis and plan comparison.
+    /// </summary>
+    /// <param name="sender">Reviewed ACT publish button.</param>
+    /// <param name="e">Click event.</param>
+    private async void PublishActivity_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _snapshot is null ||
+            _analyzedResponse is null ||
+            ProposalsList.SelectedItem is not ReviewRow selected ||
+            selected.Item.Kind != "businessActivity" ||
+            selected.Item.Operation != "create" ||
+            selected.Item.Status != SfdImportReviewStatus.NewCandidate ||
+            selected.Item.ResolvedParentId is not Guid parent)
+        {
+            return;
+        }
+
+        string response = _analyzedResponse;
+        SfdImportReviewSnapshot snapshot = _snapshot;
+        string key = selected.Item.ClientKey;
+        string description = selected.Item.ProposedDescription;
+        MessageBoxResult confirmed = MessageBox.Show(this,
+            "Publier uniquement cette ACT sous le PM identifié ?\n\n" +
+            selected.Item.Title + "\n\n" +
+            "PM parent (GUID) : " + parent.ToString("D") + "\n\n" +
+            "Description proposée :\n" +
+            (description.Length > 600 ? description[..600] + "…" : description) +
+            "\n\nLe parent doit être inchangé depuis la revue. " +
+            "La nouvelle ACT restera À CONFIRMER ; aucune autre proposition " +
+            "ne sera publiée.",
+            "Confirmer la création de l'ACT",
+            MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+        if (confirmed != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            SfdApprovedActivityResult result = await Task.Run(() =>
+                _activityPublisher.PublishAsync(_projectDirectory,
+                    response, snapshot, key));
+            Changed = Changed || !result.AlreadyApplied;
+            _revision++;
+            _snapshot = null;
+            _analyzedResponse = null;
+            ProposalsList.ItemsSource = null;
+            DetailsBox.Text = string.Empty;
+            SummaryText.Text = result.AlreadyApplied
+                ? "ACT déjà publiée avec le même GUID : " + result.Reference
+                : "ACT publiée après confirmation : " + result.Reference;
+            StatusText.Text =
+                "Réanalysez la réponse pour revoir les autres propositions.";
+        }
+        catch (Exception exception) when (exception is IOException or
+            InvalidOperationException or UnauthorizedAccessException or ArgumentException)
+        {
+            MessageBox.Show(this, exception.Message,
+                "Publication ACT suspendue", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
     /// <summary>Displays explicit provenance, comparison and blocking cause.</summary>
     /// <param name="sender">Selected candidate.</param>
     /// <param name="e">Selection event.</param>
@@ -209,6 +283,10 @@ public partial class SfdImportReviewDialog : Window
             "\nTitre proposé : " + item.Title +
             "\nDescription proposée : " + item.ProposedDescription +
             "\nParent proposé : " + (item.ProposedParentKey ?? "Aucun") +
+            "\nPM parent résolu : " +
+                (item.ResolvedParentId?.ToString("D") ?? "À publier/résoudre") +
+            "\nSHA du PM au moment de la revue : " +
+                (item.ResolvedParentSha256 ?? "Non disponible") +
             "\nMode IHM : " + (item.ProposedUiMode ?? "Sans objet") +
             "\nSources déclarées : " + string.Join(", ", item.SourceKeys) +
             "\nACT liées : " + string.Join(", ", item.ActivityKeys) +
@@ -238,6 +316,14 @@ public partial class SfdImportReviewDialog : Window
                 row.Item.Kind == "businessProcess" &&
                 row.Item.Operation == "create" &&
                 row.Item.Status == SfdImportReviewStatus.NewCandidate;
+            PublishActivityButton.IsEnabled = !_busy && !_readOnly &&
+                _snapshot is not null && _analyzedResponse is not null &&
+                ProposalsList.SelectedItem is ReviewRow activity &&
+                activity.Item.Kind == "businessActivity" &&
+                activity.Item.Operation == "create" &&
+                activity.Item.Status == SfdImportReviewStatus.NewCandidate &&
+                activity.Item.ResolvedParentId.HasValue &&
+                activity.Item.ResolvedParentSha256 is not null;
         }
     }
 }

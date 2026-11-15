@@ -65,6 +65,10 @@
                     MinWidth="145" Margin="0,0,10,0" Padding="9,6"
                     ToolTip="Publier uniquement un nouveau processus métier après confirmation"
                     Click="Publish_Click"/>
+            <Button x:Name="PublishActivityButton" Content="Publier cette ACT…"
+                    MinWidth="145" Margin="0,0,10,0" Padding="9,6"
+                    ToolTip="Publier une ACT dont le PM parent est déjà identifié et inchangé"
+                    Click="PublishActivity_Click"/>
             <Button Content="Fermer" Width="100" IsCancel="True"/>
         </StackPanel>
     </Grid>
