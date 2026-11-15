@@ -29,6 +29,7 @@ public sealed class SfdPromptPreparationService
     private const int MaxCombinedCharacters = 210000;
     private readonly SfdJourneyService _journeys;
     private readonly SfdDocumentRegistryService _documents;
+    private readonly SfdStructuredAuthoringService _businessRules;
     private readonly ProjectJourneySourceService _sources;
 
     /// <summary>Prepares SFD prompts for a single active workspace.</summary>
@@ -37,6 +38,7 @@ public sealed class SfdPromptPreparationService
     {
         _journeys = new SfdJourneyService(workspaceRoot);
         _documents = new SfdDocumentRegistryService(workspaceRoot);
+        _businessRules = new SfdStructuredAuthoringService(workspaceRoot);
         _sources = new ProjectJourneySourceService(workspaceRoot);
     }
 
@@ -167,6 +169,8 @@ public sealed class SfdPromptPreparationService
             cancellationToken);
         List<string> warnings = [];
         string instructionsForStage = StageInstructions(key);
+        string identityIndex = await BuildIdentityIndexAsync(
+            projectDirectory, key, catalog, warnings, cancellationToken);
         if (operation.SourcePaths.Count == 0)
         {
             warnings.Add("Aucune source sélectionnée ; reliez des notes ou fiches " +
@@ -299,12 +303,112 @@ public sealed class SfdPromptPreparationService
             prompt.AppendLine();
         }
 
-        prompt.AppendLine("## Sources explicitement choisies")
+        prompt.AppendLine("## Catalogue local des GUID — À VÉRIFIER AVANT PARTAGE")
+            .AppendLine(identityIndex)
+            .AppendLine("## Sources explicitement choisies")
             .AppendLine(evidence.ToString())
             .AppendLine("## Sortie à produire — contrat commun obligatoire")
             .AppendLine(instructions);
         return new SfdPreparedPrompt(key + " — " + step.Name,
             prompt.ToString(), warnings, included);
+    }
+
+    /// <summary>
+    /// Lists small, bounded canonical GUID metadata separately from selected
+    /// source excerpts. This is a LOCAL draft, never an automatic disclosure.
+    /// It lets step 02 reference real ACT and RM IDs from step 01, rather than
+    /// inventing a same-run clientKey that cannot be resolved across prompts.
+    /// </summary>
+    /// <param name="projectDirectory">Active SFD project.</param>
+    /// <param name="step">Specialized generation step.</param>
+    /// <param name="catalog">Currently indexed SFD identity projection.</param>
+    /// <param name="warnings">User-visible warnings and disclosure advice.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Non-executing, reviewable GUID reference list.</returns>
+    private async Task<string> BuildIdentityIndexAsync(
+        string projectDirectory, string step, SfdDocumentCatalog catalog,
+        List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (catalog.Diagnostics.Count > 0)
+        {
+            warnings.Add("Identités SFD incohérentes : les GUID du projet " +
+                "ne sont pas proposés tant que le catalogue est ambigu.");
+            return "Aucun GUID exploitable : corrigez d'abord les fiches SFD.";
+        }
+
+        SfdDocumentKind[] roles = step switch
+        {
+            "sfd-01" => [SfdDocumentKind.Process, SfdDocumentKind.Activity],
+            "sfd-02" => [SfdDocumentKind.Process, SfdDocumentKind.Activity,
+                SfdDocumentKind.UserRequirement, SfdDocumentKind.SystemRequirement,
+                SfdDocumentKind.RegulatoryRequirement],
+            "sfd-03" => [SfdDocumentKind.Activity, SfdDocumentKind.Functionality],
+            "sfd-04" => [SfdDocumentKind.Functionality,
+                SfdDocumentKind.UserRequirement, SfdDocumentKind.SystemRequirement,
+                SfdDocumentKind.RegulatoryRequirement],
+            _ => throw new InvalidDataException("Étape SFD non reconnue.")
+        };
+        SfdDocumentEntry[] matches = catalog.Entries
+            .Where(item => roles.Contains(item.Card.Kind))
+            .OrderBy(item => item.Card.Reference, StringComparer.Ordinal)
+            .ToArray();
+        StringBuilder result = new();
+        result.AppendLine("Cette liste provient de l'index LOCAL du projet, " +
+            "PAS des fichiers sources explicitement choisis.")
+            .AppendLine("Vérifiez les titres et la confidentialité avant de copier " +
+                "vers une IA externe.")
+            .AppendLine("Pour référencer un parent existant : parentKey = son GUID " +
+                "canonique (format D). targetId UNIQUEMENT pour une mise à jour " +
+                "explicitement étudiée. N'inventez jamais de GUID.")
+            .AppendLine();
+        foreach (SfdDocumentEntry entry in matches.Take(80))
+        {
+            result.Append("- ").Append(entry.Card.Kind)
+                .Append(" / ").Append(entry.Card.Reference)
+                .Append(" / GUID ").Append(entry.Card.Id.ToString("D"))
+                .Append(" / parent ")
+                .Append(entry.Card.ParentId?.ToString("D") ?? "aucun")
+                .Append(" / ").AppendLine(entry.Card.Title);
+        }
+
+        if (matches.Length > 80)
+        {
+            warnings.Add("Index des GUID SFD tronqué à 80 objets. " +
+                "Réduisez le périmètre avant toute association.");
+        }
+
+        if (step is "sfd-02" or "sfd-04")
+        {
+            SfdBusinessRuleSnapshot rules = await _businessRules.ReadRulesAsync(
+                projectDirectory, cancellationToken);
+            result.AppendLine().AppendLine("### RM canoniques réutilisables");
+            foreach (SfdBusinessRule rule in rules.Rules.Take(80))
+            {
+                result.Append("- ").Append(rule.Reference)
+                    .Append(" / GUID ").Append(rule.Id.ToString("D"))
+                    .Append(" / certitude ").Append(rule.Certainty)
+                    .Append(" / ").AppendLine(rule.Statement);
+            }
+
+            if (rules.Rules.Count > 80)
+            {
+                warnings.Add("Index RM tronqué à 80 règles. " +
+                    "Ne supposez pas qu'une référence absente n'existe pas.");
+            }
+
+            if (rules.Rules.Count == 0)
+            {
+                result.AppendLine("Aucune RM enregistrée : proposez des RM à " +
+                    "confirmer mais ne référencez aucun GUID RM inventé.");
+            }
+        }
+
+        if (matches.Length == 0)
+        {
+            result.AppendLine("Aucune fiche canonique indexée pour cette étape.");
+        }
+
+        return result.ToString();
     }
 
     /// <summary>Defines the four distinct specialist goals and their limits.</summary>
