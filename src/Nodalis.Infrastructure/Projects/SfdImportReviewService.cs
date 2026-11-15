@@ -225,6 +225,30 @@ public sealed class SfdImportReviewService
                 }
             }
 
+            if (proposal.Kind is ("userRequirement" or "systemRequirement" or
+                    "regulatoryRequirement") &&
+                proposal.Operation == "create" &&
+                proposal.ParentKey is string activityToken &&
+                Guid.TryParseExact(activityToken, "D", out Guid activityId) &&
+                byId.TryGetValue(activityId, out SfdDocumentEntry? activity) &&
+                activity.Card.Kind == SfdDocumentKind.Activity)
+            {
+                _sources.GetReferenceForExistingFile(activity.AbsolutePath);
+                SfdTextRevision source = await SfdMarkdownRevisionWriter.ReadAsync(
+                    activity.AbsolutePath, cancellationToken);
+                SfdDocumentCard verified =
+                    SfdDocumentMarkdownCodec.Parse(source.Content);
+                if (verified.Id != activity.Card.Id ||
+                    verified.ProjectId != catalog.ProjectId)
+                {
+                    throw new InvalidDataException(
+                        "ACT modifiée pendant la comparaison des exigences.");
+                }
+
+                parentId = activityId;
+                parentSha = source.Sha256;
+            }
+
             if (proposal.SourceKeys.Count > 0)
             {
                 reason += " Références de sources externes à vérifier manuellement " +
@@ -352,15 +376,24 @@ public sealed class SfdImportReviewService
             return "Exigence source non résolue par GUID canonique.";
         }
 
-        if (proposal.Conditions.SelectMany(condition => condition.Subconditions)
-            .SelectMany(subcondition => subcondition.BusinessRuleKeys)
-            .Any(key => !(byKey.TryGetValue(key, out SfdImportProposal? sameRun) &&
-                sameRun.Kind == "businessRule") &&
-                !(Guid.TryParseExact(key, "D", out Guid existingRule) &&
-                    byRule.ContainsKey(existingRule))))
+        foreach (string key in proposal.Conditions
+            .SelectMany(condition => condition.Subconditions)
+            .SelectMany(subcondition => subcondition.BusinessRuleKeys))
         {
-            return "Référence RM non résolue ni dans le lot ni dans " +
-                "le catalogue canonique.";
+            if (Guid.TryParseExact(key, "D", out Guid existingRule) &&
+                byRule.ContainsKey(existingRule))
+            {
+                continue;
+            }
+
+            if (byKey.TryGetValue(key, out SfdImportProposal? sameRun) &&
+                sameRun.Kind == "businessRule")
+            {
+                return "RM proposée dans ce lot mais non encore présente dans " +
+                    "le catalogue canonique : publier/résoudre la RM avant l'exigence.";
+            }
+
+            return "Référence RM absente du catalogue canonique.";
         }
 
         return null;
