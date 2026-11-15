@@ -274,6 +274,7 @@ public sealed class SfdImportReviewService
                 RuleLinkCount = proposal.Conditions.Sum(condition =>
                     condition.Subconditions.Sum(subcondition =>
                         subcondition.BusinessRuleKeys.Count)),
+                ProposedConditions = proposal.Conditions.ToArray(),
                 Status = status,
                 ExistingId = current?.Card.Id ?? currentRule?.Id,
                 ExistingReference = current?.Card.Reference ?? currentRule?.Reference,
