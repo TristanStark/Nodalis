@@ -52,3 +52,13 @@ Tests : activité associée à deux FCT, FCT associée à deux ACT, liens stable
 - Test régression : deux SC (EXU + EXS) partagent un même GUID RM sans copier la définition, cas incomplets, patrons de texte et refus de règles supposées confirmées sans source.
 
 Les EMO restent un rôle canonique unique, sans localisation primaire décidée. Leur ajout physique demeure différé jusqu'à l'arbitrage métier explicite.
+
+## Interface de rédaction SFD — lot #216
+
+Le menu **Projet → Conditions, sous-conditions et RM SFD…** donne accès à un éditeur WPF compact avec sélection d'une exigence EXU/EXS/EXR, de sa condition C, de sa sous-condition SC et d'une règle RM du catalogue partagé. Les commandes explicites permettent d'ajouter une C, d'ajouter une SC, de créer une RM avec source/certitude, et de lier ou dissocier une RM de la SC sans toucher aux autres références.
+
+Le panneau de complétude affiche des diagnostics typés `Information`, `Incomplete` ou `Invalid` ; aucun constat ne crée de contenu ni ne valide un document. Les projets archivés sont accessibles en lecture seule.
+
+Les éditeurs de blocs et de règles conservent les fins de lignes Windows CRLF, n'écrasent pas les modifications concurrentes et refusent les sections RM préexistantes sans identité : une conversion manuelle explicite sera nécessaire dans ce cas. Les indications « aucune condition/sous-condition » des gabarits sont retirées lorsqu'un vrai bloc est enregistré.
+
+**Restes à qualifier :** rendu WPF réel (DPI/clavier/focus), extraction structurée d'une source EXR via un champ dédié, opérations de déplacement/suppression transactionnelles, enrichissement de la matrice métier et EMO après arbitrage de rangement. Aucun import DOCX n'est activé.
