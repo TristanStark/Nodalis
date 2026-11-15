@@ -94,3 +94,14 @@ La commande **Projet → Analyser une réponse IA SFD…** permet de coller un J
 La fenêtre n'enregistre ni la réponse ni les choix, et ne possède actuellement **aucune commande « Appliquer »** : toute écriture nécessite encore le moteur transactionnel et la revue champ par champ de #220. Les noms/chemins d'objets ne sont pas attribués par une IA, les autres projets sont exclus, les EMO restent différées et aucun import DOCX n'est réactivé.
 
 Tests synthétiques : PM/ACT candidats non matérialisés, mise à jour par GUID et empreinte, isolation inter-projets, titre similaire sans rapprochement automatique, EXU/EXR incomplètes, parent non résolu, RM existante par GUID, FCT sans IHM liée à ACT, EMO différée et invalidation après changement du document source.
+
+## Lot pilote #220 — publication contrôlée et récupération d'un PM
+
+- Le dialogue **Projet → Analyser une réponse IA SFD…** affiche désormais la description, les références de sources et les comptes C/SC/RM. Seule une proposition `businessProcess/create` au statut `NewCandidate` peut afficher **Publier ce PM…**, et seulement si le projet est éditable.
+- Un clic demande une **confirmation humaine** qui rappelle le titre, la description et le périmètre exact : **un seul PM**. Aucune proposition ACT, exigence, FCT ou EMO n'est publiée dans cette tranche.
+- `SfdApprovedProcessImportService` relit la réponse brute et le plan, vérifie projet/GUID/version/SHA, attribue un nouvel ID et la référence PM dans Nodalis, et enregistre une **intention durable** `.sfd-ai-import/<fingerprint>/intent.json` avant toute création documentaire.
+- Le fichier Markdown approuvé est stagé en dehors des dossiers indexés, puis déplacé vers `SPECS FONCTIONNELLES/PROCESSUS METIERS`. Rejouer explicitement la même réponse + `clientKey` conserve l'identité et renvoie « déjà appliqué » ; une écriture manuelle postérieure provoque un conflit, sans écrasement.
+- Les descriptions provenant d'une IA restent marquées **à qualifier** et le `SfdDocumentCard.Certainty` initial reste `ToConfirm` ; l'IA ne peut pas valider une obligation ou fabriquer des activités.
+- Les tests `SfdApprovedProcessImportSmokeTests` vérifient la création isolée, l'idempotence, le journal antérieur aux écritures, la reprise après interruption simulée, le refus après modification humaine et le blocage des types de projets incompatibles.
+
+**Reste dans #220** : révision champ par champ et rapprochement base/current/proposed, création atomique de lots mixtes PM→ACT→EXU/EXS/EXR→FCT, contenu C/SC/RM, liens N:N et mapping durable inter-lots. L'arbitrage de rangement des EMO est toujours ouvert. Le ban DOCX→Markdown reste intact.
