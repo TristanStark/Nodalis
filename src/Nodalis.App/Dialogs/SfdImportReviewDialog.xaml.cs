@@ -142,10 +142,10 @@ public partial class SfdImportReviewDialog : Window
         string clientKey = selected.Item.ClientKey;
         string description = selected.Item.ProposedDescription;
         MessageBoxResult confirmed = MessageBox.Show(this,
-            "Créer uniquement ce PM à partir de la proposition examinée ?\\n\\n" +
-            selected.Item.Title + "\\n\\nDescription :\\n" +
+            "Créer uniquement ce PM à partir de la proposition examinée ?\n\n" +
+            selected.Item.Title + "\n\nDescription :\n" +
             (description.Length > 700 ? description[..700] + "…" : description) +
-            "\\n\\nUn journal permettra la reprise après interruption. " +
+            "\n\nUn journal permettra la reprise après interruption. " +
             "La fiche restera À CONFIRMER ; aucune autre proposition ne sera publiée.",
             "Confirmer la publication du PM", MessageBoxButton.YesNo,
             MessageBoxImage.Question, MessageBoxResult.No);
