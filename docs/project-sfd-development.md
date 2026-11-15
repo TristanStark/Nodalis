@@ -86,3 +86,11 @@ Tests : parcours proposé sans écriture, cinq étapes et quatre clés distincte
 - Test régression : 40 sources fictives en une opération, absence de conversion DOCX, quatre contrats en lot, parser du schéma avec EXU sans IHM, FCT sans IHM, EMO canonique, ancienne version/approbation/type invalide refusés.
 
 **Hors périmètre de ce lot :** import transactionnel et création réelle depuis une réponse externe (#220), localisation primaire des EMO (#214 à arbitrer), consolidation des sources inter-étapes. Ne jamais activer une voie DOCX→Markdown.
+
+## Lot #220 — revue SFD locale avant publication
+
+La commande **Projet → Analyser une réponse IA SFD…** permet de coller un JSON `nodalis.sfd.import.v1` et de comparer les propositions par GUID, jamais par titre ou chemin supposé. La revue affiche les candidats de création, mise à jour ou liaison, les brouillons incomplets, références inconnues, collisions et EMO différées. Elle calcule un SHA-256 de la réponse, du plan et des sources existantes, y compris le catalogue partagé RM.
+
+La fenêtre n'enregistre ni la réponse ni les choix, et ne possède actuellement **aucune commande « Appliquer »** : toute écriture nécessite encore le moteur transactionnel et la revue champ par champ de #220. Les noms/chemins d'objets ne sont pas attribués par une IA, les autres projets sont exclus, les EMO restent différées et aucun import DOCX n'est réactivé.
+
+Tests synthétiques : PM/ACT candidats non matérialisés, mise à jour par GUID et empreinte, isolation inter-projets, titre similaire sans rapprochement automatique, EXU/EXR incomplètes, parent non résolu, RM existante par GUID, FCT sans IHM liée à ACT, EMO différée et invalidation après changement du document source.
