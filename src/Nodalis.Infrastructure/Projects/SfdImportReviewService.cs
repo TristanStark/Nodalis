@@ -292,6 +292,7 @@ public sealed class SfdImportReviewService
         {
             project = catalog.ProjectId,
             rawHash,
+            rulesCatalogSha = rules.Sha256,
             envelopes = new { envelope.Step, envelope.RunId },
             rows = items.Select(item => new
             {
@@ -307,6 +308,7 @@ public sealed class SfdImportReviewService
             ProjectId = catalog.ProjectId,
             ResponseSha256 = rawHash,
             PlanSha256 = fingerprint,
+            RulesCatalogSha256 = rules.Sha256,
             Step = envelope.Step,
             RunId = envelope.RunId,
             Items = items
