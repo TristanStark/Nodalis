@@ -30,9 +30,12 @@ public static class SfdBusinessRuleMarkdownCodec
         int end = Array.IndexOf(lines, End);
         if (start < 0 && end < 0)
         {
-            if (lines.Any(line => line.StartsWith(Marker, StringComparison.Ordinal)))
+            if (lines.Any(line =>
+                line.StartsWith(Marker, StringComparison.Ordinal) ||
+                line.StartsWith("## RM-", StringComparison.Ordinal)))
             {
-                throw new InvalidDataException("Règle RM sans catalogue versionné.");
+                throw new InvalidDataException(
+                    "Règles RM non identifiées : vérifiez le catalogue avant toute création.");
             }
 
             return [];
@@ -153,18 +156,25 @@ public static class SfdBusinessRuleMarkdownCodec
         content.AppendLine(End);
         string normalized = Normalize(markdown);
         int start = normalized.IndexOf(Start, StringComparison.Ordinal);
+        string result;
         if (start >= 0)
         {
             int end = normalized.IndexOf(End, start, StringComparison.Ordinal) +
                 End.Length;
-            return normalized[..start] + content.ToString().TrimEnd('\n') +
+            result = normalized[..start] + content.ToString().TrimEnd('\n') +
                 normalized[end..];
         }
+        else
+        {
+            string baseMarkdown = normalized.Replace(
+                "_Aucune règle métier définie._", string.Empty,
+                StringComparison.Ordinal).TrimEnd('\n');
+            result = baseMarkdown + "\n\n" + content;
+        }
 
-        string baseMarkdown = normalized.Replace(
-            "_Aucune règle métier définie._", string.Empty,
-            StringComparison.Ordinal).TrimEnd('\n');
-        return baseMarkdown + "\n\n" + content;
+        return markdown.Contains("\r\n", StringComparison.Ordinal)
+            ? result.Replace("\n", "\r\n", StringComparison.Ordinal)
+            : result;
     }
 
     /// <summary>Ensures one rule is canonical without assuming business approval.</summary>
