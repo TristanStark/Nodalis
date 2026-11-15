@@ -213,6 +213,40 @@ internal static class SfdPromptSmokeTests
             "Batch preparation must carry FOUR independent complete JSON contracts " +
             "and warn about absent prerequisite business documents.");
 
+        // After publishing previous-stage objects, step 02 must expose
+        // actual canonical parent and RM GUIDs, not guessed client keys.
+        SfdDocumentRegistryService documentRegistry = new(workspace);
+        SfdDocumentEntry existingProcess = await documentRegistry.CreateAsync(
+            project.ProjectDirectory, SfdDocumentKind.Process,
+            "Processus fictif indexé");
+        SfdDocumentEntry existingActivity = await documentRegistry.CreateAsync(
+            project.ProjectDirectory, SfdDocumentKind.Activity,
+            "Activité fictive indexée", existingProcess.Card.Id);
+        SfdBusinessRule indexedRule =
+            await new SfdStructuredAuthoringService(workspace).AddRuleAsync(
+                project.ProjectDirectory,
+                "Une demande fictive ne doit pas rester anonyme.");
+
+        ProjectJourneySnapshot indexedJourney = (await journeyService.ReadAsync(
+            project.ProjectDirectory))!;
+        ProjectJourneyStep requirementStep = indexedJourney.Document.Steps[1];
+        ProjectJourneyOperation requirementOperation =
+            requirementStep.Operations[0];
+        SfdPreparedPrompt indexed = await preparer.PrepareAsync(
+            project.ProjectDirectory, requirementStep.Id, requirementOperation.Id);
+        Require(indexed.Content.Contains(
+                existingActivity.Card.Id.ToString("D"), StringComparison.Ordinal) &&
+            indexed.Content.Contains(
+                existingProcess.Card.Id.ToString("D"), StringComparison.Ordinal) &&
+            indexed.Content.Contains(
+                indexedRule.Id.ToString("D"), StringComparison.Ordinal) &&
+            indexed.Content.Contains("À VÉRIFIER AVANT PARTAGE",
+                StringComparison.Ordinal) &&
+            !indexed.Content.Contains("fichier-fictif.docx",
+                StringComparison.Ordinal),
+            "Step 02 must display existing ACT and RM GUIDs for safe next-step links, " +
+            "while leaving unselected DOCX and business content undisclosed.");
+
         string[] generatedMarkdown =
             Directory.GetFiles(project.ProjectDirectory, "*.md",
                 SearchOption.TopDirectoryOnly);
