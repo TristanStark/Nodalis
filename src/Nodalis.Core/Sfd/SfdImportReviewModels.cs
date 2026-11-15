@@ -26,6 +26,24 @@ public sealed record SfdImportReviewItem
 
     public required string Title { get; init; }
 
+    public required string ProposedDescription { get; init; }
+
+    public string? ProposedParentKey { get; init; }
+
+    public string? ProposedUiMode { get; init; }
+
+    public required IReadOnlyList<string> SourceKeys { get; init; }
+
+    public required IReadOnlyList<string> ActivityKeys { get; init; }
+
+    public required IReadOnlyList<string> RequirementKeys { get; init; }
+
+    public required int ConditionCount { get; init; }
+
+    public required int SubconditionCount { get; init; }
+
+    public required int RuleLinkCount { get; init; }
+
     public required SfdImportReviewStatus Status { get; init; }
 
     public Guid? ExistingId { get; init; }

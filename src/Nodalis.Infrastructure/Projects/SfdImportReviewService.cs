@@ -194,6 +194,18 @@ public sealed class SfdImportReviewService
                 Kind = proposal.Kind,
                 Operation = proposal.Operation,
                 Title = proposal.Title,
+                ProposedDescription = proposal.Description,
+                ProposedParentKey = proposal.ParentKey,
+                ProposedUiMode = proposal.UiMode,
+                SourceKeys = proposal.SourceKeys.ToArray(),
+                ActivityKeys = proposal.ActivityKeys.ToArray(),
+                RequirementKeys = proposal.RequirementKeys.ToArray(),
+                ConditionCount = proposal.Conditions.Count,
+                SubconditionCount = proposal.Conditions.Sum(
+                    condition => condition.Subconditions.Count),
+                RuleLinkCount = proposal.Conditions.Sum(condition =>
+                    condition.Subconditions.Sum(subcondition =>
+                        subcondition.BusinessRuleKeys.Count)),
                 Status = status,
                 ExistingId = current?.Card.Id ?? currentRule?.Id,
                 ExistingReference = current?.Card.Reference ?? currentRule?.Reference,
