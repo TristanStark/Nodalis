@@ -49,6 +49,7 @@ internal static class ProjectSfdSmokeTests
             "MANAGEMENT/Réunions",
             "MANAGEMENT/Décisions",
             "MANAGEMENT/Jalons.md",
+            "MANAGEMENT/Tâches.md",
             "Glossaire.md",
             "Notes rapides.md",
             "Présentation.md"
@@ -60,6 +61,9 @@ internal static class ProjectSfdSmokeTests
             Assert(File.Exists(fullPath) || Directory.Exists(fullPath),
                 "Missing SFD skeleton path: " + path);
         }
+
+        Assert(!File.Exists(Path.Combine(created.ProjectDirectory, "Tâches.md")),
+            "SFD must not create a competing root task document.");
 
         Assert(!Directory.EnumerateFileSystemEntries(
                 Path.Combine(created.ProjectDirectory,

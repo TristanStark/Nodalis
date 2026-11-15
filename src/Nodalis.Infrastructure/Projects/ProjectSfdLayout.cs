@@ -63,6 +63,11 @@ public static class ProjectSfdLayout
         string rulesCatalog = Path.Combine(
             stagingRoot, "DOCUMENTATION", "liste des règles métiers.md");
         await AtomicFileWriter.WriteAllTextAsync(
+            Path.Combine(stagingRoot, "MANAGEMENT", "Tâches.md"),
+            "# Tâches\n\n",
+            cancellationToken);
+
+        await AtomicFileWriter.WriteAllTextAsync(
             rulesCatalog,
             "# Liste des règles métiers\n\n" +
             "Catalogue canonique des règles métiers du projet. " +

@@ -8,7 +8,7 @@ Référence : roadmap #212, profil #213, structure #214, modèles #215.
 - La fenêtre **Nouveau projet** propose **Projet classique** ou **Projet avec spec (SFD)**. Le SFD présente un aperçu/confirmation avant création et ne confond pas la famille documentaire avec une complexité 2.0.
 - La création utilise la transaction de préparation existante (dossier temporaire puis renommage), pour projets et sous-projets.
 - Les parcours classiques ne sont pas proposés ni initialisables pour le type SFD. L'édition des sections SFD n'hérite pas de l'obligation `Technique` propre au projet classique.
-- Structure SFD initiale : SPECS FONCTIONNELLES/{PROCESSUS METIERS,FONCTIONNALITES}, SPECS TECHNIQUES/{dmep,APPLICATIONS HOSTS,APPLICATIONS OPEN,APPLICATIONS LINUX}, DOCUMENTATION/liste des règles métiers.md, QUALIFICATION/TESTS, MANAGEMENT/{Réunions,Décisions,Jalons.md}, ainsi que Présentation.md, Notes rapides.md et Glossaire.md.
+- Structure SFD initiale : SPECS FONCTIONNELLES/{PROCESSUS METIERS,FONCTIONNALITES}, SPECS TECHNIQUES/{dmep,APPLICATIONS HOSTS,APPLICATIONS OPEN,APPLICATIONS LINUX}, DOCUMENTATION/liste des règles métiers.md, QUALIFICATION/TESTS, MANAGEMENT/{Réunions,Décisions,Jalons.md,Tâches.md}, ainsi que Présentation.md, Notes rapides.md et Glossaire.md.
 - Le catalogue RM est unique. Aucune fiche PM/ACT/EXU/EXS/EXR/FCT/EMO, ni condition/règle fictive, n'est créée au démarrage.
 
 ## Limites et travaux suivants
