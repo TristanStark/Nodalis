@@ -105,3 +105,13 @@ Tests synthétiques : PM/ACT candidats non matérialisés, mise à jour par GUID
 - Les tests `SfdApprovedProcessImportSmokeTests` vérifient la création isolée, l'idempotence, le journal antérieur aux écritures, la reprise après interruption simulée, le refus après modification humaine et le blocage des types de projets incompatibles.
 
 **Reste dans #220** : révision champ par champ et rapprochement base/current/proposed, création atomique de lots mixtes PM→ACT→EXU/EXS/EXR→FCT, contenu C/SC/RM, liens N:N et mapping durable inter-lots. L'arbitrage de rangement des EMO est toujours ouvert. Le ban DOCX→Markdown reste intact.
+
+## Lot #220 — publication ACT liée au PM
+
+- L'analyse d'une proposition `businessActivity/create` conserve désormais le **GUID réel du PM parent et le SHA-256 de sa fiche**. Elle sait résoudre une clé `parentKey` vers un **PM déjà publié depuis la même réponse** et journalisé, ou vers un GUID canonique d'un PM préexistant. Un PM encore seulement proposé ne peut pas servir de parent publié.
+- Le dialogue de revue active **Publier cette ACT…** uniquement si l'ACT est nouvelle, le projet éditable, le parent identifié et son empreinte disponible. La confirmation rappelle le nom de l'ACT, le GUID du PM parent et la description ; une autre fiche n'est jamais publiée implicitement.
+- `SfdApprovedActivityImportService` enregistre une intention durable `intent-activity.json` dans `.sfd-ai-import/<empreinte>/` avant la création de la fiche ACT ; utilise **le même verrou de publication** que les PM et attribue le GUID et le code ACT dans Nodalis. Le staging hors index est déplacé vers `SPECS FONCTIONNELLES/PROCESSUS METIERS/<PM>/ACTIVITES/<ACT>/presentation activité.md`.
+- Le SHA du PM est recontrôlé au moment de la publication, y compris après staging. Rejouer le même choix conserve l'identité ACT ; tout changement externe de la fiche ACT ou de son PM bloque la reprise plutôt que d'écraser les documents.
+- Tests synthétiques `SfdApprovedActivityImportSmokeTests` : ACT avant PM refusée, PM publiée dans le même lot puis rattachée par clé temporaire, ACT créée par GUID sur PM existant, protection contre un PM inter-projets, idempotence, interruption simulée, changements de l'ACT ou de son parent, et références ACT successives.
+
+**Limitations** : chaque confirmation publie **exactement une** nouvelle fiche PM ou ACT. Les créations groupées, mises à jour 3-way, RM/exigences/FCT/EMO, et le mapping inter-réponses restent ouverts dans #220. Aucun import DOCX n'est permis.
