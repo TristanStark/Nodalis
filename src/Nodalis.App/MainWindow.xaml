@@ -348,6 +348,9 @@
                     <Separator />
                     <MenuItem Header="Parcours SFD…" Click="PilotageSfdJourney_Click"
                               ToolTip="Initialiser et personnaliser les cinq étapes spécifiques aux spécifications" />
+                    <MenuItem Header="Analyser une réponse IA SFD…"
+                              Click="PilotageSfdImportReview_Click"
+                              ToolTip="Coller un JSON nodalis.sfd.import.v1 et comparer sans appliquer" />
                     <MenuItem Header="Nouvel objet SFD…" Click="PilotageNewSfdDocument_Click"
                               ToolTip="Créer PM, ACT, EXU, EXS, EXR ou FCT dans un Projet avec spec" />
                     <MenuItem Header="Associer activités / fonctionnalités SFD…"

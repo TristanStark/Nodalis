@@ -1,0 +1,67 @@
+<Window x:Class="Nodalis.App.Dialogs.SfdImportReviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Analyser une réponse IA · Projet SFD"
+        Width="1060" Height="790" MinWidth="760" MinHeight="580"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*" MinHeight="180"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*" MinHeight="130"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Text="Réponse IA SFD — comparaison avant import"
+                   FontSize="20" FontWeight="SemiBold" Margin="0,0,0,7"/>
+        <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,10"
+                   Foreground="{StaticResource SecondaryTextBrush}"
+                   Text="Collez une réponse JSON nodalis.sfd.import.v1. Elle est analysée localement et comparée aux GUID du projet. Aucune proposition n'est appliquée, aucune source n'est envoyée à une IA."/>
+        <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <GroupBox Grid.Column="0" Header="Réponse JSON externe à examiner">
+                <TextBox x:Name="ResponseTextBox" AcceptsReturn="True"
+                         AcceptsTab="True" TextWrapping="NoWrap"
+                         FontFamily="Consolas" FontSize="12" Padding="8"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         TextChanged="Response_TextChanged"/>
+            </GroupBox>
+            <GroupBox Grid.Column="2" Header="Propositions analysées">
+                <ListBox x:Name="ProposalsList" DisplayMemberPath="Label"
+                         SelectionChanged="Proposal_SelectionChanged"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+            </GroupBox>
+        </Grid>
+        <Grid Grid.Row="3" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Button x:Name="AnalyzeButton" Content="Analyser et comparer"
+                    Width="185" Padding="10,6" Click="Analyze_Click"/>
+            <TextBlock x:Name="SummaryText" Grid.Column="1"
+                       VerticalAlignment="Center" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Margin="12,0,0,0"/>
+        </Grid>
+        <GroupBox Grid.Row="4" Header="Détails / rapprochement avec l'existant"
+                  Margin="0,0,0,10">
+            <TextBox x:Name="DetailsBox" IsReadOnly="True" AcceptsReturn="True"
+                     VerticalScrollBarVisibility="Auto"
+                     TextWrapping="Wrap" Padding="10"/>
+        </GroupBox>
+        <StackPanel Grid.Row="5" Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <TextBlock x:Name="StatusText" Margin="0,0,14,0"
+                       VerticalAlignment="Center" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"/>
+            <Button Content="Fermer" Width="100" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

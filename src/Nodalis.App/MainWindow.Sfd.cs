@@ -10,6 +10,39 @@ namespace Nodalis.App;
 /// <summary>Project-menu entry point for human-authorized SFD document creation.</summary>
 public partial class MainWindow
 {
+    /// <summary>Opens review-only SFD response comparison from the Projet menu.</summary>
+    /// <param name="sender">SFD analysis menu action.</param>
+    /// <param name="e">Click event.</param>
+    private async void PilotageSfdImportReview_Click(object sender, RoutedEventArgs e) =>
+        await RunUiActionAsync("Comparer la réponse IA SFD", OpenSfdImportReviewAsync);
+
+    /// <summary>Verifies exact SFD project identity before opening a volatile review.</summary>
+    /// <returns>Completed local-only response comparison window.</returns>
+    private async Task OpenSfdImportReviewAsync()
+    {
+        NavigationNodeViewModel? project = PilotageProject();
+        if (project is null)
+        {
+            ShowPilotageProjectHint("Comparer la réponse IA SFD");
+            return;
+        }
+
+        SfdDocumentCatalog catalog = await new SfdDocumentRegistryService(
+            _root.FullPath).ListAsync(project.FullPath);
+        if (catalog.ProjectId != project.Id || catalog.Diagnostics.Count > 0)
+        {
+            throw new InvalidDataException(
+                "Projet SFD incohérent : analyse suspendue.");
+        }
+
+        SfdImportReviewDialog dialog = new(_root.FullPath, project.FullPath)
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+        StatusText.Text = "Analyse SFD locale terminée · aucune écriture.";
+    }
+
     /// <summary>Opens the SFD journey from the Projet menu.</summary>
     /// <param name="sender">SFD journey menu action.</param>
     /// <param name="e">Click event.</param>
