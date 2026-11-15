@@ -47,6 +47,9 @@ public sealed record SfdImportReviewItem
 
     public required int RuleLinkCount { get; init; }
 
+    /// <summary>Full external C/SC wording shown before any human approval.</summary>
+    public required IReadOnlyList<SfdImportCondition> ProposedConditions { get; init; }
+
     public required SfdImportReviewStatus Status { get; init; }
 
     public Guid? ExistingId { get; init; }
