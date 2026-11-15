@@ -74,3 +74,15 @@ Les éditeurs de blocs et de règles conservent les fins de lignes Windows CRLF,
 - Les clés `sfd-01..04` sont **réservées à la préparation spécialisée** (#218/#219). Tant que la définition complète du contrat SFD n'est pas intégrée, ce dialogue ne permet **pas** de produire un prompt de réponse/import incomplet ou de déclencher une IA.
 
 Tests : parcours proposé sans écriture, cinq étapes et quatre clés distinctes, initialisation explicite et idempotence par refus du doublon, GUID conservés au renommage, liens multisélection, révisions périmées, absence de migration des projets 2.0.
+
+## Lot #218/#219 — préparation de prompts et contrat SFD strict
+
+- `SfdImportContract.Schema = nodalis.sfd.import.v1` ; modèle `SfdImportEnvelope` indépendant de l'ancien `nodalis.import.v1`. Un **JSON Schema complet** (`SfdImportContract.JsonSchema`) est commun au parseur et aux quatre instructions externes. Chaque proposition emploie une clé temporaire `clientKey` : aucun GUID projet ou chemin ne peut être inventé par l'IA.
+- `SfdImportContract.Parse` valide version, étape, rôles autorisés (01 PM/ACT ; 02 EXU/EXS/EXR/RM ; 03 FCT ; 04 EMO), types et clés, champs inconnus, propriétés JSON dupliquées, certitudes et patrons confirmés C/SC. Aucune réponse n'est appliquée au projet. Les mises à jour portant `targetId` nécessiteront la résolution locale et la revue transactionnelle dans #220.
+- `SfdPromptPreparationService` prépare les quatre prompts en respectant les dépendances ; il lit uniquement les sources **explicitement liées** à l'opération depuis l'espace de travail et uniquement les formats Markdown/TXT. Chaque extrait est borné, identifié avec chemin relatif, clé temporaire et SHA-256. Sources manquantes, trop volumineuses, non UTF-8, DOCX et binaires sont ignorés et signalés.
+- Le dialogue **Parcours SFD** dispose des actions **Préparer ce prompt…** et **Préparer les 4 prompts…**. Un aperçu complet dans une fenêtre scrollable précède le bouton explicite **Tout copier**. Aucun envoi réseau ni import automatique.
+- Chaque prompt embarque le même schéma de sortie exact et distingue PM/ACT, besoins EXU/EXS/EXR, FCT avec/sans IHM et EMO canonique unique ; les réponses de chaque étape sont indépendantes et restent des propositions à contrôler.
+- La préparation en lot est volontairement **un ensemble de prompts distincts**, et non une enveloppe JSON commune aux quatre étapes. Les prérequis manquants sont des avertissements, jamais des créations factices.
+- Test régression : 40 sources fictives en une opération, absence de conversion DOCX, quatre contrats en lot, parser du schéma avec EXU sans IHM, FCT sans IHM, EMO canonique, ancienne version/approbation/type invalide refusés.
+
+**Hors périmètre de ce lot :** import transactionnel et création réelle depuis une réponse externe (#220), localisation primaire des EMO (#214 à arbitrer), consolidation des sources inter-étapes. Ne jamais activer une voie DOCX→Markdown.
