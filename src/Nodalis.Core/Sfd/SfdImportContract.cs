@@ -315,7 +315,8 @@ public static class SfdImportContract
             if ((proposal.Kind == "feature") != (proposal.UiMode is
                     ("withUi" or "withoutUi")) ||
                 proposal.Kind != "feature" && proposal.UiMode is not null ||
-                proposal.Kind != "feature" && proposal.ActivityKeys.Count > 0 ||
+                proposal.Kind is not ("feature" or "implementationRequirement") &&
+                    proposal.ActivityKeys.Count > 0 ||
                 proposal.Kind != "implementationRequirement" &&
                     proposal.RequirementKeys.Count > 0 ||
                 proposal.Kind == "regulatoryRequirement" &&

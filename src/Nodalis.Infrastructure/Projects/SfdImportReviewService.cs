@@ -13,6 +13,7 @@ namespace Nodalis.Infrastructure.Projects;
 public sealed class SfdImportReviewService
 {
     private readonly SfdDocumentRegistryService _documents;
+    private readonly SfdStructuredAuthoringService _rules;
     private readonly ProjectJourneySourceService _sources;
 
     /// <summary>Scopes all lookups to one Nodalis workspace.</summary>
@@ -20,6 +21,7 @@ public sealed class SfdImportReviewService
     public SfdImportReviewService(string workspaceRoot)
     {
         _documents = new SfdDocumentRegistryService(workspaceRoot);
+        _rules = new SfdStructuredAuthoringService(workspaceRoot);
         _sources = new ProjectJourneySourceService(workspaceRoot);
     }
 
@@ -46,6 +48,10 @@ public sealed class SfdImportReviewService
 
         Dictionary<Guid, SfdDocumentEntry> byId =
             catalog.Entries.ToDictionary(entry => entry.Card.Id);
+        SfdBusinessRuleSnapshot rules = await _rules.ReadRulesAsync(
+            projectDirectory, cancellationToken);
+        Dictionary<Guid, SfdBusinessRule> byRule =
+            rules.Rules.ToDictionary(rule => rule.Id);
         Dictionary<string, SfdImportProposal> byKey =
             envelope.Proposals.ToDictionary(item => item.ClientKey,
                 StringComparer.Ordinal);
@@ -57,6 +63,7 @@ public sealed class SfdImportReviewService
             SfdImportReviewStatus status = SfdImportReviewStatus.NewCandidate;
             string reason = "Création proposée ; aucune écriture effectuée.";
             SfdDocumentEntry? current = null;
+            SfdBusinessRule? currentRule = null;
             string? revision = null;
             SfdDocumentKind? role = KindFor(proposal.Kind);
 
@@ -65,6 +72,30 @@ public sealed class SfdImportReviewService
                 status = SfdImportReviewStatus.Deferred;
                 reason = "EMO : emplacement documentaire canonique non encore arbitré. " +
                     "Aucune création autorisée.";
+            }
+            else if (proposal.Kind == "businessRule" &&
+                proposal.Operation is "update" or "link")
+            {
+                if (proposal.TargetId is not Guid ruleId ||
+                    !byRule.TryGetValue(ruleId, out currentRule))
+                {
+                    status = SfdImportReviewStatus.Rejected;
+                    reason = "GUID RM absent du catalogue canonique du projet.";
+                }
+                else if (!updated.Add(currentRule.Id))
+                {
+                    status = SfdImportReviewStatus.Rejected;
+                    reason = "La même RM est proposée plusieurs fois dans le lot.";
+                }
+                else
+                {
+                    revision = rules.Sha256;
+                    status = proposal.Operation == "link"
+                        ? SfdImportReviewStatus.LinkCandidate
+                        : SfdImportReviewStatus.UpdateCandidate;
+                    reason = "RM existante reconnue par GUID ; catalogue SHA capturé. " +
+                        "Toute modification ou liaison attend la revue humaine.";
+                }
             }
             else if (proposal.Operation is "update" or "link")
             {
@@ -109,9 +140,19 @@ public sealed class SfdImportReviewService
             }
             else if (role is null)
             {
-                status = SfdImportReviewStatus.NewCandidate;
-                reason = "RM nouvelle proposée dans le catalogue partagé ; " +
-                    "aucune duplication dans les sous-conditions.";
+                if (rules.Rules.Any(rule => string.Equals(rule.Statement,
+                    proposal.Title, StringComparison.OrdinalIgnoreCase)))
+                {
+                    status = SfdImportReviewStatus.NeedsResolution;
+                    reason = "Une RM de même libellé existe : confirmer " +
+                        "explicitement la réutilisation de son GUID.";
+                }
+                else
+                {
+                    status = SfdImportReviewStatus.NewCandidate;
+                    reason = "RM nouvelle proposée dans le catalogue partagé ; " +
+                        "aucune duplication dans les sous-conditions.";
+                }
             }
             else if (catalog.Entries.Any(item => item.Card.Kind == role.Value &&
                      string.Equals(item.Card.Title, proposal.Title,
@@ -127,7 +168,7 @@ public sealed class SfdImportReviewService
                 SfdImportReviewStatus.LinkCandidate)
             {
                 string? issue = ResolveDependencies(proposal, envelope.Step,
-                    byKey, byId);
+                    byKey, byId, byRule);
                 if (issue is not null)
                 {
                     status = SfdImportReviewStatus.NeedsResolution;
@@ -154,9 +195,9 @@ public sealed class SfdImportReviewService
                 Operation = proposal.Operation,
                 Title = proposal.Title,
                 Status = status,
-                ExistingId = current?.Card.Id,
-                ExistingReference = current?.Card.Reference,
-                ExistingTitle = current?.Card.Title,
+                ExistingId = current?.Card.Id ?? currentRule?.Id,
+                ExistingReference = current?.Card.Reference ?? currentRule?.Reference,
+                ExistingTitle = current?.Card.Title ?? currentRule?.Statement,
                 ExistingSha256 = revision,
                 Message = reason,
                 NeedsHumanReview = true
@@ -211,11 +252,13 @@ public sealed class SfdImportReviewService
     /// <param name="step">Owning SFD generation stage.</param>
     /// <param name="byKey">Proposals from the same external response.</param>
     /// <param name="byId">Verified current project documents.</param>
+    /// <param name="byRule">Existing canonical RM entries.</param>
     /// <returns>Blocking explanation, or null when structurally resolvable.</returns>
     private static string? ResolveDependencies(SfdImportProposal proposal,
         string step,
         IReadOnlyDictionary<string, SfdImportProposal> byKey,
-        IReadOnlyDictionary<Guid, SfdDocumentEntry> byId)
+        IReadOnlyDictionary<Guid, SfdDocumentEntry> byId,
+        IReadOnlyDictionary<Guid, SfdBusinessRule> byRule)
     {
         string? parentKind = proposal.Kind switch
         {
@@ -253,11 +296,13 @@ public sealed class SfdImportReviewService
 
         if (proposal.Conditions.SelectMany(condition => condition.Subconditions)
             .SelectMany(subcondition => subcondition.BusinessRuleKeys)
-            .Any(key => !byKey.TryGetValue(key, out SfdImportProposal? sameRun) ||
-                sameRun.Kind != "businessRule"))
+            .Any(key => !(byKey.TryGetValue(key, out SfdImportProposal? sameRun) &&
+                sameRun.Kind == "businessRule") &&
+                !(Guid.TryParseExact(key, "D", out Guid existingRule) &&
+                    byRule.ContainsKey(existingRule))))
         {
-            return "Référence RM non résolue dans ce lot ; catalogue existant " +
-                "à vérifier avant toute publication.";
+            return "Référence RM non résolue ni dans le lot ni dans " +
+                "le catalogue canonique.";
         }
 
         return null;
@@ -301,7 +346,9 @@ public sealed class SfdImportReviewService
     /// <returns>Whether human completion is still required.</returns>
     private static bool Incomplete(SfdImportProposal proposal)
     {
-        if (proposal.Kind == "feature" && proposal.ActivityKeys.Count == 0)
+        if (proposal.Kind == "feature" && proposal.ActivityKeys.Count == 0 ||
+            proposal.Kind == "regulatoryRequirement" &&
+                string.IsNullOrWhiteSpace(proposal.RegulatorySource))
         {
             return true;
         }
