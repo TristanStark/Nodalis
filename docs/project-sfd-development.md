@@ -20,3 +20,17 @@ Les fichiers et services d'importation DOCX → Markdown restent interdits. Aucu
 ## Qualification
 
 Test de fumée ajouté : `ProjectSfdSmokeTests`, appelé depuis `Nodalis.SmokeTests`. Vérifier aussi la compilation Release, l'analyse de style et la qualification WPF sur Windows avant toute fusion sur `main`.
+
+## Tranche #214/#215 — fiches métier identifiées
+
+- Rôles explicites `PM`, `ACT`, `EXU`, `EXS`, `EXR` et `FCT` ; références séquentielles par type et GUID indépendants des chemins.
+- Métadonnées de fiche `nodalis-sfd-schema: 1` et `parent-id` dans le Markdown ; statut de certitude `ToConfirm` par défaut.
+- Validation du parent : ACT appartient à un PM ; EXU/EXS/EXR appartiennent à une ACT. Un processus ou une fonctionnalité ne nécessite pas d'objet métier parent.
+- FCT possède exactement un mode `WithInterface` ou `WithoutInterface`. Aucun sous-type EMO utilisateur/système/règlementaire n'est créé.
+- La création par le menu **Projet → Nouvel objet SFD…** ouvre un formulaire revu par l'utilisateur. Les parents proviennent des vrais documents du projet, jamais de dossiers générés artificiellement.
+- Les dossiers d'activités et collections d'exigences apparaissent à la demande. Un dossier PM possède `ACTIVITES`, une ACT possède sa fiche `presentation activité.md`, et chaque exigence a son propre fichier Markdown.
+- Le modèle de chaque exigence contient le patron **confirmé** de condition EXU/EXS/EXR. Seule EXU reçoit le patron de sous-condition, avec `[CANAL À CONFIRMER]`. Les conditions et règles restent non matérialisées à ce stade.
+- Le service de lecture signale les métadonnées invalides, doublons GUID et références, et parents introuvables sans réparer le projet silencieusement.
+- Le périmètre de stockage des EMO, la création des blocs C/SC identifiés et les liens N:N ACT/FCT restent des étapes suivantes. Ces sujets ne sont **pas** assimilés à une structure déduite de chemins de dossiers.
+
+Tests ajoutés dans `SfdAuthoringSmokeTests` : parcours PM → ACT → EXU/EXS/EXR, FCT avec/sans IHM, parse/format, renommage d'un dossier parent, absence de règles fictives, refus des parents invalides et des identifiants dupliqués.
