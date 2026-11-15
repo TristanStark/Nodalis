@@ -80,6 +80,9 @@ public sealed record SfdImportReviewSnapshot
 
     public required string PlanSha256 { get; init; }
 
+    /// <summary>Exact shared RM Markdown byte revision captured in this review.</summary>
+    public required string RulesCatalogSha256 { get; init; }
+
     public required string Step { get; init; }
 
     public required string RunId { get; init; }
