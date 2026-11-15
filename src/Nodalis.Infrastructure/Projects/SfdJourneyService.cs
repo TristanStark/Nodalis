@@ -27,6 +27,33 @@ public sealed class SfdJourneyService
         _sources = new ProjectJourneySourceService(workspaceRoot);
     }
 
+    /// <summary>
+    /// Reads only the authoritative project-kind discriminator for safe
+    /// routing of the shared Projet/Worktree journey commands.
+    /// </summary>
+    /// <param name="projectDirectory">Exact current project folder.</param>
+    /// <param name="expectedProjectId">Worktree project ID to verify.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Persisted project kind, without creating files.</returns>
+    public async Task<ProjectKind> ReadProjectKindAsync(
+        string projectDirectory, Guid expectedProjectId,
+        CancellationToken cancellationToken = default)
+    {
+        string path = Path.Combine(Path.GetFullPath(projectDirectory),
+            WorkspaceLayout.ProjectManifestFileName);
+        _sources.GetReferenceForExistingFile(path);
+        ProjectManifest manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+            path, cancellationToken);
+        if (manifest.Id == Guid.Empty || manifest.Id != expectedProjectId ||
+            !Enum.IsDefined(manifest.Kind))
+        {
+            throw new InvalidDataException(
+                "Identité ou famille de projet invalide : parcours non ouvert.");
+        }
+
+        return manifest.Kind;
+    }
+
     /// <summary>Previews the SFD default without writing any project files.</summary>
     /// <param name="projectDirectory">Existing SFD project.</param>
     /// <param name="cancellationToken">Cooperative cancellation.</param>

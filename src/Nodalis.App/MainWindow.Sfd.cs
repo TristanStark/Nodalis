@@ -31,18 +31,10 @@ public partial class MainWindow
             return;
         }
 
-        string manifestPath = Path.Combine(project.FullPath,
-            Nodalis.Infrastructure.Persistence.WorkspaceLayout.ProjectManifestFileName);
-        Nodalis.Core.Domain.ProjectManifest manifest =
-            await Nodalis.Infrastructure.Persistence.AtomicJsonFile
-                .ReadAsync<Nodalis.Core.Domain.ProjectManifest>(manifestPath);
-        if (manifest.Id != project.Id)
-        {
-            throw new InvalidDataException(
-                "Identité de projet incohérente : parcours non ouvert.");
-        }
-
-        if (manifest.Kind == Nodalis.Core.Domain.ProjectKind.WithSpecifications)
+        Nodalis.Core.Domain.ProjectKind projectKind =
+            await new SfdJourneyService(_root.FullPath)
+                .ReadProjectKindAsync(project.FullPath, project.Id);
+        if (projectKind == Nodalis.Core.Domain.ProjectKind.WithSpecifications)
         {
             await OpenSfdJourneyAsync(project);
         }
