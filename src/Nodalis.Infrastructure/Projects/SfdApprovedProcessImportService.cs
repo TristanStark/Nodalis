@@ -223,6 +223,87 @@ public sealed class SfdApprovedProcessImportService
             cancellationToken);
     }
 
+    /// <summary>
+    /// Resolves an already published PM from the SAME response's original
+    /// clientKey, without creating it or matching titles. A renamed PM remains
+    /// resolvable by its Nodalis GUID, not its old directory.
+    /// </summary>
+    /// <param name="projectDirectory">Active SFD project root.</param>
+    /// <param name="rawJson">Identical reviewed response.</param>
+    /// <param name="clientKey">Previously approved PM key.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Currently indexed canonical PM or null if not yet published.</returns>
+    public async Task<SfdDocumentEntry?> FindPublishedAsync(
+        string projectDirectory, string rawJson, string clientKey,
+        CancellationToken cancellationToken = default)
+    {
+        SfdImportEnvelope envelope = SfdImportContract.Parse(rawJson);
+        SfdImportProposal? proposal = envelope.Proposals.SingleOrDefault(item =>
+            item.ClientKey == clientKey);
+        if (envelope.Step != "sfd-01" || proposal is null ||
+            proposal.Kind != "businessProcess" || proposal.Operation != "create")
+        {
+            return null;
+        }
+
+        string root = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(projectDirectory));
+        ProjectManifest project = await EnsureActiveAsync(root, cancellationToken);
+        string hash = Hash(rawJson);
+        string key = Hash(project.Id.ToString("D") + "\n" + hash + "\n" + clientKey);
+        string directory = Path.Combine(root, JournalRootName, key);
+        if (!Directory.Exists(directory))
+        {
+            return null;
+        }
+
+        EnsureNormalDirectory(directory);
+        string path = Path.Combine(directory, IntentFileName);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        _sources.GetReferenceForExistingFile(path);
+        SfdApprovedProcessIntent intent;
+        try
+        {
+            intent = await AtomicJsonFile.ReadAsync<SfdApprovedProcessIntent>(
+                path, cancellationToken);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException(
+                "Journal PM malformé : impossible de résoudre le parent.", exception);
+        }
+
+        VerifyIntent(intent, project.Id, hash, clientKey, envelope.RunId);
+        SfdDocumentCatalog catalog = await _documents.ListAsync(
+            root, cancellationToken);
+        if (catalog.Diagnostics.Count > 0)
+        {
+            throw new InvalidDataException(
+                "Identités SFD incohérentes : parent PM introuvable.");
+        }
+
+        SfdDocumentEntry? actual = catalog.Entries.SingleOrDefault(item =>
+            item.Card.Id == intent.BusinessId);
+        if (actual is null)
+        {
+            return null;
+        }
+
+        if (actual.Card.Kind != SfdDocumentKind.Process ||
+            actual.Card.Reference != intent.Reference ||
+            actual.Card.ProjectId != project.Id)
+        {
+            throw new InvalidDataException(
+                "Le PM journalisé ne correspond plus à sa fiche canonique.");
+        }
+
+        return actual;
+    }
+
     /// <summary>Replays a verified durable intent without assigning a second GUID.</summary>
     /// <param name="root">Verified active project.</param>
     /// <param name="intentDirectory">Journal folder scoped by response/key.</param>
