@@ -10,6 +10,44 @@ namespace Nodalis.App;
 /// <summary>Project-menu entry point for human-authorized SFD document creation.</summary>
 public partial class MainWindow
 {
+    /// <summary>Opens the SFD C/SC/RM authoring and completion dashboard.</summary>
+    /// <param name="sender">Project menu item.</param>
+    /// <param name="e">Click event.</param>
+    private async void PilotageSfdStructure_Click(object sender, RoutedEventArgs e) =>
+        await RunUiActionAsync("Complétude SFD", OpenSfdStructureAsync);
+
+    /// <summary>Resolves only the selected SFD project before showing structured editor.</summary>
+    /// <returns>Human-reviewed C/SC/RM edits and completion readout.</returns>
+    private async Task OpenSfdStructureAsync()
+    {
+        NavigationNodeViewModel? project = PilotageProject();
+        if (project is null)
+        {
+            ShowPilotageProjectHint("Conditions et règles SFD");
+            return;
+        }
+
+        SfdDocumentCatalog catalog = await new SfdDocumentRegistryService(
+            _root.FullPath).ListAsync(project.FullPath);
+        if (catalog.ProjectId != project.Id || catalog.Diagnostics.Count > 0)
+        {
+            throw new InvalidDataException(
+                "Les identités du projet SFD sont ambiguës : vérifiez les documents.");
+        }
+
+        SfdStructureDialog dialog = new(_root.FullPath, project.FullPath,
+            catalog, PilotageReadOnly(project))
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+        if (dialog.Changed)
+        {
+            await RefreshNavigationAsync(project.FullPath);
+            StatusText.Text = "Brouillons C/SC et références RM SFD mis à jour.";
+        }
+    }
+
     /// <summary>Opens explicit project-local SFD activity/functionality linking.</summary>
     /// <param name="sender">Project menu item.</param>
     /// <param name="e">Click event.</param>

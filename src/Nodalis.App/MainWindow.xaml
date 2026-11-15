@@ -351,6 +351,9 @@
                     <MenuItem Header="Associer activités / fonctionnalités SFD…"
                               Click="PilotageSfdLinks_Click"
                               ToolTip="Gérer les liens N:N ACT↔FCT sans copie documentaire" />
+                    <MenuItem Header="Conditions, sous-conditions et RM SFD…"
+                              Click="PilotageSfdStructure_Click"
+                              ToolTip="Rédiger C/SC, gérer le catalogue RM et examiner la complétude" />
                     <MenuItem Header="Nouvelle exigence…" Click="PilotageNewRequirement_Click" />
                     <MenuItem Header="Campagnes de tests…" Click="PilotageTestCampaigns_Click" />
                     <MenuItem Header="Risques…" Click="PilotageRisks_Click" />
