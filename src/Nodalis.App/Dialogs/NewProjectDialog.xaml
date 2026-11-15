@@ -50,6 +50,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <TextBlock VerticalAlignment="Center"
@@ -62,9 +63,21 @@
             <TextBlock Grid.Row="1"
                        Margin="0,12,0,0"
                        VerticalAlignment="Center"
+                       Text="Type" />
+            <ComboBox x:Name="ProjectKindComboBox"
+                      Grid.Row="1"
+                      Grid.Column="1"
+                      Margin="0,12,0,0"
+                      MinHeight="30"
+                      DisplayMemberPath="DisplayName" />
+
+            <TextBlock x:Name="ComplexityLabel"
+                       Grid.Row="2"
+                       Margin="0,12,0,0"
+                       VerticalAlignment="Center"
                        Text="Niveau" />
             <ComboBox x:Name="ComplexityComboBox"
-                      Grid.Row="1"
+                      Grid.Row="2"
                       Grid.Column="1"
                       Margin="0,12,0,0"
                       MinHeight="30"

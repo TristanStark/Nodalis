@@ -7640,6 +7640,7 @@ public partial class MainWindow : Window
                 {
                     Name = dialog.ProjectName,
                     Complexity = dialog.SelectedComplexity,
+                    Kind = dialog.SelectedKind,
                     Target = dialog.SelectedTarget,
                     BusinessLinks = dialog.BusinessLinks.ToList()
                 });
