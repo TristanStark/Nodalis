@@ -268,16 +268,41 @@ public static class SfdConditionBlockCodec
         region.AppendLine(End);
         string normalized = Normalize(markdown);
         int start = normalized.IndexOf(Start, StringComparison.Ordinal);
+        string result;
         if (start < 0)
         {
-            return normalized.TrimEnd('\n') + "\n\n## Blocs C/SC identifiés\n\n" +
-                region;
+            result = normalized.TrimEnd('\n') +
+                "\n\n## Blocs C/SC identifiés\n\n" + region;
+        }
+        else
+        {
+            int end = normalized.IndexOf(End, start, StringComparison.Ordinal) +
+                End.Length;
+            result = normalized[..start] + region.ToString().TrimEnd('\n') +
+                normalized[end..];
         }
 
-        int end = normalized.IndexOf(End, start, StringComparison.Ordinal) +
-            End.Length;
-        return normalized[..start] + region.ToString().TrimEnd('\n') +
-            normalized[end..];
+        // Draft hints are accurate only until the first authored C or SC.
+        // Leave all other user Markdown untouched, especially sources.
+        if (blocks.Count > 0)
+        {
+            result = result.Replace(
+                "_Aucune condition renseignée ; brouillon incomplet._",
+                string.Empty, StringComparison.Ordinal);
+        }
+
+        if (blocks.Any(block => block.Subconditions.Count > 0))
+        {
+            result = result.Replace(
+                "_Aucune sous-condition renseignée ; brouillon incomplet._",
+                string.Empty, StringComparison.Ordinal);
+        }
+
+        // Preserve existing Windows editors' CRLF without making the whole
+        // document appear modified when only the C/SC region changes.
+        return markdown.Contains("\r\n", StringComparison.Ordinal)
+            ? result.Replace("\n", "\r\n", StringComparison.Ordinal)
+            : result;
     }
 
     /// <summary>Finds the next unused readable C/SC number without renumbering existing blocks.</summary>
