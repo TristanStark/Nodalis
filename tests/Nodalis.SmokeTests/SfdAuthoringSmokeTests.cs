@@ -250,7 +250,10 @@ internal static class SfdAuthoringSmokeTests
             !cOnly.Findings.Any(item =>
                 item.Reference == user.Card.Reference &&
                 item.Code == "SFD_C_MISSING"),
-            "Adding a C removes the missing-C gap but leaves missing-SC incomplete.");
+            "Adding a C removes the missing-C gap but leaves missing-SC incomplete. Actual: " +
+            string.Join(" | ", cOnly.Findings.Where(item =>
+                item.Reference == user.Card.Reference).Select(item =>
+                    item.Code + ": " + item.Message)));
 
         SfdSubconditionBlock userSubcondition = await structured.AddSubconditionAsync(
             project.ProjectDirectory, user.Card.Id, firstCondition.Id,
