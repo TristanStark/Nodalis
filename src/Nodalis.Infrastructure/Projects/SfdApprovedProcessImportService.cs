@@ -140,8 +140,17 @@ public sealed class SfdApprovedProcessImportService
         if (File.Exists(intentPath))
         {
             _sources.GetReferenceForExistingFile(intentPath);
-            intent = await AtomicJsonFile.ReadAsync<SfdApprovedProcessIntent>(
-                intentPath, cancellationToken);
+            try
+            {
+                intent = await AtomicJsonFile.ReadAsync<SfdApprovedProcessIntent>(
+                    intentPath, cancellationToken);
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidDataException(
+                    "Journal PM SFD malformé : reprise impossible.", exception);
+            }
+
             VerifyIntent(intent, project.Id, reviewed.ResponseSha256,
                 clientKey, envelope.RunId);
         }
@@ -337,8 +346,11 @@ public sealed class SfdApprovedProcessImportService
             intent.ClientKey != clientKey || intent.RunId != runId ||
             intent.BusinessId == Guid.Empty ||
             intent.CreatedUtc == default ||
-            intent.Title.Length is < 1 or > 240 ||
-            intent.Reference.Length != 7 ||
+            string.IsNullOrWhiteSpace(intent.Title) ||
+            intent.Title.Length > 240 ||
+            intent.Reference is null || intent.Reference.Length != 7 ||
+            intent.ApprovedMarkdown is null ||
+            intent.ApprovedSha256 is null ||
             !intent.Reference.StartsWith("PM-", StringComparison.Ordinal) ||
             !int.TryParse(intent.Reference[3..], out int number) ||
             number is < 1 or > 9999 ||
