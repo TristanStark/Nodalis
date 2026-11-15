@@ -266,19 +266,22 @@ public static class SfdConditionBlockCodec
         }
 
         region.AppendLine(End);
+        // StringBuilder.AppendLine uses CRLF on Windows. Normalize the newly
+        // rendered region BEFORE restoring the source document's newline style.
+        string serializedRegion = Normalize(region.ToString());
         string normalized = Normalize(markdown);
         int start = normalized.IndexOf(Start, StringComparison.Ordinal);
         string result;
         if (start < 0)
         {
             result = normalized.TrimEnd('\n') +
-                "\n\n## Blocs C/SC identifiés\n\n" + region;
+                "\n\n## Blocs C/SC identifiés\n\n" + serializedRegion;
         }
         else
         {
             int end = normalized.IndexOf(End, start, StringComparison.Ordinal) +
                 End.Length;
-            result = normalized[..start] + region.ToString().TrimEnd('\n') +
+            result = normalized[..start] + serializedRegion.TrimEnd('\n') +
                 normalized[end..];
         }
 

@@ -154,6 +154,9 @@ public static class SfdBusinessRuleMarkdownCodec
         }
 
         content.AppendLine(End);
+        // Avoid mixing StringBuilder's Windows CRLF with normalized LF before
+        // applying the original file's line-ending convention exactly once.
+        string serializedRegion = Normalize(content.ToString());
         string normalized = Normalize(markdown);
         int start = normalized.IndexOf(Start, StringComparison.Ordinal);
         string result;
@@ -161,7 +164,7 @@ public static class SfdBusinessRuleMarkdownCodec
         {
             int end = normalized.IndexOf(End, start, StringComparison.Ordinal) +
                 End.Length;
-            result = normalized[..start] + content.ToString().TrimEnd('\n') +
+            result = normalized[..start] + serializedRegion.TrimEnd('\n') +
                 normalized[end..];
         }
         else
@@ -169,7 +172,7 @@ public static class SfdBusinessRuleMarkdownCodec
             string baseMarkdown = normalized.Replace(
                 "_Aucune règle métier définie._", string.Empty,
                 StringComparison.Ordinal).TrimEnd('\n');
-            result = baseMarkdown + "\n\n" + content;
+            result = baseMarkdown + "\n\n" + serializedRegion;
         }
 
         return markdown.Contains("\r\n", StringComparison.Ordinal)
