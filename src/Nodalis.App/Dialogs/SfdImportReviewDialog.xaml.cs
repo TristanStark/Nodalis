@@ -645,6 +645,20 @@ public partial class SfdImportReviewDialog : Window
                     SfdImportReviewStatus.IncompleteDraft) &&
                 feature.Item.ActivityRevisions.Count ==
                     feature.Item.ActivityKeys.Count;
+
+            // Only one publication role can be selected at once. Collapsing
+            // unrelated actions prevents WPF footer clipping on small screens
+            // and DPI-scaled workstations.
+            PublishButton.Visibility = PublishButton.IsEnabled
+                ? Visibility.Visible : Visibility.Collapsed;
+            PublishActivityButton.Visibility = PublishActivityButton.IsEnabled
+                ? Visibility.Visible : Visibility.Collapsed;
+            PublishRequirementButton.Visibility = PublishRequirementButton.IsEnabled
+                ? Visibility.Visible : Visibility.Collapsed;
+            PublishRuleButton.Visibility = PublishRuleButton.IsEnabled
+                ? Visibility.Visible : Visibility.Collapsed;
+            PublishFeatureButton.Visibility = PublishFeatureButton.IsEnabled
+                ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 }
