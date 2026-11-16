@@ -190,6 +190,30 @@ public sealed class SfdApprovedRequirementImportService
             }
 
             HashSet<Guid> ruleIds = rules.Rules.Select(rule => rule.Id).ToHashSet();
+            Dictionary<string, Guid> publishedRuleKeys = new(
+                StringComparer.Ordinal);
+            SfdApprovedRuleImportService publishedRuleService = new(
+                _sources.WorkspaceRoot);
+            foreach (string ruleKey in proposal.Conditions
+                .SelectMany(condition => condition.Subconditions)
+                .SelectMany(subcondition => subcondition.BusinessRuleKeys)
+                .Where(reference => !Guid.TryParseExact(reference, "D",
+                    out _))
+                .Distinct(StringComparer.Ordinal))
+            {
+                SfdBusinessRule? published = await publishedRuleService
+                    .FindPublishedAsync(root, rawJson, ruleKey,
+                        cancellationToken);
+                if (published is null)
+                {
+                    throw new InvalidDataException(
+                        "RM proposée non publiée : validez sa création " +
+                        "avant de publier cette exigence.");
+                }
+
+                publishedRuleKeys.Add(ruleKey, published.Id);
+            }
+
             List<SfdConditionBlock> blocks = [];
             int number = 0;
             foreach (SfdImportCondition candidate in proposal.Conditions)
@@ -203,7 +227,9 @@ public sealed class SfdApprovedRequirementImportService
                     List<Guid> references = [];
                     foreach (string reference in sub.BusinessRuleKeys)
                     {
-                        if (!Guid.TryParseExact(reference, "D", out Guid rm) ||
+                        Guid rm;
+                        if (!Guid.TryParseExact(reference, "D", out rm) &&
+                            !publishedRuleKeys.TryGetValue(reference, out rm) ||
                             !ruleIds.Contains(rm))
                         {
                             throw new InvalidDataException(
