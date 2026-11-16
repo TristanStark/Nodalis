@@ -18,6 +18,7 @@ public partial class SfdImportReviewDialog : Window
     private readonly SfdApprovedProcessImportService _publisher;
     private readonly SfdApprovedActivityImportService _activityPublisher;
     private readonly SfdApprovedRequirementImportService _requirementPublisher;
+    private readonly SfdApprovedRuleImportService _rulePublisher;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private long _revision;
@@ -36,6 +37,7 @@ public partial class SfdImportReviewDialog : Window
         _publisher = new SfdApprovedProcessImportService(workspaceRoot);
         _activityPublisher = new SfdApprovedActivityImportService(workspaceRoot);
         _requirementPublisher = new SfdApprovedRequirementImportService(workspaceRoot);
+        _rulePublisher = new SfdApprovedRuleImportService(workspaceRoot);
         _projectDirectory = projectDirectory;
         _readOnly = readOnly;
         InitializeComponent();
@@ -347,6 +349,79 @@ public partial class SfdImportReviewDialog : Window
         }
     }
 
+    /// <summary>
+    /// Publishes one RM in the canonical shared catalog, with explicit
+    /// confirmation of the exact statement and no invented provenance.
+    /// </summary>
+    /// <param name="sender">Reviewed RM approval button.</param>
+    /// <param name="e">Click event.</param>
+    private async void PublishRule_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _snapshot is null ||
+            _analyzedResponse is null ||
+            ProposalsList.SelectedItem is not ReviewRow selected ||
+            selected.Item.Kind != "businessRule" ||
+            selected.Item.Operation != "create" ||
+            selected.Item.Status != SfdImportReviewStatus.NewCandidate)
+        {
+            return;
+        }
+
+        string response = _analyzedResponse;
+        SfdImportReviewSnapshot snapshot = _snapshot;
+        string key = selected.Item.ClientKey;
+        MessageBoxResult approval = MessageBox.Show(this,
+            "Ajouter UNE règle au catalogue RM canonique ?\n\n" +
+            selected.Item.Title + "\n\n" +
+            "Description proposée (non probante) :\n" +
+            (selected.Item.ProposedDescription.Length > 500
+                ? selected.Item.ProposedDescription[..500] + "…"
+                : selected.Item.ProposedDescription) +
+            "\n\nLa règle aura un GUID attribué par Nodalis et restera " +
+            "À CONFIRMER sans source fictive. Aucune exigence ni SC n'est " +
+            "modifiée automatiquement ; il faudra réanalyser la réponse " +
+            "pour utiliser sa clé dans les SC.",
+            "Valider la création d'une RM",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (approval != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            SfdApprovedRuleResult result = await Task.Run(() =>
+                _rulePublisher.PublishAsync(_projectDirectory,
+                    response, snapshot, key));
+            Changed = Changed || !result.AlreadyApplied;
+            _revision++;
+            _snapshot = null;
+            _analyzedResponse = null;
+            ProposalsList.ItemsSource = null;
+            DetailsBox.Text = string.Empty;
+            SummaryText.Text = result.AlreadyApplied
+                ? "RM déjà publiée, même GUID : " + result.Reference
+                : "RM ajoutée au catalogue : " + result.Reference;
+            StatusText.Text =
+                "Réanalysez le lot pour relier cette RM aux sous-conditions.";
+        }
+        catch (Exception exception) when (exception is IOException or
+            InvalidOperationException or UnauthorizedAccessException or ArgumentException)
+        {
+            MessageBox.Show(this, exception.Message,
+                "Publication RM suspendue", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
     /// <summary>Displays explicit provenance, comparison and blocking cause.</summary>
     /// <param name="sender">Selected candidate.</param>
     /// <param name="e">Selection event.</param>
@@ -464,6 +539,12 @@ public partial class SfdImportReviewDialog : Window
                     SfdImportReviewStatus.IncompleteDraft) &&
                 requirement.Item.ResolvedParentId.HasValue &&
                 requirement.Item.ResolvedParentSha256 is not null;
+            PublishRuleButton.IsEnabled = !_busy && !_readOnly &&
+                _snapshot is not null && _analyzedResponse is not null &&
+                ProposalsList.SelectedItem is ReviewRow rule &&
+                rule.Item.Kind == "businessRule" &&
+                rule.Item.Operation == "create" &&
+                rule.Item.Status == SfdImportReviewStatus.NewCandidate;
         }
     }
 }

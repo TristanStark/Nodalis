@@ -73,6 +73,10 @@
                     MinWidth="175" Margin="0,0,10,0" Padding="9,6"
                     ToolTip="Créer uniquement l'EXU, EXS ou EXR sélectionnée avec C/SC/RM existantes, après confirmation"
                     Click="PublishRequirement_Click"/>
+            <Button x:Name="PublishRuleButton" Content="Publier cette RM…"
+                    MinWidth="140" Margin="0,0,10,0" Padding="9,6"
+                    ToolTip="Créer une seule règle dans le catalogue RM avec confirmation humaine"
+                    Click="PublishRule_Click"/>
             <Button Content="Fermer" Width="100" IsCancel="True"/>
         </StackPanel>
     </Grid>
