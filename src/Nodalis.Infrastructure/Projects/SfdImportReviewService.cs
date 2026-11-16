@@ -52,6 +52,9 @@ public sealed class SfdImportReviewService
             projectDirectory, cancellationToken);
         Dictionary<Guid, SfdBusinessRule> byRule =
             rules.Rules.ToDictionary(rule => rule.Id);
+        SfdActivityFunctionalitySnapshot links =
+            await new SfdActivityFunctionalityService(_sources.WorkspaceRoot)
+                .ReadAsync(projectDirectory, cancellationToken);
         Dictionary<string, SfdImportProposal> byKey =
             envelope.Proposals.ToDictionary(item => item.ClientKey,
                 StringComparer.Ordinal);
@@ -277,6 +280,35 @@ public sealed class SfdImportReviewService
                 parentSha = source.Sha256;
             }
 
+            Dictionary<Guid, string> activityRevisions = [];
+            if (proposal.Kind == "feature" &&
+                proposal.Operation == "create")
+            {
+                foreach (string key in proposal.ActivityKeys)
+                {
+                    if (!Guid.TryParseExact(key, "D", out Guid linkedId) ||
+                        !byId.TryGetValue(linkedId, out SfdDocumentEntry? linked) ||
+                        linked.Card.Kind != SfdDocumentKind.Activity)
+                    {
+                        continue;
+                    }
+
+                    _sources.GetReferenceForExistingFile(linked.AbsolutePath);
+                    SfdTextRevision source = await SfdMarkdownRevisionWriter.ReadAsync(
+                        linked.AbsolutePath, cancellationToken);
+                    SfdDocumentCard identity =
+                        SfdDocumentMarkdownCodec.Parse(source.Content);
+                    if (identity.Id != linkedId ||
+                        identity.ProjectId != catalog.ProjectId)
+                    {
+                        throw new InvalidDataException(
+                            "ACT liée modifiée pendant la comparaison FCT.");
+                    }
+
+                    activityRevisions.Add(linkedId, source.Sha256);
+                }
+            }
+
             if (proposal.SourceKeys.Count > 0)
             {
                 reason += " Références de sources externes à vérifier manuellement " +
@@ -310,6 +342,7 @@ public sealed class SfdImportReviewService
                 ExistingSha256 = revision,
                 ResolvedParentId = parentId,
                 ResolvedParentSha256 = parentSha,
+                ActivityRevisions = activityRevisions,
                 Message = reason,
                 NeedsHumanReview = true
             });
@@ -322,12 +355,18 @@ public sealed class SfdImportReviewService
             project = catalog.ProjectId,
             rawHash,
             rulesCatalogSha = rules.Sha256,
+            linksSha = links.Sha256,
             envelopes = new { envelope.Step, envelope.RunId },
             rows = items.Select(item => new
             {
                 item.ClientKey, item.Kind, item.Operation, item.Status,
                 item.ExistingId, item.ExistingSha256,
-                item.ResolvedParentId, item.ResolvedParentSha256, item.Title
+                item.ResolvedParentId, item.ResolvedParentSha256,
+                activityRevisions = item.ActivityRevisions.OrderBy(pair =>
+                    pair.Key).Select(pair => new
+                    {
+                        id = pair.Key, sha = pair.Value
+                    }), item.Title
             })
         });
         string fingerprint = Convert.ToHexString(SHA256.HashData(
@@ -338,6 +377,7 @@ public sealed class SfdImportReviewService
             ResponseSha256 = rawHash,
             PlanSha256 = fingerprint,
             RulesCatalogSha256 = rules.Sha256,
+            ActivityFunctionalitySha256 = links.Sha256,
             Step = envelope.Step,
             RunId = envelope.RunId,
             Items = items
