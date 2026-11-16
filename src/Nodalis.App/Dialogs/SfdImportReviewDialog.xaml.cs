@@ -19,6 +19,7 @@ public partial class SfdImportReviewDialog : Window
     private readonly SfdApprovedActivityImportService _activityPublisher;
     private readonly SfdApprovedRequirementImportService _requirementPublisher;
     private readonly SfdApprovedRuleImportService _rulePublisher;
+    private readonly SfdApprovedFeatureImportService _featurePublisher;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private long _revision;
@@ -38,6 +39,7 @@ public partial class SfdImportReviewDialog : Window
         _activityPublisher = new SfdApprovedActivityImportService(workspaceRoot);
         _requirementPublisher = new SfdApprovedRequirementImportService(workspaceRoot);
         _rulePublisher = new SfdApprovedRuleImportService(workspaceRoot);
+        _featurePublisher = new SfdApprovedFeatureImportService(workspaceRoot);
         _projectDirectory = projectDirectory;
         _readOnly = readOnly;
         InitializeComponent();
@@ -422,6 +424,91 @@ public partial class SfdImportReviewDialog : Window
         }
     }
 
+    /// <summary>
+    /// Confirms and publishes one FCT with a verified with/sans-IHM mode and
+    /// its exact ACT links; missing links remain an incomplete draft.
+    /// </summary>
+    /// <param name="sender">Explicit FCT approval button.</param>
+    /// <param name="e">Click event.</param>
+    private async void PublishFeature_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _snapshot is null ||
+            _analyzedResponse is null ||
+            ProposalsList.SelectedItem is not ReviewRow selected ||
+            selected.Item.Kind != "feature" ||
+            selected.Item.Operation != "create" ||
+            selected.Item.Status is not (SfdImportReviewStatus.NewCandidate or
+                SfdImportReviewStatus.IncompleteDraft) ||
+            selected.Item.ProposedUiMode is not ("withUi" or "withoutUi") ||
+            selected.Item.ActivityRevisions.Count != selected.Item.ActivityKeys.Count)
+        {
+            return;
+        }
+
+        string response = _analyzedResponse;
+        SfdImportReviewSnapshot snapshot = _snapshot;
+        string key = selected.Item.ClientKey;
+        string linked = string.Join("\n",
+            selected.Item.ActivityRevisions.OrderBy(pair => pair.Key)
+                .Select(pair => "- ACT GUID " + pair.Key.ToString("D") +
+                    " · SHA " + pair.Value[..12] + "…"));
+        string warning = selected.Item.ActivityKeys.Count == 0
+            ? "\n\nATTENTION : FCT sans ACT liée = brouillon incomplet ; " +
+                "aucun lien ne sera créé automatiquement."
+            : string.Empty;
+        MessageBoxResult answer = MessageBox.Show(this,
+            "Créer exactement cette FCT et ses liens ACT ?\n\n" +
+            selected.Item.Title + "\nMode : " +
+                selected.Item.ProposedUiMode +
+            "\nActivités proposées : " +
+                selected.Item.ActivityKeys.Count + "\n" +
+            (linked.Length > 1200
+                ? linked[..1200] + "\n… consultez le détail avant de confirmer."
+                : linked) +
+            warning +
+            "\n\nLa FCT restera À CONFIRMER. Un journal permettra la " +
+            "reprise entre la création du Markdown et les relations N:N.",
+            "Confirmer la publication de la FCT",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            SfdApprovedFeatureResult result = await Task.Run(() =>
+                _featurePublisher.PublishAsync(_projectDirectory,
+                    response, snapshot, key));
+            Changed = Changed || !result.AlreadyApplied;
+            _revision++;
+            _snapshot = null;
+            _analyzedResponse = null;
+            ProposalsList.ItemsSource = null;
+            DetailsBox.Text = string.Empty;
+            SummaryText.Text = result.AlreadyApplied
+                ? "FCT déjà publiée avec ses liens : " + result.Reference
+                : "FCT publiée : " + result.Reference + " ; ACT liées : " +
+                    result.LinkedActivityCount;
+            StatusText.Text = "Réanalysez les autres propositions avant publication.";
+        }
+        catch (Exception exception) when (exception is IOException or
+            InvalidOperationException or UnauthorizedAccessException or ArgumentException)
+        {
+            MessageBox.Show(this, exception.Message,
+                "Publication FCT suspendue", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
     /// <summary>Displays explicit provenance, comparison and blocking cause.</summary>
     /// <param name="sender">Selected candidate.</param>
     /// <param name="e">Selection event.</param>
@@ -454,6 +541,9 @@ public partial class SfdImportReviewDialog : Window
                 (item.ProposedRegulatorySource ?? "Non renseignée") +
             "\nSources déclarées : " + string.Join(", ", item.SourceKeys) +
             "\nACT liées : " + string.Join(", ", item.ActivityKeys) +
+            "\nSHA ACT liées : " + string.Join(", ",
+                item.ActivityRevisions.OrderBy(pair => pair.Key)
+                    .Select(pair => pair.Key.ToString("D") + "=" + pair.Value)) +
             "\nExigences sources : " + string.Join(", ", item.RequirementKeys) +
             "\nBlocs C/SC/RM : " + item.ConditionCount + " / " +
                 item.SubconditionCount + " / " + item.RuleLinkCount +
@@ -545,6 +635,16 @@ public partial class SfdImportReviewDialog : Window
                 rule.Item.Kind == "businessRule" &&
                 rule.Item.Operation == "create" &&
                 rule.Item.Status == SfdImportReviewStatus.NewCandidate;
+            PublishFeatureButton.IsEnabled = !_busy && !_readOnly &&
+                _snapshot is not null && _analyzedResponse is not null &&
+                ProposalsList.SelectedItem is ReviewRow feature &&
+                feature.Item.Kind == "feature" &&
+                feature.Item.Operation == "create" &&
+                feature.Item.ProposedUiMode is ("withUi" or "withoutUi") &&
+                feature.Item.Status is (SfdImportReviewStatus.NewCandidate or
+                    SfdImportReviewStatus.IncompleteDraft) &&
+                feature.Item.ActivityRevisions.Count ==
+                    feature.Item.ActivityKeys.Count;
         }
     }
 }

@@ -77,6 +77,10 @@
                     MinWidth="140" Margin="0,0,10,0" Padding="9,6"
                     ToolTip="Créer une seule règle dans le catalogue RM avec confirmation humaine"
                     Click="PublishRule_Click"/>
+            <Button x:Name="PublishFeatureButton" Content="Publier cette FCT…"
+                    MinWidth="145" Margin="0,0,10,0" Padding="9,6"
+                    ToolTip="Créer une FCT avec/sans IHM et ses liens ACT explicitement approuvés"
+                    Click="PublishFeature_Click"/>
             <Button Content="Fermer" Width="100" IsCancel="True"/>
         </StackPanel>
     </Grid>
