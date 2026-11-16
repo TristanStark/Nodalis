@@ -11,6 +11,10 @@ public partial class NewProjectDialog : Window
         ProjectComplexity Complexity,
         string DisplayName);
 
+    public sealed record ProjectKindChoice(
+        ProjectKind Kind,
+        string DisplayName);
+
     /// <summary>
     /// Initializes a new instance of <see cref="NewProjectDialog"/>.
     /// </summary>
@@ -27,6 +31,15 @@ public partial class NewProjectDialog : Window
 
         ComplexityComboBox.SelectionChanged += (_, _) =>
             UpdateComplexityLayout();
+        ProjectKindComboBox.SelectionChanged += (_, _) =>
+            UpdateComplexityLayout();
+
+        ProjectKindComboBox.ItemsSource = new[]
+        {
+            new ProjectKindChoice(ProjectKind.Standard, "Projet classique"),
+            new ProjectKindChoice(ProjectKind.WithSpecifications, "Projet avec spec (SFD)")
+        };
+        ProjectKindComboBox.SelectedIndex = 0;
 
         TargetComboBox.ItemsSource = targets;
         if (targets.Count > 0)
@@ -59,8 +72,13 @@ public partial class NewProjectDialog : Window
     public ProjectCreationTarget SelectedTarget =>
         (ProjectCreationTarget)TargetComboBox.SelectedItem;
 
+    public ProjectKind SelectedKind =>
+        ((ProjectKindChoice)ProjectKindComboBox.SelectedItem).Kind;
+
     public ProjectComplexity SelectedComplexity =>
-        ((ComplexityChoice)ComplexityComboBox.SelectedItem).Complexity;
+        SelectedKind == ProjectKind.WithSpecifications
+            ? ProjectComplexity.Simple
+            : ((ComplexityChoice)ComplexityComboBox.SelectedItem).Complexity;
 
     public IReadOnlyList<string> BusinessLinks =>
         SelectedComplexity == ProjectComplexity.UltraSimple
@@ -83,7 +101,10 @@ public partial class NewProjectDialog : Window
             return;
         }
 
-        bool ultraSimple = selected.Complexity == ProjectComplexity.UltraSimple;
+        bool isSfd = SelectedKind == ProjectKind.WithSpecifications;
+        bool ultraSimple = !isSfd && selected.Complexity == ProjectComplexity.UltraSimple;
+        ComplexityLabel.Visibility = isSfd ? Visibility.Collapsed : Visibility.Visible;
+        ComplexityComboBox.Visibility = isSfd ? Visibility.Collapsed : Visibility.Visible;
         ProjectNameLabel.Text = ultraSimple ? "Référence / nom" : "Nom";
         BusinessLinksPanel.Visibility = ultraSimple
             ? Visibility.Collapsed
@@ -140,6 +161,25 @@ public partial class NewProjectDialog : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             return;
+        }
+
+        if (SelectedKind == ProjectKind.WithSpecifications)
+        {
+            MessageBoxResult confirmation = MessageBox.Show(
+                this,
+                "Créer un Projet avec spec ?\n\n" +
+                "Nodalis préparera les dossiers SPECS FONCTIONNELLES, SPECS TECHNIQUES, " +
+                "DOCUMENTATION, QUALIFICATION et MANAGEMENT, ainsi que les documents " +
+                "de pilotage.\n\n" +
+                "Aucun processus métier, aucune activité, exigence ou fonctionnalité " +
+                "ne sera généré automatiquement.",
+                "Aperçu de création — Projet SFD",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                return;
+            }
         }
 
         DialogResult = true;

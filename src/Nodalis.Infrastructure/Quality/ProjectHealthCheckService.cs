@@ -1446,6 +1446,10 @@ public sealed class ProjectHealthCheckService
                 StringComparison.OrdinalIgnoreCase) ||
             string.Equals(
                 document.ProjectRelativePath,
+                "MANAGEMENT/Tâches.md",
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                document.ProjectRelativePath,
                 "Présentation.md",
                 StringComparison.CurrentCultureIgnoreCase) ||
             string.Equals(

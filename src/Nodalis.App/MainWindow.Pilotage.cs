@@ -131,7 +131,7 @@ public partial class MainWindow
                 return Task.CompletedTask;
             }
 
-            return OpenProjectJourneyAsync(project);
+            return OpenSelectedProjectJourneyAsync(project);
         });
 
     /// <summary>

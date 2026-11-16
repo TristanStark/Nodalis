@@ -19,6 +19,25 @@ public sealed partial class WorkspaceTaskService
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private Dictionary<Guid, CachedTaskDocument> _cachedDocuments = [];
 
+    /// <summary>
+    /// Routes the canonical project task file into SFD Management without
+    /// changing the legacy root task file for Standard projects.
+    /// </summary>
+    /// <param name="projectDirectory">Absolute project directory.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Canonical task document path for the persisted project family.</returns>
+    private static async Task<string> ResolveProjectTaskDocumentPathAsync(
+        string projectDirectory, CancellationToken cancellationToken)
+    {
+        ProjectManifest manifest = await AtomicJsonFile.ReadAsync<ProjectManifest>(
+            Path.Combine(projectDirectory, WorkspaceLayout.ProjectManifestFileName),
+            cancellationToken);
+        string directory = manifest.Kind == ProjectKind.WithSpecifications
+            ? Path.Combine(projectDirectory, "MANAGEMENT")
+            : projectDirectory;
+        return Path.Combine(directory, "Tâches.md");
+    }
+
     private sealed record CachedTaskDocument(
         string Fingerprint, string RelativePath,
         Guid? ProjectId, string? ProjectName,
@@ -396,9 +415,8 @@ public sealed partial class WorkspaceTaskService
                 $"Le dossier projet est introuvable : {projectDirectory}");
         }
 
-        string taskDocumentPath = Path.Combine(
-            projectDirectory,
-            "Tâches.md");
+        string taskDocumentPath = await ResolveProjectTaskDocumentPathAsync(
+            projectDirectory, cancellationToken);
 
         if (!File.Exists(
                 taskDocumentPath))
@@ -728,9 +746,8 @@ public sealed partial class WorkspaceTaskService
                 sourceMatch.Groups["checked"].Value +
                 "] " + body);
 
-        string taskDocumentPath = Path.Combine(
-            projectDirectory,
-            "Tâches.md");
+        string taskDocumentPath = await ResolveProjectTaskDocumentPathAsync(
+            projectDirectory, cancellationToken);
 
         if (!File.Exists(
                 taskDocumentPath))

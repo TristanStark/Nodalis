@@ -100,6 +100,11 @@ public sealed class ProjectJourneyService
     {
         ProjectManifest project = await LoadProjectAsync(
             ValidateProjectDirectory(projectDirectory), cancellationToken);
+        if (project.Kind == ProjectKind.WithSpecifications)
+        {
+            return [];
+        }
+
         ProjectJourneyTemplateCatalog catalog =
             await LoadTemplatesAsync(cancellationToken);
         return catalog.Templates.Where(item =>
@@ -119,7 +124,8 @@ public sealed class ProjectJourneyService
     {
         ProjectManifest project = await LoadProjectAsync(
             ValidateProjectDirectory(projectDirectory), cancellationToken);
-        if (project.InitialComplexity == ProjectComplexity.UltraSimple)
+        if (project.Kind == ProjectKind.WithSpecifications ||
+            project.InitialComplexity == ProjectComplexity.UltraSimple)
         {
             return null;
         }
@@ -173,6 +179,7 @@ public sealed class ProjectJourneyService
     {
         string directory = ValidateProjectDirectory(projectDirectory);
         ProjectManifest project = await LoadProjectAsync(directory, cancellationToken);
+        EnsureStandardJourney(project);
         EnsureActive(project);
         ProjectJourneyTemplateCatalog catalog = await LoadTemplatesAsync(cancellationToken);
         ProjectJourneyTemplate? template = templateKey is null
@@ -233,6 +240,7 @@ public sealed class ProjectJourneyService
     {
         string directory = ValidateProjectDirectory(projectDirectory);
         ProjectManifest project = await LoadProjectAsync(directory, cancellationToken);
+        EnsureStandardJourney(project);
         EnsureActive(project);
         ValidateDocument(document, project.Id);
         string json = JsonSerializer.Serialize(document, JsonDefaults.Options);
@@ -322,6 +330,21 @@ public sealed class ProjectJourneyService
         }
 
         return project;
+    }
+
+    /// <summary>
+    /// Prevents accidental activation of a Simple/Complex journey on SFD projects.
+    /// A dedicated SFD strategy will be introduced separately.
+    /// </summary>
+    /// <param name="project">Current persisted project kind.</param>
+    private static void EnsureStandardJourney(ProjectManifest project)
+    {
+        if (project.Kind != ProjectKind.Standard)
+        {
+            throw new InvalidOperationException(
+                "Ce projet utilise le parcours SFD. Le parcours classique " +
+                "n'est pas applicable ; aucun parcours n'a été créé.");
+        }
     }
 
     /// <summary>Denies project mutations while archived.</summary>

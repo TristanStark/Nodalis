@@ -64,7 +64,7 @@ public partial class MainWindow
     /// </summary>
     /// <returns>Completed UI action.</returns>
     private Task OpenProjectJourneyAsync() =>
-        OpenProjectJourneyAsync(GetArchiveContextProject());
+        OpenSelectedProjectJourneyAsync(GetArchiveContextProject());
 
     /// <summary>
     /// Opens an explicitly selected project without falling back to a stale
