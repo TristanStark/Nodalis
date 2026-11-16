@@ -60,6 +60,9 @@ public sealed record SfdImportReviewItem
 
     public string? ExistingSha256 { get; init; }
 
+    /// <summary>Optional true 3-way field projection for an existing GUID.</summary>
+    public SfdThreeWayPreview? ThreeWay { get; init; }
+
     /// <summary>Actual PM parent GUID used for ACT publication, if resolved.</summary>
     public Guid? ResolvedParentId { get; init; }
 
