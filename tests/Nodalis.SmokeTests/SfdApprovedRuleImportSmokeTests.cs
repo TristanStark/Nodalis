@@ -126,6 +126,9 @@ internal static class SfdApprovedRuleImportSmokeTests
             "Identical RM text in a different response must trigger reconciliation.");
     }
 
+    /// <summary>Creates a fictitious response with one RM and two requirements.</summary>
+    /// <param name="activityId">Already published ACT GUID.</param>
+    /// <returns>Strict step 02 JSON.</returns>
     private static string Response(Guid activityId) =>
         JsonSerializer.Serialize(new
         {
@@ -155,6 +158,14 @@ internal static class SfdApprovedRuleImportSmokeTests
             }
         });
 
+    /// <summary>Creates a simulated requirement referencing the same RM key.</summary>
+    /// <param name="key">Temporary requirement key.</param>
+    /// <param name="kind">EXU or EXS.</param>
+    /// <param name="title">Fictional title.</param>
+    /// <param name="activityId">Owning canonical ACT.</param>
+    /// <param name="condition">Condition statement.</param>
+    /// <param name="subcondition">Subcondition statement.</param>
+    /// <returns>Serializable strict candidate.</returns>
     private static object Requirement(string key, string kind, string title,
         Guid activityId, string condition, string subcondition) => new
     {
@@ -183,6 +194,9 @@ internal static class SfdApprovedRuleImportSmokeTests
         }
     };
 
+    /// <summary>Checks one synthetic publication invariant.</summary>
+    /// <param name="value">Expected truth.</param>
+    /// <param name="message">Failure diagnostic.</param>
     private static void Require(bool value, string message)
     {
         if (!value)

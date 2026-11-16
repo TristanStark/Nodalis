@@ -266,6 +266,11 @@ public sealed class SfdApprovedRuleImportService
         return found;
     }
 
+    /// <summary>Applies or recognizes the exact approved RM under catalog CAS.</summary>
+    /// <param name="root">Verified active project.</param>
+    /// <param name="intent">Immutable approved rule identity.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <returns>New or already-published RM.</returns>
     private async Task<SfdApprovedRuleResult> ApplyAsync(
         string root, SfdApprovedRuleIntent intent, CancellationToken ct)
     {
@@ -325,6 +330,13 @@ public sealed class SfdApprovedRuleImportService
             intent.RuleId, intent.Reference, false);
     }
 
+    /// <summary>Rejects stale, malformed or incompatible persisted RM intent.</summary>
+    /// <param name="intent">Stored recovery intent.</param>
+    /// <param name="projectId">Expected owner.</param>
+    /// <param name="responseSha">Reviewed response fingerprint.</param>
+    /// <param name="runId">External run ID.</param>
+    /// <param name="clientKey">Approved temporary key.</param>
+    /// <param name="statement">Exactly reviewed RM wording.</param>
     private static void CheckIntent(SfdApprovedRuleIntent intent,
         Guid projectId, string responseSha, string runId, string clientKey,
         string statement)
@@ -348,9 +360,14 @@ public sealed class SfdApprovedRuleImportService
         }
     }
 
+    /// <summary>Returns the one canonical rules Markdown file.</summary>
+    /// <param name="root">SFD project directory.</param>
+    /// <returns>Full catalog path.</returns>
     private static string RulesPath(string root) =>
         Path.Combine(root, "DOCUMENTATION", "liste des règles métiers.md");
 
+    /// <summary>Rejects journal junction and symlink ancestry.</summary>
+    /// <param name="path">Journal directory.</param>
     private static void CheckDirectory(string path)
     {
         string? current = Path.GetFullPath(path);
@@ -365,6 +382,9 @@ public sealed class SfdApprovedRuleImportService
         }
     }
 
+    /// <summary>Computes exact uppercase UTF-8 SHA-256.</summary>
+    /// <param name="content">Reviewed snapshot.</param>
+    /// <returns>SHA-256 digest.</returns>
     private static string Hash(string content) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content)));
 }
