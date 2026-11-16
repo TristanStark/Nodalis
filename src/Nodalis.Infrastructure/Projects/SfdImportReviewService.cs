@@ -55,6 +55,25 @@ public sealed class SfdImportReviewService
         Dictionary<string, SfdImportProposal> byKey =
             envelope.Proposals.ToDictionary(item => item.ClientKey,
                 StringComparer.Ordinal);
+        Dictionary<string, SfdBusinessRule> publishedRules = new(
+            StringComparer.Ordinal);
+        if (envelope.Step == "sfd-02")
+        {
+            SfdApprovedRuleImportService published =
+                new(_sources.WorkspaceRoot);
+            foreach (SfdImportProposal candidate in envelope.Proposals
+                .Where(item => item.Kind == "businessRule" &&
+                    item.Operation == "create"))
+            {
+                SfdBusinessRule? found = await published.FindPublishedAsync(
+                    projectDirectory, rawJson, candidate.ClientKey,
+                    cancellationToken);
+                if (found is not null)
+                {
+                    publishedRules.Add(candidate.ClientKey, found);
+                }
+            }
+        }
         List<SfdImportReviewItem> items = [];
         HashSet<Guid> updated = [];
         foreach (SfdImportProposal proposal in envelope.Proposals)
@@ -140,7 +159,16 @@ public sealed class SfdImportReviewService
             }
             else if (role is null)
             {
-                if (rules.Rules.Any(rule => string.Equals(rule.Statement,
+                if (publishedRules.TryGetValue(proposal.ClientKey,
+                    out SfdBusinessRule? publishedRule))
+                {
+                    currentRule = publishedRule;
+                    revision = rules.Sha256;
+                    status = SfdImportReviewStatus.LinkCandidate;
+                    reason = "RM déjà publiée depuis cette réponse IA avec son " +
+                        "GUID canonique ; ne pas créer de doublon.";
+                }
+                else if (rules.Rules.Any(rule => string.Equals(rule.Statement,
                     proposal.Title, StringComparison.OrdinalIgnoreCase)))
                 {
                     status = SfdImportReviewStatus.NeedsResolution;
@@ -168,7 +196,7 @@ public sealed class SfdImportReviewService
                 SfdImportReviewStatus.LinkCandidate)
             {
                 string? issue = ResolveDependencies(proposal, envelope.Step,
-                    byKey, byId, byRule);
+                    byKey, byId, byRule, publishedRules);
                 if (issue is not null)
                 {
                     status = SfdImportReviewStatus.NeedsResolution;
@@ -344,7 +372,8 @@ public sealed class SfdImportReviewService
         string step,
         IReadOnlyDictionary<string, SfdImportProposal> byKey,
         IReadOnlyDictionary<Guid, SfdDocumentEntry> byId,
-        IReadOnlyDictionary<Guid, SfdBusinessRule> byRule)
+        IReadOnlyDictionary<Guid, SfdBusinessRule> byRule,
+        IReadOnlyDictionary<string, SfdBusinessRule> publishedRules)
     {
         string? parentKind = proposal.Kind switch
         {
@@ -386,6 +415,11 @@ public sealed class SfdImportReviewService
         {
             if (Guid.TryParseExact(key, "D", out Guid existingRule) &&
                 byRule.ContainsKey(existingRule))
+            {
+                continue;
+            }
+
+            if (publishedRules.ContainsKey(key))
             {
                 continue;
             }
