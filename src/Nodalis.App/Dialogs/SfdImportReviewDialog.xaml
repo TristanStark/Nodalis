@@ -17,7 +17,7 @@
                    FontSize="20" FontWeight="SemiBold" Margin="0,0,0,7"/>
         <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,10"
                    Foreground="{StaticResource SecondaryTextBrush}"
-                   Text="Collez une réponse nodalis.sfd.import.v1. Une proposition PM nouvelle peut être publiée après confirmation ; les autres objets restent en revue seule. Aucun appel IA n'est effectué."/>
+                   Text="Collez une réponse nodalis.sfd.import.v1. Les créations et les mises à jour simples doivent être examinées et confirmées individuellement. Aucune réponse IA n'est exécutée ni transmise automatiquement."/>
         <Grid Grid.Row="2" Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -81,6 +81,14 @@
                     MinWidth="145" Margin="0,0,10,0" Padding="9,6"
                     ToolTip="Créer une FCT avec/sans IHM et ses liens ACT explicitement approuvés"
                     Click="PublishFeature_Click"/>
+            <Button x:Name="CaptureBaselineButton" Content="Figer la base…"
+                    MinWidth="125" Margin="0,0,10,0" Padding="9,6"
+                    ToolTip="Capturer explicitement la version courante d'un PM/ACT comme référence immuable"
+                    Click="CaptureBaseline_Click"/>
+            <Button x:Name="UpdateFieldsButton" Content="Arbitrer les champs…"
+                    MinWidth="165" Margin="0,0,10,0" Padding="9,6"
+                    ToolTip="Comparer base/courant/proposé et accepter séparément titre ou description IA"
+                    Click="UpdateFields_Click"/>
             <Button Content="Fermer" Width="100" IsCancel="True"/>
         </StackPanel>
     </Grid>

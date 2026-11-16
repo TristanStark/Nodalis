@@ -20,6 +20,8 @@ public partial class SfdImportReviewDialog : Window
     private readonly SfdApprovedRequirementImportService _requirementPublisher;
     private readonly SfdApprovedRuleImportService _rulePublisher;
     private readonly SfdApprovedFeatureImportService _featurePublisher;
+    private readonly SfdDocumentBaselineService _baselineService;
+    private readonly SfdApprovedFieldUpdateService _fieldUpdateService;
     private readonly string _projectDirectory;
     private readonly bool _readOnly;
     private long _revision;
@@ -40,6 +42,8 @@ public partial class SfdImportReviewDialog : Window
         _requirementPublisher = new SfdApprovedRequirementImportService(workspaceRoot);
         _rulePublisher = new SfdApprovedRuleImportService(workspaceRoot);
         _featurePublisher = new SfdApprovedFeatureImportService(workspaceRoot);
+        _baselineService = new SfdDocumentBaselineService(workspaceRoot);
+        _fieldUpdateService = new SfdApprovedFieldUpdateService(workspaceRoot);
         _projectDirectory = projectDirectory;
         _readOnly = readOnly;
         InitializeComponent();
@@ -509,6 +513,137 @@ public partial class SfdImportReviewDialog : Window
         }
     }
 
+    /// <summary>
+    /// Freezes an exact current source as the one immutable base of an update.
+    /// A confirmation is required because the saved source contains local data.
+    /// </summary>
+    /// <param name="sender">Base capture button.</param>
+    /// <param name="e">Click event.</param>
+    private async void CaptureBaseline_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _snapshot is null ||
+            ProposalsList.SelectedItem is not ReviewRow selected ||
+            selected.Item.Kind is not ("businessProcess" or "businessActivity") ||
+            selected.Item.Operation != "update" ||
+            selected.Item.ExistingId is not Guid targetId ||
+            selected.Item.ExistingSha256 is not string sourceHash ||
+            selected.Item.ThreeWay is not { HasBaseline: false })
+        {
+            return;
+        }
+
+        MessageBoxResult decision = MessageBox.Show(this,
+            "Figer la version de référence de ce document SFD ?\n\n" +
+            selected.Item.Title + "\nGUID : " + targetId.ToString("D") +
+            "\nSHA : " + sourceHash[..12] + "…" +
+            "\n\nUne copie locale immuable du Markdown courant sera créée " +
+            "dans le journal privé du projet. Aucune fiche métier ne sera " +
+            "modifiée ni transmise à une IA.",
+            "Figer la base de comparaison", MessageBoxButton.YesNo,
+            MessageBoxImage.Question, MessageBoxResult.No);
+        if (decision != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            await Task.Run(() => _baselineService.CaptureAsync(
+                _projectDirectory, targetId, sourceHash));
+            _revision++;
+            _snapshot = null;
+            _analyzedResponse = null;
+            ProposalsList.ItemsSource = null;
+            DetailsBox.Text = string.Empty;
+            SummaryText.Text = "Base immuable enregistrée pour ce GUID. " +
+                "Cliquez sur « Analyser et comparer » pour voir les différences.";
+            StatusText.Text = "Aucune modification de fiche SFD.";
+        }
+        catch (Exception exception) when (exception is IOException or
+            InvalidOperationException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            MessageBox.Show(this, exception.Message,
+                "Base non capturée", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>
+    /// Opens actual base/current/proposed values and applies ONLY chosen safe
+    /// PM/ACT fields with a durable journal and optimistic source revision.
+    /// </summary>
+    /// <param name="sender">Field approval action.</param>
+    /// <param name="e">Click event.</param>
+    private async void UpdateFields_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _readOnly || _snapshot is null ||
+            _analyzedResponse is null ||
+            ProposalsList.SelectedItem is not ReviewRow selected ||
+            selected.Item.Kind is not ("businessProcess" or "businessActivity") ||
+            selected.Item.Operation != "update" ||
+            selected.Item.Status != SfdImportReviewStatus.UpdateCandidate ||
+            selected.Item.ThreeWay is not
+                { HasBaseline: true, HasConflict: false, HasProposedChange: true })
+        {
+            return;
+        }
+
+        SfdThreeWayApprovalDialog approval = new(selected.Item)
+        {
+            Owner = this
+        };
+        if (approval.ShowDialog() != true)
+        {
+            return;
+        }
+
+        string response = _analyzedResponse;
+        SfdImportReviewSnapshot snapshot = _snapshot;
+        string key = selected.Item.ClientKey;
+        bool title = approval.AcceptTitle;
+        bool description = approval.AcceptDescription;
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            SfdApprovedFieldUpdateResult result = await Task.Run(() =>
+                _fieldUpdateService.PublishAsync(_projectDirectory,
+                    response, snapshot, key, title, description));
+            Changed = Changed || !result.AlreadyApplied;
+            _revision++;
+            _snapshot = null;
+            _analyzedResponse = null;
+            ProposalsList.ItemsSource = null;
+            DetailsBox.Text = string.Empty;
+            SummaryText.Text = result.AlreadyApplied
+                ? "Champs déjà appliqués sur la même fiche GUID."
+                : "Champs approuvés appliqués sans recréer le document.";
+            StatusText.Text =
+                "Aucune autre proposition appliquée. Nouvelle revue requise.";
+        }
+        catch (Exception exception) when (exception is IOException or
+            InvalidOperationException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            MessageBox.Show(this, exception.Message,
+                "Mise à jour SFD suspendue", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _busy = false;
+            UpdateButtons();
+        }
+    }
+
     /// <summary>Displays explicit provenance, comparison and blocking cause.</summary>
     /// <param name="sender">Selected candidate.</param>
     /// <param name="e">Selection event.</param>
@@ -554,6 +689,8 @@ public partial class SfdImportReviewDialog : Window
             "\nTitre existant : " + (item.ExistingTitle ?? "Aucun") +
             "\nSHA source : " + (item.ExistingSha256 ?? "Non applicable") +
             "\nDécision métier : NON VALIDÉE" +
+            "\n\n## Comparaison Base / Courant / Proposé\n" +
+                FormatThreeWay(selected.Item.ThreeWay) +
             "\n\n## C/SC/RM proposées (texte intégral à relire)\n" +
                 FormatStructuredBlocks(item.ProposedConditions) +
             "\n\n" + item.Message;
@@ -596,6 +733,48 @@ public partial class SfdImportReviewDialog : Window
         }
 
         return text.ToString();
+    }
+
+    /// <summary>
+    /// Shows every complete base/current/proposed field value, without
+    /// guessing conflicting contents or treating a difference as approval.
+    /// </summary>
+    /// <param name="comparison">Frozen optional 3-way projection.</param>
+    /// <returns>Readable multiline explanation.</returns>
+    private static string FormatThreeWay(SfdThreeWayPreview? comparison)
+    {
+        if (comparison is null)
+        {
+            return "Pas de comparaison à trois voies pour cette opération.";
+        }
+
+        if (!comparison.HasBaseline)
+        {
+            return "Base absente : utiliser « Figer la base… » avant de " +
+                "comparer les champs existants.";
+        }
+
+        System.Text.StringBuilder details = new();
+        details.Append("SHA base : ").AppendLine(comparison.BaselineSha256)
+            .Append("SHA actuel : ").AppendLine(comparison.CurrentSha256);
+        foreach (SfdThreeWayField entry in comparison.Fields)
+        {
+            details.AppendLine()
+                .Append("Champ ").Append(entry.Name).Append(" : ")
+                .AppendLine(entry.Status.ToString())
+                .AppendLine("Base :").AppendLine(entry.BaseValue)
+                .AppendLine("Actuel :").AppendLine(entry.CurrentValue)
+                .AppendLine("Proposé :").AppendLine(entry.ProposedValue);
+        }
+
+        if (comparison.HasConflict)
+        {
+            details.AppendLine()
+                .AppendLine("CONFLIT : les modifications concurrentes " +
+                    "nécessitent un arbitrage humain. Publication bloquée.");
+        }
+
+        return details.ToString();
     }
 
     /// <summary>Disables repeated analysis while the read-only task is running.</summary>
@@ -658,6 +837,26 @@ public partial class SfdImportReviewDialog : Window
             PublishRuleButton.Visibility = PublishRuleButton.IsEnabled
                 ? Visibility.Visible : Visibility.Collapsed;
             PublishFeatureButton.Visibility = PublishFeatureButton.IsEnabled
+                ? Visibility.Visible : Visibility.Collapsed;
+            CaptureBaselineButton.IsEnabled = !_busy && !_readOnly &&
+                _snapshot is not null &&
+                ProposalsList.SelectedItem is ReviewRow baseRow &&
+                baseRow.Item.Kind is ("businessProcess" or "businessActivity") &&
+                baseRow.Item.Operation == "update" &&
+                baseRow.Item.ExistingId.HasValue &&
+                baseRow.Item.ExistingSha256 is not null &&
+                baseRow.Item.ThreeWay is { HasBaseline: false };
+            UpdateFieldsButton.IsEnabled = !_busy && !_readOnly &&
+                _snapshot is not null && _analyzedResponse is not null &&
+                ProposalsList.SelectedItem is ReviewRow updateRow &&
+                updateRow.Item.Kind is ("businessProcess" or "businessActivity") &&
+                updateRow.Item.Operation == "update" &&
+                updateRow.Item.Status == SfdImportReviewStatus.UpdateCandidate &&
+                updateRow.Item.ThreeWay is
+                    { HasBaseline: true, HasConflict: false, HasProposedChange: true };
+            CaptureBaselineButton.Visibility = CaptureBaselineButton.IsEnabled
+                ? Visibility.Visible : Visibility.Collapsed;
+            UpdateFieldsButton.Visibility = UpdateFieldsButton.IsEnabled
                 ? Visibility.Visible : Visibility.Collapsed;
         }
     }
