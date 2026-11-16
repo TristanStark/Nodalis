@@ -136,3 +136,25 @@ Tests synthétiques : PM/ACT candidats non matérialisés, mise à jour par GUID
 - Régressions : test de préparation de l'étape 02 avec une ACT et une RM réellement identifiées ; test d'un catalogue RM modifié après revue ; préservation du même GUID RM dans des SC EXU et EXS distinctes.
 
 Il reste à faire : publication contrôlée de nouvelles RM et des FCT, édition des propositions avant décision, diff 3-way par champ, traitement en lot atomique et localisation physique des EMO après arbitrage explicite.
+
+## Lot #220 — RM approuvées et FCT reliées en N:N
+
+### Publication d'une nouvelle RM
+
+- Depuis **Projet → Analyser une réponse IA SFD…**, la commande **Publier cette RM…** est réservée à une proposition `businessRule/create` nouvelle, non ambiguë et explicitement confirmée.
+- `SfdApprovedRuleImportService` crée une **entrée unique** dans `DOCUMENTATION/liste des règles métiers.md`, avec GUID Nodalis et référence stable `RM-0001`. Une règle proposée par une IA est créée avec une **certitude ToConfirm** et une source vide plutôt qu'une source inventée, même si l'IA prétend l'avoir confirmée.
+- L'intention `.sfd-ai-import/<empreinte>/intent-rule.json` est persistée sous le verrou de publication commun, avant l'édition. Le remplacement du catalogue utilise le **SHA-256 exact de la base** et une écriture optimiste protégée ; le rejeu reconnaît la règle créée sans renumérotation ni doublon, et refuse tout écrasement d'un catalogue modifié.
+- Une `businessRule` publiée à partir d'un lot est rapprochée ensuite via sa **clientKey de ce même lot**, résolue à son GUID réel par le journal. Les SC EXU/EXS peuvent alors référencer cette RM sans recopier son texte. L'ordre sûr est : **publier RM → réanalyser la même réponse → publier les exigences concernées**. Une RM non encore publiée reste bloquante pour ses SC.
+- Les tests fictifs `SfdApprovedRuleImportSmokeTests` vérifient publication unique, idempotence, réutilisation dans deux familles d'exigences, et refus d'un catalogue changé ou d'une RM de même libellé dans un autre lot.
+
+### Publication d'une nouvelle FCT
+
+- La revue `sfd-03` capture les **SHA-256 des fiches ACT** explicitement référencées et l'empreinte du registre `.sfd-activity-functionality.json`. Les ACT doivent appartenir au projet sélectionné : les liens inter-projets ou les identifiants inventés restent bloqués.
+- La commande **Publier cette FCT…** montre le titre, la catégorie obligatoire **avec IHM** ou **sans IHM**, les GUID et empreintes des ACT, puis demande une confirmation spécifique. Une FCT sans ACT peut uniquement être enregistrée comme **brouillon incomplet**, sans générer de lien fictif.
+- `SfdApprovedFeatureImportService` journalise l'intention `intent-feature.json` avant le déplacement du dossier FCT depuis un staging hors index. Il persiste ensuite **tous les liens ACT↔FCT en une écriture optimiste du registre N:N**, sans copie des fiches ACT.
+- Une interruption **entre création FCT et écriture des liens** reste récupérable par rejeu explicite avec le même GUID et les mêmes ACT ; toute modification du registre, d'une ACT ou de la fiche FCT bloque l'écrasement. Les relations N:N permettent qu'une ACT couvre plusieurs FCT et qu'une FCT couvre plusieurs ACT.
+- Les tests `SfdApprovedFeatureImportSmokeTests` couvrent la catégorie avec/sans IHM, les liens N:N, la reprise interrompue, l'idempotence, l'ACT inter-projets, une ACT modifiée et une FCT brouillon à zéro lien.
+
+### Limitations et conformité
+
+La publication est encore **une opération à la fois** : PM, ACT, EXU/EXS/EXR, RM ou FCT. Les mises à jour par diff 3-way, décisions par champ, publication de lots mixtes et historique global restent ouverts dans #220. La création EMO est maintenue différée jusqu'à la décision sur son emplacement physique. **Aucun import ni conversion DOCX→Markdown** n'a été ajouté. Les exemples, noms et fixtures sont fictifs.
