@@ -27,6 +27,12 @@ internal static class SfdDocumentThreeWayCodec
     public static string Description(string markdown)
     {
         ArgumentNullException.ThrowIfNull(markdown);
+        if (DescriptionHeadingPattern.Matches(markdown).Count > 1)
+        {
+            throw new InvalidDataException(
+                "Plusieurs descriptions IA gérées : modification ambiguë.");
+        }
+
         Match match = DescriptionHeadingPattern.Match(markdown);
         if (!match.Success)
         {
@@ -52,7 +58,8 @@ internal static class SfdDocumentThreeWayCodec
             return string.Join("\n", lines.Select(line =>
                 (line == ">" ? "" : line[2..])
                 .Replace("&lt;", "<", StringComparison.Ordinal)
-                .Replace("&gt;", ">", StringComparison.Ordinal))).Trim();
+                .Replace("&gt;", ">", StringComparison.Ordinal)
+                .Replace("&amp;", "&", StringComparison.Ordinal))).Trim();
         }
 
         return segment;
@@ -199,7 +206,8 @@ internal static class SfdDocumentThreeWayCodec
         foreach (string line in lines)
         {
             result.Append("> ").AppendLine(
-                line.Replace("<", "&lt;", StringComparison.Ordinal)
+                line.Replace("&", "&amp;", StringComparison.Ordinal)
+                    .Replace("<", "&lt;", StringComparison.Ordinal)
                     .Replace(">", "&gt;", StringComparison.Ordinal));
         }
 

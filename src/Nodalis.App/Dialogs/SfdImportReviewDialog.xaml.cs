@@ -7,8 +7,9 @@ using Nodalis.Infrastructure.Projects;
 namespace Nodalis.App.Dialogs;
 
 /// <summary>
-/// Explicit review of external SFD JSON. All imported data is volatile;
-/// there is no commit action, silent mapping, or DOCX import pathway.
+/// Explicit review of external SFD JSON. Raw responses stay volatile.
+/// Any publication or immutable base capture requires a separate, human-
+/// confirmed action. No AI network calls, silent mapping or DOCX import.
 /// </summary>
 public partial class SfdImportReviewDialog : Window
 {
