@@ -66,6 +66,9 @@ public sealed record SfdImportReviewItem
     /// <summary>Exact parent PM SHA captured at review time.</summary>
     public string? ResolvedParentSha256 { get; init; }
 
+    /// <summary>Exact reviewed canonical ACT source revisions used by proposed FCT links.</summary>
+    public required IReadOnlyDictionary<Guid, string> ActivityRevisions { get; init; }
+
     public required string Message { get; init; }
 
     public required bool NeedsHumanReview { get; init; }
@@ -85,6 +88,9 @@ public sealed record SfdImportReviewSnapshot
 
     /// <summary>Exact shared RM Markdown byte revision captured in this review.</summary>
     public required string RulesCatalogSha256 { get; init; }
+
+    /// <summary>Exact N:N registry revision, null before its first creation.</summary>
+    public string? ActivityFunctionalitySha256 { get; init; }
 
     public required string Step { get; init; }
 
