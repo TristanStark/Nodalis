@@ -39,9 +39,9 @@ public sealed record SfdThreeWayPreview
 
     public bool HasBaseline => BaselineSha256 is not null;
 
-    public bool HasConflict => Fields.Any(field =>
-        field.Status == SfdThreeWayFieldStatus.Conflict);
+    public bool HasConflict => Fields.Any(entry =>
+        entry.Status == SfdThreeWayFieldStatus.Conflict);
 
-    public bool HasProposedChange => Fields.Any(field =>
-        field.Status == SfdThreeWayFieldStatus.ProposedChange);
+    public bool HasProposedChange => Fields.Any(entry =>
+        entry.Status == SfdThreeWayFieldStatus.ProposedChange);
 }
