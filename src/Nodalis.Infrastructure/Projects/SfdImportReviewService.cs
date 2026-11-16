@@ -87,6 +87,7 @@ public sealed class SfdImportReviewService
             SfdDocumentEntry? current = null;
             SfdBusinessRule? currentRule = null;
             string? revision = null;
+            SfdThreeWayPreview? threeWay = null;
             SfdDocumentKind? role = KindFor(proposal.Kind);
 
             if (proposal.Kind == "implementationRequirement")
@@ -152,12 +153,35 @@ public sealed class SfdImportReviewService
                     }
 
                     revision = source.Sha256;
+                    if (proposal.Operation == "update")
+                    {
+                        SfdDocumentBaseline? baseline =
+                            await new SfdDocumentBaselineService(
+                                _sources.WorkspaceRoot).ReadAsync(
+                                    projectDirectory, current.Card.Id,
+                                    cancellationToken);
+                        threeWay = SfdDocumentThreeWayService.Compare(
+                            current.Card.Id, source.Content, source.Sha256,
+                            baseline, proposal);
+                    }
+
                     status = proposal.Operation == "link"
                         ? SfdImportReviewStatus.LinkCandidate
                         : SfdImportReviewStatus.UpdateCandidate;
                     reason = proposal.Operation == "link"
                         ? "Liaison proposée ; aucune association enregistrée."
-                        : "Modification proposée ; base SHA capturée pour revue.";
+                        : threeWay?.HasConflict == true
+                            ? "Conflit entre la base SFD, le contenu humain actuel " +
+                                "et la proposition IA : arbitrage requis."
+                            : threeWay?.HasBaseline == true
+                                ? "Comparaison base / courant / proposé disponible. " +
+                                    "Aucune modification appliquée."
+                                : "Mise à jour proposée sans base explicite : " +
+                                    "figer la version de référence avant toute publication.";
+                    if (threeWay?.HasConflict == true)
+                    {
+                        status = SfdImportReviewStatus.NeedsResolution;
+                    }
                 }
             }
             else if (role is null)
@@ -340,6 +364,7 @@ public sealed class SfdImportReviewService
                 ExistingReference = current?.Card.Reference ?? currentRule?.Reference,
                 ExistingTitle = current?.Card.Title ?? currentRule?.Statement,
                 ExistingSha256 = revision,
+                ThreeWay = threeWay,
                 ResolvedParentId = parentId,
                 ResolvedParentSha256 = parentSha,
                 ActivityRevisions = activityRevisions,
@@ -361,6 +386,12 @@ public sealed class SfdImportReviewService
             {
                 item.ClientKey, item.Kind, item.Operation, item.Status,
                 item.ExistingId, item.ExistingSha256,
+                baselineSha = item.ThreeWay?.BaselineSha256,
+                fieldStatuses = item.ThreeWay?.Fields.Select(field => new
+                {
+                    field.Name, field.Status,
+                    field.BaseValue, field.CurrentValue, field.ProposedValue
+                }),
                 item.ResolvedParentId, item.ResolvedParentSha256,
                 activityRevisions = item.ActivityRevisions.OrderBy(pair =>
                     pair.Key).Select(pair => new
