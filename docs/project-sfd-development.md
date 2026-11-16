@@ -158,3 +158,32 @@ Il reste à faire : publication contrôlée de nouvelles RM et des FCT, édition
 ### Limitations et conformité
 
 La publication est encore **une opération à la fois** : PM, ACT, EXU/EXS/EXR, RM ou FCT. Les mises à jour par diff 3-way, décisions par champ, publication de lots mixtes et historique global restent ouverts dans #220. La création EMO est maintenue différée jusqu'à la décision sur son emplacement physique. **Aucun import ni conversion DOCX→Markdown** n'a été ajouté. Les exemples, noms et fixtures sont fictifs.
+
+## Lot #220 — modifications PM/ACT avec vraie comparaison 3-way
+
+### Base explicitement figée, aucun instantané fictif
+
+Le bouton **Projet → Analyser une réponse IA SFD…** reconnaît aussi les propositions `operation=update` sur les GUID canoniques du projet. Pour un PM ou ACT, la commande **Figer la base…** nécessite une confirmation humaine et sauvegarde **une seule fois** la version complète et exacte du Markdown courant dans `.sfd-ai-import/baselines/<GUID>.json`. Le fichier contient `nodalis.sfd.base.v1`, le GUID/projet, l'instant de capture et l'empreinte SHA-256, vérifiés à chaque lecture. Il ne modifie pas le document métier et n'est jamais transmis à une IA.
+
+La base est **immuable** : elle ne peut pas être réinitialisée implicitement après une modification humaine. Si l'IA a été interrogée *avant* la capture, la base ne prétend pas reconstituer l'état historique du prompt ; il faut capturer une référence appropriée **avant** les modifications que l'on veut comparer.
+
+### États des champs et autorisation
+
+Le moteur compare réellement **Base / Courant / Proposé** pour deux champs conservatifs : `title` (titre canonique dans les métadonnées et l'en-tête) et le corps de la section explicitement gérée `## Description proposée par IA — à qualifier`. Le résultat indique :
+- `ProposedChange` : base identique au courant et proposition différente ; un humain peut choisir ce champ ;
+- `AlreadyCurrent` : la valeur IA est déjà présente, aucune nouvelle écriture ;
+- `KeptHumanChange` : l'IA reproduit la base mais un humain a changé ce champ ; préserver la valeur humaine ;
+- `Conflict` : le courant a divergé de la base *et* de la nouvelle proposition ; arbitrage requis, aucune publication ;
+- `Unchanged` : rien à appliquer.
+
+La fenêtre **Arbitrer les champs…** montre les trois valeurs intégrales et deux choix indépendants, **titre** ou **description**, décochés par défaut. Il faut cocher au moins une vraie proposition sûre et confirmer ; aucun autre champ ne peut être choisi automatiquement. L'écriture ne concerne pour l'instant **que PM/ACT, et seulement ces deux champs**. Aucune modification de GUID, référence, PM parent, catégorie IHM, certitude, date, C/SC, RM, liens N:N, source réglementaire, autre section manuelle ou dossier physique. Un titre documentaire révisé n'entraîne **aucun renommage de dossier** pour ne pas casser les liens.
+
+### Sécurité de publication / reprise
+
+`SfdApprovedFieldUpdateService` vérifie l'identité du projet SFD actif, la version du contrat JSON, la revue, la base immuable et **le SHA exact de la source actuelle**. Un verrou local est partagé avec les publications PM/ACT/exigences/RM/FCT. Une intention `nodalis.sfd.fields-update.v1` est écrite dans `.sfd-ai-import/<empreinte>/intent-fields-update.json` **avant** la mise à jour du document. Elle contient les sélections explicites et les bytes source/cible ; la modification utilise le writer Markdown à compare-and-swap. Le rejeu identique conserve les GUID et ne réécrit rien, alors qu'une édition concurrente provoque un refus.
+
+La section IA est réécrite sans réinterpréter tout le Markdown et avec des paragraphes neutralisés en blockquotes : le reste du fichier est préservé, y compris les notes humaines et les blocs structurés. Une double section IA, des métadonnées ambiguës ou des empreintes contradictoires bloquent la mise à jour.
+
+Tests synthétiques `SfdApprovedFieldUpdateSmokeTests` : absence de base et refus de publication, capture confirmée, comparaison des deux champs, approbations séparées, rejeu, Markdown manuel conservé, conflit vrai après divergence, changement pendant la revue, exclusion inter-projets, échappement des caractères Markdown/HTML et rejet de sections ambiguës.
+
+**Reste ouvert dans #220** : gestion de décisions conflictuelles par champ (fusion manuelle), snapshot lié à chaque préparation de prompt, mise à jour de sources/parents, C/SC/RM et liens N:N, transactions multi-documents, annulation complète et réconciliation des titres/dossiers. L'import et la conversion DOCX → Markdown restent interdits.
