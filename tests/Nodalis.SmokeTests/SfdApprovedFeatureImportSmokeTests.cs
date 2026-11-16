@@ -136,6 +136,45 @@ internal static class SfdApprovedFeatureImportSmokeTests
                 item.ActivityId == actOne.Card.Id) == 2,
             "N:N must allow one ACT supporting two FCT with differing UI categories.");
 
+        // A manual edit to the just-published FCT must block any replay,
+        // even if its N:N links and parent ACT have not changed.
+        string cleanFeature = await File.ReadAllTextAsync(second.AbsolutePath);
+        await File.AppendAllTextAsync(second.AbsolutePath,
+            "\n## Note métier ajoutée après publication\n");
+        bool featureEditedRejected = false;
+        try
+        {
+            await publisher.PublishAsync(project.ProjectDirectory,
+                secondResponse, secondReview, "feature-with-ui");
+        }
+        catch (InvalidDataException)
+        {
+            featureEditedRejected = true;
+        }
+
+        Require(featureEditedRejected,
+            "A modified FCT Markdown must not be overwritten on journal replay.");
+        await File.WriteAllTextAsync(second.AbsolutePath, cleanFeature);
+
+        // An externally changed N:N registry cannot be blindly replaced
+        // with the original first-FCT link set.
+        await links.UnlinkAsync(project.ProjectDirectory,
+            actTwo.Card.Id, published.Id);
+        bool changedLinksRejected = false;
+        try
+        {
+            await publisher.PublishAsync(project.ProjectDirectory,
+                firstResponse, initial, "feature-without-ui");
+        }
+        catch (InvalidDataException)
+        {
+            changedLinksRejected = true;
+        }
+
+        Require(changedLinksRejected,
+            "An altered ACT/FCT N:N set must not be silently reset on replay.");
+        await links.LinkAsync(project.ProjectDirectory, actTwo.Card.Id, published.Id);
+
         string emptyResponse = Json("feature-draft",
             "Capacité non encore reliée", "withoutUi", []);
         SfdImportReviewSnapshot emptyReview = await review.ReviewAsync(
