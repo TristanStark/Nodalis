@@ -247,6 +247,49 @@ internal static class SfdApprovedFieldUpdateSmokeTests
         Require(foreignReview.Items.Single().Status ==
             SfdImportReviewStatus.Rejected,
             "Updates to another project's GUID must remain rejected.");
+        // Literal HTML-like values and ampersands must round-trip through
+        // the inert, AI-owned Markdown quote without creating false reimport
+        // differences or executable HTML.
+        SfdDocumentEntry special = await documents.CreateAsync(
+            project.ProjectDirectory, SfdDocumentKind.Process,
+            "Règle de démonstration des caractères spéciaux");
+        string specialJson = Json("businessProcess", special.Card.Id,
+            special.Card.Title, "Valeur <client> & littéral &lt;");
+        SfdImportReviewSnapshot specialBase = await review.ReviewAsync(
+            project.ProjectDirectory, specialJson);
+        await baselines.CaptureAsync(project.ProjectDirectory,
+            special.Card.Id, specialBase.Items.Single().ExistingSha256!);
+        SfdImportReviewSnapshot specialReview = await review.ReviewAsync(
+            project.ProjectDirectory, specialJson);
+        await publisher.PublishAsync(project.ProjectDirectory, specialJson,
+            specialReview, "update-fictif", false, true);
+        string specialMarkdown = await File.ReadAllTextAsync(
+            special.AbsolutePath);
+        Require(specialMarkdown.Contains("&lt;client&gt; &amp;",
+                StringComparison.Ordinal) &&
+            (await review.ReviewAsync(project.ProjectDirectory, specialJson))
+                .Items.Single().ThreeWay!.Fields.Single(entry =>
+                    entry.Name == "description").Status ==
+                    SfdThreeWayFieldStatus.AlreadyCurrent,
+            "Escaped AI draft Markdown must preserve literal ampersands on rereview.");
+
+        // Two managed description headings are ambiguous; never choose a
+        // section arbitrarily and erase the other's human contents.
+        await File.AppendAllTextAsync(special.AbsolutePath,
+            "\n## Description proposée par IA — à qualifier\n\n> doublon\n");
+        bool duplicateSectionRefused = false;
+        try
+        {
+            await review.ReviewAsync(project.ProjectDirectory, specialJson);
+        }
+        catch (InvalidDataException)
+        {
+            duplicateSectionRefused = true;
+        }
+
+        Require(duplicateSectionRefused,
+            "Duplicate AI-managed description sections must block unsafe diffing.");
+
         Require(original != afterTitle &&
             (await baselines.ReadAsync(project.ProjectDirectory,
                 process.Card.Id))?.Markdown == original,
