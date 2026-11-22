@@ -199,6 +199,11 @@ public partial class SfdJourneyDialog : Window
         bool selectedStage = SelectedStep() is not null;
         bool selectedOperation = SelectedOperation() is not null;
         InitializeButton.IsEnabled = !_readOnly && _snapshot is null;
+        bool needsUpgrade = _snapshot is not null &&
+            !_snapshot.Document.Steps.SelectMany(step => step.Operations)
+                .Any(operation => operation.PromptKey == "sfd-master-05");
+        UpgradeButton.Visibility = needsUpgrade ? Visibility.Visible : Visibility.Collapsed;
+        UpgradeButton.IsEnabled = needsUpgrade && !_readOnly;
         AddStepButton.IsEnabled = writable;
         RenameStepButton.IsEnabled = writable && selectedStage;
         MoveUpButton.IsEnabled = writable && selectedStage;
@@ -269,6 +274,32 @@ public partial class SfdJourneyDialog : Window
             await _service.InitializeAsync(_projectDirectory);
             Changed = true;
             await RefreshAsync();
+        });
+
+    /// <summary>Upgrades a saved legacy SFD journey only after human confirmation.</summary>
+    /// <param name="sender">Update master prompts button.</param>
+    /// <param name="e">Click event.</param>
+    private async void Upgrade_Click(object sender, RoutedEventArgs e) =>
+        await RunSafeAsync(async () =>
+        {
+            if (_readOnly || _snapshot is null)
+            {
+                return;
+            }
+
+            if (MessageBox.Show(this,
+                "Adapter les anciennes étapes aux 5 prompts maîtres ? " +
+                "Les sources, étapes personnalisées et opérations libres sont conservées. " +
+                "Le statut des étapes modifiées repasse à 'À faire'. " +
+                "Les anciennes réponses JSON ne sont pas importables avec ces prompts.",
+                "Actualiser le parcours SFD", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            await SaveEditAsync(SfdJourneyDefaults.UpgradeToMasterPrompts);
+            StatusText.Text = "Cinq prompts maîtres configurés après confirmation.";
         });
 
     /// <summary>Persists a user-reviewed pure journey edit with revision protection.</summary>
