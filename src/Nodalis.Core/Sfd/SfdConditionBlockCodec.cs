@@ -142,7 +142,9 @@ public static class SfdConditionBlockCodec
 
                 current = new SfdConditionBlock
                 {
-                    Id = id, Reference = reference, Statement = statement
+                    Id = id,
+                    Reference = reference,
+                    Statement = statement
                 };
                 blocks.Add(current);
                 continue;

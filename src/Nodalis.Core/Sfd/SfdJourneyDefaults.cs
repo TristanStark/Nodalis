@@ -57,17 +57,17 @@ public static class SfdJourneyDefaults
     /// <returns>New editable journey stage.</returns>
     private static ProjectJourneyStep Step(string key, string name, int order,
         params (string Key, string Name, string? PromptKey)[] operations) => new()
-    {
-        Id = Guid.NewGuid(),
-        TemplateKey = key,
-        Name = name,
-        Order = order,
-        Operations = operations.Select(item => new ProjectJourneyOperation
         {
             Id = Guid.NewGuid(),
-            TemplateKey = item.Key,
-            Name = item.Name,
-            PromptKey = item.PromptKey
-        }).ToList()
-    };
+            TemplateKey = key,
+            Name = name,
+            Order = order,
+            Operations = operations.Select(item => new ProjectJourneyOperation
+            {
+                Id = Guid.NewGuid(),
+                TemplateKey = item.Key,
+                Name = item.Name,
+                PromptKey = item.PromptKey
+            }).ToList()
+        };
 }

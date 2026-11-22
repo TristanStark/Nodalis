@@ -592,7 +592,7 @@ public partial class SfdImportReviewDialog : Window
             selected.Item.Operation != "update" ||
             selected.Item.Status != SfdImportReviewStatus.UpdateCandidate ||
             selected.Item.ThreeWay is not
-                { HasBaseline: true, HasConflict: false, HasProposedChange: true })
+            { HasBaseline: true, HasConflict: false, HasProposedChange: true })
         {
             return;
         }
@@ -854,7 +854,7 @@ public partial class SfdImportReviewDialog : Window
                 updateRow.Item.Operation == "update" &&
                 updateRow.Item.Status == SfdImportReviewStatus.UpdateCandidate &&
                 updateRow.Item.ThreeWay is
-                    { HasBaseline: true, HasConflict: false, HasProposedChange: true };
+                { HasBaseline: true, HasConflict: false, HasProposedChange: true };
             CaptureBaselineButton.Visibility = CaptureBaselineButton.IsEnabled
                 ? Visibility.Visible : Visibility.Collapsed;
             UpdateFieldsButton.Visibility = UpdateFieldsButton.IsEnabled

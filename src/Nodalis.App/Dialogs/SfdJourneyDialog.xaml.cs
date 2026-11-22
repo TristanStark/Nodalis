@@ -265,7 +265,8 @@ public partial class SfdJourneyDialog : Window
         await RunSafeAsync(async () =>
         {
             TextPromptDialog dialog = new("Nouvelle étape SFD",
-                "Nom de l'étape personnalisée") { Owner = this };
+                "Nom de l'étape personnalisée")
+            { Owner = this };
             if (dialog.ShowDialog() == true)
             {
                 await SaveEditAsync(document =>
@@ -285,7 +286,8 @@ public partial class SfdJourneyDialog : Window
             }
 
             TextPromptDialog dialog = new("Renommer l'étape SFD",
-                "Nouveau libellé", step.Name) { Owner = this };
+                "Nouveau libellé", step.Name)
+            { Owner = this };
             if (dialog.ShowDialog() == true)
             {
                 await SaveEditAsync(document => ProjectJourneyEditor.RenameStep(
@@ -330,7 +332,8 @@ public partial class SfdJourneyDialog : Window
             }
 
             TextPromptDialog dialog = new("Nouvelle opération SFD",
-                "Nom de l'opération") { Owner = this };
+                "Nom de l'opération")
+            { Owner = this };
             if (dialog.ShowDialog() == true)
             {
                 await SaveEditAsync(document => ProjectJourneyEditor.AddOperation(
@@ -351,7 +354,8 @@ public partial class SfdJourneyDialog : Window
             }
 
             TextPromptDialog dialog = new("Renommer l'opération SFD",
-                "Nouveau libellé", operation.Name) { Owner = this };
+                "Nouveau libellé", operation.Name)
+            { Owner = this };
             if (dialog.ShowDialog() == true)
             {
                 await SaveEditAsync(document => ProjectJourneyEditor.RenameOperation(

@@ -384,20 +384,30 @@ public sealed class SfdImportReviewService
             envelopes = new { envelope.Step, envelope.RunId },
             rows = items.Select(item => new
             {
-                item.ClientKey, item.Kind, item.Operation, item.Status,
-                item.ExistingId, item.ExistingSha256,
+                item.ClientKey,
+                item.Kind,
+                item.Operation,
+                item.Status,
+                item.ExistingId,
+                item.ExistingSha256,
                 baselineSha = item.ThreeWay?.BaselineSha256,
                 fieldStatuses = item.ThreeWay?.Fields.Select(field => new
                 {
-                    field.Name, field.Status,
-                    field.BaseValue, field.CurrentValue, field.ProposedValue
+                    field.Name,
+                    field.Status,
+                    field.BaseValue,
+                    field.CurrentValue,
+                    field.ProposedValue
                 }),
-                item.ResolvedParentId, item.ResolvedParentSha256,
+                item.ResolvedParentId,
+                item.ResolvedParentSha256,
                 activityRevisions = item.ActivityRevisions.OrderBy(pair =>
                     pair.Key).Select(pair => new
                     {
-                        id = pair.Key, sha = pair.Value
-                    }), item.Title
+                        id = pair.Key,
+                        sha = pair.Value
+                    }),
+                item.Title
             })
         });
         string fingerprint = Convert.ToHexString(SHA256.HashData(

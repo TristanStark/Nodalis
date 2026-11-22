@@ -335,8 +335,11 @@ public sealed class SfdCompletionReviewService
     {
         findings.Add(new SfdCompletionFinding
         {
-            Severity = severity, DocumentId = id,
-            Reference = reference, Code = code, Message = message
+            Severity = severity,
+            DocumentId = id,
+            Reference = reference,
+            Code = code,
+            Message = message
         });
     }
 }

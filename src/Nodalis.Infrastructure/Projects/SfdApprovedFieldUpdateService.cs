@@ -147,8 +147,11 @@ public sealed class SfdApprovedFieldUpdateService
             row.Operation != "update" ||
             row.ExistingId != targetId ||
             row.Status != SfdImportReviewStatus.UpdateCandidate ||
-            row.ThreeWay is not { HasBaseline: true, HasConflict: false,
-                HasProposedChange: true } preview ||
+            row.ThreeWay is not
+            {
+                HasBaseline: true, HasConflict: false,
+                HasProposedChange: true
+            } preview ||
             !SelectedSafe(preview, acceptTitle, acceptDescription))
         {
             throw new InvalidDataException(
@@ -202,8 +205,11 @@ public sealed class SfdApprovedFieldUpdateService
                 item.ClientKey == clientKey);
             if (latest.PlanSha256 != reviewed.PlanSha256 ||
                 currentRow?.Status != SfdImportReviewStatus.UpdateCandidate ||
-                currentRow.ThreeWay is not { HasBaseline: true,
-                    HasConflict: false, HasProposedChange: true } currentPreview ||
+                currentRow.ThreeWay is not
+                {
+                    HasBaseline: true,
+                    HasConflict: false, HasProposedChange: true
+                } currentPreview ||
                 currentRow.ExistingSha256 != row.ExistingSha256 ||
                 !SelectedSafe(currentPreview, acceptTitle, acceptDescription))
             {

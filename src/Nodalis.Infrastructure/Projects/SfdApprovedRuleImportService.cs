@@ -96,8 +96,11 @@ public sealed class SfdApprovedRuleImportService
             reviewed.ResponseSha256 != responseSha ||
             reviewed.Step != envelope.Step || reviewed.RunId != envelope.RunId ||
             reviewed.Items.SingleOrDefault(x => x.ClientKey == clientKey)
-                is not { Status: SfdImportReviewStatus.NewCandidate,
-                         Kind: "businessRule", Operation: "create" })
+                is not
+                {
+                    Status: SfdImportReviewStatus.NewCandidate,
+                    Kind: "businessRule", Operation: "create"
+                })
         {
             throw new InvalidDataException("RM non approuvable depuis cette revue.");
         }
