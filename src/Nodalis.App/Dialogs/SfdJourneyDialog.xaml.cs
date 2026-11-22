@@ -16,6 +16,7 @@ public partial class SfdJourneyDialog : Window
 {
     private readonly SfdJourneyService _service;
     private readonly SfdPromptPreparationService _preparer;
+    private readonly SfdMasterPromptService _masters;
     private readonly SfdDocumentRegistryService _documents;
     private readonly SfdCompletionReviewService _review;
     private readonly ProjectJourneySourceService _sources;
@@ -26,6 +27,7 @@ public partial class SfdJourneyDialog : Window
     private bool _painting;
 
     private sealed record StepChoice(ProjectJourneyStep Step, string Label);
+    private sealed record DocumentChoice(Guid Id, string Label);
     private sealed record OperationChoice(ProjectJourneyOperation Operation, string Label);
     private sealed record StatusChoice(ProjectJourneyStepStatus Status, string Label);
 
@@ -46,6 +48,7 @@ public partial class SfdJourneyDialog : Window
     {
         _service = new SfdJourneyService(workspaceRoot);
         _preparer = new SfdPromptPreparationService(workspaceRoot);
+        _masters = new SfdMasterPromptService(workspaceRoot);
         _documents = new SfdDocumentRegistryService(workspaceRoot);
         _review = new SfdCompletionReviewService(workspaceRoot);
         _sources = new ProjectJourneySourceService(workspaceRoot);
@@ -77,6 +80,7 @@ public partial class SfdJourneyDialog : Window
             ? await _service.PreviewAsync(_projectDirectory)
             : null;
         SfdDocumentCatalog catalog = await _documents.ListAsync(_projectDirectory);
+        RefreshDocumentSelectors(catalog);
         SfdCompletionSnapshot assessment = await _review.ReviewAsync(
             _projectDirectory);
         ProjectJourneyStep[] stages = (_snapshot?.Document ?? _preview)?.Steps
@@ -100,7 +104,7 @@ public partial class SfdJourneyDialog : Window
         int done = stages.Count(step =>
             step.Status == ProjectJourneyStepStatus.Completed);
         SummaryText.Text = _snapshot is null
-            ? "Parcours proposé (aucun fichier créé) · 5 étapes SFD"
+            ? "Parcours proposé (aucun fichier créé) · 5 prompts + pilotage"
             : done + " / " + stages.Length +
               " étape(s) déclarée(s) terminée(s) · aucun Go implicite";
         StageEvidenceText.Text = "Documents : " + catalog.Entries.Count +
@@ -111,6 +115,36 @@ public partial class SfdJourneyDialog : Window
             : _readOnly ? "Lecture seule." :
                 "Statuts déclaratifs, distincts de la complétude et de la validation.";
         UpdateButtons();
+    }
+
+    /// <summary>Refreshes PM/ACT/FCT selectors using canonical document IDs.</summary>
+    /// <param name="catalog">Current, unambiguous SFD document catalog.</param>
+    private void RefreshDocumentSelectors(SfdDocumentCatalog catalog)
+    {
+        Guid? priorProcess = (ProcessCombo.SelectedItem as DocumentChoice)?.Id;
+        Guid? priorActivity = (ActivityCombo.SelectedItem as DocumentChoice)?.Id;
+        Guid? priorFunctionality = (FunctionalityCombo.SelectedItem as DocumentChoice)?.Id;
+        DocumentChoice[] processes = catalog.Entries
+            .Where(item => item.Card.Kind == SfdDocumentKind.Process)
+            .Select(item => new DocumentChoice(item.Card.Id,
+                item.Card.Reference + " — " + item.Card.Title)).ToArray();
+        DocumentChoice[] activities = catalog.Entries
+            .Where(item => item.Card.Kind == SfdDocumentKind.Activity)
+            .Select(item => new DocumentChoice(item.Card.Id,
+                item.Card.Reference + " — " + item.Card.Title)).ToArray();
+        DocumentChoice[] functionalities = catalog.Entries
+            .Where(item => item.Card.Kind == SfdDocumentKind.Functionality)
+            .Select(item => new DocumentChoice(item.Card.Id,
+                item.Card.Reference + " — " + item.Card.Title)).ToArray();
+        ProcessCombo.ItemsSource = processes;
+        ActivityCombo.ItemsSource = activities;
+        FunctionalityCombo.ItemsSource = functionalities;
+        ProcessCombo.SelectedItem = processes.FirstOrDefault(item =>
+            item.Id == priorProcess) ?? processes.FirstOrDefault();
+        ActivityCombo.SelectedItem = activities.FirstOrDefault(item =>
+            item.Id == priorActivity) ?? activities.FirstOrDefault();
+        FunctionalityCombo.SelectedItem = functionalities.FirstOrDefault(item =>
+            item.Id == priorFunctionality) ?? functionalities.FirstOrDefault();
     }
 
     /// <summary>Resolves a status name without treating it as business approval.</summary>
@@ -175,8 +209,22 @@ public partial class SfdJourneyDialog : Window
         SaveStatusButton.IsEnabled = writable && selectedStage;
         PreparePromptButton.IsEnabled = _snapshot is not null &&
             SelectedOperation()?.PromptKey is
-                ("sfd-01" or "sfd-02" or "sfd-03" or "sfd-04");
-        PrepareAllButton.IsEnabled = _snapshot is not null;
+                ("sfd-01" or "sfd-02" or "sfd-03" or "sfd-04" or
+                 "sfd-master-01" or "sfd-master-02" or "sfd-master-03" or
+                 "sfd-master-04" or "sfd-master-05");
+        CreateProcessButton.IsEnabled = !_readOnly;
+        CreateActivityButton.IsEnabled = !_readOnly &&
+            ProcessCombo.SelectedItem is DocumentChoice;
+        DetermineProcessesButton.IsEnabled = _snapshot?.Document.Steps
+            .SelectMany(step => step.Operations)
+            .Any(operation => operation.PromptKey == "sfd-master-01") == true;
+        GenerateActivityPromptButton.IsEnabled = _snapshot?.Document.Steps
+            .SelectMany(step => step.Operations)
+            .Any(operation => operation.PromptKey == "sfd-master-02") == true &&
+            ActivityCombo.SelectedItem is DocumentChoice;
+        AssembleFeaturesButton.IsEnabled = _snapshot?.Document.Steps
+            .SelectMany(step => step.Operations)
+            .Any(operation => operation.PromptKey == "sfd-master-03") == true;
         StatusCombo.IsEnabled = writable && selectedStage;
     }
 
@@ -210,7 +258,7 @@ public partial class SfdJourneyDialog : Window
         {
             if (_readOnly || _snapshot is not null ||
                 MessageBox.Show(this,
-                    "Créer le parcours SFD avec les quatre étapes de génération " +
+                    "Créer le parcours SFD avec les cinq prompts maîtres " +
                     "et le pilotage transversal ? Aucun document métier ne sera créé.",
                     "Initialiser le parcours SFD", MessageBoxButton.YesNo,
                     MessageBoxImage.Question) != MessageBoxResult.Yes)
@@ -363,6 +411,86 @@ public partial class SfdJourneyDialog : Window
             }
         });
 
+    /// <summary>Creates an editable PM folder with presentation Markdown.</summary>
+    /// <param name="sender">Create process button.</param>
+    /// <param name="e">Click event.</param>
+    private async void CreateProcess_Click(object sender, RoutedEventArgs e) =>
+        await RunSafeAsync(async () =>
+        {
+            if (_readOnly)
+            {
+                return;
+            }
+
+            TextPromptDialog dialog = new("Créer un processus métier",
+                "Intitulé du nouveau processus métier") { Owner = this };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            SfdDocumentEntry created = await _documents.CreateAsync(
+                _projectDirectory, SfdDocumentKind.Process, dialog.Value);
+            Changed = true;
+            await RefreshAsync();
+            StatusText.Text = "Processus créé : " + created.Card.Reference +
+                ". Complétez sa présentation Markdown.";
+        });
+
+    /// <summary>Creates one ACT in the selected PM, with a parent-scoped next ID.</summary>
+    /// <param name="sender">Create activity button.</param>
+    /// <param name="e">Click event.</param>
+    private async void CreateActivity_Click(object sender, RoutedEventArgs e) =>
+        await RunSafeAsync(async () =>
+        {
+            if (_readOnly || ProcessCombo.SelectedItem is not DocumentChoice process)
+            {
+                return;
+            }
+
+            SfdDocumentEntry created = await _documents.CreateAsync(
+                _projectDirectory, SfdDocumentKind.Activity, string.Empty, process.Id);
+            Changed = true;
+            await RefreshAsync();
+            DocumentChoice? selected = (ActivityCombo.ItemsSource as
+                IEnumerable<DocumentChoice>)?.FirstOrDefault(item =>
+                    item.Id == created.Card.Id);
+            ActivityCombo.SelectedItem = selected;
+            StatusText.Text = "Activité créée : " + created.Card.Reference +
+                ". Son titre et son contenu métier sont modifiables.";
+        });
+
+    /// <summary>Prepares the original master prompt with canonical selected context.</summary>
+    /// <param name="key">One specialized prompt identity.</param>
+    /// <returns>Review-only preview dialog.</returns>
+    private async Task PrepareMasterAsync(string key)
+    {
+        Guid? activityId = (ActivityCombo.SelectedItem as DocumentChoice)?.Id;
+        Guid? functionalityId = (FunctionalityCombo.SelectedItem as DocumentChoice)?.Id;
+        SfdPreparedPrompt prepared = await _masters.PrepareAsync(
+            _projectDirectory, key, activityId, functionalityId);
+        SfdPromptPreviewDialog preview = new(prepared) { Owner = this };
+        preview.ShowDialog();
+    }
+
+    /// <summary>Generates the PM/ACT cartography prompt for this project.</summary>
+    /// <param name="sender">Process prompt button.</param>
+    /// <param name="e">Click event.</param>
+    private async void DetermineProcesses_Click(object sender, RoutedEventArgs e) =>
+        await RunSafeAsync(() => PrepareMasterAsync("sfd-master-01"));
+
+    /// <summary>Generates prompt 02 from the selected ACT and its complete parent PM.</summary>
+    /// <param name="sender">Activity prompt button.</param>
+    /// <param name="e">Click event.</param>
+    private async void GenerateActivityPrompt_Click(object sender, RoutedEventArgs e) =>
+        await RunSafeAsync(() => PrepareMasterAsync("sfd-master-02"));
+
+    /// <summary>Generates prompt 03 from the full canonical PM/ACT index.</summary>
+    /// <param name="sender">Feature assembly prompt button.</param>
+    /// <param name="e">Click event.</param>
+    private async void AssembleFeatures_Click(object sender, RoutedEventArgs e) =>
+        await RunSafeAsync(() => PrepareMasterAsync("sfd-master-03"));
+
     /// <summary>Builds one complete SFD prompt for explicit human review.</summary>
     /// <param name="sender">Prepare selected generation.</param>
     /// <param name="e">Click event.</param>
@@ -375,20 +503,15 @@ public partial class SfdJourneyDialog : Window
                 return;
             }
 
+            if (operation.PromptKey?.StartsWith("sfd-master-",
+                    StringComparison.Ordinal) == true)
+            {
+                await PrepareMasterAsync(operation.PromptKey);
+                return;
+            }
+
             SfdPreparedPrompt prepared = await _preparer.PrepareAsync(
                 _projectDirectory, stage.Id, operation.Id);
-            SfdPromptPreviewDialog preview = new(prepared) { Owner = this };
-            preview.ShowDialog();
-        });
-
-    /// <summary>Builds the four separate step responses, not a merged JSON envelope.</summary>
-    /// <param name="sender">Prepare batch.</param>
-    /// <param name="e">Click event.</param>
-    private async void PrepareAll_Click(object sender, RoutedEventArgs e) =>
-        await RunSafeAsync(async () =>
-        {
-            SfdPreparedPrompt prepared = await _preparer.PrepareAllAsync(
-                _projectDirectory);
             SfdPromptPreviewDialog preview = new(prepared) { Owner = this };
             preview.ShowDialog();
         });
