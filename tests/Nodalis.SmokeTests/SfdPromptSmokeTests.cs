@@ -343,6 +343,13 @@ internal static class SfdPromptSmokeTests
             existingActivity.Card.Id, feature.Card.Id);
         SfdPreparedPrompt specification = await masters.PrepareAsync(
             project.ProjectDirectory, "sfd-master-05", null, feature.Card.Id);
+        Require(!requirements.Content.Contains(
+                "ACT parent : " + existingActivity.Card.Id.ToString("D"),
+                StringComparison.Ordinal) &&
+            requirements.Content.Contains(existingActivity.Card.Reference,
+                StringComparison.Ordinal),
+            "Le prompt 04 ne doit pas exposer les GUIDs des ACT comme noms métier.");
+
         foreach (SfdPreparedPrompt master in new[]
             { requirements, specification })
         {
