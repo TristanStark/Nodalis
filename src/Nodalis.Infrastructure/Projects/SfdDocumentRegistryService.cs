@@ -66,8 +66,8 @@ public sealed class SfdDocumentRegistryService
         Guid? parentId = null, SfdFunctionalityMode? functionalityMode = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(title) || title.Trim().Length > 240 ||
-            title.Any(char.IsControl))
+        if ((kind != SfdDocumentKind.Activity && string.IsNullOrWhiteSpace(title)) ||
+            title.Trim().Length > 240 || title.Any(char.IsControl))
         {
             throw new ArgumentException("Un titre SFD sur une seule ligne est requis (240 caractères maximum).",
                 nameof(title));
@@ -107,9 +107,12 @@ public sealed class SfdDocumentRegistryService
         }
 
         string prefix = SfdDocumentMarkdownCodec.Prefix(kind);
-        int highest = catalog.Entries
-            .Where(item => item.Card.Kind == kind)
-            .Select(item => int.Parse(item.Card.Reference[(prefix.Length + 1)..],
+        string[] references = catalog.Entries
+            .Where(item => item.Card.Kind == kind &&
+                (kind != SfdDocumentKind.Activity || item.Card.ParentId == parentId))
+            .Select(item => item.Card.Reference).ToArray();
+        int highest = references.Select(reference =>
+            int.Parse(reference[(reference.LastIndexOf('-') + 1)..],
                 NumberStyles.None, CultureInfo.InvariantCulture))
             .DefaultIfEmpty(0).Max();
         if (highest == 9999)
@@ -117,14 +120,18 @@ public sealed class SfdDocumentRegistryService
             throw new InvalidOperationException("Numérotation SFD épuisée pour " + prefix);
         }
 
+        string reference = kind == SfdDocumentKind.Activity
+            ? parent!.Card.Reference + "-ACT-" +
+                (highest + 1).ToString("D3", CultureInfo.InvariantCulture)
+            : prefix + "-" + (highest + 1).ToString("D4",
+                CultureInfo.InvariantCulture);
         SfdDocumentCard card = new()
         {
             Id = Guid.NewGuid(),
             ProjectId = project.Id,
             Kind = kind,
-            Title = title.Trim(),
-            Reference = prefix + "-" + (highest + 1).ToString("D4",
-                CultureInfo.InvariantCulture),
+            Title = string.IsNullOrWhiteSpace(title) ? reference : title.Trim(),
+            Reference = reference,
             ParentId = parentId,
             FunctionalityMode = functionalityMode,
             CreatedUtc = DateTimeOffset.UtcNow
@@ -163,7 +170,8 @@ public sealed class SfdDocumentRegistryService
         if (isFolder)
         {
             string targetDirectory = Path.Combine(parentDirectory,
-                card.Reference + " - " + safeTitle);
+                card.Reference +
+                (card.Title == card.Reference ? "" : " - " + safeTitle));
             string staging = Path.Combine(parentDirectory,
                 ".nodalis-sfd-" + Guid.NewGuid().ToString("N") + ".tmp");
             if (Directory.Exists(targetDirectory) || File.Exists(targetDirectory))
@@ -352,6 +360,15 @@ public sealed class SfdDocumentRegistryService
                  owner.Card.Kind != parentKind))
             {
                 diagnostics.Add("Parent SFD manquant ou incohérent : " +
+                    entry.Card.Reference);
+            }
+            else if (entry.Card.Kind == SfdDocumentKind.Activity &&
+                entry.Card.Reference.StartsWith("PM-", StringComparison.Ordinal) &&
+                byId.TryGetValue(entry.Card.ParentId!.Value, out SfdDocumentEntry? process) &&
+                !entry.Card.Reference.StartsWith(
+                    process.Card.Reference + "-ACT-", StringComparison.Ordinal))
+            {
+                diagnostics.Add("Code ACT incompatible avec le PM parent : " +
                     entry.Card.Reference);
             }
         }
