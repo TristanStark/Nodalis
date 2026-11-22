@@ -113,8 +113,10 @@ public sealed class SfdDocumentRegistryService
                 (kind != SfdDocumentKind.Activity || item.Card.ParentId == parentId))
             .Select(item => item.Card.Reference).ToArray();
         int highest = references.Select(reference =>
-            int.Parse(reference[(reference.LastIndexOf('-') + 1)..],
-                NumberStyles.None, CultureInfo.InvariantCulture))
+            kind == SfdDocumentKind.Activity
+                ? SfdDocumentMarkdownCodec.ActivitySequence(reference)
+                : int.Parse(reference[(reference.LastIndexOf('-') + 1)..],
+                    NumberStyles.None, CultureInfo.InvariantCulture))
             .DefaultIfEmpty(0).Max();
         if (highest == 9999)
         {
