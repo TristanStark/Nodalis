@@ -82,14 +82,14 @@ public sealed class SfdMasterPromptService
                 item.Card.Id == functionalityId.Value &&
                 item.Card.Kind == SfdDocumentKind.Functionality)
             : null;
-        if (promptKey is "sfd-master-02" or "sfd-master-04" &&
+        if ((promptKey is "sfd-master-02" or "sfd-master-04") &&
             activity is null)
         {
             throw new InvalidOperationException(
                 "Sélectionnez l'activité métier cible du prompt.");
         }
 
-        if (promptKey is "sfd-master-04" or "sfd-master-05" &&
+        if ((promptKey is "sfd-master-04" or "sfd-master-05") &&
             functionality is null)
         {
             throw new InvalidOperationException(
@@ -263,10 +263,10 @@ public sealed class SfdMasterPromptService
             }
 
             SfdDocumentEntry[] requirementInputs = catalog.Entries
-                .Where(item => item.Card.Kind is
+                .Where(item => (item.Card.Kind is
                     SfdDocumentKind.UserRequirement or
                     SfdDocumentKind.SystemRequirement or
-                    SfdDocumentKind.RegulatoryRequirement &&
+                    SfdDocumentKind.RegulatoryRequirement) &&
                     (promptKey == "sfd-master-04"
                         ? item.Card.ParentId == activity!.Card.Id
                         : linkedIds.Contains(item.Card.ParentId ?? Guid.Empty)))
