@@ -15,7 +15,10 @@ public partial class SfdNewDocumentDialog : Window
 
     /// <summary>Builds a selector over already resolved, unambiguous SFD parents.</summary>
     /// <param name="entries">Current project-only business objects.</param>
-    public SfdNewDocumentDialog(IReadOnlyList<SfdDocumentEntry> entries)
+    /// <param name="fixedKind">Optional role fixed by a dedicated command.</param>
+    /// <param name="preferredParentId">Optional selected PM/ACT parent.</param>
+    public SfdNewDocumentDialog(IReadOnlyList<SfdDocumentEntry> entries,
+        SfdDocumentKind? fixedKind = null, Guid? preferredParentId = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
         _entries = entries;
@@ -37,7 +40,19 @@ public partial class SfdNewDocumentDialog : Window
         };
         ModeComboBox.SelectedIndex = 0;
         KindComboBox.SelectionChanged += (_, _) => UpdateKind();
-        KindComboBox.SelectedIndex = 0;
+        KindComboBox.SelectedIndex = fixedKind.HasValue
+            ? Array.FindIndex(
+                ((IEnumerable<KindChoice>)KindComboBox.ItemsSource).ToArray(),
+                item => item.Kind == fixedKind.Value)
+            : 0;
+        KindComboBox.IsEnabled = !fixedKind.HasValue;
+        if (preferredParentId.HasValue)
+        {
+            ParentComboBox.SelectedItem = ParentComboBox.Items
+                .Cast<ParentChoice>().FirstOrDefault(
+                    item => item.Id == preferredParentId.Value);
+        }
+
         Loaded += (_, _) => TitleTextBox.Focus();
     }
 
