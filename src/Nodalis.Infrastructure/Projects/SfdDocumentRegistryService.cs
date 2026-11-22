@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Sfd;
 using Nodalis.Infrastructure.Persistence;
@@ -218,6 +219,88 @@ public sealed class SfdDocumentRegistryService
 
         _sources.GetReferenceForExistingFile(documentPath);
         return new SfdDocumentEntry(card, documentPath);
+    }
+
+    /// <summary>
+    /// Renames an ACT title without changing its stable ID, reference, folder,
+    /// child documents or handwritten Markdown sections. The canonical folder
+    /// may be renamed independently without changing the business identity.
+    /// </summary>
+    /// <param name="projectDirectory">Owning SFD project root.</param>
+    /// <param name="activityId">Canonical ACT identity.</param>
+    /// <param name="newTitle">New user-reviewed business title.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Same ACT identity with the revised title.</returns>
+    public async Task<SfdDocumentEntry> RenameActivityAsync(
+        string projectDirectory, Guid activityId, string newTitle,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(newTitle) ||
+            newTitle.Trim().Length > 240 || newTitle.Any(char.IsControl))
+        {
+            throw new ArgumentException("Un titre d'activité valide est requis.",
+                nameof(newTitle));
+        }
+
+        (string root, ProjectManifest project) = await ResolveProjectAsync(
+            projectDirectory, cancellationToken);
+        if (project.ArchivedUtc.HasValue ||
+            project.ArchiveOriginalRelativePath is not null)
+        {
+            throw new InvalidOperationException("Projet archivé en lecture seule.");
+        }
+
+        SfdDocumentCatalog catalog = await ListInProjectAsync(root, project.Id,
+            cancellationToken);
+        if (catalog.Diagnostics.Count > 0)
+        {
+            throw new InvalidDataException("Fiches SFD ambiguës : renommer est suspendu.");
+        }
+
+        SfdDocumentEntry activity = catalog.Entries.SingleOrDefault(item =>
+            item.Card.Id == activityId &&
+            item.Card.Kind == SfdDocumentKind.Activity) ??
+            throw new InvalidDataException("Activité cible introuvable.");
+        _sources.GetReferenceForExistingFile(activity.AbsolutePath);
+        SfdTextRevision current = await SfdMarkdownRevisionWriter.ReadAsync(
+            activity.AbsolutePath, cancellationToken);
+        SfdDocumentCard original = SfdDocumentMarkdownCodec.Parse(current.Content);
+        if (original.Id != activityId || original != activity.Card)
+        {
+            throw new InvalidDataException("Identité ACT modifiée depuis la sélection.");
+        }
+
+        string currentTitle = "title: " + JsonSerializer.Serialize(original.Title);
+        int titleOffset = current.Content.IndexOf(currentTitle, StringComparison.Ordinal);
+        if (titleOffset < 0 || titleOffset > 2048)
+        {
+            throw new InvalidDataException(
+                "Titre Markdown modifié hors du format canonique.");
+        }
+
+        string targetTitle = newTitle.Trim();
+        string nextRow = "title: " + JsonSerializer.Serialize(targetTitle);
+        string revised = current.Content[..titleOffset] + nextRow +
+            current.Content[(titleOffset + currentTitle.Length)..];
+        string oldHeading = "# " + original.Reference + " — " + original.Title;
+        string newHeading = "# " + original.Reference + " — " + targetTitle;
+        int headingOffset = revised.IndexOf(oldHeading, StringComparison.Ordinal);
+        if (headingOffset >= 0 && headingOffset < 4096)
+        {
+            revised = revised[..headingOffset] + newHeading +
+                revised[(headingOffset + oldHeading.Length)..];
+        }
+
+        SfdDocumentCard parsed = SfdDocumentMarkdownCodec.Parse(revised);
+        if (parsed.Id != original.Id || parsed.ParentId != original.ParentId ||
+            parsed.Reference != original.Reference || parsed.Title != targetTitle)
+        {
+            throw new InvalidDataException("Renommage ACT hors contrat.");
+        }
+
+        await SfdMarkdownRevisionWriter.ReplaceAsync(activity.AbsolutePath,
+            revised, current.Sha256, cancellationToken);
+        return new SfdDocumentEntry(parsed, activity.AbsolutePath);
     }
 
     /// <summary>Validates a project SFD manifest and its workspace containment.</summary>
