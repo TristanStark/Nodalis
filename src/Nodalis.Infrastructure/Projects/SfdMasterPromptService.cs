@@ -143,7 +143,8 @@ public sealed class SfdMasterPromptService
                 inputValues.Add(await ComposeProcessIndexAsync(
                     processes, activities, readPaths, warnings,
                     cancellationToken));
-                inputValues.Add(NotProvidedIfEmpty(additional));
+                inputValues.Add(
+                    "Aucune décision distincte fournie au-delà des notes ci-dessus.");
                 break;
 
             case "sfd-master-02":
@@ -251,8 +252,16 @@ public sealed class SfdMasterPromptService
                     inputValues.Add(featureBody);
                     inputValues.Add(NotProvidedIfEmpty(existingRequirements,
                         "Exigences de la FCT non fournies — couverture indéterminée."));
-                    inputValues.Add(NotProvidedIfEmpty(rules,
-                        "Catalogue des règles utilisées non fourni."));
+                    inputValues.Add(string.IsNullOrWhiteSpace(rules)
+                        ? "Catalogue des règles utilisées non fourni."
+                        : "Catalogue RM global (pertinence pour cette FCT à " +
+                          "vérifier ; aucune association inventée) :\n\n" + rules);
+                    if (!string.IsNullOrWhiteSpace(rules))
+                    {
+                        warnings.Add("Le registre RM fourni est global : " +
+                            "les règles réellement applicables à cette FCT " +
+                            "doivent être qualifiées avant validation.");
+                    }
                     inputValues.Add("Aucune EMO ou décision complémentaire " +
                         "confirmée dans les sources sélectionnées.");
                     inputValues.Add("Non fourni — mode MONOBLOC.");
@@ -304,9 +313,14 @@ public sealed class SfdMasterPromptService
             process.AbsolutePath, "Présentation du PM " + process.Card.Reference,
             readPaths, warnings, ct);
         StringBuilder result = new();
-        result.Append("### ").Append(process.Card.Reference).Append(" — ")
-            .AppendLine(process.Card.Title).AppendLine()
-            .AppendLine(body).AppendLine()
+        if (!body.Contains(process.Card.Reference + " — " +
+                process.Card.Title, StringComparison.Ordinal))
+        {
+            result.Append("### ").Append(process.Card.Reference)
+                .Append(" — ").AppendLine(process.Card.Title).AppendLine();
+        }
+
+        result.AppendLine(body).AppendLine()
             .AppendLine("### Activités référencées sous ce processus");
         SfdDocumentEntry[] children = activities.Where(item =>
             item.Card.ParentId == process.Card.Id).ToArray();
