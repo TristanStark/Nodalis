@@ -455,8 +455,10 @@ public sealed class SfdMasterPromptService
         string body = await ReadRequiredBusinessTextAsync(feature.AbsolutePath,
             "FCT cible " + feature.Card.Reference, readPaths, warnings, ct);
         StringBuilder result = new();
+        string interfaceMode = feature.Card.FunctionalityMode ==
+            SfdFunctionalityMode.WithInterface ? "Avec IHM" : "Sans IHM";
         result.AppendLine(feature.Card.Reference + " — " + feature.Card.Title)
-            .AppendLine("Type : " + feature.Card.FunctionalityMode)
+            .AppendLine("Type : " + interfaceMode)
             .AppendLine(body).AppendLine()
             .AppendLine("### Activités réellement liées à cette fonctionnalité");
         foreach (SfdDocumentEntry process in processes)
@@ -520,8 +522,13 @@ public sealed class SfdMasterPromptService
                 continue;
             }
 
+            SfdDocumentEntry? parentActivity = catalog.Entries
+                .SingleOrDefault(candidate =>
+                    candidate.Card.Id == item.Card.ParentId &&
+                    candidate.Card.Kind == SfdDocumentKind.Activity);
             result.AppendLine("### Exigence candidate " + item.Card.Reference)
-                .AppendLine("ACT parent : " + item.Card.ParentId)
+                .AppendLine("ACT parent : " +
+                    (parentActivity?.Card.Reference ?? "Non documentée"))
                 .AppendLine("Portée FCT/ACT à confirmer.")
                 .AppendLine(body).AppendLine();
         }
