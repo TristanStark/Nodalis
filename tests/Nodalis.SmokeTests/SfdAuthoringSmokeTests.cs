@@ -60,13 +60,13 @@ internal static class SfdAuthoringSmokeTests
                 SfdFunctionalityMode.WithoutInterface);
 
         Require(process.Card.Reference == "PM-0001" &&
-            activity.Card.Reference == "ACT-0001" &&
+            activity.Card.Reference == "PM-0001-ACT-001" &&
             user.Card.Reference == "EXU-0001" &&
             system.Card.Reference == "EXS-0001" &&
             regulatory.Card.Reference == "EXR-0001" &&
             ui.Card.Reference == "FCT-0001" &&
             noUi.Card.Reference == "FCT-0002",
-            "Distinct SFD roles must get stable, project-wide references.");
+            "Distinct SFD roles must retain stable references, with ACT codes scoped by PM.");
         Require(activity.Card.ParentId == process.Card.Id &&
             user.Card.ParentId == activity.Card.Id,
             "SFD parent relationship must be stored as stable GUIDs.");
@@ -136,7 +136,7 @@ internal static class SfdAuthoringSmokeTests
         SfdDocumentEntry anotherActivity = await registry.CreateAsync(
             project.ProjectDirectory, SfdDocumentKind.Activity,
             "Préparer la suite", process.Card.Id);
-        Require(anotherActivity.Card.Reference == "ACT-0002" &&
+        Require(anotherActivity.Card.Reference == "PM-0001-ACT-002" &&
             anotherActivity.AbsolutePath.Contains("renommé", StringComparison.Ordinal),
             "New ACT must resolve its PM using GUID, after a directory rename.");
 
@@ -423,6 +423,16 @@ internal static class SfdAuthoringSmokeTests
         Require(conflictRefused,
             "Ambiguous identity must prevent creating a new SFD document.");
         File.Delete(copied);
+
+        SfdDocumentEntry secondProcess = await registry.CreateAsync(
+            project.ProjectDirectory, SfdDocumentKind.Process, "Autre PM fictif");
+        SfdDocumentEntry firstOfSecond = await registry.CreateAsync(
+            project.ProjectDirectory, SfdDocumentKind.Activity,
+            string.Empty, secondProcess.Card.Id);
+        Require(firstOfSecond.Card.Reference == "PM-0002-ACT-001" &&
+            firstOfSecond.Card.Title == firstOfSecond.Card.Reference &&
+            File.Exists(firstOfSecond.AbsolutePath),
+            "A new PM must restart ACT numbering and permit an ID-only draft title.");
 
         ProjectCreationResult standard = await projectCreator.CreateAsync(
             new ProjectCreationRequest
