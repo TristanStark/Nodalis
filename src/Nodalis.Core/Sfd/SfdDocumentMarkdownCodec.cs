@@ -102,9 +102,12 @@ public static class SfdDocumentMarkdownCodec
              IsCompactActivityReference(card.Reference));
         int lastSeparator = card.Reference.LastIndexOf('-');
         bool positiveSuffix = lastSeparator >= 0 &&
-            int.TryParse(card.Reference[(lastSeparator + 1)..],
-                NumberStyles.None, CultureInfo.InvariantCulture, out int number) &&
-            number is >= 1 and <= 9999;
+            (card.Kind == SfdDocumentKind.Activity &&
+                parentScopedActivity
+                ? ActivitySequence(card.Reference) is >= 1 and <= 9999
+                : int.TryParse(card.Reference[(lastSeparator + 1)..],
+                    NumberStyles.None, CultureInfo.InvariantCulture,
+                    out int number) && number is >= 1 and <= 9999);
         bool positiveParent = true;
         if (parentScopedActivity)
         {
