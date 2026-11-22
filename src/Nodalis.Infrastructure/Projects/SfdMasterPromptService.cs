@@ -126,6 +126,21 @@ public sealed class SfdMasterPromptService
 
         string additional = await ReadLinkedNotesAsync(
             operation, readPaths, warnings, cancellationToken);
+        if (HasEmptyRootPresentation(projectText))
+        {
+            if (promptKey != "sfd-master-01" ||
+                string.IsNullOrWhiteSpace(additional))
+            {
+                throw new InvalidDataException(
+                    "La section Présentation du fichier Présentation.md " +
+                    "à la racine est vide. Décrivez le projet avant de " +
+                    "générer ce prompt, ou liez des notes pour la cartographie initiale.");
+            }
+
+            warnings.Add("Présentation racine encore vide : le prompt 01 " +
+                "utilise seulement les notes métier explicitement liées.");
+        }
+
         SfdDocumentEntry[] processes = catalog.Entries.Where(item =>
             item.Card.Kind == SfdDocumentKind.Process)
             .OrderBy(item => item.Card.Reference, StringComparer.Ordinal)
@@ -338,6 +353,13 @@ public sealed class SfdMasterPromptService
                 {
                     warnings.Add("ACT " + item.Card.Reference +
                         " sans intitulé métier documenté.");
+                }
+
+                if (!body.Contains(item.Card.Reference, StringComparison.Ordinal))
+                {
+                    warnings.Add("La fiche du PM " + process.Card.Reference +
+                        " ne décrit pas explicitement l'ACT " +
+                        item.Card.Reference + " ; vérifiez la cartographie complète.");
                 }
             }
         }
@@ -771,6 +793,24 @@ public sealed class SfdMasterPromptService
         start += heading.Length;
         int end = body.IndexOf("\n## ", start, StringComparison.Ordinal);
         return (end < 0 ? body[start..] : body[start..end]).Trim();
+    }
+
+    /// <summary>
+    /// Rejects the initial blank SFD project overview that otherwise looks
+    /// populated because its technical application/date fields are present.
+    /// </summary>
+    /// <param name="body">Plain text of the root Présentation.md.</param>
+    /// <returns>True if the business presentation section has no content.</returns>
+    private static bool HasEmptyRootPresentation(string body)
+    {
+        const string heading = "## Présentation";
+        if (!body.Contains(heading, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(
+            ExtractNamedSection(body, heading));
     }
 
     /// <summary>Marks blank Nodalis draft sections as needing human completion.</summary>
