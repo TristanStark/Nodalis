@@ -48,6 +48,87 @@ public static class SfdJourneyDefaults
         };
     }
 
+    /// <summary>
+    /// Builds a reviewed migration proposal for a legacy four-prompt SFD journey.
+    /// Preserves user-added operations, linked source pointers and custom stages.
+    /// Resets changed stage statuses because old completion is not proof of new work.
+    /// </summary>
+    /// <param name="previous">Previously persisted journey to convert.</param>
+    /// <returns>Independent complete journey awaiting explicit optimistic save.</returns>
+    public static ProjectJourneyDocument UpgradeToMasterPrompts(
+        ProjectJourneyDocument previous)
+    {
+        ArgumentNullException.ThrowIfNull(previous);
+        if (previous.TemplateKey != TemplateKey)
+        {
+            throw new InvalidDataException("Modèle de parcours SFD inattendu.");
+        }
+
+        ProjectJourneyDocument defaults = Create(previous.ProjectId);
+        string[] oldKeys =
+        [
+            "sfd-01", "sfd-01", "sfd-03", "sfd-02", "sfd-04"
+        ];
+        List<ProjectJourneyStep> migrated = [];
+        foreach (ProjectJourneyStep step in defaults.Steps)
+        {
+            ProjectJourneyStep? original = previous.Steps.FirstOrDefault(item =>
+                item.TemplateKey == step.TemplateKey);
+            if (step.TemplateKey == "sfd-pilotage")
+            {
+                migrated.Add(original is null ? step :
+                    original with { Order = step.Order });
+                continue;
+            }
+
+            ProjectJourneyOperation proposed = step.Operations.Single();
+            int index = migrated.Count;
+            string oldKey = oldKeys[index];
+            ProjectJourneyOperation? oldOperation = previous.Steps
+                .SelectMany(item => item.Operations)
+                .FirstOrDefault(item =>
+                    item.PromptKey == proposed.PromptKey);
+            oldOperation ??= previous.Steps.SelectMany(item => item.Operations)
+                .FirstOrDefault(item => item.PromptKey == oldKey);
+            ProjectJourneyOperation resolved = oldOperation is null
+                ? proposed
+                : proposed with
+                {
+                    Id = oldOperation.PromptKey == "sfd-master-02" ||
+                        oldOperation.PromptKey == oldKey &&
+                        !migrated.SelectMany(item => item.Operations)
+                            .Any(item => item.Id == oldOperation.Id)
+                            ? oldOperation.Id : proposed.Id,
+                    SourcePaths = oldOperation.SourcePaths.ToList()
+                };
+
+            List<ProjectJourneyOperation> additional = original?.Operations
+                .Where(item => item.PromptKey is null ||
+                    (!item.PromptKey.StartsWith("sfd-", StringComparison.Ordinal) &&
+                     !item.PromptKey.StartsWith("sfd-master-", StringComparison.Ordinal)))
+                .ToList() ?? [];
+            migrated.Add(step with
+            {
+                Id = original?.Id ?? step.Id,
+                Status = ProjectJourneyStepStatus.Todo,
+                Operations = new[] { resolved }.Concat(additional).ToList()
+            });
+        }
+
+        HashSet<string> standardKeys = defaults.Steps
+            .Select(item => item.TemplateKey!)
+            .ToHashSet(StringComparer.Ordinal);
+        int nextOrder = 70;
+        foreach (ProjectJourneyStep other in previous.Steps.Where(item =>
+            item.TemplateKey is null || !standardKeys.Contains(item.TemplateKey)))
+        {
+            migrated.Add(other with { Order = nextOrder });
+            nextOrder += 10;
+        }
+
+        return previous with { Steps = migrated };
+    }
+
     /// <summary>Creates a stage with a stable semantic key and fresh instance GUIDs.</summary>
     /// <param name="key">Fixed semantic stage key.</param>
     /// <param name="name">User-visible label.</param>
