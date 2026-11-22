@@ -26,10 +26,14 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="SummaryText" FontWeight="SemiBold"
                        TextWrapping="Wrap" VerticalAlignment="Center"/>
-            <Button x:Name="InitializeButton" Grid.Column="1"
+            <Button x:Name="UpgradeButton" Grid.Column="1" Visibility="Collapsed"
+                    Content="Actualiser les 5 prompts" MinWidth="165"
+                    Margin="0,0,8,0" Padding="12,6" Click="Upgrade_Click"/>
+            <Button x:Name="InitializeButton" Grid.Column="2"
                     Content="Initialiser ce parcours" MinWidth="180"
                     Padding="12,6" Click="Initialize_Click"/>
         </Grid>
