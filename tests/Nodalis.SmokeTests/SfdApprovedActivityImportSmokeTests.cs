@@ -87,7 +87,7 @@ internal static class SfdApprovedActivityImportSmokeTests
         SfdDocumentCatalog current = await documents.ListAsync(
             project.ProjectDirectory);
         Require(!first.AlreadyApplied &&
-            first.Id != Guid.Empty && first.Reference == "ACT-0001" &&
+            first.Id != Guid.Empty && first.Reference == "PM-0001-ACT-001" &&
             first.ParentProcessId == pm.Id &&
             current.Diagnostics.Count == 0 &&
             current.Entries.Count == 2 &&
@@ -195,9 +195,9 @@ internal static class SfdApprovedActivityImportSmokeTests
             "An ACT can reference an existing same-project PM by GUID.");
         SfdApprovedActivityResult direct = await actPublisher.PublishAsync(
             project.ProjectDirectory, directResponse, directReview, "act-direct");
-        Require(direct.Reference == "ACT-0002" &&
+        Require(direct.Reference == "PM-0002-ACT-001" &&
             direct.ParentProcessId == manualParent.Card.Id,
-            "The activity reference is project-wide, and the parent remains distinct.");
+            "The second PM must restart ACT numbering at 001.");
 
         // Cross-project GUID must be rejected even when it is structurally a PM.
         SfdDocumentEntry foreign = await documents.CreateAsync(
