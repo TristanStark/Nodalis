@@ -459,7 +459,8 @@ public partial class SfdJourneyDialog : Window
             }
 
             TextPromptDialog dialog = new("Créer un processus métier",
-                "Intitulé du nouveau processus métier") { Owner = this };
+                "Intitulé du nouveau processus métier")
+            { Owner = this };
             if (dialog.ShowDialog() != true)
             {
                 return;
