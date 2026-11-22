@@ -87,7 +87,7 @@ internal static class SfdApprovedActivityImportSmokeTests
         SfdDocumentCatalog current = await documents.ListAsync(
             project.ProjectDirectory);
         Require(!first.AlreadyApplied &&
-            first.Id != Guid.Empty && first.Reference == "PM-0001-ACT-001" &&
+            first.Id != Guid.Empty && first.Reference == "PM001-ACT001" &&
             first.ParentProcessId == pm.Id &&
             current.Diagnostics.Count == 0 &&
             current.Entries.Count == 2 &&
@@ -96,6 +96,9 @@ internal static class SfdApprovedActivityImportSmokeTests
             current.Entries.Single(item => item.Card.Id == first.Id)
                 .Card.Certainty == SfdAssertionCertainty.ToConfirm,
             "ACT must be created under the real PM, with GUID and unconfirmed status.");
+
+        Require(Path.GetFileName(first.AbsolutePath) == "PM001-ACT001.md",
+            "Approved ACT publication must create a flat Markdown file.");
 
         SfdApprovedActivityResult replay = await actPublisher.PublishAsync(
             project.ProjectDirectory, response, afterPm, "act-demo");
@@ -111,10 +114,10 @@ internal static class SfdApprovedActivityImportSmokeTests
                 StringComparison.OrdinalIgnoreCase),
             "The ACT intent must retain the exact stable identity.");
 
-        // Simulate power loss before the final atomic directory move.
+        // Simulate power loss before the final atomic file move.
         string staging = Path.Combine(Path.GetDirectoryName(activityIntent)!,
-            "staged-activity");
-        Directory.Move(Path.GetDirectoryName(first.AbsolutePath)!, staging);
+            "staged-activity.md");
+        File.Move(first.AbsolutePath, staging);
         Require((await documents.ListAsync(project.ProjectDirectory)).Entries.Count == 1,
             "Uncommitted ACT stage must not be visible as a canonical ACT.");
         SfdApprovedActivityResult resumed = await actPublisher.PublishAsync(
@@ -195,7 +198,7 @@ internal static class SfdApprovedActivityImportSmokeTests
             "An ACT can reference an existing same-project PM by GUID.");
         SfdApprovedActivityResult direct = await actPublisher.PublishAsync(
             project.ProjectDirectory, directResponse, directReview, "act-direct");
-        Require(direct.Reference == "PM-0002-ACT-001" &&
+        Require(direct.Reference == "PM002-ACT001" &&
             direct.ParentProcessId == manualParent.Card.Id,
             "The second PM must restart ACT numbering at 001.");
 
