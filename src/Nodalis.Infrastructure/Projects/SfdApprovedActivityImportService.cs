@@ -180,19 +180,26 @@ public sealed class SfdApprovedActivityImportService
                 throw new InvalidDataException("Fiches SFD ambiguës.");
             }
 
+            SfdDocumentEntry parentProcess = catalog.Entries.SingleOrDefault(
+                item => item.Card.Id == parentId &&
+                    item.Card.Kind == SfdDocumentKind.Process) ??
+                throw new InvalidDataException("Processus parent absent.");
             int highest = catalog.Entries
-                .Where(item => item.Card.Kind == SfdDocumentKind.Activity)
-                .Select(item => int.Parse(item.Card.Reference[4..],
+                .Where(item => item.Card.Kind == SfdDocumentKind.Activity &&
+                    item.Card.ParentId == parentId)
+                .Select(item => int.Parse(
+                    item.Card.Reference[(item.Card.Reference.LastIndexOf('-') + 1)..],
                     System.Globalization.CultureInfo.InvariantCulture))
                 .DefaultIfEmpty(0).Max();
             if (highest >= 9999)
             {
-                throw new InvalidDataException("Numérotation ACT épuisée.");
+                throw new InvalidDataException("Numérotation ACT épuisée pour ce PM.");
             }
 
             Guid id = Guid.NewGuid();
-            string reference = "ACT-" + (highest + 1).ToString("D4",
-                System.Globalization.CultureInfo.InvariantCulture);
+            string reference = parentProcess.Card.Reference + "-ACT-" +
+                (highest + 1).ToString("D3",
+                    System.Globalization.CultureInfo.InvariantCulture);
             DateTimeOffset created = DateTimeOffset.UtcNow;
             SfdDocumentCard card = new()
             {
@@ -386,10 +393,9 @@ public sealed class SfdApprovedActivityImportService
             intent.RunId != runId || intent.ClientKey != key ||
             intent.BusinessId == Guid.Empty ||
             intent.ParentProcessId == Guid.Empty ||
-            intent.Reference is null || intent.Reference.Length != 8 ||
-            !intent.Reference.StartsWith("ACT-", StringComparison.Ordinal) ||
-            !int.TryParse(intent.Reference[4..], out int number) ||
-            number is < 1 or > 9999 ||
+            intent.Reference is null ||
+            !System.Text.RegularExpressions.Regex.IsMatch(intent.Reference,
+                @"^(ACT-[0-9]{4}|PM-[0-9]{3,4}-ACT-[0-9]{3,4})$") ||
             string.IsNullOrWhiteSpace(intent.Title) || intent.Title.Length > 240 ||
             intent.ParentSourceSha256 is null ||
             intent.ParentSourceSha256.Length != 64 ||
