@@ -42,8 +42,10 @@ public partial class MainWindow
         NavigationTree.Tag = _preferences.NavigationDensity == "Compact"
             ? "Compact"
             : "Comfortable";
-        WorktreeDensityComboBox.SelectedIndex =
-            _preferences.NavigationDensity == "Compact" ? 1 : 0;
+        WorktreeDensityCompactItem.IsChecked =
+            _preferences.NavigationDensity == "Compact";
+        WorktreeDensityComfortableItem.IsChecked =
+            _preferences.NavigationDensity != "Compact";
         WorktreeApplicationScopeCheck.IsChecked =
             _preferences.NavigationCurrentApplicationOnly;
         WorktreeFavoritesExpander.IsExpanded =
@@ -81,6 +83,40 @@ public partial class MainWindow
             showDialog: false);
     }
 
+    /// <summary>Expands or collapses the on-demand filter without leaving hidden filters active.</summary>
+    /// <param name="sender">Explorer header loupe.</param>
+    /// <param name="e">Click event.</param>
+    private void ToggleWorktreeFilter_Click(object sender, RoutedEventArgs e)
+    {
+        bool opening = WorktreeFilterPanel.Visibility != Visibility.Visible;
+        WorktreeFilterPanel.Visibility = opening
+            ? Visibility.Visible : Visibility.Collapsed;
+        if (opening)
+        {
+            WorktreeFilterBox.Focus();
+            WorktreeFilterBox.SelectAll();
+        }
+        else
+        {
+            _worktreeFilterTimer.Stop();
+            WorktreeFilterBox.Clear();
+            ApplyWorktreeDisplayFilter();
+            NavigationTree.Focus();
+        }
+    }
+
+    /// <summary>Closes the transient explorer search by keyboard.</summary>
+    /// <param name="sender">Filter text field.</param>
+    /// <param name="e">Key event.</param>
+    private void WorktreeFilterBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            ToggleWorktreeFilter_Click(sender, new RoutedEventArgs());
+        }
+    }
+
     /// <summary>Restores the unfiltered tree via the clear button.</summary>
     /// <param name="sender">Clear button.</param>
     /// <param name="e">Click event.</param>
@@ -107,21 +143,25 @@ public partial class MainWindow
         ApplyWorktreeDisplayFilter();
     }
 
-    /// <summary>Applies the selected line-density presentation style.</summary>
-    /// <param name="sender">Density combo.</param>
-    /// <param name="e">Selection event.</param>
-    private void WorktreeDensityComboBox_SelectionChanged(
-        object sender,
-        SelectionChangedEventArgs e)
+    /// <summary>Switches between mutually exclusive compact and comfortable rows.</summary>
+    /// <param name="sender">Chosen density menu item.</param>
+    /// <param name="e">Menu selection.</param>
+    private void WorktreeDensityMenuItem_Click(object sender, RoutedEventArgs e)
     {
+        if (sender is not MenuItem choice)
+        {
+            return;
+        }
+
+        bool compact = (choice.Tag as string) == "Compact";
+        WorktreeDensityCompactItem.IsChecked = compact;
+        WorktreeDensityComfortableItem.IsChecked = !compact;
         if (!_worktreeP1Initialized)
         {
             return;
         }
 
-        NavigationTree.Tag = WorktreeDensityComboBox.SelectedIndex == 1
-            ? "Compact"
-            : "Comfortable";
+        NavigationTree.Tag = compact ? "Compact" : "Comfortable";
         ScheduleStickyWorktreeRefresh();
     }
 
