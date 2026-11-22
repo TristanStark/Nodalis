@@ -116,8 +116,9 @@ public partial class MainWindow
         dialog.ShowDialog();
         if (dialog.Changed)
         {
+            await RefreshNavigationAsync(project.FullPath);
             StatusText.Text =
-                "Parcours SFD personnalisé ; statuts déclaratifs uniquement.";
+                "Parcours SFD ou documents PM/ACT modifiés · navigation actualisée.";
         }
     }
 

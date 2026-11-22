@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Nodalis.Core.Domain;
 using Nodalis.Core.Sfd;
 using Nodalis.Infrastructure.Persistence;
@@ -66,8 +67,8 @@ public sealed class SfdDocumentRegistryService
         Guid? parentId = null, SfdFunctionalityMode? functionalityMode = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(title) || title.Trim().Length > 240 ||
-            title.Any(char.IsControl))
+        if ((kind != SfdDocumentKind.Activity && string.IsNullOrWhiteSpace(title)) ||
+            title.Trim().Length > 240 || title.Any(char.IsControl))
         {
             throw new ArgumentException("Un titre SFD sur une seule ligne est requis (240 caractères maximum).",
                 nameof(title));
@@ -107,9 +108,12 @@ public sealed class SfdDocumentRegistryService
         }
 
         string prefix = SfdDocumentMarkdownCodec.Prefix(kind);
-        int highest = catalog.Entries
-            .Where(item => item.Card.Kind == kind)
-            .Select(item => int.Parse(item.Card.Reference[(prefix.Length + 1)..],
+        string[] references = catalog.Entries
+            .Where(item => item.Card.Kind == kind &&
+                (kind != SfdDocumentKind.Activity || item.Card.ParentId == parentId))
+            .Select(item => item.Card.Reference).ToArray();
+        int highest = references.Select(reference =>
+            int.Parse(reference[(reference.LastIndexOf('-') + 1)..],
                 NumberStyles.None, CultureInfo.InvariantCulture))
             .DefaultIfEmpty(0).Max();
         if (highest == 9999)
@@ -117,14 +121,18 @@ public sealed class SfdDocumentRegistryService
             throw new InvalidOperationException("Numérotation SFD épuisée pour " + prefix);
         }
 
+        string reference = kind == SfdDocumentKind.Activity
+            ? parent!.Card.Reference + "-ACT-" +
+                (highest + 1).ToString("D3", CultureInfo.InvariantCulture)
+            : prefix + "-" + (highest + 1).ToString("D4",
+                CultureInfo.InvariantCulture);
         SfdDocumentCard card = new()
         {
             Id = Guid.NewGuid(),
             ProjectId = project.Id,
             Kind = kind,
-            Title = title.Trim(),
-            Reference = prefix + "-" + (highest + 1).ToString("D4",
-                CultureInfo.InvariantCulture),
+            Title = string.IsNullOrWhiteSpace(title) ? reference : title.Trim(),
+            Reference = reference,
             ParentId = parentId,
             FunctionalityMode = functionalityMode,
             CreatedUtc = DateTimeOffset.UtcNow
@@ -163,7 +171,8 @@ public sealed class SfdDocumentRegistryService
         if (isFolder)
         {
             string targetDirectory = Path.Combine(parentDirectory,
-                card.Reference + " - " + safeTitle);
+                card.Reference +
+                (card.Title == card.Reference ? "" : " - " + safeTitle));
             string staging = Path.Combine(parentDirectory,
                 ".nodalis-sfd-" + Guid.NewGuid().ToString("N") + ".tmp");
             if (Directory.Exists(targetDirectory) || File.Exists(targetDirectory))
@@ -210,6 +219,88 @@ public sealed class SfdDocumentRegistryService
 
         _sources.GetReferenceForExistingFile(documentPath);
         return new SfdDocumentEntry(card, documentPath);
+    }
+
+    /// <summary>
+    /// Renames an ACT title without changing its stable ID, reference, folder,
+    /// child documents or handwritten Markdown sections. The canonical folder
+    /// may be renamed independently without changing the business identity.
+    /// </summary>
+    /// <param name="projectDirectory">Owning SFD project root.</param>
+    /// <param name="activityId">Canonical ACT identity.</param>
+    /// <param name="newTitle">New user-reviewed business title.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Same ACT identity with the revised title.</returns>
+    public async Task<SfdDocumentEntry> RenameActivityAsync(
+        string projectDirectory, Guid activityId, string newTitle,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(newTitle) ||
+            newTitle.Trim().Length > 240 || newTitle.Any(char.IsControl))
+        {
+            throw new ArgumentException("Un titre d'activité valide est requis.",
+                nameof(newTitle));
+        }
+
+        (string root, ProjectManifest project) = await ResolveProjectAsync(
+            projectDirectory, cancellationToken);
+        if (project.ArchivedUtc.HasValue ||
+            project.ArchiveOriginalRelativePath is not null)
+        {
+            throw new InvalidOperationException("Projet archivé en lecture seule.");
+        }
+
+        SfdDocumentCatalog catalog = await ListInProjectAsync(root, project.Id,
+            cancellationToken);
+        if (catalog.Diagnostics.Count > 0)
+        {
+            throw new InvalidDataException("Fiches SFD ambiguës : renommer est suspendu.");
+        }
+
+        SfdDocumentEntry activity = catalog.Entries.SingleOrDefault(item =>
+            item.Card.Id == activityId &&
+            item.Card.Kind == SfdDocumentKind.Activity) ??
+            throw new InvalidDataException("Activité cible introuvable.");
+        _sources.GetReferenceForExistingFile(activity.AbsolutePath);
+        SfdTextRevision current = await SfdMarkdownRevisionWriter.ReadAsync(
+            activity.AbsolutePath, cancellationToken);
+        SfdDocumentCard original = SfdDocumentMarkdownCodec.Parse(current.Content);
+        if (original.Id != activityId || original != activity.Card)
+        {
+            throw new InvalidDataException("Identité ACT modifiée depuis la sélection.");
+        }
+
+        string currentTitle = "title: " + JsonSerializer.Serialize(original.Title);
+        int titleOffset = current.Content.IndexOf(currentTitle, StringComparison.Ordinal);
+        if (titleOffset < 0 || titleOffset > 2048)
+        {
+            throw new InvalidDataException(
+                "Titre Markdown modifié hors du format canonique.");
+        }
+
+        string targetTitle = newTitle.Trim();
+        string nextRow = "title: " + JsonSerializer.Serialize(targetTitle);
+        string revised = current.Content[..titleOffset] + nextRow +
+            current.Content[(titleOffset + currentTitle.Length)..];
+        string oldHeading = "# " + original.Reference + " — " + original.Title;
+        string newHeading = "# " + original.Reference + " — " + targetTitle;
+        int headingOffset = revised.IndexOf(oldHeading, StringComparison.Ordinal);
+        if (headingOffset >= 0 && headingOffset < 4096)
+        {
+            revised = revised[..headingOffset] + newHeading +
+                revised[(headingOffset + oldHeading.Length)..];
+        }
+
+        SfdDocumentCard parsed = SfdDocumentMarkdownCodec.Parse(revised);
+        if (parsed.Id != original.Id || parsed.ParentId != original.ParentId ||
+            parsed.Reference != original.Reference || parsed.Title != targetTitle)
+        {
+            throw new InvalidDataException("Renommage ACT hors contrat.");
+        }
+
+        await SfdMarkdownRevisionWriter.ReplaceAsync(activity.AbsolutePath,
+            revised, current.Sha256, cancellationToken);
+        return new SfdDocumentEntry(parsed, activity.AbsolutePath);
     }
 
     /// <summary>Validates a project SFD manifest and its workspace containment.</summary>
@@ -352,6 +443,15 @@ public sealed class SfdDocumentRegistryService
                  owner.Card.Kind != parentKind))
             {
                 diagnostics.Add("Parent SFD manquant ou incohérent : " +
+                    entry.Card.Reference);
+            }
+            else if (entry.Card.Kind == SfdDocumentKind.Activity &&
+                entry.Card.Reference.StartsWith("PM-", StringComparison.Ordinal) &&
+                byId.TryGetValue(entry.Card.ParentId!.Value, out SfdDocumentEntry? process) &&
+                !entry.Card.Reference.StartsWith(
+                    process.Card.Reference + "-ACT-", StringComparison.Ordinal))
+            {
+                diagnostics.Add("Code ACT incompatible avec le PM parent : " +
                     entry.Card.Reference);
             }
         }

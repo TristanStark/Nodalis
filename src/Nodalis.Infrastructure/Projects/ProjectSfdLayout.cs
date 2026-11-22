@@ -60,6 +60,13 @@ public static class ProjectSfdLayout
             Directory.CreateDirectory(destination);
         }
 
+        await AtomicFileWriter.WriteAllTextAsync(
+            Path.Combine(stagingRoot, "SPECS FONCTIONNELLES",
+                "presentation projet.md"),
+            "# Présentation du projet\n\n" +
+            "_Décrire ici le contexte, la cible, le périmètre et les décisions validées._\n",
+            cancellationToken);
+
         string rulesCatalog = Path.Combine(
             stagingRoot, "DOCUMENTATION", "liste des règles métiers.md");
         await AtomicFileWriter.WriteAllTextAsync(

@@ -6,5 +6,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nodalis.Core\Nodalis.Core.csproj" />
+    <EmbeddedResource Include="SfdPrompts\*.md" />
   </ItemGroup>
 </Project>

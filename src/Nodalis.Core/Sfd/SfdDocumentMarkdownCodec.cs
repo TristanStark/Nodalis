@@ -45,12 +45,27 @@ public static class SfdDocumentMarkdownCodec
         }
 
         string prefix = Prefix(card.Kind) + "-";
-        if (!card.Reference.StartsWith(prefix, StringComparison.Ordinal) ||
-            card.Reference.Length != prefix.Length + 4 ||
-            !int.TryParse(card.Reference[prefix.Length..], NumberStyles.None,
-                CultureInfo.InvariantCulture, out int number) ||
-            number is < 1 or > 9999 ||
-            card.Reference != prefix + number.ToString("D4", CultureInfo.InvariantCulture))
+        bool legacyReference = System.Text.RegularExpressions.Regex.IsMatch(
+            card.Reference, "^" + prefix + @"[0-9]{4}$");
+        bool parentScopedActivity = card.Kind == SfdDocumentKind.Activity &&
+            System.Text.RegularExpressions.Regex.IsMatch(card.Reference,
+                @"^PM-[0-9]{3,4}-ACT-[0-9]{3,4}$");
+        int lastSeparator = card.Reference.LastIndexOf('-');
+        bool positiveSuffix = lastSeparator >= 0 &&
+            int.TryParse(card.Reference[(lastSeparator + 1)..],
+                NumberStyles.None, CultureInfo.InvariantCulture, out int number) &&
+            number is >= 1 and <= 9999;
+        bool positiveParent = true;
+        if (parentScopedActivity)
+        {
+            int separator = card.Reference.IndexOf('-', 3);
+            positiveParent = int.TryParse(card.Reference.AsSpan(3, separator - 3),
+                NumberStyles.None, CultureInfo.InvariantCulture,
+                out int processNumber) && processNumber is >= 1 and <= 9999;
+        }
+
+        if ((!legacyReference && !parentScopedActivity) || !positiveSuffix ||
+            !positiveParent)
         {
             throw new InvalidDataException("Référence SFD invalide.");
         }
@@ -115,7 +130,8 @@ public static class SfdDocumentMarkdownCodec
                     .AppendLine().AppendLine("## Déclencheur et acteurs")
                     .AppendLine().AppendLine("## Entrées, décisions et résultat")
                     .AppendLine().AppendLine("## Activités suivantes")
-                    .AppendLine().AppendLine("## Exigences EXU / EXS / EXR");
+                    .AppendLine().AppendLine("## Synthèse réutilisable pour les fonctionnalités")
+                    .AppendLine("_Aucune exigence dans la fiche canonique de l'activité._");
                 break;
             case SfdDocumentKind.UserRequirement:
                 AppendRequirement(text,

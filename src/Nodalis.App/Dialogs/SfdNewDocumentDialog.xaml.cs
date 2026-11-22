@@ -92,8 +92,11 @@ public partial class SfdNewDocumentDialog : Window
 
         HelpText.Text = parentKind.HasValue && ParentComboBox.Items.Count == 0
             ? "Aucun parent compatible : créez d'abord le processus ou l'activité."
-            : "Les conditions, sous-conditions et références RM seront ajoutées " +
-              "lors de la rédaction, sans contenu fictif.";
+            : choice.Kind == SfdDocumentKind.Activity
+                ? "Titre facultatif : laisser vide pour nommer l'activité " +
+                  "automatiquement selon le prochain numéro du PM parent."
+                : "Les conditions, sous-conditions et références RM seront ajoutées " +
+                  "lors de la rédaction, sans contenu fictif.";
     }
 
     /// <summary>Checks the requested identity before closing the review dialog.</summary>
@@ -101,11 +104,12 @@ public partial class SfdNewDocumentDialog : Window
     /// <param name="e">Click event.</param>
     private void Create_Click(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(DocumentTitle) ||
+        if ((SelectedKind != SfdDocumentKind.Activity &&
+                string.IsNullOrWhiteSpace(DocumentTitle)) ||
             (ParentPanel.Visibility == Visibility.Visible && SelectedParentId is null))
         {
             MessageBox.Show(this,
-                "Renseignez un titre et, si nécessaire, sélectionnez le parent métier.",
+                "Renseignez le titre (facultatif pour une ACT) et sélectionnez le parent requis.",
                 "Nouvel objet SFD", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }

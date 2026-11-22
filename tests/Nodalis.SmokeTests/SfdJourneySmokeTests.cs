@@ -8,7 +8,7 @@ using Nodalis.Infrastructure.Projects;
 internal static class SfdJourneySmokeTests
 {
     /// <summary>
-    /// Checks SFD initialization, exact four generations, v2 isolation,
+    /// Checks SFD initialization, exact five master generations, v2 isolation,
     /// guarded stage edits, bulk source refs and write-revision conflicts.
     /// </summary>
     /// <param name="root">Disposable smoke workspace parent.</param>
@@ -58,24 +58,26 @@ internal static class SfdJourneySmokeTests
             sfd.ProjectDirectory);
         Assert(preview.TemplateKey == SfdJourneyDefaults.TemplateKey &&
             preview.ProjectId == sfd.Project.Id &&
-            preview.Steps.Count == 5 &&
+            preview.Steps.Count == 6 &&
             preview.Steps.Select(item => item.Name).SequenceEqual(
             [
-                "Processus métiers et activités",
-                "Exigences métier",
-                "Fonctionnalités",
-                "Mise en œuvre fonctionnelle",
+                "Cartographie des processus métiers",
+                "Détail des activités métier",
+                "Assemblage des fonctionnalités",
+                "Exigences métier par FCT et ACT",
+                "Spécification transversale des fonctionnalités",
                 "Pilotage et qualification"
             ]),
-            "The SFD journey must propose only the five reference stages.");
+            "The SFD journey must propose five masters plus pilotage.");
         string[] promptKeys = preview.Steps.SelectMany(item => item.Operations)
             .Where(item => item.PromptKey is not null)
             .Select(item => item.PromptKey!).ToArray();
-        Assert(promptKeys.SequenceEqual(["sfd-01", "sfd-02", "sfd-03", "sfd-04"]) &&
+        Assert(promptKeys.SequenceEqual(["sfd-master-01", "sfd-master-02",
+            "sfd-master-03", "sfd-master-04", "sfd-master-05"]) &&
             preview.Steps.All(item =>
                 item.Status == ProjectJourneyStepStatus.Todo) &&
             preview.Steps.Last().Operations.All(item => item.PromptKey is null),
-            "The four SFD generation prompts must be distinct from generic pilotage.");
+            "The five master prompts must remain separate from generic pilotage.");
         Assert(!File.Exists(sfdPath) && !File.Exists(classicPath) &&
             !File.Exists(classicProjectPath) &&
             await service.ReadAsync(sfd.ProjectDirectory) is null &&
@@ -87,7 +89,7 @@ internal static class SfdJourneySmokeTests
             sfd.ProjectDirectory);
         Assert(File.Exists(sfdPath) && !File.Exists(classicPath) &&
             initialized.Document.ProjectId == sfd.Project.Id &&
-            initialized.Document.Steps.Count == 5,
+            initialized.Document.Steps.Count == 6,
             "Explicit initialization must create SFD only, not the classic journey.");
 
         bool repeatRefused = false;
@@ -102,6 +104,13 @@ internal static class SfdJourneySmokeTests
 
         Assert(repeatRefused,
             "SFD journey initialization must never overwrite an existing file.");
+
+        ProjectJourneyDocument upgraded =
+            SfdJourneyDefaults.UpgradeToMasterPrompts(initialized.Document);
+        Assert(upgraded.Steps.Count == 6 &&
+            upgraded.Steps[0].Operations[0].PromptKey == "sfd-master-01" &&
+            upgraded.Steps[4].Operations[0].PromptKey == "sfd-master-05",
+            "Reapplying the master proposal must retain all five prompt roles.");
 
         Guid firstStageId = initialized.Document.Steps[0].Id;
         Guid firstOperationId = initialized.Document.Steps[0].Operations[0].Id;
