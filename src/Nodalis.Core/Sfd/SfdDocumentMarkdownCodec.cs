@@ -50,7 +50,18 @@ public static class SfdDocumentMarkdownCodec
         bool parentScopedActivity = card.Kind == SfdDocumentKind.Activity &&
             System.Text.RegularExpressions.Regex.IsMatch(card.Reference,
                 @"^PM-[0-9]{3,4}-ACT-[0-9]{3,4}$");
-        if (!legacyReference && !parentScopedActivity)
+        int lastSeparator = card.Reference.LastIndexOf('-');
+        bool positiveSuffix = lastSeparator >= 0 &&
+            int.TryParse(card.Reference[(lastSeparator + 1)..],
+                NumberStyles.None, CultureInfo.InvariantCulture, out int number) &&
+            number is >= 1 and <= 9999;
+        if ((!legacyReference && !parentScopedActivity) || !positiveSuffix ||
+            (parentScopedActivity &&
+                !int.TryParse(card.Reference.AsSpan(3,
+                    card.Reference.IndexOf('-', 3) - 3),
+                    NumberStyles.None, CultureInfo.InvariantCulture,
+                    out int processNumber) || parentScopedActivity &&
+                processNumber is < 1 or > 9999))
         {
             throw new InvalidDataException("Référence SFD invalide.");
         }
