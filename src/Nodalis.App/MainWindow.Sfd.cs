@@ -199,6 +199,64 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Converts eligible historical ACT folders into single Markdown files
+    /// only after an explicit preview and user decision. Backups are retained.
+    /// </summary>
+    /// <returns>Completed SFD layout conversion and navigation refresh.</returns>
+    private async Task ConvertLegacySfdActivitiesFromPaletteAsync()
+    {
+        NavigationNodeViewModel? project = PilotageProject();
+        if (project is null)
+        {
+            ShowPilotageProjectHint("Convertir les activités SFD");
+            return;
+        }
+
+        if (PilotageReadOnly(project))
+        {
+            MessageBox.Show(this, "Ce projet est en lecture seule.",
+                "Conversion SFD", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        SfdFlatActivityMigrationService migration = new(_root.FullPath);
+        SfdFlatActivityPreview preview = await migration.PreviewAsync(
+            project.FullPath);
+        if (preview.Candidates.Count == 0 &&
+            !preview.ArchiveDuplicateOverview)
+        {
+            MessageBox.Show(this,
+                "Aucun ancien dossier ACT simple à convertir.\n" +
+                string.Join("\n", preview.Warnings.Take(6)),
+                "Conversion SFD", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string summary = "Convertir " + preview.Candidates.Count +
+            " dossier(s) ACT simples en fichiers PM001-ACT002.md ?\n" +
+            (preview.ArchiveDuplicateOverview
+                ? "Le modèle secondaire « presentation projet.md » non modifié " +
+                  "sera également archivé.\n" : "") +
+            "Les dossiers d'origine seront conservés dans " +
+            SfdFlatActivityMigrationService.BackupDirectoryName + ".\n" +
+            "Fermez les documents ACT ouverts avant de continuer. " +
+            "Les références textuelles externes peuvent nécessiter une vérification.\n\n" +
+            string.Join("\n", preview.Warnings.Take(5));
+        if (MessageBox.Show(this, summary, "Conversion SFD (avec sauvegarde)",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        SfdFlatActivityResult result = await migration.ConvertAsync(
+            project.FullPath, preview);
+        await RefreshNavigationAsync(project.FullPath);
+        StatusText.Text = result.Converted +
+            " activité(s) convertie(s) ; anciens dossiers sauvegardés.";
+    }
+
     /// <summary>Opens the SFD draft form under the actual selected project.</summary>
     /// <param name="sender">Project menu item.</param>
     /// <param name="e">Click event.</param>
