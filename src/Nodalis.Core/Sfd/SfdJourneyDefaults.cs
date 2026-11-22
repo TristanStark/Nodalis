@@ -3,7 +3,7 @@ using Nodalis.Core.Projects;
 namespace Nodalis.Core.Sfd;
 
 /// <summary>
-/// Five short SFD journey stages backed by existing 2.0 journey identities
+/// Six short SFD journey stages backed by existing 2.0 journey identities
 /// and pure editing operations. Defaults are proposals, never auto-created.
 /// </summary>
 public static class SfdJourneyDefaults
@@ -11,9 +11,9 @@ public static class SfdJourneyDefaults
     public const string TemplateKey = "sfd-v1";
 
     /// <summary>
-    /// Returns a fresh, uncommitted SFD journey with five independent stages.
-    /// Four specialized prompt references are placeholders until the SFD
-    /// contract/preparer validates and embeds their full output schema.
+    /// Returns a fresh, uncommitted SFD journey with five specialized prompts
+    /// followed by independent project pilotage. Master prompts are copy-only
+    /// Markdown text; legacy four-step JSON imports keep separate keys.
     /// </summary>
     /// <param name="projectId">Owning SFD project's GUID.</param>
     /// <returns>Unpersisted, editable project journey.</returns>
@@ -30,18 +30,17 @@ public static class SfdJourneyDefaults
             TemplateKey = TemplateKey,
             Steps =
             [
-                Step("sfd-processes", "Processus métiers et activités", 10,
-                    ("generate-pm-act", "Préparer la génération des PM et ACT", "sfd-01")),
-                Step("sfd-requirements", "Exigences métier", 20,
-                    ("generate-exu-exs-exr",
-                        "Préparer les EXU / EXS / EXR, conditions, SC et RM", "sfd-02")),
-                Step("sfd-features", "Fonctionnalités", 30,
-                    ("generate-features",
-                        "Préparer les FCT avec ou sans IHM et liens ACT/FCT", "sfd-03")),
-                Step("sfd-implementation", "Mise en œuvre fonctionnelle", 40,
-                    ("generate-emo",
-                        "Préparer les EMO et références aux RM", "sfd-04")),
-                Step("sfd-pilotage", "Pilotage et qualification", 50,
+                Step("sfd-processes", "Cartographie des processus métiers", 10,
+                    ("determine-processes", "Déterminer les processus métiers", "sfd-master-01")),
+                Step("sfd-activities", "Détail des activités métier", 20,
+                    ("detail-activity", "Générer le prompt Activité", "sfd-master-02")),
+                Step("sfd-features", "Assemblage des fonctionnalités", 30,
+                    ("assemble-features", "Assembler les fonctionnalités", "sfd-master-03")),
+                Step("sfd-requirements", "Exigences métier par FCT et ACT", 40,
+                    ("generate-requirements", "Préparer les EXU / EXS / EXR de la FCT/ACT", "sfd-master-04")),
+                Step("sfd-implementation", "Spécification transversale des fonctionnalités", 50,
+                    ("generate-emo", "Préparer les EMO transversales de la FCT", "sfd-master-05")),
+                Step("sfd-pilotage", "Pilotage et qualification", 60,
                     ("meetings", "Réunions et décisions", null),
                     ("milestones", "Jalons et tâches", null),
                     ("tests", "Qualification et tests", null))
