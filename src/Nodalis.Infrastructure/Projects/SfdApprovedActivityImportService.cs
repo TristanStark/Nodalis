@@ -187,9 +187,8 @@ public sealed class SfdApprovedActivityImportService
             int highest = catalog.Entries
                 .Where(item => item.Card.Kind == SfdDocumentKind.Activity &&
                     item.Card.ParentId == parentId)
-                .Select(item => int.Parse(
-                    item.Card.Reference[(item.Card.Reference.LastIndexOf('-') + 1)..],
-                    System.Globalization.CultureInfo.InvariantCulture))
+                .Select(item => SfdDocumentMarkdownCodec.ActivitySequence(
+                    item.Card.Reference))
                 .DefaultIfEmpty(0).Max();
             if (highest >= 9999)
             {
@@ -197,9 +196,8 @@ public sealed class SfdApprovedActivityImportService
             }
 
             Guid id = Guid.NewGuid();
-            string reference = parentProcess.Card.Reference + "-ACT-" +
-                (highest + 1).ToString("D3",
-                    System.Globalization.CultureInfo.InvariantCulture);
+            string reference = SfdDocumentMarkdownCodec.ActivityReference(
+                parentProcess.Card.Reference, highest + 1);
             DateTimeOffset created = DateTimeOffset.UtcNow;
             SfdDocumentCard card = new()
             {
@@ -278,6 +276,12 @@ public sealed class SfdApprovedActivityImportService
                 "PM parent modifié depuis la revue : nouvelle approbation requise.");
         }
 
+        if (SfdDocumentMarkdownCodec.IsCompactActivityReference(intent.Reference))
+        {
+            return await ApplyFlatActivityAsync(root, journal, pm, intent,
+                cancellationToken);
+        }
+
         string activitiesDirectory = Path.Combine(
             Path.GetDirectoryName(pm.AbsolutePath)!, "ACTIVITES");
         RequireNormalDirectory(activitiesDirectory);
@@ -354,6 +358,83 @@ public sealed class SfdApprovedActivityImportService
             intent.Reference, target, intent.ParentProcessId, false);
     }
 
+    /// <summary>
+    /// Recovers or atomically publishes one new flat ACT Markdown file; historical
+    /// directory-based approved intents retain the original replay path.
+    /// </summary>
+    /// <param name="root">Validated project root.</param>
+    /// <param name="journal">Current approved, durable import journal.</param>
+    /// <param name="pm">Verified process document.</param>
+    /// <param name="intent">Approved immutable ACT contents.</param>
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    /// <returns>Exactly one current or recovered flat ACT file.</returns>
+    private async Task<SfdApprovedActivityResult> ApplyFlatActivityAsync(
+        string root, string journal, SfdDocumentEntry pm,
+        SfdApprovedActivityIntent intent, CancellationToken cancellationToken)
+    {
+        string activities = Path.Combine(
+            Path.GetDirectoryName(pm.AbsolutePath)!, "ACTIVITES");
+        RequireNormalDirectory(activities);
+        string target = Path.Combine(activities, intent.Reference + ".md");
+        if (File.Exists(target))
+        {
+            _sources.GetReferenceForExistingFile(target);
+            SfdTextRevision actual = await SfdMarkdownRevisionWriter.ReadAsync(
+                target, cancellationToken);
+            SfdDocumentCard existing = SfdDocumentMarkdownCodec.Parse(actual.Content);
+            if (existing.Id != intent.BusinessId ||
+                existing.ParentId != intent.ParentProcessId ||
+                existing.ProjectId != intent.ProjectId ||
+                actual.Sha256 != intent.ApprovedSha256)
+            {
+                throw new InvalidDataException(
+                    "Le fichier ACT cible existe déjà avec un autre contenu.");
+            }
+
+            return new SfdApprovedActivityResult(intent.BusinessId,
+                intent.Reference, target, intent.ParentProcessId, true);
+        }
+
+        SfdDocumentCatalog catalog = await _documents.ListAsync(root,
+            cancellationToken);
+        if (catalog.Entries.Any(item => item.Card.Id == intent.BusinessId ||
+            item.Card.Reference == intent.Reference))
+        {
+            throw new InvalidDataException(
+                "Identité ACT présente ailleurs : reprise refusée.");
+        }
+
+        string stagedFile = Path.Combine(journal, "staged-activity.md");
+        if (File.Exists(stagedFile))
+        {
+            _sources.GetReferenceForExistingFile(stagedFile);
+            SfdTextRevision staged = await SfdMarkdownRevisionWriter.ReadAsync(
+                stagedFile, cancellationToken);
+            if (staged.Sha256 != intent.ApprovedSha256)
+            {
+                throw new InvalidDataException("Brouillon ACT journalisé modifié.");
+            }
+        }
+        else
+        {
+            await AtomicFileWriter.WriteNewAllTextAsync(stagedFile,
+                intent.ApprovedMarkdown, cancellationToken);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        SfdTextRevision currentParent = await SfdMarkdownRevisionWriter.ReadAsync(
+            pm.AbsolutePath, cancellationToken);
+        if (currentParent.Sha256 != intent.ParentSourceSha256)
+        {
+            throw new InvalidDataException("Le PM a changé avant publication.");
+        }
+
+        RequireNormalDirectory(activities);
+        File.Move(stagedFile, target);
+        return new SfdApprovedActivityResult(intent.BusinessId,
+            intent.Reference, target, intent.ParentProcessId, false);
+    }
+
     /// <summary>Restricts publication to the current unarchived SFD project.</summary>
     /// <param name="root">Selected project directory.</param>
     /// <param name="cancellationToken">Cancellation.</param>
@@ -395,7 +476,7 @@ public sealed class SfdApprovedActivityImportService
             intent.ParentProcessId == Guid.Empty ||
             intent.Reference is null ||
             !System.Text.RegularExpressions.Regex.IsMatch(intent.Reference,
-                @"^(ACT-[0-9]{4}|PM-[0-9]{3,4}-ACT-[0-9]{3,4})$") ||
+                @"^(ACT-[0-9]{4}|PM-[0-9]{3,4}-ACT-[0-9]{3,4}|PM[0-9]{3,4}-ACT[0-9]{3,4})$") ||
             string.IsNullOrWhiteSpace(intent.Title) || intent.Title.Length > 240 ||
             intent.ParentSourceSha256 is null ||
             intent.ParentSourceSha256.Length != 64 ||
