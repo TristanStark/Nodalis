@@ -152,6 +152,22 @@ internal static class SfdPromptSmokeTests
         SfdJourneyService journeyService = new(workspace);
         ProjectJourneySnapshot initial = await journeyService.InitializeAsync(
             project.ProjectDirectory);
+        // The former four-step JSON preparer remains available only for
+        // journeys that explicitly retain those legacy prompt keys.
+        ProjectJourneyDocument legacyFixture = initial.Document with
+        {
+            Steps = initial.Document.Steps.Select((step, index) =>
+                index < 4 ? step with
+                {
+                    Operations = step.Operations.Select(operation =>
+                        operation with
+                        {
+                            PromptKey = "sfd-" + (index + 1).ToString("D2")
+                        }).ToList()
+                } : step).ToList()
+        };
+        initial = await journeyService.SaveAsync(project.ProjectDirectory,
+            legacyFixture, initial.Sha256);
         string sourcesDirectory = Path.Combine(project.ProjectDirectory,
             "DOCUMENTATION");
         ProjectJourneySourceService resolver = new(workspace);
@@ -246,6 +262,57 @@ internal static class SfdPromptSmokeTests
                 StringComparison.Ordinal),
             "Step 02 must display existing ACT and RM GUIDs for safe next-step links, " +
             "while leaving unselected DOCX and business content undisclosed.");
+
+        ProjectJourneySnapshot priorMaster = (await journeyService.ReadAsync(
+            project.ProjectDirectory))!;
+        ProjectJourneyDocument masterJourney =
+            SfdJourneyDefaults.UpgradeToMasterPrompts(priorMaster.Document);
+        await journeyService.SaveAsync(project.ProjectDirectory,
+            masterJourney, priorMaster.Sha256);
+        SfdMasterPromptService masters = new(workspace);
+        SfdPreparedPrompt cartography = await masters.PrepareAsync(
+            project.ProjectDirectory, "sfd-master-01");
+        SfdPreparedPrompt activityDetail = await masters.PrepareAsync(
+            project.ProjectDirectory, "sfd-master-02", existingActivity.Card.Id);
+        SfdPreparedPrompt featureAssembly = await masters.PrepareAsync(
+            project.ProjectDirectory, "sfd-master-03");
+        Require(cartography.Content.Contains("PROMPT MAÎTRE 01",
+                StringComparison.Ordinal) &&
+            cartography.Warnings.Any(warning =>
+                warning.Contains(".docx", StringComparison.Ordinal)) &&
+            activityDetail.Content.Contains("PROMPT MAÎTRE 02",
+                StringComparison.Ordinal) &&
+            activityDetail.Content.Contains(existingProcess.Card.Reference,
+                StringComparison.Ordinal) &&
+            activityDetail.Content.Contains(existingActivity.Card.Reference,
+                StringComparison.Ordinal) &&
+            featureAssembly.Content.Contains("PROMPT MAÎTRE 03",
+                StringComparison.Ordinal),
+            "The first three master prompts need exact embedded templates and " +
+            "the project, parent PM and target ACT context without DOCX conversion.");
+
+        SfdDocumentEntry feature = await documentRegistry.CreateAsync(
+            project.ProjectDirectory, SfdDocumentKind.Functionality,
+            "Produire un résultat fictif", null,
+            SfdFunctionalityMode.WithoutInterface);
+        await new SfdActivityFunctionalityService(workspace).LinkAsync(
+            project.ProjectDirectory, existingActivity.Card.Id, feature.Card.Id);
+        SfdPreparedPrompt requirements = await masters.PrepareAsync(
+            project.ProjectDirectory, "sfd-master-04",
+            existingActivity.Card.Id, feature.Card.Id);
+        SfdPreparedPrompt specification = await masters.PrepareAsync(
+            project.ProjectDirectory, "sfd-master-05", null, feature.Card.Id);
+        Require(requirements.Content.Contains("PROMPT MAÎTRE 04",
+                StringComparison.Ordinal) &&
+            specification.Content.Contains("PROMPT MAÎTRE 05",
+                StringComparison.Ordinal) &&
+            specification.Content.Contains(feature.Card.Reference,
+                StringComparison.Ordinal) &&
+            specification.Content.Contains(existingActivity.Card.Reference,
+                StringComparison.Ordinal) &&
+            specification.Warnings.Any(warning =>
+                warning.Contains("validation", StringComparison.OrdinalIgnoreCase)),
+            "Prompts 04 and 05 must preserve FCT×ACT scope and incomplete review warnings.");
 
         string[] generatedMarkdown =
             Directory.GetFiles(project.ProjectDirectory, "*.md",
