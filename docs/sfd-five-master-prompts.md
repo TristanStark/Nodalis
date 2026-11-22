@@ -4,27 +4,34 @@ Le type de projet **Projet avec spec** conserve son parcours et son référentie
 
 ## Documents de travail
 
-Les projets SFD neufs disposent de :
+Les nouveaux projets SFD réutilisent le **fichier `Présentation.md` à la racine du projet** pour les cinq prompts. Aucun deuxième document `SPECS FONCTIONNELLES/presentation projet.md` n'est créé.
 
 ```text
-SPECS FONCTIONNELLES/
-├── presentation projet.md                 # Contexte éditable à renseigner
-├── PROCESSUS METIERS/
-│   └── PM-0001 - Libellé/
-│       ├── presentation processus.md      # Présentation du PM dans le dossier
-│       └── ACTIVITES/
-│           ├── PM-0001-ACT-001/
-│           │   └── presentation activité.md
-│           └── PM-0001-ACT-002/
-│               └── presentation activité.md
-└── FONCTIONNALITES/
-    └── FCT-0001 - Libellé/
-        └── presentation fonctionnalité.md
+Projet avec spec/
+├── Présentation.md                         # Document canonique partagé
+└── SPECS FONCTIONNELLES/
+    ├── PROCESSUS METIERS/
+    │   └── PM-0001 - Libellé/
+    │       ├── presentation processus.md  # Contenu éditable du dossier PM
+    │       └── ACTIVITES/
+    │           ├── PM001-ACT001.md        # Une activité = un fichier
+    │           └── PM001-ACT002.md
+    └── FONCTIONNALITES/
+        └── FCT-0001 - Libellé/
+            └── presentation fonctionnalité.md
 ```
 
-Les anciens projets sont conservés tels quels, sans création implicite ni renumérotation. Les anciens identifiants `ACT-0001` restent lisibles. Les nouveaux codes sont séquentiels **à l'intérieur d'un processus** et laissent les autres processus indépendants.
+Les fichiers ACT ne créent plus de sous-dossiers. La séquence redémarre à `ACT001` pour chaque PM ; les fiches historiques `ACT-0001` et `PM-0001-ACT-001` restent lisibles. Le nom complet du PM historique est préservé dans son dossier et son identité technique.
 
-La création d'un PM crée un dossier avec une présentation Markdown rédigée par l'utilisateur. La création d'une ACT nécessite un PM existant ; elle produit une fiche canonique et attribue automatiquement le prochain numéro disponible de ce PM. Son titre est facultatif lors de la création et peut être modifié ensuite sans toucher à son GUID ni à son code.
+La création d'une activité nécessite toujours le choix d'un PM parent. Le titre peut être laissé vide ; l'identité stable (GUID) est indépendante du libellé, que l'on peut modifier ensuite. La commande de création ne déclenche aucun prompt ni appel IA.
+
+### Palette, transition et sauvegarde
+
+Depuis **Ctrl+P**, utiliser **Créer un processus métier** ou **Créer une activité**, sans devoir ouvrir le parcours SFD. La palette tente de présélectionner le PM visible dans l'explorateur.
+
+Pour un projet existant contenant des activités-dossiers, la commande **Convertir les anciennes activités SFD en fichiers** présente un aperçu et exige une confirmation. Elle ne convertit que les dossiers de feuilles contenant exclusivement `presentation activité.md`, préserve le texte et le GUID, puis conserve l'ancien dossier dans `.nodalis-sfd-activity-legacy` à la racine (répertoire masqué dans l'arbre). Les dossiers avec sous-dossiers ou autres fichiers ne sont pas touchés ; ils exigent un traitement distinct. Un doublon `presentation projet.md` est archivé uniquement s'il correspond **exactement** au modèle ancien non modifié. Sinon, il est conservé pour éviter toute perte d'information.
+
+Fermer les documents ACT ouverts avant la conversion. Après conversion, les références textuelles qui contenaient l'ancien identifiant ou ancien chemin doivent être vérifiées ; les identifiants techniques GUID sont conservés.
 
 ## Ordre des prompts
 
@@ -46,6 +53,10 @@ Les instructions des cinq prompts sont embarquées **à l'identique** dans `src/
 4. Utiliser les commandes **Déterminer les processus métiers**, **Générer le prompt Activité**, **Assembler les fonctionnalités**, ou **Préparer ce prompt** pour les étapes 04 et 05.
 5. Relire les avertissements et les extraits de sources avant de copier un prompt à destination d'une IA externe.
 
+## Interface 1080p
+
+La barre **EXPLORATEUR** et les actions principales tiennent sur une seule ligne. La **loupe** déploie le filtre à la demande ; la refermer efface le filtre actif pour que l'arbre ne reste pas filtré invisiblement. En bas, le menu **Outils** remplace les boutons Calendrier, Kanban, Health check, Couverture, Diagnostic et Corbeille, et contient aussi les options **Application courante** et **Densité Confortable / Compact**. Les raccourcis clavier, préférences enregistrées et commandes initiales restent disponibles.
+
 ## Compatibilité et limites
 
 - Un parcours SFD ancien est mis à niveau **après confirmation de l'utilisateur**. Les étapes personnalisées et liens vers sources sont conservés. Les statuts des étapes modifiées reviennent à « À faire ».
@@ -64,4 +75,4 @@ dotnet build Nodalis.sln --configuration Release
 dotnet run --project tests/Nodalis.SmokeTests/Nodalis.SmokeTests.csproj --configuration Release
 ```
 
-Vérifier en particulier l'auto-incrémentation de trois ACT dans un PM, le redémarrage à 001 dans un deuxième PM, la préservation des textes lors du renommage et le contenu effectivement copié pour chacun des cinq prompts.
+Vérifier le fichier `PM001-ACT002.md`, la numérotation après une ACT historique, la préparation à partir de `Présentation.md`, le renommage sans écrasement, la migration opt-in et ses sauvegardes, ainsi que le retour du filtre et des outils à l'ancienne ergonomie clavier. Qualifier visuellement les commandes et l'explorateur à 1080p.

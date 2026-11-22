@@ -60,13 +60,19 @@ internal static class SfdAuthoringSmokeTests
                 SfdFunctionalityMode.WithoutInterface);
 
         Require(process.Card.Reference == "PM-0001" &&
-            activity.Card.Reference == "PM-0001-ACT-001" &&
+            activity.Card.Reference == "PM001-ACT001" &&
             user.Card.Reference == "EXU-0001" &&
             system.Card.Reference == "EXS-0001" &&
             regulatory.Card.Reference == "EXR-0001" &&
             ui.Card.Reference == "FCT-0001" &&
             noUi.Card.Reference == "FCT-0002",
             "Distinct SFD roles must retain stable references, with ACT codes scoped by PM.");
+        Require(Path.GetFileName(activity.AbsolutePath) == "PM001-ACT001.md" &&
+            File.Exists(activity.AbsolutePath) &&
+            !Directory.Exists(Path.Combine(
+                Path.GetDirectoryName(activity.AbsolutePath)!, "PM001-ACT001")),
+            "An ACT is a directly editable Markdown file, not a nested folder.");
+
         Require(activity.Card.ParentId == process.Card.Id &&
             user.Card.ParentId == activity.Card.Id,
             "SFD parent relationship must be stored as stable GUIDs.");
@@ -136,7 +142,7 @@ internal static class SfdAuthoringSmokeTests
         SfdDocumentEntry anotherActivity = await registry.CreateAsync(
             project.ProjectDirectory, SfdDocumentKind.Activity,
             "Préparer la suite", process.Card.Id);
-        Require(anotherActivity.Card.Reference == "PM-0001-ACT-002" &&
+        Require(anotherActivity.Card.Reference == "PM001-ACT002" &&
             anotherActivity.AbsolutePath.Contains("renommé", StringComparison.Ordinal),
             "New ACT must resolve its PM using GUID, after a directory rename.");
 
@@ -429,7 +435,7 @@ internal static class SfdAuthoringSmokeTests
         SfdDocumentEntry firstOfSecond = await registry.CreateAsync(
             project.ProjectDirectory, SfdDocumentKind.Activity,
             string.Empty, secondProcess.Card.Id);
-        Require(firstOfSecond.Card.Reference == "PM-0002-ACT-001" &&
+        Require(firstOfSecond.Card.Reference == "PM002-ACT001" &&
             firstOfSecond.Card.Title == firstOfSecond.Card.Reference &&
             File.Exists(firstOfSecond.AbsolutePath),
             "A new PM must restart ACT numbering and permit an ID-only draft title.");
@@ -441,7 +447,7 @@ internal static class SfdAuthoringSmokeTests
             project.ProjectDirectory, firstOfSecond.Card.Id, "Activité personnalisée");
         string afterRename = await File.ReadAllTextAsync(renamedActivity.AbsolutePath);
         Require(renamedActivity.Card.Id == firstOfSecond.Card.Id &&
-            renamedActivity.Card.Reference == "PM-0002-ACT-001" &&
+            renamedActivity.Card.Reference == "PM002-ACT001" &&
             renamedActivity.Card.Title == "Activité personnalisée" &&
             afterRename.Contains("Notes humaines fictives", StringComparison.Ordinal) &&
             afterRename.Contains("Texte à préserver", StringComparison.Ordinal) &&

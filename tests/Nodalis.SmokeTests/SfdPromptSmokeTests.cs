@@ -269,6 +269,10 @@ internal static class SfdPromptSmokeTests
             SfdJourneyDefaults.UpgradeToMasterPrompts(priorMaster.Document);
         await journeyService.SaveAsync(project.ProjectDirectory,
             masterJourney, priorMaster.Sha256);
+        string rootPresentation = Path.Combine(project.ProjectDirectory,
+            "Présentation.md");
+        await File.AppendAllTextAsync(rootPresentation,
+            "\n## Contexte métier racine unique : TEST-FONCTION-001\n");
         SfdMasterPromptService masters = new(workspace);
         SfdPreparedPrompt cartography = await masters.PrepareAsync(
             project.ProjectDirectory, "sfd-master-01");
@@ -276,6 +280,11 @@ internal static class SfdPromptSmokeTests
             project.ProjectDirectory, "sfd-master-02", existingActivity.Card.Id);
         SfdPreparedPrompt featureAssembly = await masters.PrepareAsync(
             project.ProjectDirectory, "sfd-master-03");
+        Require(cartography.Content.Contains("TEST-FONCTION-001",
+                StringComparison.Ordinal) &&
+            !File.Exists(Path.Combine(project.ProjectDirectory,
+                "SPECS FONCTIONNELLES", "presentation projet.md")),
+            "Master prompts must reuse the single root project presentation.");
         Require(cartography.Content.Contains("PROMPT MAÎTRE 01",
                 StringComparison.Ordinal) &&
             cartography.Warnings.Any(warning =>

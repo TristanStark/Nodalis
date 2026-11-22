@@ -62,6 +62,11 @@ internal static class ProjectSfdSmokeTests
                 "Missing SFD skeleton path: " + path);
         }
 
+        Assert(!File.Exists(Path.Combine(created.ProjectDirectory,
+                "SPECS FONCTIONNELLES", "presentation projet.md")) &&
+            File.Exists(Path.Combine(created.ProjectDirectory, "Présentation.md")),
+            "SFD must reuse the existing root overview instead of creating a duplicate.");
+
         Assert(!File.Exists(Path.Combine(created.ProjectDirectory, "Tâches.md")),
             "SFD must not create a competing root task document.");
 

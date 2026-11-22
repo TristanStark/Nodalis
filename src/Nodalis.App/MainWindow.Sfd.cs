@@ -199,6 +199,64 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Converts eligible historical ACT folders into single Markdown files
+    /// only after an explicit preview and user decision. Backups are retained.
+    /// </summary>
+    /// <returns>Completed SFD layout conversion and navigation refresh.</returns>
+    private async Task ConvertLegacySfdActivitiesFromPaletteAsync()
+    {
+        NavigationNodeViewModel? project = PilotageProject();
+        if (project is null)
+        {
+            ShowPilotageProjectHint("Convertir les activités SFD");
+            return;
+        }
+
+        if (PilotageReadOnly(project))
+        {
+            MessageBox.Show(this, "Ce projet est en lecture seule.",
+                "Conversion SFD", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        SfdFlatActivityMigrationService migration = new(_root.FullPath);
+        SfdFlatActivityPreview preview = await migration.PreviewAsync(
+            project.FullPath);
+        if (preview.Candidates.Count == 0 &&
+            !preview.ArchiveDuplicateOverview)
+        {
+            MessageBox.Show(this,
+                "Aucun ancien dossier ACT simple à convertir.\n" +
+                string.Join("\n", preview.Warnings.Take(6)),
+                "Conversion SFD", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string summary = "Convertir " + preview.Candidates.Count +
+            " dossier(s) ACT simples en fichiers PM001-ACT002.md ?\n" +
+            (preview.ArchiveDuplicateOverview
+                ? "Le modèle secondaire « presentation projet.md » non modifié " +
+                  "sera également archivé.\n" : "") +
+            "Les dossiers d'origine seront conservés dans " +
+            SfdFlatActivityMigrationService.BackupDirectoryName + ".\n" +
+            "Fermez les documents ACT ouverts avant de continuer. " +
+            "Les références textuelles externes peuvent nécessiter une vérification.\n\n" +
+            string.Join("\n", preview.Warnings.Take(5));
+        if (MessageBox.Show(this, summary, "Conversion SFD (avec sauvegarde)",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) !=
+            MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        SfdFlatActivityResult result = await migration.ConvertAsync(
+            project.FullPath, preview);
+        await RefreshNavigationAsync(project.FullPath);
+        StatusText.Text = result.Converted +
+            " activité(s) convertie(s) ; anciens dossiers sauvegardés.";
+    }
+
     /// <summary>Opens the SFD draft form under the actual selected project.</summary>
     /// <param name="sender">Project menu item.</param>
     /// <param name="e">Click event.</param>
@@ -211,7 +269,23 @@ public partial class MainWindow
     /// No implicit default objects, IA invocation or 2.0 journey activation.
     /// </summary>
     /// <returns>Completed user-approved creation and navigation.</returns>
-    private async Task CreateSfdDocumentAsync()
+    private Task CreateSfdDocumentAsync() =>
+        CreateSfdDocumentAsync(null);
+
+    /// <summary>Creates a PM from the command palette, outside the SFD journey.</summary>
+    /// <returns>User-reviewed process draft.</returns>
+    private Task CreateSfdProcessFromPaletteAsync() =>
+        CreateSfdDocumentAsync(SfdDocumentKind.Process);
+
+    /// <summary>Creates an ACT from the command palette with an explicit PM parent.</summary>
+    /// <returns>User-reviewed activity Markdown file.</returns>
+    private Task CreateSfdActivityFromPaletteAsync() =>
+        CreateSfdDocumentAsync(SfdDocumentKind.Activity);
+
+    /// <summary>Opens an SFD-specific authoring dialog with optional fixed role.</summary>
+    /// <param name="fixedKind">Explicitly requested PM or ACT, or any type from menu.</param>
+    /// <returns>Completed user-reviewed creation.</returns>
+    private async Task CreateSfdDocumentAsync(SfdDocumentKind? fixedKind)
     {
         NavigationNodeViewModel? project = PilotageProject();
         if (project is null)
@@ -224,6 +298,15 @@ public partial class MainWindow
         {
             MessageBox.Show(this, "Le projet est en lecture seule.",
                 "Nouvel objet SFD", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (await new SfdJourneyService(_root.FullPath).ReadProjectKindAsync(
+                project.FullPath, project.Id) !=
+            Nodalis.Core.Domain.ProjectKind.WithSpecifications)
+        {
+            MessageBox.Show(this, "La création de PM/ACT exige un projet avec spec.",
+                "Projet SFD", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -243,7 +326,11 @@ public partial class MainWindow
             return;
         }
 
-        SfdNewDocumentDialog dialog = new(catalog.Entries)
+        Guid? preferredParent = fixedKind == SfdDocumentKind.Activity
+            ? FindSelectedSfdProcessId(catalog)
+            : null;
+        SfdNewDocumentDialog dialog = new(catalog.Entries,
+            fixedKind, preferredParent)
         {
             Owner = this
         };
@@ -268,4 +355,39 @@ public partial class MainWindow
         await RefreshNavigationAsync(created.AbsolutePath);
         StatusText.Text = "Fiche SFD créée · " + created.Card.Reference;
     }
+    /// <summary>
+    /// Suggests the current PM in the palette without assuming directory names
+    /// or trusting the selected node as an identity. The dialog still allows
+    /// changing the parent before committing the new ACT.
+    /// </summary>
+    /// <param name="catalog">Verified project-local SFD identities.</param>
+    /// <returns>Selected PM GUID when a node belongs to one process.</returns>
+    private Guid? FindSelectedSfdProcessId(SfdDocumentCatalog catalog)
+    {
+        string? selectedPath = _selectedNode?.FullPath;
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return null;
+        }
+
+        foreach (SfdDocumentEntry process in catalog.Entries.Where(
+            item => item.Card.Kind == SfdDocumentKind.Process))
+        {
+            string directory = Path.GetDirectoryName(process.AbsolutePath)!;
+            if (string.Equals(selectedPath, process.AbsolutePath,
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(selectedPath, directory,
+                    StringComparison.OrdinalIgnoreCase) ||
+                selectedPath.StartsWith(
+                    Path.TrimEndingDirectorySeparator(directory) +
+                        Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return process.Card.Id;
+            }
+        }
+
+        return null;
+    }
+
 }

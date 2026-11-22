@@ -113,8 +113,10 @@ public sealed class SfdDocumentRegistryService
                 (kind != SfdDocumentKind.Activity || item.Card.ParentId == parentId))
             .Select(item => item.Card.Reference).ToArray();
         int highest = references.Select(reference =>
-            int.Parse(reference[(reference.LastIndexOf('-') + 1)..],
-                NumberStyles.None, CultureInfo.InvariantCulture))
+            kind == SfdDocumentKind.Activity
+                ? SfdDocumentMarkdownCodec.ActivitySequence(reference)
+                : int.Parse(reference[(reference.LastIndexOf('-') + 1)..],
+                    NumberStyles.None, CultureInfo.InvariantCulture))
             .DefaultIfEmpty(0).Max();
         if (highest == 9999)
         {
@@ -122,8 +124,8 @@ public sealed class SfdDocumentRegistryService
         }
 
         string reference = kind == SfdDocumentKind.Activity
-            ? parent!.Card.Reference + "-ACT-" +
-                (highest + 1).ToString("D3", CultureInfo.InvariantCulture)
+            ? SfdDocumentMarkdownCodec.ActivityReference(
+                parent!.Card.Reference, highest + 1)
             : prefix + "-" + (highest + 1).ToString("D4",
                 CultureInfo.InvariantCulture);
         SfdDocumentCard card = new()
@@ -166,7 +168,7 @@ public sealed class SfdDocumentRegistryService
 
         string safeTitle = SafeTitleSegment(card.Title);
         bool isFolder = kind is SfdDocumentKind.Process or
-            SfdDocumentKind.Activity or SfdDocumentKind.Functionality;
+            SfdDocumentKind.Functionality;
         string documentPath;
         if (isFolder)
         {
@@ -212,7 +214,9 @@ public sealed class SfdDocumentRegistryService
         else
         {
             documentPath = Path.Combine(parentDirectory,
-                card.Reference + " - " + safeTitle + ".md");
+                kind == SfdDocumentKind.Activity
+                    ? card.Reference + ".md"
+                    : card.Reference + " - " + safeTitle + ".md");
             await AtomicFileWriter.WriteNewAllTextAsync(
                 documentPath, markdown, cancellationToken);
         }
@@ -446,10 +450,14 @@ public sealed class SfdDocumentRegistryService
                     entry.Card.Reference);
             }
             else if (entry.Card.Kind == SfdDocumentKind.Activity &&
-                entry.Card.Reference.StartsWith("PM-", StringComparison.Ordinal) &&
                 byId.TryGetValue(entry.Card.ParentId!.Value, out SfdDocumentEntry? process) &&
+                (entry.Card.Reference.StartsWith("PM-", StringComparison.Ordinal) ||
+                 SfdDocumentMarkdownCodec.IsCompactActivityReference(entry.Card.Reference)) &&
                 !entry.Card.Reference.StartsWith(
-                    process.Card.Reference + "-ACT-", StringComparison.Ordinal))
+                    process.Card.Reference + "-ACT-", StringComparison.Ordinal) &&
+                !entry.Card.Reference.StartsWith(
+                    SfdDocumentMarkdownCodec.ActivityReference(
+                        process.Card.Reference, 1)[..^3], StringComparison.Ordinal))
             {
                 diagnostics.Add("Code ACT incompatible avec le PM parent : " +
                     entry.Card.Reference);
@@ -467,6 +475,9 @@ public sealed class SfdDocumentRegistryService
         name.Equals("presentation processus.md", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("presentation activité.md", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("presentation fonctionnalité.md", StringComparison.OrdinalIgnoreCase) ||
+        (name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) &&
+            SfdDocumentMarkdownCodec.IsCompactActivityReference(
+                Path.GetFileNameWithoutExtension(name))) ||
         name.StartsWith("EXU-", StringComparison.OrdinalIgnoreCase) ||
         name.StartsWith("EXS-", StringComparison.OrdinalIgnoreCase) ||
         name.StartsWith("EXR-", StringComparison.OrdinalIgnoreCase);
