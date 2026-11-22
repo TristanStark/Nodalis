@@ -4941,6 +4941,14 @@ public partial class MainWindow : Window
             },
             new()
             {
+                Id = "sfd.activity.flatten",
+                Title = "Convertir les anciennes activités SFD en fichiers",
+                Subtitle = "Sauvegarde des dossiers historiques, conversion PM001-ACT002.md",
+                Keywords = ["SFD", "spec", "ACT", "migrer", "convertir", "aplatir", "dossier", "fichier"],
+                ExecuteAsync = ConvertLegacySfdActivitiesFromPaletteAsync
+            },
+            new()
+            {
                 Id = "project.requirement.new-v2",
                 Title = "Créer une exigence",
                 Subtitle = "Créer une fiche EXI en brouillon, avec référence et GUID stables",
