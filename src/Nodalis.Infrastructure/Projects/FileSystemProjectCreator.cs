@@ -38,15 +38,22 @@ public sealed class FileSystemProjectCreator : IProjectCreator
         ArgumentNullException.ThrowIfNull(request.Target);
 
         string name = request.Name.Trim();
-        global::Nodalis.Core.Templates.ProjectProfileCatalog profileCatalog = await _templateStore.LoadProjectProfilesAsync(
-            cancellationToken);
+        if (!Enum.IsDefined(request.Kind))
+        {
+            throw new InvalidDataException("Type de projet inconnu.");
+        }
 
-        global::Nodalis.Core.Templates.ProjectProfileDefinition profile = profileCatalog.Profiles.SingleOrDefault(
-            candidate => candidate.Complexity == request.Complexity)
-            ?? throw new InvalidDataException(
-                $"No project profile exists for '{request.Complexity}'.");
-
-        ValidateProfile(profile);
+        ProjectProfileDefinition? profile = null;
+        if (request.Kind == ProjectKind.Standard)
+        {
+            ProjectProfileCatalog profileCatalog = await _templateStore.LoadProjectProfilesAsync(
+                cancellationToken);
+            profile = profileCatalog.Profiles.SingleOrDefault(
+                candidate => candidate.Complexity == request.Complexity)
+                ?? throw new InvalidDataException(
+                    $"No project profile exists for '{request.Complexity}'.");
+            ValidateProfile(profile);
+        }
 
         string containerDirectory = request.Target.ParentProjectId is null
             ? Path.Combine(
@@ -73,20 +80,22 @@ public sealed class FileSystemProjectCreator : IProjectCreator
         {
             Directory.CreateDirectory(stagingDirectory);
 
-            global::System.Collections.Generic.List<global::Nodalis.Core.Domain.SectionManifest> sections = profile.Sections
-                .OrderBy(section => section.Order)
-                .Select(section => new SectionManifest
-                {
-                    Id = Guid.NewGuid(),
-                    Name = section.Name.Trim(),
-                    Order = section.Order,
-                    IsSingleton = section.IsSingleton,
-                    TemplateKey = string.IsNullOrWhiteSpace(section.TemplateKey)
-                        ? null
-                        : section.TemplateKey.Trim(),
-                    RelativeDirectory = section.RelativeDirectory
-                })
-                .ToList();
+            List<SectionManifest> sections = request.Kind == ProjectKind.WithSpecifications
+                ? ProjectSfdLayout.CreateSections()
+                : profile!.Sections
+                    .OrderBy(section => section.Order)
+                    .Select(section => new SectionManifest
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = section.Name.Trim(),
+                        Order = section.Order,
+                        IsSingleton = section.IsSingleton,
+                        TemplateKey = string.IsNullOrWhiteSpace(section.TemplateKey)
+                            ? null
+                            : section.TemplateKey.Trim(),
+                        RelativeDirectory = section.RelativeDirectory
+                    })
+                    .ToList();
 
             global::Nodalis.Core.Domain.ProjectManifest project = new ProjectManifest
             {
@@ -96,6 +105,8 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                 ModuleId = request.Target.ModuleId,
                 ParentProjectId = request.Target.ParentProjectId,
                 InitialComplexity = request.Complexity,
+                Kind = request.Kind,
+                KindSchemaVersion = 1,
                 Sections = sections
             };
 
@@ -113,7 +124,8 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                 "# Notes rapides\n\n",
                 cancellationToken);
 
-            bool ultraSimple = request.Complexity == ProjectComplexity.UltraSimple;
+            bool ultraSimple = request.Kind == ProjectKind.Standard &&
+                request.Complexity == ProjectComplexity.UltraSimple;
             string initialDocumentName = ultraSimple
                 ? "Fiche de Maintenance.md"
                 : "Présentation.md";
@@ -201,6 +213,11 @@ public sealed class FileSystemProjectCreator : IProjectCreator
                     cancellationToken);
             }
 
+            if (request.Kind == ProjectKind.WithSpecifications)
+            {
+                await ProjectSfdLayout.InitializeAsync(stagingDirectory, cancellationToken);
+            }
+
             Directory.Move(stagingDirectory, finalDirectory);
 
             createdPaths.Add(finalDirectory);
@@ -252,7 +269,9 @@ public sealed class FileSystemProjectCreator : IProjectCreator
             builder.AppendLine($"**Projet parent :** {request.Target.ParentProjectName}");
         }
 
-        builder.AppendLine($"**Niveau initial :** {project.InitialComplexity}");
+        builder.AppendLine(project.Kind == ProjectKind.WithSpecifications
+            ? "**Type :** Projet avec spec (SFD)"
+            : $"**Niveau initial :** {project.InitialComplexity}");
         builder.AppendLine($"**Créé le :** {DateTimeOffset.Now:yyyy-MM-dd}");
         builder.AppendLine();
         builder.AppendLine("## Présentation");

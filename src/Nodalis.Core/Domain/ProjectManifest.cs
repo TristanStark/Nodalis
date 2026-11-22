@@ -14,6 +14,12 @@ public sealed record ProjectManifest
 
     public required ProjectComplexity InitialComplexity { get; init; }
 
+    /// <summary>Project family; missing values in older manifests remain Standard.</summary>
+    public ProjectKind Kind { get; init; } = ProjectKind.Standard;
+
+    /// <summary>Schema version of the selected functional family.</summary>
+    public int KindSchemaVersion { get; init; } = 1;
+
     public List<SectionManifest> Sections { get; init; } = [];
 
     public DateTimeOffset CreatedUtc { get; init; } = DateTimeOffset.UtcNow;

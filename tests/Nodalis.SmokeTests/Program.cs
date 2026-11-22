@@ -82,6 +82,17 @@ try
     NavigationWorktreeSmokeTests.Run();
     await VerifyTemplatesAsync(root);
     await VerifyProjectCreationAsync(root);
+    await ProjectSfdSmokeTests.RunAsync(root);
+    await SfdAuthoringSmokeTests.RunAsync(root);
+    await SfdJourneySmokeTests.RunAsync(root);
+    await SfdPromptSmokeTests.RunAsync(root);
+    await SfdImportReviewSmokeTests.RunAsync(root);
+    await SfdApprovedProcessImportSmokeTests.RunAsync(root);
+    await SfdApprovedActivityImportSmokeTests.RunAsync(root);
+    await SfdApprovedRequirementImportSmokeTests.RunAsync(root);
+    await SfdApprovedRuleImportSmokeTests.RunAsync(root);
+    await SfdApprovedFeatureImportSmokeTests.RunAsync(root);
+    await SfdApprovedFieldUpdateSmokeTests.RunAsync(root);
     await ComplexProjectLayoutSmokeTests.RunAsync(root);
     await ProjectJourneySmokeTests.RunAsync(root);
     await ProjectJourneyEditingSmokeTests.RunAsync(root);

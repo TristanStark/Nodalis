@@ -346,6 +346,19 @@
                     <MenuItem Header="Ouvrir le parcours" Click="PilotageOpenCurrentJourney_Click" ToolTip="Afficher le parcours du projet actif" />
                     <MenuItem Header="Étapes et prompts…" Click="PilotageQuickAccess_Click" ToolTip="Rechercher ou parcourir toutes les étapes et opérations, ouvrir, préparer/copier et associer leurs prompts" />
                     <Separator />
+                    <MenuItem Header="Parcours SFD…" Click="PilotageSfdJourney_Click"
+                              ToolTip="Initialiser et personnaliser les cinq étapes spécifiques aux spécifications" />
+                    <MenuItem Header="Analyser une réponse IA SFD…"
+                              Click="PilotageSfdImportReview_Click"
+                              ToolTip="Coller un JSON nodalis.sfd.import.v1 et comparer sans appliquer" />
+                    <MenuItem Header="Nouvel objet SFD…" Click="PilotageNewSfdDocument_Click"
+                              ToolTip="Créer PM, ACT, EXU, EXS, EXR ou FCT dans un Projet avec spec" />
+                    <MenuItem Header="Associer activités / fonctionnalités SFD…"
+                              Click="PilotageSfdLinks_Click"
+                              ToolTip="Gérer les liens N:N ACT↔FCT sans copie documentaire" />
+                    <MenuItem Header="Conditions, sous-conditions et RM SFD…"
+                              Click="PilotageSfdStructure_Click"
+                              ToolTip="Rédiger C/SC, gérer le catalogue RM et examiner la complétude" />
                     <MenuItem Header="Nouvelle exigence…" Click="PilotageNewRequirement_Click" />
                     <MenuItem Header="Campagnes de tests…" Click="PilotageTestCampaigns_Click" />
                     <MenuItem Header="Risques…" Click="PilotageRisks_Click" />

@@ -1,0 +1,46 @@
+<Window x:Class="Nodalis.App.Dialogs.SfdThreeWayApprovalDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Arbitrer les changements SFD · comparaison 3-way"
+        Width="820" Height="650" MinWidth="680" MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" Margin="0,0,0,12"
+                   TextWrapping="Wrap" FontWeight="SemiBold"
+                   Text="Base immuable / fichier actuel / proposition IA. Sélectionnez uniquement les champs que vous souhaitez réellement appliquer. Les autres champs et sections métier seront conservés."/>
+        <GroupBox Grid.Row="1" Header="Comparaison intégrale des valeurs" Margin="0,0,0,12">
+            <TextBox x:Name="DifferencesBox" FontFamily="Consolas"
+                     FontSize="12" IsReadOnly="True"
+                     TextWrapping="Wrap" Padding="9"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto"/>
+        </GroupBox>
+        <StackPanel Grid.Row="2" Margin="0,0,0,12">
+            <CheckBox x:Name="AcceptTitleCheck" Content="Appliquer le titre proposé"
+                      Margin="0,0,0,9" Checked="Choices_Changed"
+                      Unchecked="Choices_Changed"/>
+            <CheckBox x:Name="AcceptDescriptionCheck"
+                      Content="Appliquer uniquement la description proposée par IA"
+                      Checked="Choices_Changed" Unchecked="Choices_Changed"/>
+            <TextBlock Margin="0,10,0,0" TextWrapping="Wrap"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="Les GUID, références, parents, dates, certitudes, conditions, sous-conditions, règles métiers et sections manuelles ne sont pas modifiables par cette opération. Aucun dossier n'est renommé."/>
+        </StackPanel>
+        <StackPanel Grid.Row="3" Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Content="Annuler" IsCancel="True" MinWidth="100"
+                    Margin="0,0,10,0" Padding="10,6"/>
+            <Button x:Name="ConfirmButton"
+                    Content="Confirmer les champs choisis"
+                    IsEnabled="False" MinWidth="220" Padding="10,6"
+                    Click="Confirm_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
