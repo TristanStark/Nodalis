@@ -280,6 +280,38 @@ internal static class SfdPromptSmokeTests
             project.ProjectDirectory, "sfd-master-02", existingActivity.Card.Id);
         SfdPreparedPrompt featureAssembly = await masters.PrepareAsync(
             project.ProjectDirectory, "sfd-master-03");
+        string master02 = activityDetail.Content;
+        string master02Inputs = master02[
+            master02.LastIndexOf("## Entrées à coller", StringComparison.Ordinal)..];
+        Require(master02.StartsWith(
+                "# PROMPT MAÎTRE 02 — Détailler UNE activité métier, sans exigences",
+                StringComparison.Ordinal) &&
+            master02.Contains("TEST-FONCTION-001", StringComparison.Ordinal) &&
+            master02Inputs.Contains(existingProcess.Card.Reference,
+                StringComparison.Ordinal) &&
+            master02Inputs.Contains(existingActivity.Card.Reference,
+                StringComparison.Ordinal) &&
+            !master02Inputs.Contains("[COLLER", StringComparison.Ordinal) &&
+            !master02Inputs.Contains("[PM-XXX-ACT-YYY", StringComparison.Ordinal) &&
+            !master02.Contains("# Contexte de travail préparé par Nodalis",
+                StringComparison.Ordinal) &&
+            !master02.Contains("SHA-256 :", StringComparison.Ordinal) &&
+            !master02.Contains("nodalis-sfd-schema:", StringComparison.Ordinal) &&
+            !master02.Contains("sfd-id:", StringComparison.Ordinal),
+            "Prompt 02 must keep the original instructions FIRST, fill all inputs " +
+            "from real project/PM/ACT Markdown, and omit Nodalis metadata.");
+
+        foreach (SfdPreparedPrompt master in new[]
+            { cartography, activityDetail, featureAssembly })
+        {
+            string inputs = master.Content[
+                master.Content.LastIndexOf("## Entrées à coller",
+                    StringComparison.Ordinal)..];
+            Require(!inputs.Contains("[COLLER", StringComparison.Ordinal) &&
+                !inputs.Contains("[PM-XXX-ACT-YYY", StringComparison.Ordinal),
+                "All visible input slots of master prompts 01–03 must be populated.");
+        }
+
         Require(cartography.Content.Contains("TEST-FONCTION-001",
                 StringComparison.Ordinal) &&
             !File.Exists(Path.Combine(project.ProjectDirectory,
@@ -311,6 +343,58 @@ internal static class SfdPromptSmokeTests
             existingActivity.Card.Id, feature.Card.Id);
         SfdPreparedPrompt specification = await masters.PrepareAsync(
             project.ProjectDirectory, "sfd-master-05", null, feature.Card.Id);
+        foreach (SfdPreparedPrompt master in new[]
+            { requirements, specification })
+        {
+            string inputs = master.Content[
+                master.Content.LastIndexOf("## Entrées à coller",
+                    StringComparison.Ordinal)..];
+            Require(master.Content.StartsWith("# PROMPT MAÎTRE",
+                    StringComparison.Ordinal) &&
+                !inputs.Contains("[COLLER", StringComparison.Ordinal) &&
+                !inputs.Contains("nodalis-sfd-schema:", StringComparison.Ordinal) &&
+                !master.Content.Contains("# Contexte de travail préparé par Nodalis",
+                    StringComparison.Ordinal),
+                "Master prompts 04 and 05 must keep the original input contract " +
+                "without bare placeholders or technical envelopes.");
+        }
+
+        bool missingTargetRejected = false;
+        try
+        {
+            await masters.PrepareAsync(
+                project.ProjectDirectory, "sfd-master-02");
+        }
+        catch (InvalidOperationException)
+        {
+            missingTargetRejected = true;
+        }
+
+        Require(missingTargetRejected,
+            "A missing ACT selection must never silently target the first activity.");
+
+        SfdDocumentEntry distinctProcess = await documentRegistry.CreateAsync(
+            project.ProjectDirectory, SfdDocumentKind.Process,
+            "Second processus fictif");
+        SfdDocumentEntry distinctActivity = await documentRegistry.CreateAsync(
+            project.ProjectDirectory, SfdDocumentKind.Activity,
+            "Décider une action fictive", distinctProcess.Card.Id);
+        await File.AppendAllTextAsync(distinctProcess.AbsolutePath,
+            "\n## Objectif documenté distinct\n\nCONTEXTE-PM-SECOND-VERIFIE.\n");
+        SfdPreparedPrompt explicitlySelected = await masters.PrepareAsync(
+            project.ProjectDirectory, "sfd-master-02",
+            distinctActivity.Card.Id);
+        string selectedInputs = explicitlySelected.Content[
+            explicitlySelected.Content.LastIndexOf("## Entrées à coller",
+                StringComparison.Ordinal)..];
+        Require(selectedInputs.Contains("CONTEXTE-PM-SECOND-VERIFIE",
+                StringComparison.Ordinal) &&
+            selectedInputs.Contains(distinctActivity.Card.Reference +
+                " — " + distinctActivity.Card.Title, StringComparison.Ordinal) &&
+            !selectedInputs.Contains(existingActivity.Card.Reference,
+                StringComparison.Ordinal),
+            "Selecting a different ACT must produce only that ACT and its real PM.");
+
         Require(requirements.Content.Contains("PROMPT MAÎTRE 04",
                 StringComparison.Ordinal) &&
             specification.Content.Contains("PROMPT MAÎTRE 05",
