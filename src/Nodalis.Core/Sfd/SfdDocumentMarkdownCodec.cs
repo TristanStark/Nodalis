@@ -57,6 +57,25 @@ public static class SfdDocumentMarkdownCodec
         System.Text.RegularExpressions.Regex.IsMatch(reference,
             @"^PM[0-9]{3,4}-ACT[0-9]{3,4}$");
 
+    /// <summary>Extracts the numeric ACT sequence from compact and historical codes.</summary>
+    /// <param name="reference">An ACT code in one of the supported formats.</param>
+    /// <returns>Sequence number local to the process for parent-scoped references.</returns>
+    public static int ActivitySequence(string reference)
+    {
+        System.Text.RegularExpressions.Match match =
+            System.Text.RegularExpressions.Regex.Match(reference,
+                @"(?:ACT-?)([0-9]{3,4})$");
+        if (!match.Success ||
+            !int.TryParse(match.Groups[1].Value, NumberStyles.None,
+                CultureInfo.InvariantCulture, out int sequence) ||
+            sequence is < 1 or > 9999)
+        {
+            throw new InvalidDataException("Numéro d'activité SFD invalide.");
+        }
+
+        return sequence;
+    }
+
     /// <summary>Checks a complete SFD identity without imposing completion cardinalities on drafts.</summary>
     /// <param name="card">Versioned document identity.</param>
     public static void Validate(SfdDocumentCard card)
