@@ -55,13 +55,17 @@ public static class SfdDocumentMarkdownCodec
             int.TryParse(card.Reference[(lastSeparator + 1)..],
                 NumberStyles.None, CultureInfo.InvariantCulture, out int number) &&
             number is >= 1 and <= 9999;
+        bool positiveParent = true;
+        if (parentScopedActivity)
+        {
+            int separator = card.Reference.IndexOf('-', 3);
+            positiveParent = int.TryParse(card.Reference.AsSpan(3, separator - 3),
+                NumberStyles.None, CultureInfo.InvariantCulture,
+                out int processNumber) && processNumber is >= 1 and <= 9999;
+        }
+
         if ((!legacyReference && !parentScopedActivity) || !positiveSuffix ||
-            (parentScopedActivity &&
-                !int.TryParse(card.Reference.AsSpan(3,
-                    card.Reference.IndexOf('-', 3) - 3),
-                    NumberStyles.None, CultureInfo.InvariantCulture,
-                    out int processNumber) || parentScopedActivity &&
-                processNumber is < 1 or > 9999))
+            !positiveParent)
         {
             throw new InvalidDataException("Référence SFD invalide.");
         }
