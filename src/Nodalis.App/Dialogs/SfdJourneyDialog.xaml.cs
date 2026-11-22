@@ -27,7 +27,10 @@ public partial class SfdJourneyDialog : Window
     private bool _painting;
 
     private sealed record StepChoice(ProjectJourneyStep Step, string Label);
-    private sealed record DocumentChoice(Guid Id, string Label, string Title);
+    private sealed record DocumentChoice(
+        Guid Id, string Label, string Title, Guid? ParentId);
+
+    private DocumentChoice[] _availableActivities = [];
     private sealed record OperationChoice(ProjectJourneyOperation Operation, string Label);
     private sealed record StatusChoice(ProjectJourneyStepStatus Status, string Label);
 
@@ -117,8 +120,11 @@ public partial class SfdJourneyDialog : Window
         UpdateButtons();
     }
 
-    /// <summary>Refreshes PM/ACT/FCT selectors using canonical document IDs.</summary>
-    /// <param name="catalog">Current, unambiguous SFD document catalog.</param>
+    /// <summary>
+    /// Refreshes PM/ACT/FCT selectors without silently choosing an ACT or FCT.
+    /// The activity dropdown is always restricted to the selected process.
+    /// </summary>
+    /// <param name="catalog">Verified SFD document catalog.</param>
     private void RefreshDocumentSelectors(SfdDocumentCatalog catalog)
     {
         Guid? priorProcess = (ProcessCombo.SelectedItem as DocumentChoice)?.Id;
@@ -128,26 +134,98 @@ public partial class SfdJourneyDialog : Window
             .Where(item => item.Card.Kind == SfdDocumentKind.Process)
             .Select(item => new DocumentChoice(item.Card.Id,
                 item.Card.Reference + " — " + item.Card.Title,
-                item.Card.Title)).ToArray();
-        DocumentChoice[] activities = catalog.Entries
+                item.Card.Title, null)).ToArray();
+        _availableActivities = catalog.Entries
             .Where(item => item.Card.Kind == SfdDocumentKind.Activity)
             .Select(item => new DocumentChoice(item.Card.Id,
                 item.Card.Reference + " — " + item.Card.Title,
-                item.Card.Title)).ToArray();
+                item.Card.Title, item.Card.ParentId)).ToArray();
         DocumentChoice[] functionalities = catalog.Entries
             .Where(item => item.Card.Kind == SfdDocumentKind.Functionality)
             .Select(item => new DocumentChoice(item.Card.Id,
                 item.Card.Reference + " — " + item.Card.Title,
-                item.Card.Title)).ToArray();
-        ProcessCombo.ItemsSource = processes;
-        ActivityCombo.ItemsSource = activities;
-        FunctionalityCombo.ItemsSource = functionalities;
-        ProcessCombo.SelectedItem = processes.FirstOrDefault(item =>
-            item.Id == priorProcess) ?? processes.FirstOrDefault();
-        ActivityCombo.SelectedItem = activities.FirstOrDefault(item =>
-            item.Id == priorActivity) ?? activities.FirstOrDefault();
-        FunctionalityCombo.SelectedItem = functionalities.FirstOrDefault(item =>
-            item.Id == priorFunctionality) ?? functionalities.FirstOrDefault();
+                item.Card.Title, null)).ToArray();
+        bool priorPainting = _painting;
+        _painting = true;
+        try
+        {
+            ProcessCombo.ItemsSource = processes;
+            FunctionalityCombo.ItemsSource = functionalities;
+            ProcessCombo.SelectedItem = processes.FirstOrDefault(item =>
+                item.Id == priorProcess);
+            ApplyActivityFilter(priorActivity);
+            FunctionalityCombo.SelectedItem = functionalities.FirstOrDefault(item =>
+                item.Id == priorFunctionality);
+        }
+        finally
+        {
+            _painting = priorPainting;
+        }
+    }
+
+    /// <summary>
+    /// Presents only ACTs belonging to the explicit PM choice. No arbitrary
+    /// first activity may become an AI generation target.
+    /// </summary>
+    /// <param name="preferredActivity">Previously explicit ACT, if it still belongs to this PM.</param>
+    private void ApplyActivityFilter(Guid? preferredActivity)
+    {
+        Guid? pm = (ProcessCombo.SelectedItem as DocumentChoice)?.Id;
+        DocumentChoice[] choices = _availableActivities
+            .Where(item => item.ParentId == pm && pm.HasValue).ToArray();
+        ActivityCombo.ItemsSource = choices;
+        ActivityCombo.SelectedItem = choices.FirstOrDefault(item =>
+            item.Id == preferredActivity);
+    }
+
+    /// <summary>Updates the ACT list whenever a different PM is selected.</summary>
+    /// <param name="sender">PM combo.</param>
+    /// <param name="e">Selection change.</param>
+    private void ProcessCombo_SelectionChanged(
+        object sender, SelectionChangedEventArgs e)
+    {
+        if (_painting || ActivityCombo is null)
+        {
+            return;
+        }
+
+        Guid? selected = (ActivityCombo.SelectedItem as DocumentChoice)?.Id;
+        bool priorPainting = _painting;
+        _painting = true;
+        try
+        {
+            ApplyActivityFilter(selected);
+        }
+        finally
+        {
+            _painting = priorPainting;
+        }
+
+        UpdateButtons();
+    }
+
+    /// <summary>Updates availability when the user explicitly chooses an ACT.</summary>
+    /// <param name="sender">ACT combo.</param>
+    /// <param name="e">Selection change.</param>
+    private void ActivityCombo_SelectionChanged(
+        object sender, SelectionChangedEventArgs e)
+    {
+        if (!_painting)
+        {
+            UpdateButtons();
+        }
+    }
+
+    /// <summary>Updates availability when the user explicitly chooses a FCT.</summary>
+    /// <param name="sender">FCT combo.</param>
+    /// <param name="e">Selection change.</param>
+    private void FunctionalityCombo_SelectionChanged(
+        object sender, SelectionChangedEventArgs e)
+    {
+        if (!_painting)
+        {
+            UpdateButtons();
+        }
     }
 
     /// <summary>Resolves a status name without treating it as business approval.</summary>
@@ -215,11 +293,17 @@ public partial class SfdJourneyDialog : Window
         RenameOperationButton.IsEnabled = writable && selectedOperation;
         LinkSourcesButton.IsEnabled = writable && selectedOperation;
         SaveStatusButton.IsEnabled = writable && selectedStage;
+        string? requested = SelectedOperation()?.PromptKey;
+        bool hasActivity = ActivityCombo.SelectedItem is DocumentChoice;
+        bool hasFunctionality = FunctionalityCombo.SelectedItem is DocumentChoice;
         PreparePromptButton.IsEnabled = _snapshot is not null &&
-            SelectedOperation()?.PromptKey is
-                ("sfd-01" or "sfd-02" or "sfd-03" or "sfd-04" or
-                 "sfd-master-01" or "sfd-master-02" or "sfd-master-03" or
-                 "sfd-master-04" or "sfd-master-05");
+            requested is ("sfd-01" or "sfd-02" or "sfd-03" or "sfd-04" or
+                "sfd-master-01" or "sfd-master-02" or "sfd-master-03" or
+                "sfd-master-04" or "sfd-master-05") &&
+            (requested is not ("sfd-master-02" or "sfd-master-04") ||
+                hasActivity) &&
+            (requested is not ("sfd-master-04" or "sfd-master-05") ||
+                hasFunctionality);
         CreateProcessButton.IsEnabled = !_readOnly;
         CreateActivityButton.IsEnabled = !_readOnly &&
             ProcessCombo.SelectedItem is DocumentChoice;
@@ -531,7 +615,17 @@ public partial class SfdJourneyDialog : Window
     /// <returns>Review-only preview dialog.</returns>
     private async Task PrepareMasterAsync(string key)
     {
-        Guid? activityId = (ActivityCombo.SelectedItem as DocumentChoice)?.Id;
+        DocumentChoice? activity = ActivityCombo.SelectedItem as DocumentChoice;
+        DocumentChoice? process = ProcessCombo.SelectedItem as DocumentChoice;
+        if (key is "sfd-master-02" or "sfd-master-04" &&
+            (activity is null || process is null ||
+                activity.ParentId != process.Id))
+        {
+            throw new InvalidOperationException(
+                "Choisissez le PM et l'activité cible correspondante.");
+        }
+
+        Guid? activityId = activity?.Id;
         Guid? functionalityId = (FunctionalityCombo.SelectedItem as DocumentChoice)?.Id;
         SfdPreparedPrompt prepared = await _masters.PrepareAsync(
             _projectDirectory, key, activityId, functionalityId);
