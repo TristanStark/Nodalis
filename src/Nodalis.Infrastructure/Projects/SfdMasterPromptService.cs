@@ -119,8 +119,13 @@ public sealed class SfdMasterPromptService
             .AppendLine();
 
         string projectPresentation = Path.Combine(
-            Path.GetFullPath(projectDirectory), "SPECS FONCTIONNELLES",
-            "presentation projet.md");
+            Path.GetFullPath(projectDirectory), "Présentation.md");
+        if (!File.Exists(projectPresentation))
+        {
+            // Older or manually created projects may use the unaccented name.
+            projectPresentation = Path.Combine(
+                Path.GetFullPath(projectDirectory), "presentation.md");
+        }
         if (File.Exists(projectPresentation))
         {
             await AppendFileAsync(context, warnings, seen,
@@ -128,8 +133,8 @@ public sealed class SfdMasterPromptService
         }
         else
         {
-            warnings.Add("Présentation du projet absente : liez une note projet " +
-                "dans les sources de l'opération ou créez la présentation Markdown.");
+            warnings.Add("Présentation.md à la racine absente : renseignez la " +
+                "présentation canonique du projet ou liez une source Markdown/TXT.");
         }
 
         foreach (string reference in operation.SourcePaths.Distinct(
