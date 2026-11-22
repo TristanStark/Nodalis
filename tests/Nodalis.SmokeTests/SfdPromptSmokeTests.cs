@@ -269,6 +269,20 @@ internal static class SfdPromptSmokeTests
             SfdJourneyDefaults.UpgradeToMasterPrompts(priorMaster.Document);
         await journeyService.SaveAsync(project.ProjectDirectory,
             masterJourney, priorMaster.Sha256);
+        SfdMasterPromptService masters = new(workspace);
+        bool blankOverviewRefused = false;
+        try
+        {
+            await masters.PrepareAsync(project.ProjectDirectory,
+                "sfd-master-02", existingActivity.Card.Id);
+        }
+        catch (InvalidDataException)
+        {
+            blankOverviewRefused = true;
+        }
+
+        Require(blankOverviewRefused,
+            "A default empty project presentation must not yield a copy-ready prompt.");
         string rootPresentation = Path.Combine(project.ProjectDirectory,
             "Présentation.md");
         string overview = await File.ReadAllTextAsync(rootPresentation);
@@ -279,7 +293,6 @@ internal static class SfdPromptSmokeTests
             "## Présentation\n\nCONTEXTE MÉTIER RACINE UNIQUE TEST-FONCTION-001\n\n## Liens métier",
             StringComparison.Ordinal);
         await File.WriteAllTextAsync(rootPresentation, overview);
-        SfdMasterPromptService masters = new(workspace);
         SfdPreparedPrompt cartography = await masters.PrepareAsync(
             project.ProjectDirectory, "sfd-master-01");
         SfdPreparedPrompt activityDetail = await masters.PrepareAsync(
