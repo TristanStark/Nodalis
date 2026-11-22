@@ -27,7 +27,7 @@ public partial class SfdJourneyDialog : Window
     private bool _painting;
 
     private sealed record StepChoice(ProjectJourneyStep Step, string Label);
-    private sealed record DocumentChoice(Guid Id, string Label);
+    private sealed record DocumentChoice(Guid Id, string Label, string Title);
     private sealed record OperationChoice(ProjectJourneyOperation Operation, string Label);
     private sealed record StatusChoice(ProjectJourneyStepStatus Status, string Label);
 
@@ -127,15 +127,18 @@ public partial class SfdJourneyDialog : Window
         DocumentChoice[] processes = catalog.Entries
             .Where(item => item.Card.Kind == SfdDocumentKind.Process)
             .Select(item => new DocumentChoice(item.Card.Id,
-                item.Card.Reference + " — " + item.Card.Title)).ToArray();
+                item.Card.Reference + " — " + item.Card.Title,
+                item.Card.Title)).ToArray();
         DocumentChoice[] activities = catalog.Entries
             .Where(item => item.Card.Kind == SfdDocumentKind.Activity)
             .Select(item => new DocumentChoice(item.Card.Id,
-                item.Card.Reference + " — " + item.Card.Title)).ToArray();
+                item.Card.Reference + " — " + item.Card.Title,
+                item.Card.Title)).ToArray();
         DocumentChoice[] functionalities = catalog.Entries
             .Where(item => item.Card.Kind == SfdDocumentKind.Functionality)
             .Select(item => new DocumentChoice(item.Card.Id,
-                item.Card.Reference + " — " + item.Card.Title)).ToArray();
+                item.Card.Reference + " — " + item.Card.Title,
+                item.Card.Title)).ToArray();
         ProcessCombo.ItemsSource = processes;
         ActivityCombo.ItemsSource = activities;
         FunctionalityCombo.ItemsSource = functionalities;
@@ -220,6 +223,8 @@ public partial class SfdJourneyDialog : Window
         CreateProcessButton.IsEnabled = !_readOnly;
         CreateActivityButton.IsEnabled = !_readOnly &&
             ProcessCombo.SelectedItem is DocumentChoice;
+        RenameActivityButton.IsEnabled = !_readOnly &&
+            ActivityCombo.SelectedItem is DocumentChoice;
         DetermineProcessesButton.IsEnabled = _snapshot?.Document.Steps
             .SelectMany(step => step.Operations)
             .Any(operation => operation.PromptKey == "sfd-master-01") == true;
@@ -489,6 +494,35 @@ public partial class SfdJourneyDialog : Window
             ActivityCombo.SelectedItem = selected;
             StatusText.Text = "Activité créée : " + created.Card.Reference +
                 ". Son titre et son contenu métier sont modifiables.";
+        });
+
+    /// <summary>Renames the selected ACT title without losing its canonical ID or body.</summary>
+    /// <param name="sender">Rename activity button.</param>
+    /// <param name="e">Click event.</param>
+    private async void RenameActivity_Click(object sender, RoutedEventArgs e) =>
+        await RunSafeAsync(async () =>
+        {
+            if (_readOnly || ActivityCombo.SelectedItem is not DocumentChoice activity)
+            {
+                return;
+            }
+
+            TextPromptDialog dialog = new("Renommer l'activité métier",
+                "Nouvel intitulé de l'activité", activity.Title)
+            { Owner = this };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            SfdDocumentEntry renamed = await _documents.RenameActivityAsync(
+                _projectDirectory, activity.Id, dialog.Value);
+            Changed = true;
+            await RefreshAsync();
+            ActivityCombo.SelectedItem = (ActivityCombo.ItemsSource as
+                IEnumerable<DocumentChoice>)?.FirstOrDefault(item =>
+                    item.Id == renamed.Card.Id);
+            StatusText.Text = "Activité renommée : " + renamed.Card.Reference;
         });
 
     /// <summary>Prepares the original master prompt with canonical selected context.</summary>
