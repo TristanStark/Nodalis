@@ -27,6 +27,36 @@ public static class SfdDocumentMarkdownCodec
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
+    /// <summary>Composes the compact visible ACT code for either historical or new PM labels.</summary>
+    /// <param name="processReference">Verified process reference (PM-0001 or PM001).</param>
+    /// <param name="sequence">Sequence inside this single business process.</param>
+    /// <returns>Compact identifier such as PM001-ACT002.</returns>
+    public static string ActivityReference(string processReference, int sequence)
+    {
+        System.Text.RegularExpressions.Match match =
+            System.Text.RegularExpressions.Regex.Match(processReference,
+                @"^PM-?([0-9]{3,4})$");
+        if (!match.Success ||
+            !int.TryParse(match.Groups[1].Value, NumberStyles.None,
+                CultureInfo.InvariantCulture, out int processNumber) ||
+            processNumber is < 1 or > 9999 ||
+            sequence is < 1 or > 9999)
+        {
+            throw new InvalidDataException("Référence PM ou numéro ACT invalide.");
+        }
+
+        return "PM" + processNumber.ToString("D3", CultureInfo.InvariantCulture) +
+            "-ACT" + sequence.ToString("D3", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Recognizes new flat ACT references without affecting historical IDs.</summary>
+    /// <param name="reference">Document reference to inspect.</param>
+    /// <returns>True when the code follows PM001-ACT002.</returns>
+    public static bool IsCompactActivityReference(string reference) =>
+        !string.IsNullOrEmpty(reference) &&
+        System.Text.RegularExpressions.Regex.IsMatch(reference,
+            @"^PM[0-9]{3,4}-ACT[0-9]{3,4}$");
+
     /// <summary>Checks a complete SFD identity without imposing completion cardinalities on drafts.</summary>
     /// <param name="card">Versioned document identity.</param>
     public static void Validate(SfdDocumentCard card)
@@ -48,8 +78,9 @@ public static class SfdDocumentMarkdownCodec
         bool legacyReference = System.Text.RegularExpressions.Regex.IsMatch(
             card.Reference, "^" + prefix + @"[0-9]{4}$");
         bool parentScopedActivity = card.Kind == SfdDocumentKind.Activity &&
-            System.Text.RegularExpressions.Regex.IsMatch(card.Reference,
-                @"^PM-[0-9]{3,4}-ACT-[0-9]{3,4}$");
+            (System.Text.RegularExpressions.Regex.IsMatch(card.Reference,
+                @"^PM-[0-9]{3,4}-ACT-[0-9]{3,4}$") ||
+             IsCompactActivityReference(card.Reference));
         int lastSeparator = card.Reference.LastIndexOf('-');
         bool positiveSuffix = lastSeparator >= 0 &&
             int.TryParse(card.Reference[(lastSeparator + 1)..],
@@ -58,10 +89,13 @@ public static class SfdDocumentMarkdownCodec
         bool positiveParent = true;
         if (parentScopedActivity)
         {
-            int separator = card.Reference.IndexOf('-', 3);
-            positiveParent = int.TryParse(card.Reference.AsSpan(3, separator - 3),
-                NumberStyles.None, CultureInfo.InvariantCulture,
-                out int processNumber) && processNumber is >= 1 and <= 9999;
+            System.Text.RegularExpressions.Match processMatch =
+                System.Text.RegularExpressions.Regex.Match(card.Reference,
+                    @"^PM-?([0-9]{3,4})-ACT-?[0-9]{3,4}$");
+            positiveParent = processMatch.Success &&
+                int.TryParse(processMatch.Groups[1].Value, NumberStyles.None,
+                    CultureInfo.InvariantCulture, out int processNumber) &&
+                processNumber is >= 1 and <= 9999;
         }
 
         if ((!legacyReference && !parentScopedActivity) || !positiveSuffix ||
