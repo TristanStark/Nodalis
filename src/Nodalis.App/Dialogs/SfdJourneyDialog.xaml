@@ -74,7 +74,9 @@
         <WrapPanel Grid.Row="5" Margin="0,0,0,6">
             <TextBlock Text="PM parent :" VerticalAlignment="Center" Margin="0,0,6,7"/>
             <ComboBox x:Name="ProcessCombo" Width="166" MinHeight="29"
-                      DisplayMemberPath="Label" Margin="0,0,9,7"/>
+                      DisplayMemberPath="Label" Margin="0,0,9,7"
+                      SelectionChanged="ProcessCombo_SelectionChanged"
+                      ToolTip="Choisir explicitement le PM parent"/>
             <Button x:Name="CreateProcessButton" Content="+ Créer un processus métier"
                     Padding="9,5" Margin="0,0,7,7" Click="CreateProcess_Click"/>
             <Button x:Name="CreateActivityButton" Content="+ Créer une activité"
@@ -83,10 +85,14 @@
                     Padding="9,5" Margin="0,0,14,7" Click="RenameActivity_Click"/>
             <TextBlock Text="Activité :" VerticalAlignment="Center" Margin="0,0,6,7"/>
             <ComboBox x:Name="ActivityCombo" Width="175" MinHeight="29"
-                      DisplayMemberPath="Label" Margin="0,0,9,7"/>
+                      DisplayMemberPath="Label" Margin="0,0,9,7"
+                      SelectionChanged="ActivityCombo_SelectionChanged"
+                      ToolTip="Seules les ACT du PM sélectionné sont proposées"/>
             <TextBlock Text="Fonctionnalité :" VerticalAlignment="Center" Margin="0,0,6,7"/>
             <ComboBox x:Name="FunctionalityCombo" Width="175" MinHeight="29"
-                      DisplayMemberPath="Label" Margin="0,0,7,7"/>
+                      DisplayMemberPath="Label" Margin="0,0,7,7"
+                      SelectionChanged="FunctionalityCombo_SelectionChanged"
+                      ToolTip="Choisir explicitement la FCT cible"/>
         </WrapPanel>
         <WrapPanel Grid.Row="6" Margin="0,0,0,8">
             <Button x:Name="DetermineProcessesButton" Content="Déterminer les processus métiers"
