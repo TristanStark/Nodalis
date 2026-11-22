@@ -472,75 +472,73 @@
                     BorderThickness="0,0,1,0"
                     Padding="10">
                 <DockPanel>
-                    <Grid DockPanel.Dock="Top" Margin="4,1,0,8">
+                    <!-- Single-line explorer toolbar: advanced display options live
+                         under the compact Outils menu at the foot of the pane. -->
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,7">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="EXPLORATEUR"
-                                   VerticalAlignment="Center"
+                        <TextBlock Text="EXPLORATEUR" VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
                                    FontSize="11" FontWeight="SemiBold"
                                    Foreground="{StaticResource SecondaryTextBrush}" />
-                        <Button Grid.Column="1"
-                                Style="{StaticResource WorktreeHeaderButtonStyle}"
-                                Margin="0,0,4,0"
+                        <Button Grid.Column="1" Style="{StaticResource WorktreeHeaderButtonStyle}"
+                                Margin="0,0,3,0"
                                 Click="RevealActiveDocument_Click"
                                 ToolTip="Révéler le document actif dans l'arbre"
                                 AutomationProperties.Name="Révéler le document actif dans l'explorateur">
-                            <Path Width="16" Height="16"
-                                  Stretch="Uniform"
+                            <Path Width="16" Height="16" Stretch="Uniform"
                                   Stroke="{StaticResource PrimaryTextBrush}"
                                   StrokeThickness="1.6"
-                                  StrokeStartLineCap="Round"
-                                  StrokeEndLineCap="Round"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                   StrokeLineJoin="Round"
                                   Data="M 3,13 L 13,3 M 7,3 L 13,3 L 13,9" />
                         </Button>
-                        <Button Grid.Column="2"
-                                Style="{StaticResource WorktreeHeaderButtonStyle}"
-                                Click="CreateApplication_Click"
-                                Margin="0,0,4,0"
+                        <Button Grid.Column="2" Style="{StaticResource WorktreeHeaderButtonStyle}"
+                                Margin="0,0,3,0" Click="CreateApplication_Click"
                                 ToolTip="Nouvelle application"
                                 AutomationProperties.Name="Créer une application">
-                            <Path Width="16" Height="16"
-                                  Stretch="Uniform"
+                            <Path Width="16" Height="16" Stretch="Uniform"
                                   Stroke="{StaticResource PrimaryTextBrush}"
                                   StrokeThickness="1.6"
-                                  StrokeStartLineCap="Round"
-                                  StrokeEndLineCap="Round"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                   Data="M 8,2 L 8,14 M 2,8 L 14,8" />
                         </Button>
-                        <Button Grid.Column="3"
-                                Style="{StaticResource WorktreeHeaderButtonStyle}"
-                                Click="OpenProjectJourney_Click"
-                                Content="▦"
-                                ToolTip="Parcours du projet sélectionné"
+                        <Button Grid.Column="3" Style="{StaticResource WorktreeHeaderButtonStyle}"
+                                Margin="0,0,3,0" Click="OpenProjectJourney_Click"
+                                Content="▦" ToolTip="Parcours du projet sélectionné"
                                 AutomationProperties.Name="Ouvrir le parcours du projet" />
+                        <Button Grid.Column="4" Style="{StaticResource WorktreeHeaderButtonStyle}"
+                                Click="ToggleWorktreeFilter_Click"
+                                ToolTip="Afficher ou masquer le filtre de l'explorateur"
+                                AutomationProperties.Name="Afficher ou masquer le filtre de l'explorateur">
+                            <Path Width="16" Height="16" Stretch="Uniform"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.7" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Data="M 11,11 L 15,15 M 12.5,7 A 5.5,5.5 0 1 1 1.5,7 A 5.5,5.5 0 1 1 12.5,7" />
+                        </Button>
                     </Grid>
 
-                    <!-- P1 filter and display modes; all operate on the existing tree VM. -->
-                    <Grid DockPanel.Dock="Top"
-                          Margin="0,0,0,6">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
+                    <!-- Filtering only occupies height when explicitly requested. -->
+                    <Grid x:Name="WorktreeFilterPanel" DockPanel.Dock="Top"
+                          Visibility="Collapsed" Margin="0,0,0,7">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="32" />
                         </Grid.ColumnDefinitions>
-                        <Grid Grid.Row="0" Grid.Column="0" Margin="0,0,4,0">
-                            <TextBox x:Name="WorktreeFilterBox"
-                                     Height="31" MinHeight="31"
+                        <Grid Grid.Column="0" Margin="0,0,4,0">
+                            <TextBox x:Name="WorktreeFilterBox" Height="31" MinHeight="31"
                                      VerticalContentAlignment="Center"
                                      ToolTip="Filtrer instantanément les noms de l'explorateur"
                                      AutomationProperties.Name="Filtrer les éléments de l'explorateur"
-                                     TextChanged="WorktreeFilterBox_TextChanged" />
-                            <TextBlock Text="Filtrer…"
-                                       Margin="10,0,4,0"
+                                     TextChanged="WorktreeFilterBox_TextChanged"
+                                     PreviewKeyDown="WorktreeFilterBox_PreviewKeyDown" />
+                            <TextBlock Text="Filtrer…" Margin="10,0,4,0"
                                        VerticalAlignment="Center"
                                        IsHitTestVisible="False"
                                        Foreground="{StaticResource SecondaryTextBrush}">
@@ -556,37 +554,11 @@
                                 </TextBlock.Style>
                             </TextBlock>
                         </Grid>
-                        <Button Grid.Row="0" Grid.Column="1"
-                                Style="{StaticResource WorktreeHeaderButtonStyle}"
+                        <Button Grid.Column="1" Style="{StaticResource WorktreeHeaderButtonStyle}"
                                 Width="32" Height="31" MinHeight="31"
                                 ToolTip="Effacer le filtre"
                                 AutomationProperties.Name="Effacer le filtre de l'explorateur"
-                                Content="×"
-                                Click="ClearWorktreeFilter_Click" />
-                        <Grid Grid.Row="1" Grid.ColumnSpan="2" Margin="0,5,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <CheckBox x:Name="WorktreeApplicationScopeCheck"
-                                      Grid.Column="0"
-                                      Content="Application courante"
-                                      ToolTip="Limiter visuellement l'arbre à l'application du document ou projet actif"
-                                      VerticalAlignment="Center"
-                                      FontSize="11"
-                                      Checked="WorktreeApplicationScope_Changed"
-                                      Unchecked="WorktreeApplicationScope_Changed" />
-                            <ComboBox x:Name="WorktreeDensityComboBox"
-                                      Grid.Column="1"
-                                      Width="105" Height="30"
-                                      MinHeight="30"
-                                      ToolTip="Densité des lignes de l'explorateur"
-                                      AutomationProperties.Name="Densité de l'explorateur"
-                                      SelectionChanged="WorktreeDensityComboBox_SelectionChanged">
-                                <ComboBoxItem Content="Confortable" Tag="Comfortable" />
-                                <ComboBoxItem Content="Compact" Tag="Compact" />
-                            </ComboBox>
-                        </Grid>
+                                Content="×" Click="ClearWorktreeFilter_Click" />
                     </Grid>
 
                     <!-- Shortcuts are derived from Quick Open's existing favorites
@@ -758,26 +730,37 @@
                         </ItemsControl>
                     </Border>
 
-                    <StackPanel DockPanel.Dock="Bottom"
-                                Margin="0,10,0,0">
-                        <Button Margin="0,0,0,6"
-                                Click="OpenWorkspaceCalendar_Click"
-                                Content="Calendrier workspace" />
-                        <Button Margin="0,0,0,6"
-                                Click="OpenWorkspaceKanban_Click"
-                                Content="Kanban tâches" />
-                        <Button Margin="0,0,0,6"
-                                Click="OpenProjectHealth_Click"
-                                Content="Health check projet" />
-                        <Button Margin="0,0,0,6"
-                                Click="OpenProjectCoverage_Click"
-                                Content="Couverture &amp; cohérence" />
-                        <Button Margin="0,0,0,6"
-                                Click="OpenWorkspaceIntegrity_Click"
-                                Content="Diagnostic workspace" />
-                        <Button Click="OpenTrash_Click"
-                                Content="Corbeille" />
-                    </StackPanel>
+                    <!-- Six secondary panes and explorer display settings in
+                         a single discoverable menu, saving vertical space. -->
+                    <Menu DockPanel.Dock="Bottom"
+                          Margin="0,7,0,0" MinHeight="32"
+                          Background="{StaticResource PanelBackgroundBrush}"
+                          AutomationProperties.Name="Outils de l'explorateur">
+                        <MenuItem Header="Outils ▾" ToolTip="Outils et affichage de l'explorateur">
+                            <MenuItem Header="Calendrier workspace" Click="OpenWorkspaceCalendar_Click" />
+                            <MenuItem Header="Kanban tâches" Click="OpenWorkspaceKanban_Click" />
+                            <MenuItem Header="Health check projet" Click="OpenProjectHealth_Click" />
+                            <MenuItem Header="Couverture et cohérence" Click="OpenProjectCoverage_Click" />
+                            <MenuItem Header="Diagnostic workspace" Click="OpenWorkspaceIntegrity_Click" />
+                            <MenuItem Header="Corbeille" Click="OpenTrash_Click" />
+                            <Separator />
+                            <MenuItem x:Name="WorktreeApplicationScopeCheck"
+                                      Header="Application courante" IsCheckable="True"
+                                      ToolTip="Limiter l'arbre à l'application active"
+                                      Checked="WorktreeApplicationScope_Changed"
+                                      Unchecked="WorktreeApplicationScope_Changed" />
+                            <MenuItem Header="Densité de l'explorateur">
+                                <MenuItem x:Name="WorktreeDensityComfortableItem"
+                                          Header="Confortable" Tag="Comfortable"
+                                          IsCheckable="True"
+                                          Click="WorktreeDensityMenuItem_Click" />
+                                <MenuItem x:Name="WorktreeDensityCompactItem"
+                                          Header="Compact" Tag="Compact"
+                                          IsCheckable="True"
+                                          Click="WorktreeDensityMenuItem_Click" />
+                            </MenuItem>
+                        </MenuItem>
+                    </Menu>
 
                     <TreeView x:Name="NavigationTree"
                               Tag="Comfortable"
