@@ -78,7 +78,9 @@
             <Button x:Name="CreateProcessButton" Content="+ Créer un processus métier"
                     Padding="9,5" Margin="0,0,7,7" Click="CreateProcess_Click"/>
             <Button x:Name="CreateActivityButton" Content="+ Créer une activité"
-                    Padding="9,5" Margin="0,0,14,7" Click="CreateActivity_Click"/>
+                    Padding="9,5" Margin="0,0,7,7" Click="CreateActivity_Click"/>
+            <Button x:Name="RenameActivityButton" Content="Renommer l'activité"
+                    Padding="9,5" Margin="0,0,14,7" Click="RenameActivity_Click"/>
             <TextBlock Text="Activité :" VerticalAlignment="Center" Margin="0,0,6,7"/>
             <ComboBox x:Name="ActivityCombo" Width="175" MinHeight="29"
                       DisplayMemberPath="Label" Margin="0,0,9,7"/>
