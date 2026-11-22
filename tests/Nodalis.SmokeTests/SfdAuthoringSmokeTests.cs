@@ -434,6 +434,20 @@ internal static class SfdAuthoringSmokeTests
             File.Exists(firstOfSecond.AbsolutePath),
             "A new PM must restart ACT numbering and permit an ID-only draft title.");
 
+        string previousBody = await File.ReadAllTextAsync(firstOfSecond.AbsolutePath);
+        await File.AppendAllTextAsync(firstOfSecond.AbsolutePath,
+            "\n## Notes humaines fictives\n\nTexte à préserver.\n");
+        SfdDocumentEntry renamedActivity = await registry.RenameActivityAsync(
+            project.ProjectDirectory, firstOfSecond.Card.Id, "Activité personnalisée");
+        string afterRename = await File.ReadAllTextAsync(renamedActivity.AbsolutePath);
+        Require(renamedActivity.Card.Id == firstOfSecond.Card.Id &&
+            renamedActivity.Card.Reference == "PM-0002-ACT-001" &&
+            renamedActivity.Card.Title == "Activité personnalisée" &&
+            afterRename.Contains("Notes humaines fictives", StringComparison.Ordinal) &&
+            afterRename.Contains("Texte à préserver", StringComparison.Ordinal) &&
+            afterRename.Length >= previousBody.Length,
+            "Renaming an ACT must preserve ID, reference and authored Markdown.");
+
         ProjectCreationResult standard = await projectCreator.CreateAsync(
             new ProjectCreationRequest
             {
