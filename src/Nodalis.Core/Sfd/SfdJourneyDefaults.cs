@@ -64,6 +64,17 @@ public static class SfdJourneyDefaults
             throw new InvalidDataException("Modèle de parcours SFD inattendu.");
         }
 
+        string[] masterKeys =
+        [
+            "sfd-master-01", "sfd-master-02", "sfd-master-03",
+            "sfd-master-04", "sfd-master-05"
+        ];
+        if (masterKeys.All(key => previous.Steps.SelectMany(item =>
+                item.Operations).Any(operation => operation.PromptKey == key)))
+        {
+            return previous;
+        }
+
         ProjectJourneyDocument defaults = Create(previous.ProjectId);
         string[] oldKeys =
         [
@@ -104,8 +115,10 @@ public static class SfdJourneyDefaults
 
             List<ProjectJourneyOperation> additional = original?.Operations
                 .Where(item => item.PromptKey is null ||
-                    (!item.PromptKey.StartsWith("sfd-", StringComparison.Ordinal) &&
-                     !item.PromptKey.StartsWith("sfd-master-", StringComparison.Ordinal)))
+                    item.PromptKey is not ("sfd-01" or "sfd-02" or
+                        "sfd-03" or "sfd-04" or "sfd-master-01" or
+                        "sfd-master-02" or "sfd-master-03" or
+                        "sfd-master-04" or "sfd-master-05"))
                 .ToList() ?? [];
             migrated.Add(step with
             {
