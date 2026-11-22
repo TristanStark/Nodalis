@@ -271,8 +271,14 @@ internal static class SfdPromptSmokeTests
             masterJourney, priorMaster.Sha256);
         string rootPresentation = Path.Combine(project.ProjectDirectory,
             "Présentation.md");
-        await File.AppendAllTextAsync(rootPresentation,
-            "\n## Contexte métier racine unique : TEST-FONCTION-001\n");
+        string overview = await File.ReadAllTextAsync(rootPresentation);
+        Require(overview.Contains("## Présentation\n\n## Liens métier",
+                StringComparison.Ordinal),
+            "New project overview fixture should start with a blank business presentation.");
+        overview = overview.Replace("## Présentation\n\n## Liens métier",
+            "## Présentation\n\nCONTEXTE MÉTIER RACINE UNIQUE TEST-FONCTION-001\n\n## Liens métier",
+            StringComparison.Ordinal);
+        await File.WriteAllTextAsync(rootPresentation, overview);
         SfdMasterPromptService masters = new(workspace);
         SfdPreparedPrompt cartography = await masters.PrepareAsync(
             project.ProjectDirectory, "sfd-master-01");
